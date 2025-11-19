@@ -1,0 +1,145 @@
+{
+  "ecDevicePath": "\\\\.\\WinRing0_1_2",
+  "monitoringIntervalMs": 750,
+  "ecFanRegisterMap": {
+    "CPU": 47,
+    "GPU": 48
+  },
+  "fanPresets": [
+    {
+      "name": "Quiet",
+      "isBuiltIn": true,
+      "curve": [
+        { "temperatureC": 40, "fanPercent": 20 },
+        { "temperatureC": 70, "fanPercent": 45 },
+        { "temperatureC": 85, "fanPercent": 65 }
+      ]
+    },
+    {
+      "name": "Balanced",
+      "isBuiltIn": true,
+      "curve": [
+        { "temperatureC": 40, "fanPercent": 30 },
+        { "temperatureC": 70, "fanPercent": 60 },
+        { "temperatureC": 90, "fanPercent": 80 }
+      ]
+    },
+    {
+      "name": "Performance",
+      "isBuiltIn": true,
+      "curve": [
+        { "temperatureC": 40, "fanPercent": 40 },
+        { "temperatureC": 70, "fanPercent": 75 },
+        { "temperatureC": 95, "fanPercent": 100 }
+      ]
+    },
+    {
+      "name": "Max",
+      "isBuiltIn": true,
+      "curve": [
+        { "temperatureC": 0, "fanPercent": 100 },
+        { "temperatureC": 100, "fanPercent": 100 }
+      ]
+    }
+  ],
+  "performanceModes": [
+    {
+      "name": "Quiet",
+      "cpuPowerLimitWatts": 25,
+      "gpuPowerLimitWatts": 45,
+      "linkedPowerPlanGuid": "381b4222-f694-41f0-9685-ff5bb260df2e",
+      "description": "Low-noise daily use"
+    },
+    {
+      "name": "Balanced",
+      "cpuPowerLimitWatts": 45,
+      "gpuPowerLimitWatts": 85,
+      "linkedPowerPlanGuid": "381b4222-f694-41f0-9685-ff5bb260df2e",
+      "description": "Default OEM behaviour"
+    },
+    {
+      "name": "Performance",
+      "cpuPowerLimitWatts": 65,
+      "gpuPowerLimitWatts": 115,
+      "linkedPowerPlanGuid": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
+      "description": "Sustained gaming"
+    },
+    {
+      "name": "Turbo",
+      "cpuPowerLimitWatts": 80,
+      "gpuPowerLimitWatts": 140,
+      "linkedPowerPlanGuid": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
+      "description": "Bench / burst"
+    }
+  ],
+  "systemToggles": [
+    {
+      "name": "Desktop Window Manager",
+      "serviceName": "UxSms",
+      "enabledByDefault": true,
+      "description": "Windows animations"
+    },
+    {
+      "name": "Xbox Services",
+      "serviceName": "XblGameSave",
+      "enabledByDefault": false,
+      "description": "Game bar background"
+    },
+    {
+      "name": "HP Omen Background",
+      "serviceName": "OmenCommand",
+      "enabledByDefault": true,
+      "description": "OEM telemetry"
+    }
+  ],
+  "lightingProfiles": [
+    {
+      "name": "Omen Red",
+      "effect": "Static",
+      "zones": ["All"],
+      "primaryColor": "#E6002E"
+    },
+    {
+      "name": "Breathe",
+      "effect": "Breathing",
+      "zones": ["Left", "Center", "Right"],
+      "primaryColor": "#E6002E",
+      "secondaryColor": "#1F8FFF",
+      "speed": 0.8
+    }
+  ],
+  "corsairLightingPresets": [
+    {
+      "name": "Sync Static",
+      "effect": "Static",
+      "primaryColor": "#E6002E"
+    },
+    {
+      "name": "Sync Wave",
+      "effect": "Wave",
+      "primaryColor": "#E6002E",
+      "secondaryColor": "#00FFFF"
+    }
+  ],
+  "defaultCorsairDpi": [
+    { "name": "Sniper", "dpi": 800, "liftOffDistanceMm": 1.0 },
+    { "name": "Default", "dpi": 1600, "isDefault": true, "liftOffDistanceMm": 1.5 },
+    { "name": "Turbo", "dpi": 3200, "liftOffDistanceMm": 2.0 }
+  ],
+  "macroProfiles": [
+    { "name": "Sample", "actions": [] }
+  ],
+  "undervolt": {
+    "defaultOffset": {
+      "coreMv": -90,
+      "cacheMv": -60
+    },
+    "respectExternalControllers": true,
+    "probeIntervalMs": 4000
+  },
+  "monitoring": {
+    "pollIntervalMs": 1500,
+    "historyCount": 120,
+    "lowOverheadMode": false
+  }
+}

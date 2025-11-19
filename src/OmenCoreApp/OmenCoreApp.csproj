@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OmenCore</AssemblyName>
+    <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\\OmenCore.ico" />
+    <Resource Include="Assets\\logo.png" />
+    <Resource Include="Assets\\logo-small.png" />
+    <Resource Include="Assets\\omen.png" />
+    <Resource Include="Assets\\corsair.png" />
+    <Resource Include="Assets\\logitechg.png" />
+    <Resource Include="Assets\\amd.png" />
+    <Resource Include="Assets\\intel.png" />
+    <Resource Include="Assets\\nvidia.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+</Project>
