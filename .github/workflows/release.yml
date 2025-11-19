@@ -17,27 +17,31 @@ jobs:
       with:
         dotnet-version: 8.0.x
         
-    - name: Restore dependencies
-      run: dotnet restore OmenCore.sln
-      
-    - name: Build
-      run: dotnet build OmenCore.sln --configuration Release --no-restore
-      
-    - name: Publish
-      run: dotnet publish src/OmenCoreApp/OmenCoreApp.csproj --configuration Release --output ./publish --self-contained true -r win-x64
-      
-    - name: Create ZIP
-      run: Compress-Archive -Path ./publish/* -DestinationPath OmenCore-${{ github.ref_name }}-win-x64.zip
+    - name: Install Inno Setup
+      run: choco install innosetup -y
+
+    - name: Read VERSION
+      id: version
+      shell: pwsh
+      run: |
+        $version = (Get-Content VERSION.txt | Select-Object -First 1).Trim()
+        if ([string]::IsNullOrWhiteSpace($version)) { throw "VERSION.txt must contain a version" }
+        echo "value=$version" >> $env:GITHUB_OUTPUT
+
+    - name: Build installer artifacts
+      shell: pwsh
+      run: ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
       
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          OmenCore-${{ github.ref_name }}-win-x64.zip
+          artifacts/OmenCore-${{ steps.version.outputs.value }}-win-x64.zip
+          artifacts/OmenCoreSetup-${{ steps.version.outputs.value }}.exe
         body: |
           ## OmenCore ${{ github.ref_name }}
           
-          Download and extract the ZIP file, then run `OmenCore.exe`.
+          Download the installer or portable ZIP package.
           
           **Features:**
           - Advanced fan curve control

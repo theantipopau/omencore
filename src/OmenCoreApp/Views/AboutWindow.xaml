@@ -16,13 +16,26 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             
-            <DockPanel Grid.Row="0" Margin="0,0,0,20">
-                <Image Source="/Assets/logo.png" Width="80" Height="80" DockPanel.Dock="Left" Margin="0,0,20,0" />
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="OmenCore" FontSize="28" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                    <TextBlock Text="Gaming Laptop Control Center" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
-                </StackPanel>
-            </DockPanel>
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <DockPanel Grid.Column="0">
+                    <Image Source="/Assets/logo.png" Width="80" Height="80" DockPanel.Dock="Left" Margin="0,0,20,0" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="OmenCore" FontSize="28" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="Gaming Laptop Control Center" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </DockPanel>
+                <Button Grid.Column="1"
+                        Content="✕"
+                        Width="36"
+                        Height="36"
+                        Style="{StaticResource SecondaryButton}"
+                        ToolTip="Close"
+                        Click="CloseClicked" />
+            </Grid>
             
             <StackPanel Grid.Row="1">
                 <Border Background="{StaticResource SurfaceMediumBrush}" 
@@ -68,17 +81,17 @@
                 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                     <Button x:Name="CheckUpdatesButton" 
-                            Content="Check for Updates" 
-                            Width="150" 
-                            Height="40"
+                        Content="⟳ Check for Updates" 
+                        Width="170" 
+                        Height="40"
                             Click="CheckUpdatesClicked" 
                             Style="{StaticResource ModernButton}" 
-                            Padding="16,10" 
-                            Margin="0,0,12,0" />
+                        Padding="16,10" 
+                        Margin="0,0,12,0" />
                     <Button x:Name="CloseButton"
-                            Content="Close" 
-                            Width="100" 
-                            Height="40"
+                        Content="Close Window" 
+                        Width="130" 
+                        Height="40"
                             Click="CloseClicked" 
                             IsCancel="True"
                             Style="{StaticResource SecondaryButton}" 

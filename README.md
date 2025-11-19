@@ -39,6 +39,43 @@ dotnet run
 
 Run `dotnet run` from an elevated PowerShell session so the process can open the EC device, manipulate services, and execute GPU mux commands. The current environment does not have a .NET SDK installed, so `dotnet build` fails until the SDK is added (see `https://aka.ms/dotnet/download`).
 
+### Portable ZIP vs Installer
+
+Release tags automatically publish two artifacts:
+
+- **Portable ZIP** – extracted anywhere; run `OmenCore.exe` directly.
+- **OmenCoreSetup.exe** – full installer that drops the app under `Program Files`, registers shortcuts, and offers to launch on completion.
+
+Both assets come from the GitHub Action defined in `.github/workflows/release.yml` and are signed/created on the `windows-latest` runner. The installer is generated via Inno Setup using the script in `installer/OmenCoreInstaller.iss`.
+
+### Build the installer locally
+
+1. Install the .NET 8 SDK and Inno Setup (e.g. `winget install JRSoftware.InnoSetup` or ensure `iscc` is on PATH).
+2. Run the helper script from the repo root:
+
+```powershell
+pwsh ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
+```
+
+Outputs land in `artifacts/`:
+
+- `OmenCore-<version>-win-x64.zip`
+- `OmenCoreSetup-<version>.exe`
+
+The publish directory (`publish/win-x64`) mirrors what the release pipeline zips and feeds into the installer script.
+
+### Publish to GitHub Releases
+
+1. Update `VERSION.txt` with the semantic version you want to ship.
+2. Tag the commit and push the tag:
+
+```bash
+git tag v<version>
+git push origin v<version>
+```
+
+3. GitHub Actions executes `.github/workflows/release.yml`, which calls `build-installer.ps1` and uploads both `OmenCore-<version>-win-x64.zip` and `OmenCoreSetup-<version>.exe` to the release. No manual upload is required once the tag is pushed.
+
 ## Configuration Model
 
 The first launch replicates `config/default_config.json` to `%APPDATA%\OmenCore\config.json`. You can open this folder from the Config buttons in the UI. Key sections:
