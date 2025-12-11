@@ -4,7 +4,7 @@
 
 OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop application for managing thermals, performance, RGB lighting, and peripherals. Built with WPF on .NET 8, it provides professional-grade hardware control without bloat, telemetry, or mandatory sign-ins.
 
-[![Version](https://img.shields.io/badge/version-1.0.0.7-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.0.0.7)
+[![Version](https://img.shields.io/badge/version-1.0.0.8-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.0.0.8)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -13,18 +13,34 @@ OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop 
 
 ---
 
-## 🆕 What's New in v1.0.0.7
+## 🆕 What's New in v1.0.0.8
 
-### Bug Fixes
-- **Fixed multi-instance game crash** - Running multiple instances of the same game no longer causes dictionary collision
-- **Thread-safe process monitoring** - Switched to ConcurrentDictionary for reliable game detection
-- **Resource cleanup** - Proper disposal of monitoring services on exit
+### 🎮 Game Profile System
+- **Auto-switching profiles** - Automatically apply fan curves, performance, undervolt, GPU mode, and lighting when games launch
+- **Game detection** - Real-time process monitoring with profile auto-apply
+- **Profile analytics** - Track launch count and playtime per game
+- **Import/Export** - Share profiles or backup your settings
 
-### Visual Polish
-- **20+ vector icons** - Crisp, scalable icons replace emoji throughout the UI
-- **Refined window controls** - Professional minimize/maximize/close buttons with red hover on close
-- **Auto-hide update banner** - "Latest version" message now fades after 3 seconds
-- **Improved sidebar** - Colored icons for all action buttons
+### ⚙️ Settings View
+- **Fan Dust Cleaning** - Maintenance mode runs fans at max RPM
+- **Hotkey Configuration** - Customize shortcuts for fan mode, performance, window toggle
+- **Notification Preferences** - Control alerts for temps, fan changes, updates
+- **Export/Import Config** - Full settings backup and restore
+
+### 🎨 UI Improvements
+- **Quick Fan Control Buttons** - One-click Silent, Balanced, Performance, Max modes
+- **Temperature Warning Colors** - Green/yellow/red indicators based on thresholds
+- **RGB Color Picker** - Visual color selector with hex input
+- **Per-Zone RGB Control** - Independent color settings per keyboard zone
+- **Battery Status Panel** - Charge level, health, power source display
+- **CPU Wattage Display** - Real-time power consumption on dashboard
+- **Tooltips** - Hover hints throughout the UI
+
+### 🐛 Bug Fixes
+- Fixed ThermalChart binding (temperature history now displays correctly)
+- Fixed system tray submenu styling (dark mode compatible)
+- Thread-safe process monitoring with ConcurrentDictionary
+- Proper resource cleanup on exit
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
@@ -139,13 +155,13 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 ## 🚀 Installation
 
 ### Option 1: Installer (Recommended)
-1. Download `OmenCoreSetup-1.0.0.7.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCoreSetup-1.0.0.8.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Run installer as Administrator
 3. Select "Install WinRing0 driver" task (recommended)
 4. Launch OmenCore from Start Menu or Desktop
 
 ### Option 2: Portable ZIP
-1. Download `OmenCore-1.0.0.7-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCore-1.0.0.8-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Extract to `C:\OmenCore` (or preferred location)
 3. Right-click `OmenCore.exe` → Run as Administrator
 4. Manually install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) for WinRing0 driver
