@@ -38,6 +38,8 @@ namespace OmenCore.ViewModels
         private readonly OmenGamingHubCleanupService _hubCleanupService;
         private readonly SystemInfoService _systemInfoService;
         private readonly AutoUpdateService _autoUpdateService;
+        private readonly ProcessMonitoringService _processMonitoringService;
+        private readonly GameProfileService _gameProfileService;
         
         // Sub-ViewModels for modular UI
         public FanControlViewModel? FanControl { get; private set; }
@@ -58,6 +60,7 @@ namespace OmenCore.ViewModels
         private readonly AsyncRelayCommand _applyLogitechColorInternalCommand;
         private readonly AsyncRelayCommand _syncCorsairThemeInternalCommand;
         private readonly RelayCommand _openReleaseNotesCommand;
+        private readonly RelayCommand _openGameProfileManagerCommand;
         private readonly INotifyCollectionChanged? _macroBufferNotifier;
         private readonly StringBuilder _logBuffer = new();
 
@@ -115,6 +118,7 @@ namespace OmenCore.ViewModels
         public ReadOnlyObservableCollection<MacroAction> RecordingBuffer => _macroService.Buffer;
         public ObservableCollection<string> RecentEvents { get; } = new();
         public ObservableCollection<string> OmenCleanupSteps { get; } = new();
+        public ReadOnlyObservableCollection<GameProfile> GameProfiles => _gameProfileService.Profiles;
         
         public SystemInfo SystemInfo { get; private set; }
         public string AppVersionLabel
@@ -696,6 +700,7 @@ namespace OmenCore.ViewModels
         public ICommand CleanupOmenHubCommand { get; }
         public ICommand InstallUpdateCommand { get; }
         public ICommand OpenReleaseNotesCommand { get; }
+        public ICommand OpenGameProfileManagerCommand { get; }
         public ICommand ExportConfigurationCommand { get; }
         public ICommand ImportConfigurationCommand { get; }
 
@@ -762,6 +767,8 @@ namespace OmenCore.ViewModels
             _systemInfoService = new SystemInfoService(_logging);
             SystemInfo = _systemInfoService.GetSystemInfo();
             _autoUpdateService = new AutoUpdateService(_logging);
+            _processMonitoringService = new ProcessMonitoringService(_logging);
+            _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
             _autoUpdateService.DownloadProgressChanged += OnUpdateDownloadProgressChanged;
             _autoUpdateService.UpdateCheckCompleted += OnBackgroundUpdateCheckCompleted;
 
@@ -840,6 +847,8 @@ namespace OmenCore.ViewModels
             InstallUpdateCommand = _installUpdateCommand;
             _openReleaseNotesCommand = new RelayCommand(_ => OpenReleaseNotes(), _ => CanOpenReleaseNotes());
             OpenReleaseNotesCommand = _openReleaseNotesCommand;
+            _openGameProfileManagerCommand = new RelayCommand(_ => OpenGameProfileManager());
+            OpenGameProfileManagerCommand = _openGameProfileManagerCommand;
             ExportConfigurationCommand = new AsyncRelayCommand(_ => ExportConfigurationAsync());
             ImportConfigurationCommand = new AsyncRelayCommand(_ => ImportConfigurationAsync());
 
@@ -867,6 +876,176 @@ namespace OmenCore.ViewModels
             if (updatePrefs.CheckOnStartup)
             {
                 _ = CheckForUpdatesBannerAsync();
+            }
+            
+            // Initialize game profile system
+            InitializeGameProfilesAsync();
+        }
+
+        private async void InitializeGameProfilesAsync()
+        {
+            try
+            {
+                // Hook into profile apply events
+                _gameProfileService.ProfileApplyRequested += OnProfileApplyRequested;
+                _gameProfileService.ActiveProfileChanged += OnActiveProfileChanged;
+                
+                // Initialize and start monitoring
+                await _gameProfileService.InitializeAsync();
+                _logging.Info("Game profile system initialized");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to initialize game profile system", ex);
+            }
+        }
+
+        private void OnActiveProfileChanged(object? sender, EventArgs e)
+        {
+            var profile = _gameProfileService.ActiveProfile;
+            if (profile != null)
+            {
+                _logging.Info($"Active profile: {profile.Name}");
+                // Update dashboard if needed
+                if (Dashboard != null)
+                {
+                    // Dashboard.CurrentGameProfile = profile.Name;
+                }
+            }
+        }
+
+        private async void OnProfileApplyRequested(object? sender, ProfileApplyEventArgs e)
+        {
+            try
+            {
+                if (e.Trigger == ProfileTrigger.GameExit)
+                {
+                    _logging.Info("Game exited - restoring default settings");
+                    await RestoreDefaultSettingsAsync();
+                }
+                else if (e.Profile != null)
+                {
+                    _logging.Info($"Applying profile '{e.Profile.Name}' (trigger: {e.Trigger})");
+                    await ApplyGameProfileAsync(e.Profile);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply game profile: {ex.Message}", ex);
+            }
+        }
+
+        private async Task ApplyGameProfileAsync(GameProfile profile)
+        {
+            // Apply fan preset
+            if (!string.IsNullOrEmpty(profile.FanPresetName) && FanControl != null)
+            {
+                var preset = FanControl.FanPresets.FirstOrDefault(p => p.Name == profile.FanPresetName);
+                if (preset != null)
+                {
+                    FanControl.SelectedPreset = preset;
+                    _logging.Info($"Applied fan preset: {preset.Name}");
+                }
+            }
+
+            // Apply performance mode
+            if (!string.IsNullOrEmpty(profile.PerformanceModeName) && SystemControl != null)
+            {
+                var mode = SystemControl.PerformanceModes.FirstOrDefault(m => m.Name == profile.PerformanceModeName);
+                if (mode != null)
+                {
+                    SystemControl.SelectedPerformanceMode = mode;
+                    _logging.Info($"Applied performance mode: {mode.Name}");
+                }
+            }
+
+            // Apply CPU undervolt
+            if (profile.CpuCoreOffsetMv.HasValue && SystemControl != null)
+            {
+                SystemControl.RequestedCoreOffset = profile.CpuCoreOffsetMv.Value;
+                SystemControl.RequestedCacheOffset = profile.CpuCacheOffsetMv ?? profile.CpuCoreOffsetMv.Value;
+                // Trigger apply command
+                if (SystemControl.ApplyUndervoltCommand?.CanExecute(null) == true)
+                {
+                    SystemControl.ApplyUndervoltCommand.Execute(null);
+                }
+                _logging.Info($"Applied undervolt: Core={profile.CpuCoreOffsetMv}mV, Cache={profile.CpuCacheOffsetMv ?? profile.CpuCoreOffsetMv}mV");
+            }
+
+            // Apply GPU mode
+            if (profile.GpuMode.HasValue && SystemControl != null)
+            {
+                SystemControl.SelectedGpuMode = profile.GpuMode.Value;
+                // Trigger GPU switch via command
+                if (SystemControl.SwitchGpuModeCommand?.CanExecute(null) == true)
+                {
+                    SystemControl.SwitchGpuModeCommand.Execute(null);
+                }
+                _logging.Info($"Applied GPU mode: {profile.GpuMode}");
+            }
+
+            // Apply Corsair lighting
+            if (!string.IsNullOrEmpty(profile.PeripheralLightingProfileName) && Lighting != null)
+            {
+                var preset = Lighting.CorsairLightingPresets.FirstOrDefault(p => p.Name == profile.PeripheralLightingProfileName);
+                if (preset != null && Lighting.CorsairDevices.Any())
+                {
+                    Lighting.SelectedCorsairPreset = preset;
+                    // Apply to all Corsair devices
+                    foreach (var device in Lighting.CorsairDevices)
+                    {
+                        Lighting.SelectedCorsairDevice = device;
+                        if (Lighting.ApplyCorsairLightingCommand?.CanExecute(null) == true)
+                        {
+                            Lighting.ApplyCorsairLightingCommand.Execute(null);
+                        }
+                    }
+                    _logging.Info($"Applied Corsair lighting: {preset.Name}");
+                }
+            }
+
+            _logging.Info($"✓ Profile '{profile.Name}' applied successfully");
+        }
+
+        private async Task RestoreDefaultSettingsAsync()
+        {
+            // Restore to balanced defaults
+            if (FanControl != null)
+            {
+                var balanced = FanControl.FanPresets.FirstOrDefault(p => p.Name == "Balanced");
+                if (balanced != null)
+                {
+                    FanControl.SelectedPreset = balanced;
+                }
+            }
+
+            if (SystemControl != null)
+            {
+                var balanced = SystemControl.PerformanceModes.FirstOrDefault(m => m.Name == "Balanced");
+                if (balanced != null)
+                {
+                    SystemControl.SelectedPerformanceMode = balanced;
+                }
+            }
+
+            _logging.Info("✓ Restored default settings");
+        }
+
+        private void OpenGameProfileManager()
+        {
+            try
+            {
+                var window = new GameProfileManagerView
+                {
+                    Owner = Application.Current.MainWindow,
+                    DataContext = new GameProfileManagerViewModel(_gameProfileService, _logging)
+                };
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to open game profile manager", ex);
+                MessageBox.Show($"Failed to open profile manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

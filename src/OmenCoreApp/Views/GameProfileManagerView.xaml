@@ -1,0 +1,334 @@
+<Window x:Class="OmenCore.Views.GameProfileManagerView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Game Profile Manager"
+        Width="900" Height="650"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <!-- Modern Dark Theme -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3E3E42"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Game Profile Manager"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       Margin="0,0,0,8"/>
+            <TextBlock Text="Automatically switch settings when games launch"
+                       FontSize="14"
+                       Foreground="#999999"/>
+        </StackPanel>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Profile List -->
+            <Border Grid.Column="0"
+                    Background="#252526"
+                    BorderBrush="#3F3F46"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Search Box -->
+                    <TextBox x:Name="SearchBox"
+                             Grid.Row="0"
+                             Margin="0,0,0,8"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Search profiles..."/>
+
+                    <!-- Profiles ListBox -->
+                    <ListBox x:Name="ProfilesList"
+                             Grid.Row="1"
+                             ItemsSource="{Binding FilteredProfiles}"
+                             SelectedItem="{Binding SelectedProfile}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Foreground="White"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/>
+                                        <RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{Binding Name}"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"/>
+                                    <TextBlock Grid.Row="1"
+                                               Text="{Binding ExecutableName}"
+                                               FontSize="11"
+                                               Foreground="#999999"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Action Buttons -->
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                        <Button Content="➕ New Profile"
+                                Command="{Binding CreateProfileCommand}"
+                                Margin="0,0,0,4"/>
+                        <Button Content="📋 Duplicate"
+                                Command="{Binding DuplicateProfileCommand}"
+                                Margin="0,0,0,4"/>
+                        <Button Content="🗑 Delete"
+                                Command="{Binding DeleteProfileCommand}"
+                                Margin="0,0,0,4"/>
+                        <Separator Margin="0,8"/>
+                        <Button Content="📥 Import Profiles"
+                                Command="{Binding ImportProfilesCommand}"
+                                Margin="0,0,0,4"/>
+                        <Button Content="📤 Export Profiles"
+                                Command="{Binding ExportProfilesCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Profile Editor -->
+            <Border Grid.Column="2"
+                    Background="#252526"
+                    BorderBrush="#3F3F46"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Profile Settings"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,0,0,16"/>
+
+                        <!-- Profile Name -->
+                        <Label Content="Profile Name"/>
+                        <TextBox Text="{Binding SelectedProfile.Name, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,12"/>
+
+                        <!-- Executable Name -->
+                        <Label Content="Executable Name (e.g., RocketLeague.exe)"/>
+                        <TextBox Text="{Binding SelectedProfile.ExecutableName, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,12"/>
+
+                        <!-- Executable Path (Optional) -->
+                        <Label Content="Executable Path (Optional - for specific installs)"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding SelectedProfile.ExecutablePath, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="1"
+                                    Content="Browse..."
+                                    Command="{Binding BrowseExecutableCommand}"
+                                    Margin="8,0,0,0"/>
+                        </Grid>
+
+                        <!-- Enabled -->
+                        <CheckBox Content="Enable Auto-Switch"
+                                  IsChecked="{Binding SelectedProfile.IsEnabled}"
+                                  Margin="0,0,0,12"/>
+
+                        <Separator Margin="0,8,0,16"/>
+
+                        <!-- Performance Settings -->
+                        <TextBlock Text="Performance Settings"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,0,0,12"/>
+
+                        <!-- Fan Preset -->
+                        <Label Content="Fan Preset"/>
+                        <ComboBox ItemsSource="{Binding FanPresets}"
+                                  SelectedItem="{Binding SelectedProfile.FanPresetName}"
+                                  Margin="0,0,0,12"/>
+
+                        <!-- Performance Mode -->
+                        <Label Content="Performance Mode"/>
+                        <ComboBox ItemsSource="{Binding PerformanceModes}"
+                                  SelectedItem="{Binding SelectedProfile.PerformanceModeName}"
+                                  Margin="0,0,0,12"/>
+
+                        <!-- CPU Undervolt -->
+                        <Label Content="CPU Core Undervolt (mV)"/>
+                        <TextBox Text="{Binding SelectedProfile.CpuCoreOffsetMv, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,12"/>
+
+                        <!-- GPU Mode -->
+                        <Label Content="GPU Mode"/>
+                        <ComboBox ItemsSource="{Binding GpuModes}"
+                                  SelectedItem="{Binding SelectedProfile.GpuMode}"
+                                  Margin="0,0,0,12"/>
+
+                        <Separator Margin="0,8,0,16"/>
+
+                        <!-- RGB Settings -->
+                        <TextBlock Text="Lighting Settings"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,0,0,12"/>
+
+                        <!-- Keyboard Lighting -->
+                        <Label Content="Keyboard Lighting Profile"/>
+                        <ComboBox ItemsSource="{Binding KeyboardProfiles}"
+                                  SelectedItem="{Binding SelectedProfile.KeyboardLightingProfileName}"
+                                  Margin="0,0,0,12"/>
+
+                        <!-- Peripheral Lighting -->
+                        <Label Content="Peripheral Lighting Profile"/>
+                        <ComboBox ItemsSource="{Binding PeripheralProfiles}"
+                                  SelectedItem="{Binding SelectedProfile.PeripheralLightingProfileName}"
+                                  Margin="0,0,0,12"/>
+
+                        <Separator Margin="0,8,0,16"/>
+
+                        <!-- Advanced -->
+                        <TextBlock Text="Advanced Settings"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,0,0,12"/>
+
+                        <!-- Priority -->
+                        <Label Content="Priority (higher = takes precedence if multiple games match)"/>
+                        <TextBox Text="{Binding SelectedProfile.Priority, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,12"/>
+
+                        <Separator Margin="0,8,0,16"/>
+
+                        <!-- Statistics -->
+                        <TextBlock Text="Statistics"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Margin="0,0,0,12"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Launch Count: " Foreground="#999999"/>
+                            <TextBlock Text="{Binding SelectedProfile.LaunchCount}" Foreground="White" FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Total Playtime: " Foreground="#999999"/>
+                            <TextBlock Text="{Binding SelectedProfile.FormattedPlaytime}" Foreground="White" FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Created: " Foreground="#999999"/>
+                            <TextBlock Text="{Binding SelectedProfile.CreatedAt, StringFormat='{}{0:MMM d, yyyy h:mm tt}'}" Foreground="White"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Modified: " Foreground="#999999"/>
+                            <TextBlock Text="{Binding SelectedProfile.ModifiedAt, StringFormat='{}{0:MMM d, yyyy h:mm tt}'}" Foreground="White"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Footer -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button Content="Save and Close"
+                    Command="{Binding SaveCommand}"
+                    Margin="0,0,8,0"
+                    Padding="16,8"/>
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Padding="16,8"/>
+        </StackPanel>
+    </Grid>
+</Window>
