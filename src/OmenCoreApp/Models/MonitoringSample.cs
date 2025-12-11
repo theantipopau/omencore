@@ -19,6 +19,15 @@ namespace OmenCore.Models
         public double SsdTemperatureC { get; set; }
         public double DiskUsagePercent { get; set; }
         
+        // Enhanced GPU metrics (v1.1)
+        public double GpuPowerWatts { get; set; }
+        public double GpuClockMhz { get; set; }
+        public double GpuMemoryClockMhz { get; set; }
+        public double GpuVramTotalMb { get; set; }
+        public double GpuFanPercent { get; set; }
+        public double GpuHotspotTemperatureC { get; set; }
+        public string GpuName { get; set; } = string.Empty;
+        
         // Battery info
         public double BatteryChargePercent { get; set; }
         public bool IsOnAcPower { get; set; }
@@ -27,5 +36,8 @@ namespace OmenCore.Models
         
         // Computed property for RAM usage percentage
         public double RamUsagePercent => RamTotalGb > 0 ? (RamUsageGb / RamTotalGb) * 100 : 0;
+        
+        // Computed property for VRAM usage percentage
+        public double GpuVramUsagePercent => GpuVramTotalMb > 0 ? (GpuVramUsageMb / GpuVramTotalMb) * 100 : 0;
     }
 }

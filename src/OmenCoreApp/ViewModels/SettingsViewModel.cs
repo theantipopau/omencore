@@ -508,7 +508,7 @@ namespace OmenCore.ViewModels
         {
             var systemInfo = _systemInfoService.GetSystemInfo();
             
-            if (systemInfo.IsHpOmen)
+            if (systemInfo.IsHpGaming)
             {
                 var canClean = _fanCleaningService.IsSupported;
                 if (canClean)
@@ -561,7 +561,7 @@ namespace OmenCore.ViewModels
                 await _fanCleaningService.StartCleaningAsync(
                     progress =>
                     {
-                        Application.Current.Dispatcher.Invoke(() =>
+                        Application.Current?.Dispatcher?.BeginInvoke(() =>
                         {
                             FanCleaningProgress = progress.Message;
                             FanCleaningProgressPercent = progress.ProgressPercent;

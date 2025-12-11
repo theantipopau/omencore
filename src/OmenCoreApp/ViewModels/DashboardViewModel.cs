@@ -103,7 +103,7 @@ namespace OmenCore.ViewModels
             LatestMonitoringSample = sample;
             
             // Marshal to UI thread for ObservableCollection updates
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 // Convert to ThermalSample for temperature charts
                 _thermalSamples.Add(new ThermalSample

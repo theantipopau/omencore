@@ -91,7 +91,8 @@ namespace OmenCore.Services
                     // Read fan speeds
                     var fanSpeeds = _fanController.ReadFanSpeeds().ToList();
 
-                    App.Current.Dispatcher.Invoke(() =>
+                    // Use BeginInvoke to avoid potential deadlocks
+                    App.Current?.Dispatcher?.BeginInvoke(() =>
                     {
                         _thermalSamples.Add(sample);
                         const int window = 120;

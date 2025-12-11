@@ -98,15 +98,22 @@ namespace OmenCore.Services
                         _cachedInfo.Model = system["Model"]?.ToString()?.Trim() ?? "Unknown";
                         _cachedInfo.SystemFamily = system["SystemFamily"]?.ToString()?.Trim() ?? "";
                         
-                        // Detect if this is an HP Omen system
+                        // Detect HP Gaming laptops (OMEN and Victus)
                         var manufacturer = _cachedInfo.Manufacturer.ToLowerInvariant();
                         var model = _cachedInfo.Model.ToLowerInvariant();
-                        _cachedInfo.IsHpOmen = (manufacturer.Contains("hp") || manufacturer.Contains("hewlett")) && model.Contains("omen");
+                        var isHp = manufacturer.Contains("hp") || manufacturer.Contains("hewlett");
+                        
+                        _cachedInfo.IsHpOmen = isHp && model.Contains("omen");
+                        _cachedInfo.IsHpVictus = isHp && model.Contains("victus");
                         
                         if (_cachedInfo.IsHpOmen)
-                            _logging.Info($"HP Omen system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                            _logging.Info($"HP OMEN system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                        else if (_cachedInfo.IsHpVictus)
+                            _logging.Info($"HP Victus system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                        else if (isHp)
+                            _logging.Warn($"Non-gaming HP system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
                         else
-                            _logging.Warn($"Non-HP Omen system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                            _logging.Warn($"Non-HP system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
                     }
                 }
                 

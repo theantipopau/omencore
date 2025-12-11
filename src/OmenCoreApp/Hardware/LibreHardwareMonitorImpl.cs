@@ -38,6 +38,14 @@ namespace OmenCore.Hardware
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
         private string _lastGpuName = string.Empty;
+        
+        // Enhanced GPU metrics (v1.1)
+        private double _cachedGpuPower = 0;
+        private double _cachedGpuClock = 0;
+        private double _cachedGpuMemoryClock = 0;
+        private double _cachedVramTotal = 0;
+        private double _cachedGpuFan = 0;
+        private double _cachedGpuHotspot = 0;
 
         private readonly Action<string>? _logger;
 
@@ -172,6 +180,43 @@ namespace OmenCore.Hardware
                                 ?? GetSensor(hardware, SensorType.SmallData, "D3D Dedicated Memory Used")
                                 ?? GetSensor(hardware, SensorType.Data, "GPU Memory Used");
                             _cachedVramUsage = vramSensor?.Value ?? 0;
+                            
+                            // Enhanced GPU metrics (v1.1)
+                            // GPU Power
+                            var gpuPowerSensor = GetSensor(hardware, SensorType.Power, "GPU Power")
+                                ?? GetSensor(hardware, SensorType.Power, "Board Power")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Power);
+                            _cachedGpuPower = gpuPowerSensor?.Value ?? 0;
+                            
+                            // GPU Core Clock
+                            var gpuClockSensor = GetSensor(hardware, SensorType.Clock, "GPU Core")
+                                ?? GetSensor(hardware, SensorType.Clock, "Core")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Clock && s.Name.Contains("Core"));
+                            _cachedGpuClock = gpuClockSensor?.Value ?? 0;
+                            
+                            // GPU Memory Clock
+                            var gpuMemClockSensor = GetSensor(hardware, SensorType.Clock, "GPU Memory")
+                                ?? GetSensor(hardware, SensorType.Clock, "Memory")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Clock && s.Name.Contains("Memory"));
+                            _cachedGpuMemoryClock = gpuMemClockSensor?.Value ?? 0;
+                            
+                            // Total VRAM
+                            var vramTotalSensor = GetSensor(hardware, SensorType.SmallData, "GPU Memory Total")
+                                ?? GetSensor(hardware, SensorType.SmallData, "D3D Dedicated Memory Total")
+                                ?? GetSensor(hardware, SensorType.Data, "GPU Memory Total");
+                            _cachedVramTotal = vramTotalSensor?.Value ?? 0;
+                            
+                            // GPU Fan
+                            var gpuFanSensor = GetSensor(hardware, SensorType.Control, "GPU Fan")
+                                ?? GetSensor(hardware, SensorType.Load, "GPU Fan")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.Name.Contains("Fan") && s.SensorType == SensorType.Control);
+                            _cachedGpuFan = gpuFanSensor?.Value ?? 0;
+                            
+                            // GPU Hotspot Temperature
+                            var gpuHotspotSensor = GetSensor(hardware, SensorType.Temperature, "GPU Hot Spot")
+                                ?? GetSensor(hardware, SensorType.Temperature, "Hot Spot")
+                                ?? GetSensor(hardware, SensorType.Temperature, "GPU Hotspot");
+                            _cachedGpuHotspot = gpuHotspotSensor?.Value ?? 0;
                             break;
                             
                         case HardwareType.GpuIntel:
@@ -347,7 +392,15 @@ namespace OmenCore.Hardware
                 IsOnAcPower = _cachedIsOnAc,
                 BatteryDischargeRateW = Math.Round(_cachedDischargeRate, 1),
                 BatteryTimeRemaining = _cachedBatteryTimeRemaining,
-                Timestamp = DateTime.Now
+                Timestamp = DateTime.Now,
+                // Enhanced GPU metrics (v1.1)
+                GpuPowerWatts = Math.Round(_cachedGpuPower, 1),
+                GpuClockMhz = Math.Round(_cachedGpuClock, 0),
+                GpuMemoryClockMhz = Math.Round(_cachedGpuMemoryClock, 0),
+                GpuVramTotalMb = Math.Round(_cachedVramTotal, 0),
+                GpuFanPercent = Math.Round(_cachedGpuFan, 0),
+                GpuHotspotTemperatureC = Math.Round(_cachedGpuHotspot, 1),
+                GpuName = _lastGpuName
             };
         }
 

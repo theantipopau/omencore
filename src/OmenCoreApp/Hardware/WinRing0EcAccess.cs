@@ -12,6 +12,7 @@ namespace OmenCore.Hardware
     {
         private SafeFileHandle? _handle;
         private string _devicePath = string.Empty;
+        private bool _disposed;
 
         /// <summary>
         /// Allowlist of EC addresses that are safe to write (fan control, keyboard backlight, etc.)
@@ -103,10 +104,22 @@ namespace OmenCore.Hardware
 
         private void EnsureHandle()
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(WinRing0EcAccess));
+            }
             if (!IsAvailable)
             {
                 throw new InvalidOperationException($"EC bridge {_devicePath} is not ready");
             }
+        }
+        
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _handle?.Dispose();
+            _handle = null;
         }
 
         [StructLayout(LayoutKind.Sequential)]

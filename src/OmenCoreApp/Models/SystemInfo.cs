@@ -32,6 +32,12 @@ namespace OmenCore.Models
         public string Model { get; set; } = string.Empty;
         
         public bool IsHpOmen { get; set; }
+        public bool IsHpVictus { get; set; }
+        
+        /// <summary>
+        /// True if this is any HP Gaming laptop (OMEN or Victus)
+        /// </summary>
+        public bool IsHpGaming => IsHpOmen || IsHpVictus;
         
         // HP-specific properties for BIOS/driver updates (v1.1)
         public string BiosVersion { get; set; } = string.Empty;

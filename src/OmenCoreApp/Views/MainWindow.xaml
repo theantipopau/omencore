@@ -320,15 +320,15 @@
                                 CornerRadius="8" 
                                 Padding="14,10" 
                                 Margin="24,12,24,12"
-                                Visibility="{Binding SystemInfo.IsHpOmen, Converter={StaticResource InverseBoolToVisibility}}">
+                                Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="#FF9800" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
                                 <StackPanel>
-                                    <TextBlock Text="Warning: Non-HP Omen System Detected" 
+                                    <TextBlock Text="Warning: Non-HP Gaming System Detected" 
                                                FontWeight="Bold" 
                                                Foreground="#FFFFFF" 
                                                FontSize="14" />
-                                    <TextBlock Text="This application is designed for HP Omen laptops. Some features may not work correctly on your system." 
+                                    <TextBlock Text="This application is designed for HP OMEN and Victus gaming laptops. Some features may not work correctly on your system." 
                                                TextWrapping="Wrap" 
                                                Foreground="#FFFFFF" 
                                                FontSize="12" 

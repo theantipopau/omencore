@@ -62,7 +62,7 @@ namespace OmenCore.Services
             get
             {
                 var sysInfo = _systemInfoService.GetSystemInfo();
-                return sysInfo.IsHpOmen && _ecAccess.IsAvailable;
+                return sysInfo.IsHpGaming && _ecAccess.IsAvailable;
             }
         }
 

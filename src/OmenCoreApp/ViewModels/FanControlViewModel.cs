@@ -1,6 +1,10 @@
+using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows.Input;
+using Microsoft.Win32;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Utils;
@@ -56,6 +60,8 @@ namespace OmenCore.ViewModels
 
         public ICommand ApplyCustomCurveCommand { get; }
         public ICommand SaveCustomPresetCommand { get; }
+        public ICommand ImportPresetsCommand { get; }
+        public ICommand ExportPresetsCommand { get; }
         
         // Quick preset commands
         public ICommand ApplyMaxCoolingCommand { get; }
@@ -70,6 +76,8 @@ namespace OmenCore.ViewModels
             
             ApplyCustomCurveCommand = new RelayCommand(_ => ApplyCustomCurve());
             SaveCustomPresetCommand = new RelayCommand(_ => SaveCustomPreset());
+            ImportPresetsCommand = new RelayCommand(_ => ImportPresets());
+            ExportPresetsCommand = new RelayCommand(_ => ExportPresets());
             
             // Quick preset buttons
             ApplyMaxCoolingCommand = new RelayCommand(_ => ApplyFanMode("Max"));
@@ -325,5 +333,120 @@ namespace OmenCore.ViewModels
                     SelectedPreset = preset;
             }
         }
+
+        /// <summary>
+        /// Import fan presets from a JSON file
+        /// </summary>
+        private void ImportPresets()
+        {
+            try
+            {
+                var dialog = new OpenFileDialog
+                {
+                    Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Import Fan Presets"
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    var json = File.ReadAllText(dialog.FileName);
+                    var imported = JsonSerializer.Deserialize<FanPresetExport>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (imported?.Presets == null || imported.Presets.Count == 0)
+                    {
+                        System.Windows.MessageBox.Show("No valid fan presets found in file.", "Import Failed",
+                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    int count = 0;
+                    foreach (var preset in imported.Presets)
+                    {
+                        // Skip built-in preset names
+                        if (preset.Name == "Max" || preset.Name == "Auto") continue;
+                        
+                        preset.IsBuiltIn = false;
+                        
+                        // Remove existing preset with same name
+                        var existing = FanPresets.FirstOrDefault(p => p.Name == preset.Name && !p.IsBuiltIn);
+                        if (existing != null)
+                        {
+                            FanPresets.Remove(existing);
+                        }
+
+                        FanPresets.Add(preset);
+                        count++;
+                    }
+
+                    SavePresetsToConfig();
+                    
+                    _logging.Info($"📥 Imported {count} fan preset(s) from {dialog.FileName}");
+                    System.Windows.MessageBox.Show($"Imported {count} fan preset(s)", "Import Complete",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to import fan presets: {ex.Message}", ex);
+                System.Windows.MessageBox.Show($"Failed to import presets: {ex.Message}", "Import Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Export fan presets to a JSON file
+        /// </summary>
+        private void ExportPresets()
+        {
+            try
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Export Fan Presets",
+                    FileName = $"omencore-fan-presets-{DateTime.Now:yyyy-MM-dd}.json"
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    var export = new FanPresetExport
+                    {
+                        ExportDate = DateTime.Now,
+                        Version = "1.1",
+                        Presets = FanPresets.Where(p => !p.IsBuiltIn).ToList()
+                    };
+
+                    var json = JsonSerializer.Serialize(export, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+                    File.WriteAllText(dialog.FileName, json);
+                    
+                    _logging.Info($"📤 Exported {export.Presets.Count} fan preset(s) to {dialog.FileName}");
+                    System.Windows.MessageBox.Show($"Exported {export.Presets.Count} fan preset(s)", "Export Complete",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to export fan presets: {ex.Message}", ex);
+                System.Windows.MessageBox.Show($"Failed to export presets: {ex.Message}", "Export Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Container for fan preset import/export
+    /// </summary>
+    public class FanPresetExport
+    {
+        public DateTime ExportDate { get; set; }
+        public string Version { get; set; } = "1.1";
+        public List<FanPreset> Presets { get; set; } = new();
     }
 }

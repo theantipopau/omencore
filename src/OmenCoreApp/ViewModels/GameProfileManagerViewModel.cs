@@ -145,55 +145,79 @@ namespace OmenCore.ViewModels
 
         private async void DeleteProfile()
         {
-            if (SelectedProfile == null) return;
-
-            var result = MessageBox.Show(
-                $"Delete profile '{SelectedProfile.Name}'?",
-                "Confirm Delete",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
+            try
             {
-                var toDelete = SelectedProfile;
-                await _profileService.DeleteProfileAsync(toDelete);
-                FilterProfiles();
-                SelectedProfile = FilteredProfiles.FirstOrDefault();
-                _logging.Info($"Deleted profile: {toDelete.Name}");
+                if (SelectedProfile == null) return;
+
+                var result = MessageBox.Show(
+                    $"Delete profile '{SelectedProfile.Name}'?",
+                    "Confirm Delete",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    var toDelete = SelectedProfile;
+                    await _profileService.DeleteProfileAsync(toDelete);
+                    FilterProfiles();
+                    SelectedProfile = FilteredProfiles.FirstOrDefault();
+                    _logging.Info($"Deleted profile: {toDelete.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to delete profile: {ex.Message}", ex);
+                MessageBox.Show($"Failed to delete profile: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void ImportProfiles()
         {
-            var dialog = new OpenFileDialog
+            try
             {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Import Game Profiles"
-            };
+                var dialog = new OpenFileDialog
+                {
+                    Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Import Game Profiles"
+                };
 
-            if (dialog.ShowDialog() == true)
+                if (dialog.ShowDialog() == true)
+                {
+                    var count = await _profileService.ImportProfilesAsync(dialog.FileName);
+                    MessageBox.Show($"Imported {count} profile(s)", "Import Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                    FilterProfiles();
+                    _logging.Info($"Imported {count} profiles from {dialog.FileName}");
+                }
+            }
+            catch (Exception ex)
             {
-                var count = await _profileService.ImportProfilesAsync(dialog.FileName);
-                MessageBox.Show($"Imported {count} profile(s)", "Import Complete", MessageBoxButton.OK, MessageBoxImage.Information);
-                FilterProfiles();
-                _logging.Info($"Imported {count} profiles from {dialog.FileName}");
+                _logging.Error($"Failed to import profiles: {ex.Message}", ex);
+                MessageBox.Show($"Failed to import profiles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void ExportProfiles()
         {
-            var dialog = new SaveFileDialog
+            try
             {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Export Game Profiles",
-                FileName = $"omencore-profiles-{DateTime.Now:yyyy-MM-dd}.json"
-            };
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                    Title = "Export Game Profiles",
+                    FileName = $"omencore-profiles-{DateTime.Now:yyyy-MM-dd}.json"
+                };
 
-            if (dialog.ShowDialog() == true)
+                if (dialog.ShowDialog() == true)
+                {
+                    await _profileService.ExportProfilesAsync(dialog.FileName);
+                    MessageBox.Show($"Exported {_profileService.Profiles.Count} profile(s)", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                    _logging.Info($"Exported profiles to {dialog.FileName}");
+                }
+            }
+            catch (Exception ex)
             {
-                await _profileService.ExportProfilesAsync(dialog.FileName);
-                MessageBox.Show($"Exported {_profileService.Profiles.Count} profile(s)", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
-                _logging.Info($"Exported profiles to {dialog.FileName}");
+                _logging.Error($"Failed to export profiles: {ex.Message}", ex);
+                MessageBox.Show($"Failed to export profiles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -217,9 +241,17 @@ namespace OmenCore.ViewModels
 
         private async void Save()
         {
-            await _profileService.SaveProfilesAsync();
-            _logging.Info("Saved game profiles");
-            CloseWindow();
+            try
+            {
+                await _profileService.SaveProfilesAsync();
+                _logging.Info("Saved game profiles");
+                CloseWindow();
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to save profiles: {ex.Message}", ex);
+                MessageBox.Show($"Failed to save profiles: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void Cancel()

@@ -82,7 +82,8 @@ namespace OmenCore.Services
                     {
                         if (!_lowOverheadMode)
                         {
-                            Application.Current.Dispatcher.Invoke(() =>
+                            // Use BeginInvoke to avoid potential deadlocks
+                            Application.Current?.Dispatcher?.BeginInvoke(() =>
                             {
                                 _samples.Add(sample);
                                 while (_samples.Count > _history)

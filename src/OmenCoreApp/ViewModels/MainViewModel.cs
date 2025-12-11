@@ -1242,7 +1242,7 @@ namespace OmenCore.ViewModels
         
         private void OnUpdateDownloadProgressChanged(object? sender, UpdateDownloadProgress progress)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 UpdateDownloadProgress = progress.ProgressPercent;
                 UpdateDownloadStatus = $"{progress.ProgressPercent:F1}% • {progress.DownloadSpeedMbps:F2} MB/s • {FormatTimeSpan(progress.EstimatedTimeRemaining)} remaining";
@@ -1251,7 +1251,7 @@ namespace OmenCore.ViewModels
         
         private void OnBackgroundUpdateCheckCompleted(object? sender, UpdateCheckResult result)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (result.UpdateAvailable && result.LatestVersion != null)
                 {
@@ -1656,7 +1656,7 @@ namespace OmenCore.ViewModels
 
         private void HardwareMonitoringServiceOnSampleUpdated(object? sender, MonitoringSample sample)
         {
-            Application.Current.Dispatcher.Invoke(() => LatestMonitoringSample = sample);
+            Application.Current?.Dispatcher?.BeginInvoke(() => LatestMonitoringSample = sample);
         }
 
         private void RecordingBufferOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1697,7 +1697,7 @@ namespace OmenCore.ViewModels
 
         private void UndervoltServiceOnStatusChanged(object? sender, UndervoltStatus status)
         {
-            Application.Current.Dispatcher.Invoke(() => UndervoltStatus = status);
+            Application.Current?.Dispatcher?.BeginInvoke(() => UndervoltStatus = status);
         }
 
         private void ShowAbout()
@@ -1711,7 +1711,7 @@ namespace OmenCore.ViewModels
 
         private void PushEvent(string message)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 RecentEvents.Insert(0, $"{DateTime.Now:HH:mm:ss} {message}");
                 while (RecentEvents.Count > 30)
@@ -1723,7 +1723,7 @@ namespace OmenCore.ViewModels
 
         private void HandleLogLine(string entry)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 _logBuffer.AppendLine(entry);
                 var lines = _logBuffer.ToString().Split('\n');
@@ -1959,7 +1959,7 @@ namespace OmenCore.ViewModels
 
         private void OnGameProfileApplyRequested(object? sender, ProfileApplyEventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (e.Profile != null)
                 {
@@ -1978,7 +1978,7 @@ namespace OmenCore.ViewModels
 
         private void OnHotkeyToggleFanMode(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (FanControl == null) return;
                 
@@ -2004,7 +2004,7 @@ namespace OmenCore.ViewModels
 
         private void OnHotkeyTogglePerformanceMode(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (SystemControl == null) return;
                 
@@ -2030,7 +2030,7 @@ namespace OmenCore.ViewModels
 
         private void OnHotkeyToggleBoostMode(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 try
                 {
@@ -2050,7 +2050,7 @@ namespace OmenCore.ViewModels
 
         private void OnHotkeyToggleQuietMode(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 try
                 {
@@ -2070,7 +2070,7 @@ namespace OmenCore.ViewModels
 
         private void OnHotkeyToggleWindow(object? sender, EventArgs e)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 var mainWindow = Application.Current.MainWindow;
                 if (mainWindow == null) return;
@@ -2130,7 +2130,29 @@ namespace OmenCore.ViewModels
                 _macroBufferNotifier.CollectionChanged -= RecordingBufferOnCollectionChanged;
             }
             _logging.LogEmitted -= HandleLogLine;
+            
+            // Unsubscribe auto-update events
+            _autoUpdateService.DownloadProgressChanged -= OnUpdateDownloadProgressChanged;
+            _autoUpdateService.UpdateCheckCompleted -= OnBackgroundUpdateCheckCompleted;
             _autoUpdateService.Dispose();
+
+            // Unsubscribe game profile events
+            if (_gameProfileService != null)
+            {
+                _gameProfileService.ProfileApplyRequested -= OnGameProfileApplyRequested;
+                _gameProfileService.ProfileApplyRequested -= OnProfileApplyRequested;
+                _gameProfileService.ActiveProfileChanged -= OnActiveProfileChanged;
+            }
+            
+            // Unsubscribe hotkey events
+            if (_hotkeyService != null)
+            {
+                _hotkeyService.ToggleFanModeRequested -= OnHotkeyToggleFanMode;
+                _hotkeyService.TogglePerformanceModeRequested -= OnHotkeyTogglePerformanceMode;
+                _hotkeyService.ToggleBoostModeRequested -= OnHotkeyToggleBoostMode;
+                _hotkeyService.ToggleQuietModeRequested -= OnHotkeyToggleQuietMode;
+                _hotkeyService.ToggleWindowRequested -= OnHotkeyToggleWindow;
+            }
 
             // Dispose process monitoring and game profile services
             _processMonitoringService?.Dispose();

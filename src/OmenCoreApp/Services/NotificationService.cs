@@ -210,6 +210,126 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// Show a critical temperature notification (throttling imminent)
+        /// </summary>
+        public void ShowCriticalTemperature(string component, double temperature)
+        {
+            if (!_isEnabled) return; // Always show critical warnings if enabled
+
+            try
+            {
+                new ToastContentBuilder()
+                    .AddText($"🔥 CRITICAL: {component} Overheating!")
+                    .AddText($"Temperature: {temperature:F0}°C")
+                    .AddText("Thermal throttling may occur. Consider reducing load or improving cooling.")
+                    .SetToastDuration(ToastDuration.Long)
+                    .Show();
+                    
+                _logging.Warn($"Critical temperature warning - {component} at {temperature}°C");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Show a driver issue notification
+        /// </summary>
+        public void ShowDriverIssue(string driverName, string issue)
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                new ToastContentBuilder()
+                    .AddText($"⚠️ Driver Issue: {driverName}")
+                    .AddText(issue)
+                    .AddText("Some features may be unavailable.")
+                    .SetToastDuration(ToastDuration.Long)
+                    .Show();
+                    
+                _logging.Warn($"Driver issue notification: {driverName} - {issue}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Show a fan failure or anomaly notification
+        /// </summary>
+        public void ShowFanAlert(string message, bool isCritical = false)
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                var icon = isCritical ? "🚨" : "🌀";
+                new ToastContentBuilder()
+                    .AddText($"{icon} Fan Alert")
+                    .AddText(message)
+                    .SetToastDuration(isCritical ? ToastDuration.Long : ToastDuration.Short)
+                    .Show();
+                    
+                _logging.Warn($"Fan alert: {message}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Show EC bridge unavailable notification
+        /// </summary>
+        public void ShowEcBridgeUnavailable()
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                new ToastContentBuilder()
+                    .AddText("⚠️ EC Bridge Unavailable")
+                    .AddText("Fan control features are disabled.")
+                    .AddText("Install LibreHardwareMonitor to enable EC access.")
+                    .SetToastDuration(ToastDuration.Long)
+                    .Show();
+                    
+                _logging.Warn("EC bridge unavailable notification shown");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Show power profile changed notification
+        /// </summary>
+        public void ShowPowerProfileChanged(string profileName, bool isOnBattery)
+        {
+            if (!_isEnabled || !_showModeChangeNotifications) return;
+
+            try
+            {
+                var icon = isOnBattery ? "🔋" : "🔌";
+                new ToastContentBuilder()
+                    .AddText($"{icon} Power Profile: {profileName}")
+                    .AddText(isOnBattery ? "Running on battery" : "Connected to AC power")
+                    .SetToastDuration(ToastDuration.Short)
+                    .Show();
+                    
+                _logging.Info($"Power profile changed: {profileName}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Show an update available notification
         /// </summary>
         public void ShowUpdateAvailable(string currentVersion, string newVersion, string releaseNotes = "")

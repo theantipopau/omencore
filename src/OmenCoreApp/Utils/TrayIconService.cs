@@ -200,7 +200,7 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                _trayIcon.ToolTipText = $"🎮 OmenCore v1.0.0.8\n" +
+                _trayIcon.ToolTipText = $"🎮 OmenCore v1.1.0\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
                                        $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%\n" +
@@ -258,7 +258,7 @@ namespace OmenCore.Utils
         public void UpdateFanMode(string mode)
         {
             _currentFanMode = mode;
-            Application.Current?.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (_fanModeMenuItem != null)
                 {
@@ -270,7 +270,7 @@ namespace OmenCore.Utils
         public void UpdatePerformanceMode(string mode)
         {
             _currentPerformanceMode = mode;
-            Application.Current?.Dispatcher.Invoke(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 if (_performanceModeMenuItem != null)
                 {
