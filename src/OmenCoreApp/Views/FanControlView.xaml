@@ -87,6 +87,9 @@
                     <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged}" 
                              Style="{StaticResource ModernTextBox}" 
                              Height="42"
+                             FontSize="14"
+                             Padding="12,10"
+                             VerticalContentAlignment="Center"
                              ToolTip="Enter a name to save your custom fan curve"/>
                 </StackPanel>
 
@@ -197,7 +200,7 @@
                         <TextBlock Text="TEMPERATURE HISTORY" 
                                    Style="{StaticResource Label}" 
                                    Margin="0,0,0,16"/>
-                        <controls:ThermalChart DataContext="{Binding ThermalSamples}" 
+                        <controls:ThermalChart Samples="{Binding ThermalSamples}" 
                                                Height="200"/>
                     </StackPanel>
                 </Border>

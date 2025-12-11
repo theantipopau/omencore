@@ -89,8 +89,11 @@ namespace OmenCore.Controls
             var samplesList = Samples?.ToList() ?? new List<ThermalSample>();
             if (samplesList.Count < 2)
             {
+                EmptyStateText.Visibility = Visibility.Visible;
                 return;
             }
+            
+            EmptyStateText.Visibility = Visibility.Collapsed;
 
             var width = ChartCanvas.ActualWidth;
             var height = ChartCanvas.ActualHeight;
