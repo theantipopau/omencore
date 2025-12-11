@@ -53,6 +53,7 @@ namespace OmenCore.ViewModels
         private readonly AsyncRelayCommand _createRestorePointCommand;
         private readonly AsyncRelayCommand _cleanupOmenHubCommand;
         private readonly AsyncRelayCommand _installUpdateCommand;
+        private readonly AsyncRelayCommand _checkForUpdatesCommand;
         private readonly RelayCommand _takeUndervoltControlCommand;
         private readonly RelayCommand _respectExternalUndervoltCommand;
         private readonly RelayCommand _stopMacroRecordingInternalCommand;
@@ -699,6 +700,7 @@ namespace OmenCore.ViewModels
         public ICommand CreateRestorePointCommand { get; }
         public ICommand CleanupOmenHubCommand { get; }
         public ICommand InstallUpdateCommand { get; }
+        public ICommand CheckForUpdatesCommand { get; }
         public ICommand OpenReleaseNotesCommand { get; }
         public ICommand OpenGameProfileManagerCommand { get; }
         public ICommand ExportConfigurationCommand { get; }
@@ -843,6 +845,8 @@ namespace OmenCore.ViewModels
             CreateRestorePointCommand = _createRestorePointCommand;
             _cleanupOmenHubCommand = new AsyncRelayCommand(_ => RunOmenCleanupAsync(), _ => !CleanupInProgress);
             CleanupOmenHubCommand = _cleanupOmenHubCommand;
+            _checkForUpdatesCommand = new AsyncRelayCommand(_ => CheckForUpdatesBannerAsync(true), _ => !_updateDownloadInProgress);
+            CheckForUpdatesCommand = _checkForUpdatesCommand;
             _installUpdateCommand = new AsyncRelayCommand(_ => InstallUpdateAsync(), _ => CanInstallUpdate());
             InstallUpdateCommand = _installUpdateCommand;
             _openReleaseNotesCommand = new RelayCommand(_ => OpenReleaseNotes(), _ => CanOpenReleaseNotes());
@@ -1049,10 +1053,16 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async Task CheckForUpdatesBannerAsync()
+        private async Task CheckForUpdatesBannerAsync(bool showStatus = false)
         {
             try
             {
+                if (showStatus)
+                {
+                    UpdateBannerVisible = true;
+                    UpdateBannerMessage = "Checking for updates...";
+                }
+
                 var result = await _autoUpdateService.CheckForUpdatesAsync();
                 
                 // Update last check time
@@ -1080,8 +1090,8 @@ namespace OmenCore.ViewModels
                 {
                     _availableUpdate = null;
                     _updateInstallBlocked = false;
-                    UpdateBannerVisible = false;
-                    UpdateBannerMessage = string.Empty;
+                    UpdateBannerVisible = showStatus;
+                    UpdateBannerMessage = showStatus ? "You are running the latest version." : string.Empty;
                 }
             }
             catch (Exception ex)
@@ -1226,6 +1236,7 @@ namespace OmenCore.ViewModels
         {
             _installUpdateCommand.RaiseCanExecuteChanged();
             _openReleaseNotesCommand.RaiseCanExecuteChanged();
+            _checkForUpdatesCommand.RaiseCanExecuteChanged();
         }
 
         private void HydrateCollections()
