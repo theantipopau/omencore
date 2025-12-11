@@ -22,6 +22,10 @@ namespace OmenCore.ViewModels
         private string _logitechColorHex = "#E6002E";
         private int _logitechBrightness = 80;
         private string _corsairColorHex = "#FF0000";
+        private int _logitechRedValue = 230;
+        private int _logitechGreenValue = 0;
+        private int _logitechBlueValue = 46;
+        private MacroProfile? _selectedMacroProfile;
 
         public ReadOnlyObservableCollection<CorsairDevice> CorsairDevices => _corsairService.Devices;
         public ReadOnlyObservableCollection<LogitechDevice> LogitechDevices => _logitechService.Devices;
@@ -50,9 +54,17 @@ namespace OmenCore.ViewModels
                 {
                     _selectedCorsairPreset = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedCorsairLightingPreset));
                     (ApplyCorsairLightingCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
+        }
+
+        // Alias for XAML binding compatibility
+        public CorsairLightingPreset? SelectedCorsairLightingPreset
+        {
+            get => SelectedCorsairPreset;
+            set => SelectedCorsairPreset = value;
         }
 
         public LogitechDevice? SelectedLogitechDevice
@@ -113,6 +125,63 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public int LogitechRedValue
+        {
+            get => _logitechRedValue;
+            set
+            {
+                if (_logitechRedValue != value)
+                {
+                    _logitechRedValue = Math.Clamp(value, 0, 255);
+                    OnPropertyChanged();
+                    UpdateLogitechHexFromRgb();
+                }
+            }
+        }
+
+        public int LogitechGreenValue
+        {
+            get => _logitechGreenValue;
+            set
+            {
+                if (_logitechGreenValue != value)
+                {
+                    _logitechGreenValue = Math.Clamp(value, 0, 255);
+                    OnPropertyChanged();
+                    UpdateLogitechHexFromRgb();
+                }
+            }
+        }
+
+        public int LogitechBlueValue
+        {
+            get => _logitechBlueValue;
+            set
+            {
+                if (_logitechBlueValue != value)
+                {
+                    _logitechBlueValue = Math.Clamp(value, 0, 255);
+                    OnPropertyChanged();
+                    UpdateLogitechHexFromRgb();
+                }
+            }
+        }
+
+        public MacroProfile? SelectedMacroProfile
+        {
+            get => _selectedMacroProfile;
+            set
+            {
+                if (_selectedMacroProfile != value)
+                {
+                    _selectedMacroProfile = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public ObservableCollection<MacroProfile> MacroProfiles { get; } = new();
+
         public string CorsairDeviceStatusText => $"{CorsairDevices.Count} device(s) detected";
         public string LogitechDeviceStatusText => $"{LogitechDevices.Count} device(s) detected";
         public bool HasCorsairMouse => CorsairDevices.Any(d => d.DeviceType == CorsairDeviceType.Mouse);
@@ -126,6 +195,7 @@ namespace OmenCore.ViewModels
         public ICommand ApplyLogitechColorCommand { get; }
         public ICommand DiscoverCorsairDevicesCommand { get; }
         public ICommand DiscoverLogitechDevicesCommand { get; }
+        public ICommand LoadMacroProfileCommand { get; }
 
         public LightingViewModel(CorsairDeviceService corsairService, LogitechDeviceService logitechService, LoggingService logging)
         {
@@ -142,6 +212,7 @@ namespace OmenCore.ViewModels
             DiscoverLogitechCommand = new AsyncRelayCommand(async _ => await _logitechService.DiscoverAsync());
             DiscoverLogitechDevicesCommand = new AsyncRelayCommand(async _ => await _logitechService.DiscoverAsync());
             ApplyLogitechColorCommand = new AsyncRelayCommand(async _ => await ApplyLogitechColorAsync(), _ => SelectedLogitechDevice != null);
+            LoadMacroProfileCommand = new AsyncRelayCommand(async _ => await LoadMacroProfileAsync());
 
             // Initialize lighting presets
             CorsairLightingPresets.Add(new CorsairLightingPreset { Name = "Red", ColorHex = "#FF0000" });
@@ -156,6 +227,18 @@ namespace OmenCore.ViewModels
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 1", Dpi = 800, IsDefault = true });
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 2", Dpi = 1600 });
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 3", Dpi = 3200 });
+
+            // Initialize macro profiles
+            MacroProfiles.Add(new MacroProfile { Name = "Default" });
+            MacroProfiles.Add(new MacroProfile { Name = "Gaming" });
+            MacroProfiles.Add(new MacroProfile { Name = "Productivity" });
+            SelectedMacroProfile = MacroProfiles.FirstOrDefault();
+        }
+
+        private void UpdateLogitechHexFromRgb()
+        {
+            _logitechColorHex = $"#{_logitechRedValue:X2}{_logitechGreenValue:X2}{_logitechBlueValue:X2}";
+            OnPropertyChanged(nameof(LogitechColorHex));
         }
 
         private async Task ApplyCorsairLightingAsync()
@@ -201,6 +284,20 @@ namespace OmenCore.ViewModels
                 {
                     await _logitechService.ApplyStaticColorAsync(SelectedLogitechDevice, LogitechColorHex, LogitechBrightness);
                 }, "Applying Logitech lighting...");
+            }
+        }
+
+        private async Task LoadMacroProfileAsync()
+        {
+            if (SelectedMacroProfile != null)
+            {
+                await ExecuteWithLoadingAsync(async () =>
+                {
+                    _logging.Info($"Loading macro profile: {SelectedMacroProfile.Name}");
+                    // Note: Full macro implementation would require iCUE/G HUB SDK integration
+                    _logging.Warn("Macro profiles are UI placeholders - use iCUE or G HUB for macro configuration");
+                    await Task.CompletedTask;
+                }, "Loading macro profile...");
             }
         }
     }

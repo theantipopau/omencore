@@ -23,9 +23,15 @@ namespace OmenCore.Utils
         private readonly ImageSource? _baseIconSource;
         private MenuItem? _cpuTempMenuItem;
         private MenuItem? _gpuTempMenuItem;
+        private MenuItem? _fanModeMenuItem;
         private MenuItem? _performanceModeMenuItem;
         private MonitoringSample? _latestSample;
+        private string _currentFanMode = "Auto";
+        private string _currentPerformanceMode = "Balanced";
         private bool _disposed;
+
+        public event Action<string>? FanModeChangeRequested;
+        public event Action<string>? PerformanceModeChangeRequested;
 
         public TrayIconService(TaskbarIcon trayIcon, Action showMainWindow, Action shutdownApp)
         {
@@ -53,15 +59,26 @@ namespace OmenCore.Utils
             var contextMenu = new ContextMenu();
 
             // Set dark background with light text
-            contextMenu.Background = new SolidColorBrush(Color.FromRgb(21, 25, 43)); // SurfaceMediumBrush
+            var darkBg = new SolidColorBrush(Color.FromRgb(21, 25, 43)); // SurfaceMediumBrush
+            var borderBrush = new SolidColorBrush(Color.FromRgb(47, 52, 72)); // BorderBrush
+            
+            contextMenu.Background = darkBg;
             contextMenu.Foreground = Brushes.White;
-            contextMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(47, 52, 72)); // BorderBrush
+            contextMenu.BorderBrush = borderBrush;
             contextMenu.BorderThickness = new Thickness(1);
+
+            // Add resources to style submenu popups (removes white icon gutter)
+            contextMenu.Resources.Add(SystemColors.MenuBarBrushKey, darkBg);
+            contextMenu.Resources.Add(SystemColors.MenuBrushKey, darkBg);
+            contextMenu.Resources.Add(SystemColors.MenuTextBrushKey, Brushes.White);
+            contextMenu.Resources.Add(SystemColors.HighlightBrushKey, new SolidColorBrush(Color.FromRgb(47, 52, 72)));
+            contextMenu.Resources.Add(SystemColors.HighlightTextBrushKey, Brushes.White);
+            contextMenu.Resources.Add(SystemColors.MenuHighlightBrushKey, new SolidColorBrush(Color.FromRgb(47, 52, 72)));
 
             // Status header
             var headerItem = new MenuItem
             {
-                Header = "OmenCore Status",
+                Header = "🎮 OmenCore Status",
                 IsEnabled = false,
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 0, 92)), // AccentBrush
                 FontWeight = FontWeights.Bold
@@ -73,7 +90,7 @@ namespace OmenCore.Utils
             // CPU Temperature
             _cpuTempMenuItem = new MenuItem
             {
-                Header = "CPU: --°C (--%)  ",
+                Header = "🔥 CPU: --°C (--%)  ",
                 IsEnabled = false,
                 Foreground = Brushes.White
             };
@@ -82,7 +99,7 @@ namespace OmenCore.Utils
             // GPU Temperature
             _gpuTempMenuItem = new MenuItem
             {
-                Header = "GPU: --°C (--%)  ",
+                Header = "🎯 GPU: --°C (--%)  ",
                 IsEnabled = false,
                 Foreground = Brushes.White
             };
@@ -90,13 +107,47 @@ namespace OmenCore.Utils
 
             contextMenu.Items.Add(new Separator());
 
-            // Performance Mode
+            // Create dark style for submenu items
+            var darkMenuItemStyle = CreateDarkMenuItemStyle();
+
+            // Fan Mode submenu
+            _fanModeMenuItem = new MenuItem
+            {
+                Header = "🌀 Fan: Auto",
+                Foreground = Brushes.White,
+                Style = darkMenuItemStyle
+            };
+            
+            var fanAuto = new MenuItem { Header = "Auto", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            fanAuto.Click += (s, e) => SetFanMode("Auto");
+            var fanMax = new MenuItem { Header = "Max Cooling", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            fanMax.Click += (s, e) => SetFanMode("Max");
+            var fanQuiet = new MenuItem { Header = "Quiet", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            fanQuiet.Click += (s, e) => SetFanMode("Quiet");
+            
+            _fanModeMenuItem.Items.Add(fanAuto);
+            _fanModeMenuItem.Items.Add(fanMax);
+            _fanModeMenuItem.Items.Add(fanQuiet);
+            contextMenu.Items.Add(_fanModeMenuItem);
+
+            // Performance Mode submenu
             _performanceModeMenuItem = new MenuItem
             {
-                Header = "⚡ Performance Mode",
-                Foreground = Brushes.White
+                Header = "⚡ Performance: Balanced",
+                Foreground = Brushes.White,
+                Style = darkMenuItemStyle
             };
-            _performanceModeMenuItem.Click += (s, e) => TogglePerformanceMode();
+            
+            var perfBalanced = new MenuItem { Header = "Balanced", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            perfBalanced.Click += (s, e) => SetPerformanceMode("Balanced");
+            var perfPerformance = new MenuItem { Header = "Performance", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            perfPerformance.Click += (s, e) => SetPerformanceMode("Performance");
+            var perfQuiet = new MenuItem { Header = "Quiet", Foreground = Brushes.White, Style = darkMenuItemStyle };
+            perfQuiet.Click += (s, e) => SetPerformanceMode("Quiet");
+            
+            _performanceModeMenuItem.Items.Add(perfBalanced);
+            _performanceModeMenuItem.Items.Add(perfPerformance);
+            _performanceModeMenuItem.Items.Add(perfQuiet);
             contextMenu.Items.Add(_performanceModeMenuItem);
 
             contextMenu.Items.Add(new Separator());
@@ -104,7 +155,7 @@ namespace OmenCore.Utils
             // Show Window
             var showItem = new MenuItem
             {
-                Header = "Show OmenCore",
+                Header = "📺 Show OmenCore",
                 Foreground = Brushes.White,
                 FontWeight = FontWeights.SemiBold
             };
@@ -114,7 +165,7 @@ namespace OmenCore.Utils
             // Exit
             var exitItem = new MenuItem
             {
-                Header = "Exit",
+                Header = "❌ Exit",
                 Foreground = Brushes.White
             };
             exitItem.Click += (s, e) => _shutdownApp();
@@ -149,23 +200,24 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                _trayIcon.ToolTipText = $"🎮 OmenCore v1.0.0.5\n" +
+                _trayIcon.ToolTipText = $"🎮 OmenCore v1.0.0.8\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
                                        $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%\n" +
                                        $"💾 RAM: {memUsedGb:F1}/{memTotalGb:F1} GB ({memPercent:F0}%)\n" +
+                                       $"🌀 Fan: {_currentFanMode} | ⚡ {_currentPerformanceMode}\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"Left-click to open dashboard";
 
                 // Update context menu items
                 if (_cpuTempMenuItem != null)
                 {
-                    _cpuTempMenuItem.Header = $"CPU: {cpuTemp:F0}°C ({cpuLoad:F0}%)  ";
+                    _cpuTempMenuItem.Header = $"🔥 CPU: {cpuTemp:F0}°C ({cpuLoad:F0}%)  ";
                 }
 
                 if (_gpuTempMenuItem != null)
                 {
-                    _gpuTempMenuItem.Header = $"GPU: {gpuTemp:F0}°C ({gpuLoad:F0}%)  ";
+                    _gpuTempMenuItem.Header = $"🎯 GPU: {gpuTemp:F0}°C ({gpuLoad:F0}%)  ";
                 }
 
                 // Update tray icon with CPU temperature badge
@@ -181,12 +233,50 @@ namespace OmenCore.Utils
             }
         }
 
-        private void TogglePerformanceMode()
+        private void SetFanMode(string mode)
         {
-            // This will be wired up when services are more accessible
-            // For now, it opens the main window to the HP Omen tab
-            _showMainWindow();
-            App.Logging.Info("Performance mode toggle requested from tray");
+            _currentFanMode = mode;
+            if (_fanModeMenuItem != null)
+            {
+                _fanModeMenuItem.Header = $"🌀 Fan: {mode}";
+            }
+            FanModeChangeRequested?.Invoke(mode);
+            App.Logging.Info($"Fan mode changed from tray: {mode}");
+        }
+
+        private void SetPerformanceMode(string mode)
+        {
+            _currentPerformanceMode = mode;
+            if (_performanceModeMenuItem != null)
+            {
+                _performanceModeMenuItem.Header = $"⚡ Performance: {mode}";
+            }
+            PerformanceModeChangeRequested?.Invoke(mode);
+            App.Logging.Info($"Performance mode changed from tray: {mode}");
+        }
+
+        public void UpdateFanMode(string mode)
+        {
+            _currentFanMode = mode;
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (_fanModeMenuItem != null)
+                {
+                    _fanModeMenuItem.Header = $"🌀 Fan: {mode}";
+                }
+            });
+        }
+
+        public void UpdatePerformanceMode(string mode)
+        {
+            _currentPerformanceMode = mode;
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (_performanceModeMenuItem != null)
+                {
+                    _performanceModeMenuItem.Header = $"⚡ Performance: {mode}";
+                }
+            });
         }
 
         public void Dispose()
@@ -249,6 +339,31 @@ namespace OmenCore.Utils
             rtb.Render(visual);
             rtb.Freeze();
             return rtb;
+        }
+
+        private Style CreateDarkMenuItemStyle()
+        {
+            var style = new Style(typeof(MenuItem));
+            
+            // Set dark background for the submenu popup
+            var darkBg = new SolidColorBrush(Color.FromRgb(21, 25, 43));
+            var hoverBg = new SolidColorBrush(Color.FromRgb(47, 52, 72));
+            var borderBrush = new SolidColorBrush(Color.FromRgb(47, 52, 72));
+            
+            style.Setters.Add(new Setter(MenuItem.BackgroundProperty, darkBg));
+            style.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
+            style.Setters.Add(new Setter(MenuItem.BorderBrushProperty, borderBrush));
+            
+            // Create trigger for hover state
+            var hoverTrigger = new Trigger
+            {
+                Property = MenuItem.IsHighlightedProperty,
+                Value = true
+            };
+            hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, hoverBg));
+            style.Triggers.Add(hoverTrigger);
+            
+            return style;
         }
     }
 }

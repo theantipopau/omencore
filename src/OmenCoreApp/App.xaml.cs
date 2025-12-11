@@ -102,19 +102,47 @@ namespace OmenCore
             _trayIconService = new TrayIconService(_trayIcon, ShowMainWindow, () => Shutdown());
             _trayIcon.TrayLeftMouseUp += (s, e) => ShowMainWindow();
 
-            // Wire up to MainViewModel for monitoring updates
+            // Wire up to MainViewModel for monitoring updates and tray actions
             var mainViewModel = _serviceProvider?.GetRequiredService<MainViewModel>();
-            if (mainViewModel?.Dashboard != null)
+            if (mainViewModel != null)
             {
-                mainViewModel.Dashboard.PropertyChanged += (s, e) =>
+                // Subscribe to monitoring updates
+                if (mainViewModel.Dashboard != null)
                 {
-                    if (e.PropertyName == nameof(DashboardViewModel.LatestMonitoringSample))
+                    mainViewModel.Dashboard.PropertyChanged += (s, e) =>
                     {
-                        var sample = mainViewModel.Dashboard.LatestMonitoringSample;
-                        if (sample != null)
+                        if (e.PropertyName == nameof(DashboardViewModel.LatestMonitoringSample))
                         {
-                            _trayIconService?.UpdateMonitoringSample(sample);
+                            var sample = mainViewModel.Dashboard.LatestMonitoringSample;
+                            if (sample != null)
+                            {
+                                _trayIconService?.UpdateMonitoringSample(sample);
+                            }
                         }
+                    };
+                }
+
+                // Wire up tray quick actions to MainViewModel
+                _trayIconService.FanModeChangeRequested += mode =>
+                {
+                    mainViewModel.SetFanModeFromTray(mode);
+                };
+
+                _trayIconService.PerformanceModeChangeRequested += mode =>
+                {
+                    mainViewModel.SetPerformanceModeFromTray(mode);
+                };
+
+                // Subscribe to MainViewModel mode changes to update tray display
+                mainViewModel.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(MainViewModel.CurrentFanMode))
+                    {
+                        _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
+                    }
+                    else if (e.PropertyName == nameof(MainViewModel.CurrentPerformanceMode))
+                    {
+                        _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
                     }
                 };
             }

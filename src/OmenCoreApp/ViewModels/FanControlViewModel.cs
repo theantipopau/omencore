@@ -56,6 +56,11 @@ namespace OmenCore.ViewModels
 
         public ICommand ApplyCustomCurveCommand { get; }
         public ICommand SaveCustomPresetCommand { get; }
+        
+        // Quick preset commands
+        public ICommand ApplyMaxCoolingCommand { get; }
+        public ICommand ApplyAutoModeCommand { get; }
+        public ICommand ApplyQuietModeCommand { get; }
 
         public FanControlViewModel(FanService fanService, ConfigurationService configService, LoggingService logging)
         {
@@ -65,6 +70,11 @@ namespace OmenCore.ViewModels
             
             ApplyCustomCurveCommand = new RelayCommand(_ => ApplyCustomCurve());
             SaveCustomPresetCommand = new RelayCommand(_ => SaveCustomPreset());
+            
+            // Quick preset buttons
+            ApplyMaxCoolingCommand = new RelayCommand(_ => ApplyFanMode("Max"));
+            ApplyAutoModeCommand = new RelayCommand(_ => ApplyFanMode("Auto"));
+            ApplyQuietModeCommand = new RelayCommand(_ => ApplyQuietMode());
             
             // Initialize built-in presets
             FanPresets.Add(new FanPreset 
@@ -249,6 +259,71 @@ namespace OmenCore.ViewModels
                 new() { TemperatureC = 60, FanPercent = 50 },
                 new() { TemperatureC = 80, FanPercent = 80 }
             };
+        }
+        
+        private static List<FanCurvePoint> GetQuietCurve()
+        {
+            return new List<FanCurvePoint>
+            {
+                new() { TemperatureC = 50, FanPercent = 25 },
+                new() { TemperatureC = 65, FanPercent = 35 },
+                new() { TemperatureC = 75, FanPercent = 50 },
+                new() { TemperatureC = 85, FanPercent = 70 },
+                new() { TemperatureC = 95, FanPercent = 100 }
+            };
+        }
+        
+        private void ApplyQuietMode()
+        {
+            var quietPreset = new FanPreset
+            {
+                Name = "Quiet",
+                Mode = FanMode.Manual,
+                Curve = GetQuietCurve(),
+                IsBuiltIn = false
+            };
+            
+            // Add if not exists, select it
+            var existing = FanPresets.FirstOrDefault(p => p.Name == "Quiet");
+            if (existing == null)
+            {
+                FanPresets.Add(quietPreset);
+                SelectedPreset = quietPreset;
+            }
+            else
+            {
+                SelectedPreset = existing;
+            }
+            
+            _logging.Info("Applied Quiet fan mode");
+        }
+
+        /// <summary>
+        /// Apply a fan mode by name (for hotkey integration)
+        /// </summary>
+        public void ApplyFanMode(string modeName)
+        {
+            var preset = FanPresets.FirstOrDefault(p => 
+                p.Name.Equals(modeName, System.StringComparison.OrdinalIgnoreCase));
+            
+            if (preset != null)
+            {
+                SelectedPreset = preset;
+            }
+            else
+            {
+                // Try to match partial names
+                preset = modeName.ToLower() switch
+                {
+                    "performance" or "boost" or "max" => FanPresets.FirstOrDefault(p => p.Name == "Max"),
+                    "quiet" or "silent" => FanPresets.FirstOrDefault(p => p.Mode == FanMode.Manual) ?? FanPresets.FirstOrDefault(p => p.Name == "Auto"),
+                    "balanced" or "auto" => FanPresets.FirstOrDefault(p => p.Name == "Auto"),
+                    _ => FanPresets.FirstOrDefault(p => p.Name == "Auto")
+                };
+                
+                if (preset != null)
+                    SelectedPreset = preset;
+            }
         }
     }
 }

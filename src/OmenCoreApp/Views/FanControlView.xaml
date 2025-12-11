@@ -27,6 +27,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -37,8 +38,36 @@
                            Text="FAN PROFILES" 
                            Style="{StaticResource Label}" 
                            Margin="0,0,0,16"/>
+                
+                <!-- Quick Preset Buttons -->
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
+                            Orientation="Horizontal" 
+                            Margin="0,0,0,20">
+                    <TextBlock Text="Quick Presets:" 
+                               Style="{StaticResource Caption}" 
+                               FontSize="13"
+                               VerticalAlignment="Center" 
+                               Margin="0,0,16,0"/>
+                    <Button Content="🔥 Max Cooling" 
+                            Command="{Binding ApplyMaxCoolingCommand}" 
+                            Style="{StaticResource SecondaryButton}" 
+                            Width="130" Height="36" 
+                            Margin="0,0,10,0"
+                            ToolTip="Maximum fan speed for intensive tasks"/>
+                    <Button Content="⚖️ Auto" 
+                            Command="{Binding ApplyAutoModeCommand}" 
+                            Style="{StaticResource SecondaryButton}" 
+                            Width="100" Height="36" 
+                            Margin="0,0,10,0"
+                            ToolTip="Balanced automatic fan control"/>
+                    <Button Content="🔇 Quiet" 
+                            Command="{Binding ApplyQuietModeCommand}" 
+                            Style="{StaticResource SecondaryButton}" 
+                            Width="100" Height="36"
+                            ToolTip="Reduced fan noise for quiet operation"/>
+                </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,20,0">
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,20,0">
                     <TextBlock Text="Choose Preset" 
                                Style="{StaticResource Caption}"
                                FontSize="13"
@@ -50,7 +79,7 @@
                               Height="42"/>
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="1">
+                <StackPanel Grid.Row="2" Grid.Column="1">
                     <TextBlock Text="New Preset Name" 
                                Style="{StaticResource Caption}"
                                FontSize="13"
@@ -61,7 +90,7 @@
                              ToolTip="Enter a name to save your custom fan curve"/>
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" 
+                <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" 
                             Orientation="Horizontal" 
                             HorizontalAlignment="Right" 
                             Margin="0,20,0,0">
@@ -89,7 +118,8 @@
             </Grid.ColumnDefinitions>
 
             <!-- Custom Fan Curve Editor -->
-            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,16,0">
+            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,16,0"
+                    ToolTip="Define custom temperature-to-fan-speed mappings. Higher temps trigger higher fan speeds.">
                 <StackPanel>
                     <TextBlock Text="CURVE EDITOR" 
                                Style="{StaticResource Label}" 

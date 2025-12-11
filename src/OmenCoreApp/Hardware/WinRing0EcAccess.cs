@@ -28,6 +28,10 @@ namespace OmenCore.Hardware
             0x4C, // Fan 2 speed low byte
             0x4D, // Fan 2 speed high byte
             
+            // Note: 0x6C (dust cleaning/fan reversal) is NOT included because true fan reversal
+            // requires OMEN Max hardware with omnidirectional BLDC fans. Writing to this register
+            // on unsupported hardware could be dangerous.
+            
             // Keyboard backlight (adjust for your hardware)
             0xBA, // Keyboard brightness
             0xBB, // Keyboard RGB zone control

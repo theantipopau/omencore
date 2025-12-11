@@ -1,0 +1,548 @@
+<UserControl x:Class="OmenCore.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:OmenCore.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="800" d:DesignWidth="1000">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Settings" 
+                   FontSize="28" FontWeight="Bold" 
+                   Foreground="{StaticResource TextPrimaryBrush}" 
+                   Margin="0,0,0,16"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- General Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconSettings}" 
+                                  Fill="{StaticResource AccentBrush}" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="General" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Start with Windows -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Start with Windows" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Launch OmenCore automatically when Windows starts" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding StartWithWindows}"/>
+                        </Grid>
+
+                        <!-- Start Minimized -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Start minimized to tray" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Hide main window on startup, show only in system tray" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding StartMinimized}"/>
+                        </Grid>
+
+                        <!-- Minimize to Tray on Close -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Minimize to tray on close" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Close button minimizes to system tray instead of exiting" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding MinimizeToTrayOnClose}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Monitoring Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconMonitoring}" 
+                                  Fill="#4FC3F7" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Monitoring" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Polling Interval -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="200"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Polling interval" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="How often to read hardware sensors" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Slider Minimum="500" Maximum="5000" 
+                                        TickFrequency="250"
+                                        IsSnapToTickEnabled="True"
+                                        Value="{Binding PollingIntervalMs}"
+                                        Width="120" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding PollingIntervalMs, StringFormat={}{0} ms}" 
+                                           FontSize="12" Width="60" TextAlignment="Right"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- History Length -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="200"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Chart history" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Number of data points to display in charts" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Slider Minimum="30" Maximum="300" 
+                                        TickFrequency="30"
+                                        IsSnapToTickEnabled="True"
+                                        Value="{Binding HistoryCount}"
+                                        Width="120" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding HistoryCount, StringFormat={}{0} points}" 
+                                           FontSize="12" Width="60" TextAlignment="Right"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Low Overhead Mode -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Low overhead mode" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Reduce CPU usage by limiting sensor polling" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding LowOverheadMode}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Updates Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconUpdate}" 
+                                  Fill="#81C784" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Updates" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Auto Check Updates -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Check for updates automatically" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Periodically check GitHub for new releases" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding AutoCheckUpdates}"/>
+                        </Grid>
+
+                        <!-- Update Check Interval -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="200"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Check interval" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="How often to check for updates" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      SelectedIndex="{Binding UpdateCheckIntervalIndex}"
+                                      HorizontalAlignment="Right" Width="150">
+                                <ComboBoxItem Content="Every hour"/>
+                                <ComboBoxItem Content="Every 6 hours"/>
+                                <ComboBoxItem Content="Daily"/>
+                                <ComboBoxItem Content="Weekly"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <!-- Include Pre-releases -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Include pre-releases" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Get notified about beta and preview versions" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding IncludePreReleases}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Hotkeys Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <TextBlock Text="⌨️" FontSize="24" 
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Hotkeys" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Enable Hotkeys -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Enable global hotkeys" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Use keyboard shortcuts even when app is in background" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding HotkeysEnabled}"/>
+                        </Grid>
+
+                        <!-- Hotkey Reference -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Default Hotkeys" FontSize="14" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Ctrl + Shift + F" FontFamily="Consolas" 
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Cycle fan modes" 
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+                                    
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + Shift + P" FontFamily="Consolas" 
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="Cycle performance modes" 
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl + Shift + B" FontFamily="Consolas" 
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="Boost mode (Performance)" 
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl + Shift + Q" FontFamily="Consolas" 
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="Quiet mode" 
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Ctrl + Shift + O" FontFamily="Consolas" 
+                                               Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="Show/hide OmenCore window" 
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Notifications Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <TextBlock Text="🔔" FontSize="24" 
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Notifications" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Enable Notifications -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Enable notifications" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Show Windows toast notifications for events" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding NotificationsEnabled}"/>
+                        </Grid>
+
+                        <!-- Game Profile Notifications -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Game profile notifications" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Notify when game profiles are activated/deactivated" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding GameNotificationsEnabled}"
+                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                        </Grid>
+
+                        <!-- Mode Change Notifications -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Mode change notifications" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Notify when fan or performance modes change via hotkey" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding ModeChangeNotificationsEnabled}"
+                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                        </Grid>
+
+                        <!-- Temperature Warning Notifications -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Temperature warnings" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Alert when CPU/GPU temperature exceeds threshold" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding TemperatureWarningsEnabled}"
+                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Fan Boost / Maintenance -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconFan}" 
+                                  Fill="#FFB74D" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Fan Boost" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <TextBlock TextWrapping="Wrap" FontSize="13" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" 
+                                   Margin="0,0,0,12">
+                            Runs fans at maximum speed to increase airflow and help dislodge loose dust particles.
+                        </TextBlock>
+                        
+                        <!-- Important disclaimer -->
+                        <Border Background="#33FFB74D" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" 
+                                       Foreground="{StaticResource TextPrimaryBrush}">
+                                <Run Foreground="#FFB74D" FontWeight="Bold">⚠️ Note:</Run>
+                                This is NOT the same as HP's "Fan Cleaner" feature (OMEN Max only) which actually reverses fan direction.
+                                That requires special omnidirectional fans that most OMEN laptops don't have.
+                                <LineBreak/><LineBreak/>
+                                For thorough cleaning, use compressed air or open the chassis.
+                            </TextBlock>
+                        </Border>
+
+                        <!-- HP OMEN Detection Status -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" 
+                                      Data="{Binding FanCleaningStatusIcon}" 
+                                      Fill="{Binding FanCleaningStatusColor}" 
+                                      Width="20" Height="20" Stretch="Uniform" 
+                                      VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding FanCleaningStatusText}" 
+                                           FontSize="13" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <Button Content="💨 Start Fan Boost" 
+                                Style="{StaticResource ModernButton}"
+                                Background="#FFB74D"
+                                Command="{Binding StartFanCleaningCommand}"
+                                IsEnabled="{Binding CanStartFanCleaning}"
+                                HorizontalAlignment="Left"
+                                Padding="20,10"/>
+
+                        <!-- Boost Progress -->
+                        <StackPanel Visibility="{Binding IsFanCleaningActive, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Margin="0,16,0,0">
+                            <TextBlock Text="{Binding FanCleaningProgress}" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,8"/>
+                            <ProgressBar Value="{Binding FanCleaningProgressPercent}" 
+                                         Maximum="100" Height="8"
+                                         Foreground="#FFB74D"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Data & Storage -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z" 
+                                  Fill="#CE93D8" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Data &amp; Storage" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="📂 Open Config Folder" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding OpenConfigFolderCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"/>
+                            <Button Content="📋 Open Log Folder" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding OpenLogFolderCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"/>
+                            <Button Content="🔄 Reset to Defaults" 
+                                    Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding ResetToDefaultsCommand}"
+                                    Padding="16,8"
+                                    ToolTip="Reset all settings to default values"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding ConfigFolderPath}" 
+                                   FontSize="11" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- About Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconAbout}" 
+                                  Fill="{StaticResource AccentBrush}" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="About OmenCore" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4">
+                            <Run Text="Version: "/><Run Text="{Binding AppVersion, Mode=OneWay}" FontWeight="SemiBold"/>
+                        </TextBlock>
+                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,16">
+                            A lightweight replacement for HP OMEN Gaming Hub
+                        </TextBlock>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="🌐 GitHub" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding OpenGitHubCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"/>
+                            <Button Content="📝 Release Notes" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding OpenReleaseNotesCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"/>
+                            <Button Content="🐛 Report Issue" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding OpenIssuesCommand}"
+                                    Padding="16,8"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Loading Overlay -->
+        <controls:LoadingOverlay Grid.RowSpan="2" Panel.ZIndex="1000" />
+    </Grid>
+</UserControl>

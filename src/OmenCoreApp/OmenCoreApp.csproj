@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore</AssemblyName>
-    <AssemblyVersion>1.0.0.7</AssemblyVersion>
-    <FileVersion>1.0.0.7</FileVersion>
+    <AssemblyVersion>1.0.0.8</AssemblyVersion>
+    <FileVersion>1.0.0.8</FileVersion>
     <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
@@ -17,6 +17,7 @@
     <Resource Include="Assets\\logo.png" />
     <Resource Include="Assets\\logo-small.png" />
     <Resource Include="Assets\\omen.png" />
+    <Resource Include="Assets\\omen-alt.png" />
     <Resource Include="Assets\\corsair.png" />
     <Resource Include="Assets\\logitechg.png" />
     <Resource Include="Assets\\amd.png" />
@@ -28,6 +29,7 @@
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
     <PackageReference Include="RGB.NET.Core" Version="3.1.0" />
     <PackageReference Include="RGB.NET.Devices.Corsair" Version="3.1.0" />
     <PackageReference Include="System.Management" Version="9.0.0" />

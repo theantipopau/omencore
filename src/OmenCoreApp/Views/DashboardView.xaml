@@ -68,18 +68,26 @@
         <!-- Hardware Summary Cards -->
         <Grid Grid.Row="1" Margin="0,0,0,20">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="200"/>
-                <ColumnDefinition Width="*" MinWidth="200"/>
-                <ColumnDefinition Width="*" MinWidth="200"/>
-                <ColumnDefinition Width="*" MinWidth="200"/>
+                <ColumnDefinition Width="*" MinWidth="160"/>
+                <ColumnDefinition Width="*" MinWidth="160"/>
+                <ColumnDefinition Width="*" MinWidth="160"/>
+                <ColumnDefinition Width="*" MinWidth="160"/>
+                <ColumnDefinition Width="*" MinWidth="160"/>
             </Grid.ColumnDefinitions>
 
             <!-- CPU Card -->
-            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="0,0,10,0">
+            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="0,0,10,0"
+                    ToolTip="CPU temperature and utilization. Green = OK, Yellow = Warm, Orange = Hot, Red = Critical">
                 <StackPanel>
-                    <TextBlock Text="PROCESSOR" 
-                               Style="{StaticResource Label}" 
-                               Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="PROCESSOR" 
+                                   Style="{StaticResource Label}"/>
+                        <Ellipse Width="10" Height="10" 
+                                 HorizontalAlignment="Right" 
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=cpu}"
+                                 ToolTip="Temperature status indicator"/>
+                    </Grid>
                     <TextBlock Text="{Binding CpuSummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
@@ -88,11 +96,18 @@
             </Border>
 
             <!-- GPU Card -->
-            <Border Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0">
+            <Border Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+                    ToolTip="GPU temperature, load, and VRAM usage. GPUs can safely run hotter than CPUs.">
                 <StackPanel>
-                    <TextBlock Text="GRAPHICS" 
-                               Style="{StaticResource Label}" 
-                               Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="GRAPHICS" 
+                                   Style="{StaticResource Label}"/>
+                        <Ellipse Width="10" Height="10" 
+                                 HorizontalAlignment="Right" 
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding LatestMonitoringSample.GpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=gpu}"
+                                 ToolTip="Temperature status indicator"/>
+                    </Grid>
                     <TextBlock Text="{Binding GpuSummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
@@ -101,11 +116,18 @@
             </Border>
 
             <!-- Memory Card -->
-            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0">
+            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+                    ToolTip="System RAM usage. High usage may cause slowdowns - consider closing unused applications.">
                 <StackPanel>
-                    <TextBlock Text="MEMORY" 
-                               Style="{StaticResource Label}" 
-                               Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="MEMORY" 
+                                   Style="{StaticResource Label}"/>
+                        <Ellipse Width="10" Height="10" 
+                                 HorizontalAlignment="Right" 
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding LatestMonitoringSample.RamUsagePercent, Converter={StaticResource LoadToColorConverter}}"
+                                 ToolTip="Memory usage indicator"/>
+                    </Grid>
                     <TextBlock Text="{Binding MemorySummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
@@ -114,12 +136,39 @@
             </Border>
 
             <!-- Storage Card -->
-            <Border Grid.Column="3" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="10,0,0,0">
+            <Border Grid.Column="3" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+                    ToolTip="SSD temperature and disk activity. Optimal SSD temp is below 45°C.">
                 <StackPanel>
-                    <TextBlock Text="STORAGE" 
-                               Style="{StaticResource Label}" 
-                               Margin="0,0,0,10"/>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="STORAGE" 
+                                   Style="{StaticResource Label}"/>
+                        <Ellipse Width="10" Height="10" 
+                                 HorizontalAlignment="Right" 
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding LatestMonitoringSample.SsdTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=ssd}"
+                                 ToolTip="SSD temperature indicator"/>
+                    </Grid>
                     <TextBlock Text="{Binding StorageSummary}" 
+                               Style="{StaticResource BodyText}"
+                               FontSize="13"
+                               LineHeight="18"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Battery Card -->
+            <Border Grid.Column="4" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="10,0,0,0"
+                    ToolTip="Battery charge level and power status. Keep battery between 20-80% for longevity.">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="BATTERY" 
+                                   Style="{StaticResource Label}"/>
+                        <Ellipse Width="10" Height="10" 
+                                 HorizontalAlignment="Right" 
+                                 VerticalAlignment="Center"
+                                 Fill="{Binding LatestMonitoringSample.BatteryChargePercent, Converter={StaticResource LoadToColorConverter}}"
+                                 ToolTip="Battery level indicator"/>
+                    </Grid>
+                    <TextBlock Text="{Binding BatterySummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
                                LineHeight="18"/>

@@ -21,7 +21,8 @@
 
         <StackPanel Grid.Row="1">
                 <!-- Performance Mode Section -->
-                <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20">
+                <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20"
+                        ToolTip="System power profile affects CPU/GPU performance limits and power consumption">
                     <StackPanel>
                         <TextBlock Text="PERFORMANCE PROFILE" Style="{StaticResource Label}" Margin="0,0,0,8"/>
                         <TextBlock Text="Performance Mode" Style="{StaticResource Heading3}" Margin="0,0,0,8"/>
@@ -64,7 +65,8 @@
                 </Border>
 
                 <!-- CPU Undervolting Section -->
-                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        ToolTip="Reduce CPU voltage to lower temperatures and power consumption. Start conservative (-60mV) and test stability.">
                     <StackPanel>
                         <TextBlock Text="CPU Undervolting" FontSize="20" FontWeight="SemiBold" 
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>

@@ -121,12 +121,6 @@
                                     <TextBlock Text="Import Config" FontSize="11" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Command="{Binding OpenConfigFolderCommand}" Style="{StaticResource SecondaryButton}" Height="32" Margin="0,0,0,5">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconSettings}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
-                                    <TextBlock Text="Settings" FontSize="11" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
                             <Button Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="32">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="{StaticResource IconAbout}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
@@ -391,6 +385,11 @@
                 <!-- Peripherals Tab with Lighting View -->
                 <TabItem Header="RGB &amp; Peripherals">
                     <views:LightingView DataContext="{Binding Lighting}" />
+                </TabItem>
+                
+                <!-- Settings Tab -->
+                <TabItem Header="Settings">
+                    <views:SettingsView DataContext="{Binding Settings}" />
                 </TabItem>
             </TabControl>
 

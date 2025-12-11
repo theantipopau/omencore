@@ -16,6 +16,8 @@
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:TemperatureToColorConverter x:Key="TemperatureToColorConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:LoadToColorConverter x:Key="LoadToColorConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

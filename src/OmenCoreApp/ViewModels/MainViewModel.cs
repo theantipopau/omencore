@@ -40,12 +40,16 @@ namespace OmenCore.ViewModels
         private readonly AutoUpdateService _autoUpdateService;
         private readonly ProcessMonitoringService _processMonitoringService;
         private readonly GameProfileService _gameProfileService;
+        private readonly FanCleaningService _fanCleaningService;
+        private readonly HotkeyService _hotkeyService;
+        private readonly NotificationService _notificationService;
         
         // Sub-ViewModels for modular UI
         public FanControlViewModel? FanControl { get; private set; }
         public LightingViewModel? Lighting { get; private set; }
         public SystemControlViewModel? SystemControl { get; private set; }
         public DashboardViewModel? Dashboard { get; private set; }
+        public SettingsViewModel? Settings { get; private set; }
         
         private readonly AsyncRelayCommand _applyUndervoltCommand;
         private readonly AsyncRelayCommand _resetUndervoltCommand;
@@ -105,6 +109,8 @@ namespace OmenCore.ViewModels
         private string _updateDownloadStatus = string.Empty;
         private bool _updateInstallBlocked;
         private string _appVersionLabel = "v0.0.0";
+        private string _currentFanMode = "Auto";
+        private string _currentPerformanceMode = "Balanced";
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
@@ -134,6 +140,33 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        public string CurrentFanMode
+        {
+            get => _currentFanMode;
+            set
+            {
+                if (_currentFanMode != value)
+                {
+                    _currentFanMode = value;
+                    OnPropertyChanged(nameof(CurrentFanMode));
+                }
+            }
+        }
+
+        public string CurrentPerformanceMode
+        {
+            get => _currentPerformanceMode;
+            set
+            {
+                if (_currentPerformanceMode != value)
+                {
+                    _currentPerformanceMode = value;
+                    OnPropertyChanged(nameof(CurrentPerformanceMode));
+                }
+            }
+        }
+
         public bool UpdateBannerVisible
         {
             get => _updateBannerVisible;
@@ -771,8 +804,21 @@ namespace OmenCore.ViewModels
             _autoUpdateService = new AutoUpdateService(_logging);
             _processMonitoringService = new ProcessMonitoringService(_logging);
             _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
+            _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService);
+            _hotkeyService = new HotkeyService(_logging);
+            _notificationService = new NotificationService(_logging);
             _autoUpdateService.DownloadProgressChanged += OnUpdateDownloadProgressChanged;
             _autoUpdateService.UpdateCheckCompleted += OnBackgroundUpdateCheckCompleted;
+            
+            // Wire up game profile notifications
+            _gameProfileService.ProfileApplyRequested += OnGameProfileApplyRequested;
+            
+            // Wire up hotkey events
+            _hotkeyService.ToggleFanModeRequested += OnHotkeyToggleFanMode;
+            _hotkeyService.TogglePerformanceModeRequested += OnHotkeyTogglePerformanceMode;
+            _hotkeyService.ToggleBoostModeRequested += OnHotkeyToggleBoostMode;
+            _hotkeyService.ToggleQuietModeRequested += OnHotkeyToggleQuietMode;
+            _hotkeyService.ToggleWindowRequested += OnHotkeyToggleWindow;
 
             // Initialize sub-ViewModels that don't depend on async services
             InitializeSubViewModels();
@@ -1756,6 +1802,10 @@ namespace OmenCore.ViewModels
             };
             Dashboard.CurrentFanMode = FanControl.CurrentFanModeName;
             
+            // Initialize Settings sub-ViewModel
+            Settings = new SettingsViewModel(_logging, _configService, _systemInfoService, _fanCleaningService);
+            OnPropertyChanged(nameof(Settings));
+            
             _logging.Info("Sub-ViewModels initialized successfully");
         }
 
@@ -1837,6 +1887,237 @@ namespace OmenCore.ViewModels
             await Task.CompletedTask;
         }
 
+        #region Tray Quick Actions
+
+        public void SetFanModeFromTray(string mode)
+        {
+            _logging.Info($"Fan mode change requested from tray: {mode}");
+            try
+            {
+                FanPreset? targetPreset = mode switch
+                {
+                    "Max" => FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Performance", StringComparison.OrdinalIgnoreCase)),
+                    "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
+                    _ => FanPresets.FirstOrDefault(p => p.Name.Contains("Auto", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Balanced", StringComparison.OrdinalIgnoreCase))
+                };
+
+                if (targetPreset != null)
+                {
+                    SelectedPreset = targetPreset;
+                    _fanService.ApplyPreset(targetPreset);
+                    CurrentFanMode = mode;
+                    PushEvent($"🌀 Fan mode: {mode}");
+                }
+                else
+                {
+                    // No matching preset found, just update state
+                    CurrentFanMode = mode;
+                    PushEvent($"🌀 Fan mode: {mode} (preset not found)");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to set fan mode from tray: {ex.Message}");
+            }
+        }
+
+        public void SetPerformanceModeFromTray(string mode)
+        {
+            _logging.Info($"Performance mode change requested from tray: {mode}");
+            try
+            {
+                if (SystemControl != null)
+                {
+                    var targetMode = SystemControl.PerformanceModes.FirstOrDefault(m => 
+                        m.Name.Equals(mode, StringComparison.OrdinalIgnoreCase));
+
+                    if (targetMode != null)
+                    {
+                        SystemControl.SelectedPerformanceMode = targetMode;
+                        SystemControl.ApplyPerformanceModeCommand?.Execute(null);
+                        CurrentPerformanceMode = mode;
+                        PushEvent($"⚡ Performance: {mode}");
+                    }
+                }
+                else
+                {
+                    // Direct service call as fallback
+                    _performanceModeService.Apply(new PerformanceMode { Name = mode });
+                    CurrentPerformanceMode = mode;
+                    PushEvent($"⚡ Performance: {mode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to set performance mode from tray: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Hotkey & Notification Handlers
+
+        private void OnGameProfileApplyRequested(object? sender, ProfileApplyEventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (e.Profile != null)
+                {
+                    // Game profile activated
+                    _notificationService.ShowGameProfileActivated(e.Profile.ExecutableName, e.Profile.Name);
+                    PushEvent($"🎮 Profile: {e.Profile.Name} for {e.Profile.ExecutableName}");
+                }
+                else if (e.Trigger == ProfileTrigger.GameExit)
+                {
+                    // Game exited, defaults restored
+                    _notificationService.ShowGameProfileDeactivated("Game");
+                    PushEvent("🎮 Restored default settings");
+                }
+            });
+        }
+
+        private void OnHotkeyToggleFanMode(object? sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (FanControl == null) return;
+                
+                // Cycle through fan modes
+                var modes = new[] { "Balanced", "Performance", "Quiet" };
+                var currentIndex = Array.IndexOf(modes, CurrentFanMode);
+                var nextIndex = (currentIndex + 1) % modes.Length;
+                var nextMode = modes[nextIndex];
+                
+                try
+                {
+                    FanControl.ApplyFanMode(nextMode);
+                    CurrentFanMode = nextMode;
+                    _notificationService.ShowFanModeChanged(nextMode, "Hotkey");
+                    PushEvent($"🌀 Fan: {nextMode} (hotkey)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Hotkey fan mode change failed: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnHotkeyTogglePerformanceMode(object? sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (SystemControl == null) return;
+                
+                // Cycle through performance modes
+                var modes = new[] { "Balanced", "Performance", "Quiet" };
+                var currentIndex = Array.IndexOf(modes, CurrentPerformanceMode);
+                var nextIndex = (currentIndex + 1) % modes.Length;
+                var nextMode = modes[nextIndex];
+                
+                try
+                {
+                    _performanceModeService.Apply(new PerformanceMode { Name = nextMode });
+                    CurrentPerformanceMode = nextMode;
+                    _notificationService.ShowPerformanceModeChanged(nextMode, "Hotkey");
+                    PushEvent($"⚡ Performance: {nextMode} (hotkey)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Hotkey performance mode change failed: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnHotkeyToggleBoostMode(object? sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    FanControl?.ApplyFanMode("Performance");
+                    _performanceModeService.Apply(new PerformanceMode { Name = "Performance" });
+                    CurrentFanMode = "Performance";
+                    CurrentPerformanceMode = "Performance";
+                    _notificationService.ShowFanModeChanged("Boost (Performance)", "Hotkey");
+                    PushEvent("🔥 Boost mode activated (hotkey)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Hotkey boost mode failed: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnHotkeyToggleQuietMode(object? sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    FanControl?.ApplyFanMode("Quiet");
+                    _performanceModeService.Apply(new PerformanceMode { Name = "Quiet" });
+                    CurrentFanMode = "Quiet";
+                    CurrentPerformanceMode = "Quiet";
+                    _notificationService.ShowFanModeChanged("Quiet", "Hotkey");
+                    PushEvent("🤫 Quiet mode activated (hotkey)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Hotkey quiet mode failed: {ex.Message}");
+                }
+            });
+        }
+
+        private void OnHotkeyToggleWindow(object? sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var mainWindow = Application.Current.MainWindow;
+                if (mainWindow == null) return;
+                
+                if (mainWindow.IsVisible && mainWindow.WindowState != WindowState.Minimized)
+                {
+                    mainWindow.Hide();
+                }
+                else
+                {
+                    mainWindow.Show();
+                    mainWindow.WindowState = WindowState.Normal;
+                    mainWindow.Activate();
+                }
+            });
+        }
+
+        /// <summary>
+        /// Initialize hotkeys after window handle is available
+        /// </summary>
+        public void InitializeHotkeys(IntPtr windowHandle)
+        {
+            try
+            {
+                _hotkeyService.Initialize(windowHandle);
+                _hotkeyService.RegisterDefaultHotkeys();
+                _logging.Info("Global hotkeys registered");
+                PushEvent("⌨️ Global hotkeys enabled");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to register hotkeys: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Get the notification service for external use
+        /// </summary>
+        public NotificationService Notifications => _notificationService;
+
+        /// <summary>
+        /// Get the hotkey service for external use
+        /// </summary>
+        public HotkeyService Hotkeys => _hotkeyService;
+
+        #endregion
+
         public void Dispose()
         {
             _fanService.Dispose();
@@ -1854,6 +2135,10 @@ namespace OmenCore.ViewModels
             // Dispose process monitoring and game profile services
             _processMonitoringService?.Dispose();
             _gameProfileService?.Dispose();
+
+            // Dispose hotkey and notification services
+            _hotkeyService?.Dispose();
+            _notificationService?.Dispose();
 
             // Dispose device services
             _corsairDeviceService?.Dispose();

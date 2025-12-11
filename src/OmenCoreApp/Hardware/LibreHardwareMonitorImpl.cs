@@ -23,12 +23,17 @@ namespace OmenCore.Hardware
         private double _cachedGpuTemp = 0;
         private double _cachedCpuLoad = 0;
         private double _cachedGpuLoad = 0;
+        private double _cachedCpuPower = 0;
         private double _cachedVramUsage = 0;
         private double _cachedRamUsage = 0;
         private double _cachedRamTotal = 0;
         private double _cachedFanRpm = 0;
         private double _cachedSsdTemp = 0;
         private double _cachedDiskUsage = 0;
+        private double _cachedBatteryCharge = 100;
+        private bool _cachedIsOnAc = true;
+        private double _cachedDischargeRate = 0;
+        private string _cachedBatteryTimeRemaining = "";
         private List<double> _cachedCoreClocks = new();
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
@@ -48,7 +53,8 @@ namespace OmenCore.Hardware
                     IsMemoryEnabled = true,
                     IsStorageEnabled = true,
                     IsControllerEnabled = true,
-                    IsNetworkEnabled = false
+                    IsNetworkEnabled = false,
+                    IsBatteryEnabled = true
                 };
                 _computer.Open();
                 _initialized = true;
@@ -110,6 +116,12 @@ namespace OmenCore.Hardware
                                 _logger?.Invoke($"CPU Package temp sensor not found in {hardware.Name}");
                             }
                             _cachedCpuLoad = GetSensor(hardware, SensorType.Load, "CPU Total")?.Value ?? 0;
+                            
+                            // CPU Power (package power consumption)
+                            var cpuPowerSensor = GetSensor(hardware, SensorType.Power, "CPU Package")
+                                ?? GetSensor(hardware, SensorType.Power, "Package")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Power);
+                            _cachedCpuPower = cpuPowerSensor?.Value ?? 0;
                             
                             _cachedCoreClocks.Clear();
                             var coreClockSensors = hardware.Sensors
@@ -199,6 +211,45 @@ namespace OmenCore.Hardware
                                 _cachedDiskUsage = GetSensor(hardware, SensorType.Load)?.Value ?? 0;
                             }
                             break;
+                            
+                        case HardwareType.Battery:
+                            // Battery charge level
+                            var chargeSensor = GetSensor(hardware, SensorType.Level, "Charge Level")
+                                ?? GetSensor(hardware, SensorType.Level)
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Level);
+                            if (chargeSensor?.Value.HasValue == true)
+                            {
+                                _cachedBatteryCharge = chargeSensor.Value.Value;
+                            }
+                            
+                            // Discharge rate (negative when charging)
+                            var powerSensor = GetSensor(hardware, SensorType.Power, "Discharge Rate")
+                                ?? GetSensor(hardware, SensorType.Power)
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Power);
+                            if (powerSensor?.Value.HasValue == true)
+                            {
+                                _cachedDischargeRate = powerSensor.Value.Value;
+                                _cachedIsOnAc = _cachedDischargeRate <= 0;
+                            }
+                            
+                            // Time remaining
+                            var timeSensor = GetSensor(hardware, SensorType.TimeSpan, "Remaining Time")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.TimeSpan);
+                            if (timeSensor?.Value.HasValue == true)
+                            {
+                                var minutes = timeSensor.Value.Value;
+                                if (minutes > 0)
+                                {
+                                    var hours = (int)(minutes / 60);
+                                    var mins = (int)(minutes % 60);
+                                    _cachedBatteryTimeRemaining = hours > 0 ? $"{hours}h {mins}m" : $"{mins}m";
+                                }
+                                else
+                                {
+                                    _cachedBatteryTimeRemaining = _cachedIsOnAc ? "Charging" : "";
+                                }
+                            }
+                            break;
                     }
 
                     // Fan RPM from motherboard or subhardware
@@ -282,6 +333,7 @@ namespace OmenCore.Hardware
             {
                 CpuTemperatureC = Math.Round(_cachedCpuTemp, 1),
                 CpuLoadPercent = Math.Round(_cachedCpuLoad, 1),
+                CpuPowerWatts = Math.Round(_cachedCpuPower, 1),
                 CpuCoreClocksMhz = new List<double>(_cachedCoreClocks),
                 GpuTemperatureC = Math.Round(_cachedGpuTemp, 1),
                 GpuLoadPercent = Math.Round(_cachedGpuLoad, 1),
@@ -291,6 +343,10 @@ namespace OmenCore.Hardware
                 FanRpm = Math.Round(_cachedFanRpm, 0),
                 SsdTemperatureC = Math.Round(_cachedSsdTemp, 1),
                 DiskUsagePercent = Math.Round(_cachedDiskUsage, 1),
+                BatteryChargePercent = Math.Round(_cachedBatteryCharge, 0),
+                IsOnAcPower = _cachedIsOnAc,
+                BatteryDischargeRateW = Math.Round(_cachedDischargeRate, 1),
+                BatteryTimeRemaining = _cachedBatteryTimeRemaining,
                 Timestamp = DateTime.Now
             };
         }

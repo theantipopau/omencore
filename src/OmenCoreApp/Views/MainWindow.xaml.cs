@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using OmenCore.ViewModels;
 
 namespace OmenCore.Views
@@ -21,6 +22,10 @@ namespace OmenCore.Views
         {
             (DataContext as MainViewModel)?.DiscoverCorsairCommand.Execute(null);
             UpdateMaximizedBounds();
+            
+            // Initialize global hotkeys
+            var windowHandle = new WindowInteropHelper(this).Handle;
+            (DataContext as MainViewModel)?.InitializeHotkeys(windowHandle);
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)

@@ -123,11 +123,14 @@
                                     Padding="16,8"/>
                         </Grid>
 
-                        <!-- Custom RGB Color -->
+                        <!-- Custom RGB Color with Color Picker -->
                         <Expander Header="Custom RGB Color" 
                                   Margin="0,16,0,0"
                                   IsExpanded="False">
                             <StackPanel Margin="0,12,0,0">
+                                <controls:ColorPickerControl HexValue="{Binding CorsairColorHex, Mode=TwoWay}" 
+                                                             Margin="0,0,0,16"/>
+                                
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -152,10 +155,6 @@
                                             Command="{Binding ApplyCorsairCustomColorCommand}"
                                             Padding="16,8"/>
                                 </Grid>
-                                
-                                <TextBlock Text="Enter a hex color code (e.g., #FF0000 for red)" 
-                                           FontSize="11" 
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </Expander>
 
@@ -337,6 +336,96 @@
                                     Padding="16,8" 
                                     VerticalAlignment="Bottom"/>
                         </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- HP OMEN Keyboard Lighting -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="HP OMEN Keyboard" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <TextBlock Text="Control your laptop's built-in 4-zone RGB keyboard" 
+                                   FontSize="12" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,16"/>
+
+                        <!-- Zone Toggles -->
+                        <TextBlock Text="LIGHTING ZONES" 
+                                   Style="{StaticResource Label}" 
+                                   Margin="0,0,0,12"/>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="{StaticResource SurfaceDarkBrush}" 
+                                    CornerRadius="8" Padding="12,8" Margin="0,0,6,0"
+                                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="Zone 1" FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Left" FontSize="10" 
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <Ellipse Width="16" Height="16" Fill="{StaticResource AccentBrush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Background="{StaticResource SurfaceDarkBrush}" 
+                                    CornerRadius="8" Padding="12,8" Margin="3,0"
+                                    BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="Zone 2" FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Middle-L" FontSize="10" 
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <Ellipse Width="16" Height="16" Fill="{StaticResource AccentBlueBrush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Background="{StaticResource SurfaceDarkBrush}" 
+                                    CornerRadius="8" Padding="12,8" Margin="3,0"
+                                    BorderBrush="#9B30FF" BorderThickness="1">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="Zone 3" FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Middle-R" FontSize="10" 
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <Ellipse Width="16" Height="16" Fill="#9B30FF" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Background="{StaticResource SurfaceDarkBrush}" 
+                                    CornerRadius="8" Padding="12,8" Margin="6,0,0,0"
+                                    BorderBrush="#00FFFF" BorderThickness="1">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="Zone 4" FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Right" FontSize="10" 
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <Ellipse Width="16" Height="16" Fill="#00FFFF" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="Note: Zone colors can be configured in the Lighting Profiles section" 
+                                   FontSize="11" 
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   FontStyle="Italic"/>
                     </StackPanel>
                 </Border>
 

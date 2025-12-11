@@ -370,6 +370,52 @@
         </Setter>
     </Style>
 
+    <!-- Modern Toggle Switch Style (iOS-style) -->
+    <Style x:Key="ModernToggleButton" TargetType="ToggleButton">
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border x:Name="Track"
+                                Background="{StaticResource SurfaceHighlightBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Width="44" Height="24"/>
+                        <Border x:Name="Thumb"
+                                Background="#FFFFFF"
+                                CornerRadius="10"
+                                Width="20" Height="20"
+                                HorizontalAlignment="Left"
+                                Margin="2,0,0,0">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="4" ShadowDepth="1" Direction="270"/>
+                            </Border.Effect>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Modern GroupBox Style -->
     <Style x:Key="ModernGroupBox" TargetType="GroupBox">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />

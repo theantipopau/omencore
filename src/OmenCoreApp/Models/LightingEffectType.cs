@@ -6,6 +6,8 @@ namespace OmenCore.Models
         Wave,
         Breathing,
         Ripple,
-        Reactive
+        Reactive,
+        ColorCycle,
+        Off
     }
 }
