@@ -11,6 +11,7 @@ namespace OmenCore.Services
         private readonly BlockingCollection<string> _queue = new();
         private readonly string _logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore");
         private readonly string _fileName;
+        private Thread? _writerThread;
         private bool _disposed;
 
         public event Action<string>? LogEmitted;
@@ -23,12 +24,12 @@ namespace OmenCore.Services
 
         public void Initialize()
         {
-            var writerThread = new Thread(FlushLoop)
+            _writerThread = new Thread(FlushLoop)
             {
                 IsBackground = true,
                 Name = "OmenCore.Logging"
             };
-            writerThread.Start();
+            _writerThread.Start();
         }
 
         public void Info(string message) => Enqueue("INFO", message);
@@ -62,6 +63,8 @@ namespace OmenCore.Services
                 return;
             }
             _queue.CompleteAdding();
+            // Give the writer thread a moment to flush the remaining log lines
+            _writerThread?.Join(TimeSpan.FromSeconds(2));
             _disposed = true;
         }
     }

@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore</AssemblyName>
     <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\\OmenCore.ico" />
@@ -20,7 +21,13 @@
     <Resource Include="Assets\\nvidia.png" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="CUE.NET" Version="1.2.0.1" />
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="RGB.NET.Core" Version="3.1.0" />
+    <PackageReference Include="RGB.NET.Devices.Corsair" Version="3.1.0" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\VERSION.txt" Link="VERSION.txt">

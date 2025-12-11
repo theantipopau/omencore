@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace OmenCore.Utils
 {
@@ -40,6 +41,19 @@ namespace OmenCore.Utils
             }
         }
 
-        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        public void RaiseCanExecuteChanged()
+        {
+            if (System.Windows.Application.Current?.Dispatcher.CheckAccess() == true)
+            {
+                CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+                });
+            }
+        }
     }
 }

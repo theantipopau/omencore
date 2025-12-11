@@ -1,34 +1,36 @@
-<Window x:Class="OmenCore.Views.MainWindow"
+﻿<Window x:Class="OmenCore.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:OmenCore.ViewModels"
+        xmlns:views="clr-namespace:OmenCore.Views"
         xmlns:controls="clr-namespace:OmenCore.Controls"
         xmlns:models="clr-namespace:OmenCore.Models"
         mc:Ignorable="d"
-        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="720" MinWidth="1200"
+        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="700" MinWidth="1100"
         Icon="/Assets/OmenCore.ico"
         Background="{StaticResource BackgroundDarkBrush}"
         WindowStyle="None"
         AllowsTransparency="True"
-        ResizeMode="CanResizeWithGrip">
-    <Window.DataContext>
-        <vm:MainViewModel />
-    </Window.DataContext>
+        ResizeMode="CanResizeWithGrip"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+    <!-- DataContext will be set via dependency injection in code-behind -->
     
     <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
             
             <!-- Custom Title Bar -->
             <Border Grid.Row="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12,12,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Height="48">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
-                        <Image Source="/Assets/logo-small.png" Width="32" Height="32" Margin="0,0,12,0" />
+                        <Image Source="pack://application:,,,/Assets/logo-small.png" Width="32" Height="32" Margin="0,0,12,0" />
                         <TextBlock Text="OmenCore" FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding AppVersionLabel}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,1,0,0" Opacity="0.8" />
                     </StackPanel>
@@ -42,34 +44,79 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="280" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="260" MinWidth="240" MaxWidth="320" />
+                    <ColumnDefinition Width="*" MinWidth="800" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Sidebar -->
                 <Border Grid.Column="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="0,0,0,12">
                     <DockPanel LastChildFill="True" Margin="20">
-                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,32" HorizontalAlignment="Center">
-                            <Image Source="/Assets/logo.png" Width="100" Height="100" Stretch="Uniform" />
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20" HorizontalAlignment="Center">
+                            <Image Source="pack://application:,,,/Assets/logo.png" Width="100" Height="100" Stretch="Uniform" />
                             <TextBlock Text="OmenCore" Foreground="{StaticResource TextPrimaryBrush}" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,12,0,0" />
                             <TextBlock Text="Gaming Control Center" Foreground="{StaticResource TextTertiaryBrush}" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                            
+                            <!-- System Status Indicator -->
+                            <Border Background="{StaticResource SurfaceDarkBrush}"
+                                    BorderBrush="{StaticResource AccentBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12"
+                                    Margin="0,16,0,0">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="⚡" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="PERFORMANCE" FontSize="9" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, FallbackValue=Auto}" 
+                                                       FontSize="13" FontWeight="Bold" 
+                                                       Foreground="{StaticResource AccentBrush}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    
+                                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,4"/>
+                                    
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🌀" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="FAN MODE" FontSize="9" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding Dashboard.CurrentFanMode, FallbackValue=Auto}" 
+                                                       FontSize="13" FontWeight="Bold" 
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                         <StackPanel DockPanel.Dock="Bottom" Margin="0,24,0,0">
-                            <Button Content="⚙ Settings" Command="{Binding OpenConfigFolderCommand}" Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,0,8" />
-                            <Button Content="ℹ About" Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="36" />
+                            <Button Content="Export Config" Command="{Binding ExportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,0,8" />
+                            <Button Content="Import Config" Command="{Binding ImportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,0,8" />
+                            <Button Content="Settings" Command="{Binding OpenConfigFolderCommand}" Style="{StaticResource SecondaryButton}" Height="36" Margin="0,0,0,8" />
+                            <Button Content="About" Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="36" />
                         </StackPanel>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                                      ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                                      VirtualizingPanel.ScrollUnit="Pixel">
                             <StackPanel>
                                 <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                <Button Content="🌡 Apply Fan Preset" Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
-                                <Button Content="⚡ Performance Mode" Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
-                                <Button Content="💡 Apply Lighting" Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
-                                <Button Content="🎮 Gaming Mode" Command="{Binding GamingModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
-                                <Button Content="↺ Restore Defaults" Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,16,0,0" HorizontalContentAlignment="Left" Padding="12,10" />
+                                <Button Content="Apply Fan Preset" Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
+                                <Button Content="Performance Mode" Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
+                                <Button Content="Apply Lighting" Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
+                                <Button Content="Gaming Mode" Command="{Binding GamingModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Padding="12,10" />
+                                <Button Content="Restore Defaults" Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,16,0,0" HorizontalContentAlignment="Left" Padding="12,10" />
                                 
                                 <!-- System Information -->
                                 <TextBlock Text="SYSTEM INFO" Foreground="{StaticResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="0,24,0,12" />
-                                <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <Border Style="{StaticResource SurfaceCard}" Padding="16">
                                     <StackPanel>
                                         <!-- CPU -->
                                         <Grid Margin="0,0,0,8">
@@ -80,10 +127,10 @@
                                             <Image Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center" Margin="0,0,8,0">
                                                 <Image.Style>
                                                     <Style TargetType="Image">
-                                                        <Setter Property="Source" Value="/Assets/intel.png" />
+                                                        <Setter Property="Source" Value="pack://application:,,,/Assets/intel.png" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding SystemInfo.CpuVendor}" Value="AMD">
-                                                                <Setter Property="Source" Value="/Assets/amd.png" />
+                                                                <Setter Property="Source" Value="pack://application:,,,/Assets/amd.png" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -101,7 +148,7 @@
                                                 <ColumnDefinition Width="24" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="🗍" FontSize="18" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" Margin="0,0,8,0" />
+                                            <TextBlock Grid.Column="0" Text="💾" FontSize="18" VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}" Margin="0,0,8,0" />
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="RAM" Foreground="{StaticResource TextTertiaryBrush}" FontSize="10" FontWeight="SemiBold" />
                                                 <TextBlock Text="{Binding SystemInfo.RamSizeFormatted}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" />
@@ -165,29 +212,54 @@
                                 Margin="24,12,24,8"
                                 Visibility="{Binding UpdateBannerVisible, Converter={StaticResource BoolToVisibility}}">
                             <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="⬆" FontSize="22" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                                
+                                <!-- Update Banner Header -->
+                                <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Update" FontSize="14" FontWeight="Bold" Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
                                     <StackPanel>
                                         <TextBlock Text="Update Ready" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
                                         <TextBlock Text="{Binding UpdateBannerMessage}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Button Content="{Binding UpdateActionLabel}"
+                                
+                                <!-- Buttons -->
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Install Update"
                                             Command="{Binding InstallUpdateCommand}"
                                             Style="{StaticResource ModernButton}"
-                                        Width="150"
-                                        Height="34"
-                                        Margin="0,0,8,0" />
+                                            Width="140"
+                                            Height="34"
+                                            Margin="0,0,8,0" />
                                     <Button Content="Release Notes"
                                             Command="{Binding OpenReleaseNotesCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="130"
                                             Height="34" />
+                                </StackPanel>
+                                
+                                <!-- Download Progress -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
+                                            Margin="34,12,0,0"
+                                            Visibility="{Binding UpdateDownloadInProgress, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                    <ProgressBar Value="{Binding UpdateDownloadProgress, Mode=OneWay}" 
+                                                 Minimum="0" Maximum="100" 
+                                                 Height="8" 
+                                                 BorderThickness="0"
+                                                 Foreground="{StaticResource AccentBlueBrush}"
+                                                 Background="{StaticResource SurfaceDarkBrush}"
+                                                 Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding UpdateDownloadStatus, Mode=OneWay}" 
+                                               FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontFamily="Consolas" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -199,7 +271,7 @@
                                 Margin="24,12,24,12"
                                 Visibility="{Binding SystemInfo.IsHpOmen, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⚠" FontSize="22" Foreground="#FFFFFF" Margin="0,0,14,0" VerticalAlignment="Center" FontWeight="Bold" />
+                                <TextBlock Text="!" FontSize="22" Foreground="#FFFFFF" Margin="0,0,14,0" VerticalAlignment="Center" FontWeight="Bold" />
                                 <StackPanel>
                                     <TextBlock Text="Warning: Non-HP Omen System Detected" 
                                                FontWeight="Bold" 
@@ -215,7 +287,7 @@
                         </Border>
                         
                         <!-- Dashboard Header -->
-                        <Border Margin="24,0,24,16" Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                        <Border Margin="24,0,24,16" Style="{StaticResource SurfaceCard}">
                             <StackPanel>
                                 <TextBlock Text="Dashboard" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
                                 <TextBlock Text="Manage thermals, power, lighting, and peripherals" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" FontSize="13" Opacity="0.9" />
@@ -224,18 +296,16 @@
                     </StackPanel>
 
                     <TabControl Grid.Row="1" Margin="24,0,24,16" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}">
-                <TabItem Header="🏠 HP Omen">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="20">
-                            <Border Background="{StaticResource SurfaceMediumBrush}" 
-                                    BorderBrush="{StaticResource BorderBrush}" 
-                                    BorderThickness="1" 
-                                    CornerRadius="8" 
-                                    Padding="16,12" 
+                <TabItem Header="HP Omen">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="20,20,20,40">
+                            <Border Style="{StaticResource SurfaceCard}" 
+                                    Padding="16,12"
                                     Margin="0,0,0,20"
                                     HorizontalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
-                                    <Image Source="/Assets/omen.png" Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center" />
+                                    <Image Source="pack://application:,,,/Assets/omen.png" Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center" />
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="HP OMEN Control" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
                                         <TextBlock Text="Advanced Laptop Configuration" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" />
@@ -243,425 +313,31 @@
                                 </StackPanel>
                             </Border>
                             
+                            <!-- Fan Control View -->
                             <GroupBox Header="Fan &amp; Thermal Control" Style="{StaticResource ModernGroupBox}">
-                                <Grid Margin="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="200" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" />
-                                    </Grid.RowDefinitions>
-                                    <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal">
-                                        <ComboBox Width="220" ItemsSource="{Binding FanPresets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Name" Style="{StaticResource ModernComboBox}" Margin="0,0,8,0" />
-                                        <Button Content="Apply" Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,0" />
-                                        <TextBox Width="160" Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Margin="0,0,8,0" />
-                                        <Button Content="Save" Command="{Binding SaveCustomPresetCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,0" />
-                                        <Button Content="Push Curve" Command="{Binding ApplyFanCurveCommand}" Style="{StaticResource ModernButton}" Padding="16,8" />
-                                    </StackPanel>
-                                    <controls:ThermalChart Grid.Row="1" Grid.ColumnSpan="2" Height="220" Samples="{Binding ThermalSamples}" Margin="0 12 0 0" />
-                                    <DataGrid Grid.Row="1" Grid.Column="1" ItemsSource="{Binding CustomFanCurve}" AutoGenerateColumns="False" HeadersVisibility="Column" Margin="12 12 0 0">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Temp (°C)" Binding="{Binding TemperatureC}" />
-                                            <DataGridTextColumn Header="Fan %" Binding="{Binding FanPercent}" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <ListView Grid.Row="1" Grid.Column="2" ItemsSource="{Binding FanTelemetry}" Margin="12 12 0 0">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Fan" DisplayMemberBinding="{Binding Name}" Width="120" />
-                                                <GridViewColumn Header="RPM" DisplayMemberBinding="{Binding Rpm}" Width="60" />
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </Grid>
+                                <views:FanControlView DataContext="{Binding FanControl}" />
                             </GroupBox>
-
-                            <GroupBox Header="Performance Modes" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Orientation="Horizontal">
-                                    <ComboBox Width="220" ItemsSource="{Binding PerformanceModes}" SelectedItem="{Binding SelectedPerformanceMode}" DisplayMemberPath="Name" Style="{StaticResource ModernComboBox}" Margin="0,0,12,0" />
-                                    <Button Content="Apply" Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,16,0" />
-                                    <TextBlock Text="GPU Mode:" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                    <Button Content="Hybrid" Command="{Binding SwitchGpuCommand}" CommandParameter="{x:Static models:GpuSwitchMode.Hybrid}" Style="{StaticResource SecondaryButton}" Padding="12,8" Margin="0,0,8,0" />
-                                    <Button Content="dGPU" Command="{Binding SwitchGpuCommand}" CommandParameter="{x:Static models:GpuSwitchMode.Discrete}" Style="{StaticResource SecondaryButton}" Padding="12,8" Margin="0,0,8,0" />
-                                    <Button Content="iGPU" Command="{Binding SwitchGpuCommand}" CommandParameter="{x:Static models:GpuSwitchMode.Integrated}" Style="{StaticResource SecondaryButton}" Padding="12,8" />
-                                </StackPanel>
-                            </GroupBox>
-
-                            <GroupBox Header="CPU Undervolt" Style="{StaticResource ModernGroupBox}">
-                                <Grid Margin="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0 0 12 0">
-                                        <Border Background="#44FF9800" BorderBrush="#FF9800" BorderThickness="2" CornerRadius="6" Padding="14,10" Margin="0,0,0,16">
-                                            <StackPanel>
-                                                <TextBlock Text="⚠ Warning" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,5" FontSize="13" />
-                                                <TextBlock Text="Undervolting modifies CPU voltage. Incorrect values may cause system instability. Test carefully and restart if needed." 
-                                                           TextWrapping="Wrap" 
-                                                           Foreground="#FFFFFF" 
-                                                           FontSize="12" />
-                                            </StackPanel>
-                                        </Border>
-                                        
-                                        <TextBlock Text="Core Offset" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                        <Grid Margin="0,0,0,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="80" />
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0" Minimum="-200" Maximum="0" Value="{Binding RequestedCoreOffset, Mode=TwoWay}" 
-                                                    TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,0,8,0" 
-                                                    Style="{StaticResource ModernSlider}" />
-                                            <TextBox Grid.Column="1" Text="{Binding RequestedCoreOffset, UpdateSourceTrigger=PropertyChanged}" 
-                                                     Style="{StaticResource ModernTextBox}" HorizontalContentAlignment="Center" />
-                                        </Grid>
-                                        <TextBlock Text="{Binding RequestedCoreOffset, StringFormat={}{0} mV}" 
-                                                   Foreground="{StaticResource TextTertiaryBrush}" 
-                                                   FontSize="11" 
-                                                   Margin="0,0,0,16" />
-                                        
-                                        <TextBlock Text="Cache Offset" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                        <Grid Margin="0,0,0,4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="80" />
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0" Minimum="-200" Maximum="0" Value="{Binding RequestedCacheOffset, Mode=TwoWay}" 
-                                                    TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,0,8,0" 
-                                                    Style="{StaticResource ModernSlider}" />
-                                            <TextBox Grid.Column="1" Text="{Binding RequestedCacheOffset, UpdateSourceTrigger=PropertyChanged}" 
-                                                     Style="{StaticResource ModernTextBox}" HorizontalContentAlignment="Center" />
-                                        </Grid>
-                                        <TextBlock Text="{Binding RequestedCacheOffset, StringFormat={}{0} mV}" 
-                                                   Foreground="{StaticResource TextTertiaryBrush}" 
-                                                   FontSize="11" 
-                                                   Margin="0,0,0,16" />
-                                        
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Apply Undervolt" Command="{Binding ApplyUndervoltCommand}" Style="{StaticResource ModernButton}" Padding="16,10" Margin="0,0,8,0" />
-                                            <Button Content="Reset to Safe" Command="{Binding ResetUndervoltCommand}" Style="{StaticResource SecondaryButton}" Padding="16,10" />
-                                        </StackPanel>
-                                        <Button Content="Refresh Status" Command="{Binding RefreshUndervoltCommand}" Style="{StaticResource SecondaryButton}" Padding="16,10" Margin="0,12,0,0" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="Current Status" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding UndervoltStatusSummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,8" />
-                                        <TextBlock Text="External Control" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding ExternalUndervoltSummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,8" />
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="Take Control" Command="{Binding TakeUndervoltControlCommand}" Style="{StaticResource SecondaryButton}" Padding="12,8" Margin="0,0,8,0" />
-                                            <Button Content="Respect External" Command="{Binding RespectExternalUndervoltCommand}" Style="{StaticResource SecondaryButton}" Padding="12,8" />
-                                        </StackPanel>
-                                        <Border Margin="0 12 0 0" Background="#33E6002E" Padding="8" CornerRadius="4" Visibility="{Binding ShowUndervoltWarning, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="{Binding UndervoltWarning}" TextWrapping="Wrap" Foreground="White" />
-                                        </Border>
-                                    </StackPanel>
-                                </Grid>
-                            </GroupBox>
-
-                            <GroupBox Header="Keyboard RGB" Style="{StaticResource ModernGroupBox}">
-                                <Grid Margin="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <ListBox ItemsSource="{Binding LightingProfiles}" SelectedItem="{Binding SelectedLightingProfile}" DisplayMemberPath="Name" />
-                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                        <Button Content="Apply Profile" Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource ModernButton}" Padding="16,10" Margin="0,0,0,8" />
-                                        <Button Content="Restore Default" Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Padding="16,10" />
-                                    </StackPanel>
-                                </Grid>
-                            </GroupBox>
-
-                            <GroupBox Header="System Optimization" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <WrapPanel Margin="0 0 0 8">
-                                        <CheckBox Content="Gaming Mode" IsChecked="{Binding GamingModeActive}" />
-                                        <Button Content="Disable Animations" Command="{Binding ToggleAnimationsCommand}" CommandParameter="Disable" Style="{StaticResource SecondaryButton}" Padding="12,8" Margin="12,0" />
-                                        <Button Content="Enable Animations" Command="{Binding ToggleAnimationsCommand}" CommandParameter="Enable" Style="{StaticResource SecondaryButton}" Padding="12,8" />
-                                    </WrapPanel>
-                                    <ItemsControl ItemsSource="{Binding SystemToggles}" Margin="0 8 0 0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <CheckBox Content="{Binding Name}" IsChecked="{Binding EnabledByDefault}" Command="{Binding DataContext.ToggleServiceCommand, RelativeSource={RelativeSource AncestorType=GroupBox}}" CommandParameter="{Binding}" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </GroupBox>
-
-                            <GroupBox Header="Safety &amp; Restore" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <TextBlock Text="Create a Windows restore point before uninstalling HP software." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
-                                    <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
-                                        <Button Content="Create Restore Point" Command="{Binding CreateRestorePointCommand}" Style="{StaticResource ModernButton}" Padding="16,10" />
-                                        <ProgressBar Width="120" Height="16" Margin="12 0 0 0" IsIndeterminate="True" Visibility="{Binding RestorePointInProgress, Converter={StaticResource BoolToVisibility}}" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding RestorePointStatus}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </GroupBox>
-
-                            <GroupBox Header="OMEN Gaming Hub Removal" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <TextBlock Text="Uninstall HP OMEN Gaming Hub and clean leftovers while preserving firewall blocks." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
-                                    <WrapPanel Margin="0 8 0 0">
-                                        <CheckBox Content="Remove Store Package" IsChecked="{Binding CleanupRemoveStorePackage}" />
-                                        <CheckBox Content="Legacy Uninstallers" IsChecked="{Binding CleanupRemoveLegacyInstallers}" Margin="12 0 0 0" />
-                                        <CheckBox Content="Registry" IsChecked="{Binding CleanupRemoveRegistry}" Margin="12 0 0 0" />
-                                        <CheckBox Content="Files" IsChecked="{Binding CleanupRemoveFiles}" Margin="12 0 0 0" />
-                                        <CheckBox Content="Services/Tasks" IsChecked="{Binding CleanupRemoveServices}" Margin="12 0 0 0" />
-                                        <CheckBox Content="Kill Processes" IsChecked="{Binding CleanupKillProcesses}" Margin="12 0 0 0" />
-                                        <CheckBox Content="Dry Run" IsChecked="{Binding CleanupDryRun}" Margin="12 0 0 0" />
-                                    </WrapPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
-                                        <CheckBox Content="Preserve Firewall Rules" IsChecked="{Binding CleanupPreserveFirewall}" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
-                                        <Button Content="Run Cleanup" Command="{Binding CleanupOmenHubCommand}" Style="{StaticResource ModernButton}" Padding="16,10" />
-                                        <ProgressBar Width="140" Height="16" Margin="12 0 0 0" IsIndeterminate="True" Visibility="{Binding CleanupInProgress, Converter={StaticResource BoolToVisibility}}" />
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding CleanupStatus}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,6,0,8" TextWrapping="Wrap" />
-                                    <TextBlock Text="Steps" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                    <ListBox ItemsSource="{Binding OmenCleanupSteps}" Height="140" />
-                                </StackPanel>
+                            
+                            <!-- System Control View -->
+                            <GroupBox Header="System Control" Style="{StaticResource ModernGroupBox}">
+                                <views:SystemControlView DataContext="{Binding SystemControl}" />
                             </GroupBox>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
-
-                <TabItem Header="📊 Monitoring">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="24">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        
-                        <Border Grid.Row="0" 
-                                Background="{StaticResource SurfaceMediumBrush}" 
-                                BorderBrush="{StaticResource BorderBrush}" 
-                                BorderThickness="1" 
-                                CornerRadius="8" 
-                                Padding="16,12" 
-                                Margin="0,0,0,20">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="📊" FontSize="24" Margin="0,0,12,0" VerticalAlignment="Center" />
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Hardware Monitoring" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <TextBlock Text="Real-time System Telemetry" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        
-                        <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0 0 24 0">
-                            <GroupBox Header="Live Graphs" Style="{StaticResource ModernGroupBox}" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BoolToVisibility}}">
-                                <Grid Margin="8">
-                                    <controls:LoadChart Samples="{Binding MonitoringSamples}" Height="220" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BoolToVisibility}}" />
-                                    <Border Background="#22000000" Padding="12" CornerRadius="4" Visibility="{Binding MonitoringLowOverheadMode, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="Low overhead mode disables graphs and history to conserve resources." TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    </Border>
-                                </Grid>
-                            </GroupBox>
-                            <GroupBox Header="History" Style="{StaticResource ModernGroupBox}" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BoolToVisibility}}">
-                                <ListView ItemsSource="{Binding MonitoringSamples}" Height="220">
-                                    <ListView.View>
-                                        <GridView>
-                                            <GridViewColumn Header="Time" DisplayMemberBinding="{Binding Timestamp, StringFormat={}{0:HH:mm:ss}}" Width="70" />
-                                            <GridViewColumn Header="CPU" DisplayMemberBinding="{Binding CpuTemperatureC, StringFormat={}{0:F0}°C}" Width="80" />
-                                            <GridViewColumn Header="CPU Load" DisplayMemberBinding="{Binding CpuLoadPercent, StringFormat={}{0:F0}%}" Width="80" />
-                                            <GridViewColumn Header="GPU" DisplayMemberBinding="{Binding GpuTemperatureC, StringFormat={}{0:F0}°C}" Width="80" />
-                                            <GridViewColumn Header="GPU Load" DisplayMemberBinding="{Binding GpuLoadPercent, StringFormat={}{0:F0}%}" Width="80" />
-                                            <GridViewColumn Header="Fan" DisplayMemberBinding="{Binding FanRpm, StringFormat={}{0:F0} rpm}" Width="90" />
-                                            <GridViewColumn Header="SSD" DisplayMemberBinding="{Binding SsdTemperatureC, StringFormat={}{0:F0}°C}" Width="80" />
-                                        </GridView>
-                                    </ListView.View>
-                                </ListView>
-                            </GroupBox>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <GroupBox Header="Snapshot" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <CheckBox Content="Low Overhead Mode" IsChecked="{Binding MonitoringLowOverheadMode, Mode=TwoWay}" />
-                                    <Button Content="Toggle Mode" Command="{Binding ToggleLowOverheadModeCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,8,0,12" />
-                                    <TextBlock Text="{Binding CpuSummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="{Binding GpuSummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="{Binding MemorySummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="{Binding StorageSummary}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-                                    <TextBlock Text="{Binding CpuClockSummary}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
-                                </StackPanel>
-                            </GroupBox>
-                            <GroupBox Header="Fans &amp; Storage" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <TextBlock Text="Fan RPM" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding LatestMonitoringSample.FanRpm, StringFormat={}{0:F0}}" FontSize="24" Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <TextBlock Text="SSD Temperature" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,12,0,0" />
-                                    <TextBlock Text="{Binding LatestMonitoringSample.SsdTemperatureC, StringFormat={}{0:F0}°C}" FontSize="24" Foreground="{StaticResource TextPrimaryBrush}" />
-                                </StackPanel>
-                            </GroupBox>
-                        </StackPanel>
-                    </Grid>
-                    </Grid>
-                    </ScrollViewer>
+                
+                <!-- Monitoring Tab with Dashboard View -->
+                <TabItem Header="Monitoring">
+                    <views:DashboardView DataContext="{Binding Dashboard}" />
                 </TabItem>
-
-                <TabItem Header="🖱 Corsair Devices">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="3*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <Border Background="{StaticResource SurfaceMediumBrush}" 
-                                    BorderBrush="{StaticResource BorderBrush}" 
-                                    BorderThickness="1" 
-                                    CornerRadius="8" 
-                                    Padding="12" 
-                                    Margin="0,0,0,16">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Image Source="/Assets/corsair.png" Width="100" Height="50" Stretch="Uniform" Margin="0,0,12,0" />
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Corsair iCUE" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Peripheral Control" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                            <Button Content="🔍 Discover Devices" Command="{Binding DiscoverCorsairCommand}" Style="{StaticResource ModernButton}" Padding="16,10" Margin="0,0,0,12" />
-                            <ListBox ItemsSource="{Binding CorsairDevices}" SelectedItem="{Binding SelectedCorsairDevice}" DisplayMemberPath="Name" Height="200" />
-                            <GroupBox Header="Lighting" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel>
-                                    <ListBox ItemsSource="{Binding CorsairLightingPresets}" SelectedItem="{Binding SelectedCorsairPreset}" DisplayMemberPath="Name" Height="120" Margin="0 0 0 8" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="Apply Preset" Command="{Binding ApplyCorsairLightingCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,12,0" />
-                                        <Button Content="Sync With Theme" Command="{Binding SyncCorsairThemeCommand}" Style="{StaticResource SecondaryButton}" Padding="16,8" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </GroupBox>
-                            <GroupBox Header="Device Status" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.Name}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.DeviceType}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.Status.BatteryPercent, StringFormat=Battery {0}%}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0" />
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.Status.PollingRateHz, StringFormat=Polling {0} Hz}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.Status.FirmwareVersion, StringFormat=Firmware {0}}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedCorsairDevice.Status.ConnectionType}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </GroupBox>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <GroupBox Header="DPI &amp; Sensor" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel>
-                                    <DataGrid ItemsSource="{Binding EditableDpiStages}" AutoGenerateColumns="False" Height="180" Margin="0 0 0 8">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" />
-                                            <DataGridTextColumn Header="DPI" Binding="{Binding Dpi}" />
-                                            <DataGridCheckBoxColumn Header="Default" Binding="{Binding IsDefault}" />
-                                            <DataGridCheckBoxColumn Header="Angle Snap" Binding="{Binding AngleSnapping}" />
-                                            <DataGridTextColumn Header="Lift-Off" Binding="{Binding LiftOffDistanceMm}" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <Button Content="Save DPI" Command="{Binding SaveCorsairDpiCommand}" Style="{StaticResource ModernButton}" Padding="16,10" />
-                                </StackPanel>
-                            </GroupBox>
-                            <GroupBox Header="Macros" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel>
-                                    <TextBlock Text="Recorder" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                    <TextBox Text="{Binding NewMacroName, UpdateSourceTrigger=PropertyChanged}" Margin="0 4 0 8" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="⏺ Start" Command="{Binding StartMacroRecordingCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,12,0" />
-                                        <Button Content="⏹ Stop" Command="{Binding StopMacroRecordingCommand}" Style="{StaticResource SecondaryButton}" Padding="16,8" />
-                                    </StackPanel>
-                                    <Button Content="💾 Save Recording" Command="{Binding SaveRecordedMacroCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,8,0,8" />
-                                    <Border Style="{StaticResource StatusBadge}" HorizontalAlignment="Left">
-                                        <TextBlock Text="{Binding RecordingBuffer.Count, StringFormat=Actions: {0}}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
-                                    </Border>
-                                    <ListBox ItemsSource="{Binding RecordingBuffer}" Height="100" Margin="0,4,0,12">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="{Binding Key}" Foreground="{StaticResource TextPrimaryBrush}" FontWeight="SemiBold" />
-                                                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
-                                                        <TextBlock Text="Down:" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <TextBlock Text="{Binding KeyDown}" Foreground="{StaticResource TextSecondaryBrush}" Margin="4,0,0,0" />
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
-                                                        <TextBlock Text="Delay:" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <TextBlock Text="{Binding DelayMs}" Foreground="{StaticResource TextSecondaryBrush}" Margin="4,0,0,0" />
-                                                        <TextBlock Text="ms" Foreground="{StaticResource TextSecondaryBrush}" Margin="2,0,0,0" />
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                    <Separator />
-                                    <TextBlock Text="Profiles" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,8,0,4" />
-                                    <ComboBox ItemsSource="{Binding MacroProfiles}" SelectedItem="{Binding SelectedMacroProfile}" DisplayMemberPath="Name" />
-                                    <Button Content="Apply Macro" Command="{Binding ApplyMacroCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,8,0,0" />
-                                </StackPanel>
-                            </GroupBox>
-                        </StackPanel>
-                    </Grid>
-                    </ScrollViewer>
-                </TabItem>
-
-                <TabItem Header="⌨ Logitech (WIP)">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                            <Border Background="{StaticResource SurfaceMediumBrush}" 
-                                    BorderBrush="{StaticResource BorderBrush}" 
-                                    BorderThickness="1" 
-                                    CornerRadius="8" 
-                                    Padding="12" 
-                                    Margin="0,0,0,12">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <Image Source="/Assets/logitechg.png" Width="100" Height="50" Stretch="Uniform" Margin="0,0,12,0" />
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="Logitech G HUB" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                                        <TextBlock Text="Work in Progress" FontSize="11" Foreground="{StaticResource WarningBrush}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                            <TextBlock Text="Integration in progress – static color + DPI only for now." Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                            <Button Content="🔍 Discover Devices" Command="{Binding DiscoverLogitechCommand}" Style="{StaticResource ModernButton}" Padding="16,10" Margin="0,0,0,12" />
-                            <ListBox ItemsSource="{Binding LogitechDevices}" SelectedItem="{Binding SelectedLogitechDevice}" DisplayMemberPath="Name" Height="220" />
-                            <TextBlock Text="{Binding LogitechStatusSummary}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <GroupBox Header="Static RGB" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <TextBlock Text="Hex Color" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
-                                    <TextBox Text="{Binding LogitechColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" />
-                                    <TextBlock Text="Brightness" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                    <Slider Minimum="0" Maximum="100" Value="{Binding LogitechBrightness, Mode=TwoWay}" Style="{StaticResource ModernSlider}" />
-                                    <Button Content="Apply" Command="{Binding ApplyLogitechColorCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,12,0,0" />
-                                </StackPanel>
-                            </GroupBox>
-                            <GroupBox Header="DPI Readout" Style="{StaticResource ModernGroupBox}">
-                                <StackPanel Margin="8">
-                                    <TextBlock Text="{Binding SelectedLogitechDevice.Status.Dpi, StringFormat={}{0} DPI}" FontSize="24" Foreground="{StaticResource TextPrimaryBrush}" />
-                                    <TextBlock Text="{Binding SelectedLogitechDevice.Status.MaxDpi, StringFormat=Max {0} DPI}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </GroupBox>
-                        </StackPanel>
-                    </Grid>
-                    </ScrollViewer>
+                
+                <!-- Peripherals Tab with Lighting View -->
+                <TabItem Header="RGB &amp; Peripherals">
+                    <views:LightingView DataContext="{Binding Lighting}" />
                 </TabItem>
             </TabControl>
 
+            <!-- Footer: Recent Activity and System Log -->
             <Grid Grid.Row="2" Margin="24,0,24,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*" />
@@ -670,7 +346,8 @@
                 <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,12,0">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="RECENT ACTIVITY" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,12" />
-                        <ListBox ItemsSource="{Binding RecentEvents}" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" FontFamily="Consolas" FontSize="13" />
+                        <ListBox ItemsSource="{Binding RecentEvents}" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" FontFamily="Consolas" FontSize="13" 
+                                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="5" VirtualizingPanel.CacheLengthUnit="Item" />
                     </DockPanel>
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource CardBorder}">

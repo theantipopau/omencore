@@ -44,32 +44,25 @@
   ],
   "performanceModes": [
     {
-      "name": "Quiet",
+      "name": "Eco",
       "cpuPowerLimitWatts": 25,
-      "gpuPowerLimitWatts": 45,
+      "gpuPowerLimitWatts": 60,
       "linkedPowerPlanGuid": "381b4222-f694-41f0-9685-ff5bb260df2e",
-      "description": "Low-noise daily use"
+      "description": "Power saving mode - reduced wattage"
     },
     {
       "name": "Balanced",
       "cpuPowerLimitWatts": 45,
-      "gpuPowerLimitWatts": 85,
+      "gpuPowerLimitWatts": 100,
       "linkedPowerPlanGuid": "381b4222-f694-41f0-9685-ff5bb260df2e",
-      "description": "Default OEM behaviour"
+      "description": "Normal mode - balanced performance"
     },
     {
       "name": "Performance",
       "cpuPowerLimitWatts": 65,
-      "gpuPowerLimitWatts": 115,
+      "gpuPowerLimitWatts": 150,
       "linkedPowerPlanGuid": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
-      "description": "Sustained gaming"
-    },
-    {
-      "name": "Turbo",
-      "cpuPowerLimitWatts": 80,
-      "gpuPowerLimitWatts": 140,
-      "linkedPowerPlanGuid": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
-      "description": "Bench / burst"
+      "description": "High performance - maximum GPU wattage"
     }
   ],
   "systemToggles": [

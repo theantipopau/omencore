@@ -22,6 +22,15 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 
 Write-Host "Building OmenCore $version ($Configuration/$Runtime)" -ForegroundColor Cyan
 
+# Download LibreHardwareMonitor for bundling
+Write-Host "Checking for LibreHardwareMonitor..." -ForegroundColor Cyan
+$librehwScript = Join-Path $root "installer\download-librehw.ps1"
+if (Test-Path $librehwScript) {
+    & $librehwScript
+} else {
+    Write-Host "⚠ LibreHardwareMonitor download script not found - installer will not include driver" -ForegroundColor Yellow
+}
+
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 if (-not (Test-Path $publishRoot)) { New-Item $publishRoot -ItemType Directory | Out-Null }
 if (-not (Test-Path $artifactsDir)) { New-Item $artifactsDir -ItemType Directory | Out-Null }
@@ -72,11 +81,10 @@ if (-not $iscc) {
 $installer = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (Test-Path $installer) { Remove-Item $installer -Force }
 & $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version"
-$generated = Join-Path $artifactsDir "OmenCoreSetup.exe"
+$generated = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (-not (Test-Path $generated)) {
     throw "Inno Setup compiler did not produce the expected output at $generated"
 }
-Rename-Item $generated $installer -Force
 
 if (-not (Test-Path $installer)) {
     throw "Failed to create installer at $installer"

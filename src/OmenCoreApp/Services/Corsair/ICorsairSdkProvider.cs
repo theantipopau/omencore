@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using OmenCore.Corsair;
 using OmenCore.Models;
+using RGB.NET.Core;
+using RGB.NET.Devices.Corsair;
 
 namespace OmenCore.Services.Corsair
 {
@@ -83,7 +86,7 @@ namespace OmenCore.Services.Corsair
                 {
                     DeviceId = Guid.NewGuid().ToString(),
                     Name = "K95 RGB Platinum (Stub)",
-                    DeviceType = CorsairDeviceType.Keyboard,
+                    DeviceType = OmenCore.Corsair.CorsairDeviceType.Keyboard,
                     Zones = new List<string> { "Keys", "Media", "Logo" },
                     Status = new CorsairDeviceStatus
                     {
@@ -98,7 +101,7 @@ namespace OmenCore.Services.Corsair
                 {
                     DeviceId = Guid.NewGuid().ToString(),
                     Name = "Dark Core RGB Pro (Stub)",
-                    DeviceType = CorsairDeviceType.Mouse,
+                    DeviceType = OmenCore.Corsair.CorsairDeviceType.Mouse,
                     Zones = new List<string> { "Logo", "Scroll", "Underglow" },
                     Status = new CorsairDeviceStatus
                     {
@@ -159,36 +162,40 @@ namespace OmenCore.Services.Corsair
     }
 
     /// <summary>
-    /// Real iCUE SDK implementation - placeholder for future integration.
-    /// TODO: Install Corsair iCUE SDK NuGet package and implement this.
+    /// Real iCUE SDK implementation using RGB.NET library.
     /// </summary>
     public class CorsairICueSdk : ICorsairSdkProvider
     {
         private readonly LoggingService _logging;
+        private readonly RGBSurface _surface;
+        private readonly CorsairDeviceProvider _provider;
         private bool _initialized;
 
         public CorsairICueSdk(LoggingService logging)
         {
             _logging = logging;
+            _surface = new RGBSurface();
+            _provider = new CorsairDeviceProvider();
         }
 
         public async Task<bool> InitializeAsync()
         {
             try
             {
-                // TODO: Initialize Corsair iCUE SDK
-                /*
-                var result = CueSDK.Initialize();
-                if (result.HasError)
+                // Initialize RGB.NET Corsair device provider
+                _surface.Load(_provider, throwExceptions: false);
+                
+                if (_surface.Devices.Any())
                 {
-                    _logging.Error($"Failed to initialize iCUE SDK: {result.Error}");
-                    return false;
+                    _logging.Info($"Corsair iCUE SDK initialized successfully - {_surface.Devices.Count()} device(s) found");
+                    _initialized = true;
+                    return await Task.FromResult(true);
                 }
-                */
-
-                _logging.Info("Corsair iCUE SDK initialized successfully");
-                _initialized = true;
-                return await Task.FromResult(true);
+                else
+                {
+                    _logging.Warn("Corsair iCUE SDK initialized but no devices found");
+                    return await Task.FromResult(false);
+                }
             }
             catch (Exception ex)
             {
@@ -201,64 +208,142 @@ namespace OmenCore.Services.Corsair
         {
             var devices = new List<CorsairDevice>();
 
-            // TODO: Enumerate devices via iCUE SDK
-            /*
-            var deviceCount = CueSDK.DeviceCount;
-            for (int i = 0; i < deviceCount; i++)
+            if (!_initialized)
+                return await Task.FromResult<IEnumerable<CorsairDevice>>(devices);
+
+            foreach (var rgbDevice in _surface.Devices)
             {
-                var cueDevice = CueSDK.GetDeviceInfo(i);
                 var device = new CorsairDevice
                 {
-                    DeviceId = cueDevice.DeviceId.ToString(),
-                    Name = cueDevice.Model,
-                    DeviceType = MapCorsairDeviceType(cueDevice.Type),
-                    Zones = ExtractZones(cueDevice),
-                    Status = await GetDeviceStatusAsync(null)
+                    DeviceId = rgbDevice.GetHashCode().ToString(), // Use hash as unique ID
+                    Name = rgbDevice.DeviceInfo.Model,
+                    DeviceType = MapDeviceType(rgbDevice.DeviceInfo.DeviceType),
+                    Zones = new List<string> { "RGB" }, // RGB.NET handles LED zones internally
+                    Status = new CorsairDeviceStatus
+                    {
+                        BatteryPercent = 100, // RGB.NET doesn't expose battery info
+                        PollingRateHz = 1000,
+                        FirmwareVersion = "Unknown",
+                        ConnectionType = "USB"
+                    },
+                    DpiStages = new List<CorsairDpiStage>()
                 };
+
+                // Add mouse-specific DPI stages if it's a mouse
+                if (device.DeviceType == OmenCore.Corsair.CorsairDeviceType.Mouse)
+                {
+                    device.DpiStages = new List<CorsairDpiStage>
+                    {
+                        new CorsairDpiStage { Name = "Low", Dpi = 800, IsDefault = false, LiftOffDistanceMm = 1.0 },
+                        new CorsairDpiStage { Name = "Medium", Dpi = 1600, IsDefault = true, LiftOffDistanceMm = 1.5 },
+                        new CorsairDpiStage { Name = "High", Dpi = 3200, IsDefault = false, LiftOffDistanceMm = 2.0 }
+                    };
+                }
+
                 devices.Add(device);
             }
-            */
 
             return await Task.FromResult<IEnumerable<CorsairDevice>>(devices);
         }
 
+        private OmenCore.Corsair.CorsairDeviceType MapDeviceType(RGBDeviceType rgbType)
+        {
+            return rgbType switch
+            {
+                RGBDeviceType.Keyboard => OmenCore.Corsair.CorsairDeviceType.Keyboard,
+                RGBDeviceType.Mouse => OmenCore.Corsair.CorsairDeviceType.Mouse,
+                RGBDeviceType.Headset => OmenCore.Corsair.CorsairDeviceType.Headset,
+                RGBDeviceType.Mousepad => OmenCore.Corsair.CorsairDeviceType.MouseMat,
+                _ => OmenCore.Corsair.CorsairDeviceType.Accessory
+            };
+        }
+
         public async Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
-            // TODO: Apply lighting via iCUE SDK
-            /*
-            var cueDevice = CueSDK.GetDeviceInfo(device.DeviceId);
-            switch (preset.Effect)
+            if (!_initialized)
+                return;
+
+            try
             {
-                case LightingEffectType.Static:
-                    // Set static color
-                    break;
-                case LightingEffectType.Wave:
-                    // Apply wave effect
-                    break;
-                // ... other effects
+                // Find the RGB.NET device
+                var rgbDevice = _surface.Devices.FirstOrDefault(d => d.GetHashCode().ToString() == device.DeviceId);
+                if (rgbDevice == null)
+                {
+                    _logging.Warn($"Device {device.Name} not found in RGB surface");
+                    return;
+                }
+
+                // Parse hex color string
+                var hex = preset.PrimaryColor.TrimStart('#');
+                var r = Convert.ToByte(hex.Substring(0, 2), 16);
+                var g = Convert.ToByte(hex.Substring(2, 2), 16);
+                var b = Convert.ToByte(hex.Substring(4, 2), 16);
+                var color = new Color(r, g, b);
+                
+                // Apply color to all LEDs
+                foreach (var led in rgbDevice)
+                {
+                    led.Color = color;
+                }
+
+                _surface.Update();
+                _logging.Info($"Applied lighting preset '{preset.Name}' to {device.Name}");
             }
-            */
-            _logging.Info($"Applied iCUE lighting '{preset.Name}' to {device.Name}");
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply lighting to {device.Name}", ex);
+            }
+
             await Task.CompletedTask;
         }
 
         public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
         {
-            // TODO: Configure DPI via iCUE SDK
-            _logging.Info($"Applied DPI stages to {device.Name}");
+            // NOTE: RGB.NET is primarily for lighting control, not device configuration
+            // DPI settings require direct Corsair SDK which is not available in RGB.NET
+            _logging.Warn($"DPI configuration not supported via RGB.NET for {device.Name}");
             await Task.CompletedTask;
         }
 
         public async Task ApplyMacroAsync(CorsairDevice device, MacroProfile macro)
         {
-            // TODO: Upload macro via iCUE SDK
-            _logging.Info($"Applied macro '{macro.Name}' to {device.Name}");
+            // NOTE: RGB.NET is primarily for lighting control, not macro programming
+            // Macro upload requires direct Corsair SDK which is not available in RGB.NET
+            _logging.Warn($"Macro upload not supported via RGB.NET for {device.Name}");
             await Task.CompletedTask;
         }
 
         public async Task SyncWithThemeAsync(IEnumerable<CorsairDevice> devices, LightingProfile theme)
         {
-            // TODO: Sync all devices with laptop theme
+            if (!_initialized)
+                return;
+
+            try
+            {
+                // Parse theme color
+                var hex = theme.PrimaryColor.TrimStart('#');
+                var r = Convert.ToByte(hex.Substring(0, 2), 16);
+                var g = Convert.ToByte(hex.Substring(2, 2), 16);
+                var b = Convert.ToByte(hex.Substring(4, 2), 16);
+                var color = new Color(r, g, b);
+
+                // Apply to all devices
+                foreach (var rgbDevice in _surface.Devices)
+                {
+                    foreach (var led in rgbDevice)
+                    {
+                        led.Color = color;
+                    }
+                }
+
+                _surface.Update();
+                _logging.Info($"Synced {devices.Count()} device(s) with theme '{theme.Name}'");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to sync devices with theme", ex);
+            }
+
             await Task.CompletedTask;
         }
 

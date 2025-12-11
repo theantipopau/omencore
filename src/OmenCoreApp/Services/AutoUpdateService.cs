@@ -21,6 +21,8 @@ namespace OmenCore.Services
         private readonly string _updateCheckUrl;
         private readonly string _downloadDirectory;
         private readonly Version _currentVersion;
+        private System.Timers.Timer? _checkTimer;
+        private UpdatePreferences? _preferences;
         
         public event EventHandler<UpdateCheckResult>? UpdateCheckCompleted;
         public event EventHandler<UpdateDownloadProgress>? DownloadProgressChanged;
@@ -40,6 +42,69 @@ namespace OmenCore.Services
             _downloadDirectory = Path.Combine(Path.GetTempPath(), "OmenCore", "Updates");
             Directory.CreateDirectory(_downloadDirectory);
             _currentVersion = LoadCurrentVersion();
+        }
+        
+        /// <summary>
+        /// Configure background update checking with user preferences
+        /// </summary>
+        public void ConfigureBackgroundChecks(UpdatePreferences preferences)
+        {
+            _preferences = preferences;
+            
+            // Stop existing timer if any
+            _checkTimer?.Stop();
+            _checkTimer?.Dispose();
+            
+            if (preferences.AutoCheckEnabled && preferences.CheckIntervalHours > 0)
+            {
+                var intervalMs = TimeSpan.FromHours(preferences.CheckIntervalHours).TotalMilliseconds;
+                _checkTimer = new System.Timers.Timer(intervalMs);
+                _checkTimer.Elapsed += async (s, e) => await OnTimerCheckAsync();
+                _checkTimer.AutoReset = true;
+                _checkTimer.Start();
+                
+                _logging.Info($"Background update checks enabled (every {preferences.CheckIntervalHours}h)");
+            }
+            else
+            {
+                _logging.Info("Background update checks disabled");
+            }
+        }
+        
+        /// <summary>
+        /// Perform scheduled update check (triggered by timer)
+        /// </summary>
+        private async Task OnTimerCheckAsync()
+        {
+            try
+            {
+                _logging.Info("Performing scheduled update check");
+                var result = await CheckForUpdatesAsync();
+                
+                // Update last check time
+                if (_preferences != null)
+                {
+                    _preferences.LastCheckTime = DateTime.Now;
+                }
+                
+                // Check if version should be skipped
+                if (result.UpdateAvailable && _preferences?.SkippedVersion == result.LatestVersion?.ToString())
+                {
+                    _logging.Info($"Update v{result.LatestVersion} available but skipped by user");
+                    return;
+                }
+                
+                // Notify if update is available
+                if (result.UpdateAvailable && _preferences?.ShowUpdateNotifications == true)
+                {
+                    _logging.Info($"Update available: v{result.LatestVersion}");
+                    UpdateCheckCompleted?.Invoke(this, result);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Scheduled update check failed", ex);
+            }
         }
         
         /// <summary>
@@ -105,6 +170,9 @@ namespace OmenCore.Services
                             : DateTime.UtcNow,
                         ChangelogUrl = root.TryGetProperty("html_url", out var htmlUrl) ? htmlUrl.GetString() ?? string.Empty : string.Empty
                     };
+
+                    // Try to extract SHA256 hash from release notes
+                    result.LatestVersion.Sha256Hash = ExtractHashFromBody(result.LatestVersion.ReleaseNotes) ?? string.Empty;
                     
                     // Get download URL from assets
                     if (root.TryGetProperty("assets", out var assets) && assets.GetArrayLength() > 0)
@@ -231,18 +299,26 @@ namespace OmenCore.Services
                     }
                 }
                 
-                // Verify file hash if provided
-                if (!string.IsNullOrEmpty(versionInfo.Sha256Hash))
+                // Verify file hash (preferred for security)
+                if (string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
                 {
-                    var computedHash = ComputeSha256Hash(downloadPath);
-                    if (!computedHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
+                    _logging.Warn("Update skipped: Release missing SHA256 hash. Require manual download/validation.");
+                    if (File.Exists(downloadPath))
                     {
-                        _logging.Error("Downloaded file hash mismatch!");
                         File.Delete(downloadPath);
-                        return null;
                     }
+                    return null;
                 }
                 
+                var computedHash = ComputeSha256Hash(downloadPath);
+                if (!computedHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logging.Error($"SHA256 verification failed! Expected: {versionInfo.Sha256Hash}, Computed: {computedHash}");
+                    File.Delete(downloadPath);
+                    throw new System.Security.SecurityException($"Update package failed SHA256 verification. File may be corrupted or tampered with.");
+                }
+                
+                _logging.Info($"✅ Update verified successfully (SHA256: {computedHash.Substring(0, 16)}...)");
                 _logging.Info($"Update downloaded successfully: {downloadPath}");
                 return downloadPath;
             }
@@ -328,6 +404,8 @@ namespace OmenCore.Services
         
         public void Dispose()
         {
+            _checkTimer?.Stop();
+            _checkTimer?.Dispose();
             _httpClient?.Dispose();
         }
 
@@ -357,6 +435,20 @@ namespace OmenCore.Services
                 _logging.Warn($"Falling back to default version: {ex.Message}");
                 return new Version(1, 0, 0);
             }
+        }
+
+        private string? ExtractHashFromBody(string body)
+        {
+            if (string.IsNullOrEmpty(body)) return null;
+            
+            // Look for SHA256: [hex] or SHA-256: [hex]
+            // Matches 64-character hex string
+            var match = System.Text.RegularExpressions.Regex.Match(body, @"SHA-?256:\s*([a-fA-F0-9]{64})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+            return null;
         }
 
         private static string FormatFileSize(long bytes)

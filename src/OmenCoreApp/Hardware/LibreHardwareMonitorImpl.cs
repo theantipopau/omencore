@@ -3,19 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using LibreHardwareMonitor.Hardware;
 using OmenCore.Models;
 
 namespace OmenCore.Hardware
 {
     /// <summary>
     /// Real LibreHardwareMonitor implementation - integrates with actual hardware sensors.
-    /// TODO: Add LibreHardwareMonitor NuGet package to enable this implementation.
-    /// Package: LibreHardwareMonitorLib (community fork of OpenHardwareMonitor)
+    /// Uses LibreHardwareMonitorLib NuGet package for accurate hardware monitoring.
     /// </summary>
     public class LibreHardwareMonitorImpl : IHardwareMonitorBridge, IDisposable
     {
-        // TODO: Uncomment when LibreHardwareMonitorLib NuGet package is installed
-        // private readonly Computer _computer;
+        private readonly Computer? _computer;
         private bool _initialized;
         private readonly object _lock = new();
 
@@ -33,23 +32,33 @@ namespace OmenCore.Hardware
         private List<double> _cachedCoreClocks = new();
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
+        private string _lastGpuName = string.Empty;
 
-        public LibreHardwareMonitorImpl()
+        private readonly Action<string>? _logger;
+
+        public LibreHardwareMonitorImpl(Action<string>? logger = null)
         {
-            // TODO: Initialize LibreHardwareMonitor Computer object
-            /*
-            _computer = new Computer
+            _logger = logger;
+            try
             {
-                IsCpuEnabled = true,
-                IsGpuEnabled = true,
-                IsMemoryEnabled = true,
-                IsStorageEnabled = true,
-                IsControllerEnabled = true,
-                IsNetworkEnabled = false
-            };
-            _computer.Open();
-            */
-            _initialized = false;
+                _computer = new Computer
+                {
+                    IsCpuEnabled = true,
+                    IsGpuEnabled = true,
+                    IsMemoryEnabled = true,
+                    IsStorageEnabled = true,
+                    IsControllerEnabled = true,
+                    IsNetworkEnabled = false
+                };
+                _computer.Open();
+                _initialized = true;
+                _logger?.Invoke("LibreHardwareMonitor initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                _initialized = false;
+                _logger?.Invoke($"LibreHardwareMonitor init failed: {ex.Message}. Using WMI fallback.");
+            }
         }
 
         public async Task<MonitoringSample> ReadSampleAsync(CancellationToken token)
@@ -83,44 +92,104 @@ namespace OmenCore.Hardware
                 return;
             }
 
-            // TODO: Real LibreHardwareMonitor implementation
-            /*
             lock (_lock)
             {
-                _computer.Accept(new UpdateVisitor());
+                _computer?.Accept(new UpdateVisitor());
 
-                foreach (var hardware in _computer.Hardware)
+                foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                 {
                     hardware.Update();
 
                     switch (hardware.HardwareType)
                     {
                         case HardwareType.Cpu:
-                            _cachedCpuTemp = GetSensor(hardware, SensorType.Temperature, "CPU Package")?.Value ?? 0;
+                            var cpuTempSensor = GetSensor(hardware, SensorType.Temperature, "CPU Package");
+                            _cachedCpuTemp = cpuTempSensor?.Value ?? 0;
+                            if (_cachedCpuTemp == 0 && cpuTempSensor == null)
+                            {
+                                _logger?.Invoke($"CPU Package temp sensor not found in {hardware.Name}");
+                            }
                             _cachedCpuLoad = GetSensor(hardware, SensorType.Load, "CPU Total")?.Value ?? 0;
                             
                             _cachedCoreClocks.Clear();
-                            for (int i = 0; i < hardware.Sensors.Count(s => s.SensorType == SensorType.Clock && s.Name.Contains("Core")); i++)
+                            var coreClockSensors = hardware.Sensors
+                                .Where(s => s.SensorType == SensorType.Clock && s.Name.Contains("Core"))
+                                .OrderBy(s => s.Name)
+                                .ToList();
+                            
+                            foreach (var sensor in coreClockSensors)
                             {
-                                var clockSensor = hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Clock && s.Name.Contains($"Core #{i + 1}"));
-                                if (clockSensor != null && clockSensor.Value.HasValue)
+                                if (sensor.Value.HasValue)
                                 {
-                                    _cachedCoreClocks.Add(clockSensor.Value.Value);
+                                    _cachedCoreClocks.Add(sensor.Value.Value);
                                 }
                             }
                             break;
 
                         case HardwareType.GpuNvidia:
                         case HardwareType.GpuAmd:
+                            // Prefer dedicated GPU (NVIDIA/AMD) over integrated
+                            var gpuTempSensor = GetSensor(hardware, SensorType.Temperature, "GPU Core")
+                                ?? GetSensor(hardware, SensorType.Temperature, "Core")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+                            
+                            var tempValue = gpuTempSensor?.Value ?? 0;
+                            if (tempValue > 0)
+                            {
+                                _cachedGpuTemp = tempValue;
+                                // Only log when GPU changes (first detection or different GPU)
+                                if (_lastGpuName != hardware.Name)
+                                {
+                                    _lastGpuName = hardware.Name;
+                                    _logger?.Invoke($"Using dedicated GPU: {hardware.Name} ({tempValue:F0}°C)");
+                                }
+                            }
+                            
+                            var gpuLoadSensor = GetSensor(hardware, SensorType.Load, "GPU Core")
+                                ?? GetSensor(hardware, SensorType.Load, "Core")
+                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
+                            
+                            var loadValue = gpuLoadSensor?.Value ?? 0;
+                            if (loadValue > 0 || _cachedGpuLoad == 0)
+                            {
+                                _cachedGpuLoad = loadValue;
+                            }
+                            
+                            // Try different sensor names for VRAM
+                            var vramSensor = GetSensor(hardware, SensorType.SmallData, "GPU Memory Used") 
+                                ?? GetSensor(hardware, SensorType.SmallData, "D3D Dedicated Memory Used")
+                                ?? GetSensor(hardware, SensorType.Data, "GPU Memory Used");
+                            _cachedVramUsage = vramSensor?.Value ?? 0;
+                            break;
+                            
                         case HardwareType.GpuIntel:
-                            _cachedGpuTemp = GetSensor(hardware, SensorType.Temperature, "GPU Core")?.Value ?? 0;
-                            _cachedGpuLoad = GetSensor(hardware, SensorType.Load, "GPU Core")?.Value ?? 0;
-                            _cachedVramUsage = GetSensor(hardware, SensorType.SmallData, "GPU Memory Used")?.Value ?? 0;
+                            // Only use Intel GPU if no dedicated GPU found yet
+                            if (_cachedGpuTemp == 0)
+                            {
+                                var intelTempSensor = GetSensor(hardware, SensorType.Temperature, "GPU Core")
+                                    ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature);
+                                _cachedGpuTemp = intelTempSensor?.Value ?? 0;
+                                
+                                // Only log when GPU changes
+                                if (_lastGpuName != hardware.Name)
+                                {
+                                    _lastGpuName = hardware.Name;
+                                    _logger?.Invoke($"Using integrated GPU: {hardware.Name} ({_cachedGpuTemp:F0}°C)");
+                                }
+                            }
+                            
+                            if (_cachedGpuLoad == 0)
+                            {
+                                var intelLoadSensor = GetSensor(hardware, SensorType.Load, "GPU Core")
+                                    ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
+                                _cachedGpuLoad = intelLoadSensor?.Value ?? 0;
+                            }
                             break;
 
                         case HardwareType.Memory:
                             _cachedRamUsage = GetSensor(hardware, SensorType.Data, "Memory Used")?.Value ?? 0;
-                            _cachedRamTotal = GetSensor(hardware, SensorType.Data, "Memory Available")?.Value ?? 16;
+                            var availableRam = GetSensor(hardware, SensorType.Data, "Memory Available")?.Value ?? 0;
+                            _cachedRamTotal = (_cachedRamUsage + availableRam) > 0 ? (_cachedRamUsage + availableRam) : 16;
                             break;
 
                         case HardwareType.Storage:
@@ -132,7 +201,7 @@ namespace OmenCore.Hardware
                             break;
                     }
 
-                    // Fan RPM from motherboard
+                    // Fan RPM from motherboard or subhardware
                     foreach (var subHardware in hardware.SubHardware)
                     {
                         subHardware.Update();
@@ -144,10 +213,6 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            */
-
-            // Temporary fallback until LibreHardwareMonitor is integrated
-            UpdateViaFallback();
         }
 
         private void UpdateViaFallback()
@@ -230,29 +295,96 @@ namespace OmenCore.Hardware
             };
         }
 
-        /* TODO: Helper method for LibreHardwareMonitor sensor lookup
-        private ISensor GetSensor(IHardware hardware, SensorType type, string namePattern = null)
+        private ISensor? GetSensor(IHardware hardware, SensorType type, string? namePattern = null)
         {
             var sensors = hardware.Sensors.Where(s => s.SensorType == type);
             if (!string.IsNullOrEmpty(namePattern))
             {
-                sensors = sensors.Where(s => s.Name.Contains(namePattern));
+                sensors = sensors.Where(s => s.Name.Contains(namePattern, StringComparison.OrdinalIgnoreCase));
             }
             return sensors.FirstOrDefault();
         }
-        */
+
+        /// <summary>
+        /// Get current CPU package temperature in Celsius
+        /// </summary>
+        public double GetCpuTemperature()
+        {
+            lock (_lock)
+            {
+                return _cachedCpuTemp;
+            }
+        }
+
+        /// <summary>
+        /// Get current GPU core temperature in Celsius
+        /// </summary>
+        public double GetGpuTemperature()
+        {
+            lock (_lock)
+            {
+                return _cachedGpuTemp;
+            }
+        }
+
+        /// <summary>
+        /// Get fan speeds as (Name, RPM) tuples
+        /// </summary>
+        public IEnumerable<(string Name, double Rpm)> GetFanSpeeds()
+        {
+            if (!_initialized)
+            {
+                yield break;
+            }
+
+            lock (_lock)
+            {
+                // Update hardware readings to get fresh fan data
+                _computer?.Accept(new UpdateVisitor());
+
+                foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
+                {
+                    hardware.Update();
+
+                    // Check main hardware for fan sensors
+                    var fanSensors = hardware.Sensors
+                        .Where(s => s.SensorType == SensorType.Fan && s.Value.HasValue)
+                        .ToList();
+
+                    foreach (var sensor in fanSensors)
+                    {
+                        yield return (sensor.Name, sensor.Value!.Value);
+                    }
+
+                    // Check subhardware (e.g., motherboard sensors)
+                    foreach (var subHardware in hardware.SubHardware)
+                    {
+                        subHardware.Update();
+                        var subFanSensors = subHardware.Sensors
+                            .Where(s => s.SensorType == SensorType.Fan && s.Value.HasValue)
+                            .ToList();
+
+                        foreach (var sensor in subFanSensors)
+                        {
+                            yield return (sensor.Name, sensor.Value!.Value);
+                        }
+                    }
+                }
+            }
+        }
 
         public void Dispose()
         {
-            // TODO: Dispose LibreHardwareMonitor computer
-            // _computer?.Close();
+            if (_initialized && _computer != null)
+            {
+                _computer.Close();
+            }
         }
     }
 
     /// <summary>
-    /// TODO: UpdateVisitor for LibreHardwareMonitor
+    /// Visitor pattern implementation for LibreHardwareMonitor to update all hardware sensors.
     /// </summary>
-    /*
     internal class UpdateVisitor : IVisitor
     {
         public void VisitComputer(IComputer computer)
@@ -270,5 +402,4 @@ namespace OmenCore.Hardware
         public void VisitSensor(ISensor sensor) { }
         public void VisitParameter(IParameter parameter) { }
     }
-    */
 }

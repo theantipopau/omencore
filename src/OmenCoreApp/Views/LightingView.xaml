@@ -1,0 +1,387 @@
+<UserControl x:Class="OmenCore.Views.LightingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:OmenCore.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1000">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="RGB Lighting &amp; Peripherals" 
+                   FontSize="28" FontWeight="Bold" 
+                   Foreground="{StaticResource TextPrimaryBrush}" 
+                   Margin="0,0,0,16"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Corsair Devices Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Corsair Devices" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+                        
+                        <!-- Device Discovery -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0" 
+                                       Text="{Binding CorsairDeviceStatusText}" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            
+                            <Button Grid.Column="1" 
+                                    Content="Discover Devices" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding DiscoverCorsairDevicesCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <!-- Corsair Device List -->
+                        <ItemsControl ItemsSource="{Binding CorsairDevices}" Margin="0,0,0,16">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                            CornerRadius="8" Padding="16" Margin="0,0,0,8"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Device Icon -->
+                                            <Border Grid.Column="0" Width="40" Height="40" 
+                                                    CornerRadius="20" Margin="0,0,12,0">
+                                                <Image Source="pack://application:,,,/Assets/corsair.png" 
+                                                       Width="36" Height="36" 
+                                                       HorizontalAlignment="Center" 
+                                                       VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Device Info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" 
+                                                           FontSize="14" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock FontSize="12" 
+                                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding DeviceType, Mode=OneWay}"/>
+                                                    <Run Text=" • "/>
+                                                    <Run Text="{Binding Status, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <!-- DPI Info (for mice) -->
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" 
+                                                        Visibility="{Binding IsMouse, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding CurrentDpi, StringFormat='DPI: {0}'}" 
+                                                           FontSize="12" 
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           HorizontalAlignment="Right"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Corsair Lighting Presets -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Lighting Preset:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemsSource="{Binding CorsairLightingPresets}"
+                                      SelectedItem="{Binding SelectedCorsairLightingPreset}"
+                                      DisplayMemberPath="Name"
+                                      Margin="0,0,12,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Apply" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyCorsairLightingCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <!-- Custom RGB Color -->
+                        <Expander Header="Custom RGB Color" 
+                                  Margin="0,16,0,0"
+                                  IsExpanded="False">
+                            <StackPanel Margin="0,12,0,0">
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="Color (Hex):" 
+                                               FontSize="14" 
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    
+                                    <TextBox Grid.Column="1" 
+                                             Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding CorsairColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,0,12,0"
+                                             MaxLength="7"/>
+                                    
+                                    <Button Grid.Column="2" 
+                                            Content="Apply Color" 
+                                            Style="{StaticResource ModernButton}"
+                                            Command="{Binding ApplyCorsairCustomColorCommand}"
+                                            Padding="16,8"/>
+                                </Grid>
+                                
+                                <TextBlock Text="Enter a hex color code (e.g., #FF0000 for red)" 
+                                           FontSize="11" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- DPI Configuration (for mice) -->
+                        <Expander Header="DPI Configuration" 
+                                  Margin="0,16,0,0"
+                                  IsExpanded="False"
+                                  Visibility="{Binding HasCorsairMouse, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Margin="0,12,0,0">
+                                <TextBlock Text="DPI Stages:" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}" 
+                                           Margin="0,0,0,8"/>
+                                
+                                <ItemsControl ItemsSource="{Binding CorsairDpiStages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Column="0" 
+                                                           Text="{Binding Name, StringFormat={}{0}:}" 
+                                                           FontSize="12" 
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           VerticalAlignment="Center" 
+                                                           Width="60"/>
+                                                
+                                                <Slider Grid.Column="1" 
+                                                        Minimum="400" Maximum="18000" 
+                                                        TickFrequency="100" 
+                                                        Value="{Binding Dpi}"
+                                                        Margin="12,0"/>
+                                                
+                                                <TextBlock Grid.Column="2" 
+                                                           Text="{Binding Dpi, StringFormat={}{0} DPI}" 
+                                                           FontSize="12" 
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center" 
+                                                           Width="80" TextAlignment="Right"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                
+                                <Button Content="Apply DPI Settings" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding ApplyCorsairDpiCommand}"
+                                        HorizontalAlignment="Right"
+                                        Padding="16,8" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- Logitech Devices Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Logitech Devices" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+                        
+                        <!-- Device Discovery -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0" 
+                                       Text="{Binding LogitechDeviceStatusText}" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            
+                            <Button Grid.Column="1" 
+                                    Content="Discover Devices" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding DiscoverLogitechDevicesCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <!-- Logitech Device List -->
+                        <ItemsControl ItemsSource="{Binding LogitechDevices}" Margin="0,0,0,16">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                            CornerRadius="8" Padding="16" Margin="0,0,0,8"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Device Icon -->
+                                            <Border Grid.Column="0" Width="40" Height="40" 
+                                                    CornerRadius="20" Margin="0,0,12,0">
+                                                <Image Source="pack://application:,,,/Assets/logitechg.png" 
+                                                       Width="36" Height="36" 
+                                                       HorizontalAlignment="Center" 
+                                                       VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Device Info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" 
+                                                           FontSize="14" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock FontSize="12" 
+                                                           Foreground="{StaticResource TextSecondaryBrush}">
+                                                    <Run Text="{Binding DeviceType, Mode=OneWay}"/>
+                                                    <Run Text=" • "/>
+                                                    <Run Text="{Binding Status, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <!-- Color Picker -->
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="32" Height="32" 
+                                                        Background="{Binding CurrentColor}" 
+                                                        BorderBrush="{StaticResource BorderBrush}" 
+                                                        BorderThickness="1" 
+                                                        CornerRadius="4" 
+                                                        Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Logitech Static Color -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Static Color:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="Red" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}" 
+                                           Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding LogitechRedValue, UpdateSourceTrigger=PropertyChanged}" 
+                                         FontSize="14"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                <TextBlock Text="Green" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}" 
+                                           Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding LogitechGreenValue, UpdateSourceTrigger=PropertyChanged}" 
+                                         FontSize="14"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                                <TextBlock Text="Blue" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}" 
+                                           Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding LogitechBlueValue, UpdateSourceTrigger=PropertyChanged}" 
+                                         FontSize="14"/>
+                            </StackPanel>
+                            
+                            <Button Grid.Column="5" 
+                                    Content="Apply Color" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyLogitechColorCommand}"
+                                    Padding="16,8" 
+                                    VerticalAlignment="Bottom"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Macro Profiles (Corsair) -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="Macro Profiles" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Active Profile:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemsSource="{Binding MacroProfiles}"
+                                      SelectedItem="{Binding SelectedMacroProfile}"
+                                      DisplayMemberPath="ProfileName"
+                                      Margin="0,0,12,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Load Profile" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding LoadMacroProfileCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <TextBlock Text="Use Corsair iCUE or Logitech G HUB software for advanced macro configuration." 
+                                   FontSize="12" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,16,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- Loading Overlay -->
+        <controls:LoadingOverlay Grid.RowSpan="2" Panel.ZIndex="1000" />
+    </Grid>
+</UserControl>

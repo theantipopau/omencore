@@ -3,29 +3,49 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             mc:Ignorable="d" d:DesignHeight="200" d:DesignWidth="500">
+             mc:Ignorable="d" d:DesignHeight="200" d:DesignWidth="500"
+             UseLayoutRounding="True" SnapsToDevicePixels="True">
     <Grid>
-        <Border Background="{StaticResource SurfaceDarkBrush}" 
-                BorderBrush="{StaticResource BorderBrush}" 
-                BorderThickness="1" 
-                CornerRadius="6" 
-                Padding="12">
+        <Border Style="{StaticResource SurfaceCard}" Padding="16">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                        <Rectangle Width="14" Height="14" Fill="{StaticResource AccentBrush}" RadiusX="3" RadiusY="3" />
-                        <TextBlock Text="CPU" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="Medium" Margin="6,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" RadiusX="3" RadiusY="3" />
-                        <TextBlock Text="GPU" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="Medium" Margin="6,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                    <Border Background="{StaticResource SurfaceDarkBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,6"
+                            Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="16" Height="16" Fill="{StaticResource AccentBrush}" RadiusX="4" RadiusY="4" />
+                            <TextBlock Text="CPU Temperature" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{StaticResource SurfaceDarkBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="16" Height="16" Fill="{StaticResource AccentBlueBrush}" RadiusX="4" RadiusY="4" />
+                            <TextBlock Text="GPU Temperature" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-                <Canvas x:Name="ChartCanvas" Grid.Row="1" Background="{StaticResource BackgroundDarkBrush}" />
+                <Grid Grid.Row="1">
+                    <Rectangle RadiusX="10" RadiusY="10">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#1AFFFFFF" Offset="0" />
+                                <GradientStop Color="#00101520" Offset="1" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Canvas x:Name="ChartCanvas" Margin="4" />
+                </Grid>
             </Grid>
         </Border>
     </Grid>

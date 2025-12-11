@@ -88,6 +88,9 @@ namespace OmenCore.Services
                         CpuCelsius = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius ?? temps.FirstOrDefault()?.Celsius ?? 0,
                         GpuCelsius = temps.FirstOrDefault(t => t.Sensor.Contains("GPU"))?.Celsius ?? temps.Skip(1).FirstOrDefault()?.Celsius ?? 0
                     };
+                    // Read fan speeds
+                    var fanSpeeds = _fanController.ReadFanSpeeds().ToList();
+
                     App.Current.Dispatcher.Invoke(() =>
                     {
                         _thermalSamples.Add(sample);
@@ -96,17 +99,12 @@ namespace OmenCore.Services
                         {
                             _thermalSamples.RemoveAt(0);
                         }
-                        if (_fanTelemetry.Count == 0)
+
+                        // Update fan telemetry
+                        _fanTelemetry.Clear();
+                        foreach (var fan in fanSpeeds)
                         {
-                            _fanTelemetry.Add(new FanTelemetry { Name = "CPU", Rpm = 1500 });
-                            _fanTelemetry.Add(new FanTelemetry { Name = "GPU", Rpm = 1600 });
-                        }
-                        else
-                        {
-                            foreach (var fan in _fanTelemetry)
-                            {
-                                fan.Rpm = (int)(fan.Rpm * 0.9 + 120);
-                            }
+                            _fanTelemetry.Add(fan);
                         }
                     });
                 }

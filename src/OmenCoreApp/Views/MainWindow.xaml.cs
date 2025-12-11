@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
 using OmenCore.ViewModels;
@@ -6,22 +7,60 @@ namespace OmenCore.Views
 {
     public partial class MainWindow : Window
     {
-        public MainWindow()
+        public MainWindow(MainViewModel viewModel)
         {
             InitializeComponent();
-            Loaded += (_, _) => (DataContext as MainViewModel)?.DiscoverCorsairCommand.Execute(null);
-            Closing += (_, _) => (DataContext as MainViewModel)?.Dispose();
+            DataContext = viewModel;
+            Loaded += MainWindow_Loaded;
+            Closing += MainWindow_Closing;
             StateChanged += MainWindow_StateChanged;
+            SystemParameters.StaticPropertyChanged += SystemParametersOnStaticPropertyChanged;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            (DataContext as MainViewModel)?.DiscoverCorsairCommand.Execute(null);
+            UpdateMaximizedBounds();
+        }
+
+        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
+            (DataContext as MainViewModel)?.Dispose();
+        }
+
+        private void SystemParametersOnStaticPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SystemParameters.WorkArea))
+            {
+                UpdateMaximizedBounds();
+            }
         }
 
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             UpdateMaximizeButtonGlyph();
+            if (WindowState == WindowState.Maximized)
+            {
+                UpdateMaximizedBounds();
+            }
+            else if (WindowState == WindowState.Minimized)
+            {
+                // Hide to tray instead of showing in taskbar
+                Hide();
+            }
         }
 
         private void UpdateMaximizeButtonGlyph()
         {
             MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+        }
+
+        private void UpdateMaximizedBounds()
+        {
+            var workArea = SystemParameters.WorkArea;
+            MaxHeight = workArea.Height + 12;
+            MaxWidth = workArea.Width + 12;
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -38,7 +77,8 @@ namespace OmenCore.Views
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {
-            WindowState = WindowState.Minimized;
+            // Minimize to system tray instead of taskbar
+            Hide();
         }
 
         private void MaximizeButton_Click(object sender, RoutedEventArgs e)
@@ -48,7 +88,8 @@ namespace OmenCore.Views
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            Close();
+            // Hide to tray on close button (user can exit from tray menu)
+            Hide();
         }
     }
 }

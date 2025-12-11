@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace OmenCore.Corsair
 {
@@ -10,5 +11,8 @@ namespace OmenCore.Corsair
         public List<string> Zones { get; set; } = new();
         public CorsairDeviceStatus Status { get; set; } = new();
         public List<CorsairDpiStage> DpiStages { get; set; } = new();
+        
+        public bool IsMouse => DeviceType == CorsairDeviceType.Mouse;
+        public int CurrentDpi => DpiStages.FirstOrDefault()?.Dpi ?? 0;
     }
 }

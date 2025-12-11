@@ -1,0 +1,373 @@
+<UserControl x:Class="OmenCore.Views.SystemControlView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:OmenCore.Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1000">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="System Control" Style="{StaticResource Heading1}"/>
+            <TextBlock Text="Performance modes, CPU undervolting, GPU switching, and system maintenance" 
+                       Style="{StaticResource Caption}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1">
+                <!-- Performance Mode Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="PERFORMANCE PROFILE" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                        <TextBlock Text="Performance Mode" Style="{StaticResource Heading3}" Margin="0,0,0,8"/>
+                        
+                        <TextBlock Text="Control system performance profile and power settings." 
+                                   Style="{StaticResource Caption}"
+                                   FontSize="13"
+                                   Margin="0,0,0,20"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Mode:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemsSource="{Binding PerformanceModes}"
+                                      SelectedItem="{Binding SelectedPerformanceMode}"
+                                      Margin="0,0,12,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Apply" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyPerformanceModeCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <TextBlock Text="{Binding PerformanceModeDescription}" 
+                                   FontSize="12" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- CPU Undervolting Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="CPU Undervolting" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16"
+                                BorderBrush="Orange" BorderThickness="2">
+                            <TextBlock FontSize="12" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap">
+                                <Run Text="⚠️ IMPORTANT SAFETY INFORMATION" FontWeight="Bold" Foreground="Orange" FontSize="13"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="• Incorrect voltage offsets can cause system crashes, data loss, or instability" FontWeight="SemiBold"/>
+                                <LineBreak/>
+                                <Run Text="• Start with conservative values (-60mV) and test thoroughly"/>
+                                <LineBreak/>
+                                <Run Text="• After applying, run a stress test (Prime95, Cinebench) for 30+ minutes"/>
+                                <LineBreak/>
+                                <Run Text="• If system crashes or freezes, reduce offset by 10-20mV"/>
+                                <LineBreak/>
+                                <Run Text="• Create a System Restore Point before experimenting"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="✓ Benefits: Lower temperatures (5-15°C), improved sustained performance, reduced fan noise"/>
+                            </TextBlock>
+                        </Border>
+
+                        <!-- Undervolt Status -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Status:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,12,0"/>
+                            
+                            <TextBlock Grid.Column="1" 
+                                       Text="{Binding UndervoltStatusText}" 
+                                       FontSize="14" 
+                                       Foreground="{Binding UndervoltStatusColor}"/>
+                        </Grid>
+
+                        <!-- Core Offset -->
+                        <StackPanel Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="Core Voltage Offset:" 
+                                           FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding RequestedCoreOffset, StringFormat={}{0} mV}" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                            </Grid>
+                            
+                            <Slider Minimum="-200" Maximum="0" 
+                                    TickFrequency="5" 
+                                    Value="{Binding RequestedCoreOffset, Mode=TwoWay}"
+                                    IsSnapToTickEnabled="True"/>
+                            
+                            <TextBlock Text="Recommended: -80 mV to -120 mV" 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Cache Offset -->
+                        <StackPanel Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="Cache Voltage Offset:" 
+                                           FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding RequestedCacheOffset, StringFormat={}{0} mV}" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                            </Grid>
+                            
+                            <Slider Minimum="-200" Maximum="0" 
+                                    TickFrequency="5" 
+                                    Value="{Binding RequestedCacheOffset, Mode=TwoWay}"
+                                    IsSnapToTickEnabled="True"/>
+                            
+                            <TextBlock Text="Recommended: Same as core offset or slightly higher" 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Apply Buttons -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="1" 
+                                    Content="Apply Undervolt" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyUndervoltCommand}"
+                                    Padding="16,8" Margin="0,0,8,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Reset to Default" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ResetUndervoltCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <!-- Undervolt Presets -->
+                        <Expander Header="Quick Presets" Margin="0,16,0,0" IsExpanded="False">
+                            <StackPanel Margin="0,12,0,0">
+                                <Button Content="Conservative (-60 mV)" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding ApplyUndervoltPresetCommand}"
+                                        CommandParameter="-60"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
+                                
+                                <Button Content="Moderate (-100 mV)" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding ApplyUndervoltPresetCommand}"
+                                        CommandParameter="-100"
+                                        HorizontalAlignment="Stretch" Margin="0,0,0,8"/>
+                                
+                                <Button Content="Aggressive (-140 mV)" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding ApplyUndervoltPresetCommand}"
+                                        CommandParameter="-140"
+                                        HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- HP Omen Gaming Hub Cleanup -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="HP Omen Gaming Hub Cleanup" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8" TextWrapping="Wrap">
+                            <Run Text="Remove HP Omen Gaming Hub and related services. This is optional and will free up system resources."/>
+                        </TextBlock>
+                        
+                        <TextBlock FontSize="12" Margin="0,0,0,16" TextWrapping="Wrap">
+                            <Run Text="⚠️ Warning: These operations cannot be undone easily. Create a System Restore Point before proceeding." FontWeight="Bold" Foreground="Orange"/>
+                        </TextBlock>
+
+                        <!-- Cleanup Options -->
+                        <StackPanel Margin="0,0,0,16">
+                            <CheckBox Content="Kill running HP Omen processes" 
+                                      IsChecked="{Binding CleanupKillProcesses}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Uninstall HP Omen Gaming Hub application" 
+                                      IsChecked="{Binding CleanupUninstallApp}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove HP Omen services (OmenService, LightingService)" 
+                                      IsChecked="{Binding CleanupRemoveServices}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Clean HP Omen registry entries" 
+                                      IsChecked="{Binding CleanupRegistryEntries}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove HP Omen legacy installers (winget/AppX)" 
+                                      IsChecked="{Binding CleanupRemoveLegacyInstallers}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove residual HP Omen files and folders" 
+                                      IsChecked="{Binding CleanupRemoveFiles}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- System Restore -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,0,0,16"
+                                BorderBrush="Orange" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="⚠️ Create System Restore Point" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="Orange" Margin="0,0,0,8"/>
+                                
+                                <TextBlock Text="Highly recommended before performing cleanup operations." 
+                                           FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                
+                                <Button Content="Create Restore Point" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding CreateRestorePointCommand}"
+                                        HorizontalAlignment="Left" Padding="16,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Execute Cleanup -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" 
+                                       Text="{Binding CleanupStatusText}" 
+                                       FontSize="12" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            
+                            <Button Grid.Column="1" 
+                                    Content="Run Cleanup" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding RunCleanupCommand}"
+                                    Padding="16,8"
+                                    Background="OrangeRed"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- GPU Switching (Advanced Optimus) -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="GPU Switching (Advanced Optimus)" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <TextBlock Text="Switch between integrated and discrete GPU for optimal performance or battery life." 
+                                   FontSize="12" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,16" TextWrapping="Wrap"/>
+
+                        <!-- Current GPU Mode -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Current Mode:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,12,0"/>
+                            
+                            <TextBlock Grid.Column="1" 
+                                       Text="{Binding CurrentGpuMode}" 
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource AccentBrush}"/>
+                        </Grid>
+
+                        <!-- GPU Mode Selection -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Switch To:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemsSource="{Binding GpuSwitchModes}"
+                                      SelectedItem="{Binding SelectedGpuMode}"
+                                      Margin="0,0,12,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Apply (Requires Restart)" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding SwitchGpuModeCommand}"
+                                    Padding="16,8"/>
+                        </Grid>
+
+                        <TextBlock Text="Note: GPU mode changes require a system restart to take effect. Advanced Optimus must be supported by your hardware." 
+                                   FontSize="11" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        
+        <!-- Loading Overlay -->
+        <controls:LoadingOverlay Grid.RowSpan="2" Panel.ZIndex="1000" />
+    </Grid>
+</UserControl>

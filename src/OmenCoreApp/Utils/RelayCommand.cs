@@ -20,6 +20,19 @@ namespace OmenCore.Utils
 
         public void Execute(object? parameter) => _execute(parameter);
 
-        public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        public void RaiseCanExecuteChanged()
+        {
+            if (System.Windows.Application.Current?.Dispatcher.CheckAccess() == true)
+            {
+                CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+                });
+            }
+        }
     }
 }
