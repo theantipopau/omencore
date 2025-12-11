@@ -45,6 +45,14 @@
                         </Rectangle.Fill>
                     </Rectangle>
                     <Canvas x:Name="ChartCanvas" Margin="4" />
+                    <!-- Empty state message -->
+                    <TextBlock x:Name="EmptyStateText"
+                               Text="Loading temperature history..."
+                               FontSize="14"
+                               FontStyle="Italic"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
                 </Grid>
             </Grid>
         </Border>
