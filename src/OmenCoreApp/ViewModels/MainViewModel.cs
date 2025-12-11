@@ -1829,6 +1829,14 @@ namespace OmenCore.ViewModels
             }
             _logging.LogEmitted -= HandleLogLine;
             _autoUpdateService.Dispose();
+
+            // Dispose process monitoring and game profile services
+            _processMonitoringService?.Dispose();
+            _gameProfileService?.Dispose();
+
+            // Dispose device services
+            _corsairDeviceService?.Dispose();
+            _logitechDeviceService?.Dispose();
         }
     }
 }

@@ -329,7 +329,21 @@ namespace OmenCore.Services
         {
             var playtime = DateTime.Now - _activeProfileStartTime;
             profile.TotalPlaytimeMs += (long)playtime.TotalMilliseconds;
-            _ = SaveProfilesAsync(); // Fire and forget
+            
+            // Save with error handling (non-blocking)
+            _ = SavePlaytimeAsync(profile.Name);
+        }
+
+        private async Task SavePlaytimeAsync(string profileName)
+        {
+            try
+            {
+                await SaveProfilesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to save playtime for profile '{profileName}'", ex);
+            }
         }
 
         private void UpdateTrackedProcesses()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -16,6 +17,7 @@ namespace OmenCore.Services
         private readonly LoggingService _logging;
         private readonly Timer _pollTimer;
         private readonly HashSet<string> _trackedProcesses = new();
+        private readonly object _trackedLock = new();
         private bool _isMonitoring;
 
         /// <summary>
@@ -29,9 +31,9 @@ namespace OmenCore.Services
         public event EventHandler<ProcessExitedEventArgs>? ProcessExited;
 
         /// <summary>
-        /// Currently active tracked processes.
+        /// Currently active tracked processes (keyed by Process ID for multi-instance support).
         /// </summary>
-        public Dictionary<string, ProcessInfo> ActiveProcesses { get; } = new();
+        public ConcurrentDictionary<int, ProcessInfo> ActiveProcesses { get; } = new();
 
         public ProcessMonitoringService(LoggingService logging)
         {
@@ -48,7 +50,10 @@ namespace OmenCore.Services
             if (string.IsNullOrEmpty(executableName))
                 return;
 
-            _trackedProcesses.Add(executableName.ToLowerInvariant());
+            lock (_trackedLock)
+            {
+                _trackedProcesses.Add(executableName.ToLowerInvariant());
+            }
             _logging.Info($"Now tracking process: {executableName}");
         }
 
@@ -60,7 +65,10 @@ namespace OmenCore.Services
             if (string.IsNullOrEmpty(executableName))
                 return;
 
-            _trackedProcesses.Remove(executableName.ToLowerInvariant());
+            lock (_trackedLock)
+            {
+                _trackedProcesses.Remove(executableName.ToLowerInvariant());
+            }
             _logging.Info($"Stopped tracking process: {executableName}");
         }
 
@@ -69,7 +77,10 @@ namespace OmenCore.Services
         /// </summary>
         public void ClearTrackedProcesses()
         {
-            _trackedProcesses.Clear();
+            lock (_trackedLock)
+            {
+                _trackedProcesses.Clear();
+            }
             _logging.Info("Cleared all tracked processes");
         }
 
@@ -111,48 +122,73 @@ namespace OmenCore.Services
         {
             try
             {
-                var runningProcesses = Process.GetProcesses()
-                    .Where(p => _trackedProcesses.Contains(p.ProcessName.ToLowerInvariant()))
-                    .ToDictionary(p => p.ProcessName.ToLowerInvariant(), p => p);
+                // Build dictionary of running tracked processes by PID
+                HashSet<string> trackedCopy;
+                lock (_trackedLock)
+                {
+                    trackedCopy = new HashSet<string>(_trackedProcesses);
+                }
 
-                // Detect new processes (launches)
+                var runningProcesses = Process.GetProcesses()
+                    .Where(p => trackedCopy.Contains(p.ProcessName.ToLowerInvariant()))
+                    .ToDictionary(p => p.Id, p => p);
+
+                // Detect new processes (launches) - keyed by Process ID to support multiple instances
                 foreach (var kvp in runningProcesses)
                 {
-                    if (!ActiveProcesses.ContainsKey(kvp.Key))
+                    var pid = kvp.Key;
+                    var process = kvp.Value;
+
+                    if (!ActiveProcesses.ContainsKey(pid))
                     {
                         var info = new ProcessInfo
                         {
-                            ProcessName = kvp.Value.ProcessName,
-                            ProcessId = kvp.Value.Id,
-                            ExecutablePath = GetExecutablePath(kvp.Value),
-                            StartTime = kvp.Value.StartTime,
-                            WindowTitle = GetMainWindowTitle(kvp.Value)
+                            ProcessName = process.ProcessName,
+                            ProcessId = pid,
+                            ExecutablePath = GetExecutablePath(process),
+                            StartTime = GetStartTimeSafe(process),
+                            WindowTitle = GetMainWindowTitle(process)
                         };
 
-                        ActiveProcesses[kvp.Key] = info;
-                        _logging.Info($"Detected game launch: {info.ProcessName} (PID: {info.ProcessId})");
+                        ActiveProcesses[pid] = info;
+                        _logging.Info($"Detected game launch: {info.ProcessName} (PID: {pid})");
                         ProcessDetected?.Invoke(this, new ProcessDetectedEventArgs(info));
                     }
                 }
 
                 // Detect exited processes
-                var exitedProcesses = ActiveProcesses.Keys
-                    .Where(k => !runningProcesses.ContainsKey(k))
+                var exitedPids = ActiveProcesses.Keys
+                    .Where(pid => !runningProcesses.ContainsKey(pid))
                     .ToList();
 
-                foreach (var exited in exitedProcesses)
+                foreach (var pid in exitedPids)
                 {
-                    var info = ActiveProcesses[exited];
-                    var runtime = DateTime.Now - info.StartTime;
-                    ActiveProcesses.Remove(exited);
-
-                    _logging.Info($"Detected game exit: {info.ProcessName} (Runtime: {runtime:hh\\:mm\\:ss})");
-                    ProcessExited?.Invoke(this, new ProcessExitedEventArgs(info, runtime));
+                    if (ActiveProcesses.TryRemove(pid, out var info))
+                    {
+                        var runtime = DateTime.Now - info.StartTime;
+                        _logging.Info($"Detected game exit: {info.ProcessName} (PID: {pid}, Runtime: {runtime:hh\\:mm\\:ss})");
+                        ProcessExited?.Invoke(this, new ProcessExitedEventArgs(info, runtime));
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logging.Error("Error scanning processes", ex);
+            }
+        }
+
+        /// <summary>
+        /// Safely get process start time (can throw if process exits during access).
+        /// </summary>
+        private DateTime GetStartTimeSafe(Process process)
+        {
+            try
+            {
+                return process.StartTime;
+            }
+            catch
+            {
+                return DateTime.Now; // Fallback to current time if process exited
             }
         }
 

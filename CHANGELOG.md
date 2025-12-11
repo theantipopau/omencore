@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0.7] - 2025-12-XX
+
+### Fixed
+- **Multi-instance game detection** - Fixed crash when multiple instances of the same game are running (dictionary key collision)
+- **Thread-safe process tracking** - Switched from `Dictionary` to `ConcurrentDictionary` for lock-free concurrent access
+- **Process.StartTime exception** - Added try-catch for processes that exit during WMI scan
+- **Resource cleanup** - Added missing `Dispose()` calls for `ProcessMonitoringService` and `GameProfileService` in `MainViewModel`
+- **Fire-and-forget save errors** - Profile saves now have proper error handling with logging instead of silent failures
+
+### Technical Notes
+- `ActiveProcesses` now keyed by Process ID (int) instead of name (string) to support multiple game instances
+- `ConcurrentDictionary<int, ProcessInfo>` eliminates race conditions in multi-threaded process monitoring
+- Robust `StartTime` access wrapped in try-catch to handle process exit during enumeration
+- Added `IDisposable` pattern enforcement for monitoring services
+
+---
+
+## [1.0.0.6] - 2025-12-XX
+
+### Added
+- **Game Profile System** - Complete auto-switching profiles for games with fan presets, performance modes, RGB lighting, and GPU settings
+- **Game Profile Manager UI** - Full-featured window with profile list, search, editor panel, import/export (JSON)
+- **Process Monitoring Service** - Background WMI-based process detection with 2-second polling
+- **Manual Update Check** - "Check for Updates" button in update banner for on-demand update checks
+- **Profile Statistics** - Launch count, total playtime tracking per game profile
+
+### Changed
+- Updated README to reflect game profile feature availability
+
+---
+
 ## [1.0.0.5] - 2025-12-10
 
 ### Added

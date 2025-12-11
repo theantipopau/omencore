@@ -4,7 +4,7 @@
 
 OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop application for managing thermals, performance, RGB lighting, and peripherals. Built with WPF on .NET 8, it provides professional-grade hardware control without bloat, telemetry, or mandatory sign-ins.
 
-[![Version](https://img.shields.io/badge/version-1.0.0.6-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.0.0.6)
+[![Version](https://img.shields.io/badge/version-1.0.0.7-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.0.0.7)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
