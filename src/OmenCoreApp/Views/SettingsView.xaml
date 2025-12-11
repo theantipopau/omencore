@@ -396,6 +396,65 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Driver Installation -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconSettings}" 
+                                  Fill="#9575CD" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Hardware Driver" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Driver Status -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Grid.Column="0" 
+                                         Width="12" Height="12" 
+                                         Fill="{Binding DriverStatusColor}"
+                                         VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding DriverStatusText}" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding DriverStatusDetail}" 
+                                               FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock TextWrapping="Wrap" FontSize="13" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" 
+                                   Margin="0,0,0,12">
+                            The WinRing0 driver is required for fan control and CPU undervolting. 
+                            The easiest way to install it is through LibreHardwareMonitor.
+                        </TextBlock>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📥 Install Driver (LibreHardwareMonitor)" 
+                                    Style="{StaticResource ModernButton}"
+                                    Background="#9575CD"
+                                    Command="{Binding InstallDriverCommand}"
+                                    HorizontalAlignment="Left"
+                                    Padding="20,10"
+                                    Margin="0,0,12,0"/>
+                            <Button Content="🔄 Refresh Status" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding RefreshDriverStatusCommand}"
+                                    HorizontalAlignment="Left"
+                                    Padding="20,10"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- Fan Boost / Maintenance -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>

@@ -81,7 +81,18 @@
                         <Hyperlink NavigateUri="https://github.com/theantipopau/omencore" 
                                    RequestNavigate="Hyperlink_RequestNavigate"
                                    Foreground="{StaticResource AccentBlueBrush}">
-                            Open Source Project
+                            GitHub
+                        </Hyperlink>
+                    </TextBlock>
+                    <TextBlock Text=" · " 
+                               FontSize="12" 
+                               Foreground="{StaticResource TextTertiaryBrush}" 
+                               VerticalAlignment="Center" />
+                    <TextBlock FontSize="12" VerticalAlignment="Center">
+                        <Hyperlink NavigateUri="https://reddit.com/r/omencore" 
+                                   RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource AccentBlueBrush}">
+                            r/omencore
                         </Hyperlink>
                     </TextBlock>
                 </StackPanel>

@@ -96,6 +96,7 @@ namespace OmenCore.Services
                     {
                         _cachedInfo.Manufacturer = system["Manufacturer"]?.ToString()?.Trim() ?? "Unknown";
                         _cachedInfo.Model = system["Model"]?.ToString()?.Trim() ?? "Unknown";
+                        _cachedInfo.SystemFamily = system["SystemFamily"]?.ToString()?.Trim() ?? "";
                         
                         // Detect if this is an HP Omen system
                         var manufacturer = _cachedInfo.Manufacturer.ToLowerInvariant();
@@ -106,6 +107,42 @@ namespace OmenCore.Services
                             _logging.Info($"HP Omen system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
                         else
                             _logging.Warn($"Non-HP Omen system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                    }
+                }
+                
+                // BIOS Information (for HP BIOS update checking)
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
+                {
+                    var bios = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                    if (bios != null)
+                    {
+                        _cachedInfo.BiosVersion = bios["SMBIOSBIOSVersion"]?.ToString()?.Trim() ?? "";
+                        _cachedInfo.BiosDate = bios["ReleaseDate"]?.ToString()?.Trim() ?? "";
+                        _cachedInfo.SerialNumber = bios["SerialNumber"]?.ToString()?.Trim() ?? "";
+                        _logging.Info($"BIOS: {_cachedInfo.BiosVersion} (Released: {_cachedInfo.BiosDate})");
+                    }
+                }
+                
+                // Baseboard Information (for HP System SKU)
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
+                {
+                    var baseboard = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                    if (baseboard != null)
+                    {
+                        _cachedInfo.ProductName = baseboard["Product"]?.ToString()?.Trim() ?? "";
+                    }
+                }
+                
+                // Additional product info from ComputerSystemProduct
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystemProduct"))
+                {
+                    var product = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                    if (product != null)
+                    {
+                        _cachedInfo.SystemSku = product["SKUNumber"]?.ToString()?.Trim() ?? "";
+                        if (string.IsNullOrEmpty(_cachedInfo.SystemSku))
+                            _cachedInfo.SystemSku = product["IdentifyingNumber"]?.ToString()?.Trim() ?? "";
+                        _logging.Info($"System SKU: {_cachedInfo.SystemSku}");
                     }
                 }
                 

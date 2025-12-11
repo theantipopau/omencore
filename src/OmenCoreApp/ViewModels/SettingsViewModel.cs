@@ -2,12 +2,14 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Utils;
@@ -44,6 +46,11 @@ namespace OmenCore.ViewModels
         private string _fanCleaningProgress = "";
         private int _fanCleaningProgressPercent;
         private CancellationTokenSource? _fanCleaningCts;
+        
+        // Driver status fields
+        private string _driverStatusText = "Checking...";
+        private string _driverStatusDetail = "";
+        private Brush _driverStatusColor = Brushes.Gray;
 
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService)
@@ -65,9 +72,14 @@ namespace OmenCore.ViewModels
             OpenIssuesCommand = new RelayCommand(_ => OpenUrl("https://github.com/theantipopau/omencore/issues"));
             StartFanCleaningCommand = new AsyncRelayCommand(async _ => await StartFanCleaningAsync(), _ => CanStartFanCleaning && !IsFanCleaningActive);
             ResetToDefaultsCommand = new RelayCommand(_ => ResetToDefaults());
+            InstallDriverCommand = new RelayCommand(_ => InstallDriver());
+            RefreshDriverStatusCommand = new RelayCommand(_ => CheckDriverStatus());
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
+            
+            // Check driver status
+            CheckDriverStatus();
         }
 
         #region General Settings
@@ -361,7 +373,31 @@ namespace OmenCore.ViewModels
         public ICommand OpenIssuesCommand { get; }
         public ICommand StartFanCleaningCommand { get; }
         public ICommand ResetToDefaultsCommand { get; }
+        public ICommand InstallDriverCommand { get; }
+        public ICommand RefreshDriverStatusCommand { get; }
 
+        #endregion
+        
+        #region Driver Status Properties
+        
+        public string DriverStatusText
+        {
+            get => _driverStatusText;
+            set { _driverStatusText = value; OnPropertyChanged(); }
+        }
+        
+        public string DriverStatusDetail
+        {
+            get => _driverStatusDetail;
+            set { _driverStatusDetail = value; OnPropertyChanged(); }
+        }
+        
+        public Brush DriverStatusColor
+        {
+            get => _driverStatusColor;
+            set { _driverStatusColor = value; OnPropertyChanged(); }
+        }
+        
         #endregion
 
         #region Private Methods
@@ -601,7 +637,77 @@ namespace OmenCore.ViewModels
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+        
+        private void CheckDriverStatus()
+        {
+            try
+            {
+                var devicePath = @"\\.\WinRing0_1_2";
+                var handle = NativeMethods.CreateFile(
+                    devicePath,
+                    0, // GENERIC_READ
+                    0,
+                    IntPtr.Zero,
+                    3, // OPEN_EXISTING
+                    0,
+                    IntPtr.Zero);
+
+                if (handle.IsInvalid || handle.IsClosed)
+                {
+                    DriverStatusText = "Driver Not Installed";
+                    DriverStatusDetail = "Fan control and undervolting are disabled";
+                    DriverStatusColor = new SolidColorBrush(Color.FromRgb(239, 83, 80)); // Red
+                }
+                else
+                {
+                    DriverStatusText = "Driver Installed";
+                    DriverStatusDetail = "Full hardware control available";
+                    DriverStatusColor = new SolidColorBrush(Color.FromRgb(102, 187, 106)); // Green
+                    handle.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                DriverStatusText = "Check Failed";
+                DriverStatusDetail = ex.Message;
+                DriverStatusColor = new SolidColorBrush(Color.FromRgb(255, 183, 77)); // Orange
+            }
+        }
+        
+        private void InstallDriver()
+        {
+            // Delegate to App's download method
+            if (Application.Current is App app)
+            {
+                // Call the download method via reflection or make it public/static
+                var method = typeof(App).GetMethod("DownloadAndInstallLibreHardwareMonitor", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                method?.Invoke(app, null);
+            }
+            else
+            {
+                // Fallback: Open download page
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest",
+                    UseShellExecute = true
+                });
+            }
+        }
 
         #endregion
+        
+        private static class NativeMethods
+        {
+            [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            public static extern SafeFileHandle CreateFile(
+                string lpFileName,
+                uint dwDesiredAccess,
+                uint dwShareMode,
+                IntPtr lpSecurityAttributes,
+                uint dwCreationDisposition,
+                uint dwFlagsAndAttributes,
+                IntPtr hTemplateFile);
+        }
     }
 }

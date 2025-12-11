@@ -1,4 +1,5 @@
 using System;
+using System.IO.Compression;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
@@ -168,18 +169,17 @@ namespace OmenCore
         private void PromptDriverInstallation()
         {
             var result = MessageBox.Show(
-                "OmenCore requires the WinRing0 driver for advanced hardware control.\n\n" +
-                "⚠️ IMPORTANT: Windows Defender may flag WinRing0 as a virus.\n" +
-                "This is a FALSE POSITIVE - the driver is safe when using trusted sources.\n\n" +
-                "Without this driver, the following features are disabled:\n" +
+                "OmenCore requires the WinRing0 driver for fan control and undervolting.\n\n" +
+                "The easiest way to install this driver is through LibreHardwareMonitor.\n\n" +
+                "Without this driver, these features are disabled:\n" +
                 "• Manual fan curve control\n" +
-                "• CPU voltage offset (undervolting)\n" +
+                "• CPU undervolting\n" +
                 "• Direct EC register access\n\n" +
-                "The easiest option is to install LibreHardwareMonitor which bundles this driver.\n\n" +
-                "Would you like to view the setup guide?",
-                "Driver Not Found - OmenCore",
+                "Click YES to download LibreHardwareMonitor (recommended)\n" +
+                "Click NO to continue without these features",
+                "Driver Required - OmenCore",
                 MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
+                MessageBoxImage.Warning);
 
             // Mark first run as completed after showing prompt
             Configuration.Config.FirstRunCompleted = true;
@@ -187,53 +187,95 @@ namespace OmenCore
 
             if (result == MessageBoxResult.Yes)
             {
-                try
+                DownloadAndInstallLibreHardwareMonitor();
+            }
+        }
+
+        private async void DownloadAndInstallLibreHardwareMonitor()
+        {
+            const string downloadUrl = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/v0.9.3/LibreHardwareMonitor-net472.zip";
+            var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OmenCore_LHM");
+            var zipPath = System.IO.Path.Combine(tempDir, "LibreHardwareMonitor.zip");
+            var extractPath = System.IO.Path.Combine(tempDir, "LibreHardwareMonitor");
+
+            try
+            {
+                // Show progress dialog
+                Logging.Info("📥 Downloading LibreHardwareMonitor...");
+
+                // Create temp directory
+                System.IO.Directory.CreateDirectory(tempDir);
+
+                // Download the ZIP file
+                using (var client = new System.Net.Http.HttpClient())
                 {
-                    // Try bundled docs first, then installed location, finally fallback to online
-                    var installDocPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "docs", "WINRING0_SETUP.md");
-                    var devDocPath = System.IO.Path.GetFullPath(
-                        System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\docs\WINRING0_SETUP.md"));
+                    client.Timeout = TimeSpan.FromMinutes(5);
+                    var response = await client.GetAsync(downloadUrl);
+                    response.EnsureSuccessStatusCode();
                     
-                    if (System.IO.File.Exists(installDocPath))
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = installDocPath,
-                            UseShellExecute = true
-                        });
-                        Logging.Info("📄 Opened installed WINRING0_SETUP.md");
-                    }
-                    else if (System.IO.File.Exists(devDocPath))
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = devDocPath,
-                            UseShellExecute = true
-                        });
-                        Logging.Info("📄 Opened dev WINRING0_SETUP.md");
-                    }
-                    else
-                    {
-                        // Fallback: Open online documentation
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "https://github.com/theantipopau/omencore/blob/main/docs/WINRING0_SETUP.md",
-                            UseShellExecute = true
-                        });
-                        Logging.Info("🌐 Opened online WINRING0_SETUP.md");
-                    }
+                    var bytes = await response.Content.ReadAsByteArrayAsync();
+                    await System.IO.File.WriteAllBytesAsync(zipPath, bytes);
                 }
-                catch (Exception ex)
+
+                Logging.Info("✓ Download complete, extracting...");
+
+                // Extract ZIP
+                if (System.IO.Directory.Exists(extractPath))
+                    System.IO.Directory.Delete(extractPath, true);
+                
+                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
+
+                // Find and run LibreHardwareMonitor.exe
+                var exePath = System.IO.Path.Combine(extractPath, "LibreHardwareMonitor.exe");
+                if (System.IO.File.Exists(exePath))
                 {
-                    Logging.Error("Failed to open driver setup documentation", ex);
+                    Logging.Info("🚀 Launching LibreHardwareMonitor to install driver...");
+                    
+                    var startInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        UseShellExecute = true,
+                        Verb = "runas" // Run as admin to install driver
+                    };
+                    
+                    System.Diagnostics.Process.Start(startInfo);
+
                     MessageBox.Show(
-                        "Could not open setup guide.\n\n" +
-                        "Please install LibreHardwareMonitor from:\n" +
-                        "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases\n\n" +
-                        "Or see docs/WINRING0_SETUP.md in the OmenCore installation folder.",
-                        "Setup Guide",
+                        "LibreHardwareMonitor has been downloaded and launched.\n\n" +
+                        "IMPORTANT STEPS:\n" +
+                        "1. Let it run for a few seconds (this installs the driver)\n" +
+                        "2. You can close LibreHardwareMonitor after it opens\n" +
+                        "3. Restart OmenCore to enable fan control\n\n" +
+                        "⚠️ If Windows Defender blocks it, click 'More info' → 'Run anyway'\n" +
+                        "The driver is safe - it's used by many hardware monitoring tools.",
+                        "Driver Installation",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
+                }
+                else
+                {
+                    throw new System.IO.FileNotFoundException("LibreHardwareMonitor.exe not found in downloaded archive");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Error("Failed to download/install LibreHardwareMonitor", ex);
+                
+                // Fallback: Open download page in browser
+                var fallbackResult = MessageBox.Show(
+                    $"Automatic download failed: {ex.Message}\n\n" +
+                    "Would you like to open the download page in your browser instead?",
+                    "Download Failed",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (fallbackResult == MessageBoxResult.Yes)
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest",
+                        UseShellExecute = true
+                    });
                 }
             }
         }

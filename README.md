@@ -582,6 +582,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 - **Latest Release**: https://github.com/theantipopau/omencore/releases/latest
 - **Issue Tracker**: https://github.com/theantipopau/omencore/issues
 - **Discussions**: https://github.com/theantipopau/omencore/discussions
+- **Subreddit**: https://reddit.com/r/omencore
 
 ---
 
