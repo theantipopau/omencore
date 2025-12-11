@@ -35,9 +35,9 @@
                         <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,1,0,0" Opacity="0.8" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
-                        <Button Content="&#xE949;" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" />
-                        <Button x:Name="MaximizeButton" Content="&#xE739;" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" />
-                        <Button Content="&#xE106;" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" />
+                        <Button Content="—" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" FontSize="12" />
+                        <Button x:Name="MaximizeButton" Content="☐" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" FontSize="12" />
+                        <Button Content="✕" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" FontSize="12" />
                     </StackPanel>
                 </Grid>
             </Border>
