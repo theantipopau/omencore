@@ -63,19 +63,28 @@ namespace OmenCore.Hardware
         {
             if (!_initialized) Init();
             
-            // Supported: Ryzen AI MAX, Ryzen AI 9, Ryzen 9 HX, Ryzen 4000H series
+            // Supported: Ryzen AI MAX, Ryzen AI 9, Ryzen 9 HX, Ryzen 8000/7000/6000/4000 H-series
             return CpuName.Contains("RYZEN AI MAX", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("Ryzen AI 9", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("Ryzen 9", StringComparison.OrdinalIgnoreCase) ||
+                   CpuName.Contains("Ryzen 7", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("4900H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("4800H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("4600H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("6900H", StringComparison.OrdinalIgnoreCase) ||
+                   CpuName.Contains("6800H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("7945H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("7845H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("8945H", StringComparison.OrdinalIgnoreCase) ||
+                   CpuName.Contains("8940H", StringComparison.OrdinalIgnoreCase) ||  // Hawk Point (Issue #8)
+                   CpuName.Contains("8845H", StringComparison.OrdinalIgnoreCase) ||
+                   CpuName.Contains("8840H", StringComparison.OrdinalIgnoreCase) ||
                    CpuName.Contains("HX 370", StringComparison.OrdinalIgnoreCase) ||
-                   CpuName.Contains("HX 375", StringComparison.OrdinalIgnoreCase);
+                   CpuName.Contains("HX 375", StringComparison.OrdinalIgnoreCase) ||
+                   // Generic patterns for H-series mobile CPUs
+                   (CpuName.Contains("Ryzen", StringComparison.OrdinalIgnoreCase) && 
+                    (CpuName.Contains("H", StringComparison.OrdinalIgnoreCase) || 
+                     CpuName.Contains("HX", StringComparison.OrdinalIgnoreCase)));
         }
 
         /// <summary>

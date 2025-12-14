@@ -113,7 +113,14 @@ namespace OmenCore.Hardware
                 }
                 
                 // For non-Max presets, disable max fan first if it was enabled
-                _wmiBios.SetFanMax(false);
+                // This is critical - without this, fans stay at max speed!
+                if (_wmiBios.SetFanMax(false))
+                {
+                    _logging?.Info("✓ Disabled fan max mode before applying new preset");
+                }
+                
+                // Small delay to ensure BIOS processes the fan max disable
+                System.Threading.Thread.Sleep(100);
                 
                 // Map preset to fan mode
                 var mode = MapPresetToFanMode(preset);
@@ -307,8 +314,14 @@ namespace OmenCore.Hardware
 
             try
             {
-                // Disable max fan speed first
-                _wmiBios.SetFanMax(false);
+                // Disable max fan speed first - this is critical!
+                if (_wmiBios.SetFanMax(false))
+                {
+                    _logging?.Info("✓ Disabled fan max mode for auto control restore");
+                }
+                
+                // Small delay to ensure BIOS processes the command
+                System.Threading.Thread.Sleep(100);
                 
                 // Set default mode to restore automatic control
                 if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Default))

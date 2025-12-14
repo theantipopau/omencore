@@ -90,11 +90,14 @@
                                Style="{StaticResource Caption}"
                                FontSize="13"
                                Margin="0,0,0,10"/>
-                    <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged}" 
+                    <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
                              Style="{StaticResource ModernTextBox}" 
                              Height="42"
                              FontSize="14"
                              Padding="12,10"
+                             IsReadOnly="False"
+                             Focusable="True"
+                             AcceptsReturn="False"
                              VerticalContentAlignment="Center"
                              ToolTip="Enter a name to save your custom fan curve"/>
                 </StackPanel>

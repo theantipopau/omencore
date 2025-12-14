@@ -197,9 +197,13 @@ namespace OmenCore.Services
                 if (nvidiaGpus.Count == 0)
                     return null; // No NVIDIA GPU
 
-                // Check for Intel iGPU - this is the key indicator of hybrid mode capability
+                // Check for Intel iGPU - common in hybrid configurations
                 using var intelSearcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE Name LIKE '%Intel%'");
                 var intelGpus = intelSearcher.Get().Cast<ManagementObject>().ToList();
+                
+                // Also check for AMD iGPU (Radeon 610M, 680M, 780M, etc.) - newer OMEN laptops with AMD APU + NVIDIA dGPU
+                using var amdIgpuSearcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE (Name LIKE '%Radeon%' OR Name LIKE '%AMD%') AND (Name LIKE '%Graphics%' OR Name LIKE '%610M%' OR Name LIKE '%680M%' OR Name LIKE '%780M%')");
+                var amdIgpus = amdIgpuSearcher.Get().Cast<ManagementObject>().ToList();
                 
                 // Log GPU info for diagnostics
                 foreach (var nvidia in nvidiaGpus)
@@ -217,9 +221,16 @@ namespace OmenCore.Services
                     var availability = intel["Availability"]?.ToString() ?? "Unknown";
                     _logging.Info($"Intel GPU: {name}, Status: {status}, Availability: {availability}");
                 }
+                
+                foreach (var amdIgpu in amdIgpus)
+                {
+                    var name = amdIgpu["Name"]?.ToString() ?? "Unknown";
+                    var status = amdIgpu["Status"]?.ToString() ?? "Unknown";
+                    var availability = amdIgpu["Availability"]?.ToString() ?? "Unknown";
+                    _logging.Info($"AMD iGPU: {name}, Status: {status}, Availability: {availability}");
+                }
 
-                // If both Intel and NVIDIA GPUs exist, decide based on which adapter is actually driving a display.
-                // This avoids false Hybrid detection when iGPU is disabled but still enumerates in WMI.
+                // If Intel iGPU + NVIDIA dGPU exist, decide based on which adapter is actually driving a display.
                 if (intelGpus.Count > 0 && nvidiaGpus.Count > 0)
                 {
                     var intelDisplayActive = intelGpus.Any(IsDisplayActive);
@@ -237,6 +248,25 @@ namespace OmenCore.Services
                     // Unknown edge case; default to Hybrid as safest assumption.
                     return GpuSwitchMode.Hybrid;
                 }
+                
+                // If AMD iGPU (Radeon 610M, 680M, 780M) + NVIDIA dGPU exist - AMD APU + NVIDIA hybrid setup
+                if (amdIgpus.Count > 0 && nvidiaGpus.Count > 0)
+                {
+                    var amdIgpuDisplayActive = amdIgpus.Any(IsDisplayActive);
+                    var nvidiaDisplayActive = nvidiaGpus.Any(IsDisplayActive);
+
+                    _logging.Info($"Display activity: AMD iGPU={(amdIgpuDisplayActive ? "Active" : "Inactive")}, NVIDIA={(nvidiaDisplayActive ? "Active" : "Inactive")}");
+
+                    if (amdIgpuDisplayActive && nvidiaDisplayActive)
+                        return GpuSwitchMode.Hybrid;
+                    if (!amdIgpuDisplayActive && nvidiaDisplayActive)
+                        return GpuSwitchMode.Discrete;
+                    if (amdIgpuDisplayActive && !nvidiaDisplayActive)
+                        return GpuSwitchMode.Integrated;
+
+                    // Default to Hybrid for AMD APU + NVIDIA setup
+                    return GpuSwitchMode.Hybrid;
+                }
 
                 // Only NVIDIA GPU present
                 return GpuSwitchMode.Discrete;
@@ -252,12 +282,14 @@ namespace OmenCore.Services
         {
             try
             {
+                // Get all AMD GPUs
                 using var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE Name LIKE '%AMD%' OR Name LIKE '%Radeon%'");
                 var amdGpus = searcher.Get().Cast<ManagementObject>().ToList();
 
                 if (amdGpus.Count == 0)
                     return null;
 
+                // Check for Intel iGPU first (Intel + AMD combo)
                 using var intelSearcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE Name LIKE '%Intel%'");
                 var intelGpus = intelSearcher.Get().Cast<ManagementObject>().ToList();
 
@@ -277,8 +309,52 @@ namespace OmenCore.Services
                         return GpuSwitchMode.Integrated;
                     return GpuSwitchMode.Hybrid;
                 }
+                
+                // AMD + AMD combo (Ryzen iGPU + Radeon dGPU) - common in OMEN 16-ap series
+                // Detect by looking for "Radeon Graphics" (iGPU) vs "Radeon RX" (dGPU) patterns
+                var igpuPatterns = new[] { "Radeon Graphics", "Radeon(TM) Graphics", "AMD Radeon Graphics" };
+                var dgpuPatterns = new[] { "Radeon RX", "RX 6", "RX 7", "RX 8" };
+                
+                var amdIgpus = amdGpus.Where(g => 
+                {
+                    var name = g["Name"]?.ToString() ?? "";
+                    return igpuPatterns.Any(p => name.Contains(p, StringComparison.OrdinalIgnoreCase));
+                }).ToList();
+                
+                var amdDgpus = amdGpus.Where(g => 
+                {
+                    var name = g["Name"]?.ToString() ?? "";
+                    return dgpuPatterns.Any(p => name.Contains(p, StringComparison.OrdinalIgnoreCase)) ||
+                           (!igpuPatterns.Any(p => name.Contains(p, StringComparison.OrdinalIgnoreCase)) && 
+                            name.Contains("Radeon", StringComparison.OrdinalIgnoreCase));
+                }).ToList();
+                
+                // Log AMD GPU detection for debugging
+                foreach (var gpu in amdGpus)
+                {
+                    var name = gpu["Name"]?.ToString() ?? "Unknown";
+                    var status = gpu["Status"]?.ToString() ?? "Unknown";
+                    var isIgpu = amdIgpus.Contains(gpu);
+                    _logging.Info($"AMD GPU: {name}, Status: {status}, Type: {(isIgpu ? "iGPU" : "dGPU")}");
+                }
+                
+                if (amdIgpus.Count > 0 && amdDgpus.Count > 0)
+                {
+                    var igpuDisplayActive = amdIgpus.Any(IsDisplayActive);
+                    var dgpuDisplayActive = amdDgpus.Any(IsDisplayActive);
+                    
+                    _logging.Info($"AMD Display activity: iGPU={(igpuDisplayActive ? "Active" : "Inactive")}, dGPU={(dgpuDisplayActive ? "Active" : "Inactive")}");
+                    
+                    if (igpuDisplayActive && dgpuDisplayActive)
+                        return GpuSwitchMode.Hybrid;
+                    if (!igpuDisplayActive && dgpuDisplayActive)
+                        return GpuSwitchMode.Discrete;
+                    if (igpuDisplayActive && !dgpuDisplayActive)
+                        return GpuSwitchMode.Integrated;
+                    return GpuSwitchMode.Hybrid;
+                }
 
-                // Only AMD GPU present
+                // Only AMD GPU present (single GPU or can't differentiate)
                 return GpuSwitchMode.Discrete;
             }
             catch
