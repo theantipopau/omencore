@@ -13,39 +13,54 @@ OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop 
 
 ---
 
-## 🆕 What's New in v1.2.1
+## 🆕 What's New in v1.2
 
-### 🌀 Fixed: Fan Stuck on Max Speed
-- **Fan mode properly resets** - After using Max fan mode, switching profiles now works correctly
-- Added explicit `SetFanMax(false)` with BIOS processing delay
-- Fans properly ramp down when switching from Max to other presets
+### 📈 Visual Fan Curve Editor
+- **Interactive drag-and-drop editor** - Visual graph with temperature (X) and fan speed % (Y)
+- Drag points to adjust, click to add, right-click to remove
+- Live current temperature indicator with color-coded gradient
+- Save custom curves as named presets
 
-### 🎨 UI Improvements
-- **Fixed preset name input** - Can now type in the preset name TextBox to save custom curves
-- **Reorganized side panel** - Performance Mode selector moved to top of side panel for better accessibility
-- **Smooth scrolling** - Dashboard now uses smooth scrolling for better UX
+### 🔋 Power Automation (AC/Battery Switching)
+- **Automatic profile switching** based on power source
+- Configure separate presets for AC and battery
+- Instant switching when plugging/unplugging
 
-### 🖥️ AMD Hybrid GPU Detection
-- **Fixed AMD iGPU detection** - Systems with AMD APU + NVIDIA dGPU now correctly show "Hybrid" mode
-- Supports Radeon 610M, 680M, 780M integrated graphics
-- No more incorrect "Discrete" display on AMD hybrid laptops
+### 🌡️ Dynamic Tray Icon
+- **Temperature display** with color-coded background
+- 🟢 Green (<60°C) | 🟡 Yellow (60-75°C) | 🔴 Red (>75°C)
+- See thermal state at a glance without opening app
 
-### ⚡ Extended AMD Undervolt Support
-- **Hawk Point CPUs** - Added Ryzen 9 8940HX, 8940H, Ryzen 7 8845H, 8840H
-- **Rembrandt CPUs** - Added Ryzen 7 6800H
-- **Generic H-series** - All mobile Ryzen H/HX processors now supported
+### ⚠️ Throttling Detection
+- **Real-time throttling indicator** in dashboard header
+- Detects CPU/GPU thermal and power throttling
+- Warning badge shows specific throttling reasons
 
-### 🔧 Performance & Stability
-- **XTU detection improved** - Better Intel Extreme Tuning Utility detection
-- **Fixed tray menu** - Right-click context menu now works reliably
-- **Reduced log spam** - Cleaner debug output for FanDebug and Corsair HID
-- **Shutdown stability** - Fixed ObjectDisposedException on app exit
+### 🖥️ Display Control
+- **Quick refresh rate toggle** from tray menu (165Hz ↔ 60Hz)
+- **Turn Off Display** - screen off while system runs (for downloads, music)
 
-See [CHANGELOG_v1.2.1.md](docs/CHANGELOG_v1.2.1.md) for full details.
+### 📌 Quality of Life
+- **Stay on Top** - keep window always visible
+- **Single instance enforcement** - prevents multiple copies
+- **Fan countdown extension** - auto re-applies settings every 90s to prevent BIOS reset
+- **External undervolt detection** - warns about XTU/ThrottleStop conflicts
+
+### 🛡️ Extended AMD Support
+- **Hawk Point CPUs** - Ryzen 9 8940HX, 8940H, Ryzen 7 8845H, 8840H
+- **AMD hybrid GPU detection** - Radeon 610M/680M/780M + NVIDIA systems
+- **Generic H-series** - All mobile Ryzen H/HX processors
+
+### 🐛 v1.2.1 Hotfixes
+- Fixed fan stuck on Max speed after profile change
+- Fixed preset name TextBox not accepting input
+- Improved shutdown stability and reduced log spam
+
+See [CHANGELOG_v1.2.0.md](docs/CHANGELOG_v1.2.0.md) and [CHANGELOG_v1.2.1.md](docs/CHANGELOG_v1.2.1.md) for full details.
 
 ---
 
-## 🔧 What's in v1.1.1
+## 🔧 Core Features
 
 ### 🌡️ **Thermal & Fan Management**
 - **Custom fan curves** with temperature breakpoints (e.g., 40°C→30%, 60°C→55%, 80°C→85%)
