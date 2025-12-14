@@ -4,7 +4,7 @@
 
 OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop application for managing thermals, performance, RGB lighting, and peripherals. Built with WPF on .NET 8, it provides professional-grade hardware control without bloat, telemetry, or mandatory sign-ins.
 
-[![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.1.2)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v1.2.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -13,42 +13,35 @@ OmenCore replaces HP OMEN Gaming Hub with a focused, privacy-respecting desktop 
 
 ---
 
-## 🆕 What's New in v1.1.2
+## 🆕 What's New in v1.2.1
 
-### 🚀 Fixed: Windows Startup Issues
-- **Task Scheduler startup** - Now uses scheduled task with elevated privileges instead of registry
-- OmenCore properly starts with Windows and has admin rights for hardware access
-- No more need to manually create scheduled tasks or run as admin
+### 🌀 Fixed: Fan Stuck on Max Speed
+- **Fan mode properly resets** - After using Max fan mode, switching profiles now works correctly
+- Added explicit `SetFanMax(false)` with BIOS processing delay
+- Fans properly ramp down when switching from Max to other presets
 
-### 🎮 New Gaming Fan Preset
-- **"Gaming" quick preset** - Aggressive cooling for gaming sessions
-- Uses Performance thermal policy (0x31) for proper fan ramping
-- Fans ramp aggressively starting at 60°C - ideal for sustained gaming loads
-- Recommended if "Auto" mode doesn't ramp fans during gaming
+### 🎨 UI Improvements
+- **Fixed preset name input** - Can now type in the preset name TextBox to save custom curves
+- **Reorganized side panel** - Performance Mode selector moved to top of side panel for better accessibility
+- **Smooth scrolling** - Dashboard now uses smooth scrolling for better UX
 
-### 🌡️ Fixed: CPU Temperature 0°C on AMD Ryzen
-- **Extended AMD sensor detection** - More fallback patterns for Ryzen 8940HX, Hawk Point, etc.
-- **Auto-reinitialize** - Hardware monitor resets automatically if sensors become stale
-- Fixes temperature stuck at 0°C after system reboot on AMD systems
+### 🖥️ AMD Hybrid GPU Detection
+- **Fixed AMD iGPU detection** - Systems with AMD APU + NVIDIA dGPU now correctly show "Hybrid" mode
+- Supports Radeon 610M, 680M, 780M integrated graphics
+- No more incorrect "Discrete" display on AMD hybrid laptops
 
-### 📊 Improved Fan Curve Editor UX
-- **"How Fan Curves Work" explanation** - New info box explaining temperature → speed mapping
-- **Preset descriptions** - Each preset now has clear explanation of behavior
-- **Better tooltips** - Detailed explanation of what each preset does
+### ⚡ Extended AMD Undervolt Support
+- **Hawk Point CPUs** - Added Ryzen 9 8940HX, 8940H, Ryzen 7 8845H, 8840H
+- **Rembrandt CPUs** - Added Ryzen 7 6800H
+- **Generic H-series** - All mobile Ryzen H/HX processors now supported
 
-### 🔒 Clearer Secure Boot Message
-- **Specific limitation info** - Now explains EC access is limited, suggests PawnIO
-- **Actionable guidance** - Users know exactly what to do to enable full features
+### 🔧 Performance & Stability
+- **XTU detection improved** - Better Intel Extreme Tuning Utility detection
+- **Fixed tray menu** - Right-click context menu now works reliably
+- **Reduced log spam** - Cleaner debug output for FanDebug and Corsair HID
+- **Shutdown stability** - Fixed ObjectDisposedException on app exit
 
-### 💾 GPU Power Boost Persistence
-- **Settings saved to config** - Last used GPU power level restored on startup
-- **Reset warning** - UI explains settings may reset on some models (BIOS limitation)
-
-### 🖥️ GPU Mode Switching Guidance
-- **Hardware limitation warning** - Explains reboot requirement and BIOS fallback
-- **Tips for users** - Guidance on when to use BIOS settings directly
-
-See [CHANGELOG_v1.1.2.md](docs/CHANGELOG_v1.1.2.md) for full details.
+See [CHANGELOG_v1.2.1.md](docs/CHANGELOG_v1.2.1.md) for full details.
 
 ---
 
@@ -170,14 +163,14 @@ See [CHANGELOG_v1.1.2.md](docs/CHANGELOG_v1.1.2.md) for full details.
 ## 🚀 Installation
 
 ### Option 1: Installer (Recommended)
-1. Download `OmenCoreSetup-1.1.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCoreSetup-1.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Run installer as Administrator
 3. Select "Install PawnIO driver" task (recommended, Secure Boot compatible)
 4. (Optional) Select "Install WinRing0 driver" task (legacy)
 4. Launch OmenCore from Start Menu or Desktop
 
 ### Option 2: Portable ZIP
-1. Download `OmenCore-1.1.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCore-1.2.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Extract to `C:\OmenCore` (or preferred location)
 3. Right-click `OmenCore.exe` → Run as Administrator
 4. Install [PawnIO](https://pawnio.eu/) (recommended) or [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) (legacy WinRing0)
