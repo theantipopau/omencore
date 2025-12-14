@@ -19,8 +19,174 @@
                    Foreground="{StaticResource TextPrimaryBrush}" 
                    Margin="0,0,0,16"/>
 
-        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
             <StackPanel>
+                <!-- System Status Section -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="{StaticResource IconMonitoring}" 
+                                  Fill="#4CAF50" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="System Status" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        
+                        <!-- Backend Status -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Fan Control Backend" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="The method used to control fans on your system" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" Background="#1A4CAF50" CornerRadius="4" Padding="12,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Fill="#4CAF50" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding FanBackend, FallbackValue=Detecting...}" 
+                                               FontSize="13" FontWeight="SemiBold"
+                                               Foreground="#4CAF50"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        
+                        <!-- Secure Boot Status -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Secure Boot" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Secure Boot is disabled - WinRing0 driver available"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
+                                                    <Setter Property="Text" Value="Secure Boot blocks unsigned drivers. Use PawnIO or WMI BIOS."/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="4" Padding="12,6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1A4CAF50"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
+                                                <Setter Property="Background" Value="#1AFF9800"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock FontSize="13" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Disabled"/>
+                                            <Setter Property="Foreground" Value="#4CAF50"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
+                                                    <Setter Property="Text" Value="🔒 Enabled"/>
+                                                    <Setter Property="Foreground" Value="#FF9800"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+                        
+                        <!-- PawnIO Status -->
+                        <Grid Margin="0,0,0,12" Visibility="{Binding SecureBootEnabled, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="PawnIO Driver" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Secure Boot compatible driver for EC/MSR access" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="4" Padding="12,6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1AF44336"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PawnIOAvailable}" Value="True">
+                                                <Setter Property="Background" Value="#1A4CAF50"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock FontSize="13" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Installed"/>
+                                            <Setter Property="Foreground" Value="#F44336"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PawnIOAvailable}" Value="True">
+                                                    <Setter Property="Text" Value="✓ Installed"/>
+                                                    <Setter Property="Foreground" Value="#4CAF50"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+                        
+                        <!-- OGH Status -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="OMEN Gaming Hub" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="HP's official control software - provides WMI access" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <Border Grid.Column="1" CornerRadius="4" Padding="12,6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1A808080"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding OghInstalled}" Value="True">
+                                                <Setter Property="Background" Value="#1A4CAF50"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock FontSize="13" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Not Installed"/>
+                                            <Setter Property="Foreground" Value="#808080"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding OghInstalled}" Value="True">
+                                                    <Setter Property="Text" Value="✓ Installed"/>
+                                                    <Setter Property="Foreground" Value="#4CAF50"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
                 <!-- General Settings -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
@@ -164,6 +330,107 @@
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding LowOverheadMode}"/>
                         </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Power Automation Settings -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="M12 3C10.3 3 9 4.3 9 6V8H15V6C15 4.3 13.7 3 12 3M7 8V6C7 3.2 9.2 1 12 1S17 3.2 17 6V8H18C19.1 8 20 8.9 20 10V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V10C4 8.9 4.9 8 6 8H7M13 15V17H11V15H9V13H11V11H13V13H15V15H13Z" 
+                                  Fill="#FFB74D" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="Power Automation" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- Enable Power Automation -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Auto-switch on power change" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Automatically switch profiles when AC power is connected or disconnected" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding PowerAutomationEnabled, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <!-- AC Power Settings -->
+                        <TextBlock Text="When on AC Power:" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Fan preset" FontSize="13" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding AcFanPreset, Mode=TwoWay}"
+                                      ItemsSource="{Binding FanPresetOptions}"
+                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Performance mode" FontSize="13" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding AcPerformanceMode, Mode=TwoWay}"
+                                      ItemsSource="{Binding PerformanceModeOptions}"
+                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                        </Grid>
+
+                        <!-- Battery Settings -->
+                        <TextBlock Text="When on Battery:" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,8"/>
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Fan preset" FontSize="13" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding BatteryFanPreset, Mode=TwoWay}"
+                                      ItemsSource="{Binding FanPresetOptions}"
+                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="150"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Performance mode" FontSize="13" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding BatteryPerformanceMode, Mode=TwoWay}"
+                                      ItemsSource="{Binding PerformanceModeOptions}"
+                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                        </Grid>
+
+                        <!-- Current Power Status -->
+                        <Border Background="#1F1F1F" CornerRadius="4" Padding="12" Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Current status: " FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding CurrentPowerStatus}" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 

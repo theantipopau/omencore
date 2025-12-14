@@ -1,6 +1,7 @@
 using System;
 using System.IO.Compression;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -15,6 +16,9 @@ namespace OmenCore
 {
     public partial class App : Application
     {
+        private static Mutex? _singleInstanceMutex;
+        private const string MutexName = "OmenCore_SingleInstance_Mutex";
+        
         private IServiceProvider? _serviceProvider;
         private TaskbarIcon? _trayIcon;
         private TrayIconService? _trayIconService;
@@ -31,8 +35,24 @@ namespace OmenCore
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Check for single instance - prevent multiple copies running
+            if (!AcquireSingleInstance())
+            {
+                MessageBox.Show(
+                    "OmenCore is already running.\n\nLook for the OmenCore icon in your system tray (notification area).",
+                    "OmenCore Already Running",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                Shutdown();
+                return;
+            }
+            
             base.OnStartup(e);
             Logging.Initialize();
+            
+            // Apply log level from configuration
+            Logging.Level = Configuration.Config.LogLevel;
+            
             var asm = Assembly.GetExecutingAssembly();
             var fileVer = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "unknown";
             var asmVer = asm.GetName().Version?.ToString() ?? "unknown";
@@ -181,6 +201,21 @@ namespace OmenCore
                 // Now sync to tray with actual values
                 _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
                 _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
+            }
+            
+            // Wire up Stay on Top toggle
+            if (_trayIconService != null)
+            {
+                _trayIconService.StayOnTopChanged += (stayOnTop) =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (MainWindow != null)
+                        {
+                            MainWindow.Topmost = stayOnTop;
+                        }
+                    });
+                };
             }
         }
 
@@ -387,10 +422,46 @@ namespace OmenCore
             // This would require breaking down MainViewModel's constructor to accept dependencies
         }
 
+        /// <summary>
+        /// Try to acquire a mutex to ensure only one instance of OmenCore runs at a time.
+        /// </summary>
+        private static bool AcquireSingleInstance()
+        {
+            try
+            {
+                _singleInstanceMutex = new Mutex(true, MutexName, out bool createdNew);
+                if (!createdNew)
+                {
+                    // Another instance is already running
+                    _singleInstanceMutex?.Dispose();
+                    _singleInstanceMutex = null;
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                // If mutex creation fails, allow the app to run anyway
+                return true;
+            }
+        }
+
         protected override void OnExit(ExitEventArgs e)
         {
             _trayIconService?.Dispose();
             _trayIcon?.Dispose();
+            
+            // Release single instance mutex
+            if (_singleInstanceMutex != null)
+            {
+                try
+                {
+                    _singleInstanceMutex.ReleaseMutex();
+                    _singleInstanceMutex.Dispose();
+                }
+                catch { }
+            }
+            
             Logging.Info("OmenCore shutting down");
             Logging.Dispose();
             base.OnExit(e);

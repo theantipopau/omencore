@@ -39,6 +39,14 @@ namespace OmenCore.ViewModels
         private bool _gameNotificationsEnabled = true;
         private bool _modeChangeNotificationsEnabled = true;
         private bool _temperatureWarningsEnabled = true;
+        
+        // Power automation fields
+        private bool _powerAutomationEnabled;
+        private string _acFanPreset = "Auto";
+        private string _acPerformanceMode = "Balanced";
+        private string _batteryFanPreset = "Quiet";
+        private string _batteryPerformanceMode = "Silent";
+        
         private string _fanCleaningStatusText = "Checking hardware...";
         private string _fanCleaningStatusIcon = "M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2Z";
         private Brush _fanCleaningStatusColor = Brushes.Gray;
@@ -52,6 +60,12 @@ namespace OmenCore.ViewModels
         private string _driverStatusText = "Checking...";
         private string _driverStatusDetail = "";
         private Brush _driverStatusColor = Brushes.Gray;
+        
+        // System status fields for Settings view
+        private string _fanBackend = "Detecting...";
+        private bool _secureBootEnabled;
+        private bool _pawnIOAvailable;
+        private bool _oghInstalled;
         
         // BIOS update fields
         private string _systemModel = "";
@@ -95,6 +109,9 @@ namespace OmenCore.ViewModels
             
             // Check driver status
             CheckDriverStatus();
+            
+            // Load system status for Settings page
+            LoadSystemStatus();
             
             // Load system info for BIOS
             LoadSystemInfo();
@@ -186,6 +203,101 @@ namespace OmenCore.ViewModels
                     _lowOverheadMode = value;
                     OnPropertyChanged();
                     SaveSettings();
+                }
+            }
+        }
+
+        #endregion
+
+        #region Power Automation Settings
+
+        public bool PowerAutomationEnabled
+        {
+            get => _powerAutomationEnabled;
+            set
+            {
+                if (_powerAutomationEnabled != value)
+                {
+                    _powerAutomationEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public string AcFanPreset
+        {
+            get => _acFanPreset;
+            set
+            {
+                if (_acFanPreset != value)
+                {
+                    _acFanPreset = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public string AcPerformanceMode
+        {
+            get => _acPerformanceMode;
+            set
+            {
+                if (_acPerformanceMode != value)
+                {
+                    _acPerformanceMode = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public string BatteryFanPreset
+        {
+            get => _batteryFanPreset;
+            set
+            {
+                if (_batteryFanPreset != value)
+                {
+                    _batteryFanPreset = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public string BatteryPerformanceMode
+        {
+            get => _batteryPerformanceMode;
+            set
+            {
+                if (_batteryPerformanceMode != value)
+                {
+                    _batteryPerformanceMode = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public string[] FanPresetOptions => new[] { "Auto", "Quiet", "Performance", "Max" };
+        public string[] PerformanceModeOptions => new[] { "Silent", "Balanced", "Performance", "Turbo" };
+
+        public string CurrentPowerStatus
+        {
+            get
+            {
+                try
+                {
+                    var powerStatus = System.Windows.Forms.SystemInformation.PowerStatus;
+                    return powerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online
+                        ? "⚡ AC Power Connected"
+                        : "🔋 On Battery";
+                }
+                catch
+                {
+                    return "Unknown";
                 }
             }
         }
@@ -423,6 +535,34 @@ namespace OmenCore.ViewModels
         
         #endregion
         
+        #region System Status Properties (for Settings page)
+        
+        public string FanBackend
+        {
+            get => _fanBackend;
+            set { _fanBackend = value; OnPropertyChanged(); }
+        }
+        
+        public bool SecureBootEnabled
+        {
+            get => _secureBootEnabled;
+            set { _secureBootEnabled = value; OnPropertyChanged(); }
+        }
+        
+        public bool PawnIOAvailable
+        {
+            get => _pawnIOAvailable;
+            set { _pawnIOAvailable = value; OnPropertyChanged(); }
+        }
+        
+        public bool OghInstalled
+        {
+            get => _oghInstalled;
+            set { _oghInstalled = value; OnPropertyChanged(); }
+        }
+        
+        #endregion
+        
         #region BIOS Update Properties
         
         public string SystemModel
@@ -511,6 +651,13 @@ namespace OmenCore.ViewModels
             // Load UI preferences
             _startMinimized = _config.Monitoring.StartMinimized;
             _minimizeToTrayOnClose = _config.Monitoring.MinimizeToTrayOnClose;
+            
+            // Load power automation settings
+            _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
+            _acFanPreset = _config.PowerAutomation?.AcFanPreset ?? "Auto";
+            _acPerformanceMode = _config.PowerAutomation?.AcPerformanceMode ?? "Balanced";
+            _batteryFanPreset = _config.PowerAutomation?.BatteryFanPreset ?? "Quiet";
+            _batteryPerformanceMode = _config.PowerAutomation?.BatteryPerformanceMode ?? "Silent";
 
             // Check startup registry
             try
@@ -520,7 +667,7 @@ namespace OmenCore.ViewModels
             }
             catch { }
             
-            _logging.Info($"Settings loaded: Hotkeys={_hotkeysEnabled}, Notifications={_notificationsEnabled}");
+            _logging.Info($"Settings loaded: Hotkeys={_hotkeysEnabled}, Notifications={_notificationsEnabled}, PowerAutomation={_powerAutomationEnabled}");
         }
 
         private void SaveSettings()
@@ -539,6 +686,14 @@ namespace OmenCore.ViewModels
             // Save UI preferences
             _config.Monitoring.StartMinimized = _startMinimized;
             _config.Monitoring.MinimizeToTrayOnClose = _minimizeToTrayOnClose;
+            
+            // Save power automation settings
+            _config.PowerAutomation ??= new PowerAutomationSettings();
+            _config.PowerAutomation.Enabled = _powerAutomationEnabled;
+            _config.PowerAutomation.AcFanPreset = _acFanPreset;
+            _config.PowerAutomation.AcPerformanceMode = _acPerformanceMode;
+            _config.PowerAutomation.BatteryFanPreset = _batteryFanPreset;
+            _config.PowerAutomation.BatteryPerformanceMode = _batteryPerformanceMode;
             
             if (_config.Updates == null)
                 _config.Updates = new UpdatePreferences();
@@ -1045,6 +1200,73 @@ namespace OmenCore.ViewModels
                         FileName = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor",
                         UseShellExecute = true
                     });
+            }
+        }
+        
+        private void LoadSystemStatus()
+        {
+            try
+            {
+                // Check Secure Boot
+                SecureBootEnabled = IsSecureBootEnabled();
+                
+                // Check PawnIO availability
+                try
+                {
+                    using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PawnIO");
+                    PawnIOAvailable = key != null;
+                }
+                catch
+                {
+                    PawnIOAvailable = false;
+                }
+                
+                // Check OGH installation
+                try
+                {
+                    var processes = new[] { "OmenCommandCenterBackground", "OmenCap", "omenmqtt" };
+                    OghInstalled = false;
+                    foreach (var proc in processes)
+                    {
+                        try
+                        {
+                            var procs = System.Diagnostics.Process.GetProcessesByName(proc);
+                            if (procs.Length > 0)
+                            {
+                                OghInstalled = true;
+                                foreach (var p in procs) p.Dispose();
+                                break;
+                            }
+                        }
+                        catch { }
+                    }
+                    
+                    // Also check service
+                    if (!OghInstalled)
+                    {
+                        using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\HPOmenCap");
+                        OghInstalled = key != null;
+                    }
+                }
+                catch
+                {
+                    OghInstalled = false;
+                }
+                
+                // Determine fan backend
+                if (PawnIOAvailable)
+                    FanBackend = "WMI BIOS + PawnIO";
+                else if (OghInstalled)
+                    FanBackend = "WMI BIOS (OGH)";
+                else if (!SecureBootEnabled)
+                    FanBackend = "WMI BIOS + WinRing0";
+                else
+                    FanBackend = "WMI BIOS";
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to load system status: {ex.Message}");
+                FanBackend = "Unknown";
             }
         }
         

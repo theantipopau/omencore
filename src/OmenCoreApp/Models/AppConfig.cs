@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using OmenCore.Corsair;
+using OmenCore.Services;
 
 namespace OmenCore.Models
 {
@@ -26,6 +27,17 @@ namespace OmenCore.Models
         public bool EnableDiagnostics { get; set; } = false;
         
         /// <summary>
+        /// Logging verbosity level. Options: Error, Warning, Info, Debug.
+        /// Default is Info. Set to Warning for less verbose logs.
+        /// </summary>
+        public LogLevel LogLevel { get; set; } = LogLevel.Info;
+        
+        /// <summary>
+        /// Keep the main window always on top of other windows.
+        /// </summary>
+        public bool StayOnTop { get; set; } = false;
+        
+        /// <summary>
         /// Last applied performance mode name (e.g., "Balanced", "Performance", "Quiet")
         /// Restored on startup.
         /// </summary>
@@ -41,5 +53,28 @@ namespace OmenCore.Models
         /// Last applied fan preset name for restoration on startup.
         /// </summary>
         public string? LastFanPresetName { get; set; }
+        
+        /// <summary>
+        /// Power automation settings for AC/Battery profile switching.
+        /// </summary>
+        public PowerAutomationSettings? PowerAutomation { get; set; }
+    }
+    
+    /// <summary>
+    /// Settings for automatic profile switching based on power source.
+    /// </summary>
+    public class PowerAutomationSettings
+    {
+        public bool Enabled { get; set; } = false;
+        
+        // AC Power settings
+        public string AcFanPreset { get; set; } = "Auto";
+        public string AcPerformanceMode { get; set; } = "Balanced";
+        public string AcGpuMode { get; set; } = "Hybrid";
+        
+        // Battery settings
+        public string BatteryFanPreset { get; set; } = "Quiet";
+        public string BatteryPerformanceMode { get; set; } = "Silent";
+        public string BatteryGpuMode { get; set; } = "Eco";
     }
 }

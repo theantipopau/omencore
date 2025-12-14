@@ -799,6 +799,51 @@ namespace OmenCore.Hardware
             }
         }
 
+        /// <summary>
+        /// Extend the fan countdown timer to prevent BIOS from reverting to default mode.
+        /// HP OMEN BIOS automatically reverts fan settings after 120 seconds without this.
+        /// This method should be called periodically (every 60-90 seconds) when using custom fan modes.
+        /// 
+        /// Uses WMI BIOS idle command to reset the countdown.
+        /// </summary>
+        /// <returns>True if successful</returns>
+        public bool ExtendFanCountdown()
+        {
+            if (!_isAvailable) return false;
+            
+            try
+            {
+                // OmenMon extends countdown by either:
+                // 1. Writing to EC register 0x63 (XFCD) directly
+                // 2. Or by re-issuing the SetFanLevel command with current values
+                
+                // Method 1: Try to get current fan level and re-apply it
+                var currentLevel = GetFanLevel();
+                if (currentLevel.HasValue)
+                {
+                    var data = new byte[4];
+                    data[0] = currentLevel.Value.fan1;
+                    data[1] = currentLevel.Value.fan2;
+                    data[2] = 0x00;
+                    data[3] = 0x00;
+                    
+                    var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_SET_LEVEL, data, 0);
+                    if (result != null)
+                    {
+                        return true;
+                    }
+                }
+                
+                // Method 2: If that fails, try SetIdle(false) which can also reset the timer
+                return SetIdleMode(false);
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to extend fan countdown: {ex.Message}");
+                return false;
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed)

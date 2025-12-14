@@ -16,6 +16,9 @@ namespace OmenCore.Views
             Closing += MainWindow_Closing;
             StateChanged += MainWindow_StateChanged;
             SystemParameters.StaticPropertyChanged += SystemParametersOnStaticPropertyChanged;
+            
+            // Apply Stay on Top setting from config
+            Topmost = App.Configuration.Config.StayOnTop;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)

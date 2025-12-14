@@ -43,12 +43,13 @@ $publishArgs = @(
     "-p:PublishTrimmed=false",
     "-p:IncludeNativeLibrariesForSelfExtract=true",
     "-p:EnableCompressionInSingleFile=true",
+    "-p:PublishSingleFile=true",
+    "-p:IncludeAllContentForSelfExtract=true",
     "-o", $publishDir
 )
 
-if ($SingleFile) {
-    $publishArgs += "-p:PublishSingleFile=true"
-}
+# SingleFile is now always enabled for proper .NET embedding
+Write-Host "Building self-contained single-file executable with embedded .NET runtime..." -ForegroundColor Yellow
 
 & dotnet publish @publishArgs
 

@@ -17,6 +17,7 @@ namespace OmenCore.Services.Corsair
         private readonly LoggingService _logging;
         private bool _initialized;
         private readonly List<CorsairHidDevice> _devices = new();
+        private readonly HashSet<string> _hidWriteFailedDevices = new(); // Track devices that failed to reduce log spam
         
         // Corsair USB Vendor ID
         private const int CORSAIR_VID = 0x1B1C;
@@ -284,9 +285,15 @@ namespace OmenCore.Services.Corsair
                 
                 await stream.WriteAsync(commitReport, 0, commitReport.Length);
             }
-            catch (Exception ex)
+            catch
             {
-                _logging.Warn($"HID write failed: {ex.Message} - Device may require specific protocol");
+                // Only warn once per device to reduce log spam
+                var deviceKey = $"{device.ProductId}";
+                if (!_hidWriteFailedDevices.Contains(deviceKey))
+                {
+                    _hidWriteFailedDevices.Add(deviceKey);
+                    _logging.Warn($"HID write not supported for device {device.ProductId:X4} - Using SDK fallback if available");
+                }
             }
         }
 

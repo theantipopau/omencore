@@ -9,7 +9,7 @@
              d:DesignHeight="700" d:DesignWidth="1000">
     <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
                   Padding="0,0,12,0"
-                  utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+                  utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
         <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -54,6 +54,41 @@
                     <TextBlock Text="{Binding CurrentFanMode, FallbackValue=Auto}" 
                                FontSize="13" FontWeight="SemiBold"
                                Foreground="{StaticResource TextPrimaryBrush}" 
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+            <!-- Throttling Status Indicator with pulse animation -->
+            <Border x:Name="ThrottlingIndicator" Grid.Column="2"
+                    Visibility="{Binding IsThrottling, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
+                    Background="{StaticResource SurfaceDarkBrush}"
+                    BorderBrush="#FFAA33"
+                    BorderThickness="1.5"
+                    CornerRadius="6"
+                    Padding="14,8"
+                    Margin="10,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    ToolTip="System is throttling due to thermal or power limits. Consider improving cooling or reducing workload.">
+                <Border.Triggers>
+                    <EventTrigger RoutedEvent="Border.Loaded">
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" 
+                                                 From="1" To="0.65" Duration="0:0:0.8" AutoReverse="True">
+                                    <DoubleAnimation.EasingFunction>
+                                        <SineEase EasingMode="EaseInOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Border.Triggers>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⚠️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock Text="{Binding ThrottlingSummary, FallbackValue=Throttling}" 
+                               FontSize="13" FontWeight="SemiBold"
+                               Foreground="#FFAA33" 
                                VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>

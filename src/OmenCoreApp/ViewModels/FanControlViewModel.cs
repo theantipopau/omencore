@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -18,11 +19,28 @@ namespace OmenCore.ViewModels
         private readonly ConfigurationService _configService;
         private FanPreset? _selectedPreset;
         private string _customPresetName = "Custom";
+        private double _currentTemperature;
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
         public ReadOnlyObservableCollection<ThermalSample> ThermalSamples => _fanService.ThermalSamples;
         public ReadOnlyObservableCollection<FanTelemetry> FanTelemetry => _fanService.FanTelemetry;
+        
+        /// <summary>
+        /// Current max temperature (CPU/GPU) for display on the fan curve editor.
+        /// </summary>
+        public double CurrentTemperature
+        {
+            get => _currentTemperature;
+            set
+            {
+                if (Math.Abs(_currentTemperature - value) > 0.1)
+                {
+                    _currentTemperature = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public FanPreset? SelectedPreset
         {
@@ -63,6 +81,11 @@ namespace OmenCore.ViewModels
         public ICommand ImportPresetsCommand { get; }
         public ICommand ExportPresetsCommand { get; }
         
+        // Curve editor commands
+        public ICommand AddCurvePointCommand { get; }
+        public ICommand RemoveCurvePointCommand { get; }
+        public ICommand ResetCurveCommand { get; }
+        
         // Quick preset commands
         public ICommand ApplyMaxCoolingCommand { get; }
         public ICommand ApplyAutoModeCommand { get; }
@@ -80,11 +103,19 @@ namespace OmenCore.ViewModels
             ImportPresetsCommand = new RelayCommand(_ => ImportPresets());
             ExportPresetsCommand = new RelayCommand(_ => ExportPresets());
             
+            // Curve editor commands
+            AddCurvePointCommand = new RelayCommand(_ => AddDefaultCurvePoint(), _ => CustomFanCurve.Count < 10);
+            RemoveCurvePointCommand = new RelayCommand(_ => RemoveLastCurvePoint(), _ => CustomFanCurve.Count > 2);
+            ResetCurveCommand = new RelayCommand(_ => ResetCurveToDefault());
+            
             // Quick preset buttons
             ApplyMaxCoolingCommand = new RelayCommand(_ => ApplyFanMode("Max"));
             ApplyAutoModeCommand = new RelayCommand(_ => ApplyFanMode("Auto"));
             ApplyQuietModeCommand = new RelayCommand(_ => ApplyQuietMode());
             ApplyGamingModeCommand = new RelayCommand(_ => ApplyGamingMode());
+            
+            // Subscribe to thermal samples to update current temperature
+            ((INotifyCollectionChanged)_fanService.ThermalSamples).CollectionChanged += ThermalSamples_CollectionChanged;
             
             // Initialize built-in presets
             FanPresets.Add(new FanPreset 
@@ -113,6 +144,122 @@ namespace OmenCore.ViewModels
             LoadPresetsFromConfig();
             
             SelectedPreset = FanPresets[1]; // Default to Auto
+        }
+        
+        private void ThermalSamples_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (_fanService.ThermalSamples.Count > 0)
+            {
+                var latest = _fanService.ThermalSamples[^1];
+                CurrentTemperature = Math.Max(latest.CpuCelsius, latest.GpuCelsius);
+            }
+        }
+        
+        /// <summary>
+        /// Add a new curve point at a reasonable default position.
+        /// </summary>
+        private void AddDefaultCurvePoint()
+        {
+            if (CustomFanCurve.Count >= 10) return;
+            
+            // Find a gap in the temperature range to add a new point
+            var sorted = CustomFanCurve.OrderBy(p => p.TemperatureC).ToList();
+            
+            int newTemp = 60; // Default
+            int newFan = 50;
+            
+            if (sorted.Count > 0)
+            {
+                // Find the largest gap between points
+                int maxGap = 0;
+                int gapStart = 30;
+                
+                // Check gap before first point
+                if (sorted[0].TemperatureC > 35)
+                {
+                    maxGap = sorted[0].TemperatureC - 30;
+                    gapStart = 30;
+                }
+                
+                // Check gaps between points
+                for (int i = 0; i < sorted.Count - 1; i++)
+                {
+                    int gap = sorted[i + 1].TemperatureC - sorted[i].TemperatureC;
+                    if (gap > maxGap)
+                    {
+                        maxGap = gap;
+                        gapStart = sorted[i].TemperatureC;
+                    }
+                }
+                
+                // Check gap after last point
+                if (100 - sorted[^1].TemperatureC > maxGap)
+                {
+                    maxGap = 100 - sorted[^1].TemperatureC;
+                    gapStart = sorted[^1].TemperatureC;
+                }
+                
+                // Place new point in the middle of the largest gap
+                newTemp = gapStart + maxGap / 2;
+                newTemp = (int)Math.Round(newTemp / 5.0) * 5; // Snap to 5
+                newTemp = Math.Clamp(newTemp, 35, 95);
+                
+                // Interpolate fan speed
+                var before = sorted.LastOrDefault(p => p.TemperatureC < newTemp);
+                var after = sorted.FirstOrDefault(p => p.TemperatureC > newTemp);
+                
+                if (before != null && after != null)
+                {
+                    double t = (newTemp - before.TemperatureC) / (double)(after.TemperatureC - before.TemperatureC);
+                    newFan = (int)(before.FanPercent + t * (after.FanPercent - before.FanPercent));
+                }
+                else if (before != null)
+                {
+                    newFan = Math.Min(100, before.FanPercent + 10);
+                }
+                else if (after != null)
+                {
+                    newFan = Math.Max(0, after.FanPercent - 10);
+                }
+            }
+            
+            CustomFanCurve.Add(new FanCurvePoint { TemperatureC = newTemp, FanPercent = newFan });
+            
+            // Re-sort
+            var newSorted = CustomFanCurve.OrderBy(p => p.TemperatureC).ToList();
+            CustomFanCurve.Clear();
+            foreach (var p in newSorted)
+            {
+                CustomFanCurve.Add(p);
+            }
+            
+            _logging.Info($"Added curve point: {newTemp}°C → {newFan}%");
+        }
+        
+        /// <summary>
+        /// Remove the last curve point (keeping minimum 2).
+        /// </summary>
+        private void RemoveLastCurvePoint()
+        {
+            if (CustomFanCurve.Count <= 2) return;
+            
+            var removed = CustomFanCurve[^1];
+            CustomFanCurve.RemoveAt(CustomFanCurve.Count - 1);
+            
+            _logging.Info($"Removed curve point: {removed.TemperatureC}°C → {removed.FanPercent}%");
+        }
+        
+        /// <summary>
+        /// Reset curve to default auto curve.
+        /// </summary>
+        private void ResetCurveToDefault()
+        {
+            CustomFanCurve.Clear();
+            foreach (var point in GetDefaultAutoCurve())
+            {
+                CustomFanCurve.Add(point);
+            }
+            _logging.Info("Reset fan curve to default");
         }
 
         private void LoadCurve(FanPreset preset)

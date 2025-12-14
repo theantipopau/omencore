@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using OmenCore.Models;
 using OmenCore.Services;
 
@@ -10,6 +11,9 @@ namespace OmenCore.Hardware
     /// WMI-based fan controller for HP OMEN/Victus laptops.
     /// Uses HP WMI BIOS interface instead of direct EC access.
     /// This eliminates the need for the WinRing0 driver.
+    /// 
+    /// Features automatic countdown extension to prevent BIOS from reverting
+    /// fan settings after 120 seconds (HP BIOS limitation).
     /// </summary>
     public class WmiFanController : IDisposable
     {
@@ -20,6 +24,11 @@ namespace OmenCore.Hardware
 
         // Manual fan control state
         private HpWmiBios.FanMode _lastMode = HpWmiBios.FanMode.Default;
+        
+        // Countdown extension timer - keeps fan settings from reverting
+        private Timer? _countdownExtensionTimer;
+        private const int CountdownExtensionIntervalMs = 90000; // 90 seconds (timer is 120s)
+        private bool _countdownExtensionEnabled = false;
 
         public bool IsAvailable => _wmiBios.IsAvailable;
         public string Status => _wmiBios.Status;
@@ -29,6 +38,11 @@ namespace OmenCore.Hardware
         /// Indicates if manual fan control is currently active (vs automatic BIOS control).
         /// </summary>
         public bool IsManualControlActive { get; private set; }
+        
+        /// <summary>
+        /// Indicates if countdown extension is enabled to prevent fan mode reverting.
+        /// </summary>
+        public bool CountdownExtensionEnabled => _countdownExtensionEnabled;
 
         public WmiFanController(LibreHardwareMonitorImpl hwMonitor, LoggingService? logging = null)
         {
@@ -39,6 +53,8 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Apply a fan preset using WMI BIOS commands.
+        /// For Max preset: Sets Performance mode AND enables max fan speed for immediate 100% fan.
+        /// For other presets: Sets the appropriate thermal policy via WMI BIOS.
         /// </summary>
         public bool ApplyPreset(FanPreset preset)
         {
@@ -55,11 +71,49 @@ namespace OmenCore.Hardware
                 // Check if this is a "Max" preset - enable full fan speed
                 bool isMaxPreset = nameLower.Contains("max") && !nameLower.Contains("auto");
                 
-                // Disable max fan first when switching away from max mode
-                if (!isMaxPreset)
+                // Check if this is an "Auto" or "Default" preset - should restore automatic control
+                bool isAutoPreset = nameLower.Contains("auto") || nameLower.Contains("default");
+                
+                // For Max preset, we need to:
+                // 1. First set Performance mode (for aggressive thermal management)
+                // 2. Then enable SetFanMax for 100% immediate fan speed
+                
+                if (isMaxPreset)
                 {
-                    _wmiBios.SetFanMax(false);
+                    // Set Performance mode first
+                    _logging?.Info("Applying Max fan preset: Setting Performance mode...");
+                    _wmiBios.SetFanMode(HpWmiBios.FanMode.Performance);
+                    _lastMode = HpWmiBios.FanMode.Performance;
+                    
+                    // Start countdown extension to keep fan settings active
+                    StartCountdownExtension();
+                    
+                    // Now enable max fan speed (forces 100%)
+                    if (_wmiBios.SetFanMax(true))
+                    {
+                        _logging?.Info("✓ Max fan speed enabled - fans should ramp to 100%");
+                        IsManualControlActive = true; // Mark as manual since we're forcing max
+                        
+                        // Apply GPU power for maximum cooling
+                        _wmiBios.SetGpuPower(HpWmiBios.GpuPowerLevel.Maximum);
+                        return true;
+                    }
+                    else
+                    {
+                        _logging?.Warn("SetFanMax command failed - trying alternative method");
+                        // Alternative: Try setting fan level directly to max (55 = ~5500 RPM)
+                        if (_wmiBios.SetFanLevel(55, 55))
+                        {
+                            _logging?.Info("✓ Fan level set to maximum (55, 55)");
+                            IsManualControlActive = true;
+                            return true;
+                        }
+                    }
+                    return false;
                 }
+                
+                // For non-Max presets, disable max fan first if it was enabled
+                _wmiBios.SetFanMax(false);
                 
                 // Map preset to fan mode
                 var mode = MapPresetToFanMode(preset);
@@ -69,11 +123,16 @@ namespace OmenCore.Hardware
                     _lastMode = mode;
                     IsManualControlActive = false;
                     
-                    // For "Max" presets, also enable max fan speed (forces 100%)
-                    if (isMaxPreset)
+                    // Start/stop countdown extension based on mode
+                    if (isAutoPreset || mode == HpWmiBios.FanMode.Default || mode == HpWmiBios.FanMode.LegacyDefault)
                     {
-                        _wmiBios.SetFanMax(true);
-                        _logging?.Info($"✓ Max fan speed enabled for preset: {preset.Name}");
+                        // Auto/Default mode - stop countdown extension, let BIOS handle it
+                        StopCountdownExtension();
+                    }
+                    else
+                    {
+                        // Non-default mode - start countdown extension to keep it active
+                        StartCountdownExtension();
                     }
                     
                     // Apply GPU power settings if needed
@@ -81,6 +140,10 @@ namespace OmenCore.Hardware
                     
                     _logging?.Info($"✓ Applied preset: {preset.Name} (Mode: {mode})");
                     return true;
+                }
+                else
+                {
+                    _logging?.Warn($"SetFanMode failed for preset: {preset.Name} (Mode: {mode})");
                 }
             }
             catch (Exception ex)
@@ -376,12 +439,25 @@ namespace OmenCore.Hardware
 
         private HpWmiBios.FanMode MapPresetToFanMode(FanPreset preset)
         {
-            // Map based on preset characteristics
-            var maxFan = preset.Curve.Any() ? preset.Curve.Max(p => p.FanPercent) : 50;
-            var avgFan = preset.Curve.Any() ? preset.Curve.Average(p => p.FanPercent) : 50;
-
+            // Check preset's FanMode enum first (if specified)
+            switch (preset.Mode)
+            {
+                case Models.FanMode.Max:
+                    return HpWmiBios.FanMode.Performance; // Max preset uses Performance thermal policy
+                case Models.FanMode.Performance:
+                    return HpWmiBios.FanMode.Performance;
+                case Models.FanMode.Quiet:
+                    return HpWmiBios.FanMode.Cool;
+            }
+            
             // Check preset name for hints
             var nameLower = preset.Name.ToLowerInvariant();
+            
+            // Max preset should use Performance mode for aggressive thermal management
+            if (nameLower.Contains("max") && !nameLower.Contains("auto"))
+            {
+                return HpWmiBios.FanMode.Performance;
+            }
             
             if (nameLower.Contains("quiet") || nameLower.Contains("silent") || nameLower.Contains("cool"))
             {
@@ -393,6 +469,10 @@ namespace OmenCore.Hardware
                 return HpWmiBios.FanMode.Performance;
             }
 
+            // Map based on preset curve characteristics
+            var maxFan = preset.Curve.Any() ? preset.Curve.Max(p => p.FanPercent) : 50;
+            var avgFan = preset.Curve.Any() ? preset.Curve.Average(p => p.FanPercent) : 50;
+            
             // Use curve characteristics
             if (avgFan < 40)
             {
@@ -435,10 +515,63 @@ namespace OmenCore.Hardware
             return Math.Clamp((rpm - minRpm) * 100 / (maxRpm - minRpm), 0, 100);
         }
 
+        /// <summary>
+        /// Start the countdown extension timer to prevent BIOS from reverting fan settings.
+        /// HP BIOS will revert to default fan control after 120 seconds.
+        /// This timer re-applies the current settings every 90 seconds to keep them active.
+        /// </summary>
+        public void StartCountdownExtension()
+        {
+            if (_countdownExtensionEnabled) return;
+            
+            _countdownExtensionTimer = new Timer(CountdownExtensionCallback, null, 
+                CountdownExtensionIntervalMs, CountdownExtensionIntervalMs);
+            _countdownExtensionEnabled = true;
+            _logging?.Info("✓ Fan countdown extension enabled (prevents settings reverting)");
+        }
+        
+        /// <summary>
+        /// Stop the countdown extension timer.
+        /// </summary>
+        public void StopCountdownExtension()
+        {
+            if (!_countdownExtensionEnabled) return;
+            
+            _countdownExtensionTimer?.Dispose();
+            _countdownExtensionTimer = null;
+            _countdownExtensionEnabled = false;
+            _logging?.Info("Fan countdown extension stopped");
+        }
+        
+        /// <summary>
+        /// Countdown extension callback - periodically extends the BIOS timer.
+        /// </summary>
+        private void CountdownExtensionCallback(object? state)
+        {
+            if (!IsAvailable || _disposed) return;
+            
+            try
+            {
+                // Only extend if we have an active non-default mode
+                if (_lastMode != HpWmiBios.FanMode.Default && _lastMode != HpWmiBios.FanMode.LegacyDefault)
+                {
+                    if (_wmiBios.ExtendFanCountdown())
+                    {
+                        _logging?.Info($"Fan countdown extended (mode: {_lastMode})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to extend fan countdown: {ex.Message}");
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed)
             {
+                StopCountdownExtension();
                 RestoreAutoControl();
                 _wmiBios.Dispose();
                 _disposed = true;

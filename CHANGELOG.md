@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2025-12-14 (Major Release)
+
+### Added
+- **🔋 Power Automation** - Auto-switch profiles on AC/Battery change
+  - Configurable presets for AC and Battery power states
+  - Settings UI in Settings tab
+  - Event-driven, minimal resource usage
+- **🌡️ Dynamic Tray Icon** - Color-coded temperature display in system tray
+  - Green: Cool (<60°C), Yellow: Warm (60-75°C), Red: Hot (>75°C)
+  - Real-time temperature updates
+- **🔒 Single Instance Enforcement** - Prevents multiple copies from running (mutex-based)
+- **🖥️ Display Control** - Quick refresh rate switching from tray menu
+  - Toggle between high/low refresh rates
+  - "Turn Off Display" option for background tasks
+- **📌 Stay on Top** - Keep main window above all other windows (toggle in tray menu)
+- **⚠️ Throttling Detection** - Real-time throttling status in dashboard header
+  - Detects CPU/GPU thermal throttling
+  - Detects CPU/GPU power throttling (TDP limits)
+  - Warning indicator appears when system is throttling
+- **⏱️ Fan Countdown Extension** - Automatically re-applies fan settings every 90s to prevent HP BIOS 120-second timeout
+- **📊 Configurable Logging** - Log verbosity setting in config (Error/Warning/Info/Debug)
+  - Empty log lines filtered in non-Debug mode
+
+### Fixed
+- **🔧 .NET Runtime Embedded** - App is now fully self-contained, no separate .NET installation required
+- **🌀 Fan Mode Reverting (GitHub #7)** - Improved WMI command ordering, fan modes now persist correctly
+  - Added countdown extension timer to prevent BIOS timeout
+- **⚡ High CPU Usage** - 5x slower polling in low overhead mode (5s vs 1s)
+- **⚡ DPC Latency** - Extended cache lifetime to 3 seconds in low overhead mode
+
+### Changed
+- Installer simplified - removed .NET download logic
+- Self-contained single-file build with embedded runtime
+- Performance optimizations for reduced system impact
+- Tray menu reorganized with Display submenu
+
+### Technical Notes
+- Build: `dotnet publish --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true`
+- New: `PowerAutomationService.cs` for AC/Battery switching
+- New: `DisplayService.cs` for refresh rate and display control
+- New: `TrayIconService.CreateTempIcon()` for dynamic temperature icons
+- New: `WmiFanController._countdownExtensionTimer` - 90-second interval timer
+- New: `LogLevel` enum and configurable verbosity
+- New: `StayOnTop` config option
+- Low overhead cache: 3000ms (was 100ms)
+
+See [CHANGELOG_v1.2.0.md](docs/CHANGELOG_v1.2.0.md) for full details.
+
+---
+
 ## [1.1.2] - 2025-12-13
 
 ### Added

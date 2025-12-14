@@ -1,10 +1,9 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.2"
+  #define MyAppVersion "1.2.0"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
-#define LibreHWMonitorExe "LibreHardwareMonitor.exe"
 #define PawnIOInstallerUrl "https://pawnio.eu/PawnIO.exe"
 
 [Setup]
@@ -34,8 +33,9 @@ Name: "installpawnio"; Description: "Install PawnIO driver for Secure Boot compa
 Name: "installdriver"; Description: "Install WinRing0 driver (Alternative - requires Secure Boot disabled)"; GroupDescription: "Hardware Control:"; Flags: unchecked
 
 [Files]
+; Self-contained app with embedded .NET runtime - no separate .NET installation needed
 Source: "..\\publish\\win-x64\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; PawnIO installer (download during install or bundle)
+; PawnIO installer (optional)
 Source: "PawnIO_setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Tasks: installpawnio; Check: PawnIOInstallerExists
 
 [Icons]
@@ -83,4 +83,4 @@ begin
 end;
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nFor full hardware control (fan boost, fan curves, CPU undervolting) on Secure Boot enabled systems, PawnIO driver is recommended.%n%nOmenCore bundles all required PawnIO modules - you only need the base PawnIO driver installed.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nRequirements:%n• .NET 8.0 Desktop Runtime (will be downloaded if needed)%n• PawnIO driver (optional, for Secure Boot compatible EC access)%n%nFor full hardware control (fan boost, fan curves, CPU undervolting) on Secure Boot enabled systems, PawnIO driver is recommended.

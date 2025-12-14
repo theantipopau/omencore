@@ -20,7 +20,7 @@
                        Style="{StaticResource Caption}"/>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
             <StackPanel>
                 <!-- Performance Mode Section -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20"
@@ -112,6 +112,40 @@
                                        FontSize="14" 
                                        Foreground="{Binding UndervoltStatusColor}"/>
                         </Grid>
+                        
+                        <!-- External Controller Warning (XTU/ThrottleStop) -->
+                        <Border Background="#2D1F1F"
+                                BorderBrush="#F44336"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16"
+                                Margin="0,0,0,16"
+                                Visibility="{Binding HasExternalUndervoltController, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="⚠️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ExternalControllerName, StringFormat='{}{0} Detected'}" 
+                                               FontSize="15" FontWeight="Bold" 
+                                               Foreground="#F44336"/>
+                                </StackPanel>
+                                
+                                <TextBlock Text="{Binding ExternalControllerWarning}" 
+                                           FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,12"/>
+                                
+                                <TextBlock Text="How to fix:" 
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Margin="0,0,0,4"/>
+                                
+                                <TextBlock Text="{Binding ExternalControllerHowToFix}" 
+                                           FontSize="11" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Core Offset -->
                         <StackPanel Margin="0,0,0,16">

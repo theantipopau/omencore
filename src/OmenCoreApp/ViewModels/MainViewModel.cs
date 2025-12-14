@@ -44,6 +44,7 @@ namespace OmenCore.ViewModels
         private readonly HotkeyService _hotkeyService;
         private readonly NotificationService _notificationService;
         private readonly BiosUpdateService _biosUpdateService;
+        private readonly PowerAutomationService _powerAutomationService;
         private HpWmiBios? _wmiBios;
         private OghServiceProxy? _oghProxy;
         private HotkeyOsdWindow? _hotkeyOsd;
@@ -59,9 +60,14 @@ namespace OmenCore.ViewModels
                     _fanControl = new FanControlViewModel(_fanService, _configService, _logging);
                     _fanControl.PropertyChanged += (s, e) =>
                     {
-                        if (e.PropertyName == nameof(FanControlViewModel.CurrentFanModeName) && _dashboard != null)
+                        if (e.PropertyName == nameof(FanControlViewModel.CurrentFanModeName))
                         {
-                            _dashboard.CurrentFanMode = _fanControl.CurrentFanModeName;
+                            if (_dashboard != null)
+                            {
+                                _dashboard.CurrentFanMode = _fanControl.CurrentFanModeName;
+                            }
+                            // Also update MainViewModel.CurrentFanMode to sync with tray
+                            CurrentFanMode = _fanControl.CurrentFanModeName;
                         }
                     };
                     OnPropertyChanged(nameof(FanControl));
@@ -243,6 +249,12 @@ namespace OmenCore.ViewModels
         /// Warning message for limited functionality.
         /// </summary>
         public string? CapabilityWarning { get; private set; }
+
+        /// <summary>
+        /// Power automation service for AC/Battery profile switching.
+        /// Exposed for Settings UI binding.
+        /// </summary>
+        public PowerAutomationService PowerAutomation => _powerAutomationService;
         
         public string AppVersionLabel
         {
@@ -983,6 +995,7 @@ namespace OmenCore.ViewModels
             _biosUpdateService = new BiosUpdateService(_logging);
             _hotkeyService = new HotkeyService(_logging);
             _notificationService = new NotificationService(_logging);
+            _powerAutomationService = new PowerAutomationService(_logging, _fanService, _performanceModeService, _configService, _gpuSwitchService);
             _autoUpdateService.DownloadProgressChanged += OnUpdateDownloadProgressChanged;
             _autoUpdateService.UpdateCheckCompleted += OnBackgroundUpdateCheckCompleted;
             
@@ -2350,6 +2363,9 @@ namespace OmenCore.ViewModels
             // Dispose hotkey and notification services
             _hotkeyService?.Dispose();
             _notificationService?.Dispose();
+            
+            // Dispose power automation service
+            _powerAutomationService?.Dispose();
 
             // Dispose OSD window
             _hotkeyOsd?.Close();

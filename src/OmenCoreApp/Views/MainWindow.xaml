@@ -94,44 +94,6 @@
                                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                                         </StackPanel>
                                     </Grid>
-                                    
-                                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,4"/>
-                                    
-                                    <!-- Fan Backend Status -->
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse Grid.Column="0" Width="8" Height="8" Fill="#4CAF50" Margin="3,0,9,0" VerticalAlignment="Center"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="BACKEND" FontSize="8" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
-                                            <TextBlock Text="{Binding FanBackend, FallbackValue=Detecting...}" 
-                                                       FontSize="10" FontWeight="SemiBold" 
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- Secure Boot Warning Banner -->
-                            <Border Background="#2D1F1F"
-                                    BorderBrush="#F44336"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="8,6"
-                                    Margin="0,6,0,0"
-                                    Visibility="{Binding SecureBootEnabled, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"
-                                    ToolTip="Secure Boot blocks WinRing0 driver. Install PawnIO (pawnio.eu) for EC access, or install OMEN Gaming Hub for full WMI control.">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                        <TextBlock Text="🔒" FontSize="12" Foreground="#F44336" Margin="0,0,6,0"/>
-                                        <TextBlock Text="SECURE BOOT" FontSize="8" FontWeight="Bold" Foreground="#F44336"/>
-                                    </StackPanel>
-                                    <TextBlock Text="EC access limited. Use WMI/OGH or install PawnIO." 
-                                               FontSize="9" 
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                             
@@ -188,7 +150,7 @@
                                 </StackPanel>
                             </Button>
                         </StackPanel>
-                        <ScrollViewer Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+                        <ScrollViewer Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
                             <StackPanel>
                                 <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextTertiaryBrush}" FontSize="9" FontWeight="SemiBold" Margin="0,0,0,6" />
                                 <Button Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,5" HorizontalContentAlignment="Left" Padding="8,6" Height="32">
@@ -226,6 +188,21 @@
                                 <TextBlock Text="SYSTEM INFO" Foreground="{StaticResource TextTertiaryBrush}" FontSize="9" FontWeight="SemiBold" Margin="0,12,0,6" />
                                 <Border Style="{StaticResource SurfaceCard}" Padding="10">
                                     <StackPanel>
+                                        <!-- HP OMEN Model (shown for HP gaming systems) -->
+                                        <Grid Margin="0,0,0,8" Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Grid.Column="0" Source="pack://application:,,,/Assets/omen.png" Width="20" Height="20" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="HP OMEN" Foreground="{StaticResource AccentBrush}" FontSize="10" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.ModelName, FallbackValue=HP OMEN Laptop}" 
+                                                           Foreground="{StaticResource TextPrimaryBrush}" 
+                                                           FontSize="11" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        
                                         <!-- CPU -->
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
@@ -405,7 +382,7 @@
 
                     <TabControl Grid.Row="1" Margin="24,0,24,16" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}">
                 <TabItem Header="HP Omen">
-                    <ScrollViewer Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+                    <ScrollViewer Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
                         <StackPanel Margin="20,20,20,40">
                             <Border Style="{StaticResource SurfaceCard}" 
                                     Padding="16,12"

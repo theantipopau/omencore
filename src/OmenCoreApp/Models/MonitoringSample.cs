@@ -34,6 +34,51 @@ namespace OmenCore.Models
         public double BatteryDischargeRateW { get; set; }
         public string BatteryTimeRemaining { get; set; } = "";
         
+        // Throttling status (v1.2)
+        /// <summary>
+        /// True if CPU is thermal throttling (temperature limit reached).
+        /// </summary>
+        public bool IsCpuThermalThrottling { get; set; }
+        
+        /// <summary>
+        /// True if CPU is power throttling (TDP limit reached).
+        /// </summary>
+        public bool IsCpuPowerThrottling { get; set; }
+        
+        /// <summary>
+        /// True if GPU is thermal throttling.
+        /// </summary>
+        public bool IsGpuThermalThrottling { get; set; }
+        
+        /// <summary>
+        /// True if GPU is power throttling.
+        /// </summary>
+        public bool IsGpuPowerThrottling { get; set; }
+        
+        /// <summary>
+        /// Overall throttling status summary.
+        /// </summary>
+        public bool IsThrottling => IsCpuThermalThrottling || IsCpuPowerThrottling || IsGpuThermalThrottling || IsGpuPowerThrottling;
+        
+        /// <summary>
+        /// Human-readable throttling status description.
+        /// </summary>
+        public string ThrottlingStatus
+        {
+            get
+            {
+                if (!IsThrottling) return "Normal";
+                
+                var reasons = new List<string>();
+                if (IsCpuThermalThrottling) reasons.Add("CPU Thermal");
+                if (IsCpuPowerThrottling) reasons.Add("CPU Power");
+                if (IsGpuThermalThrottling) reasons.Add("GPU Thermal");
+                if (IsGpuPowerThrottling) reasons.Add("GPU Power");
+                
+                return string.Join(", ", reasons);
+            }
+        }
+        
         // Computed property for RAM usage percentage
         public double RamUsagePercent => RamTotalGb > 0 ? (RamUsageGb / RamTotalGb) * 100 : 0;
         

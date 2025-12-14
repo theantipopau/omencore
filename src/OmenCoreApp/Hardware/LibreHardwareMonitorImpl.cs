@@ -11,6 +11,11 @@ namespace OmenCore.Hardware
     /// <summary>
     /// Real LibreHardwareMonitor implementation - integrates with actual hardware sensors.
     /// Uses LibreHardwareMonitorLib NuGet package for accurate hardware monitoring.
+    /// 
+    /// Performance considerations:
+    /// - Hardware updates cause kernel driver calls which can trigger DPC latency
+    /// - The _updateInterval controls minimum time between hardware updates
+    /// - Low overhead mode extends cache lifetime to reduce hardware polling
     /// </summary>
     public class LibreHardwareMonitorImpl : IHardwareMonitorBridge, IDisposable
     {
@@ -36,7 +41,7 @@ namespace OmenCore.Hardware
         private string _cachedBatteryTimeRemaining = "";
         private List<double> _cachedCoreClocks = new();
         private DateTime _lastUpdate = DateTime.MinValue;
-        private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
+        private TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
         private string _lastGpuName = string.Empty;
         
         // Enhanced GPU metrics (v1.1)
@@ -46,15 +51,42 @@ namespace OmenCore.Hardware
         private double _cachedVramTotal = 0;
         private double _cachedGpuFan = 0;
         private double _cachedGpuHotspot = 0;
+        
+        // Throttling detection (v1.2)
+        private bool _cachedCpuThermalThrottling = false;
+        private bool _cachedCpuPowerThrottling = false;
+        private bool _cachedGpuThermalThrottling = false;
+        private bool _cachedGpuPowerThrottling = false;
+        
+        // Throttling thresholds
+        private const double CpuThermalThrottleThreshold = 95.0; // Most CPUs throttle around 95-100°C
+        private const double GpuThermalThrottleThreshold = 83.0; // NVIDIA throttles around 83°C
+        
+        // DPC latency mitigation
+        private bool _lowOverheadMode = false;
+        private static readonly TimeSpan _normalCacheLifetime = TimeSpan.FromMilliseconds(100);
+        private static readonly TimeSpan _lowOverheadCacheLifetime = TimeSpan.FromMilliseconds(3000); // 3 seconds in low overhead
 
         private readonly Action<string>? _logger;
         private int _consecutiveZeroTempReadings = 0;
         private const int MaxZeroTempReadingsBeforeReinit = 5;
+        private bool _noFanSensorsLogged = false; // Only log once to reduce spam
 
         public LibreHardwareMonitorImpl(Action<string>? logger = null)
         {
             _logger = logger;
             InitializeComputer();
+        }
+        
+        /// <summary>
+        /// Enable or disable low overhead mode.
+        /// When enabled, hardware polling is significantly reduced to minimize DPC latency.
+        /// </summary>
+        public void SetLowOverheadMode(bool enabled)
+        {
+            _lowOverheadMode = enabled;
+            _cacheLifetime = enabled ? _lowOverheadCacheLifetime : _normalCacheLifetime;
+            _logger?.Invoke($"LibreHardwareMonitor low overhead mode: {enabled} (cache lifetime: {_cacheLifetime.TotalMilliseconds}ms)");
         }
         
         private void InitializeComputer()
@@ -124,19 +156,22 @@ namespace OmenCore.Hardware
 
         private void UpdateHardwareReadings()
         {
-            if (!_initialized)
+            if (!_initialized || _disposed)
             {
                 // Fall back to WMI/performance counters if LibreHardwareMonitor unavailable
-                UpdateViaFallback();
+                if (!_disposed) UpdateViaFallback();
                 return;
             }
 
             lock (_lock)
             {
+                if (_disposed) return; // Double-check after acquiring lock
+                
                 _computer?.Accept(new UpdateVisitor());
 
                 foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                 {
+                    if (_disposed) return; // Check before each hardware update
                     hardware.Update();
 
                     switch (hardware.HardwareType)
@@ -240,6 +275,20 @@ namespace OmenCore.Hardware
                                     _cachedCoreClocks.Add(sensor.Value.Value);
                                 }
                             }
+                            
+                            // Throttling detection for CPU
+                            // Check for thermal throttling indicator sensor first
+                            var thermalThrottleSensor = GetSensor(hardware, SensorType.Factor, "Thermal Throttling")
+                                ?? GetSensor(hardware, SensorType.Factor, "Thermal Throttle");
+                            _cachedCpuThermalThrottling = thermalThrottleSensor?.Value > 0 
+                                || _cachedCpuTemp >= CpuThermalThrottleThreshold;
+                            
+                            // Check for power throttling (Intel) or PROCHOT
+                            var powerThrottleSensor = GetSensor(hardware, SensorType.Factor, "Power Limit Exceeded")
+                                ?? GetSensor(hardware, SensorType.Factor, "Power Throttling")
+                                ?? GetSensor(hardware, SensorType.Factor, "PROCHOT");
+                            _cachedCpuPowerThrottling = powerThrottleSensor?.Value > 0;
+                            
                             break;
 
                         case HardwareType.GpuNvidia:
@@ -313,6 +362,20 @@ namespace OmenCore.Hardware
                                 ?? GetSensor(hardware, SensorType.Temperature, "Hot Spot")
                                 ?? GetSensor(hardware, SensorType.Temperature, "GPU Hotspot");
                             _cachedGpuHotspot = gpuHotspotSensor?.Value ?? 0;
+                            
+                            // GPU Throttling detection
+                            // Check for explicit throttling sensors first
+                            var gpuThermalThrottleSensor = GetSensor(hardware, SensorType.Factor, "Thermal Throttling")
+                                ?? GetSensor(hardware, SensorType.Factor, "Thermal Limit");
+                            var gpuHotspotForThrottle = _cachedGpuHotspot > 0 ? _cachedGpuHotspot : _cachedGpuTemp;
+                            _cachedGpuThermalThrottling = gpuThermalThrottleSensor?.Value > 0
+                                || gpuHotspotForThrottle >= GpuThermalThrottleThreshold;
+                            
+                            // GPU Power throttling
+                            var gpuPowerThrottleSensor = GetSensor(hardware, SensorType.Factor, "Power Limit")
+                                ?? GetSensor(hardware, SensorType.Factor, "Power Throttling")
+                                ?? GetSensor(hardware, SensorType.Factor, "TDP Limit");
+                            _cachedGpuPowerThrottling = gpuPowerThrottleSensor?.Value > 0;
                             break;
                             
                         case HardwareType.GpuIntel:
@@ -496,7 +559,12 @@ namespace OmenCore.Hardware
                 GpuVramTotalMb = Math.Round(_cachedVramTotal, 0),
                 GpuFanPercent = Math.Round(Math.Clamp(_cachedGpuFan, 0, 100), 0),  // Clamp to valid range
                 GpuHotspotTemperatureC = Math.Round(_cachedGpuHotspot, 1),
-                GpuName = _lastGpuName
+                GpuName = _lastGpuName,
+                // Throttling status (v1.2)
+                IsCpuThermalThrottling = _cachedCpuThermalThrottling,
+                IsCpuPowerThrottling = _cachedCpuPowerThrottling,
+                IsGpuThermalThrottling = _cachedGpuThermalThrottling,
+                IsGpuPowerThrottling = _cachedGpuPowerThrottling
             };
         }
 
@@ -597,11 +665,12 @@ namespace OmenCore.Hardware
                         }
                     }
                     
-                    // Log hardware types found for debugging if no fans detected
-                    if (results.Count == 0)
+                    // Log hardware types found for debugging if no fans detected (only once)
+                    if (results.Count == 0 && !_noFanSensorsLogged)
                     {
+                        _noFanSensorsLogged = true;
                         var hwTypes = _computer?.Hardware?.Select(h => $"{h.HardwareType}:{h.Name}").ToList() ?? new List<string>();
-                        _logger?.Invoke($"[FanDebug] No fan sensors found. Hardware: [{string.Join(", ", hwTypes)}]");
+                        _logger?.Invoke($"[FanDebug] No fan sensors found via LibreHardwareMonitor (using WMI). Hardware: [{string.Join(", ", hwTypes)}]");
                     }
                 }
                 catch (ObjectDisposedException)

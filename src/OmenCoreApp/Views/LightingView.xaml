@@ -19,7 +19,7 @@
                    Foreground="{StaticResource TextPrimaryBrush}" 
                    Margin="0,0,0,16"/>
 
-        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="2.5">
+        <ScrollViewer Grid.Row="1" Style="{StaticResource SmoothScrollViewer}" utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2">
             <StackPanel>
                 <!-- Corsair Devices Section -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">

@@ -107,9 +107,45 @@ namespace OmenCore.ViewModels
                 ? $"Active: Core {UndervoltStatus?.CurrentCoreOffsetMv:+0;-0;0} mV, Cache {UndervoltStatus?.CurrentCacheOffsetMv:+0;-0;0} mV"
                 : "No undervolt active";
         
-        public System.Windows.Media.Brush UndervoltStatusColor => (UndervoltStatus?.CurrentCoreOffsetMv != 0 || UndervoltStatus?.CurrentCacheOffsetMv != 0)
-            ? System.Windows.Media.Brushes.Lime
-            : System.Windows.Media.Brushes.Gray;
+        public System.Windows.Media.Brush UndervoltStatusColor => UndervoltStatus?.HasExternalController == true
+            ? System.Windows.Media.Brushes.Orange
+            : (UndervoltStatus?.CurrentCoreOffsetMv != 0 || UndervoltStatus?.CurrentCacheOffsetMv != 0)
+                ? System.Windows.Media.Brushes.Lime
+                : System.Windows.Media.Brushes.Gray;
+        
+        // External controller detection properties
+        public bool HasExternalUndervoltController => UndervoltStatus?.HasExternalController ?? false;
+        
+        public string ExternalControllerName => UndervoltStatus?.ExternalController ?? "Unknown";
+        
+        public string ExternalControllerWarning => UndervoltStatus?.ExternalController switch
+        {
+            "Intel XTU" => "Intel Extreme Tuning Utility (XTU) is controlling CPU voltage settings. XTU blocks MSR (Model Specific Register) access for other applications, preventing OmenCore from applying undervolts.",
+            "ThrottleStop" => "ThrottleStop is running and managing CPU voltage. It may conflict with OmenCore's undervolt settings.",
+            "Intel DTT" => "Intel Dynamic Tuning Technology service is active and may be controlling voltage settings.",
+            "OMEN Gaming Hub" => "OMEN Gaming Hub is managing CPU settings. While OGH is installed, some voltage controls may be handled by HP's software.",
+            _ => $"{UndervoltStatus?.ExternalController ?? "An external program"} is controlling CPU voltage settings and may conflict with OmenCore."
+        };
+        
+        public string ExternalControllerHowToFix => UndervoltStatus?.ExternalController switch
+        {
+            "Intel XTU" => "1. Open Services (Win+R → services.msc)\n" +
+                           "2. Find 'Intel(R) Extreme Tuning Utility' service\n" +
+                           "3. Right-click → Stop, then set Startup type to 'Disabled'\n" +
+                           "4. Optionally uninstall XTU from Control Panel\n" +
+                           "5. Restart OmenCore",
+            "ThrottleStop" => "1. Close ThrottleStop from the system tray\n" +
+                              "2. Disable ThrottleStop's auto-start (uncheck 'Start Minimized')\n" +
+                              "3. Restart OmenCore to take over voltage control",
+            "Intel DTT" => "1. Open Services (Win+R → services.msc)\n" +
+                           "2. Find 'Intel(R) Dynamic Tuning Service'\n" +
+                           "3. Stop and disable the service\n" +
+                           "4. Note: This may affect Intel thermal management",
+            "OMEN Gaming Hub" => "1. Use OmenCore's 'Clean OMEN Gaming Hub' feature in Settings\n" +
+                                 "2. Or uninstall OGH from Control Panel → Programs\n" +
+                                 "3. Restart your computer after removal",
+            _ => "Close or disable the external application, then restart OmenCore."
+        };
 
         public string PerformanceModeDescription => SelectedPerformanceMode?.Description ?? SelectedPerformanceMode?.Name switch
         {
@@ -298,6 +334,10 @@ namespace OmenCore.ViewModels
                 UndervoltStatus = status;
                 OnPropertyChanged(nameof(UndervoltStatusText));
                 OnPropertyChanged(nameof(UndervoltStatusColor));
+                OnPropertyChanged(nameof(HasExternalUndervoltController));
+                OnPropertyChanged(nameof(ExternalControllerName));
+                OnPropertyChanged(nameof(ExternalControllerWarning));
+                OnPropertyChanged(nameof(ExternalControllerHowToFix));
             };
 
             ApplyPerformanceModeCommand = new RelayCommand(_ => ApplyPerformanceMode(), _ => SelectedPerformanceMode != null);

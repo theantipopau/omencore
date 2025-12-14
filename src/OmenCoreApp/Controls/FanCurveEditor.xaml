@@ -1,0 +1,106 @@
+<UserControl x:Class="OmenCore.Controls.FanCurveEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="400"
+             MinHeight="200" MinWidth="300">
+    <UserControl.Resources>
+        <!-- Draggable point style -->
+        <Style x:Key="CurvePointStyle" TargetType="Ellipse">
+            <Setter Property="Fill" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" BlurRadius="4" Opacity="0.4" ShadowDepth="1"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource AccentBlueBrush}"/>
+                    <Setter Property="Width" Value="20"/>
+                    <Setter Property="Height" Value="20"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Chart Area -->
+        <Border Grid.Row="0" 
+                Background="{StaticResource SurfaceDarkBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6">
+            <Grid Margin="45,15,20,35">
+                <!-- Y-Axis Labels (Fan %) -->
+                <Canvas x:Name="YAxisLabels" Width="35" HorizontalAlignment="Left" Margin="-40,0,0,0"/>
+                
+                <!-- X-Axis Labels (Temperature) -->
+                <Canvas x:Name="XAxisLabels" Height="25" VerticalAlignment="Bottom" Margin="0,0,0,-30"/>
+                
+                <!-- Main Chart Canvas -->
+                <Canvas x:Name="ChartCanvas" 
+                        ClipToBounds="True"
+                        Background="Transparent"
+                        MouseLeftButtonDown="ChartCanvas_MouseLeftButtonDown"
+                        SizeChanged="ChartCanvas_SizeChanged"/>
+                
+                <!-- Instructions overlay when empty -->
+                <TextBlock x:Name="EmptyStateText"
+                           Text="Click to add curve points, drag to adjust"
+                           Foreground="{StaticResource TextTertiaryBrush}"
+                           FontSize="12"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Visibility="Collapsed"/>
+            </Grid>
+        </Border>
+        
+        <!-- Tooltip showing current point values -->
+        <Border x:Name="PointTooltip"
+                Grid.Row="0"
+                Background="#E0202030"
+                BorderBrush="{StaticResource AccentBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="8,4"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="60,25,0,0"
+                Visibility="Collapsed">
+            <TextBlock x:Name="PointTooltipText"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontSize="11"
+                       FontWeight="SemiBold"/>
+        </Border>
+        
+        <!-- Legend -->
+        <StackPanel Grid.Row="1" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Center"
+                    Margin="0,12,0,0">
+            <TextBlock Text="🌡️ Temperature (°C)" 
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="11"
+                       Margin="0,0,24,0"/>
+            <TextBlock Text="💨 Fan Speed (%)" 
+                       Foreground="{StaticResource AccentBrush}"
+                       FontSize="11"/>
+            <TextBlock Text=" • Drag points to adjust"
+                       Foreground="{StaticResource TextTertiaryBrush}"
+                       FontSize="11"
+                       Margin="16,0,0,0"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

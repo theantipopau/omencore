@@ -20,10 +20,12 @@ namespace OmenCore.Services
         private readonly ObservableCollection<MonitoringSample> _samples = new();
         private readonly int _history;
         private readonly TimeSpan _baseInterval;
+        private readonly TimeSpan _lowOverheadInterval;
         private CancellationTokenSource? _cts;
         private bool _lowOverheadMode;
         private MonitoringSample? _lastSample;
         private readonly double _changeThreshold = 0.5; // Minimum change to trigger UI update (degrees/percent)
+        private readonly double _lowOverheadChangeThreshold = 3.0; // Higher threshold in low overhead mode
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
@@ -34,8 +36,16 @@ namespace OmenCore.Services
             _logging = logging;
             _history = Math.Max(30, preferences.HistoryCount);
             _baseInterval = TimeSpan.FromMilliseconds(Math.Clamp(preferences.PollIntervalMs, 500, 5000));
+            // Low overhead mode: poll every 5 seconds instead of 1 second
+            _lowOverheadInterval = TimeSpan.FromMilliseconds(Math.Max(5000, preferences.PollIntervalMs * 5));
             _lowOverheadMode = preferences.LowOverheadMode;
             Samples = new ReadOnlyObservableCollection<MonitoringSample>(_samples);
+            
+            // Set initial low overhead mode on the bridge if it supports it
+            if (_bridge is LibreHardwareMonitorImpl lhwm)
+            {
+                lhwm.SetLowOverheadMode(_lowOverheadMode);
+            }
         }
 
         public bool LowOverheadMode => _lowOverheadMode;
@@ -43,7 +53,13 @@ namespace OmenCore.Services
         public void SetLowOverheadMode(bool enabled)
         {
             _lowOverheadMode = enabled;
-            _logging.Info($"Hardware monitoring low overhead mode: {enabled}");
+            _logging.Info($"Hardware monitoring low overhead mode: {enabled} (poll interval: {(enabled ? _lowOverheadInterval : _baseInterval).TotalMilliseconds}ms)");
+            
+            // Also set on the bridge for cache lifetime adjustment
+            if (_bridge is LibreHardwareMonitorImpl lhwm)
+            {
+                lhwm.SetLowOverheadMode(enabled);
+            }
         }
 
         public void Start()
@@ -115,8 +131,8 @@ namespace OmenCore.Services
 
                 try
                 {
-                    // Adaptive polling - increase interval in low overhead mode
-                    var delay = _lowOverheadMode ? _baseInterval.Add(TimeSpan.FromMilliseconds(500)) : _baseInterval;
+                    // Adaptive polling - significantly slower in low overhead mode
+                    var delay = _lowOverheadMode ? _lowOverheadInterval : _baseInterval;
                     await Task.Delay(delay, token);
                 }
                 catch (OperationCanceledException)
@@ -131,11 +147,15 @@ namespace OmenCore.Services
         /// <summary>
         /// Determines if UI should be updated based on change threshold.
         /// Reduces unnecessary UI updates and improves performance.
+        /// Uses a higher threshold in low-overhead mode to reduce CPU wake-ups.
         /// </summary>
         private bool ShouldUpdateUI(MonitoringSample newSample)
         {
             if (_lastSample == null)
                 return true;
+
+            // Use higher threshold in low overhead mode to reduce updates
+            var threshold = _lowOverheadMode ? _lowOverheadChangeThreshold : _changeThreshold;
 
             // Check if any significant changes occurred
             var cpuTempChange = Math.Abs(newSample.CpuTemperatureC - _lastSample.CpuTemperatureC);
@@ -143,10 +163,10 @@ namespace OmenCore.Services
             var cpuLoadChange = Math.Abs(newSample.CpuLoadPercent - _lastSample.CpuLoadPercent);
             var gpuLoadChange = Math.Abs(newSample.GpuLoadPercent - _lastSample.GpuLoadPercent);
 
-            return cpuTempChange >= _changeThreshold ||
-                   gpuTempChange >= _changeThreshold ||
-                   cpuLoadChange >= _changeThreshold ||
-                   gpuLoadChange >= _changeThreshold;
+            return cpuTempChange >= threshold ||
+                   gpuTempChange >= threshold ||
+                   cpuLoadChange >= threshold ||
+                   gpuLoadChange >= threshold;
         }
 
         public void Dispose()

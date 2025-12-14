@@ -56,6 +56,8 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(StorageSummary));
                 OnPropertyChanged(nameof(BatterySummary));
                 OnPropertyChanged(nameof(CpuClockSummary));
+                OnPropertyChanged(nameof(ThrottlingSummary));
+                OnPropertyChanged(nameof(IsThrottling));
             }
         }
 
@@ -91,6 +93,18 @@ namespace OmenCore.ViewModels
         public string CpuClockSummary => LatestMonitoringSample == null || LatestMonitoringSample.CpuCoreClocksMhz.Count == 0
             ? "Per-core clocks unavailable"
             : string.Join(", ", LatestMonitoringSample.CpuCoreClocksMhz.Select((c, i) => $"C{i + 1}:{c:F0}MHz"));
+        
+        /// <summary>
+        /// Whether the system is currently throttling (thermal or power limited).
+        /// </summary>
+        public bool IsThrottling => LatestMonitoringSample?.IsThrottling ?? false;
+        
+        /// <summary>
+        /// Human-readable throttling status for display.
+        /// </summary>
+        public string ThrottlingSummary => LatestMonitoringSample == null 
+            ? "Unknown" 
+            : LatestMonitoringSample.ThrottlingStatus;
 
         public DashboardViewModel(HardwareMonitoringService monitoringService)
         {

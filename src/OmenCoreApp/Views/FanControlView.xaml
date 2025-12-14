@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:controls="clr-namespace:OmenCore.Controls"
              mc:Ignorable="d" 
-             d:DesignHeight="700" d:DesignWidth="1000">
+             d:DesignHeight="750" d:DesignWidth="1100">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,7 +16,7 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
             <TextBlock Text="Fan &amp; Thermal Control" Style="{StaticResource Heading1}"/>
-            <TextBlock Text="Customize fan curves and monitor cooling performance" 
+            <TextBlock Text="Customize fan curves with the visual editor and monitor cooling performance" 
                        Style="{StaticResource Caption}"/>
         </StackPanel>
 
@@ -119,109 +119,127 @@
             </Grid>
         </Border>
 
-        <!-- Fan Curve and Telemetry -->
+        <!-- Fan Curve Editor and Telemetry -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*" MinWidth="350"/>
-                <ColumnDefinition Width="3*" MinWidth="450"/>
+                <ColumnDefinition Width="*" MinWidth="450"/>
+                <ColumnDefinition Width="350" MinWidth="300"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Custom Fan Curve Editor -->
+            <!-- Visual Fan Curve Editor -->
             <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,16,0">
-                <StackPanel>
-                    <TextBlock Text="CURVE EDITOR" 
-                               Style="{StaticResource Label}" 
-                               Margin="0,0,0,8"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     
-                    <!-- How Fan Curves Work - Explanation -->
-                    <Border Background="#1A2A3A"
-                            BorderBrush="{StaticResource AccentBlueBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="0,0,0,12">
-                        <StackPanel>
-                            <TextBlock Text="How Fan Curves Work:" 
-                                       FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBlueBrush}"
-                                       Margin="0,0,0,6"/>
-                            <TextBlock Style="{StaticResource Caption}" FontSize="11" TextWrapping="Wrap">
-                                <Run Text="Each point sets fan speed at a temperature. Example:"/>
-                                <LineBreak/>
-                                <Run Text="• 40°C → 30% = Fans run at 30% when CPU hits 40°C"/>
-                                <LineBreak/>
-                                <Run Text="• 80°C → 100% = Full speed at 80°C"/>
-                                <LineBreak/>
-                                <Run Text="Lower starting temps = earlier fan ramp (cooler but louder)"/>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
+                    <!-- Header with instructions -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                        <Grid>
+                            <TextBlock Text="VISUAL CURVE EDITOR" 
+                                       Style="{StaticResource Label}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="+ Add" 
+                                        Command="{Binding AddCurvePointCommand}"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Width="70" Height="32"
+                                        FontSize="12"
+                                        Margin="0,0,6,0"
+                                        ToolTip="Add a new curve point (max 10 points)"/>
+                                <Button Content="− Remove" 
+                                        Command="{Binding RemoveCurvePointCommand}"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Width="85" Height="32"
+                                        FontSize="12"
+                                        Margin="0,0,6,0"
+                                        ToolTip="Remove the last curve point (min 2 points)"/>
+                                <Button Content="↺ Reset" 
+                                        Command="{Binding ResetCurveCommand}"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Width="75" Height="32"
+                                        FontSize="12"
+                                        ToolTip="Reset curve to default"/>
+                            </StackPanel>
+                        </Grid>
+                        
+                        <!-- Instructions -->
+                        <Border Background="#1A2A3A"
+                                BorderBrush="{StaticResource AccentBlueBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="💡 How to Use:" 
+                                           FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBlueBrush}"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Style="{StaticResource Caption}" FontSize="10" TextWrapping="Wrap">
+                                    <Run Text="• Drag points to adjust temperature/fan speed mapping"/>
+                                    <LineBreak/>
+                                    <Run Text="• Click empty area to add new points"/>
+                                    <LineBreak/>
+                                    <Run Text="• Right-click a point to remove it"/>
+                                    <LineBreak/>
+                                    <Run Text="• Blue line shows current temperature"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                     
-                    <TextBlock Text="Temperature → Fan Speed" 
-                               Style="{StaticResource Caption}"
-                               FontSize="13"
-                               Margin="0,0,0,12"/>
+                    <!-- Interactive Curve Editor -->
+                    <controls:FanCurveEditor Grid.Row="1"
+                                             CurvePoints="{Binding CustomFanCurve}"
+                                             CurrentTemperature="{Binding CurrentTemperature}"
+                                             MinHeight="280"/>
                     
-                    <ListBox ItemsSource="{Binding CustomFanCurve}" 
-                             Height="320"
-                             Background="{StaticResource SurfaceDarkBrush}"
-                             BorderBrush="{StaticResource BorderBrush}"
-                             BorderThickness="1"
-                             Padding="12"
-                             VirtualizingPanel.IsVirtualizing="True" 
-                             VirtualizingPanel.VirtualizationMode="Recycling">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="90"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" 
-                                               Text="{Binding TemperatureC, StringFormat='{}{0}°C'}" 
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Grid.Column="1" 
-                                               Text="→" 
-                                               FontSize="14"
-                                               Margin="8,0"
-                                               Foreground="{StaticResource TextTertiaryBrush}"/>
-                                    <TextBlock Grid.Column="2" 
-                                               Text="{Binding FanPercent, StringFormat='{}{0}% speed'}" 
-                                               FontSize="14"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource AccentBrush}"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <Border Background="{StaticResource SurfaceDarkBrush}"
-                            BorderBrush="{StaticResource AccentBlueBrush}"
-                            BorderThickness="1"
+                    <!-- Current curve points summary -->
+                    <Border Grid.Row="2" 
+                            Background="{StaticResource SurfaceDarkBrush}"
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,16,0,0">
-                        <StackPanel>
-                            <TextBlock Text="💡 Preset Guide:" 
-                                       FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBlueBrush}"
-                                       Margin="0,0,0,4"/>
-                            <TextBlock Style="{StaticResource Caption}" FontSize="10" TextWrapping="Wrap">
-                                <Run Text="• Gaming: Aggressive cooling, fans ramp at 60°C+"/>
-                                <LineBreak/>
-                                <Run Text="• Auto: BIOS default (may be conservative)"/>
-                                <LineBreak/>
-                                <Run Text="• Silent: Quiet but allows higher temps"/>
-                            </TextBlock>
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Current Points:"
+                                       Style="{StaticResource Caption}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding CustomFanCurve}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource SurfaceMediumBrush}"
+                                                CornerRadius="4"
+                                                Padding="8,4"
+                                                Margin="0,0,8,4">
+                                            <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                                <Run Text="{Binding TemperatureC, StringFormat='{}{0}°'}" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <Run Text="→"/>
+                                                <Run Text="{Binding FanPercent, StringFormat='{}{0}%'}" Foreground="{StaticResource AccentBrush}"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
                     </Border>
-                </StackPanel>
+                </Grid>
             </Border>
 
-            <!-- Thermal and Fan Telemetry -->
+            <!-- Thermal and Fan Telemetry - Stacked vertically -->
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
@@ -229,22 +247,22 @@
                 </Grid.RowDefinitions>
 
                 <!-- Thermal Chart -->
-                <Border Grid.Row="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,10">
+                <Border Grid.Row="0" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8">
                     <StackPanel>
                         <TextBlock Text="TEMPERATURE HISTORY" 
                                    Style="{StaticResource Label}" 
-                                   Margin="0,0,0,16"/>
+                                   Margin="0,0,0,12"/>
                         <controls:ThermalChart Samples="{Binding ThermalSamples}" 
-                                               Height="200"/>
+                                               Height="160"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Fan Telemetry -->
-                <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,10,0,0">
+                <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,8,0,0">
                     <StackPanel>
                         <TextBlock Text="REAL-TIME STATUS" 
                                    Style="{StaticResource Label}" 
-                                   Margin="0,0,0,16"/>
+                                   Margin="0,0,0,12"/>
                         
                         <ItemsControl ItemsSource="{Binding FanTelemetry}">
                             <ItemsControl.ItemTemplate>
@@ -253,30 +271,30 @@
                                             BorderBrush="{StaticResource BorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6"
-                                            Padding="16,12"
-                                            Margin="0,0,0,12">
+                                            Padding="14,10"
+                                            Margin="0,0,0,10">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
                                             
-                                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                            <Grid Grid.Row="0" Margin="0,0,0,8">
                                                 <TextBlock HorizontalAlignment="Left"
                                                            Text="{Binding Name}" 
-                                                           FontSize="13" 
+                                                           FontSize="12" 
                                                            FontWeight="SemiBold"
                                                            Foreground="{StaticResource TextPrimaryBrush}" 
                                                            VerticalAlignment="Center"/>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                     <TextBlock Text="{Binding DutyCyclePercent, StringFormat='{}{0}%'}" 
-                                                               FontSize="14" 
+                                                               FontSize="13" 
                                                                FontWeight="Bold"
                                                                Foreground="{StaticResource AccentBrush}" 
-                                                               Margin="0,0,12,0"
+                                                               Margin="0,0,10,0"
                                                                VerticalAlignment="Center"/>
                                                     <TextBlock Text="{Binding SpeedRpm, StringFormat='{}{0} RPM'}" 
-                                                               FontSize="12" 
+                                                               FontSize="11" 
                                                                Foreground="{StaticResource TextSecondaryBrush}" 
                                                                VerticalAlignment="Center"/>
                                                 </StackPanel>
@@ -285,7 +303,7 @@
                                             <ProgressBar Grid.Row="1"
                                                          Value="{Binding DutyCyclePercent}" 
                                                          Maximum="100" 
-                                                         Height="8" 
+                                                         Height="6" 
                                                          Background="{StaticResource SurfaceMediumBrush}"
                                                          Foreground="{StaticResource AccentBrush}"/>
                                         </Grid>

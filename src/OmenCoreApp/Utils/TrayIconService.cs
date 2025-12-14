@@ -21,10 +21,12 @@ namespace OmenCore.Utils
         private readonly Action _showMainWindow;
         private readonly Action _shutdownApp;
         private readonly ImageSource? _baseIconSource;
+        private readonly DisplayService _displayService;
         private MenuItem? _cpuTempMenuItem;
         private MenuItem? _gpuTempMenuItem;
         private MenuItem? _fanModeMenuItem;
         private MenuItem? _performanceModeMenuItem;
+        private MenuItem? _stayOnTopMenuItem;
         private MonitoringSample? _latestSample;
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
@@ -38,6 +40,7 @@ namespace OmenCore.Utils
             _trayIcon = trayIcon;
             _showMainWindow = showMainWindow;
             _shutdownApp = shutdownApp;
+            _displayService = new DisplayService(App.Logging);
 
             _baseIconSource = LoadBaseIcon();
             _trayIcon.IconSource = _baseIconSource;
@@ -88,6 +91,17 @@ namespace OmenCore.Utils
             contextMenu.Resources.Add(SystemColors.HighlightBrushKey, hoverBrush);
             contextMenu.Resources.Add(SystemColors.HighlightTextBrushKey, Brushes.White);
             contextMenu.Resources.Add(SystemColors.MenuHighlightBrushKey, hoverBrush);
+            
+            // Hide the icon column (the white strip on the left)
+            contextMenu.Resources.Add(SystemColors.ControlBrushKey, surfaceDark);
+            contextMenu.Resources.Add(SystemColors.ControlLightBrushKey, surfaceDark);
+            contextMenu.Resources.Add(SystemColors.ControlLightLightBrushKey, surfaceDark);
+            contextMenu.Resources.Add(SystemColors.WindowBrushKey, surfaceDark);
+            contextMenu.Resources.Add(MenuItem.SeparatorStyleKey, CreateSeparatorStyle(borderBrush));
+            
+            // Create a style to hide the icon column completely
+            var menuItemStyle = CreateDarkMenuItemStyleWithNoIconColumn(surfaceDark, hoverBrush);
+            contextMenu.Resources.Add(typeof(MenuItem), menuItemStyle);
 
             // Create styles
             var darkMenuItemStyle = CreateDarkMenuItemStyle();
@@ -97,7 +111,7 @@ namespace OmenCore.Utils
             var headerPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
             headerPanel.Children.Add(new TextBlock { Text = "🎮", FontSize = 14, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
             headerPanel.Children.Add(new TextBlock { Text = "OmenCore", FontWeight = FontWeights.Bold, FontSize = 13, Foreground = accentPrimary, VerticalAlignment = VerticalAlignment.Center });
-            headerPanel.Children.Add(new TextBlock { Text = " v1.1.1", FontSize = 11, Foreground = textSecondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 1, 0, 0) });
+            headerPanel.Children.Add(new TextBlock { Text = " v1.2.0", FontSize = 11, Foreground = textSecondary, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 1, 0, 0) });
             
             var headerItem = new MenuItem
             {
@@ -173,6 +187,33 @@ namespace OmenCore.Utils
             _performanceModeMenuItem.Items.Add(perfQuiet);
             contextMenu.Items.Add(_performanceModeMenuItem);
 
+            // ═══ DISPLAY SECTION ═══
+            var displayMenuItem = new MenuItem
+            {
+                Header = CreateControlItem("🖥️", "Display", GetRefreshRateDisplay(), accentSecondary),
+                Foreground = textPrimary,
+                Style = darkMenuItemStyle,
+                Padding = new Thickness(8, 6, 8, 6)
+            };
+
+            var refreshHigh = CreateSubMenuItem("⚡", "High Refresh Rate", "Switch to max refresh rate", darkMenuItemStyle);
+            refreshHigh.Click += (s, e) => SetHighRefreshRate();
+            var refreshLow = CreateSubMenuItem("🔋", "Power Saving", "Lower refresh rate to save power", darkMenuItemStyle);
+            refreshLow.Click += (s, e) => SetLowRefreshRate();
+            var refreshToggle = CreateSubMenuItem("🔄", "Toggle Refresh Rate", "Switch between high/low", darkMenuItemStyle);
+            refreshToggle.Click += (s, e) => ToggleRefreshRate();
+            
+            displayMenuItem.Items.Add(refreshHigh);
+            displayMenuItem.Items.Add(refreshLow);
+            displayMenuItem.Items.Add(refreshToggle);
+            displayMenuItem.Items.Add(CreateStyledSeparator(borderBrush));
+            
+            var displayOff = CreateSubMenuItem("🌙", "Turn Off Display", "Screen off, system continues", darkMenuItemStyle);
+            displayOff.Click += (s, e) => TurnOffDisplay();
+            displayMenuItem.Items.Add(displayOff);
+            
+            contextMenu.Items.Add(displayMenuItem);
+
             contextMenu.Items.Add(CreateStyledSeparator(borderBrush));
 
             // ═══ ACTIONS SECTION ═══
@@ -186,6 +227,18 @@ namespace OmenCore.Utils
             };
             showItem.Click += (s, e) => _showMainWindow();
             contextMenu.Items.Add(showItem);
+            
+            // Stay on Top toggle
+            _stayOnTopMenuItem = new MenuItem
+            {
+                Header = CreateActionItem(App.Configuration.Config.StayOnTop ? "📌" : "📍", 
+                    App.Configuration.Config.StayOnTop ? "Stay on Top ✓" : "Stay on Top"),
+                Foreground = textSecondary,
+                Style = darkMenuItemStyle,
+                Padding = new Thickness(8, 6, 8, 6)
+            };
+            _stayOnTopMenuItem.Click += (s, e) => ToggleStayOnTop();
+            contextMenu.Items.Add(_stayOnTopMenuItem);
 
             var exitItem = new MenuItem
             {
@@ -298,7 +351,7 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                _trayIcon.ToolTipText = $"🎮 OmenCore v1.1.1\n" +
+                _trayIcon.ToolTipText = $"🎮 OmenCore v1.2.0\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
                                        $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%\n" +
@@ -318,8 +371,9 @@ namespace OmenCore.Utils
                     _gpuTempMenuItem.Header = CreateMonitoringItem("🎯", "GPU", $"{gpuTemp:F0}°C", $"{gpuLoad:F0}%", Color.FromRgb(100, 200, 255));
                 }
 
-                // Update tray icon with CPU temperature badge
-                var badge = CreateCpuTempIcon(cpuTemp);
+                // Update tray icon with max temperature badge (shows highest of CPU/GPU)
+                var maxTemp = Math.Max(cpuTemp, gpuTemp);
+                var badge = CreateTempIcon(maxTemp);
                 if (badge != null)
                 {
                     _trayIcon.IconSource = badge;
@@ -352,6 +406,69 @@ namespace OmenCore.Utils
             PerformanceModeChangeRequested?.Invoke(mode);
             App.Logging.Info($"Performance mode changed from tray: {mode}");
         }
+
+        private string GetRefreshRateDisplay()
+        {
+            try
+            {
+                var rate = _displayService.GetCurrentRefreshRate();
+                return rate > 0 ? $"{rate}Hz" : "Display";
+            }
+            catch
+            {
+                return "Display";
+            }
+        }
+
+        private void SetHighRefreshRate()
+        {
+            if (_displayService.SetHighRefreshRate())
+            {
+                App.Logging.Info("✓ Switched to high refresh rate from tray");
+            }
+        }
+
+        private void SetLowRefreshRate()
+        {
+            if (_displayService.SetLowRefreshRate())
+            {
+                App.Logging.Info("✓ Switched to low refresh rate from tray");
+            }
+        }
+
+        private void ToggleRefreshRate()
+        {
+            var newRate = _displayService.ToggleRefreshRate();
+            if (newRate > 0)
+            {
+                App.Logging.Info($"✓ Toggled refresh rate to {newRate}Hz from tray");
+            }
+        }
+
+        private void TurnOffDisplay()
+        {
+            _displayService.TurnOffDisplay();
+        }
+
+        private void ToggleStayOnTop()
+        {
+            var newValue = !App.Configuration.Config.StayOnTop;
+            App.Configuration.Config.StayOnTop = newValue;
+            App.Configuration.Save(App.Configuration.Config);
+            
+            // Update the menu item
+            if (_stayOnTopMenuItem != null)
+            {
+                _stayOnTopMenuItem.Header = CreateActionItem(newValue ? "📌" : "📍", 
+                    newValue ? "Stay on Top ✓" : "Stay on Top");
+            }
+            
+            // Notify the main window to update
+            StayOnTopChanged?.Invoke(newValue);
+            App.Logging.Info($"Stay on Top: {(newValue ? "Enabled" : "Disabled")}");
+        }
+
+        public event Action<bool>? StayOnTopChanged;
 
         public void UpdateFanMode(string mode)
         {
@@ -402,6 +519,56 @@ namespace OmenCore.Utils
             }
         }
 
+        /// <summary>
+        /// Creates a dynamic tray icon showing temperature with color-coded background.
+        /// Colors: Blue (<60°C), Green (60-70°C), Orange (70-80°C), Red (>80°C)
+        /// </summary>
+        private ImageSource? CreateTempIcon(double temp)
+        {
+            const int size = 32;
+            var visual = new DrawingVisual();
+
+            using (var dc = visual.RenderOpen())
+            {
+                // Temperature-based background color
+                Color bgColor;
+                if (temp < 60)
+                    bgColor = Color.FromRgb(0, 100, 200);      // Blue - Cool
+                else if (temp < 70)
+                    bgColor = Color.FromRgb(0, 180, 80);       // Green - Normal
+                else if (temp < 80)
+                    bgColor = Color.FromRgb(255, 140, 0);      // Orange - Warm
+                else if (temp < 90)
+                    bgColor = Color.FromRgb(255, 60, 60);      // Red - Hot
+                else
+                    bgColor = Color.FromRgb(200, 0, 100);      // Magenta - Critical
+
+                // Draw colored circular background
+                var background = new SolidColorBrush(bgColor);
+                dc.DrawEllipse(background, null, new Point(size / 2.0, size / 2.0), size / 2.0 - 1, size / 2.0 - 1);
+
+                // Draw temperature text
+                var text = temp.ToString("F0");
+                var formatted = new FormattedText(
+                    text,
+                    CultureInfo.InvariantCulture,
+                    FlowDirection.LeftToRight,
+                    new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
+                    temp >= 100 ? 11 : 13, // Smaller font for 3-digit temps
+                    Brushes.White,
+                    1.25);
+
+                var origin = new Point((size - formatted.Width) / 2, (size - formatted.Height) / 2 + 1);
+                dc.DrawText(formatted, origin);
+            }
+
+            var rtb = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
+        }
+
+        [Obsolete("Use CreateTempIcon instead")]
         private ImageSource? CreateCpuTempIcon(double cpuTemp)
         {
             const int size = 32;
@@ -461,6 +628,41 @@ namespace OmenCore.Utils
             hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, hoverBg));
             style.Triggers.Add(hoverTrigger);
             
+            return style;
+        }
+        
+        private static Style CreateDarkMenuItemStyleWithNoIconColumn(Brush darkBg, Brush hoverBg)
+        {
+            var style = new Style(typeof(MenuItem));
+            
+            style.Setters.Add(new Setter(MenuItem.BackgroundProperty, darkBg));
+            style.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
+            style.Setters.Add(new Setter(MenuItem.BorderBrushProperty, Brushes.Transparent));
+            style.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
+            style.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(8, 4, 8, 4)));
+            
+            // Override the icon column by using UsesItemContainerTemplate
+            // This approach uses margins to hide the gutter
+            style.Setters.Add(new Setter(MenuItem.MarginProperty, new Thickness(-28, 0, 0, 0)));
+            style.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(36, 6, 8, 6)));
+            
+            var hoverTrigger = new Trigger
+            {
+                Property = MenuItem.IsHighlightedProperty,
+                Value = true
+            };
+            hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, hoverBg));
+            style.Triggers.Add(hoverTrigger);
+            
+            return style;
+        }
+        
+        private static Style CreateSeparatorStyle(Brush borderBrush)
+        {
+            var style = new Style(typeof(Separator));
+            style.Setters.Add(new Setter(Separator.BackgroundProperty, borderBrush));
+            style.Setters.Add(new Setter(Separator.MarginProperty, new Thickness(0, 4, 0, 4)));
+            style.Setters.Add(new Setter(Separator.HeightProperty, 1.0));
             return style;
         }
     }
