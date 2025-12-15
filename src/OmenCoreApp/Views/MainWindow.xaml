@@ -70,7 +70,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Path Grid.Column="0" Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                        <Path Grid.Column="0" Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,5,0"/>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="PERFORMANCE" FontSize="7" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
                                             <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, FallbackValue=Auto}" 
@@ -86,7 +86,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Path Grid.Column="0" Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                        <Path Grid.Column="0" Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,5,0"/>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="FAN MODE" FontSize="7" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
                                             <TextBlock Text="{Binding Dashboard.CurrentFanMode, FallbackValue=Auto}" 
