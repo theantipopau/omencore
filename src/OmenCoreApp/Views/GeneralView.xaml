@@ -16,22 +16,6 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-
-            <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,24">
-                <Border Style="{StaticResource SurfaceCard}" 
-                        Padding="16,12"
-                        HorizontalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <Image Source="pack://application:,,,/Assets/omen.png" Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center" />
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Performance &amp; Cooling" FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
-                            <TextBlock Text="Select a profile to optimize performance and cooling together" FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-
             <!-- Current Status Display -->
             <Border Grid.Row="1" 
                     Background="{StaticResource SurfaceDarkBrush}"
