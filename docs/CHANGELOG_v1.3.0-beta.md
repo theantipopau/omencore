@@ -1,4 +1,74 @@
-# OmenCore v1.3.0-beta Release Notes
+# OmenCore v1.3.0-beta2 Release Notes
+
+**Release Date:** December 2025  
+**Type:** Beta Release - Critical Bug Fixes + Feature Enhancements
+
+---
+
+## 🎯 Overview (Beta 2)
+
+This beta2 release addresses critical issues reported in beta1, including the non-functional "Max Fan" tray option.
+
+### Bug Fixes (Beta 2)
+
+#### 🟩 Start Minimized to Tray
+- Fixed: when enabled, the app now starts minimized to tray reliably.
+
+#### 🌀 Max Fan Tray Option Fixed
+**Problem:** Clicking "Max" in the system tray fan menu didn't actually enable max fan speed, although "Max Performance" mode did work.
+
+**Root Cause:** `FanService.ApplyPreset()` detected "Max" presets but only disabled the fan curve - it never called the BIOS `SetMaxFanSpeed(true)` command.
+
+**Solution:** 
+- Max preset now calls `SetMaxFanSpeed(true)` to enable BIOS max fan mode
+- Auto/Default preset now calls `SetMaxFanSpeed(false)` + `RestoreAutoControl()` to properly restore automatic fan control
+- Works with WMI BIOS, OGH proxy, and EC backends
+
+### Enhancements (Beta 2)
+
+#### 🧩 Configurable Quick Fan Presets + Persistence
+- Tray and Quick Popup fan buttons are now 3-slot configurable (Auto / Max / Silent) via Settings
+- Last-applied fan preset is persisted and re-applied on next startup
+- Added a debounced resume hook to reapply last fan/performance/GPU boost after sleep/hibernate
+
+### Known Issues (Beta 2)
+
+#### 🟥 Fan Presets Not Applying (Fans only respond in Max/Performance)
+- Some systems report that fan control does not respond to non-max presets.
+- Status: under investigation.
+
+#### 🟥 GPU Power Boost (TGP) Resets on Windows Startup
+- Some systems report the GPU boost level still resets after reboot.
+- Status: under investigation.
+
+#### 🟥 OSD Overlay Not Working
+- OSD may not appear even after changing hotkeys.
+- Status: under investigation.
+
+#### 🟥 OMEN Key Interception Not Working
+- OMEN key interception may not trigger actions on some systems.
+- Status: under investigation.
+
+#### 🎮 OSD Shows Real CPU/GPU Load
+- OSD overlay now displays actual CPU/GPU load from hardware monitoring service
+- Previously showed estimated values, now uses `HardwareMonitoringService.LatestSample`
+
+#### 🔋 Battery Status in Tray Tooltip  
+- Tray tooltip now shows battery percentage and charging state
+- Dynamic icons: 🔌 (AC), 🔋 (>20%), 🪫 (≤20%)
+
+#### ⌨️ OmenMon-Style Keyboard RGB
+- Implemented proper 128-byte color table format per OmenMon documentation
+- Added keyboard capability detection (`GetKeyboardType`, `HasBacklightSupport`)
+- Proper zone mapping for 4-zone and per-key keyboards
+
+#### 🌡️ Temperature Smoothing
+- Added 3-sample exponential moving average for temperature readings
+- Reduces noise and provides more stable fan curve response
+
+---
+
+# OmenCore v1.3.0-beta1 Release Notes
 
 **Release Date:** December 2025  
 **Type:** Beta Release - Major Bug Fixes + New Features

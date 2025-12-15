@@ -111,6 +111,9 @@ namespace OmenCore.Models
         
         /// <summary>Ramp-down delay in seconds before decreasing fan speed.</summary>
         public double RampDownDelay { get; set; } = 3.0;
+        
+        /// <summary>Enable thermal protection override - forces max fans when temps exceed 90°C, even in Auto mode.</summary>
+        public bool ThermalProtectionEnabled { get; set; } = true;
     }
     
     /// <summary>

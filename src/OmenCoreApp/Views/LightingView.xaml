@@ -423,7 +423,7 @@
                             </Border>
                         </Grid>
 
-                        <TextBlock Text="Note: Per-zone keyboard color control requires OMEN Gaming Hub. OmenCore displays zone information but cannot modify keyboard lighting directly due to HP's proprietary interface." 
+                        <TextBlock Text="Note: Keyboard zone colors can be set via OmenCore's WMI BIOS interface. Check Settings → Logging to see if keyboard backend is available for your model." 
                                    FontSize="11" 
                                    Foreground="{StaticResource TextTertiaryBrush}"
                                    FontStyle="Italic"

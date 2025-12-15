@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.3.0-beta] - 2025-12-15
+## [1.3.0-beta2] - 2025-12-15
+
+### Fixed
+- **Fan presets now work** - All presets (Auto, Quiet, Max) function correctly on all models
+- **GPU Power Boost persists** - TGP settings survive Windows restart with multi-stage retry
+- **OSD overlay fixed** - Works correctly when starting minimized to tray
+- **OMEN key interception fixed** - Settings UI now properly controls the hook
+- **Start minimized reliable** - Consistent tray-only startup behavior
+- **Intel XTU false positive** - Now uses ServiceController for accurate detection
+
+### Added
+- Built-in "Quiet" fan preset with gentle curve
+- "ShowQuickPopup" as default OMEN key action
+- Temperature smoothing (EMA) for stable UI display
+- Real CPU/GPU load values in OSD overlay
+
+See [CHANGELOG_v1.3.0-beta2.md](docs/CHANGELOG_v1.3.0-beta2.md) for full details.
+
+---
+
+## [1.3.0-beta] - 2025-12-14
 
 See [CHANGELOG_v1.3.0-beta.md](docs/CHANGELOG_v1.3.0-beta.md) for full details.
 

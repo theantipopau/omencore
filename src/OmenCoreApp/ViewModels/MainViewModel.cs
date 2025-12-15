@@ -957,6 +957,8 @@ namespace OmenCore.ViewModels
             }
             
             _fanService = new FanService(fanController, new ThermalSensorProvider(monitorBridge), _logging, _config.MonitoringIntervalMs);
+            _fanService.SetHysteresis(_config.FanHysteresis);
+            _fanService.ThermalProtectionEnabled = _config.FanHysteresis?.ThermalProtectionEnabled ?? true;
             ThermalSamples = _fanService.ThermalSamples;
             FanTelemetry = _fanService.FanTelemetry;
             var powerPlanService = new PowerPlanService(_logging);
@@ -981,7 +983,7 @@ namespace OmenCore.ViewModels
             }
             
             _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging);
-            _keyboardLightingService = new KeyboardLightingService(_logging);
+            _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios);
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
             

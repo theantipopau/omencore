@@ -48,6 +48,12 @@ namespace OmenCore.Services
         private const int StableThreshold = 3; // Number of stable readings before slowing down
         private const double TempChangeThreshold = 3.0; // °C change to trigger faster polling
         
+        // Thermal protection - override Auto mode when temps critical
+        private const double ThermalProtectionThreshold = 90.0; // °C - start ramping fans
+        private const double ThermalEmergencyThreshold = 95.0;  // °C - max fans immediately
+        private bool _thermalProtectionActive = false;
+        private bool _thermalProtectionEnabled = true; // Can be disabled in settings
+        
         // Hysteresis state
         private FanHysteresisSettings _hysteresis = new();
         private double _lastHysteresisTemp = 0;
@@ -72,6 +78,25 @@ namespace OmenCore.Services
         /// The currently active preset name, if any.
         /// </summary>
         public string? ActivePresetName => _activePreset?.Name;
+        
+        /// <summary>
+        /// Whether thermal protection is currently overriding fan control.
+        /// </summary>
+        public bool IsThermalProtectionActive => _thermalProtectionActive;
+        
+        /// <summary>
+        /// Enable/disable thermal protection override.
+        /// When enabled, fans will ramp to max if temps exceed 90°C, even in Auto mode.
+        /// </summary>
+        public bool ThermalProtectionEnabled
+        {
+            get => _thermalProtectionEnabled;
+            set
+            {
+                _thermalProtectionEnabled = value;
+                _logging.Info($"Thermal protection: {(value ? "Enabled" : "Disabled")}");
+            }
+        }
         
         /// <summary>
         /// Configure hysteresis settings to prevent fan oscillation.
@@ -261,6 +286,9 @@ namespace OmenCore.Services
                         _stableReadings = 0;
                     }
                     
+                    // Check thermal protection FIRST (overrides Auto mode when temps critical)
+                    CheckThermalProtection(cpuTemp, gpuTemp);
+                    
                     // Apply fan curve if enabled and enough time has passed
                     ApplyCurveIfNeeded(cpuTemp, gpuTemp);
                     
@@ -318,11 +346,78 @@ namespace OmenCore.Services
         }
         
         /// <summary>
+        /// Thermal protection override - kicks fans to max when temps hit critical levels.
+        /// This works even in Auto mode to prevent thermal throttling/damage.
+        /// </summary>
+        private void CheckThermalProtection(double cpuTemp, double gpuTemp)
+        {
+            if (!_thermalProtectionEnabled || !FanWritesAvailable)
+                return;
+                
+            var maxTemp = Math.Max(cpuTemp, gpuTemp);
+            
+            // Emergency: temps >= 95°C - immediate max fans
+            if (maxTemp >= ThermalEmergencyThreshold)
+            {
+                if (!_thermalProtectionActive)
+                {
+                    _thermalProtectionActive = true;
+                    _logging.Warn($"⚠️ THERMAL EMERGENCY: {maxTemp:F0}°C - forcing fans to 100%!");
+                }
+                
+                // Force max fans immediately
+                _fanController.SetFanSpeed(100);
+                return;
+            }
+            
+            // Warning: temps >= 90°C - ramp up fans aggressively
+            if (maxTemp >= ThermalProtectionThreshold)
+            {
+                if (!_thermalProtectionActive)
+                {
+                    _thermalProtectionActive = true;
+                    _logging.Warn($"⚠️ THERMAL WARNING: {maxTemp:F0}°C - boosting fan speed");
+                }
+                
+                // Calculate aggressive fan speed: 90°C = 80%, scaling to 100% at 95°C
+                var fanPercent = (int)(80 + (maxTemp - ThermalProtectionThreshold) * 4); // 80% + 4% per °C
+                fanPercent = Math.Min(100, fanPercent);
+                
+                _fanController.SetFanSpeed(fanPercent);
+                return;
+            }
+            
+            // Temps back to safe range - release thermal protection
+            if (_thermalProtectionActive && maxTemp < ThermalProtectionThreshold - 5) // 5°C hysteresis
+            {
+                _thermalProtectionActive = false;
+                _logging.Info($"✓ Temps normalized ({maxTemp:F0}°C) - thermal protection released");
+                
+                // Re-apply the current preset to restore BIOS control
+                if (_activePreset != null)
+                {
+                    _logging.Info($"Restoring preset '{_activePreset.Name}' after thermal protection");
+                    _fanController.ApplyPreset(_activePreset);
+                }
+                else
+                {
+                    // No preset - reset fans to let BIOS take over
+                    _logging.Info("Resetting fan control to BIOS default");
+                    _fanController.SetFanSpeed(0); // 0 = let BIOS control
+                }
+            }
+        }
+        
+        /// <summary>
         /// Apply fan curve based on current temperature if curve is enabled.
         /// This is the core OmenMon-style continuous fan control with hysteresis support.
         /// </summary>
         private void ApplyCurveIfNeeded(double cpuTemp, double gpuTemp)
         {
+            // Skip curve application if thermal protection is active
+            if (_thermalProtectionActive)
+                return;
+                
             if (!_curveEnabled || _activeCurve == null || !FanWritesAvailable)
                 return;
                 

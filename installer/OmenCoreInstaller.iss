@@ -1,6 +1,6 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.1"
+  #define MyAppVersion "1.3.0-beta2"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
@@ -16,13 +16,16 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 SetupIconFile=..\src\OmenCoreApp\Assets\OmenCore.ico
-Compression=lzma
+; Branding images
+WizardImageFile=wizard-large.bmp
+WizardSmallImageFile=wizard-small.bmp
+Compression=lzma2/ultra64
 SolidCompression=yes
 OutputDir=..\\artifacts
 OutputBaseFilename=OmenCoreSetup-{#MyAppVersion}
 PrivilegesRequired=admin
 WizardStyle=modern
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -64,8 +67,6 @@ begin
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
-var
-  Msg: String;
 begin
   if CurPageID = wpSelectTasks then
   begin
@@ -83,4 +84,4 @@ begin
 end;
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nRequirements:%n• .NET 8.0 Desktop Runtime (will be downloaded if needed)%n• PawnIO driver (optional, for Secure Boot compatible EC access)%n%nFor full hardware control (fan boost, fan curves, CPU undervolting) on Secure Boot enabled systems, PawnIO driver is recommended.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%n🎮 OmenCore is a complete replacement for HP OMEN Gaming Hub%n%n✓ Fan control and custom curves%n✓ Performance mode switching%n✓ CPU undervolting (Intel)%n✓ RGB keyboard control%n✓ Hardware monitoring%n%nFor full hardware control on Secure Boot systems, install PawnIO driver (recommended).%n%nClick Next to continue.

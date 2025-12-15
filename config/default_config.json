@@ -134,5 +134,13 @@
     "pollIntervalMs": 1500,
     "historyCount": 120,
     "lowOverheadMode": false
+  },
+  "lastPerformanceModeName": null,
+  "lastGpuPowerBoostLevel": null,
+  "lastFanPresetName": null,
+  "quickFanPresets": {
+    "auto": "Auto",
+    "max": "Max",
+    "silent": "Quiet"
   }
 }

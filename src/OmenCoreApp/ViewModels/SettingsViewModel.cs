@@ -1500,6 +1500,7 @@ namespace OmenCore.ViewModels
             }
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
         private static bool IsSecureBootEnabled()
         {
             try
@@ -1514,6 +1515,7 @@ namespace OmenCore.ViewModels
             }
         }
 
+        [System.Runtime.Versioning.SupportedOSPlatform("windows")]
         private static bool IsMemoryIntegrityEnabled()
         {
             try
