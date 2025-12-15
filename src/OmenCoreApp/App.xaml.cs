@@ -69,9 +69,25 @@ namespace OmenCore
             // Initialize system tray
             InitializeTrayIcon();
 
-            // Create and show main window with DI
+            // Create main window with DI
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-            mainWindow.Show();
+            
+            // Check if we should start minimized to tray
+            bool startMinimized = Configuration.Config.Monitoring?.StartMinimized ?? false;
+            
+            if (startMinimized)
+            {
+                // Start minimized to tray - don't show window
+                Logging.Info("Starting minimized to system tray");
+                mainWindow.WindowState = WindowState.Minimized;
+                mainWindow.ShowInTaskbar = false;
+                // Don't call Show() - window stays hidden, tray icon is active
+            }
+            else
+            {
+                // Normal startup - show window
+                mainWindow.Show();
+            }
         }
 
         private void CheckDriverStatus()

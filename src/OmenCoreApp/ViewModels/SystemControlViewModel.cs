@@ -375,6 +375,15 @@ namespace OmenCore.ViewModels
             {
                 _gpuPowerBoostLevel = savedGpuBoostLevel;
                 _logging.Info($"Restored last GPU Power Boost level from config: {savedGpuBoostLevel}");
+                
+                // Reapply the saved GPU Power Boost level on startup
+                // This fixes the issue where GPU TGP resets to Minimum after reboot
+                _ = Task.Run(async () =>
+                {
+                    // Wait a moment for WMI/BIOS to be fully ready
+                    await Task.Delay(2000);
+                    ReapplySavedGpuPowerBoost(savedGpuBoostLevel);
+                });
             }
 
             // Initialize GPU modes
@@ -581,6 +590,77 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
             
             GpuPowerBoostStatus = "Failed - WMI GPU power commands not supported on this model";
             _logging.Warn($"Failed to set GPU Power Boost to: {GpuPowerBoostLevel} - WMI commands not functional on this OMEN model");
+        }
+        
+        /// <summary>
+        /// Reapply the saved GPU Power Boost level on startup.
+        /// This is called after a delay to ensure WMI/BIOS is ready.
+        /// </summary>
+        private void ReapplySavedGpuPowerBoost(string savedLevel)
+        {
+            try
+            {
+                _logging.Info($"Reapplying saved GPU Power Boost level on startup: {savedLevel}");
+                
+                // Try WMI BIOS first
+                if (_wmiBios != null && _wmiBios.IsAvailable)
+                {
+                    var level = savedLevel switch
+                    {
+                        "Minimum" => HpWmiBios.GpuPowerLevel.Minimum,
+                        "Medium" => HpWmiBios.GpuPowerLevel.Medium,
+                        "Maximum" => HpWmiBios.GpuPowerLevel.Maximum,
+                        _ => HpWmiBios.GpuPowerLevel.Medium
+                    };
+
+                    if (_wmiBios.SetGpuPower(level))
+                    {
+                        _logging.Info($"✓ GPU Power Boost reapplied on startup: {savedLevel} via WMI BIOS");
+                        
+                        // Update status on UI thread
+                        App.Current?.Dispatcher?.BeginInvoke(() =>
+                        {
+                            GpuPowerBoostStatus = savedLevel switch
+                            {
+                                "Minimum" => "Minimum (Base TGP only) - Restored",
+                                "Medium" => "Medium (Custom TGP) - Restored",
+                                "Maximum" => "Maximum (Custom TGP + Dynamic Boost) - Restored",
+                                _ => $"{savedLevel} - Restored"
+                            };
+                        });
+                        return;
+                    }
+                }
+                
+                // Fallback: Try OGH proxy
+                if (_oghProxy != null && _oghProxy.Status.WmiAvailable)
+                {
+                    var levelValue = savedLevel switch
+                    {
+                        "Minimum" => 0,
+                        "Medium" => 1,
+                        "Maximum" => 2,
+                        _ => 1
+                    };
+                    
+                    if (_oghProxy.SetGpuPowerLevel(levelValue))
+                    {
+                        _logging.Info($"✓ GPU Power Boost reapplied on startup: {savedLevel} via OGH");
+                        
+                        App.Current?.Dispatcher?.BeginInvoke(() =>
+                        {
+                            GpuPowerBoostStatus = $"{savedLevel} (via OGH) - Restored";
+                        });
+                        return;
+                    }
+                }
+                
+                _logging.Warn($"Could not reapply GPU Power Boost on startup - WMI commands not available");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to reapply GPU Power Boost on startup: {ex.Message}");
+            }
         }
         
         private void SaveGpuPowerBoostToConfig()

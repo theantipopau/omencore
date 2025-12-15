@@ -112,15 +112,9 @@ namespace OmenCore.Hardware
                     return false;
                 }
                 
-                // For non-Max presets, disable max fan first if it was enabled
-                // This is critical - without this, fans stay at max speed!
-                if (_wmiBios.SetFanMax(false))
-                {
-                    _logging?.Info("✓ Disabled fan max mode before applying new preset");
-                }
-                
-                // Small delay to ensure BIOS processes the fan max disable
-                System.Threading.Thread.Sleep(100);
+                // For non-Max presets, we need a robust reset sequence
+                // Some HP BIOS versions require multiple steps to exit max mode
+                ResetFromMaxMode();
                 
                 // Map preset to fan mode
                 var mode = MapPresetToFanMode(preset);
@@ -314,14 +308,8 @@ namespace OmenCore.Hardware
 
             try
             {
-                // Disable max fan speed first - this is critical!
-                if (_wmiBios.SetFanMax(false))
-                {
-                    _logging?.Info("✓ Disabled fan max mode for auto control restore");
-                }
-                
-                // Small delay to ensure BIOS processes the command
-                System.Threading.Thread.Sleep(100);
+                // Use the robust reset sequence
+                ResetFromMaxMode();
                 
                 // Set default mode to restore automatic control
                 if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Default))
@@ -338,6 +326,65 @@ namespace OmenCore.Hardware
             }
 
             return false;
+        }
+        
+        /// <summary>
+        /// Robust reset sequence to exit MAX fan mode.
+        /// Some HP BIOS versions require multiple steps to properly exit max mode.
+        /// Based on OmenMon's approach and user feedback from Issue #7.
+        /// </summary>
+        private void ResetFromMaxMode()
+        {
+            _logging?.Info("Executing MAX mode reset sequence...");
+            
+            try
+            {
+                // Step 1: Disable max fan speed
+                if (_wmiBios.SetFanMax(false))
+                {
+                    _logging?.Info("  Step 1: SetFanMax(false) succeeded");
+                }
+                else
+                {
+                    _logging?.Warn("  Step 1: SetFanMax(false) failed");
+                }
+                
+                // Small delay between commands
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 2: Reset thermal policy to Default
+                // This forces BIOS to reconsider fan control
+                if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Default))
+                {
+                    _logging?.Info("  Step 2: SetFanMode(Default) succeeded");
+                }
+                
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 3: Set fan levels to minimum (20 krpm = ~2000 RPM)
+                // This gives BIOS a "hint" to reduce speed
+                if (_wmiBios.SetFanLevel(20, 20))
+                {
+                    _logging?.Info("  Step 3: SetFanLevel(20, 20) succeeded");
+                }
+                
+                System.Threading.Thread.Sleep(100);
+                
+                // Step 4: Set fan levels to 0 to let BIOS take over
+                if (_wmiBios.SetFanLevel(0, 0))
+                {
+                    _logging?.Info("  Step 4: SetFanLevel(0, 0) succeeded");
+                }
+                
+                // Final delay to let BIOS process all commands
+                System.Threading.Thread.Sleep(100);
+                
+                _logging?.Info("MAX mode reset sequence completed");
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"MAX mode reset sequence error: {ex.Message}");
+            }
         }
 
         /// <summary>

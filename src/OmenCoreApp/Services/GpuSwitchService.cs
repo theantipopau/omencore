@@ -201,8 +201,14 @@ namespace OmenCore.Services
                 using var intelSearcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE Name LIKE '%Intel%'");
                 var intelGpus = intelSearcher.Get().Cast<ManagementObject>().ToList();
                 
-                // Also check for AMD iGPU (Radeon 610M, 680M, 780M, etc.) - newer OMEN laptops with AMD APU + NVIDIA dGPU
-                using var amdIgpuSearcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController WHERE (Name LIKE '%Radeon%' OR Name LIKE '%AMD%') AND (Name LIKE '%Graphics%' OR Name LIKE '%610M%' OR Name LIKE '%680M%' OR Name LIKE '%780M%')");
+                // Also check for AMD iGPU (Radeon Graphics, 610M, 660M, 680M, 740M, 760M, 780M, 880M, 890M, etc.)
+                // These are integrated graphics in AMD Ryzen APUs paired with NVIDIA dGPU in newer OMEN laptops
+                // Common patterns: "AMD Radeon Graphics", "AMD Radeon 780M Graphics", "AMD Radeon(TM) Graphics"
+                using var amdIgpuSearcher = new ManagementObjectSearcher(
+                    "SELECT * FROM Win32_VideoController WHERE " +
+                    "(Name LIKE '%Radeon%' OR Name LIKE '%AMD%') AND " +
+                    "(Name LIKE '%Graphics%' OR Name LIKE '%610M%' OR Name LIKE '%660M%' OR Name LIKE '%680M%' OR " +
+                    "Name LIKE '%740M%' OR Name LIKE '%760M%' OR Name LIKE '%780M%' OR Name LIKE '%880M%' OR Name LIKE '%890M%')");
                 var amdIgpus = amdIgpuSearcher.Get().Cast<ManagementObject>().ToList();
                 
                 // Log GPU info for diagnostics
