@@ -134,6 +134,41 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+            
+            <!-- Undervolt Not Supported Info Box - Shown when undervolt is NOT supported -->
+            <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                    Visibility="{Binding SystemControl.IsUndervoltSupported, Converter={StaticResource InverseBoolToVisibility}, FallbackValue=Collapsed}">
+                <StackPanel>
+                    <TextBlock Text="CPU Undervolting" FontSize="20" FontWeight="SemiBold" 
+                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                    
+                    <Border Background="#1A2A3A" 
+                            CornerRadius="8" Padding="16" Margin="0,0,0,0"
+                            BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="ℹ️" FontSize="18" Margin="0,0,8,0"/>
+                                <TextBlock Text="Undervolting Not Available" FontSize="14" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource AccentBlueBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                       Text="{Binding SystemControl.UndervoltNotSupportedReason}"/>
+                            
+                            <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                    CornerRadius="6" Padding="12" Margin="0,12,0,0">
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                    <Run Text="Why is undervolting blocked?" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="On Intel CPUs: Modern CPUs (10th gen+) have MSR 0x150 locked by Intel's Plundervolt security patches (CVE-2019-11157). Most BIOS updates after 2020 include this lock."/>
+                                    <LineBreak/><LineBreak/>
+                                    <Run Text="On AMD CPUs: Ryzen processors use Curve Optimizer instead of voltage offset. This requires specific SMU commands which may not be available on all models."/>
+                                </TextBlock>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
 
             <!-- GPU Power Boost Section -->
             <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">

@@ -2,7 +2,26 @@
 
 **Release Date:** December 16, 2025  
 **Status:** Beta  
-**Focus:** Bug fixes based on v1.3.0-beta2 community feedback
+**Focus:** Bug fixes and UI improvements based on v1.3.0-beta2 community feedback
+
+---
+
+## ✨ New Features
+
+### Fan Profile UI Redesign
+- **Unified preset selector**: Replaced confusing "Quick Presets" buttons + "Choose Preset" dropdown with a single card-based interface
+- **Visual preset cards**: Max, Gaming, Auto, Silent, and Custom modes now shown as clickable cards with icons
+- **Active mode indicator**: Current fan mode clearly displayed
+- **Streamlined layout**: Cleaner, more intuitive fan control experience
+
+### Undervolt Status Improvements
+- **Informative error messages**: When undervolting is not available, shows detailed explanation of why (Intel Plundervolt, AMD Curve Optimizer)
+- **CPU-specific guidance**: Different explanations for Intel vs AMD processors
+- **Alternative suggestions**: Points users to BIOS settings or manufacturer tools when OmenCore can't help
+
+### Documentation
+- **Antivirus FAQ**: New comprehensive guide explaining why AV software may flag OmenCore and how to whitelist it
+- **Whitelist instructions**: Step-by-step guides for Windows Defender, Avast, Bitdefender, Kaspersky, Norton, ESET
 
 ---
 
@@ -170,5 +189,5 @@ Thank you for the detailed bug reports and logs! 🙏
 
 ## SHA256 Checksum
 ```
-OmenCoreSetup-1.4.0-beta1.exe: 5CC1F30589B106F582049E788982CE226DFA1D0E2F40604D5B1920472BD38461
+OmenCoreSetup-1.4.0-beta1.exe: 3CC9A70E5DF8AA626676C9BC040855698DA463B0401FB4CB25BF36D7A62F0CF7
 ```

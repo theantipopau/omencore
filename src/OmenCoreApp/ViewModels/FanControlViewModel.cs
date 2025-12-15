@@ -83,6 +83,57 @@ namespace OmenCore.ViewModels
         }
         
         public string CurrentFanModeName => SelectedPreset?.Name ?? "Auto";
+        
+        // Unified preset selection state for RadioButton cards
+        private string _activeFanMode = "Auto";
+        
+        public string ActiveFanMode
+        {
+            get => _activeFanMode;
+            set
+            {
+                if (_activeFanMode != value)
+                {
+                    _activeFanMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsMaxSelected));
+                    OnPropertyChanged(nameof(IsGamingSelected));
+                    OnPropertyChanged(nameof(IsAutoSelected));
+                    OnPropertyChanged(nameof(IsSilentSelected));
+                    OnPropertyChanged(nameof(IsCustomSelected));
+                }
+            }
+        }
+        
+        public bool IsMaxSelected
+        {
+            get => _activeFanMode == "Max";
+            set { if (value) ActiveFanMode = "Max"; }
+        }
+        
+        public bool IsGamingSelected
+        {
+            get => _activeFanMode == "Gaming";
+            set { if (value) ActiveFanMode = "Gaming"; }
+        }
+        
+        public bool IsAutoSelected
+        {
+            get => _activeFanMode == "Auto";
+            set { if (value) ActiveFanMode = "Auto"; }
+        }
+        
+        public bool IsSilentSelected
+        {
+            get => _activeFanMode == "Silent";
+            set { if (value) ActiveFanMode = "Silent"; }
+        }
+        
+        public bool IsCustomSelected
+        {
+            get => _activeFanMode == "Custom";
+            set { if (value) ActiveFanMode = "Custom"; }
+        }
 
         public string CustomPresetName
         {
@@ -317,6 +368,16 @@ namespace OmenCore.ViewModels
         private void ApplyPreset(FanPreset preset)
         {
             _fanService.ApplyPreset(preset);
+            
+            // Update UI state
+            ActiveFanMode = preset.Name switch
+            {
+                "Max" => "Max",
+                "Gaming" => "Gaming",
+                "Auto" => "Auto",
+                "Quiet" or "Silent" => "Silent",
+                _ => preset.Mode == FanMode.Manual ? "Custom" : "Auto"
+            };
             // FanService logs success/failure, no need to duplicate
         }
 
@@ -336,6 +397,8 @@ namespace OmenCore.ViewModels
             };
 
             _fanService.ApplyPreset(customPreset);
+            ActiveFanMode = "Custom";
+            OnPropertyChanged(nameof(CurrentFanModeName));
             // FanService logs success/failure, no need to duplicate
         }
 
@@ -491,6 +554,7 @@ namespace OmenCore.ViewModels
                 SelectedPreset = existing;
             }
             
+            ActiveFanMode = "Gaming";
             _logging.Info("Applied Gaming fan mode (Performance thermal policy with aggressive curve)");
         }
         
@@ -516,6 +580,7 @@ namespace OmenCore.ViewModels
                 SelectedPreset = existing;
             }
             
+            ActiveFanMode = "Silent";
             _logging.Info("Applied Quiet fan mode");
         }
 

@@ -107,6 +107,45 @@ namespace OmenCore.ViewModels
         /// </summary>
         public bool IsUndervoltSupported => _undervoltService != null && !string.IsNullOrEmpty(UndervoltStatusText) && !UndervoltStatusText.Contains("not supported", StringComparison.OrdinalIgnoreCase) && !UndervoltStatusText.Contains("unavailable", StringComparison.OrdinalIgnoreCase);
         
+        /// <summary>
+        /// Explanation of why undervolting is not supported on this system.
+        /// </summary>
+        public string UndervoltNotSupportedReason
+        {
+            get
+            {
+                if (_undervoltService == null)
+                    return "Undervolt service failed to initialize. This may be due to missing driver files or insufficient permissions.";
+                
+                var warning = UndervoltStatus?.Warning;
+                if (!string.IsNullOrEmpty(warning))
+                    return warning;
+                
+                // Check CPU type
+                var cpuVendor = Hardware.CpuUndervoltProviderFactory.DetectedVendor;
+                var cpuName = Hardware.CpuUndervoltProviderFactory.CpuName;
+                
+                if (cpuVendor == Hardware.CpuUndervoltProviderFactory.CpuVendor.AMD)
+                {
+                    return $"AMD {cpuName} detected.\n\n" +
+                           "AMD Ryzen CPUs use Curve Optimizer (CO) instead of traditional voltage offset undervolting. " +
+                           "CO requires specific SMU (System Management Unit) commands that may not be available or working on all models.\n\n" +
+                           "Supported: Ryzen 5000+ series with PawnIO driver installed.\n" +
+                           "Alternative: Use Ryzen Master or BIOS Curve Optimizer settings.";
+                }
+                else
+                {
+                    return $"Intel {cpuName} detected.\n\n" +
+                           "CPU voltage control is blocked by Intel's Plundervolt security mitigations (CVE-2019-11157). " +
+                           "Most BIOS updates after 2020 lock MSR 0x150 (voltage offset register).\n\n" +
+                           "Possible solutions:\n" +
+                           "• Check if your BIOS has an option to unlock overclocking/undervolt\n" +
+                           "• Some manufacturers provide BIOS updates that re-enable voltage control\n" +
+                           "• Use Intel XTU if your system supports it";
+                }
+            }
+        }
+        
         public string UndervoltStatusText => UndervoltStatus?.HasExternalController == true 
             ? $"External controller detected: {UndervoltStatus?.ExternalController ?? "Unknown"}" 
             : (UndervoltStatus?.CurrentCoreOffsetMv != 0 || UndervoltStatus?.CurrentCacheOffsetMv != 0)

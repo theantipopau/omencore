@@ -120,11 +120,35 @@ namespace OmenCore.Services
                         _logging.Warn($"Failed to create restore point '{description}': {result.Message}");
                     }
                 }
-                catch (ManagementException mex) when (mex.Message.Contains("Not found"))
+                catch (ManagementException mex)
                 {
-                    result.Success = false;
-                    result.Message = "System Restore is not available on this system. It may be disabled or the service is not running.";
-                    _logging.Error($"System Restore WMI class not found: {mex.Message}");
+                    // Handle localized "Not found" messages from Windows
+                    // Common translations: "No encontrado" (Spanish), "Nicht gefunden" (German), etc.
+                    string lowerMsg = mex.Message.ToLowerInvariant();
+                    bool isNotFound = lowerMsg.Contains("not found") || 
+                                      lowerMsg.Contains("no encontrad") ||  // Spanish
+                                      lowerMsg.Contains("nicht gefunden") || // German
+                                      lowerMsg.Contains("non trouvé") ||     // French
+                                      lowerMsg.Contains("não encontrado") || // Portuguese
+                                      lowerMsg.Contains("未找到") ||         // Chinese
+                                      mex.ErrorCode == ManagementStatus.NotFound;
+                    
+                    if (isNotFound)
+                    {
+                        result.Success = false;
+                        result.Message = "System Restore is not available. This can happen if:\n" +
+                                       "• System Restore is disabled in System Properties → System Protection\n" +
+                                       "• The Volume Shadow Copy service is stopped\n" +
+                                       "• Group Policy has disabled System Restore\n\n" +
+                                       "To enable: Control Panel → System → System Protection → Configure";
+                        _logging.Warn($"System Restore WMI class not found: {mex.Message}");
+                    }
+                    else
+                    {
+                        result.Success = false;
+                        result.Message = $"System Restore error: {mex.Message}";
+                        _logging.Error($"System Restore WMI error: {mex.Message}");
+                    }
                 }
                 catch (UnauthorizedAccessException)
                 {
