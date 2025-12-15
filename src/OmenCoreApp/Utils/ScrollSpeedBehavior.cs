@@ -8,12 +8,17 @@ namespace OmenCore.Utils
 {
     /// <summary>
     /// Attached behavior for smooth animated scrolling in ScrollViewer.
+    /// Supports both traditional mouse wheel and precision touchpad scrolling.
     /// Usage: utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2"
     /// </summary>
     public static class ScrollSpeedBehavior
     {
         private static double _targetOffset;
         private static bool _isAnimating;
+        private static DateTime _lastScrollTime = DateTime.MinValue;
+        private static int _accumulatedDelta;
+        private const int TouchpadThreshold = 50; // Detect touchpad by small deltas
+        private const int AccumulationTimeMs = 50; // Time window to accumulate touchpad deltas
         
         public static readonly DependencyProperty ScrollSpeedMultiplierProperty =
             DependencyProperty.RegisterAttached(
@@ -42,25 +47,57 @@ namespace OmenCore.Utils
             if (sender is ScrollViewer scrollViewer && !e.Handled)
             {
                 var multiplier = GetScrollSpeedMultiplier(scrollViewer);
+                var now = DateTime.Now;
+                var timeSinceLastScroll = (now - _lastScrollTime).TotalMilliseconds;
                 
-                // Calculate scroll amount - use a reasonable base amount 
-                // e.Delta is typically 120 per notch, we want about 80-100 pixels per notch
-                var scrollAmount = (e.Delta / 120.0) * 80 * multiplier;
+                // Detect precision touchpad scrolling (small deltas in rapid succession)
+                bool isTouchpad = Math.Abs(e.Delta) < TouchpadThreshold;
                 
-                // Initialize target offset if not animating
-                if (!_isAnimating)
+                double scrollAmount;
+                
+                if (isTouchpad)
                 {
-                    _targetOffset = scrollViewer.VerticalOffset;
+                    // For touchpad: accumulate small deltas and use direct scrolling for smoothness
+                    if (timeSinceLastScroll > AccumulationTimeMs)
+                    {
+                        _accumulatedDelta = 0;
+                    }
+                    
+                    _accumulatedDelta += e.Delta;
+                    
+                    // Direct scroll for touchpad - WPF handles smoothness natively
+                    scrollAmount = -(_accumulatedDelta / 120.0) * 40 * multiplier;
+                    
+                    // Apply directly without animation for touchpad (smoother)
+                    var newOffset = Math.Max(0, Math.Min(
+                        scrollViewer.ScrollableHeight,
+                        scrollViewer.VerticalOffset + (e.Delta / -120.0) * 40 * multiplier));
+                    
+                    scrollViewer.ScrollToVerticalOffset(newOffset);
+                    _accumulatedDelta = 0;
+                }
+                else
+                {
+                    // For mouse wheel: use animated scrolling
+                    // e.Delta is typically 120 per notch, we want about 80-100 pixels per notch
+                    scrollAmount = (e.Delta / 120.0) * 80 * multiplier;
+                    
+                    // Initialize target offset if not animating or starting fresh
+                    if (!_isAnimating || timeSinceLastScroll > 300)
+                    {
+                        _targetOffset = scrollViewer.VerticalOffset;
+                    }
+                    
+                    // Calculate new target (clamped to valid range)
+                    _targetOffset = Math.Max(0, Math.Min(
+                        scrollViewer.ScrollableHeight,
+                        _targetOffset - scrollAmount));
+                    
+                    // Animate to the target
+                    AnimateScroll(scrollViewer, _targetOffset);
                 }
                 
-                // Calculate new target (clamped to valid range)
-                _targetOffset = Math.Max(0, Math.Min(
-                    scrollViewer.ScrollableHeight,
-                    _targetOffset - scrollAmount));
-                
-                // Animate to the target
-                AnimateScroll(scrollViewer, _targetOffset);
-                
+                _lastScrollTime = now;
                 e.Handled = true;
             }
         }

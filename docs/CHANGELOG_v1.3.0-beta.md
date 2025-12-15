@@ -153,6 +153,39 @@ Capture the physical OMEN key press to show OmenCore instead of HP Gaming Hub:
 
 ---
 
+## 🎨 UI/UX Polish
+
+Based on community feedback, the following UI improvements were made:
+
+### More Screen Real Estate
+
+- **Slimmer sidebar** - Reduced width from 240px to 200px, compact fonts
+- **Smaller footer** - Recent Activity and System Log height reduced from 240px to 160px
+- **Removed Dashboard header card** - Eliminated redundant "Dashboard" banner that wasted vertical space
+
+### Fixed Blurry Text After Hover
+
+- **Root cause:** Scale transform animations (1.01x/1.02x) on cards caused sub-pixel rendering
+- **Solution:** Removed scale animations, kept shadow/border effects only
+- Added `UseLayoutRounding="True"` and `SnapsToDevicePixels="True"` to cards
+
+### Smoother Touchpad Scrolling
+
+- **Root cause:** Original scroll handler optimized for mouse wheel (large delta events)
+- **Solution:** Implemented precision touchpad detection:
+  - Small delta events (< 50) use direct scrolling for native smoothness
+  - Mouse wheel events (120 per notch) use animated scrolling
+  - Prevents jitter and lag on precision touchpads
+
+### Minimal Scrollbars
+
+- **Width reduced** from 10px to 6px
+- **Auto-fade** - 30% opacity when idle, 80% on hover
+- **Subtle thumb** - Rounded corners, highlights blue when dragging
+- **Cleaner look** - No background track, just floating thumb
+
+---
+
 ## 🔧 Technical Changes
 
 ### New Files

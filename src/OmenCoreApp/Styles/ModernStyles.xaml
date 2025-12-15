@@ -158,108 +158,31 @@
         <Setter Property="CornerRadius" Value="12" />
         <Setter Property="Padding" Value="20" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        <Setter Property="RenderTransform">
-            <Setter.Value>
-                <ScaleTransform ScaleX="1" ScaleY="1" />
-            </Setter.Value>
-        </Setter>
+        <Setter Property="UseLayoutRounding" Value="True" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="18" ShadowDepth="4" Direction="270" />
             </Setter.Value>
         </Setter>
         <Style.Triggers>
-            <EventTrigger RoutedEvent="MouseEnter">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)" 
-                                         To="1.01" Duration="0:0:0.15">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)" 
-                                         To="1.01" Duration="0:0:0.15">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.Effect).(DropShadowEffect.BlurRadius)" 
-                                         To="24" Duration="0:0:0.15"/>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.Effect).(DropShadowEffect.ShadowDepth)" 
-                                         To="6" Duration="0:0:0.15"/>
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
-            <EventTrigger RoutedEvent="MouseLeave">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)" 
-                                         To="1" Duration="0:0:0.2">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)" 
-                                         To="1" Duration="0:0:0.2">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.Effect).(DropShadowEffect.BlurRadius)" 
-                                         To="18" Duration="0:0:0.2"/>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.Effect).(DropShadowEffect.ShadowDepth)" 
-                                         To="4" Duration="0:0:0.2"/>
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
+            <!-- Use simple property setters instead of scale animations to prevent text blur -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="24" ShadowDepth="6" Direction="270" />
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
         </Style.Triggers>
     </Style>
     
-    <!-- Interactive card style with glow on hover -->
+    <!-- Interactive card style with glow on hover (no scale to prevent blur) -->
     <Style x:Key="SurfaceCardInteractive" TargetType="Border" BasedOn="{StaticResource SurfaceCard}">
         <Style.Triggers>
-            <EventTrigger RoutedEvent="MouseEnter">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)" 
-                                         To="1.02" Duration="0:0:0.15">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)" 
-                                         To="1.02" Duration="0:0:0.15">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <ColorAnimation Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" 
-                                        To="#FF005C" Duration="0:0:0.15"/>
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
-            <EventTrigger RoutedEvent="MouseLeave">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)" 
-                                         To="1" Duration="0:0:0.2">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <DoubleAnimation Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)" 
-                                         To="1" Duration="0:0:0.2">
-                            <DoubleAnimation.EasingFunction>
-                                <CubicEase EasingMode="EaseOut"/>
-                            </DoubleAnimation.EasingFunction>
-                        </DoubleAnimation>
-                        <ColorAnimation Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)" 
-                                        To="#2F3448" Duration="0:0:0.2"/>
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="#FF005C" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -1067,7 +990,7 @@
     </Style>
 
     <!-- ==================== SMOOTH SCROLLVIEWER STYLE ==================== -->
-    <!-- Enhanced scrolling behavior with pixel-based smooth scrolling -->
+    <!-- Enhanced scrolling behavior with pixel-based smooth scrolling and minimal scrollbars -->
     
     <Style x:Key="SmoothScrollViewer" TargetType="ScrollViewer">
         <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
@@ -1095,7 +1018,7 @@
                                                 ContentTemplate="{TemplateBinding ContentTemplate}"
                                                 Content="{TemplateBinding Content}"/>
                         
-                        <!-- Styled Vertical ScrollBar -->
+                        <!-- Minimal Vertical ScrollBar - thin and auto-fade -->
                         <ScrollBar x:Name="PART_VerticalScrollBar"
                                    Grid.Column="1" Grid.Row="0"
                                    AutomationProperties.AutomationId="VerticalScrollBar"
@@ -1103,11 +1026,57 @@
                                    Maximum="{TemplateBinding ScrollableHeight}"
                                    ViewportSize="{TemplateBinding ViewportHeight}"
                                    Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"
-                                   Width="10"
-                                   Margin="4,0,0,0"
-                                   Opacity="0.6"/>
+                                   Width="6"
+                                   Margin="2,2,2,2"
+                                   Opacity="0.3">
+                            <ScrollBar.Style>
+                                <Style TargetType="ScrollBar">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ScrollBar">
+                                                <Grid x:Name="Bg" SnapsToDevicePixels="True">
+                                                    <Track x:Name="PART_Track" IsDirectionReversed="True" IsEnabled="{TemplateBinding IsMouseOver}">
+                                                        <Track.Thumb>
+                                                            <Thumb x:Name="thumb">
+                                                                <Thumb.Style>
+                                                                    <Style TargetType="Thumb">
+                                                                        <Setter Property="OverridesDefaultStyle" Value="True"/>
+                                                                        <Setter Property="IsTabStop" Value="False"/>
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="Thumb">
+                                                                                    <Border x:Name="thumbBorder" 
+                                                                                            Background="{StaticResource TextTertiaryBrush}"
+                                                                                            CornerRadius="3"
+                                                                                            Opacity="0.6"/>
+                                                                                    <ControlTemplate.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter TargetName="thumbBorder" Property="Background" Value="{StaticResource TextSecondaryBrush}"/>
+                                                                                            <Setter TargetName="thumbBorder" Property="Opacity" Value="0.9"/>
+                                                                                        </Trigger>
+                                                                                        <Trigger Property="IsDragging" Value="True">
+                                                                                            <Setter TargetName="thumbBorder" Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                                                            <Setter TargetName="thumbBorder" Property="Opacity" Value="1"/>
+                                                                                        </Trigger>
+                                                                                    </ControlTemplate.Triggers>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </Thumb.Style>
+                                                            </Thumb>
+                                                        </Track.Thumb>
+                                                    </Track>
+                                                </Grid>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ScrollBar.Style>
+                        </ScrollBar>
                         
-                        <!-- Styled Horizontal ScrollBar (usually hidden) -->
+                        <!-- Minimal Horizontal ScrollBar (usually hidden) -->
                         <ScrollBar x:Name="PART_HorizontalScrollBar"
                                    Grid.Column="0" Grid.Row="1"
                                    Orientation="Horizontal"
@@ -1116,41 +1085,19 @@
                                    Maximum="{TemplateBinding ScrollableWidth}"
                                    ViewportSize="{TemplateBinding ViewportWidth}"
                                    Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"
-                                   Height="10"
-                                   Margin="0,4,0,0"
-                                   Opacity="0.6"/>
+                                   Height="6"
+                                   Margin="2,2,2,2"
+                                   Opacity="0.3"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="PART_VerticalScrollBar" Property="Opacity" Value="0.9"/>
-                            <Setter TargetName="PART_HorizontalScrollBar" Property="Opacity" Value="0.9"/>
+                            <Setter TargetName="PART_VerticalScrollBar" Property="Opacity" Value="0.8"/>
+                            <Setter TargetName="PART_HorizontalScrollBar" Property="Opacity" Value="0.8"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
-    </Style>
-    
-    <!-- Thin scrollbar thumb style for modern look -->
-    <Style x:Key="ModernScrollBarThumb" TargetType="Thumb">
-        <Setter Property="Background" Value="{StaticResource TextTertiaryBrush}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Thumb">
-                    <Border Background="{TemplateBinding Background}"
-                            CornerRadius="4"
-                            Margin="2"/>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource TextSecondaryBrush}"/>
-            </Trigger>
-            <Trigger Property="IsDragging" Value="True">
-                <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-            </Trigger>
-        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>
