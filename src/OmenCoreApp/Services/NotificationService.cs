@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -477,6 +480,9 @@ namespace OmenCore.Services
             try
             {
                 ToastNotificationManagerCompat.History.Clear();
+                _inAppNotifications.Clear();
+                InAppNotificationsCleared?.Invoke(this, EventArgs.Empty);
+                UnreadCountChanged?.Invoke(this, EventArgs.Empty);
                 _logging.Info("Cleared all notifications");
             }
             catch (Exception ex)
@@ -494,5 +500,183 @@ namespace OmenCore.Services
             }
             catch { }
         }
+        
+        #region In-App Notification Center
+        
+        private readonly ObservableCollection<InAppNotification> _inAppNotifications = new();
+        private const int MaxInAppNotifications = 50;
+        
+        public event EventHandler<InAppNotification>? InAppNotificationAdded;
+        public event EventHandler? InAppNotificationsCleared;
+        public event EventHandler? UnreadCountChanged;
+        
+        public ReadOnlyObservableCollection<InAppNotification> InAppNotifications => 
+            new ReadOnlyObservableCollection<InAppNotification>(_inAppNotifications);
+        
+        public int UnreadCount => _inAppNotifications.Count(n => !n.IsRead);
+        public bool HasUnread => UnreadCount > 0;
+        
+        /// <summary>
+        /// Add an in-app notification.
+        /// </summary>
+        public void AddInAppNotification(InAppNotificationType type, string title, string message, string? actionTarget = null)
+        {
+            Application.Current?.Dispatcher?.Invoke(() =>
+            {
+                var notification = new InAppNotification
+                {
+                    Id = Guid.NewGuid(),
+                    Type = type,
+                    Title = title,
+                    Message = message,
+                    ActionTarget = actionTarget,
+                    Timestamp = DateTime.Now,
+                    IsRead = false
+                };
+                
+                _inAppNotifications.Insert(0, notification);
+                
+                // Trim old notifications
+                while (_inAppNotifications.Count > MaxInAppNotifications)
+                {
+                    _inAppNotifications.RemoveAt(_inAppNotifications.Count - 1);
+                }
+                
+                InAppNotificationAdded?.Invoke(this, notification);
+                UnreadCountChanged?.Invoke(this, EventArgs.Empty);
+            });
+        }
+        
+        /// <summary>
+        /// Add info notification to in-app center.
+        /// </summary>
+        public void AddInfo(string title, string message, string? actionTarget = null)
+        {
+            AddInAppNotification(InAppNotificationType.Info, title, message, actionTarget);
+        }
+        
+        /// <summary>
+        /// Add success notification to in-app center.
+        /// </summary>
+        public void AddSuccess(string title, string message, string? actionTarget = null)
+        {
+            AddInAppNotification(InAppNotificationType.Success, title, message, actionTarget);
+        }
+        
+        /// <summary>
+        /// Add warning notification to in-app center.
+        /// </summary>
+        public void AddWarning(string title, string message, string? actionTarget = null)
+        {
+            AddInAppNotification(InAppNotificationType.Warning, title, message, actionTarget);
+        }
+        
+        /// <summary>
+        /// Add error notification to in-app center.
+        /// </summary>
+        public void AddError(string title, string message, string? actionTarget = null)
+        {
+            AddInAppNotification(InAppNotificationType.Error, title, message, actionTarget);
+        }
+        
+        /// <summary>
+        /// Mark a notification as read.
+        /// </summary>
+        public void MarkAsRead(Guid notificationId)
+        {
+            var notification = _inAppNotifications.FirstOrDefault(n => n.Id == notificationId);
+            if (notification != null && !notification.IsRead)
+            {
+                notification.IsRead = true;
+                UnreadCountChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        
+        /// <summary>
+        /// Mark all notifications as read.
+        /// </summary>
+        public void MarkAllAsRead()
+        {
+            foreach (var notification in _inAppNotifications)
+            {
+                notification.IsRead = true;
+            }
+            UnreadCountChanged?.Invoke(this, EventArgs.Empty);
+        }
+        
+        /// <summary>
+        /// Dismiss a specific notification.
+        /// </summary>
+        public void DismissNotification(Guid notificationId)
+        {
+            Application.Current?.Dispatcher?.Invoke(() =>
+            {
+                var notification = _inAppNotifications.FirstOrDefault(n => n.Id == notificationId);
+                if (notification != null)
+                {
+                    _inAppNotifications.Remove(notification);
+                    UnreadCountChanged?.Invoke(this, EventArgs.Empty);
+                }
+            });
+        }
+        
+        /// <summary>
+        /// Get recent notifications for display.
+        /// </summary>
+        public IEnumerable<InAppNotification> GetRecentNotifications(int count = 5)
+        {
+            return _inAppNotifications.Take(count);
+        }
+        
+        #endregion
+    }
+    
+    /// <summary>
+    /// Represents an in-app notification for the notification center.
+    /// </summary>
+    public class InAppNotification
+    {
+        public Guid Id { get; set; }
+        public InAppNotificationType Type { get; set; }
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public string? ActionTarget { get; set; }
+        public DateTime Timestamp { get; set; }
+        public bool IsRead { get; set; }
+        
+        public string TimeAgo
+        {
+            get
+            {
+                var elapsed = DateTime.Now - Timestamp;
+                if (elapsed.TotalMinutes < 1) return "Just now";
+                if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
+                if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h ago";
+                if (elapsed.TotalDays < 7) return $"{(int)elapsed.TotalDays}d ago";
+                return Timestamp.ToString("MMM d");
+            }
+        }
+        
+        public string TypeIcon => Type switch
+        {
+            InAppNotificationType.Info => "ℹ️",
+            InAppNotificationType.Success => "✅",
+            InAppNotificationType.Warning => "⚠️",
+            InAppNotificationType.Error => "❌",
+            InAppNotificationType.Update => "🔄",
+            _ => "📢"
+        };
+    }
+    
+    /// <summary>
+    /// Types of in-app notifications.
+    /// </summary>
+    public enum InAppNotificationType
+    {
+        Info,
+        Success,
+        Warning,
+        Error,
+        Update
     }
 }

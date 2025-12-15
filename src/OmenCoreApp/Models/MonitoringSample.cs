@@ -84,5 +84,11 @@ namespace OmenCore.Models
         
         // Computed property for VRAM usage percentage
         public double GpuVramUsagePercent => GpuVramTotalMb > 0 ? (GpuVramUsageMb / GpuVramTotalMb) * 100 : 0;
+        
+        /// <summary>
+        /// True if SSD sensor data is available (non-zero temperature).
+        /// Used to hide SSD widget when LibreHardwareMonitor can't read SMART data.
+        /// </summary>
+        public bool IsSsdDataAvailable => SsdTemperatureC > 0;
     }
 }

@@ -58,6 +58,7 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(CpuClockSummary));
                 OnPropertyChanged(nameof(ThrottlingSummary));
                 OnPropertyChanged(nameof(IsThrottling));
+                OnPropertyChanged(nameof(IsSsdDataAvailable));
             }
         }
 
@@ -105,6 +106,12 @@ namespace OmenCore.ViewModels
         public string ThrottlingSummary => LatestMonitoringSample == null 
             ? "Unknown" 
             : LatestMonitoringSample.ThrottlingStatus;
+        
+        /// <summary>
+        /// Whether SSD sensor data is available (non-zero temperature).
+        /// Used to hide Storage card when LibreHardwareMonitor can't read SMART data.
+        /// </summary>
+        public bool IsSsdDataAvailable => LatestMonitoringSample?.IsSsdDataAvailable ?? false;
 
         public DashboardViewModel(HardwareMonitoringService monitoringService)
         {

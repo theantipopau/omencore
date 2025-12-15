@@ -20,6 +20,8 @@ namespace OmenCore.Services
         [DllImport("user32.dll")]
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+        #endregion
+
         private const int WM_HOTKEY = 0x0312;
 
         // Modifier keys
@@ -30,14 +32,17 @@ namespace OmenCore.Services
         private const uint MOD_WIN = 0x0008;
         private const uint MOD_NOREPEAT = 0x4000;
 
-        #endregion
-
         private readonly LoggingService _logging;
         private readonly Dictionary<int, HotkeyBinding> _registeredHotkeys = new();
+        private readonly List<HotkeyBinding> _pendingHotkeys = new(); // Hotkeys queued for retry
         private IntPtr _windowHandle;
         private HwndSource? _source;
         private int _nextHotkeyId = 1;
         private bool _isEnabled = true;
+        private System.Threading.Timer? _retryTimer;
+        private int _retryAttempts = 0;
+        private const int MaxRetryAttempts = 5;
+        private const int RetryIntervalMs = 2000;
 
         // Events for hotkey actions
         public event EventHandler? ToggleFanModeRequested;
@@ -78,6 +83,75 @@ namespace OmenCore.Services
             _source?.AddHook(WndProc);
             
             _logging.Info("HotkeyService initialized");
+            
+            // Retry any pending hotkeys that failed earlier
+            RetryPendingHotkeys();
+        }
+        
+        /// <summary>
+        /// Initialize with retry logic for cases where window handle isn't ready immediately.
+        /// This is useful when starting minimized to tray.
+        /// </summary>
+        public void InitializeWithRetry(Func<IntPtr> getWindowHandle)
+        {
+            var handle = getWindowHandle();
+            if (handle != IntPtr.Zero)
+            {
+                Initialize(handle);
+                return;
+            }
+            
+            // Window not ready yet, start retry timer
+            _logging.Info("HotkeyService: Window handle not ready, starting retry timer...");
+            _retryAttempts = 0;
+            _retryTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                    {
+                        var h = getWindowHandle();
+                        if (h != IntPtr.Zero)
+                        {
+                            Initialize(h);
+                            _retryTimer?.Dispose();
+                            _retryTimer = null;
+                            _logging.Info($"HotkeyService: Initialized after {_retryAttempts + 1} attempts");
+                        }
+                        else
+                        {
+                            _retryAttempts++;
+                            if (_retryAttempts >= MaxRetryAttempts)
+                            {
+                                _logging.Warn($"HotkeyService: Failed to initialize after {MaxRetryAttempts} attempts");
+                                _retryTimer?.Dispose();
+                                _retryTimer = null;
+                            }
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"HotkeyService retry error: {ex.Message}", ex);
+                }
+            }, null, RetryIntervalMs, RetryIntervalMs);
+        }
+        
+        /// <summary>
+        /// Retry registering hotkeys that failed initially
+        /// </summary>
+        private void RetryPendingHotkeys()
+        {
+            if (_pendingHotkeys.Count == 0) return;
+            
+            _logging.Info($"HotkeyService: Retrying {_pendingHotkeys.Count} pending hotkey(s)...");
+            var toRetry = _pendingHotkeys.ToList();
+            _pendingHotkeys.Clear();
+            
+            foreach (var binding in toRetry)
+            {
+                RegisterHotkey(binding.Action, binding.Modifiers, binding.Key);
+            }
         }
 
         /// <summary>
@@ -110,7 +184,14 @@ namespace OmenCore.Services
         {
             if (_windowHandle == IntPtr.Zero)
             {
-                _logging.Info("Cannot register hotkey - window handle not initialized");
+                // Queue for later registration
+                _pendingHotkeys.Add(new HotkeyBinding
+                {
+                    Action = action,
+                    Modifiers = modifiers,
+                    Key = key
+                });
+                _logging.Info($"Hotkey {modifiers}+{key} queued for registration (window not ready)");
                 return false;
             }
 
@@ -135,7 +216,14 @@ namespace OmenCore.Services
             }
             else
             {
-                _logging.Info($"Failed to register hotkey: {modifiers}+{key} for {action}");
+                // Failed to register - queue for retry
+                _pendingHotkeys.Add(new HotkeyBinding
+                {
+                    Action = action,
+                    Modifiers = modifiers,
+                    Key = key
+                });
+                _logging.Warn($"Failed to register hotkey: {modifiers}+{key} for {action}, queued for retry");
                 return false;
             }
         }
@@ -258,6 +346,8 @@ namespace OmenCore.Services
 
         public void Dispose()
         {
+            _retryTimer?.Dispose();
+            _retryTimer = null;
             UnregisterAllHotkeys();
             _source?.RemoveHook(WndProc);
             _source?.Dispose();

@@ -28,6 +28,10 @@ namespace OmenCore.Services
         private HwndSource? _hotkeySource;
         private bool _isVisible;
         private bool _disposed;
+        private System.Threading.Timer? _retryTimer;
+        private int _retryAttempts = 0;
+        private const int MaxRetryAttempts = 5;
+        private const int RetryIntervalMs = 2000;
         
         // Win32 hotkey registration
         private const int WM_HOTKEY = 0x0312;
@@ -215,23 +219,94 @@ namespace OmenCore.Services
                     return;
                 }
                 
-                // Create a hidden window for hotkey messages
-                var helper = new WindowInteropHelper(Application.Current.MainWindow);
-                _hotkeySource = HwndSource.FromHwnd(helper.Handle);
-                _hotkeySource?.AddHook(HwndHook);
+                // Try to get window handle - use dedicated hidden window if main window not ready
+                IntPtr hwnd = IntPtr.Zero;
+                try
+                {
+                    var mainWindow = Application.Current?.MainWindow;
+                    if (mainWindow != null && mainWindow.IsLoaded)
+                    {
+                        var helper = new WindowInteropHelper(mainWindow);
+                        hwnd = helper.Handle;
+                    }
+                }
+                catch
+                {
+                    // Main window not available
+                }
                 
-                if (RegisterHotKey(helper.Handle, HOTKEY_ID, modifiers, vk))
+                if (hwnd == IntPtr.Zero)
                 {
-                    _logging.Info($"OSD: Hotkey registered ({hotkeyStr})");
+                    // Main window not ready - start retry timer
+                    _logging.Info($"OSD: Main window not ready, will retry hotkey registration...");
+                    StartHotkeyRetryTimer(modifiers, vk, hotkeyStr);
+                    return;
                 }
-                else
-                {
-                    _logging.Warn($"OSD: Failed to register hotkey ({hotkeyStr})");
-                }
+                
+                RegisterHotkeyWithHandle(hwnd, modifiers, vk, hotkeyStr);
             }
             catch (Exception ex)
             {
                 _logging.Error($"OSD: Hotkey registration failed: {ex.Message}", ex);
+            }
+        }
+        
+        private void StartHotkeyRetryTimer(uint modifiers, uint vk, string hotkeyStr)
+        {
+            _retryAttempts = 0;
+            _retryTimer = new System.Threading.Timer(_ =>
+            {
+                try
+                {
+                    Application.Current?.Dispatcher?.Invoke(() =>
+                    {
+                        try
+                        {
+                            var mainWindow = Application.Current?.MainWindow;
+                            if (mainWindow != null && mainWindow.IsLoaded)
+                            {
+                                var helper = new WindowInteropHelper(mainWindow);
+                                var hwnd = helper.Handle;
+                                if (hwnd != IntPtr.Zero)
+                                {
+                                    RegisterHotkeyWithHandle(hwnd, modifiers, vk, hotkeyStr);
+                                    _retryTimer?.Dispose();
+                                    _retryTimer = null;
+                                    _logging.Info($"OSD: Hotkey registered after {_retryAttempts + 1} retry attempts");
+                                    return;
+                                }
+                            }
+                        }
+                        catch { }
+                        
+                        _retryAttempts++;
+                        if (_retryAttempts >= MaxRetryAttempts)
+                        {
+                            _logging.Warn($"OSD: Failed to register hotkey after {MaxRetryAttempts} attempts");
+                            _retryTimer?.Dispose();
+                            _retryTimer = null;
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"OSD: Hotkey retry error: {ex.Message}", ex);
+                }
+            }, null, RetryIntervalMs, RetryIntervalMs);
+        }
+        
+        private void RegisterHotkeyWithHandle(IntPtr hwnd, uint modifiers, uint vk, string hotkeyStr)
+        {
+            _hotkeySource = HwndSource.FromHwnd(hwnd);
+            _hotkeySource?.AddHook(HwndHook);
+            
+            if (RegisterHotKey(hwnd, HOTKEY_ID, modifiers, vk))
+            {
+                _logging.Info($"OSD: Hotkey registered ({hotkeyStr})");
+            }
+            else
+            {
+                _logging.Warn($"OSD: Failed to register hotkey ({hotkeyStr})");
             }
         }
         
@@ -267,6 +342,8 @@ namespace OmenCore.Services
         {
             if (!_disposed)
             {
+                _retryTimer?.Dispose();
+                _retryTimer = null;
                 Shutdown();
                 _disposed = true;
             }

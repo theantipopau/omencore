@@ -341,19 +341,35 @@
                 </Border>
 
                 <!-- HP OMEN Keyboard Lighting -->
-                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding IsKeyboardLightingAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
-                        <TextBlock Text="HP OMEN Keyboard" FontSize="20" FontWeight="SemiBold" 
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
-                        <TextBlock Text="Your laptop's built-in 4-zone RGB keyboard" 
-                                   FontSize="12" 
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Margin="0,0,0,16"/>
+                        <Grid Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="HP OMEN Keyboard" FontSize="20" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Your laptop's built-in 4-zone RGB keyboard" 
+                                           FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="Backend:" FontSize="11" 
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                        CornerRadius="4" Padding="8,4">
+                                    <TextBlock Text="{Binding KeyboardLightingBackend}" 
+                                               FontSize="11" FontWeight="Medium"
+                                               Foreground="{StaticResource AccentBrush}"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
 
-                        <!-- Keyboard Zone Display -->
-                        <TextBlock Text="KEYBOARD ZONES" 
+                        <!-- Keyboard Zone Display - Interactive -->
+                        <TextBlock Text="KEYBOARD ZONES (click to change color)" 
                                    Style="{StaticResource Label}" 
-                                   Margin="0,0,0,12"/>
+                                   Margin="0,8,0,12"/>
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -362,9 +378,14 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
+                            <!-- Zone 1 - Left -->
                             <Border Grid.Column="0" Background="{StaticResource SurfaceDarkBrush}" 
                                     CornerRadius="8" Padding="12,8" Margin="0,0,6,0"
-                                    BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                                    BorderBrush="{Binding Zone1Brush}" BorderThickness="2"
+                                    Cursor="Hand">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick" Command="{Binding SetZone1ColorCommand}"/>
+                                </Border.InputBindings>
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock Text="Zone 1" FontSize="12" 
                                                Foreground="{StaticResource TextSecondaryBrush}"
@@ -372,14 +393,21 @@
                                     <TextBlock Text="Left" FontSize="10" 
                                                Foreground="{StaticResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center"/>
-                                    <Ellipse Width="16" Height="16" Fill="{StaticResource AccentBrush}" 
-                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Zone1Brush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"
+                                             Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                    <TextBox Text="{Binding Zone1ColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                             FontSize="10" HorizontalAlignment="Center" 
+                                             Margin="0,4,0,0" Width="70" TextAlignment="Center"
+                                             Style="{StaticResource ModernTextBox}"/>
                                 </StackPanel>
                             </Border>
 
+                            <!-- Zone 2 - Middle-L -->
                             <Border Grid.Column="1" Background="{StaticResource SurfaceDarkBrush}" 
                                     CornerRadius="8" Padding="12,8" Margin="3,0"
-                                    BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1">
+                                    BorderBrush="{Binding Zone2Brush}" BorderThickness="2"
+                                    Cursor="Hand">
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock Text="Zone 2" FontSize="12" 
                                                Foreground="{StaticResource TextSecondaryBrush}"
@@ -387,14 +415,21 @@
                                     <TextBlock Text="Middle-L" FontSize="10" 
                                                Foreground="{StaticResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center"/>
-                                    <Ellipse Width="16" Height="16" Fill="{StaticResource AccentBlueBrush}" 
-                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Zone2Brush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"
+                                             Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                    <TextBox Text="{Binding Zone2ColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                             FontSize="10" HorizontalAlignment="Center" 
+                                             Margin="0,4,0,0" Width="70" TextAlignment="Center"
+                                             Style="{StaticResource ModernTextBox}"/>
                                 </StackPanel>
                             </Border>
 
+                            <!-- Zone 3 - Middle-R -->
                             <Border Grid.Column="2" Background="{StaticResource SurfaceDarkBrush}" 
                                     CornerRadius="8" Padding="12,8" Margin="3,0"
-                                    BorderBrush="#9B30FF" BorderThickness="1">
+                                    BorderBrush="{Binding Zone3Brush}" BorderThickness="2"
+                                    Cursor="Hand">
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock Text="Zone 3" FontSize="12" 
                                                Foreground="{StaticResource TextSecondaryBrush}"
@@ -402,14 +437,21 @@
                                     <TextBlock Text="Middle-R" FontSize="10" 
                                                Foreground="{StaticResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center"/>
-                                    <Ellipse Width="16" Height="16" Fill="#9B30FF" 
-                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Zone3Brush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"
+                                             Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                    <TextBox Text="{Binding Zone3ColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                             FontSize="10" HorizontalAlignment="Center" 
+                                             Margin="0,4,0,0" Width="70" TextAlignment="Center"
+                                             Style="{StaticResource ModernTextBox}"/>
                                 </StackPanel>
                             </Border>
 
+                            <!-- Zone 4 - Right -->
                             <Border Grid.Column="3" Background="{StaticResource SurfaceDarkBrush}" 
                                     CornerRadius="8" Padding="12,8" Margin="6,0,0,0"
-                                    BorderBrush="#00FFFF" BorderThickness="1">
+                                    BorderBrush="{Binding Zone4Brush}" BorderThickness="2"
+                                    Cursor="Hand">
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock Text="Zone 4" FontSize="12" 
                                                Foreground="{StaticResource TextSecondaryBrush}"
@@ -417,16 +459,68 @@
                                     <TextBlock Text="Right" FontSize="10" 
                                                Foreground="{StaticResource TextTertiaryBrush}"
                                                HorizontalAlignment="Center"/>
-                                    <Ellipse Width="16" Height="16" Fill="#00FFFF" 
-                                             HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Zone4Brush}" 
+                                             HorizontalAlignment="Center" Margin="0,6,0,0"
+                                             Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                    <TextBox Text="{Binding Zone4ColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                             FontSize="10" HorizontalAlignment="Center" 
+                                             Margin="0,4,0,0" Width="70" TextAlignment="Center"
+                                             Style="{StaticResource ModernTextBox}"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
-
-                        <TextBlock Text="Note: Keyboard zone colors can be set via OmenCore's WMI BIOS interface. Check Settings → Logging to see if keyboard backend is available for your model." 
-                                   FontSize="11" 
+                        
+                        <!-- Preset Selection and Apply Buttons -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Column="0" Text="Preset:" 
+                                       FontSize="14" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            
+                            <ComboBox Grid.Column="1" 
+                                      Style="{StaticResource ModernComboBox}"
+                                      ItemsSource="{Binding KeyboardPresets}"
+                                      SelectedItem="{Binding SelectedKeyboardPreset}"
+                                      DisplayMemberPath="Name"
+                                      Margin="0,0,12,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Apply to Keyboard" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyKeyboardColorsCommand}"
+                                    Padding="16,8"
+                                    Margin="0,0,8,0"/>
+                            
+                            <Button Grid.Column="3" 
+                                    Content="All Same Color" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyAllZonesSameColorCommand}"
+                                    Padding="16,8"
+                                    ToolTip="Apply Zone 1 color to all zones"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Keyboard Unavailable Message -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding IsKeyboardLightingAvailable, Converter={StaticResource InverseBoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="HP OMEN Keyboard" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <TextBlock Text="Keyboard lighting control is not available on this system." 
+                                   FontSize="14" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="This feature requires a supported HP OMEN laptop with 4-zone RGB keyboard and the WMI BIOS interface." 
+                                   FontSize="12" 
                                    Foreground="{StaticResource TextTertiaryBrush}"
-                                   FontStyle="Italic"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

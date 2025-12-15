@@ -2036,7 +2036,7 @@ namespace OmenCore.ViewModels
                     
                     if (hasPeripherals || hasKeyboardLighting)
                     {
-                        Lighting = new LightingViewModel(_corsairDeviceService, _logitechDeviceService, _logging);
+                        Lighting = new LightingViewModel(_corsairDeviceService, _logitechDeviceService, _logging, _keyboardLightingService);
                         OnPropertyChanged(nameof(Lighting));
                         
                         if (hasKeyboardLighting && !hasPeripherals)

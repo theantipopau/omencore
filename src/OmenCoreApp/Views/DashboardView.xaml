@@ -171,9 +171,10 @@
                 </StackPanel>
             </Border>
 
-            <!-- Storage Card -->
+            <!-- Storage Card (hidden when SSD data unavailable) -->
             <Border Grid.Column="3" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
-                    ToolTip="SSD temperature and disk activity. Optimal SSD temp is below 45°C.">
+                    ToolTip="SSD temperature and disk activity. Optimal SSD temp is below 45°C."
+                    Visibility="{Binding IsSsdDataAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
                     <Grid Margin="0,0,0,10">
                         <TextBlock Text="STORAGE" 
