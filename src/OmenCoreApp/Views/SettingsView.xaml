@@ -1307,6 +1307,104 @@
                     </StackPanel>
                 </Border>
 
+                <!-- HP Omen Gaming Hub Cleanup (only show when OGH is installed) -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding OghInstalled, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel DataContext="{Binding DataContext.SystemControl, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" 
+                                  Fill="OrangeRed" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <TextBlock Text="HP OMEN Gaming Hub Cleanup" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        
+                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8" TextWrapping="Wrap">
+                            <Run Text="Remove HP OMEN Gaming Hub and related services. This is optional and will free up system resources."/>
+                        </TextBlock>
+                        
+                        <TextBlock FontSize="12" Margin="0,0,0,16" TextWrapping="Wrap">
+                            <Run Text="⚠️ Warning: These operations cannot be undone easily. Create a System Restore Point before proceeding." FontWeight="Bold" Foreground="Orange"/>
+                        </TextBlock>
+
+                        <!-- Cleanup Options -->
+                        <StackPanel Margin="0,0,0,16">
+                            <CheckBox Content="Kill running HP OMEN processes" 
+                                      IsChecked="{Binding CleanupKillProcesses}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Uninstall HP OMEN Gaming Hub application" 
+                                      IsChecked="{Binding CleanupUninstallApp}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove HP OMEN services (OmenService, LightingService)" 
+                                      IsChecked="{Binding CleanupRemoveServices}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Clean HP OMEN registry entries" 
+                                      IsChecked="{Binding CleanupRegistryEntries}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove HP OMEN legacy installers (winget/AppX)" 
+                                      IsChecked="{Binding CleanupRemoveLegacyInstallers}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      Margin="0,0,0,8"/>
+                            
+                            <CheckBox Content="Remove residual HP OMEN files and folders" 
+                                      IsChecked="{Binding CleanupRemoveFiles}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+
+                        <!-- System Restore -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,0,0,16"
+                                BorderBrush="Orange" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="⚠️ Create System Restore Point" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="Orange" Margin="0,0,0,8"/>
+                                
+                                <TextBlock Text="Highly recommended before performing cleanup operations." 
+                                           FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                
+                                <Button Content="Create Restore Point" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding CreateRestorePointCommand}"
+                                        HorizontalAlignment="Left" Padding="16,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Execute Cleanup -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" 
+                                       Text="{Binding CleanupStatusText}" 
+                                       FontSize="12" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            
+                            <Button Grid.Column="1" 
+                                    Content="🗑️ Run Cleanup" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding RunCleanupCommand}"
+                                    Padding="16,8"
+                                    Background="OrangeRed"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Data & Storage -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>

@@ -224,9 +224,12 @@ Based on community feedback, the following UI improvements were made:
 ### New Files
 - `Views/QuickPopupWindow.xaml(.cs)` - Compact popup near tray
 - `Views/OsdOverlayWindow.xaml(.cs)` - In-game OSD overlay window
+- `Views/GeneralView.xaml(.cs)` - New General tab with paired profiles
+- `Views/AdvancedView.xaml(.cs)` - New Advanced tab for power users
 - `Services/OsdService.cs` - OSD management with global hotkey registration
-- `Services/OmenKeyService.cs` - Low-level keyboard hook for OMEN key
+- `Services/OmenKeyService.cs` - Low-level keyboard hook for OMEN key (enhanced)
 - `Services/DisplayService.cs` - Display power and refresh rate control
+- `Services/ConfigBackupService.cs` - Full config import/export/reset
 - `Models/FeaturePreferences.cs` - Feature toggle settings
 
 ### Modified Files
@@ -234,11 +237,16 @@ Based on community feedback, the following UI improvements were made:
 - `Hardware/WmiFanController.cs` - Added ResetFromMaxMode() sequence
 - `Hardware/HpWmiBios.cs` - Added keyboard RGB + Battery Care Mode methods
 - `Services/KeyboardLightingService.cs` - WMI BIOS backend priority
-- `Utils/TrayIconService.cs` - QuickPopup support, middle-click handler
-- `App.xaml.cs` - Start minimized fix, middle-click wiring
+- `Services/ConfigurationService.cs` - Added Replace() and ResetToDefaults() methods
+- `Utils/TrayIconService.cs` - QuickPopup support, middle-click handler, Quick Profiles submenu
+- `App.xaml.cs` - Start minimized fix, middle-click wiring, tray profile event
+- `ViewModels/MainViewModel.cs` - OMEN key event handling, ApplyQuickProfileFromTray()
+- `ViewModels/FanControlViewModel.cs` - SelectPresetByNameNoApply() for external sync
+- `ViewModels/GeneralViewModel.cs` - New ViewModel for General tab with telemetry polling
 - `ViewModels/SettingsViewModel.cs` - Feature toggle + OSD/Battery/Hysteresis properties
-- `Views/SettingsView.xaml` - Feature Modules + OSD + Battery Care + Hysteresis sections
-- `Models/AppConfig.cs` - Added FeaturePreferences, OsdSettings, BatterySettings, FanHysteresisSettings
+- `Views/SettingsView.xaml` - Feature Modules + OSD + Battery Care + Hysteresis + OGH Cleanup
+- `Views/MainWindow.xaml` - Tab reorganization (General, Advanced, Monitoring, RGB, Settings)
+- `Models/AppConfig.cs` - Added FeaturePreferences, OsdSettings, BatterySettings, FanHysteresisSettings, OmenKey settings
 
 ---
 
@@ -257,6 +265,34 @@ Based on community feedback, the following UI improvements were made:
 | In-game OSD | ❌ No | ✅ Click-through overlay |
 | Battery charge limit | ❌ No | ✅ 80% via BIOS |
 | Feature toggles | ❌ No | ✅ Yes |
+| Tray Quick Profiles | ❌ No | ✅ One-click switching |
+| OGH cleanup tool | ✅ Yes | ✅ Moved to Settings |
+
+---
+
+## 🔄 Latest Updates (Dec 15, 2025)
+
+### UI Reorganization
+- **New General tab** - Combined Performance + Fan profiles with 4 quick profile cards
+- **New Advanced tab** - CPU undervolt, GPU power, custom fan curves grouped together
+- **Profile-Fan Sync** - General tab selections now properly update Fan Control tab
+- **Tabs streamlined** - Removed redundant System Control tab, merged features
+
+### System Tray Enhancements
+- **Quick Profiles menu** - Right-click tray → "🎮 Quick Profiles" submenu
+- **One-click switching** - Performance, Balanced, Quiet profiles accessible from tray
+- **Applies both** - Each profile sets both performance mode and fan mode together
+
+### OMEN Key Interception (Enhanced)
+- **Configurable actions** - Toggle OmenCore, Cycle Performance, Cycle Fan Mode, Show Popup, Launch External App
+- **Per-app launching** - Can launch any .exe when OMEN key is pressed
+- **Debouncing** - 300ms debounce to prevent double-triggering
+- **Config persistence** - Settings saved and restored on startup
+
+### HP OMEN Gaming Hub Cleanup (Restored)
+- **Moved to Settings tab** - OGH cleanup tool now in Settings under "HP OMEN Gaming Hub Cleanup" section
+- **All options preserved** - Kill processes, uninstall, remove services, registry cleanup, file removal
+- **System restore point** - Create restore point before cleanup with one click
 
 ---
 
@@ -280,6 +316,7 @@ Based on community feedback, the following UI improvements were made:
 2. **No action needed:** The continuous fan curve is automatic - just apply your preset
 3. **New tray interaction:** Middle-click for Quick Popup, left-click for main window
 4. **Check Feature Modules:** Disable unused features in Settings to reduce background usage
+5. **OGH Cleanup moved:** Now in Settings tab instead of separate System Control tab
 
 ---
 
@@ -295,6 +332,7 @@ As this is a beta release, please report:
 - Does the **In-Game OSD** appear correctly during gaming?
 - Does **Battery Care Mode** properly limit charge to 80%?
 - Does **Fan Hysteresis** reduce annoying fan oscillation?
+- Do **Tray Quick Profiles** work correctly for fast switching?
 
 **Discord:** https://discord.gg/ahcUC2Un  
 **GitHub Issues:** https://github.com/theantipopau/omencore/issues
