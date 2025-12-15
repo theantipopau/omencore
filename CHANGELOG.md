@@ -9,35 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.3.0-beta] - 2025-12-15
 
-### Added
-- **🔋 Battery Care Mode** - Limit battery charge to 80% for extended battery lifespan
-  - Toggle in Settings tab under Battery Care
-  - Uses HP WMI BIOS command (CMD_BATTERY_CARE = 0x24)
-  - Prevents overcharging when laptop is plugged in frequently
-- **🎮 In-Game OSD Overlay** - Real-time stats overlay during gaming
-  - Shows CPU/GPU temps, load percentages, fan speeds, RAM usage
-  - Click-through transparent window (doesn't interfere with games)
-  - Configurable position (TopLeft/TopRight/BottomLeft/BottomRight)
-  - Global hotkey toggle (F12 by default, customizable)
-  - **Master disable toggle** - When disabled, NO background process runs
-  - Throttling warning indicator
-- **🌡️ Fan Hysteresis** - Prevent fan speed oscillation
-  - Configurable dead-zone temperature threshold (default 3°C)
-  - Ramp-up delay (default 0.5s) - prevents instant speed increases
-  - Ramp-down delay (default 3s) - prevents rapid speed decreases
-  - Smooths out fan behavior when temps fluctuate near curve points
-
-### Changed
-- **UI Polish** - Improved Settings tab layout with organized sections
-- Fan curve behavior now respects hysteresis settings
-- Settings view reorganized with expandable sections
-
-### Technical Notes
-- New: `OsdOverlayWindow.xaml` - Transparent WPF overlay with WS_EX_TRANSPARENT
-- New: `OsdService.cs` - Master toggle, global hotkey registration
-- New: `FanHysteresisSettings`, `OsdSettings`, `BatterySettings` config classes
-- New: `HpWmiBios.GetBatteryCareMode()` / `SetBatteryCareMode()` methods
-- Enhanced: `FanService.cs` with hysteresis state machine
+See [CHANGELOG_v1.3.0-beta.md](docs/CHANGELOG_v1.3.0-beta.md) for full details.
 
 ---
 

@@ -99,6 +99,39 @@ After (v1.3.0):
 
 ## ✨ New Features
 
+### 🔋 Battery Care Mode (NEW)
+
+Limit battery charge to 80% to extend battery lifespan:
+
+- **Toggle in Settings** under "Battery Care" section
+- Uses HP WMI BIOS command (CMD_BATTERY_CARE = 0x24)
+- Prevents overcharging when laptop is plugged in frequently
+- Same feature as OMEN Gaming Hub's Battery Care
+
+### 🎮 In-Game OSD Overlay (NEW)
+
+Real-time stats overlay during gaming:
+
+- **Click-through** - Transparent window doesn't interfere with games
+- **Configurable metrics:** CPU/GPU temps, load %, fan speeds, RAM usage
+- **Position options:** TopLeft, TopRight, BottomLeft, BottomRight
+- **Hotkey toggle:** F12 by default (customizable)
+- **Master disable toggle** - When OFF, NO background process runs
+- **Throttling warning** - Shows alert when CPU/GPU is thermal throttling
+
+Settings in Settings tab → "In-Game OSD" section.
+
+### 🌡️ Fan Hysteresis (NEW)
+
+Prevent fan speed oscillation when temps fluctuate near curve points:
+
+- **Dead-zone threshold:** 3°C default - temps must change by this much to trigger new fan speed
+- **Ramp-up delay:** 0.5s - prevents instant speed increases
+- **Ramp-down delay:** 3s - prevents rapid speed decreases  
+- **Smooths fan behavior** - No more annoying fan ramping up/down constantly
+
+Settings in Settings tab → "Fan Hysteresis" section.
+
 ### Quick Popup UI (Middle-Click Tray)
 
 A compact popup window appears when you middle-click the tray icon:
@@ -190,20 +223,22 @@ Based on community feedback, the following UI improvements were made:
 
 ### New Files
 - `Views/QuickPopupWindow.xaml(.cs)` - Compact popup near tray
+- `Views/OsdOverlayWindow.xaml(.cs)` - In-game OSD overlay window
+- `Services/OsdService.cs` - OSD management with global hotkey registration
 - `Services/OmenKeyService.cs` - Low-level keyboard hook for OMEN key
 - `Services/DisplayService.cs` - Display power and refresh rate control
 - `Models/FeaturePreferences.cs` - Feature toggle settings
 
 ### Modified Files
-- `Services/FanService.cs` - Complete rewrite with continuous curve monitoring
+- `Services/FanService.cs` - Complete rewrite with continuous curve monitoring + hysteresis
 - `Hardware/WmiFanController.cs` - Added ResetFromMaxMode() sequence
-- `Hardware/HpWmiBios.cs` - Added keyboard RGB color methods
+- `Hardware/HpWmiBios.cs` - Added keyboard RGB + Battery Care Mode methods
 - `Services/KeyboardLightingService.cs` - WMI BIOS backend priority
 - `Utils/TrayIconService.cs` - QuickPopup support, middle-click handler
 - `App.xaml.cs` - Start minimized fix, middle-click wiring
-- `ViewModels/SettingsViewModel.cs` - Feature toggle properties
-- `Views/SettingsView.xaml` - Feature Modules section
-- `Models/AppConfig.cs` - Added FeaturePreferences
+- `ViewModels/SettingsViewModel.cs` - Feature toggle + OSD/Battery/Hysteresis properties
+- `Views/SettingsView.xaml` - Feature Modules + OSD + Battery Care + Hysteresis sections
+- `Models/AppConfig.cs` - Added FeaturePreferences, OsdSettings, BatterySettings, FanHysteresisSettings
 
 ---
 
@@ -212,12 +247,15 @@ Based on community feedback, the following UI improvements were made:
 | Metric | v1.2.1 | v1.3.0-beta |
 |--------|--------|-------------|
 | Fan curve update | Once (on click) | Every 15s |
+| Fan hysteresis | ❌ No | ✅ Dead-zone + delays |
 | Monitoring poll (stable) | 1.5s fixed | 5s adaptive |
 | Monitoring poll (changing) | 1.5s fixed | 1s adaptive |
 | DPC latency (typical) | ~1200μs | ~400-600μs |
 | GPU TGP persist on reboot | ❌ No | ✅ Yes |
 | Start minimized | ❌ Broken | ✅ Works |
 | Quick access popup | ❌ No | ✅ Middle-click |
+| In-game OSD | ❌ No | ✅ Click-through overlay |
+| Battery charge limit | ❌ No | ✅ 80% via BIOS |
 | Feature toggles | ❌ No | ✅ Yes |
 
 ---
@@ -254,6 +292,9 @@ As this is a beta release, please report:
 - Does "Start minimized" work on Windows 11?
 - Does the Quick Popup appear on middle-click?
 - Does the OMEN key work on your laptop model?
+- Does the **In-Game OSD** appear correctly during gaming?
+- Does **Battery Care Mode** properly limit charge to 80%?
+- Does **Fan Hysteresis** reduce annoying fan oscillation?
 
 **Discord:** https://discord.gg/ahcUC2Un  
 **GitHub Issues:** https://github.com/theantipopau/omencore/issues
