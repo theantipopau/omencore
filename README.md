@@ -22,9 +22,44 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v1.5.0-beta2
+## 🆕 What's New in v1.5.0 (Beta)
 
-### 🔧 Bug Fixes (from tester feedback)
+### ⚡ Major Features (v1.5.0-beta1)
+
+#### 🖥️ OSD Performance Overlay
+- **In-game overlay** showing CPU/GPU temps, usage, FPS, and fan speeds
+- **Customizable position** (corners) and metrics display
+- **Toggle via hotkey** or system tray
+- Works alongside other overlays (MSI Afterburner, etc.)
+
+#### ⌨️ OMEN Key Interception
+- **Custom actions** when pressing the OMEN key
+- Options: Open OmenCore, Toggle OSD, Show System Info, or Custom Command
+- No more accidentally launching OMEN Gaming Hub
+
+#### 🎨 RGB Keyboard Persistence
+- **Colors survive restarts** - No more resetting to white after reboot
+- Settings saved to config and reapplied on startup
+- Per-zone colors maintained across sessions
+
+#### 🔄 Closed-Loop Fan Verification
+- **RPM readback** confirms fan commands actually applied
+- Automatic retry if BIOS rejected the command
+- Visual indicator shows verification status
+
+#### ✨ HP Spectre Dynamic Branding
+- App detects HP Spectre laptops and adjusts branding
+- "OMEN" references become "HP Spectre" where appropriate
+- Spectre-specific feature availability messaging
+
+#### 🛡️ Safety Improvements
+- **Thermal protection** properly returns fans to BIOS auto control
+- **Max cooling** no longer forces GPU to max power (counterproductive)
+- Better WinRing0 removal - PawnIO preferred for driver operations
+
+---
+
+### 🔧 Bug Fixes (v1.5.0-beta2)
 - **Auto-update file locking** - Fixed "file in use" errors with retry logic
 - **AC/Battery crash** - Fixed crash when unplugging power adapter
 - **AC status indicator** - Now updates live when plugging/unplugging
@@ -34,7 +69,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - **Installer text** - Fixed truncated welcome screen
 - **Window focus** - Reliable focus when restoring from tray
 
-### 💻 HP Spectre Support
+### 💻 HP Spectre Support (beta2)
 - **Spectre-specific messaging** - Clear guidance about power limit limitations
 - **Helpful suggestions** - Recommends Intel XTU or ThrottleStop for CPU power control
 - **What works on Spectre**: Fan control, monitoring, power plans, presets
@@ -43,7 +78,39 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### ✨ Tester Feedback
 > "Fan hysteresis seems to be improved, it is much more smoother than 1.4"
 
-See [CHANGELOG_v1.5.0-beta2.md](docs/CHANGELOG_v1.5.0-beta2.md) for full details.
+See [CHANGELOG_v1.5.0-beta.md](docs/CHANGELOG_v1.5.0-beta.md) and [CHANGELOG_v1.5.0-beta2.md](docs/CHANGELOG_v1.5.0-beta2.md) for full details.
+
+---
+
+## 🆕 What's New in v1.4.0
+
+### 🗑️ HP Bloatware Removal Tool
+- **One-click scanner** detects HP pre-installed bloatware (AD2F1837.HP* packages)
+- **Safe removal** with confirmation dialog and warnings
+- **Preserves HP Support Assistant** for driver updates
+- Located in Settings tab → HP Bloatware Removal
+
+### ⚡ Performance Optimizations
+- **WMI query caching** - 80% reduction in WMI calls, faster startup
+- **Adaptive process polling** - 2s when gaming, 10s when idle (saves battery)
+- **Fan curve fix** - Auto mode now properly applies software fan curves
+
+### 🎨 RGB Keyboard Improvements
+- **Success rate telemetry** - Tracks WMI vs EC success rates
+- **Desktop PC support** - OMEN 25L/30L/40L/45L models
+- **ColorTable format fix** - Proper 128-byte structure for color data
+
+### 🛡️ Stability & Safety
+- **Fan curve validation** - Prevents invalid curves (min 2 points, proper temp coverage)
+- **Command exception handling** - Graceful error dialogs instead of crashes
+- **XTU detection fix** - Properly checks Windows services, not just processes
+
+### 🖱️ Corsair Device Detection
+- **WirelessDongle type** for USB receivers
+- **Dark Core RGB PRO** - Fixed mouse vs receiver detection
+- **Better logging** with device type icons
+
+See [CHANGELOG_v1.4.0.md](docs/CHANGELOG_v1.4.0.md) for full details.
 
 ---
 
