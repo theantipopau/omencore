@@ -12,6 +12,24 @@ Version 1.6 focuses on platform expansion, performance optimization, and archite
 
 ---
 
+## Bug Fixes
+
+### Auto-Update File Locking Issue
+**Priority:** High  
+**Source:** User Report (Dec 2025)
+
+**Problem:** Auto-update download fails with `IOException: The process cannot access the file because it is being used by another process` when computing SHA256 hash after download.
+
+**Root Cause:** `AutoUpdateService.ComputeSha256Hash()` tries to open the downloaded file before the `HttpClient` response stream is fully disposed/closed.
+
+**Fix:**
+- Ensure download stream is properly disposed with `using` blocks
+- Add small delay or retry logic before hash computation
+- Use `FileShare.Read` when opening for hash computation
+- Consider downloading to temp file first, then moving
+
+---
+
 ## Major Features
 
 ### 1. Linux Support 🐧
