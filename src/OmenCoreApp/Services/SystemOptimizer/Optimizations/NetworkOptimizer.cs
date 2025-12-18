@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -8,6 +9,7 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
     /// <summary>
     /// Handles network optimizations: TCP settings, Nagle algorithm, Delivery Optimization.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class NetworkOptimizer
     {
         private readonly LoggingService _logger;

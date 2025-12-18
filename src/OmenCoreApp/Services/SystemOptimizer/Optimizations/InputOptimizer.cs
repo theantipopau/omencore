@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -8,6 +9,7 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
     /// <summary>
     /// Handles input optimizations: Mouse acceleration, Game DVR, Game Bar, fullscreen optimizations.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class InputOptimizer
     {
         private readonly LoggingService _logger;

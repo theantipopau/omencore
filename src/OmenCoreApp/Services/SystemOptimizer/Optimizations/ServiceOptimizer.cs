@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Versioning;
 using System.ServiceProcess;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -9,6 +10,7 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
     /// <summary>
     /// Handles Windows service optimizations: telemetry, SysMain, Search indexing, DiagTrack.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class ServiceOptimizer : IDisposable
     {
         private readonly LoggingService _logger;

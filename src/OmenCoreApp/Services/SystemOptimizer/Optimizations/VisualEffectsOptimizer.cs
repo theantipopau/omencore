@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -9,6 +10,7 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
     /// <summary>
     /// Handles visual effects optimizations: Animations, transparency, visual presets.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class VisualEffectsOptimizer
     {
         private readonly LoggingService _logger;

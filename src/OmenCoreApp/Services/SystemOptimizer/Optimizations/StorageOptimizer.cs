@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -12,6 +13,7 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
     /// <summary>
     /// Handles storage optimizations: SSD detection, TRIM, 8.3 names, last access timestamps.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class StorageOptimizer
     {
         private readonly LoggingService _logger;

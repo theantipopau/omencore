@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 
 namespace OmenCore.Services.SystemOptimizer
@@ -6,6 +7,7 @@ namespace OmenCore.Services.SystemOptimizer
     /// Verifies the current state of optimizations.
     /// Used to check if optimizations are active and report status.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class OptimizationVerifier
     {
         private readonly LoggingService _logger;

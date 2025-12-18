@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 
@@ -10,6 +11,7 @@ namespace OmenCore.Services.SystemOptimizer
     /// Handles backup and restoration of registry keys modified by optimizations.
     /// Creates Windows restore points before major changes.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class RegistryBackupService
     {
         private readonly LoggingService _logger;

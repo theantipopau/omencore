@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using OmenCore.Services.SystemOptimizer.Optimizations;
 
@@ -9,6 +10,7 @@ namespace OmenCore.Services.SystemOptimizer
     /// Main orchestration service for all Windows gaming optimizations.
     /// Coordinates individual optimizers and manages state.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public class SystemOptimizerService : IDisposable
     {
         private readonly LoggingService _logger;
