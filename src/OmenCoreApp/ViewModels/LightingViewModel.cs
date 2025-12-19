@@ -43,6 +43,7 @@ namespace OmenCore.ViewModels
         private string _zone4ColorHex = "#00FFFF"; // Cyan
         private KeyboardPreset? _selectedKeyboardPreset;
         private bool _colorsLoadedFromConfig; // Track if colors were loaded from saved config
+        private bool _applyKeyboardColorsOnStartup = true;
 
         public ReadOnlyObservableCollection<CorsairDevice> CorsairDevices => _corsairService.Devices;
         public ReadOnlyObservableCollection<LogitechDevice> LogitechDevices => _logitechService.Devices;
@@ -140,6 +141,23 @@ namespace OmenCore.ViewModels
         /// Backend type for keyboard lighting (WMI BIOS, WMI, EC, or None).
         /// </summary>
         public string KeyboardLightingBackend => _keyboardLightingService?.BackendType ?? "None";
+        
+        /// <summary>
+        /// Whether to automatically apply saved keyboard colors on startup.
+        /// </summary>
+        public bool ApplyKeyboardColorsOnStartup
+        {
+            get => _applyKeyboardColorsOnStartup;
+            set
+            {
+                if (_applyKeyboardColorsOnStartup != value)
+                {
+                    _applyKeyboardColorsOnStartup = value;
+                    OnPropertyChanged();
+                    SaveKeyboardStartupSetting();
+                }
+            }
+        }
 
         #region Zone Color Properties
         
@@ -748,6 +766,9 @@ namespace OmenCore.ViewModels
                 _zone3ColorHex = config.Zone3Color ?? "#E6002E";
                 _zone4ColorHex = config.Zone4Color ?? "#E6002E";
                 
+                // Load the apply on startup setting
+                _applyKeyboardColorsOnStartup = config.ApplyOnStartup;
+                
                 // Mark that we loaded colors from config - this prevents the default preset from
                 // overwriting our saved colors during initialization
                 _colorsLoadedFromConfig = hasCustomColors;
@@ -780,6 +801,25 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to save keyboard colors: {ex.Message}");
+            }
+        }
+        
+        private void SaveKeyboardStartupSetting()
+        {
+            try
+            {
+                if (_configService == null) return;
+                
+                if (_configService.Config.KeyboardLighting == null)
+                    _configService.Config.KeyboardLighting = new KeyboardLightingSettings();
+                
+                _configService.Config.KeyboardLighting.ApplyOnStartup = _applyKeyboardColorsOnStartup;
+                _configService.Save(_configService.Config);
+                _logging.Info($"Keyboard apply on startup setting saved: {_applyKeyboardColorsOnStartup}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to save keyboard startup setting: {ex.Message}");
             }
         }
         

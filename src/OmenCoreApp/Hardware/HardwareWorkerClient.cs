@@ -356,6 +356,8 @@ namespace OmenCore.Hardware
         public double GpuPower { get; set; }
         public double GpuClock { get; set; }
         public double GpuMemoryClock { get; set; }
+        public double GpuVoltage { get; set; }
+        public double GpuCurrent { get; set; }
         public double VramUsage { get; set; }
         public double VramTotal { get; set; }
         

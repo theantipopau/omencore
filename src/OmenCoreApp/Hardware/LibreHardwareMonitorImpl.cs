@@ -57,6 +57,8 @@ namespace OmenCore.Hardware
         private double _cachedGpuPower = 0;
         private double _cachedGpuClock = 0;
         private double _cachedGpuMemoryClock = 0;
+        private double _cachedGpuVoltage = 0;
+        private double _cachedGpuCurrent = 0;
         private double _cachedVramTotal = 0;
         private double _cachedGpuFan = 0;
         private double _cachedGpuHotspot = 0;
@@ -77,9 +79,13 @@ namespace OmenCore.Hardware
         private static readonly TimeSpan _lowOverheadCacheLifetime = TimeSpan.FromMilliseconds(3000); // 3 seconds in low overhead
 
         private readonly Action<string>? _logger;
+        // Temperature smoothing
+        private readonly List<double> _cpuTempHistory = new();
+        private const int CpuTempSmoothingWindow = 3; // 3 readings average
+        private double _smoothedCpuTemp = 0;
         private int _consecutiveZeroTempReadings = 0;
-        private const int MaxZeroTempReadingsBeforeReinit = 5;
-        private bool _noFanSensorsLogged = false; // Only log once to reduce spam
+        private const int MaxZeroTempReadingsBeforeReinit = 6;
+        private bool _noFanSensorsLogged = false;
 
         /// <summary>
         /// Create an in-process hardware monitor (default).
@@ -294,6 +300,8 @@ namespace OmenCore.Hardware
                 _cachedGpuPower = workerSample.GpuPower;
                 _cachedGpuClock = workerSample.GpuClock;
                 _cachedGpuMemoryClock = workerSample.GpuMemoryClock;
+                _cachedGpuVoltage = workerSample.GpuVoltage;
+                _cachedGpuCurrent = workerSample.GpuCurrent;
                 _cachedGpuHotspot = workerSample.GpuHotspot;
                 
                 _cachedVramUsage = workerSample.VramUsage;
@@ -408,31 +416,43 @@ namespace OmenCore.Hardware
                     {
                         case HardwareType.Cpu:
                             // CPU Temperature Selection Priority:
-                            // Use Core #1 for fan control (more stable, less spiky than Package)
-                            // Package temp includes spikes from boost/turbo that cause unnecessary fan ramp
-                            // Core temps are smoothed and better represent actual thermal load
-                            var cpuTempSensor = GetSensor(hardware, SensorType.Temperature, "Core #1")             // Intel Core #1 (stable)
-                                ?? GetSensor(hardware, SensorType.Temperature, "Core #0")                         // Intel Core #0 fallback
-                                ?? GetSensor(hardware, SensorType.Temperature, "Core Average")                    // Avg core temp
-                                ?? GetSensor(hardware, SensorType.Temperature, "Core Max")                        // Max core temp
-                                ?? GetSensorExact(hardware, SensorType.Temperature, "Core (Tctl/Tdie)")           // AMD Ryzen primary
-                                ?? GetSensor(hardware, SensorType.Temperature, "Tctl/Tdie")                       // AMD Ryzen (partial match)
-                                ?? GetSensor(hardware, SensorType.Temperature, "Tctl")                            // AMD older
-                                ?? GetSensor(hardware, SensorType.Temperature, "Tdie")                            // AMD Ryzen alt
-                                ?? GetSensorExact(hardware, SensorType.Temperature, "CPU (Tctl/Tdie)")            // AMD Ryzen variant
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCD1 (Tdie)")                     // AMD CCD1 with Tdie suffix
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCD 1 (Tdie)")                    // AMD CCD 1 with space
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCD1")                            // AMD CCD fallback
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCD 1")                           // AMD CCD with space
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCDs Max")                        // AMD multi-CCD
-                                ?? GetSensor(hardware, SensorType.Temperature, "CCDs Average")                    // AMD multi-CCD avg
-                                ?? GetSensorExact(hardware, SensorType.Temperature, "CPU Package")                // Intel Package (fallback)
-                                ?? GetSensor(hardware, SensorType.Temperature, "CPU")                             // AMD Ryzen AI / generic
-                                ?? GetSensor(hardware, SensorType.Temperature, "SoC")                             // AMD APU SoC
-                                ?? GetSensor(hardware, SensorType.Temperature, "Socket")                          // Socket temp
+                            // Prioritize stable sensors over individual cores to avoid spurious readings
+                            // Package/Core Max sensors provide better thermal load representation
+                            var cpuTempSensor = GetSensorExact(hardware, SensorType.Temperature, "CPU Package")       // Intel Package (most stable)
+                                ?? GetSensor(hardware, SensorType.Temperature, "Package")                           // Intel Package (partial)
+                                ?? GetSensorExact(hardware, SensorType.Temperature, "Core (Tctl/Tdie)")             // AMD Ryzen primary (stable)
+                                ?? GetSensor(hardware, SensorType.Temperature, "Tctl/Tdie")                         // AMD Ryzen (partial)
+                                ?? GetSensor(hardware, SensorType.Temperature, "Core Max")                          // Max core temp (stable)
+                                ?? GetSensor(hardware, SensorType.Temperature, "Core Average")                      // Average core temp
+                                ?? GetSensor(hardware, SensorType.Temperature, "Core #1")                           // Intel Core #1
+                                ?? GetSensor(hardware, SensorType.Temperature, "Core #0")                           // Intel Core #0
+                                ?? GetSensor(hardware, SensorType.Temperature, "Tctl")                              // AMD older
+                                ?? GetSensor(hardware, SensorType.Temperature, "Tdie")                              // AMD Ryzen alt
+                                ?? GetSensorExact(hardware, SensorType.Temperature, "CPU (Tctl/Tdie)")              // AMD Ryzen variant
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCD1 (Tdie)")                       // AMD CCD1 with Tdie suffix
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCD 1 (Tdie)")                      // AMD CCD 1 with space
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCD1")                              // AMD CCD fallback
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCD 1")                             // AMD CCD with space
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCDs Max")                          // AMD multi-CCD
+                                ?? GetSensor(hardware, SensorType.Temperature, "CCDs Average")                      // AMD multi-CCD avg
+                                ?? GetSensor(hardware, SensorType.Temperature, "CPU")                               // AMD Ryzen AI / generic
+                                ?? GetSensor(hardware, SensorType.Temperature, "SoC")                               // AMD APU SoC
+                                ?? GetSensor(hardware, SensorType.Temperature, "Socket")                            // Socket temp
                                 ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Value > 0);
                             
                             _cachedCpuTemp = cpuTempSensor?.Value ?? 0;
+                            
+                            // Apply temperature smoothing to reduce spurious readings
+                            if (_cachedCpuTemp > 0)
+                            {
+                                _cpuTempHistory.Add(_cachedCpuTemp);
+                                if (_cpuTempHistory.Count > CpuTempSmoothingWindow)
+                                {
+                                    _cpuTempHistory.RemoveAt(0);
+                                }
+                                _smoothedCpuTemp = _cpuTempHistory.Average();
+                                _cachedCpuTemp = _smoothedCpuTemp;
+                            }
                             
                             // If still 0, try refreshing the hardware
                             if (_cachedCpuTemp == 0)
@@ -835,6 +855,8 @@ namespace OmenCore.Hardware
                 GpuPowerWatts = Math.Round(_cachedGpuPower, 1),
                 GpuClockMhz = Math.Round(_cachedGpuClock, 0),
                 GpuMemoryClockMhz = Math.Round(_cachedGpuMemoryClock, 0),
+                GpuVoltageV = Math.Round(_cachedGpuVoltage, 3),
+                GpuCurrentA = Math.Round(_cachedGpuCurrent, 2),
                 GpuVramTotalMb = Math.Round(_cachedVramTotal, 0),
                 GpuFanPercent = Math.Round(Math.Clamp(_cachedGpuFan, 0, 100), 0),  // Clamp to valid range
                 GpuHotspotTemperatureC = Math.Round(_cachedGpuHotspot, 1),

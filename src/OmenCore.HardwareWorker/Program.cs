@@ -196,9 +196,18 @@ class Program
         switch (hardware.HardwareType)
         {
             case HardwareType.Cpu:
-                // CPU Temperature - prefer Core #1 over Package (more stable)
+                // CPU Temperature - prioritize stable sensors over individual cores
                 var cpuTemp = GetSensorValueMulti(hardware, SensorType.Temperature, 
-                    "Core #1", "Core #0", "Core (Tctl/Tdie)", "CPU Package");
+                    "CPU Package", "Package",                                    // Intel Package (most stable)
+                    "Core (Tctl/Tdie)", "Tctl/Tdie",                          // AMD Ryzen primary
+                    "Core Max", "Core Average",                               // Stable aggregates
+                    "Core #1", "Core #0",                                    // Individual cores (fallback)
+                    "Tctl", "Tdie",                                          // AMD variants
+                    "CPU (Tctl/Tdie)",                                       // AMD Ryzen variant
+                    "CCD1 (Tdie)", "CCD 1 (Tdie)",                          // AMD CCD with Tdie
+                    "CCD1", "CCD 1",                                        // AMD CCD fallback
+                    "CCDs Max", "CCDs Average",                             // AMD multi-CCD
+                    "CPU", "SoC", "Socket");                                // Generic fallbacks
                 if (cpuTemp > 0) sample.CpuTemperature = cpuTemp;
                 
                 var cpuLoad = GetSensorValue(hardware, SensorType.Load, "CPU Total");
@@ -225,6 +234,12 @@ class Program
                 
                 var gpuPower = GetSensorValueMulti(hardware, SensorType.Power, "GPU Power");
                 if (gpuPower > 0) sample.GpuPower = gpuPower;
+                
+                var gpuVoltage = GetSensorValueMulti(hardware, SensorType.Voltage, "GPU Core");
+                if (gpuVoltage > 0) sample.GpuVoltage = gpuVoltage;
+                
+                var gpuCurrent = GetSensorValueMulti(hardware, SensorType.Current, "GPU Core");
+                if (gpuCurrent > 0) sample.GpuCurrent = gpuCurrent;
                 
                 var gpuClock = GetSensorValue(hardware, SensorType.Clock, "GPU Core");
                 if (gpuClock > 0) sample.GpuClock = gpuClock;
@@ -460,6 +475,8 @@ public class HardwareSample
     public double GpuPower { get; set; }
     public double GpuClock { get; set; }
     public double GpuMemoryClock { get; set; }
+    public double GpuVoltage { get; set; }
+    public double GpuCurrent { get; set; }
     public double VramUsage { get; set; }
     public double VramTotal { get; set; }
     

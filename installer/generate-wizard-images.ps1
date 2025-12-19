@@ -71,7 +71,7 @@ $largeGraphics.DrawString("OmenCore", $titleFont, $titleBrush, $titleRect, $form
 $versionFont = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $versionBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 138, 43, 226))
 $versionRect = New-Object System.Drawing.RectangleF(0, 185, $largeWidth, 20)
-$largeGraphics.DrawString("v1.5.0", $versionFont, $versionBrush, $versionRect, $format)
+$largeGraphics.DrawString("v2.0.0-alpha1", $versionFont, $versionBrush, $versionRect, $format)
 
 # Tagline
 $tagFont = New-Object System.Drawing.Font("Segoe UI", 9)

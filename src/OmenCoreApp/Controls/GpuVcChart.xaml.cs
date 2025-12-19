@@ -10,10 +10,10 @@ using OmenCore.Models;
 
 namespace OmenCore.Controls
 {
-    public partial class LoadChart : UserControl
+    public partial class GpuVcChart : UserControl
     {
         public static readonly DependencyProperty SamplesProperty = DependencyProperty.Register(
-            nameof(Samples), typeof(IEnumerable<MonitoringSample>), typeof(LoadChart),
+            nameof(Samples), typeof(IEnumerable<MonitoringSample>), typeof(GpuVcChart),
             new PropertyMetadata(null, OnSamplesChanged));
 
         public IEnumerable<MonitoringSample>? Samples
@@ -24,12 +24,12 @@ namespace OmenCore.Controls
 
         private double _dpiScale = 1.0;
         private DateTime _lastRender = DateTime.MinValue;
-        private const int RenderThrottleMs = 50; // Increased to 20 FPS for smoother animation
+        private const int RenderThrottleMs = 50; // 20 FPS for smooth animation
         private bool _renderPending;
-        private Polyline? _cpuLine;
-        private Polyline? _gpuLine;
+        private Polyline? _voltageLine;
+        private Polyline? _currentLine;
 
-        public LoadChart()
+        public GpuVcChart()
         {
             InitializeComponent();
             Loaded += (s, e) => UpdateDpiScale();
@@ -47,7 +47,7 @@ namespace OmenCore.Controls
 
         private static void OnSamplesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            if (d is LoadChart chart)
+            if (d is GpuVcChart chart)
             {
                 if (e.OldValue is INotifyCollectionChanged oldCollection)
                 {
@@ -66,7 +66,7 @@ namespace OmenCore.Controls
             // Throttle rendering to reduce CPU usage
             var now = DateTime.UtcNow;
             var elapsed = (now - _lastRender).TotalMilliseconds;
-            
+
             if (elapsed < RenderThrottleMs)
             {
                 if (!_renderPending)
@@ -80,7 +80,7 @@ namespace OmenCore.Controls
                 }
                 return;
             }
-            
+
             _lastRender = now;
             Render();
         }
@@ -96,8 +96,8 @@ namespace OmenCore.Controls
             if (snapshot.Count < 2)
             {
                 ChartCanvas.Children.Clear();
-                _cpuLine = null;
-                _gpuLine = null;
+                _voltageLine = null;
+                _currentLine = null;
                 return;
             }
 
@@ -120,49 +120,75 @@ namespace OmenCore.Controls
             var strokeThickness = Math.Max(2.0, 1.5 * _dpiScale);
 
             // Reuse polylines for better performance
-            if (_cpuLine == null)
+            if (_voltageLine == null)
             {
-                _cpuLine = new Polyline
+                _voltageLine = new Polyline
                 {
                     Stroke = (Brush)FindResource("AccentBrush"),
                     StrokeThickness = strokeThickness,
                     StrokeLineJoin = PenLineJoin.Round,
                     CacheMode = new BitmapCache()
                 };
-                ChartCanvas.Children.Add(_cpuLine);
+                ChartCanvas.Children.Add(_voltageLine);
             }
             else
             {
-                _cpuLine.StrokeThickness = strokeThickness;
+                _voltageLine.StrokeThickness = strokeThickness;
             }
 
-            if (_gpuLine == null)
+            if (_currentLine == null)
             {
-                _gpuLine = new Polyline
+                _currentLine = new Polyline
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(31, 195, 255)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(76, 175, 80)), // Green
                     StrokeThickness = strokeThickness,
                     StrokeDashArray = new DoubleCollection { 3, 2 },
                     CacheMode = new BitmapCache()
                 };
-                ChartCanvas.Children.Add(_gpuLine);
+                ChartCanvas.Children.Add(_currentLine);
             }
             else
             {
-                _gpuLine.StrokeThickness = strokeThickness;
+                _currentLine.StrokeThickness = strokeThickness;
             }
 
             // Clear existing points and add new ones
-            _cpuLine.Points.Clear();
-            _gpuLine.Points.Clear();
+            _voltageLine.Points.Clear();
+            _currentLine.Points.Clear();
+
+            // Find voltage/current ranges for scaling
+            var voltages = snapshot.Where(s => s.GpuVoltageV > 0).Select(s => s.GpuVoltageV).ToList();
+            var currents = snapshot.Where(s => s.GpuCurrentA > 0).Select(s => s.GpuCurrentA).ToList();
+
+            if (voltages.Count == 0 || currents.Count == 0)
+            {
+                return; // No data to display
+            }
+
+            var minVoltage = voltages.Min();
+            var maxVoltage = voltages.Max();
+            var minCurrent = currents.Min();
+            var maxCurrent = currents.Max();
+
+            // Use combined range for Y-axis scaling (voltage in volts, current in amps)
+            var voltageRange = maxVoltage - minVoltage;
+            var currentRange = maxCurrent - minCurrent;
 
             for (var i = 0; i < snapshot.Count; i++)
             {
                 var x = width * i / Math.Max(1, snapshot.Count - 1);
-                var cpuY = height - (snapshot[i].CpuLoadPercent / 100d) * height;
-                var gpuY = height - (snapshot[i].GpuLoadPercent / 100d) * height;
-                _cpuLine.Points.Add(new Point(x, cpuY));
-                _gpuLine.Points.Add(new Point(x, gpuY));
+
+                // Scale voltage (0-1.5V typical range)
+                var voltageY = height - ((snapshot[i].GpuVoltageV - minVoltage) / Math.Max(voltageRange, 0.1)) * height;
+
+                // Scale current (0-50A typical range)
+                var currentY = height - ((snapshot[i].GpuCurrentA - minCurrent) / Math.Max(currentRange, 1.0)) * height;
+
+                if (snapshot[i].GpuVoltageV > 0)
+                    _voltageLine.Points.Add(new Point(x, voltageY));
+
+                if (snapshot[i].GpuCurrentA > 0)
+                    _currentLine.Points.Add(new Point(x, currentY));
             }
         }
 

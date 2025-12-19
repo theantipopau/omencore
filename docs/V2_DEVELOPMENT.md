@@ -2,6 +2,7 @@
 
 **Branch:** `v2.0-dev`  
 **Started:** December 18, 2025  
+**Current Version:** v2.0.0-alpha1  
 **Target:** Q2 2026
 
 ---
@@ -19,16 +20,18 @@
 - [x] Smooth hover animations
 - [x] Temperature display improvements
 - [x] Compact mode option
+- [x] **Fix tray icon update crashes** (WPF logical parent issues)
+- [x] **Fix right-click context menu not showing** (temporarily using regular ContextMenu with dark theme)
 
 #### 1.2 Dashboard Polish ⬜
 - [ ] Card-based layout with consistent shadows
-- [ ] Improve LoadChart rendering smoothness
+- [x] Improve LoadChart rendering smoothness
 - [ ] Status badges with clear iconography
 - [ ] Quick action button hover states
 - [ ] Better spacing and alignment
 
-#### 1.3 Settings View Improvements ⬜
-- [ ] Toggle switches instead of checkboxes
+#### 1.3 Settings View Improvements ✅
+- [x] Toggle switches instead of checkboxes
 - [ ] Grouped sections with headers
 - [ ] Inline help text for complex options
 - [ ] Better organization
@@ -180,17 +183,31 @@
 - [ ] Auto-apply on game launch
 - [ ] Steam/GOG/Epic library integration
 
+#### 5.1 OSD Overlay ⬜
+- [ ] RTSS integration research
+- [ ] Transparent overlay window fallback
+- [ ] Mode change notifications
+- [ ] Customizable metrics display
+
+#### 5.2 Game Profiles ⬜
+- [ ] Process detection for games
+- [ ] Per-game settings storage
+- [ ] Auto-apply on game launch
+- [ ] Steam/GOG/Epic library integration
+
 #### 5.3 GPU Overclocking ⬜
 - [ ] NVAPI SDK integration
 - [ ] Core clock offset slider
 - [ ] Memory clock offset slider
 - [ ] Power limit adjustment
 - [ ] V/F curve editor (advanced)
+- [x] **GPU Voltage/Current Graph** - Real-time V/C monitoring chart
 
 #### 5.4 CPU Overclocking ⬜
 - [ ] PL1/PL2 adjustment UI
 - [ ] Turbo duration control
 - [ ] Comprehensive warnings
+- [x] **Per-Core Undervolt** - Individual undervolt controls for each CPU core
 
 ---
 
@@ -289,7 +306,7 @@
 | 5. Advanced Features | ⚪ Planned | 0/15 |
 | 6. Polish & Release | ⚪ Planned | 0/8 |
 
-**Overall: 41/114 tasks (36%)**
+**Overall: 42/114 tasks (37%)**
 
 ---
 

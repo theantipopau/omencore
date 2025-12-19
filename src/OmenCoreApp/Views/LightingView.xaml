@@ -690,6 +690,240 @@
                                     Padding="16,8"
                                     ToolTip="Apply Zone 1 color to all zones"/>
                         </Grid>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- Apply on Startup Toggle -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="16" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Apply Colors on Startup" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Automatically restore saved keyboard colors when OmenCore starts" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
                 

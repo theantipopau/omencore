@@ -6,6 +6,7 @@
              xmlns:controls="clr-namespace:OmenCore.Controls"
              xmlns:utils="clr-namespace:OmenCore.Utils"
              xmlns:views="clr-namespace:OmenCore.Views"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1000">
     <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
@@ -192,6 +193,95 @@
                                 Value="{Binding SystemControl.RequestedCacheOffset, Mode=TwoWay}"
                                 IsSnapToTickEnabled="True"/>
                     </StackPanel>
+
+                    <!-- Per-Core Undervolt Toggle -->
+                    <Border Background="{StaticResource SurfaceDarkBrush}" 
+                            CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Enable Per-Core Undervolting" 
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Set individual voltage offsets for each CPU core" 
+                                               FontSize="11" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                
+                                <ToggleButton Grid.Column="1" 
+                                              IsChecked="{Binding SystemControl.EnablePerCoreUndervolt, Mode=TwoWay}"
+                                              Style="{StaticResource ModernToggleButton}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+                            
+                            <TextBlock Text="⚠️ Advanced feature - requires testing each core individually. Start with conservative values." 
+                                       FontSize="11" 
+                                       Foreground="Orange"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Per-Core Offset Controls - Only visible when enabled -->
+                    <Border Visibility="{Binding SystemControl.PerCoreUndervoltVisible, Converter={StaticResource BoolToVisibility}}"
+                            Background="{StaticResource SurfaceDarkBrush}" 
+                            CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Per-Core Voltage Offsets" 
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,0,0,12"/>
+                            
+                            <TextBlock Text="Individual core offsets (leave empty to use global core offset):" 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,0,8"/>
+                            
+                            <!-- Per-core controls will be added here dynamically -->
+                            <ItemsControl ItemsSource="{Binding SystemControl.PerCoreOffsets}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource SurfaceBrush}" 
+                                                CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                
+                                                <TextBlock Grid.Column="0" 
+                                                           Text="{Binding CoreName}" 
+                                                           FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,12,0"/>
+                                                           
+                                                <Slider Grid.Column="1" 
+                                                        Minimum="-200" Maximum="0" 
+                                                        TickFrequency="5" 
+                                                        Value="{Binding OffsetMv, Mode=TwoWay, TargetNullValue={x:Static sys:Double.NaN}}"
+                                                        IsSnapToTickEnabled="True"
+                                                        Margin="0,0,12,0"/>
+                                                        
+                                                <TextBlock Grid.Column="2" 
+                                                           Text="{Binding OffsetText}" 
+                                                           FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource AccentBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Width="60" TextAlignment="Right"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Apply Buttons -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

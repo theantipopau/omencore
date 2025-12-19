@@ -185,6 +185,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" MinHeight="250"/>
                 <RowDefinition Height="*" MinHeight="250"/>
+                <RowDefinition Height="*" MinHeight="250"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="400"/>
@@ -276,6 +277,44 @@
                                FontSize="13"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                LineHeight="22"/>
+                </StackPanel>
+            </Border>
+
+            <!-- GPU Voltage/Current Chart -->
+            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,10,10,0">
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <TextBlock Text="GPU VOLTAGE &amp; CURRENT" 
+                                   Style="{StaticResource Label}" 
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Left"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="VOLTAGE" 
+                                           FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding LatestMonitoringSample.GpuVoltageV, StringFormat={}{0:F2}V, FallbackValue=--V}" 
+                                           Style="{StaticResource SecondaryValue}"
+                                           FontSize="18"
+                                           Foreground="#FF6B6B"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="CURRENT" 
+                                           FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding LatestMonitoringSample.GpuCurrentA, StringFormat={}{0:F1}A, FallbackValue=--A}" 
+                                           Style="{StaticResource SecondaryValue}"
+                                           FontSize="18"
+                                           Foreground="#4CAF50"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                    <controls:GpuVcChart Samples="{Binding MonitoringSamples}" 
+                                          Height="200"/>
                 </StackPanel>
             </Border>
         </Grid>

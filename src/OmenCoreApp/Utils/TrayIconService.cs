@@ -78,104 +78,258 @@ namespace OmenCore.Utils
 
         private void InitializeContextMenu()
         {
-            // Use our fully custom DarkContextMenu - no white margins, no icon gutter
-            var contextMenu = new DarkContextMenu();
+            // TEMP: Use regular ContextMenu with dark theme resources
+            var contextMenu = new ContextMenu();
+            
+            // Apply dark theme resources to override default Windows styling
+            var darkResources = new ResourceDictionary();
+            darkResources.Add(SystemColors.MenuBarBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)));
+            darkResources.Add(SystemColors.MenuBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)));
+            darkResources.Add(SystemColors.MenuTextBrushKey, new SolidColorBrush(Color.FromRgb(240, 240, 245)));
+            darkResources.Add(SystemColors.HighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)));
+            darkResources.Add(SystemColors.HighlightTextBrushKey, Brushes.White);
+            darkResources.Add(SystemColors.MenuHighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)));
+            darkResources.Add(SystemColors.ControlBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)));
+            darkResources.Add(SystemColors.WindowBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)));
+            
+            // Apply gradient background with OMEN accent
+            var gradientBg = new LinearGradientBrush(
+                Color.FromRgb(18, 20, 35),
+                Color.FromRgb(25, 28, 48),
+                new Point(0, 0),
+                new Point(0, 1));
+            contextMenu.Background = gradientBg;
+            contextMenu.Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 245));
+            contextMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(255, 0, 92)); // OMEN Red accent
+            contextMenu.BorderThickness = new Thickness(1);
+            
+            // Create dark MenuItem style
+            var menuItemStyle = new Style(typeof(MenuItem));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(240, 240, 245))));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(12, 8, 12, 8)));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.MinHeightProperty, 32.0));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.FontFamilyProperty, new FontFamily("Segoe UI")));
+            menuItemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 12.0));
+            
+            // Add hover trigger with OMEN accent
+            var hoverTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+            hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 0, 92)))); // OMEN red
+            hoverTrigger.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(255, 255, 255))));
+            menuItemStyle.Triggers.Add(hoverTrigger);
+            
+            darkResources.Add(typeof(MenuItem), menuItemStyle);
+            
+            // Create dark Separator style
+            var separatorStyle = new Style(typeof(Separator));
+            separatorStyle.Setters.Add(new Setter(Separator.BackgroundProperty, new SolidColorBrush(Color.FromRgb(60, 65, 90))));
+            separatorStyle.Setters.Add(new Setter(Separator.HeightProperty, 1.0));
+            separatorStyle.Setters.Add(new Setter(Separator.MarginProperty, new Thickness(8, 4, 8, 4)));
+            darkResources.Add(typeof(Separator), separatorStyle);
+            
+            // Create dark Popup style for submenus
+            var popupStyle = new Style(typeof(System.Windows.Controls.Primitives.Popup));
+            popupStyle.Setters.Add(new Setter(System.Windows.Controls.Primitives.Popup.AllowsTransparencyProperty, true));
+            darkResources.Add(typeof(System.Windows.Controls.Primitives.Popup), popupStyle);
+            
+            // Merge resources
+            contextMenu.Resources.MergedDictionaries.Add(darkResources);
 
             // ═══ HEADER ═══
-            contextMenu.Items.Add(DarkContextMenu.CreateHeader("🎮", "OmenCore", "v1.5.0"));
+            var headerItem = new MenuItem { Header = "🎮 OmenCore v2.0.0-alpha1", IsEnabled = false };
+            contextMenu.Items.Add(headerItem);
             contextMenu.Items.Add(new Separator());
 
             // ═══ MONITORING SECTION ═══
-            _cpuTempMenuItem = DarkContextMenu.CreateMonitoringItem("🔥", "CPU", "--°C", "(--%)", Color.FromRgb(255, 100, 100));
+            _cpuTempMenuItem = new MenuItem { Header = "🔥 CPU: --°C (--%)" };
             contextMenu.Items.Add(_cpuTempMenuItem);
 
-            _gpuTempMenuItem = DarkContextMenu.CreateMonitoringItem("🎯", "GPU", "--°C", "(--%)", Color.FromRgb(100, 200, 255));
+            _gpuTempMenuItem = new MenuItem { Header = "🎯 GPU: --°C (--%)" };
             contextMenu.Items.Add(_gpuTempMenuItem);
 
             contextMenu.Items.Add(new Separator());
 
             // ═══ QUICK PROFILES ═══
-            var quickProfileMenuItem = DarkContextMenu.CreateControlItem("🎮", "Quick Profiles", "Balanced", DarkContextMenu.GetAccentPrimary());
-            
-            var profilePerformance = DarkContextMenu.CreateSubMenuItem("🚀", "Performance", "Max power + Max cooling");
+            var quickProfileMenuItem = new MenuItem { Header = "🎮 Quick Profiles ▶" };
+
+            var profilePerformance = new MenuItem { Header = "🚀 Performance" };
             profilePerformance.Click += (s, e) => QuickProfileChangeRequested?.Invoke("Performance");
-            var profileBalanced = DarkContextMenu.CreateSubMenuItem("⚖️", "Balanced", "Default power + Auto fans");
+            var profileBalanced = new MenuItem { Header = "⚖️ Balanced" };
             profileBalanced.Click += (s, e) => QuickProfileChangeRequested?.Invoke("Balanced");
-            var profileQuiet = DarkContextMenu.CreateSubMenuItem("🤫", "Quiet", "Power saver + Silent fans");
+            var profileQuiet = new MenuItem { Header = "🤫 Quiet" };
             profileQuiet.Click += (s, e) => QuickProfileChangeRequested?.Invoke("Quiet");
-            
+
             quickProfileMenuItem.Items.Add(profilePerformance);
             quickProfileMenuItem.Items.Add(profileBalanced);
             quickProfileMenuItem.Items.Add(profileQuiet);
+
+            // Ensure submenu items use our dark MenuItem style
+            quickProfileMenuItem.ItemContainerStyle = menuItemStyle;
+            quickProfileMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    quickProfileMenuItem.ApplyTemplate();
+                    var popup = quickProfileMenuItem.Template.FindName("PART_Popup", quickProfileMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch { }
+            };
+
             contextMenu.Items.Add(quickProfileMenuItem);
 
             contextMenu.Items.Add(new Separator());
 
             // ═══ FAN MODE ═══
-            _fanModeMenuItem = DarkContextMenu.CreateControlItem("🌀", "Fan Mode", "Auto", DarkContextMenu.GetAccentSecondary());
+            _fanModeMenuItem = new MenuItem { Header = "🌀 Fan Mode ▶" };
             
-            var fanAuto = DarkContextMenu.CreateSubMenuItem("⚡", "Auto", "Automatic fan control");
+            var fanAuto = new MenuItem { Header = "⚡ Auto" };
             fanAuto.Click += (s, e) => SetFanMode("Auto");
-            var fanMax = DarkContextMenu.CreateSubMenuItem("🔥", "Max Cooling", "Maximum fan speed");
+            var fanMax = new MenuItem { Header = "🔥 Max Cooling" };
             fanMax.Click += (s, e) => SetFanMode("Max");
-            var fanQuiet = DarkContextMenu.CreateSubMenuItem("🤫", "Quiet", "Silent operation");
+            var fanQuiet = new MenuItem { Header = "🤫 Quiet" };
             fanQuiet.Click += (s, e) => SetFanMode("Quiet");
             
             _fanModeMenuItem.Items.Add(fanAuto);
             _fanModeMenuItem.Items.Add(fanMax);
             _fanModeMenuItem.Items.Add(fanQuiet);
+            _fanModeMenuItem.ItemContainerStyle = menuItemStyle;
+            _fanModeMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    _fanModeMenuItem.ApplyTemplate();
+                    var popup = _fanModeMenuItem.Template.FindName("PART_Popup", _fanModeMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch { }
+            };
             contextMenu.Items.Add(_fanModeMenuItem);
 
             // ═══ PERFORMANCE MODE ═══
-            _performanceModeMenuItem = DarkContextMenu.CreateControlItem("⚡", "Performance", "Balanced", DarkContextMenu.GetAccentPrimary());
+            _performanceModeMenuItem = new MenuItem { Header = "⚡ Performance ▶" };
             
-            var perfBalanced = DarkContextMenu.CreateSubMenuItem("⚖️", "Balanced", "Balance power & performance");
+            var perfBalanced = new MenuItem { Header = "⚖️ Balanced" };
             perfBalanced.Click += (s, e) => SetPerformanceMode("Balanced");
-            var perfPerformance = DarkContextMenu.CreateSubMenuItem("🚀", "Performance", "Maximum performance");
+            var perfPerformance = new MenuItem { Header = "🚀 Performance" };
             perfPerformance.Click += (s, e) => SetPerformanceMode("Performance");
-            var perfQuiet = DarkContextMenu.CreateSubMenuItem("🔋", "Quiet", "Power saving mode");
+            var perfQuiet = new MenuItem { Header = "🔋 Quiet" };
             perfQuiet.Click += (s, e) => SetPerformanceMode("Quiet");
             
             _performanceModeMenuItem.Items.Add(perfBalanced);
             _performanceModeMenuItem.Items.Add(perfPerformance);
             _performanceModeMenuItem.Items.Add(perfQuiet);
+            _performanceModeMenuItem.ItemContainerStyle = menuItemStyle;
+            _performanceModeMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    _performanceModeMenuItem.ApplyTemplate();
+                    var popup = _performanceModeMenuItem.Template.FindName("PART_Popup", _performanceModeMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch { }
+            };
             contextMenu.Items.Add(_performanceModeMenuItem);
 
             // ═══ DISPLAY ═══
-            _displayMenuItem = DarkContextMenu.CreateControlItem("🖥️", "Display", GetRefreshRateDisplay(), DarkContextMenu.GetAccentSecondary());
+            _displayMenuItem = new MenuItem { Header = "🖥️ Display ▶" };
 
-            var refreshHigh = DarkContextMenu.CreateSubMenuItem("⚡", "High Refresh Rate", "Switch to max refresh rate");
+            var refreshHigh = new MenuItem { Header = "⚡ High Refresh Rate" };
             refreshHigh.Click += (s, e) => SetHighRefreshRate();
-            var refreshLow = DarkContextMenu.CreateSubMenuItem("🔋", "Power Saving", "Lower refresh rate to save power");
+            var refreshLow = new MenuItem { Header = "🔋 Power Saving" };
             refreshLow.Click += (s, e) => SetLowRefreshRate();
-            var refreshToggle = DarkContextMenu.CreateSubMenuItem("🔄", "Toggle Refresh Rate", "Switch between high/low");
+            var refreshToggle = new MenuItem { Header = "🔄 Toggle Refresh Rate" };
             refreshToggle.Click += (s, e) => ToggleRefreshRate();
             
             _displayMenuItem.Items.Add(refreshHigh);
             _displayMenuItem.Items.Add(refreshLow);
             _displayMenuItem.Items.Add(refreshToggle);
             _displayMenuItem.Items.Add(new Separator());
-            
-            var displayOff = DarkContextMenu.CreateSubMenuItem("🌙", "Turn Off Display", "Screen off, system continues");
+
+            var displayOff = new MenuItem { Header = "🌙 Turn Off Display" };
             displayOff.Click += (s, e) => TurnOffDisplay();
             _displayMenuItem.Items.Add(displayOff);
-            
+
+            _displayMenuItem.ItemContainerStyle = menuItemStyle;
+            _displayMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    _displayMenuItem.ApplyTemplate();
+                    var popup = _displayMenuItem.Template.FindName("PART_Popup", _displayMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch { }
+            };
+
             contextMenu.Items.Add(_displayMenuItem);
 
             contextMenu.Items.Add(new Separator());
 
             // ═══ ACTIONS ═══
-            var showItem = DarkContextMenu.CreateActionItem("📺", "Open Dashboard", isPrimary: true);
+            var showItem = new MenuItem { Header = "📺 Open Dashboard" };
             showItem.Click += (s, e) => _showMainWindow();
             contextMenu.Items.Add(showItem);
             
-            _stayOnTopMenuItem = DarkContextMenu.CreateActionItem(
-                App.Configuration.Config.StayOnTop ? "📌" : "📍", 
-                App.Configuration.Config.StayOnTop ? "Stay on Top ✓" : "Stay on Top");
+            _stayOnTopMenuItem = new MenuItem { Header = "📍 Stay on Top" };
             _stayOnTopMenuItem.Click += (s, e) => ToggleStayOnTop();
             contextMenu.Items.Add(_stayOnTopMenuItem);
 
-            var exitItem = DarkContextMenu.CreateActionItem("❌", "Exit");
+            var exitItem = new MenuItem { Header = "❌ Exit" };
             exitItem.Click += (s, e) => _shutdownApp();
             contextMenu.Items.Add(exitItem);
 
@@ -214,7 +368,7 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                _trayIcon.ToolTipText = $"🎮 OmenCore v1.5.0\n" +
+                _trayIcon.ToolTipText = $"🎮 OmenCore v2.0.0-alpha1\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
                                        $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%\n" +
@@ -223,17 +377,15 @@ namespace OmenCore.Utils
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"Left-click to open dashboard";
 
-                // Update context menu items using DarkContextMenu helper
+                // Update context menu items using simple header updates
                 if (_cpuTempMenuItem != null)
                 {
-                    var newCpuItem = DarkContextMenu.CreateMonitoringItem("🔥", "CPU", $"{cpuTemp:F0}°C", $"({cpuLoad:F0}%)", Color.FromRgb(255, 100, 100));
-                    _cpuTempMenuItem.Header = newCpuItem.Header;
+                    _cpuTempMenuItem.Header = $"🔥 CPU: {cpuTemp:F0}°C ({cpuLoad:F0}%)";
                 }
 
                 if (_gpuTempMenuItem != null)
                 {
-                    var newGpuItem = DarkContextMenu.CreateMonitoringItem("🎯", "GPU", $"{gpuTemp:F0}°C", $"({gpuLoad:F0}%)", Color.FromRgb(100, 200, 255));
-                    _gpuTempMenuItem.Header = newGpuItem.Header;
+                    _gpuTempMenuItem.Header = $"🎯 GPU: {gpuTemp:F0}°C ({gpuLoad:F0}%)";
                 }
 
                 // Update tray icon with max temperature badge (shows highest of CPU/GPU)
@@ -265,8 +417,7 @@ namespace OmenCore.Utils
             _currentFanMode = mode;
             if (_fanModeMenuItem != null)
             {
-                var newItem = DarkContextMenu.CreateControlItem("🌀", "Fan Mode", mode, DarkContextMenu.GetAccentSecondary());
-                _fanModeMenuItem.Header = newItem.Header;
+                _fanModeMenuItem.Header = $"🌀 Fan Mode ▶ {mode}";
             }
             FanModeChangeRequested?.Invoke(mode);
             App.Logging.Info($"Fan mode changed from tray: {mode}");
@@ -277,8 +428,7 @@ namespace OmenCore.Utils
             _currentPerformanceMode = mode;
             if (_performanceModeMenuItem != null)
             {
-                var newItem = DarkContextMenu.CreateControlItem("⚡", "Performance", mode, DarkContextMenu.GetAccentPrimary());
-                _performanceModeMenuItem.Header = newItem.Header;
+                _performanceModeMenuItem.Header = $"⚡ Performance ▶ {mode}";
             }
             PerformanceModeChangeRequested?.Invoke(mode);
             App.Logging.Info($"Performance mode changed from tray: {mode}");
@@ -334,8 +484,7 @@ namespace OmenCore.Utils
             
             try
             {
-                var newItem = DarkContextMenu.CreateControlItem("🖥️", "Display", GetRefreshRateDisplay(), DarkContextMenu.GetAccentSecondary());
-                _displayMenuItem.Header = newItem.Header;
+                _displayMenuItem.Header = $"🖥️ Display ▶ {GetRefreshRateDisplay()}";
             }
             catch (Exception ex)
             {
@@ -357,9 +506,7 @@ namespace OmenCore.Utils
             // Update the menu item
             if (_stayOnTopMenuItem != null)
             {
-                var newItem = DarkContextMenu.CreateActionItem(newValue ? "📌" : "📍", 
-                    newValue ? "Stay on Top ✓" : "Stay on Top");
-                _stayOnTopMenuItem.Header = newItem.Header;
+                _stayOnTopMenuItem.Header = newValue ? "📌 Stay on Top ✓" : "📍 Stay on Top";
             }
             
             // Notify the main window to update
@@ -376,8 +523,7 @@ namespace OmenCore.Utils
             {
                 if (_fanModeMenuItem != null)
                 {
-                    var newItem = DarkContextMenu.CreateControlItem("🌀", "Fan Mode", mode, DarkContextMenu.GetAccentSecondary());
-                    _fanModeMenuItem.Header = newItem.Header;
+                    _fanModeMenuItem.Header = $"🌀 Fan Mode ▶ {mode}";
                 }
             });
         }
@@ -389,8 +535,7 @@ namespace OmenCore.Utils
             {
                 if (_performanceModeMenuItem != null)
                 {
-                    var newItem = DarkContextMenu.CreateControlItem("⚡", "Performance", mode, DarkContextMenu.GetAccentPrimary());
-                    _performanceModeMenuItem.Header = newItem.Header;
+                    _performanceModeMenuItem.Header = $"⚡ Performance ▶ {mode}";
                 }
             });
         }

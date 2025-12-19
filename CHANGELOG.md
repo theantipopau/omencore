@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced with simpler style-based approach
 - **📐 Sidebar Width** - Increased sidebar from 200px to 230px for better readability
 - **🔢 Version Display** - Updated to v1.5.0-beta throughout app
+- **🔄 Tray Icon Update Crash** - Fixed "Specified element is already the logical child" error
+  - Issue in UpdateFanMode/UpdatePerformanceMode when updating menu headers
+  - Now creates fresh UI elements instead of reusing existing ones
+  - Fixed SetFanMode, SetPerformanceMode, and UpdateRefreshRateMenuItem methods
 
 ### Changed
 - Process kill list now includes OmenCap.exe

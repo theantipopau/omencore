@@ -77,7 +77,7 @@
                            HorizontalAlignment="Center"
                            Margin="0,14,0,0"/>
                 <Border Background="#2A1A1A" CornerRadius="6" Padding="10,3" Margin="0,6,0,0" HorizontalAlignment="Center">
-                    <TextBlock x:Name="VersionText" Text="v1.5.0" 
+                    <TextBlock x:Name="VersionText" Text="v2.0.0-alpha1" 
                                FontSize="12" FontWeight="SemiBold"
                                Foreground="#E6002E"/>
                 </Border>
@@ -127,7 +127,7 @@
             <!-- Version -->
             <TextBlock x:Name="VersionTextBottom"
                        Grid.Row="4"
-                       Text="v1.5.0-beta"
+                       Text="v2.0.0-alpha1"
                        FontSize="10"
                        Foreground="#444444"
                        HorizontalAlignment="Center"

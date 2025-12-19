@@ -29,6 +29,8 @@ namespace OmenCore.ViewModels
         private double _requestedCoreOffset;
         private double _requestedCacheOffset;
         private bool _respectExternalUndervolt = true;
+        private bool _enablePerCoreUndervolt;
+        private int?[]? _requestedPerCoreOffsets;
         private bool _cleanupInProgress;
         private string _cleanupStatus = "Status: Not checked";
 
@@ -90,6 +92,38 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public bool EnablePerCoreUndervolt
+        {
+            get => _enablePerCoreUndervolt;
+            set
+            {
+                if (_enablePerCoreUndervolt != value)
+                {
+                    _enablePerCoreUndervolt = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PerCoreUndervoltVisible));
+                    (ApplyUndervoltCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public int?[]? RequestedPerCoreOffsets
+        {
+            get => _requestedPerCoreOffsets;
+            set
+            {
+                if (_requestedPerCoreOffsets != value)
+                {
+                    _requestedPerCoreOffsets = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool PerCoreUndervoltVisible => EnablePerCoreUndervolt && IsUndervoltSupported;
+
+        public ObservableCollection<PerCoreOffsetViewModel> PerCoreOffsets { get; } = new();
+
         public bool RespectExternalUndervolt
         {
             get => _respectExternalUndervolt;
@@ -104,7 +138,25 @@ namespace OmenCore.ViewModels
             }
         }
 
-        public string UndervoltStatusSummary => UndervoltStatus == null ? "n/a" : $"Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+        public string UndervoltStatusSummary
+        {
+            get
+            {
+                if (UndervoltStatus == null)
+                    return "n/a";
+
+                if (UndervoltStatus.HasPerCoreOffsets && UndervoltStatus.CurrentPerCoreOffsetsMv != null)
+                {
+                    var activeCores = UndervoltStatus.CurrentPerCoreOffsetsMv.Count(x => x.HasValue);
+                    var avgOffset = UndervoltStatus.CurrentPerCoreOffsetsMv.Where(x => x.HasValue).Average(x => x.Value);
+                    return $"Per-Core: {activeCores} cores active | Avg {avgOffset:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+                }
+                else
+                {
+                    return $"Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+                }
+            }
+        }
         
         /// <summary>
         /// Whether undervolting is supported on this system.
@@ -527,58 +579,62 @@ namespace OmenCore.ViewModels
             
             // Initialize TCC offset (Intel CPU temperature limit)
             InitializeTccOffset();
+
+
             
-            // Initial undervolt status will be set via StatusChanged event
+            // Load undervolt preferences from config
+            var undervoltPrefs = _configService.Config.Undervolt;
+            RequestedCoreOffset = undervoltPrefs.DefaultOffset.CoreMv;
+            RequestedCacheOffset = undervoltPrefs.DefaultOffset.CacheMv;
+            EnablePerCoreUndervolt = undervoltPrefs.EnablePerCoreUndervolt;
+            RequestedPerCoreOffsets = undervoltPrefs.PerCoreOffsetsMv?.Clone() as int?[];
+            RespectExternalUndervolt = undervoltPrefs.RespectExternalControllers;
+            
+            // Initialize per-core offset view models
+            InitializePerCoreOffsets();
         }
-        
+
         private void InitializeTccOffset()
         {
             try
             {
-                // Use factory to get best available MSR backend (PawnIO preferred over WinRing0)
                 _msrAccess = MsrAccessFactory.Create(_logging);
-                if (_msrAccess != null && _msrAccess.IsAvailable)
+                if (_msrAccess == null || !_msrAccess.IsAvailable)
                 {
-                    var tjMax = _msrAccess.ReadTjMax();
-                    var currentOffset = _msrAccess.ReadTccOffset();
-                    TccStatus = TccOffsetStatus.CreateSupported(tjMax, currentOffset);
-                    RequestedTccOffset = currentOffset;
-                    _logging.Info($"TCC offset available via {MsrAccessFactory.ActiveBackend}: TjMax={tjMax}°C, Current offset={currentOffset}°C, Effective limit={tjMax - currentOffset}°C");
-                    
-                    // Restore saved TCC offset from config if different from current
-                    var savedOffset = _configService.Config.LastTccOffset;
-                    _logging.Info($"TCC restore check: savedOffset={savedOffset}, currentOffset={currentOffset}");
-                    
-                    if (savedOffset.HasValue && savedOffset.Value > 0)
+                    TccStatus = TccOffsetStatus.CreateUnsupported("No MSR access available (install PawnIO for TCC control)");
+                    _msrAccess = null;
+                    return;
+                }
+
+                var tj = _msrAccess.ReadTjMax();
+                var currentOffset = _msrAccess.ReadTccOffset();
+                TccStatus = TccOffsetStatus.CreateSupported(tj, currentOffset);
+
+                var savedOffset = _configService.Config.LastTccOffset;
+                if (savedOffset.HasValue && savedOffset.Value > 0)
+                {
+                    if (currentOffset != savedOffset.Value)
                     {
-                        if (savedOffset.Value != currentOffset)
+                        _logging.Info($"TCC offset needs restoration: saved {savedOffset.Value}°C differs from current {currentOffset}°C");
+                        _ = Task.Run(async () =>
                         {
-                            _logging.Info($"TCC offset needs restoration: saved {savedOffset.Value}°C differs from current {currentOffset}°C");
-                            // Schedule reapply with proper retry logic to ensure system is ready
-                            _ = Task.Run(async () =>
-                            {
-                                await ReapplySettingWithRetryAsync(
-                                    "TCC Offset",
-                                    () => ReapplySavedTccOffset(savedOffset.Value),
-                                    maxRetries: 8,
-                                    initialDelayMs: 1500,
-                                    maxDelayMs: 8000
-                                );
-                            });
-                        }
-                        else
-                        {
-                            _logging.Info($"TCC offset already at saved value ({savedOffset.Value}°C), no restoration needed");
-                        }
+                            await ReapplySettingWithRetryAsync(
+                                "TCC Offset",
+                                () => ReapplySavedTccOffset(savedOffset.Value),
+                                maxRetries: 8,
+                                initialDelayMs: 1500,
+                                maxDelayMs: 8000
+                            );
+                        });
                     }
                     else
                     {
-                        _logging.Info("No saved TCC offset to restore (either null or 0)");
+                        _logging.Info($"TCC offset already at saved value ({savedOffset.Value}°C), no restoration needed");
                     }
                 }
                 else
                 {
-                    TccStatus = TccOffsetStatus.CreateUnsupported("No MSR access available (install PawnIO for TCC control)");
+                    _logging.Info("No saved TCC offset to restore (either null or 0)");
                 }
             }
             catch (Exception ex)
@@ -587,6 +643,52 @@ namespace OmenCore.ViewModels
                 TccStatus = TccOffsetStatus.CreateUnsupported($"Not supported: {ex.Message}");
                 _msrAccess = null;
             }
+        }
+        
+        private void InitializePerCoreOffsets()
+        {
+            PerCoreOffsets.Clear();
+            
+            // Assume up to 16 cores for now (can be made dynamic later)
+            const int maxCores = 16;
+            
+            for (int i = 0; i < maxCores; i++)
+            {
+                var vm = new PerCoreOffsetViewModel
+                {
+                    CoreName = $"Core {i}",
+                    CoreIndex = i,
+                    OffsetMv = RequestedPerCoreOffsets != null && i < RequestedPerCoreOffsets.Length 
+                        ? RequestedPerCoreOffsets[i] 
+                        : null
+                };
+                
+                // Subscribe to changes
+                vm.PropertyChanged += (s, e) => 
+                {
+                    if (e.PropertyName == nameof(PerCoreOffsetViewModel.OffsetMv))
+                    {
+                        UpdateRequestedPerCoreOffsets();
+                    }
+                };
+                
+                PerCoreOffsets.Add(vm);
+            }
+        }
+        
+        private void UpdateRequestedPerCoreOffsets()
+        {
+            var offsets = new int?[PerCoreOffsets.Count];
+            bool hasAnyOffset = false;
+            
+            for (int i = 0; i < PerCoreOffsets.Count; i++)
+            {
+                offsets[i] = PerCoreOffsets[i].OffsetMv;
+                if (offsets[i].HasValue)
+                    hasAnyOffset = true;
+            }
+            
+            RequestedPerCoreOffsets = hasAnyOffset ? offsets : null;
         }
         
         /// <summary>
@@ -1069,7 +1171,23 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     CoreMv = RequestedCoreOffset,
                     CacheMv = RequestedCacheOffset
                 };
+
+                // Add per-core offsets if enabled
+                if (EnablePerCoreUndervolt && RequestedPerCoreOffsets != null)
+                {
+                    offset.PerCoreOffsetsMv = RequestedPerCoreOffsets;
+                }
+
                 await _undervoltService.ApplyAsync(offset);
+
+                // Save undervolt preferences to config
+                var config = _configService.Config;
+                config.Undervolt.DefaultOffset.CoreMv = RequestedCoreOffset;
+                config.Undervolt.DefaultOffset.CacheMv = RequestedCacheOffset;
+                config.Undervolt.EnablePerCoreUndervolt = EnablePerCoreUndervolt;
+                config.Undervolt.PerCoreOffsetsMv = RequestedPerCoreOffsets?.Clone() as int?[];
+                config.Undervolt.RespectExternalControllers = RespectExternalUndervolt;
+                _configService.Save(config);
             }, "Applying undervolt settings...");
         }
 
@@ -1190,97 +1308,27 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     
                     if (result == System.Windows.MessageBoxResult.Yes)
                     {
-                        _logging.Info("User accepted restart - initiating system restart");
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "shutdown",
-                            Arguments = "/r /t 5 /c \"Restarting to apply GPU mode change\"",
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        });
+                        // Restart the system
+                        System.Diagnostics.Process.Start("shutdown", "/r /t 0");
                     }
                 }
                 else
                 {
-                    _logging.Warn($"⚠️ GPU mode switching failed. Current mode: {CurrentGpuMode}");
+                    _logging.Error("✗ GPU mode switch failed");
                     System.Windows.MessageBox.Show(
-                        "GPU mode switching failed.\n\n" +
-                        "The HP BIOS did not accept the mode change.\n" +
-                        "This can happen if:\n" +
-                        "• Your BIOS doesn't have this setting\n" +
-                        "• A BIOS password is set\n" +
-                        "• The BIOS version doesn't support WMI control\n\n" +
-                        "Try changing GPU mode directly in BIOS settings.",
-                        "GPU Mode Switch Failed - OmenCore",
+                        "Failed to switch GPU mode. Please check the logs for details.",
+                        "GPU Mode Switch Failed",
                         System.Windows.MessageBoxButton.OK,
-                        System.Windows.MessageBoxImage.Warning);
+                        System.Windows.MessageBoxImage.Error);
                 }
-                
-                await Task.CompletedTask;
-            }, "Switching GPU mode...");
+            });
         }
 
         private async Task RunCleanupAsync()
         {
-            CleanupInProgress = true;
-            CleanupStatus = "Running cleanup...";
             OmenCleanupSteps.Clear();
-            
-            // Automatically attempt to create restore point before cleanup
-            _logging.Info("Attempting to create restore point before OGH cleanup...");
-            CleanupStatus = "Creating restore point...";
-            OmenCleanupSteps.Add("Creating system restore point...");
-            
-            var restoreResult = await _restoreService.CreateRestorePointAsync("OmenCore - Before OGH Cleanup");
-            
-            if (!restoreResult.Success)
-            {
-                _logging.Warn($"Restore point creation failed: {restoreResult.Message}");
-                OmenCleanupSteps.Add($"⚠ Restore point failed: {restoreResult.Message}");
-                
-                // Ask user if they want to continue anyway
-                var continueAnyway = System.Windows.MessageBox.Show(
-                    $"System Restore point creation failed:\n{restoreResult.Message}\n\n" +
-                    "This is often because System Restore is disabled on your system.\n\n" +
-                    "Do you want to continue with the cleanup anyway?\n\n" +
-                    "Note: Without a restore point, you cannot easily undo the cleanup.",
-                    "Restore Point Failed - OmenCore",
-                    System.Windows.MessageBoxButton.YesNo,
-                    System.Windows.MessageBoxImage.Warning);
-                
-                if (continueAnyway != System.Windows.MessageBoxResult.Yes)
-                {
-                    CleanupStatus = "⚠ Cleanup cancelled - no restore point";
-                    OmenCleanupSteps.Add("Cleanup cancelled by user");
-                    _logging.Info("OGH cleanup cancelled by user due to restore point failure");
-                    CleanupInProgress = false;
-                    return;
-                }
-                
-                _logging.Info("User chose to continue cleanup without restore point");
-                OmenCleanupSteps.Add("Continuing without restore point (user confirmed)");
-            }
-            else
-            {
-                _logging.Info($"✓ Restore point created (sequence: {restoreResult.SequenceNumber})");
-                OmenCleanupSteps.Add($"✓ Restore point created (#{restoreResult.SequenceNumber})");
-            }
-            
-            OnPropertyChanged(nameof(HasCleanupSteps));
-            
-            // Subscribe to real-time progress updates
-            void OnStepCompleted(string step)
-            {
-                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
-                {
-                    OmenCleanupSteps.Add(step);
-                    CleanupStatus = step;
-                    OnPropertyChanged(nameof(HasCleanupSteps));
-                });
-            }
-            
             _cleanupService.StepCompleted += OnStepCompleted;
-            
+
             try
             {
                 await ExecuteWithLoadingAsync(async () =>
@@ -1296,6 +1344,7 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                         DryRun = false,
                         PreserveFirewallRules = true
                     };
+
                     var result = await _cleanupService.CleanupAsync(options);
                     CleanupStatus = result.Success ? "✓ Cleanup complete - restart recommended" : "⚠ Cleanup failed";
                     CleanupComplete = result.Success;
@@ -1306,6 +1355,40 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                 _cleanupService.StepCompleted -= OnStepCompleted;
                 CleanupInProgress = false;
             }
+        }
+
+        private void OnStepCompleted(string step)
+        {
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                OmenCleanupSteps.Add(step);
+                CleanupStatus = step;
+                OnPropertyChanged(nameof(HasCleanupSteps));
+            });
+        }
+
+public class PerCoreOffsetViewModel : ViewModelBase
+        {
+            private int? _offsetMv;
+
+            public string CoreName { get; set; } = string.Empty;
+            public int CoreIndex { get; set; }
+
+            public int? OffsetMv
+            {
+                get => _offsetMv;
+                set
+                {
+                    if (_offsetMv != value)
+                    {
+                        _offsetMv = value;
+                        OnPropertyChanged();
+                        OnPropertyChanged(nameof(OffsetText));
+                    }
+                }
+            }
+
+            public string OffsetText => OffsetMv.HasValue ? $"{OffsetMv.Value:+0;-0;0} mV" : "Global";
         }
     }
 }

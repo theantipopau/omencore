@@ -27,11 +27,17 @@ namespace OmenCoreApp.Tests.Services
         {
             // Arrange
             var logging = new LoggingService();
-            var service = await CorsairDeviceService.CreateAsync(logging);
-            
+            // Create service with explicit Corsair stub provider to avoid detecting real hardware in CI
+            var service = new CorsairDeviceService(new CorsairSdkStub(logging), logging);
+
+            // Mark service as initialized (CreateAsync normally sets the internal flag)
+            typeof(CorsairDeviceService)
+                .GetField("_initialized", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                .SetValue(service, true);
+
             // Act
             await service.DiscoverAsync();
-            
+
             // Assert - Stub should return empty list (no fake devices)
             service.Devices.Should().BeEmpty("stub provider should not return fake devices");
         }

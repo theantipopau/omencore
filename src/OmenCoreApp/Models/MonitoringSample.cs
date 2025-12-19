@@ -28,6 +28,10 @@ namespace OmenCore.Models
         public double GpuHotspotTemperatureC { get; set; }
         public string GpuName { get; set; } = string.Empty;
         
+        // GPU Voltage/Current monitoring (v2.0)
+        public double GpuVoltageV { get; set; }
+        public double GpuCurrentA { get; set; }
+        
         // Battery info
         public double BatteryChargePercent { get; set; }
         public bool IsOnAcPower { get; set; }

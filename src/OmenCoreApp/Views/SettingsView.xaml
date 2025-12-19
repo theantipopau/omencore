@@ -1333,36 +1333,81 @@
                                 <!-- Temperature & Load -->
                                 <TextBlock Text="Temperature &amp; Load" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
                                 <WrapPanel Margin="0,0,0,8">
-                                    <CheckBox Content="CPU Temp" IsChecked="{Binding OsdShowCpuTemp}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="GPU Temp" IsChecked="{Binding OsdShowGpuTemp}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="CPU Load %" IsChecked="{Binding OsdShowCpuLoad}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="GPU Load %" IsChecked="{Binding OsdShowGpuLoad}" Margin="0,0,16,4"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="CPU Temp" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowCpuTemp}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="GPU Temp" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowGpuTemp}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="CPU Load %" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowCpuLoad}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="GPU Load %" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowGpuLoad}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                                 
                                 <!-- Power & Memory -->
                                 <TextBlock Text="Power &amp; Memory" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,4"/>
                                 <WrapPanel Margin="0,0,0,8">
-                                    <CheckBox Content="CPU Power (W)" IsChecked="{Binding OsdShowCpuPower}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="GPU Power (W)" IsChecked="{Binding OsdShowGpuPower}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="RAM Usage" IsChecked="{Binding OsdShowRamUsage}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="VRAM Usage" IsChecked="{Binding OsdShowVramUsage}" Margin="0,0,16,4"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="CPU Power (W)" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowCpuPower}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="GPU Power (W)" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowGpuPower}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="RAM Usage" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowRamUsage}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="VRAM Usage" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowVramUsage}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                                 
                                 <!-- Performance -->
                                 <TextBlock Text="Performance" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,4"/>
                                 <WrapPanel Margin="0,0,0,8">
-                                    <CheckBox Content="Est. FPS" IsChecked="{Binding OsdShowFps}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="Frametime (ms)" IsChecked="{Binding OsdShowFrametime}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="Network Ping" IsChecked="{Binding OsdShowNetworkLatency}" Margin="0,0,16,4"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Est. FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowFps}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Frametime (ms)" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowFrametime}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Network Ping" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowNetworkLatency}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                                 
                                 <!-- System Status -->
                                 <TextBlock Text="System Status" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,4"/>
                                 <WrapPanel Margin="0,0,0,4">
-                                    <CheckBox Content="Fan Speed (RPM)" IsChecked="{Binding OsdShowFanSpeed}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="Fan Mode" IsChecked="{Binding OsdShowFanMode}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="Perf. Mode" IsChecked="{Binding OsdShowPerformanceMode}" Margin="0,0,16,4"/>
-                                    <CheckBox Content="Clock Time" IsChecked="{Binding OsdShowTime}" Margin="0,0,16,4"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Fan Speed (RPM)" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowFanSpeed}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Fan Mode" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowFanMode}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Perf. Mode" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowPerformanceMode}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Clock Time" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowTime}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
@@ -1533,34 +1578,71 @@
 
                         <!-- Cleanup Options -->
                         <StackPanel Margin="0,0,0,16">
-                            <CheckBox Content="Kill running HP OMEN processes" 
-                                      IsChecked="{Binding CleanupKillProcesses}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Kill running HP OMEN processes" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupKillProcesses}" HorizontalAlignment="Right"/>
+                            </Grid>
                             
-                            <CheckBox Content="Uninstall HP OMEN Gaming Hub application" 
-                                      IsChecked="{Binding CleanupUninstallApp}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Uninstall HP OMEN Gaming Hub application" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupUninstallApp}" HorizontalAlignment="Right"/>
+                            </Grid>
                             
-                            <CheckBox Content="Remove HP OMEN services (OmenService, LightingService)" 
-                                      IsChecked="{Binding CleanupRemoveServices}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Remove HP OMEN services (OmenService, LightingService)" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupRemoveServices}" HorizontalAlignment="Right"/>
+                            </Grid>
                             
-                            <CheckBox Content="Clean HP OMEN registry entries" 
-                                      IsChecked="{Binding CleanupRegistryEntries}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Clean HP OMEN registry entries" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupRegistryEntries}" HorizontalAlignment="Right"/>
+                            </Grid>
                             
-                            <CheckBox Content="Remove HP OMEN legacy installers (winget/AppX)" 
-                                      IsChecked="{Binding CleanupRemoveLegacyInstallers}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"
-                                      Margin="0,0,0,8"/>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Remove HP OMEN legacy installers (winget/AppX)" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupRemoveLegacyInstallers}" HorizontalAlignment="Right"/>
+                            </Grid>
                             
-                            <CheckBox Content="Remove residual HP OMEN files and folders" 
-                                      IsChecked="{Binding CleanupRemoveFiles}"
-                                      Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Grid Margin="0,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Remove residual HP OMEN files and folders" 
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}" 
+                                              IsChecked="{Binding CleanupRemoveFiles}" HorizontalAlignment="Right"/>
+                            </Grid>
                         </StackPanel>
 
                         <!-- System Restore Info -->

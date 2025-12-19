@@ -20,7 +20,12 @@ namespace OmenCore.Models
         public string? Error { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
 
+        // Per-core status information
+        public double?[]? CurrentPerCoreOffsetsMv { get; set; }
+        public double?[]? ExternalPerCoreOffsetsMv { get; set; }
+
         public bool HasExternalController => !string.IsNullOrWhiteSpace(ExternalController);
+        public bool HasPerCoreOffsets => CurrentPerCoreOffsetsMv != null && CurrentPerCoreOffsetsMv.Length > 0;
 
         public static UndervoltStatus CreateUnknown(string? message = null) => new()
         {
