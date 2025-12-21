@@ -207,7 +207,7 @@
 - [ ] PL1/PL2 adjustment UI
 - [ ] Turbo duration control
 - [ ] Comprehensive warnings
-- [x] **Per-Core Undervolt** - Individual undervolt controls for each CPU core
+- ✅ **Per-Core Undervolt** - Individual undervolt controls for each CPU core (UI implemented; hardware application/verification in progress)
 
 ---
 
@@ -255,6 +255,8 @@
 
 #### Fixed
 - ✅ White margins in system tray context menu eliminated
+- ✅ Fixed large code corruption in `SystemControlViewModel.cs` that caused build failures; normalized per-core offset types (`int?[]`) and restored clean compilation
+- ✅ All unit tests passing locally (16/16)
 
 ---
 
@@ -306,7 +308,7 @@
 | 5. Advanced Features | ⚪ Planned | 0/15 |
 | 6. Polish & Release | ⚪ Planned | 0/8 |
 
-**Overall: 42/114 tasks (37%)**
+**Overall: 44/114 tasks (39%)**
 
 ---
 
