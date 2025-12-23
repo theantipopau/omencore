@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🏷️ Risk indicators** for each optimization (Low/Medium/High)
 - **⚡ Extreme fan preset** (100% at 75°C for high-power systems)
 - **🎨 DarkContextMenu control** - Custom context menu with no white margins
-- **🔄 Modern toggle switches** - Replaced checkboxes with iOS-style toggles in Settings
+- **�️ Keyboard Lighting Diagnostics** - Added a diagnostics panel with device detection, test patterns, and log collection to assist in troubleshooting keyboard lighting issues
+- **�🔄 Modern toggle switches** - Replaced checkboxes with iOS-style toggles in Settings
 - **⚡ GPU Voltage/Current Graph** - Added GPU V/C monitoring chart to dashboard
 - **🔧 Per-Core Undervolt** - Individual undervolt controls for each CPU core
 
