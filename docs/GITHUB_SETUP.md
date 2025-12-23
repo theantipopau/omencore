@@ -80,6 +80,8 @@ The GitHub Action (`.github/workflows/release.yml`) will handle the rest!
 
 Your current system (Dell Latitude 7450) will show the **HP Omen warning banner** since it's not an Omen laptop. This is working correctly!
 
+**CI note:** The repository CI sets `OMENCORE_DISABLE_FILE_LOG=1` during test runs to avoid log file lock failures caused by concurrently running helper processes. If you run tests locally and see `IOException` about a locked log file, set `OMENCORE_DISABLE_FILE_LOG=1` in your shell before running `dotnet test`.
+
 ## All Fixes Applied
 
 ✅ **About Window Close Button** - Now visible and works, ESC key also closes window

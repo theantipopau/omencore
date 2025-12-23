@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, v2.0-dev ]
+  pull_request:
+    branches: [ main, v2.0-dev ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore "OmenCore.sln"
+
+      - name: Build
+        run: dotnet build "OmenCore.sln" -c Debug --no-restore
+
+      - name: Run tests
+        env:
+          OMENCORE_DISABLE_FILE_LOG: '1'
+        run: |
+          dotnet test "OmenCore.sln" -c Debug --no-build --logger "console;verbosity=normal"
