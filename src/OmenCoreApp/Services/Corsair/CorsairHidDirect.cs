@@ -393,29 +393,27 @@ namespace OmenCore.Services.Corsair
             byte startIndex = 0x00;
             byte count = 0x01;
 
-            // Per-product overrides (keyboards use a different command observed on some PIDs)
-            switch (device.ProductId)
+            // Per-product heuristics: use device type where possible to broadly support many PIDs
+            if (device.DeviceInfo != null && device.DeviceInfo.DeviceType == CorsairDeviceType.Keyboard)
             {
-                // K95, K70 series, K100 - prefer keyboard command 0x09 and request full-device write
-                case 0x1B2D: // K95 RGB Platinum
-                case 0x1B11: // K70 RGB
-                case 0x1B17: // K70 RGB MK.2
-                case 0x1B60: // K100 RGB
-                    cmd = 0x09;
-                    // For keyboards, request a full-device write; we'll build a keyboard-specific report
-                    count = 0xFF;
-                    break;
-
+                // Keyboard families tend to use command 0x09 and support a 'full-device' write
+                cmd = 0x09;
+                count = 0xFF;
+            }
+            else
+            {
                 // Mice often use 0x05 for the set color command
-                case 0x1B2E: // Dark Core RGB
-                case 0x1B4B: // Dark Core RGB PRO
-                case 0x1B34: // Ironclaw
-                    cmd = 0x05;
-                    break;
-
-                default:
-                    // Keep defaults
-                    break;
+                switch (device.ProductId)
+                {
+                    case 0x1B2E: // Dark Core RGB
+                    case 0x1B4B: // Dark Core RGB PRO
+                    case 0x1B34: // Ironclaw
+                        cmd = 0x05;
+                        break;
+                    default:
+                        // Keep defaults
+                        break;
+                }
             }
 
             // If keyboard full-device indicator requested, build keyboard full-zone report
@@ -459,12 +457,31 @@ namespace OmenCore.Services.Corsair
             else
                 report[7] = 0x01; // standard full-zone
 
-            // Populate first zone payload (Zone0) with the same color
-            report[8] = r; report[9] = g; report[10] = b;
+            // Populate zone payloads - provide 4 zone entries (Zone0..Zone3)
+            int idx = 8;
+            for (int zone = 0; zone < 4 && idx + 2 < report.Length; zone++)
+            {
+                report[idx++] = r;
+                report[idx++] = g;
+                report[idx++] = b;
+            }
 
-            // Duplicate for additional zones (safety/flexibility)
-            report[11] = r; report[12] = g; report[13] = b;
-            report[14] = r; report[15] = g; report[16] = b;
+            // For K100 (product 0x1B60) include a small per-key payload header as a stub for future per-key support
+            if (device.ProductId == 0x1B60 && idx + 3 < report.Length)
+            {
+                // Per-key header: marker 0xPK (0x50 0x4B ascii 'PK' not allowed in byte single, use 0x50), count
+                report[idx++] = 0x50; // 'P' marker
+                report[idx++] = 0x0A; // number of per-key blocks in stub (10)
+                report[idx++] = 0x01; // flags/reserved
+
+                // Fill a few per-key entries (color triples) as placeholders
+                for (int i = 0; i < 6 && idx + 2 < report.Length; i++)
+                {
+                    report[idx++] = r;
+                    report[idx++] = g;
+                    report[idx++] = b;
+                }
+            }
 
             return report;
         }

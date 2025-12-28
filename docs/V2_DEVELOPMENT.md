@@ -150,7 +150,7 @@ Notes: Initial asset folders and placeholder images created. Next: gather real d
 
 **Progress update (2025-12-28):**
 - Initial provider wiring implemented (`IRgbProvider`, `RgbManager`). Providers registered in priority order: **Corsair → Logitech → Razer → SystemGeneric**.
-- **Corsair**: `CorsairRgbProvider` added; supports `color:#RRGGBB` and `preset:<name>`; unit tests added and passing. Added direct HID improvements: retries, heuristics, diagnostics, and **full-device keyboard writes for K70/K95/K100** so many keyboards can be controlled without iCUE.
+- **Corsair**: `CorsairRgbProvider` added; supports `color:#RRGGBB` and `preset:<name>`; unit tests added and passing. Added direct HID improvements: retries, heuristics, diagnostics, and **full-device keyboard writes for K70/K95/K100**, plus a **K100 per-key payload stub** so many keyboards can be controlled without iCUE and we have a path to per-key features.
 - **Logitech**: `LogitechRgbProvider` implements `color:#RRGGBB@<brightness>` and `breathing:#RRGGBB@<speed>`; unit tests added and passing.
 - **Razer**: Basic `RazerRgbProvider` wraps `RazerService` for Synapse-aware behavior (placeholder for Chroma SDK integration).
 - **SystemGeneric**: `RgbNetSystemProvider` added (experimental) using RGB.NET; initialization and basic color application validated in tests.

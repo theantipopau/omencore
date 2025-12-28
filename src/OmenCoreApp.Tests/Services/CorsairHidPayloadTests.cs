@@ -14,8 +14,15 @@ namespace OmenCoreApp.Tests.Services
 
             public byte[] CallBuildSetColorReport(int pid, byte r, byte g, byte b)
             {
-                // Add a test device to ensure device.ProductId is set
-                AddTestHidDevice("test", pid, OmenCore.Corsair.CorsairDeviceType.Keyboard, "Test");
+                // Determine a reasonable device type for the test based on known PIDs
+                var mousePids = new[] { 0x1B2E, 0x1B4B, 0x1B34 };
+                var keyboardPids = new[] { 0x1B11, 0x1B2D, 0x1B17, 0x1B60, 0x1B38, 0x1B39 };
+                var type = OmenCore.Corsair.CorsairDeviceType.Accessory;
+                if (System.Array.Exists(mousePids, p => p == pid)) type = OmenCore.Corsair.CorsairDeviceType.Mouse;
+                else if (System.Array.Exists(keyboardPids, p => p == pid)) type = OmenCore.Corsair.CorsairDeviceType.Keyboard;
+
+                // Add a test device to ensure device.ProductId and DeviceType are set
+                AddTestHidDevice("test", pid, type, "Test");
                 var list = DiscoverDevicesAsync().Result;
                 var dev = default(OmenCore.Corsair.CorsairDevice);
                 foreach (var d in list) if (d.DeviceId == "test") dev = d;
@@ -80,6 +87,31 @@ namespace OmenCoreApp.Tests.Services
             report[8].Should().Be(0x11);
             report[9].Should().Be(0x22);
             report[10].Should().Be(0x33);
+        }
+
+        [Fact]
+        public void BuildSetColorReport_K100IncludesPerKeyStub()
+        {
+            var log = new LoggingService();
+            var t = new TestCorsairHidDirect(log);
+
+            var report = t.CallBuildSetColorReport(0x1B60, 0x11, 0x22, 0x33);
+
+            // Marker for K100 should be 0x02
+            report[7].Should().Be(0x02);
+            // After zones we expect the 'P' marker (0x50) somewhere after offset 8
+            bool found = false;
+            for (int i = 11; i < report.Length - 3; i++)
+            {
+                if (report[i] == 0x50)
+                {
+                    found = true;
+                    // count byte should be non-zero
+                    report[i+1].Should().BeGreaterThan((byte)0);
+                    break;
+                }
+            }
+            found.Should().BeTrue();
         }
     }
 }
