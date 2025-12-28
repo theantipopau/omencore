@@ -19,6 +19,12 @@ namespace OmenCore.Services.Corsair
         private readonly List<CorsairHidDevice> _devices = new();
         private readonly HashSet<string> _hidWriteFailedDevices = new(); // Track devices that failed to reduce log spam
         
+        // Expose failed HID devices for diagnostics/tests (read-only)
+        public System.Collections.Generic.IReadOnlyCollection<string> HidWriteFailedDeviceIds => _hidWriteFailedDevices.ToList().AsReadOnly();
+
+        // Number of write attempts before giving up
+        private const int HID_WRITE_MAX_ATTEMPTS = 3;
+        private const int HID_WRITE_RETRY_DELAY_MS = 120;        
         // Corsair USB Vendor ID
         private const int CORSAIR_VID = 0x1B1C;
         
@@ -170,6 +176,12 @@ namespace OmenCore.Services.Corsair
                                 {
                                     _logging.Info($"    ℹ️ {notes}");
                                 }
+
+                                // Special handling for wireless receivers: map to managed 'WirelessDongle' devices
+                                if (deviceType == CorsairDeviceType.WirelessDongle)
+                                {
+                                    _logging.Info($"    Detected wireless receiver - mapping receiver to potential wireless devices");
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -271,6 +283,26 @@ namespace OmenCore.Services.Corsair
             return Task.FromResult<IEnumerable<CorsairDevice>>(devices);
         }
 
+        // --- Test helpers ---
+        // Add a test-only device to the internal device list (used by unit tests to simulate hardware)
+        protected void AddTestHidDevice(string deviceId, int productId, CorsairDeviceType type, string name = "Test Device")
+        {
+            var dev = new CorsairHidDevice
+            {
+                ProductId = productId,
+                HidDevice = null!, // tests should override WriteReportAsync to avoid using this
+                DeviceInfo = new CorsairDevice
+                {
+                    DeviceId = deviceId,
+                    Name = name,
+                    DeviceType = type,
+                    Status = new CorsairDeviceStatus { FirmwareVersion = "Test", PollingRateHz = 1000 }
+                }
+            };
+
+            _devices.Add(dev);
+        }
+
         public async Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
             var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
@@ -283,8 +315,7 @@ namespace OmenCore.Services.Corsair
             try
             {
                 var (r, g, b) = ParseHexColor(preset.PrimaryColor);
-                await SendColorCommand(hidDevice, r, g, b);
-                _logging.Info($"Applied lighting {preset.PrimaryColor} to {device.Name} via direct HID");
+                await SendColorCommandAsync(hidDevice, r, g, b);
             }
             catch (Exception ex)
             {
@@ -292,48 +323,84 @@ namespace OmenCore.Services.Corsair
             }
         }
 
-        private async Task SendColorCommand(CorsairHidDevice device, byte r, byte g, byte b)
+        /// <summary>
+        /// Send color command to device, with retries and device-specific report handling.
+        /// Protected to allow test subclasses to override the low-level write behavior.
+        /// </summary>
+        protected virtual async Task SendColorCommandAsync(CorsairHidDevice device, byte r, byte g, byte b)
         {
-            // Corsair HID protocol for RGB control
-            // This is device-specific but follows a general pattern
-            
-            try
+            // Choose a best-effort report format based on device type/product
+            byte setCmd = 0x07;
+            byte commitCmd = 0x07;
+
+            // Heuristics: some mice/boards might use different command codes (experimental)
+            if (device.DeviceInfo.DeviceType == CorsairDeviceType.Mouse)
             {
-                using var stream = device.HidDevice.Open();
-                
-                // Corsair protocol: Feature report for lighting
-                // Format varies by device but typically:
-                // [Report ID][Command][Zone/LED count][R][G][B]...
-                
-                var report = new byte[65];
-                report[0] = 0x00; // Report ID
-                report[1] = 0x07; // Set color command (varies by device)
-                report[2] = 0x00; // Start index
-                report[3] = 0x01; // LED count (1 for solid color)
-                report[4] = r;
-                report[5] = g;
-                report[6] = b;
-                
-                await stream.WriteAsync(report, 0, report.Length);
-                
-                // Some devices need a commit/update command
-                var commitReport = new byte[65];
-                commitReport[0] = 0x00;
-                commitReport[1] = 0x07; // Update command
-                commitReport[2] = 0x28; // Commit flag
-                
-                await stream.WriteAsync(commitReport, 0, commitReport.Length);
+                // Some mice use 0x05 for set color (observed in older PIDs)
+                setCmd = 0x05;
+                commitCmd = 0x05;
             }
-            catch
+
+            var deviceKey = $"{device.ProductId}";
+
+            for (int attempt = 1; attempt <= HID_WRITE_MAX_ATTEMPTS; attempt++)
             {
-                // Only warn once per device to reduce log spam
-                var deviceKey = $"{device.ProductId}";
-                if (!_hidWriteFailedDevices.Contains(deviceKey))
+                try
                 {
-                    _hidWriteFailedDevices.Add(deviceKey);
-                    _logging.Warn($"HID write not supported for device {device.ProductId:X4} - Using SDK fallback if available");
+                    var report = new byte[65];
+                    report[0] = 0x00; // Report ID
+                    report[1] = setCmd; // Set color command
+                    report[2] = 0x00; // Start index
+                    report[3] = 0x01; // LED count (1 for solid color)
+                    report[4] = r;
+                    report[5] = g;
+                    report[6] = b;
+
+                    var ok = await WriteReportAsync(device, report);
+                    if (!ok)
+                        throw new InvalidOperationException("HID write returned false");
+
+                    // Commit/update
+                    var commitReport = new byte[65];
+                    commitReport[0] = 0x00;
+                    commitReport[1] = commitCmd; // Commit command
+                    commitReport[2] = 0x28; // Commit flag
+
+                    await WriteReportAsync(device, commitReport);
+
+                    // Success - clear any previous failure record
+                    if (_hidWriteFailedDevices.Contains(deviceKey))
+                        _hidWriteFailedDevices.Remove(deviceKey);
+
+                    _logging.Info($"Applied lighting {r:X2}{g:X2}{b:X2} to {device.DeviceInfo.Name} via direct HID (attempt {attempt})");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Attempt {attempt} failed to write HID report for {device.DeviceInfo.Name} (PID: 0x{device.ProductId:X4}): {ex.Message}");
+                    if (attempt < HID_WRITE_MAX_ATTEMPTS)
+                        await Task.Delay(HID_WRITE_RETRY_DELAY_MS);
+                    else
+                    {
+                        if (!_hidWriteFailedDevices.Contains(deviceKey))
+                        {
+                            _hidWriteFailedDevices.Add(deviceKey);
+                            _logging.Warn($"HID write not supported for device {device.ProductId:X4} - falling back to SDK if available");
+                        }
+                    }
                 }
             }
+        }
+
+        /// <summary>
+        /// Low-level HID write. Overridable for testing to simulate write failures.
+        /// Returns true when write succeeded.
+        /// </summary>
+        protected virtual async Task<bool> WriteReportAsync(CorsairHidDevice device, byte[] report)
+        {
+            using var stream = device.HidDevice.Open();
+            await stream.WriteAsync(report, 0, report.Length);
+            return true;
         }
 
         public Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
@@ -401,7 +468,7 @@ namespace OmenCore.Services.Corsair
         /// <summary>
         /// Internal class to track HID device with its info
         /// </summary>
-        private class CorsairHidDevice
+        public class CorsairHidDevice
         {
             public HidDevice HidDevice { get; set; } = null!;
             public int ProductId { get; set; }
