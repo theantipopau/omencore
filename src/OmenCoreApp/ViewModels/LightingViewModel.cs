@@ -423,12 +423,31 @@ namespace OmenCore.ViewModels
         public string LogitechDeviceStatusText => $"{LogitechDevices.Count} device(s) detected";
         public bool HasCorsairMouse => CorsairDevices.Any(d => d.DeviceType == CorsairDeviceType.Mouse);
         public ObservableCollection<CorsairDpiStage> CorsairDpiStages { get; } = new();
+        public ObservableCollection<OmenCore.Corsair.CorsairDpiProfile> CorsairDpiProfiles { get; } = new();
+        private OmenCore.Corsair.CorsairDpiProfile? _selectedCorsairDpiProfile;
+        public OmenCore.Corsair.CorsairDpiProfile? SelectedCorsairDpiProfile
+        {
+            get => _selectedCorsairDpiProfile;
+            set
+            {
+                if (_selectedCorsairDpiProfile != value)
+                {
+                    _selectedCorsairDpiProfile = value;
+                    OnPropertyChanged();
+                    (ApplyCorsairDpiProfileCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    (DeleteCorsairDpiProfileCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
+        }
 
         public ICommand DiscoverCorsairCommand { get; }
         public ICommand ApplyCorsairLightingCommand { get; }
         public ICommand ApplyCorsairCustomColorCommand { get; }
         public ICommand ApplyCorsairDpiCommand { get; }
         public ICommand RestoreCorsairDpiCommand { get; }
+        public ICommand SaveCorsairDpiProfileCommand { get; }
+        public ICommand ApplyCorsairDpiProfileCommand { get; }
+        public ICommand DeleteCorsairDpiProfileCommand { get; }
         public ICommand DiscoverLogitechCommand { get; }
         public ICommand ApplyLogitechColorCommand { get; }
         public ICommand DiscoverCorsairDevicesCommand { get; }
@@ -469,6 +488,9 @@ namespace OmenCore.ViewModels
             ApplyCorsairDpiCommand = new AsyncRelayCommand(async _ => await ApplyCorsairDpiAsync());
             RestoreCorsairDpiCommand = new AsyncRelayCommand(async _ => await RestoreCorsairDpiAsync());
             ApplyCorsairPresetToSystemCommand = new AsyncRelayCommand(async _ => await ApplyCorsairPresetToSystemAsync(), _ => SelectedCorsairPreset != null);
+            SaveCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await SaveCorsairDpiProfileAsync());
+            ApplyCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await ApplyCorsairDpiProfileAsync(), _ => SelectedCorsairDpiProfile != null);
+            DeleteCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await DeleteCorsairDpiProfileAsync(), _ => SelectedCorsairDpiProfile != null);
             
             DiscoverLogitechCommand = new AsyncRelayCommand(async _ => await _logitechService.DiscoverAsync());
             DiscoverLogitechDevicesCommand = new AsyncRelayCommand(async _ => await _logitechService.DiscoverAsync());
@@ -512,6 +534,16 @@ namespace OmenCore.ViewModels
             }
 
             SelectedCorsairPreset = CorsairLightingPresets.FirstOrDefault();
+
+            // Load saved DPI profiles from config
+            if (_configService?.Config?.CorsairDpiProfiles != null)
+            {
+                CorsairDpiProfiles.Clear();
+                foreach (var p in _configService.Config.CorsairDpiProfiles)
+                {
+                    CorsairDpiProfiles.Add(p);
+                }
+            }
             
             // Initialize keyboard presets
             KeyboardPresets.Add(new KeyboardPreset { Name = "OMEN Red", Zone1 = "#E6002E", Zone2 = "#E6002E", Zone3 = "#E6002E", Zone4 = "#E6002E" });
@@ -685,7 +717,7 @@ namespace OmenCore.ViewModels
             }, "Applying custom color...");
         }
 
-        private async Task ApplyCorsairDpiAsync(bool skipConfirmation = false)
+        public async Task ApplyCorsairDpiAsync(bool skipConfirmation = false)
         {
             if (SelectedCorsairDevice == null)
             {
@@ -735,6 +767,31 @@ namespace OmenCore.ViewModels
                         _configService.Save(_configService.Config);
                     }
 
+                    // Also update the selected profile if one is chosen (save changes back to profile)
+                    if (SelectedCorsairDpiProfile != null)
+                    {
+                        SelectedCorsairDpiProfile.Stages.Clear();
+                        foreach (var s in CorsairDpiStages)
+                        {
+                            SelectedCorsairDpiProfile.Stages.Add(new CorsairDpiStage { Name = s.Name, Dpi = s.Dpi, IsDefault = s.IsDefault, AngleSnapping = s.AngleSnapping, LiftOffDistanceMm = s.LiftOffDistanceMm, Index = s.Index });
+                        }
+                        // Persist profile changes to config
+                        if (_configService != null)
+                        {
+                            var cfgList = _configService.Config.CorsairDpiProfiles;
+                            // find and replace by name
+                            for (int i = 0; i < cfgList.Count; i++)
+                            {
+                                if (cfgList[i].Name == SelectedCorsairDpiProfile.Name)
+                                {
+                                    cfgList[i] = SelectedCorsairDpiProfile;
+                                    break;
+                                }
+                            }
+                            _configService.Save(_configService.Config);
+                        }
+                    }
+
                     _logging.Info("DPI settings applied successfully");
                 }
                 catch (Exception ex)
@@ -757,7 +814,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async Task RestoreCorsairDpiAsync(bool skipConfirmation = false)
+        public async Task RestoreCorsairDpiAsync(bool skipConfirmation = false)
         {
             if (!skipConfirmation)
             {
@@ -792,6 +849,136 @@ namespace OmenCore.ViewModels
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 2", Dpi = 1600, Index = 1 });
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 3", Dpi = 3200, Index = 2 });
             _logging.Info("Restored built-in DPI defaults");
+        }
+
+        public async Task ApplyCorsairDpiProfileAsync()
+        {
+            if (SelectedCorsairDpiProfile == null)
+            {
+                _logging.Warn("No DPI profile selected");
+                return;
+            }
+
+            CorsairDpiStages.Clear();
+            foreach (var s in SelectedCorsairDpiProfile.Stages)
+            {
+                CorsairDpiStages.Add(new CorsairDpiStage { Name = s.Name, Dpi = s.Dpi, IsDefault = s.IsDefault, AngleSnapping = s.AngleSnapping, LiftOffDistanceMm = s.LiftOffDistanceMm, Index = s.Index });
+            }
+
+            // Optionally apply to device immediately
+            await ApplyCorsairDpiAsync();
+        }
+
+        public async Task SaveCorsairDpiProfileAsync(string profileName)
+        {
+            if (string.IsNullOrWhiteSpace(profileName)) return;
+            var trimmed = profileName.Trim();
+
+            var existing = CorsairDpiProfiles.FirstOrDefault(p => p.Name == trimmed);
+            if (existing != null)
+            {
+                // Overwrite existing profile stages
+                existing.Stages.Clear();
+                foreach (var s in CorsairDpiStages)
+                {
+                    existing.Stages.Add(new CorsairDpiStage { Name = s.Name, Dpi = s.Dpi, IsDefault = s.IsDefault, AngleSnapping = s.AngleSnapping, LiftOffDistanceMm = s.LiftOffDistanceMm, Index = s.Index });
+                }
+
+                if (_configService != null)
+                {
+                    _configService.Config.CorsairDpiProfiles = CorsairDpiProfiles.ToList();
+                    _configService.Save(_configService.Config);
+                }
+
+                _logging.Info($"Overwrote DPI profile '{existing.Name}'");
+                await Task.CompletedTask;
+                return;
+            }
+
+            var profile = new OmenCore.Corsair.CorsairDpiProfile { Name = trimmed };
+            foreach (var s in CorsairDpiStages)
+            {
+                profile.Stages.Add(new CorsairDpiStage { Name = s.Name, Dpi = s.Dpi, IsDefault = s.IsDefault, AngleSnapping = s.AngleSnapping, LiftOffDistanceMm = s.LiftOffDistanceMm, Index = s.Index });
+            }
+
+            CorsairDpiProfiles.Add(profile);
+            if (_configService != null)
+            {
+                _configService.Config.CorsairDpiProfiles = CorsairDpiProfiles.ToList();
+                _configService.Save(_configService.Config);
+            }
+
+            _logging.Info($"Saved DPI profile '{profile.Name}'");
+            await Task.CompletedTask;
+        }
+
+        private async Task SaveCorsairDpiProfileAsync()
+        {
+            // Prompt for a profile name
+            var namePrompt = new InputPromptWindow("Save DPI Profile", "Enter a name for the DPI profile:");
+            namePrompt.Owner = Application.Current.MainWindow;
+            if (namePrompt.ShowDialog() != true || string.IsNullOrWhiteSpace(namePrompt.Input))
+            {
+                _logging.Info("User cancelled Save DPI Profile");
+                return;
+            }
+
+            var name = namePrompt.Input.Trim();
+            var exists = CorsairDpiProfiles.Any(p => p.Name == name);
+            if (exists)
+            {
+                var res = MessageBox.Show($"A DPI profile named '{name}' already exists. Overwrite it?", "Overwrite DPI Profile", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                if (res != MessageBoxResult.Yes)
+                {
+                    _logging.Info("User declined to overwrite existing DPI profile");
+                    return;
+                }
+            }
+
+            await SaveCorsairDpiProfileAsync(name);
+        }
+
+        public async Task DeleteCorsairDpiProfileByNameAsync(string profileName)
+        {
+            if (string.IsNullOrWhiteSpace(profileName)) return;
+            var toRemove = CorsairDpiProfiles.FirstOrDefault(p => p.Name == profileName);
+            if (toRemove == null) return;
+            CorsairDpiProfiles.Remove(toRemove);
+            if (SelectedCorsairDpiProfile == toRemove)
+            {
+                SelectedCorsairDpiProfile = CorsairDpiProfiles.FirstOrDefault();
+            }
+            if (_configService != null)
+            {
+                _configService.Config.CorsairDpiProfiles = CorsairDpiProfiles.ToList();
+                _configService.Save(_configService.Config);
+            }
+            _logging.Info($"Deleted DPI profile '{profileName}'");
+            await Task.CompletedTask;
+        }
+
+        private async Task DeleteCorsairDpiProfileAsync()
+        {
+            if (SelectedCorsairDpiProfile == null)
+            {
+                _logging.Warn("No DPI profile selected");
+                return;
+            }
+
+            var res = MessageBox.Show(
+                $"Are you sure you want to delete the DPI profile '{SelectedCorsairDpiProfile.Name}'? This cannot be undone.",
+                "Delete DPI Profile",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+
+            if (res != MessageBoxResult.Yes)
+            {
+                _logging.Info("User cancelled DPI profile delete");
+                return;
+            }
+
+            await DeleteCorsairDpiProfileByNameAsync(SelectedCorsairDpiProfile.Name);
         }
 
         private async Task LoadMacroProfileAsync()

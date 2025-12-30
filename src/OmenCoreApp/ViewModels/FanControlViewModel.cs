@@ -305,7 +305,10 @@ namespace OmenCore.ViewModels
             // Load custom presets from config file
             LoadPresetsFromConfig();
             
+            // Default to Auto without applying/saving to config
+            _suppressApplyOnSelection = true;
             SelectedPreset = FanPresets[1]; // Default to Auto
+            _suppressApplyOnSelection = false;
         }
         
         private void ThermalSamples_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

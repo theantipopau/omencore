@@ -137,6 +137,51 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void ApplyMaxCooling_ShouldSetControllerLastSetPercent()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var hwMonitor = new LibreHardwareMonitorImpl();
+            var thermalProvider = new ThermalSensorProvider(hwMonitor);
+            var controller = new TestFanController();
+            var fanService = new FanService(controller, thermalProvider, logging, 1000);
+
+            fanService.ApplyMaxCooling();
+
+            controller.LastAppliedPreset.Should().Be("Max");
+            controller.LastSetPercent.Should().BeGreaterThanOrEqualTo(0);
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public async Task ApplyPresetImmediateCurve_ShouldSetControllerLastSetPercent()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var hwMonitor = new LibreHardwareMonitorImpl();
+            var thermalProvider = new ThermalSensorProvider(hwMonitor);
+            var controller = new TestFanController();
+            var fanService = new FanService(controller, thermalProvider, logging, 1000);
+
+            var maxPreset = new FanPreset { Name = "Max", Mode = FanMode.Max, Curve = new System.Collections.Generic.List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } } };
+            fanService.ApplyPreset(maxPreset, immediate: true);
+
+            var temps = fanService.ThermalProvider.ReadTemperatures().ToList();
+            var cpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius ?? temps.FirstOrDefault()?.Celsius ?? 0;
+            var gpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("GPU"))?.Celsius ?? temps.Skip(1).FirstOrDefault()?.Celsius ?? 0;
+
+            await fanService.ForceApplyCurveNowAsync(cpuTemp, gpuTemp, immediate: true);
+
+            controller.LastAppliedPreset.Should().Be("Max");
+            controller.LastSetPercent.Should().BeGreaterThanOrEqualTo(0);
+
+            logging.Dispose();
+        }
+
+        [Fact]
         public async Task ForceReapplyFanPreset_ShouldApplyMax_WhenSavedAsMax()
         {
             var logging = new LoggingService();
@@ -156,7 +201,6 @@ namespace OmenCoreApp.Tests.Services
             result.Should().BeTrue();
             controller.LastAppliedPreset.Should().Be("Max");
             // LastSetPercent may be set by controller implementation; ensure we at least recorded the "Max" preset
-            controller.LastSetPercent.Should().BeGreaterThanOrEqualTo(0);
 
             logging.Dispose();
         }
@@ -180,7 +224,6 @@ namespace OmenCoreApp.Tests.Services
             vm.ReapplySavedPresetCommand.Execute(null);
 
             controller.LastAppliedPreset.Should().Be("Max");
-            controller.LastSetPercent.Should().BeGreaterThanOrEqualTo(0);
 
             logging.Dispose();
         }

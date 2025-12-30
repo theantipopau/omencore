@@ -1,0 +1,57 @@
+<UserControl x:Class="OmenCore.Views.FanDiagnosticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" d:DesignHeight="400" d:DesignWidth="700">
+    <Border Style="{StaticResource SurfaceCard}" Padding="16">
+        <StackPanel>
+            <TextBlock Text="Fan Diagnostics" Style="{StaticResource Heading2}" />
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,12">
+                <StackPanel Width="240">
+                    <TextBlock Text="Selected Fan" Style="{StaticResource Caption}" />
+                    <ComboBox SelectedIndex="{Binding SelectedFanIndex, Mode=TwoWay}" Margin="0,6,0,0">
+                        <ComboBoxItem Content="CPU Fan" />
+                        <ComboBoxItem Content="GPU Fan" />
+                    </ComboBox>
+
+                    <TextBlock Text="Target Percent" Style="{StaticResource Caption}" Margin="0,10,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Slider Width="160" Minimum="0" Maximum="100" Value="{Binding TargetPercent, Mode=TwoWay}" />
+                        <TextBlock Text="{Binding TargetPercent}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Apply &amp; Verify" Command="{Binding ApplyAndVerifyCommand}" Style="{StaticResource ModernButton}" />
+                        <Button Content="Refresh" Command="{Binding RefreshStateCommand}" Margin="8,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="16,0,0,0" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Current State" FontWeight="SemiBold" />
+                        <TextBlock Text="RPM:" Style="{StaticResource Caption}" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding CurrentRpm}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock Text="Level:" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding CurrentLevel}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <TextBlock Text="History" Style="{StaticResource Heading3}" Margin="0,8,0,8" />
+            <ListBox ItemsSource="{Binding History}" MaxHeight="180">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource SurfaceDarkBrush}" Padding="8" Margin="0,0,0,8" CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Text="{Binding FanName}" FontWeight="SemiBold" />
+                                <TextBlock Text="Requested: {Binding RequestedPercent}%, RPM: {Binding ActualRpmAfter} (±{Binding DeviationPercent, StringFormat={}{0:F1}%})" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">{Binding ErrorMessage}</TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -559,16 +559,35 @@ namespace OmenCore.Services.Corsair
                     return;
                 }
 
-                try
+                // Retry loop for inkling of reliability similar to color writes
+                bool success = false;
+                for (int attempt = 1; attempt <= HID_WRITE_MAX_ATTEMPTS; attempt++)
                 {
-                    var ok = await WriteReportAsync(hidDevice, report);
-                    if (!ok) throw new InvalidOperationException("HID write returned false");
-                    _logging.Info($"Applied DPI {s.Dpi} to {device.Name}");
-                    try { _telemetry?.IncrementPidSuccess(hidDevice.ProductId); } catch { }
+                    try
+                    {
+                        var ok = await WriteReportAsync(hidDevice, report);
+                        if (ok)
+                        {
+                            _logging.Info($"Applied DPI {s.Dpi} to {device.Name} (attempt {attempt})");
+                            try { _telemetry?.IncrementPidSuccess(hidDevice.ProductId); } catch { }
+                            success = true;
+                            break;
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("HID write returned false");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"Attempt {attempt} failed to write DPI report for {device.Name} (PID: 0x{hidDevice.ProductId:X4}): {ex.Message}");
+                        if (attempt < HID_WRITE_MAX_ATTEMPTS)
+                            await Task.Delay(HID_WRITE_RETRY_DELAY_MS);
+                    }
                 }
-                catch (Exception ex)
+
+                if (!success)
                 {
-                    _logging.Warn($"Failed to write DPI report for {device.Name} (PID: 0x{hidDevice.ProductId:X4}): {ex.Message}");
                     try { _telemetry?.IncrementPidFailure(hidDevice.ProductId); } catch { }
                 }
             }
@@ -600,6 +619,22 @@ namespace OmenCore.Services.Corsair
                     r2[4] = (byte)((dpi >> 8) & 0xFF);
                     r2[5] = 0x01; // commit flag
                     return r2;
+                case 0x1B96: // M65 Ultra - similar to M65 but different cmd
+                    var r3 = new byte[65];
+                    r3[0] = 0x00;
+                    r3[1] = 0x13;
+                    r3[2] = (byte)index;
+                    r3[3] = (byte)(dpi & 0xFF);
+                    r3[4] = (byte)((dpi >> 8) & 0xFF);
+                    return r3;
+                case 0x1B34: // Ironclaw - another variant
+                    var r4 = new byte[65];
+                    r4[0] = 0x00;
+                    r4[1] = 0x14;
+                    r4[2] = (byte)index;
+                    r4[3] = (byte)(dpi & 0xFF);
+                    r4[4] = (byte)((dpi >> 8) & 0xFF);
+                    return r4;
                 default:
                     return null;
             }

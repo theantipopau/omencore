@@ -48,6 +48,7 @@ namespace OmenCore.ViewModels
         private readonly ConfigurationService _configService = App.Configuration;
         private readonly AppConfig _config;
         private readonly FanService _fanService = null!;
+        private readonly IFanVerificationService _fanVerificationService = null!;
         private readonly PerformanceModeService _performanceModeService = null!;
         private readonly KeyboardLightingService _keyboardLightingService;
         private readonly SystemOptimizationService _systemOptimizationService;
@@ -953,6 +954,12 @@ namespace OmenCore.ViewModels
         public ICommand ExportConfigurationCommand { get; }
         public ICommand ImportConfigurationCommand { get; }
 
+        // Expose Fan Diagnostics VM
+        public FanDiagnosticsViewModel FanDiagnostics { get; private set; }
+
+        // Expose Keyboard Diagnostics VM
+        public KeyboardDiagnosticsViewModel KeyboardDiagnostics { get; private set; }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public MainViewModel()
@@ -1036,6 +1043,13 @@ namespace OmenCore.ViewModels
             ThermalSamples = _fanService.ThermalSamples;
             FanTelemetry = _fanService.FanTelemetry;
             var powerPlanService = new PowerPlanService(_logging);
+
+            // Fan verification service (closed-loop verification)
+            _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
+            FanDiagnostics = new FanDiagnosticsViewModel(_fanVerificationService, _fanService, _logging);
+
+            // Keyboard diagnostics
+            KeyboardDiagnostics = new KeyboardDiagnosticsViewModel(_corsairDeviceService, _logitechDeviceService, _keyboardLightingService, _razerService, _logging);
             
             // Power limit controller (EC-based CPU/GPU power control)
             PowerLimitController? powerLimitController = null;
@@ -2135,9 +2149,27 @@ namespace OmenCore.ViewModels
                     
                     if (hasPeripherals || hasKeyboardLighting || hasRazer)
                     {
-                        Lighting = new LightingViewModel(_corsairDeviceService, _logitechDeviceService, _logging, _keyboardLightingService, _configService, _razerService);
+                        // Initialize RGB manager and providers with priority: Corsair -> Logitech -> Razer -> SystemGeneric
+                        var rgbManager = new OmenCore.Services.Rgb.RgbManager();
+                        var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService);
+                        var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging);
+                        rgbManager.RegisterProvider(corsairProvider);
+                        rgbManager.RegisterProvider(logitechProvider);
+
+                        if (_razerService != null)
+                        {
+                            var razerProvider = new OmenCore.Services.Rgb.RazerRgbProvider(_logging, _razerService);
+                            rgbManager.RegisterProvider(razerProvider);
+                        }
+
+                        var systemProvider = new OmenCore.Services.Rgb.SystemRgbProvider(rgbManager, _logging);
+                        rgbManager.RegisterProvider(systemProvider);
+
+                        await rgbManager.InitializeAllAsync();
+
+                        Lighting = new LightingViewModel(_corsairDeviceService, _logitechDeviceService, _logging, _keyboardLightingService, _configService, _razerService, rgbManager);
                         OnPropertyChanged(nameof(Lighting));
-                        
+
                         // Apply saved keyboard colors on startup
                         if (hasKeyboardLighting)
                         {

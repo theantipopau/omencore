@@ -87,14 +87,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📌 Apply to System** - Lighting UI now exposes an "Apply to System" action to apply the selected color across available providers.
 - **🔧 Keyboard full-zone HID writes** - Added full-device HID write payload support for Corsair keyboards (K70/K95/K100) so many keyboards can be controlled without iCUE.
 - **🔬 K100 per-key stub** - Added a small per-key payload stub for K100 keyboards to reserve space for future per-key lighting support.
+- **⚙️ Settings: Corsair HID-only toggle** - Added `CorsairDisableIcueFallback` and a Settings UI toggle to optionally disable iCUE fallback and run Corsair devices in HID-only mode (advanced users; restart required).
+- **🔧 Corsair HID reliability** - Added write retries, backoff, failed-device tracking (`HidWriteFailedDeviceIds`), and diagnostic helpers to improve robustness when iCUE is not present; unit tests added.
+- **🔬 Per-product HID payloads** - Use product and device-type heuristics to select appropriate HID payloads (keyboard full-zone writes, mice payloads); K100 includes a per-key stub for future expansion; tests validate payload selection and behavior.
 
 ### Changed
 - **🧭 Startup behavior** - `MainViewModel` initializes `RgbManager` and registers providers so lighting actions are available earlier in startup.
-- **🧪 Tests** - Added unit tests for `CorsairRgbProvider`, `LogitechRgbProvider`, and `RgbNetSystemProvider`; all tests pass in local runs.
+- **⚙️ Settings & Config** - `CorsairDeviceService.CreateAsync` and `CorsairRgbProvider` now respect the `CorsairDisableIcueFallback` config flag and the new UI toggle; users can opt into HID-only mode via Settings.
+- **🧪 Tests** - Added unit tests for `CorsairRgbProvider`, `LogitechRgbProvider`, `CorsairHidDirect` helpers, and `RgbNetSystemProvider`; all relevant tests pass in local runs.
 
 ### Technical
-- **✅ Tests** - Relevant provider tests added and are passing in `OmenCoreApp.Tests` (see `TestResults/test_results.trx`).
+- **✅ Tests** - Relevant provider and Corsair HID tests added and are passing in `OmenCoreApp.Tests` (see `TestResults/test_results.trx`).
 - **🔧 Minor refactors** - Improved provider initialization logging and safer surface updates in `RgbNetSystemProvider`.
+- **🛠️ Corsair HID diagnostics** - Added diagnostic hooks (e.g., `HidWriteFailedDeviceIds`), test helpers, and an overridable low-level `WriteReportAsync` to enable robust unit testing and failure diagnostics.
 
 ---
 

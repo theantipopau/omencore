@@ -707,6 +707,18 @@ namespace OmenCore.Services
             
             DisableCurve();
             _fanController.ApplyMaxCooling();
+            // Ensure the controller records the applied percent (defensive for various controller implementations)
+            try
+            {
+                if (_fanController.SetFanSpeed(100))
+                {
+                    _lastAppliedFanPercent = 100;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"SetFanSpeed(100) during ApplyMaxCooling threw: {ex.Message}");
+            }
             _currentFanMode = "Max";
             _logging.Info("Max cooling mode applied");
         }
@@ -753,6 +765,46 @@ namespace OmenCore.Services
         public string? GetCurrentFanMode() => _currentFanMode;
 
         #endregion
+
+        /// <summary>
+        /// Force-set fan speed directly on controller (used for restoration/diagnostics).
+        /// </summary>
+        public void ForceSetFanSpeed(int percent)
+        {
+            if (!FanWritesAvailable)
+            {
+                _logging.Warn("ForceSetFanSpeed skipped; fan control unavailable");
+                return;
+            }
+
+            try
+            {
+                _fanController.SetFanSpeed(percent);
+                _lastAppliedFanPercent = percent;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"ForceSetFanSpeed({percent}) failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Test helper: try to read a LastSetPercent-like property from the underlying fan controller if present.
+        /// Returns null if the property does not exist.
+        /// </summary>
+        public int? GetControllerReportedSetPercent()
+        {
+            try
+            {
+                var prop = _fanController.GetType().GetProperty("LastSetPercent");
+                if (prop != null && prop.PropertyType == typeof(int))
+                {
+                    return (int?)prop.GetValue(_fanController);
+                }
+            }
+            catch { }
+            return null;
+        }
 
         public void Dispose()
         {

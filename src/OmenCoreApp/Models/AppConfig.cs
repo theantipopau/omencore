@@ -14,6 +14,11 @@ namespace OmenCore.Models
         public List<LightingProfile> LightingProfiles { get; set; } = new();
         public List<CorsairLightingPreset> CorsairLightingPresets { get; set; } = new();
         public List<CorsairDpiStage> DefaultCorsairDpi { get; set; } = new();
+        
+        /// <summary>
+        /// Named DPI profiles saved by the user for quick apply across devices.
+        /// </summary>
+        public List<OmenCore.Corsair.CorsairDpiProfile> CorsairDpiProfiles { get; set; } = new();
         public List<MacroProfile> MacroProfiles { get; set; } = new();
         public Dictionary<string, int> EcFanRegisterMap { get; set; } = new();
         public UndervoltPreferences Undervolt { get; set; } = new();

@@ -1,0 +1,92 @@
+<UserControl x:Class="OmenCore.Views.KeyboardDiagnosticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" d:DesignHeight="500" d:DesignWidth="700">
+    <Border Style="{StaticResource SurfaceCard}" Padding="16">
+        <StackPanel>
+            <TextBlock Text="Keyboard Lighting Diagnostics" Style="{StaticResource Heading2}" />
+
+            <TextBlock Text="{Binding DiagnosticStatus}" Style="{StaticResource BodyText}" Margin="0,8,0,16" />
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Button Content="Detect Devices" Command="{Binding RunDeviceDetectionCommand}" Style="{StaticResource PrimaryButton}" />
+                <Button Content="Run Test Pattern" Command="{Binding RunTestPatternCommand}" Margin="8,0,0,0" Style="{StaticResource PrimaryButton}" />
+                <Button Content="Clear Test Pattern" Command="{Binding ClearTestPatternCommand}" Margin="8,0,0,0" Style="{StaticResource SecondaryButton}" />
+                <Button Content="Collect Logs" Command="{Binding CollectLogsCommand}" Margin="8,0,0,0" Style="{StaticResource SecondaryButton}" />
+            </StackPanel>
+
+            <TextBlock Text="Detected Devices" Style="{StaticResource Heading3}" Margin="0,8,0,8" />
+            <ListBox ItemsSource="{Binding DetectedDevices}" MaxHeight="200">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{StaticResource SurfaceDarkBrush}" Padding="12" Margin="0,0,0,8" CornerRadius="6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding Brand}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Model}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding Type}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" />
+                                    <TextBlock Text="{Binding Backend}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TextBlock Text="Service Status" Style="{StaticResource Heading3}" Margin="0,16,0,8" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Corsair iCUE:" Style="{StaticResource Label}" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding HasCorsair, Converter={StaticResource BoolToYesNo}}" Foreground="{Binding HasCorsair, Converter={StaticResource BoolToColor}}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Logitech G HUB:" Style="{StaticResource Label}" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HasLogitech, Converter={StaticResource BoolToYesNo}}" Foreground="{Binding HasLogitech, Converter={StaticResource BoolToColor}}" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Razer Chroma:" Style="{StaticResource Label}" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HasRazer, Converter={StaticResource BoolToYesNo}}" Foreground="{Binding HasRazer, Converter={StaticResource BoolToColor}}" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="HP Omen Keyboard:" Style="{StaticResource Label}" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HasKeyboardLighting, Converter={StaticResource BoolToYesNo}}" Foreground="{Binding HasKeyboardLighting, Converter={StaticResource BoolToColor}}" />
+            </Grid>
+
+            <TextBlock Text="Troubleshooting Tips" Style="{StaticResource Heading3}" Margin="0,16,0,8" />
+            <Border Background="{StaticResource SurfaceDarkBrush}" Padding="12" CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="• Ensure iCUE, G HUB, or Synapse software is running for respective devices" Style="{StaticResource Caption}" />
+                    <TextBlock Text="• Check device connections and try re-plugging USB devices" Style="{StaticResource Caption}" />
+                    <TextBlock Text="• For HP Omen keyboard, ensure WMI BIOS support is available" Style="{StaticResource Caption}" />
+                    <TextBlock Text="• Restart the application after installing/updating lighting software" Style="{StaticResource Caption}" />
+                    <TextBlock Text="• Check Windows Event Viewer for SDK initialization errors" Style="{StaticResource Caption}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Diagnostic Logs" Style="{StaticResource Heading3}" Margin="0,16,0,8" />
+            <ListBox ItemsSource="{Binding DiagnosticLogs}" MaxHeight="150" FontFamily="Consolas" FontSize="11">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="{StaticResource TextSecondaryBrush}" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Border>
+</UserControl>

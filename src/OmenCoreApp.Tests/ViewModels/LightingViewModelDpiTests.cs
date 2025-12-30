@@ -4,6 +4,7 @@ using FluentAssertions;
 using OmenCore.Corsair;
 using OmenCore.Services;
 using OmenCore.Services.Corsair;
+using OmenCore.Services.Logitech;
 using OmenCore.ViewModels;
 using Xunit;
 
@@ -43,7 +44,7 @@ namespace OmenCoreApp.Tests.ViewModels
             cfg.Save(cfg.Config);
 
             var corsairService = new CorsairDeviceService(new CorsairSdkStub(log), log);
-            var logi = new LogitechDeviceService(log);
+            var logi = new LogitechDeviceService(new LogitechSdkStub(log), log);
             var vm = new LightingViewModel(corsairService, logi, log, null, cfg, null, null);
 
             // Change DPI stages and then restore
@@ -64,7 +65,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var cfg = new ConfigurationService();
 
             var corsairService = new CorsairDeviceService(new CorsairSdkStub(log), log);
-            var logi = new LogitechDeviceService(log);
+            var logi = new LogitechDeviceService(new LogitechSdkStub(log), log);
             var vm = new LightingViewModel(corsairService, logi, log, null, cfg, null, null);
 
             // Prepare a fake device

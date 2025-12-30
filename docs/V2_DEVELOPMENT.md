@@ -150,11 +150,13 @@ Notes: Initial asset folders and placeholder images created. Next: gather real d
 
 **Progress update (2025-12-28):**
 - Initial provider wiring implemented (`IRgbProvider`, `RgbManager`). Providers registered in priority order: **Corsair → Logitech → Razer → SystemGeneric**.
-- **Corsair**: `CorsairRgbProvider` added; supports `color:#RRGGBB` and `preset:<name>`; unit tests added and passing. Added direct HID improvements: retries, heuristics, diagnostics, and **full-device keyboard writes for K70/K95/K100**, plus a **K100 per-key payload stub** so many keyboards can be controlled without iCUE and we have a path to per-key features.
+- **Corsair**: `CorsairRgbProvider` added; supports `color:#RRGGBB` and `preset:<name>`; unit tests added and passing. Added direct HID improvements: retries, heuristics, diagnostics, failed-device tracking, and **full-device keyboard writes for K70/K95/K100**, plus a **K100 per-key payload stub** so many keyboards can be controlled without iCUE and we have a path to per-key features. A Settings toggle (`CorsairDisableIcueFallback`) and corresponding tests were added to allow users to opt into HID-only mode.
 - **Logitech**: `LogitechRgbProvider` implements `color:#RRGGBB@<brightness>` and `breathing:#RRGGBB@<speed>`; unit tests added and passing.
 - **Razer**: Basic `RazerRgbProvider` wraps `RazerService` for Synapse-aware behavior (placeholder for Chroma SDK integration).
 - **SystemGeneric**: `RgbNetSystemProvider` added (experimental) using RGB.NET; initialization and basic color application validated in tests.
-- Added unit tests for providers; all related provider tests pass locally (see `OmenCoreApp.Tests/TestResults/test_results.trx`).
+- Added unit tests for providers and Corsair HID helpers; all related provider and HID tests pass locally (see `OmenCoreApp.Tests/TestResults/test_results.trx`).
+
+**Note / Next steps:** Add telemetry opt-in for anonymous PID success counts and continue DPI/macro HID research for mice support.
 
 ---
 
@@ -316,12 +318,12 @@ Notes: Initial asset folders and placeholder images created. Next: gather real d
 |-------|--------|----------|
 | 1. Foundation & Quick Wins | ✅ System Tray Done | 6/20 |
 | 2. System Optimizer | ✅ Complete | 35/35 |
-| 3. RGB Overhaul | ⚪ In Progress | 3/24 |
+| 3. RGB Overhaul | ⚪ In Progress | 10/24 |
 | 4. Linux Support | ⚪ Planned | 0/12 |
 | 5. Advanced Features | ⚪ Planned | 0/15 |
 | 6. Polish & Release | ⚪ Planned | 0/8 |
 
-**Overall: 46/114 tasks (40%)**
+**Overall: 54/114 tasks (47%)**
 
 ---
 

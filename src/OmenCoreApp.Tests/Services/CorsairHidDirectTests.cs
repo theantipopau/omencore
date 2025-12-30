@@ -33,34 +33,44 @@ namespace OmenCoreApp.Tests.Services
             {
                 // Add a test device and call protected method
                 AddTestHidDevice(deviceId, pid, CorsairDeviceType.Mouse, "Flaky Mouse");
-                var dev = default(CorsairDevice);
+                CorsairDevice? dev = null;
                 // get reference to internal device list via DiscoverDevicesAsync
                 var d = DiscoverDevicesAsync().Result;
                 foreach (var x in d) if (x.DeviceId == deviceId) dev = x;
+                if (dev == null) throw new System.Exception($"Test device '{deviceId}' not found");
                 return SendColorForTestAsync(dev, 0x11, 0x22, 0x33);
             }
 
             // wrapper for protected SendColorCommandAsync
             public Task SendColorForTestAsync(CorsairDevice device, byte r, byte g, byte b)
             {
+                if (device == null) throw new System.ArgumentNullException(nameof(device));
                 // locate the private nested CorsairHidDevice by matching DeviceId and then call SendColorCommandAsync via reflection
                 var t = typeof(CorsairHidDirect);
                 var method = t.GetMethod("SendColorCommandAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
                 if (method == null) throw new System.Exception("SendColorCommandAsync method not found");
-                return (Task)method.Invoke(this, new object[] { /*CorsairHidDevice*/ GetInternalHidDevice(device.DeviceId), r, g, b })!;
+                var hid = GetInternalHidDevice(device.DeviceId);
+                var res = method.Invoke(this, new object[] { /*CorsairHidDevice*/ hid, r, g, b });
+                if (res is Task task) return task;
+                throw new System.Exception("SendColorCommandAsync did not return a Task");
             }
 
             private object GetInternalHidDevice(string deviceId)
             {
                 var t = typeof(CorsairHidDirect);
                 var field = t.GetField("_devices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (field == null) throw new System.Exception("_devices field not found");
                 var list = field.GetValue(this) as System.Collections.IEnumerable;
-                foreach (var item in list!)
+                if (list == null) throw new System.Exception("_devices list is null");
+                foreach (var item in list)
                 {
-                    var di = item.GetType().GetProperty("DeviceInfo").GetValue(item) as CorsairDevice;
+                    var prop = item.GetType().GetProperty("DeviceInfo");
+                    if (prop == null) continue;
+                    var di = prop.GetValue(item) as CorsairDevice;
+                    if (di == null) continue;
                     if (di.DeviceId == deviceId) return item;
                 }
-                throw new System.Exception("internal hid device not found");
+                throw new System.Exception($"internal hid device '{deviceId}' not found");
             }
         }
 

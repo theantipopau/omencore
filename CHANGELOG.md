@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0-alpha] - 2025-12-25
+
+### Added
+- **🎨 System RGB provider (experimental)** - `RgbNetSystemProvider` uses RGB.NET to control supported desktop RGB devices; supports static color application via `color:#RRGGBB`.
+- **✨ Corsair preset application via providers** - `CorsairRgbProvider` now supports `preset:<name>` applying presets saved in configuration (`CorsairLightingPresets`).
+- **🔁 RgbManager wiring & provider stack** - Providers are registered at startup in priority: Corsair → Logitech → Razer → SystemGeneric, enabling a single entrypoint to apply system-wide lighting effects.
+- **🧪 Unit tests** - Added `CorsairRgbProviderTests` and preliminary tests for RGB provider wiring and behavior.
+- **📄 Docs & dev notes** - Updated `docs/V2_DEVELOPMENT.md` and `CHANGELOG` to reflect Phase 3 design and spike work.
+
+### Changed
+- **Lighting subsystem** - `LightingViewModel` now accepts an `RgbManager` instance to expose provider actions to the UI and tests.
+
+---
+
 ## [1.5.0-beta] - 2025-12-17
 
 ### Added

@@ -274,7 +274,16 @@ namespace OmenCore.Services
                 var nameLower = savedPresetName.ToLowerInvariant();
                 if (nameLower == "max" || nameLower.Contains("max"))
                 {
-                    _fanService.ApplyMaxCooling();
+                    // Apply an explicit 100% curve and force an immediate apply to ensure SetFanSpeed(100) is invoked
+                    var maxPreset = new FanPreset { Name = savedPresetName, Mode = FanMode.Max, Curve = new System.Collections.Generic.List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } } };
+                    _fanService.ApplyPreset(maxPreset, immediate: true);
+
+                    // Force an immediate curve application using current temps and wait for it to complete so controller state is set
+                    var temps = _fanService.ThermalProvider.ReadTemperatures().ToList();
+                    var cpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius ?? temps.FirstOrDefault()?.Celsius ?? 0;
+                    var gpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("GPU"))?.Celsius ?? temps.Skip(1).FirstOrDefault()?.Celsius ?? 0;
+                    await _fanService.ForceApplyCurveNowAsync(cpuTemp, gpuTemp, immediate: true, ct: ct);
+
                     FanPresetRestored = true;
                     _logging.Info($"✓ Fan preset restored: {savedPresetName} (Max)");
                     RaiseSettingsRestored("FanPreset", savedPresetName, true);

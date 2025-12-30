@@ -208,16 +208,36 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                                 
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                                    <Button Content="Restore Defaults" 
-                                            Style="{StaticResource ModernButton}"
-                                            Command="{Binding RestoreCorsairDpiCommand}"
-                                            Padding="12,6" Margin="0,0,8,0"/>
-                                    <Button Content="Apply DPI Settings" 
-                                            Style="{StaticResource ModernButton}"
-                                            Command="{Binding ApplyCorsairDpiCommand}"
-                                            Padding="16,8" />
-                                </StackPanel>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Orientation="Horizontal" Grid.Column="0" VerticalAlignment="Center">
+                                        <ComboBox Style="{StaticResource ModernComboBox}"
+                                                  ItemsSource="{Binding CorsairDpiProfiles}"
+                                                  SelectedItem="{Binding SelectedCorsairDpiProfile}"
+                                                  DisplayMemberPath="Name"
+                                                  Width="220" Margin="0,0,8,0"
+                                                  ToolTip="Select a saved DPI profile (Save with same name will prompt to overwrite)"/>
+
+                                        <Button Content="Save Profile" Style="{StaticResource ModernButton}" Command="{Binding SaveCorsairDpiProfileCommand}" Padding="12,6" Margin="0,0,8,0" ToolTip="Save current DPI stages as a profile"/>
+                                        <Button Content="Apply Profile" Style="{StaticResource ModernButton}" Command="{Binding ApplyCorsairDpiProfileCommand}" Padding="12,6" Margin="0,0,8,0" ToolTip="Apply selected DPI profile to current stages"/>
+                                        <Button Content="Delete" Style="{StaticResource ModernButton}" Command="{Binding DeleteCorsairDpiProfileCommand}" Padding="12,6" ToolTip="Delete the selected DPI profile" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Grid.Column="1" HorizontalAlignment="Right">
+                                        <Button Content="Restore Defaults" 
+                                                Style="{StaticResource ModernButton}"
+                                                Command="{Binding RestoreCorsairDpiCommand}"
+                                                Padding="12,6" Margin="0,0,8,0"/>
+                                        <Button Content="Apply DPI Settings" 
+                                                Style="{StaticResource ModernButton}"
+                                                Command="{Binding ApplyCorsairDpiCommand}"
+                                                Padding="16,8" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Expander>
                     </StackPanel>

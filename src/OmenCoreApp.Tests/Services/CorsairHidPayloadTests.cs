@@ -24,26 +24,35 @@ namespace OmenCoreApp.Tests.Services
                 // Add a test device to ensure device.ProductId and DeviceType are set
                 AddTestHidDevice("test", pid, type, "Test");
                 var list = DiscoverDevicesAsync().Result;
-                var dev = default(OmenCore.Corsair.CorsairDevice);
+                OmenCore.Corsair.CorsairDevice? dev = null;
                 foreach (var d in list) if (d.DeviceId == "test") dev = d;
+                if (dev == null) throw new System.Exception("test device not found");
 
                 // locate internal CorsairHidDevice
                 var hidDevice = GetInternalHidDevice("test");
                 var method = typeof(CorsairHidDirect).GetMethod("BuildSetColorReport", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                return (byte[])method.Invoke(this, new object[] { hidDevice, r, g, b })!;
+                if (method == null) throw new System.Exception("BuildSetColorReport method not found");
+                var res = method.Invoke(this, new object[] { hidDevice, r, g, b });
+                if (res is byte[] arr) return arr;
+                throw new System.Exception("BuildSetColorReport did not return a byte[]");
             }
 
             private object GetInternalHidDevice(string deviceId)
             {
                 var t = typeof(CorsairHidDirect);
                 var field = t.GetField("_devices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (field == null) throw new System.Exception("_devices field not found");
                 var list = field.GetValue(this) as System.Collections.IEnumerable;
-                foreach (var item in list!)
+                if (list == null) throw new System.Exception("_devices list is null");
+                foreach (var item in list)
                 {
-                    var di = item.GetType().GetProperty("DeviceInfo").GetValue(item) as OmenCore.Corsair.CorsairDevice;
+                    var prop = item.GetType().GetProperty("DeviceInfo");
+                    if (prop == null) continue;
+                    var di = prop.GetValue(item) as OmenCore.Corsair.CorsairDevice;
+                    if (di == null) continue;
                     if (di.DeviceId == deviceId) return item;
                 }
-                throw new System.Exception("internal hid device not found");
+                throw new System.Exception($"internal hid device '{deviceId}' not found");
             }
         }
 

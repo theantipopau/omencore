@@ -43,7 +43,7 @@ namespace OmenCore.Services
     /// 
     /// This addresses the issue where "Requested % doesn't match actual fan speed".
     /// </summary>
-    public class FanVerificationService
+    public class FanVerificationService : IFanVerificationService
     {
         private readonly HpWmiBios? _wmiBios;
         private readonly FanService? _fanService;
@@ -231,7 +231,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Verify fan reading by checking it multiple times.
         /// </summary>
-        public async Task<(int avgRpm, int minRpm, int maxRpm)> GetStableFanRpmAsync(int fanIndex, int samples = 3, CancellationToken ct = default)
+        public async Task<(int avg, int min, int max)> GetStableFanRpmAsync(int fanIndex, int samples = 3, CancellationToken ct = default)
         {
             int sum = 0;
             int min = int.MaxValue;

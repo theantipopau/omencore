@@ -74,6 +74,7 @@ namespace OmenCore.Services
             config.LightingProfiles ??= new();
             config.CorsairLightingPresets ??= new();
             config.DefaultCorsairDpi ??= new();
+            config.CorsairDpiProfiles ??= new();
             config.MacroProfiles ??= new();
             config.EcFanRegisterMap ??= new();
             config.Undervolt ??= new();
