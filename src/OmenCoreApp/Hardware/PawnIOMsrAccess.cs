@@ -253,10 +253,9 @@ namespace OmenCore.Hardware
         {
             ulong[] input = { index };
             ulong[] output = new ulong[2]; // low, high
-            IntPtr returnSize;
 
             // Assuming "ioctl_msr_read" takes index and returns low/high
-            int hr = _pawnioExecute!(_handle, "ioctl_msr_read", input, (IntPtr)1, output, (IntPtr)2, out returnSize);
+            int hr = _pawnioExecute!(_handle, "ioctl_msr_read", input, (IntPtr)1, output, (IntPtr)2, out IntPtr returnSize);
             if (hr < 0)
             {
                 throw new InvalidOperationException($"PawnIO MSR read failed: HRESULT 0x{hr:X8}");
@@ -271,9 +270,8 @@ namespace OmenCore.Hardware
             ulong high = value >> 32;
             ulong[] input = { index, low, high };
             ulong[] output = Array.Empty<ulong>();
-            IntPtr returnSize;
 
-            int hr = _pawnioExecute!(_handle, "ioctl_msr_write", input, (IntPtr)3, output, IntPtr.Zero, out returnSize);
+            int hr = _pawnioExecute!(_handle, "ioctl_msr_write", input, (IntPtr)3, output, IntPtr.Zero, out IntPtr returnSize);
             if (hr < 0)
             {
                 throw new InvalidOperationException($"PawnIO MSR write failed: HRESULT 0x{hr:X8}");

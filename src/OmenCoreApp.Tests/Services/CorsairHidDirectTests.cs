@@ -60,14 +60,12 @@ namespace OmenCoreApp.Tests.Services
                 var t = typeof(CorsairHidDirect);
                 var field = t.GetField("_devices", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                 if (field == null) throw new System.Exception("_devices field not found");
-                var list = field.GetValue(this) as System.Collections.IEnumerable;
-                if (list == null) throw new System.Exception("_devices list is null");
+                if (field.GetValue(this) is not System.Collections.IEnumerable list) throw new System.Exception("_devices list is null");
                 foreach (var item in list)
                 {
                     var prop = item.GetType().GetProperty("DeviceInfo");
                     if (prop == null) continue;
-                    var di = prop.GetValue(item) as CorsairDevice;
-                    if (di == null) continue;
+                    if (prop.GetValue(item) is not CorsairDevice di) continue;
                     if (di.DeviceId == deviceId) return item;
                 }
                 throw new System.Exception($"internal hid device '{deviceId}' not found");

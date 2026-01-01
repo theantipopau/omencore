@@ -55,8 +55,10 @@ namespace OmenCoreApp.Tests.ViewModels
             var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, 1000);
             var verifier = new TestVerifier();
 
-            var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);
-            vm.TargetPercent = 42;
+            var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
+            {
+                TargetPercent = 42
+            };
 
             await vm.ApplyAndVerifyAsync();
 
@@ -77,8 +79,10 @@ namespace OmenCoreApp.Tests.ViewModels
             var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, 1000);
             var verifier = new TestVerifier();
 
-            var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);
-            vm.SelectedFanIndex = 1;
+            var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
+            {
+                SelectedFanIndex = 1
+            };
 
             // Trigger sync
             vm.RefreshStateCommand.Execute(null);

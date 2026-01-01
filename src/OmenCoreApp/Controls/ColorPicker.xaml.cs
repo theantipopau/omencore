@@ -216,7 +216,7 @@ namespace OmenCore.Controls
 
         private static Color HsvToColor(double h, double s, double v)
         {
-            h = h % 360;
+            h %= 360;
             double c = v * s;
             double x = c * (1 - Math.Abs((h / 60) % 2 - 1));
             double m = v - c;

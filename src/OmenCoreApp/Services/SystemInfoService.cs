@@ -63,9 +63,11 @@ namespace OmenCore.Services
                 {
                     foreach (var gpu in searcher.Get().Cast<ManagementObject>())
                     {
-                        var gpuInfo = new GpuInfo();
-                        gpuInfo.Name = gpu["Name"]?.ToString()?.Trim() ?? "Unknown GPU";
-                        
+                        var gpuInfo = new GpuInfo
+                        {
+                            Name = gpu["Name"]?.ToString()?.Trim() ?? "Unknown GPU"
+                        };
+
                         var adapterRam = gpu["AdapterRAM"];
                         if (adapterRam != null)
                         {
@@ -187,7 +189,7 @@ namespace OmenCore.Services
             while (size >= 1024 && order < sizes.Length - 1)
             {
                 order++;
-                size = size / 1024;
+                size /= 1024;
             }
             
             return $"{size:F0} {sizes[order]}";

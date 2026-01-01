@@ -27,7 +27,6 @@ namespace OmenCore.Hardware
         
         // Intel MSR addresses for voltage control
         private const uint MSR_IA32_VOLTAGE_PLANE_0 = 0x150; // Core voltage plane
-        private const uint MSR_IA32_VOLTAGE_PLANE_1 = 0x151; // GPU voltage plane (iGPU)
         private const uint MSR_IA32_VOLTAGE_PLANE_2 = 0x152; // Cache voltage plane
         
         private readonly SafeFileHandle _handle;

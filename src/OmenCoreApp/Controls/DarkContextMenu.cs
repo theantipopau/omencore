@@ -18,8 +18,6 @@ namespace OmenCore.Controls
     {
         // Theme colors
         private static readonly Color SurfaceDark = Color.FromRgb(15, 17, 28);
-        private static readonly Color SurfaceMedium = Color.FromRgb(21, 25, 43);
-        private static readonly Color SurfaceLight = Color.FromRgb(30, 34, 55);
         private static readonly Color AccentPrimary = Color.FromRgb(255, 0, 92);    // OMEN Red/Pink
         private static readonly Color AccentSecondary = Color.FromRgb(0, 200, 200); // Cyan
         private static readonly Color BorderColor = Color.FromRgb(60, 65, 90);

@@ -263,7 +263,7 @@ namespace OmenCore.Services
                             {
                                 vk = (uint)KeyInterop.VirtualKeyFromKey(key);
                             }
-                            else if (trimmed.StartsWith("F") && int.TryParse(trimmed.Substring(1), out var fNum))
+                            else if (trimmed.StartsWith("F") && int.TryParse(trimmed[1..], out var fNum))
                             {
                                 // F1-F24 keys
                                 vk = (uint)(0x70 + fNum - 1); // VK_F1 = 0x70

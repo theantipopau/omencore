@@ -23,7 +23,6 @@ namespace OmenCore.Services
         private bool _showTemperatureWarnings = true;
         private bool _showUpdateNotifications = true;
         
-        private readonly string _appIconPath;
         private readonly string _altIconPath;
 
         public bool IsEnabled
@@ -66,7 +65,6 @@ namespace OmenCore.Services
             
             // Get icon paths
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
-            _appIconPath = Path.Combine(appDir, "Assets", "omen-icon.ico");
             _altIconPath = Path.Combine(appDir, "Assets", "omen-alt.png");
             
             _logging.Info("NotificationService initialized");
@@ -511,7 +509,7 @@ namespace OmenCore.Services
         public event EventHandler? UnreadCountChanged;
         
         public ReadOnlyObservableCollection<InAppNotification> InAppNotifications => 
-            new ReadOnlyObservableCollection<InAppNotification>(_inAppNotifications);
+            new(_inAppNotifications);
         
         public int UnreadCount => _inAppNotifications.Count(n => !n.IsRead);
         public bool HasUnread => UnreadCount > 0;

@@ -43,7 +43,6 @@ namespace OmenCore.Services
         private const int VK_LAUNCH_APP1 = 0xB6;  // Some models use this
         private const int VK_OMEN_157 = 0x9D;     // 157 decimal - some OMEN models
         private const int VK_F24 = 0x87;          // F24 - some OMEN models
-        private const int VK_OEM_1 = 0xBA;
         private const int VK_OEM_OMEN = 0xFF;     // Some models use this
 
         // HP OMEN-specific scan codes (varies by model)
@@ -294,12 +293,7 @@ namespace OmenCore.Services
             _logging.Info("OMEN key WMI event not available - using keyboard hook only (safer)");
             _logging.Debug("TIP: If OMEN key doesn't work via keyboard hook, try OmenMon's Task Scheduler trigger");
         }
-        
-        private void TryAlternativeWmiWatcher()
-        {
-            // This is now handled in StartWmiEventWatcher
-        }
-        
+
         private void OnWmiEventArrived(object sender, EventArrivedEventArgs e)
         {
             try

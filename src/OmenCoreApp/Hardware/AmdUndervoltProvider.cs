@@ -55,6 +55,7 @@ namespace OmenCore.Hardware
         /// </summary>
         public Task ApplyRyzenOffsetAsync(int allCoreCO, int igpuCO, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             lock (_stateLock)
             {
                 if (!_smu.IsAvailable)
@@ -92,6 +93,7 @@ namespace OmenCore.Hardware
 
         public Task ResetAsync(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             lock (_stateLock)
             {
                 if (_smu.IsAvailable && _cpuInfo.SupportsUndervolt)

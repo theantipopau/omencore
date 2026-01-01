@@ -356,7 +356,7 @@ namespace OmenCore.ViewModels
                 var samples = _fanService.ThermalSamples;
                 if (samples.Count > 0)
                 {
-                    var latest = samples[samples.Count - 1];
+                    var latest = samples[^1];
                     CpuTemp = latest.CpuCelsius;
                     GpuTemp = latest.GpuCelsius;
                 }

@@ -334,7 +334,7 @@ if ($updates) {{
             });
         }
 
-        private async Task<BiosUpdateInfo?> CheckBiosUpdatesHttpAsync(HpDeviceInfo deviceInfo)
+        private Task<BiosUpdateInfo?> CheckBiosUpdatesHttpAsync(HpDeviceInfo deviceInfo)
         {
             try
             {
@@ -343,19 +343,19 @@ if ($updates) {{
                 
                 _logging?.Info($"HP Support URL: {supportUrl}");
                 
-                return new BiosUpdateInfo
+                return Task.FromResult<BiosUpdateInfo?>(new BiosUpdateInfo
                 {
                     CurrentVersion = deviceInfo.BiosVersion,
                     LatestVersion = "Check HP Support",
                     UpdateAvailable = false, // Can't determine without API access
                     SoftPaqUrl = supportUrl,
                     SoftPaqName = "Check HP Support for updates"
-                };
+                });
             }
             catch (Exception ex)
             {
                 _logging?.Error($"HTTP BIOS check failed: {ex.Message}", ex);
-                return null;
+                return Task.FromResult<BiosUpdateInfo?>(null);
             }
         }
 

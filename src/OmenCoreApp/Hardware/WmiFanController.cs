@@ -35,7 +35,6 @@ namespace OmenCore.Hardware
         private bool _countdownExtensionEnabled = false;
         
         // Command verification tracking
-        private int _commandSuccessCount = 0;
         private int _commandVerifyFailCount = 0;
         private int? _lastCommandRpmBefore = null;
         private const int VerifyDelayMs = 3000; // Wait 3 seconds for fans to respond
@@ -733,7 +732,6 @@ namespace OmenCore.Hardware
                 if (initialRpm >= 4000)
                 {
                     _logging?.Info("  Initial RPM already high - assuming commands work");
-                    _commandSuccessCount++;
                     return true;
                 }
                 
@@ -742,7 +740,6 @@ namespace OmenCore.Hardware
                 if (rpmIncrease >= 500)
                 {
                     _logging?.Info($"  ✓ Fan RPM increased by {rpmIncrease} - commands are effective");
-                    _commandSuccessCount++;
                     return true;
                 }
                 
@@ -816,10 +813,6 @@ namespace OmenCore.Hardware
                 {
                     _commandVerifyFailCount++;
                     _logging?.Warn($"Command verification failed: RPM change was {rpmChange} (expected {(wasIncreaseExpected ? "increase" : "decrease")})");
-                }
-                else
-                {
-                    _commandSuccessCount++;
                 }
                 
                 _lastCommandRpmBefore = null;

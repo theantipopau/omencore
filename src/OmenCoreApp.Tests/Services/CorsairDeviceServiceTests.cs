@@ -59,8 +59,10 @@ namespace OmenCoreApp.Tests.Services
         public async Task CreateAsync_WithIcueFallbackDisabled_RespectsConfig()
         {
             // Arrange
-            var logging = new LoggingService();
-            logging.Level = LogLevel.Info;
+            var logging = new LoggingService
+            {
+                Level = LogLevel.Info
+            };
 
             var logEvents = new System.Collections.Generic.List<string>();
             logging.LogEmitted += s => logEvents.Add(s);

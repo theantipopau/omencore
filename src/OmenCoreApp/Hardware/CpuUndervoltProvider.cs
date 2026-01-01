@@ -90,7 +90,7 @@ namespace OmenCore.Hardware
     {
         private readonly object _stateLock = new();
         private UndervoltOffset _lastApplied = new() { CoreMv = 0, CacheMv = 0 };
-        private IMsrAccess? _msrAccess;
+        private readonly IMsrAccess? _msrAccess;
 
         public string ActiveBackend { get; private set; } = "None";
 

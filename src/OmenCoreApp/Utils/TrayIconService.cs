@@ -80,18 +80,20 @@ namespace OmenCore.Utils
         {
             // TEMP: Use regular ContextMenu with dark theme resources
             var contextMenu = new ContextMenu();
-            
+
             // Apply dark theme resources to override default Windows styling
-            var darkResources = new ResourceDictionary();
-            darkResources.Add(SystemColors.MenuBarBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)));
-            darkResources.Add(SystemColors.MenuBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)));
-            darkResources.Add(SystemColors.MenuTextBrushKey, new SolidColorBrush(Color.FromRgb(240, 240, 245)));
-            darkResources.Add(SystemColors.HighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)));
-            darkResources.Add(SystemColors.HighlightTextBrushKey, Brushes.White);
-            darkResources.Add(SystemColors.MenuHighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)));
-            darkResources.Add(SystemColors.ControlBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)));
-            darkResources.Add(SystemColors.WindowBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)));
-            
+            var darkResources = new ResourceDictionary
+            {
+                { SystemColors.MenuBarBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)) },
+                { SystemColors.MenuBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)) },
+                { SystemColors.MenuTextBrushKey, new SolidColorBrush(Color.FromRgb(240, 240, 245)) },
+                { SystemColors.HighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)) },
+                { SystemColors.HighlightTextBrushKey, Brushes.White },
+                { SystemColors.MenuHighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)) },
+                { SystemColors.ControlBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)) },
+                { SystemColors.WindowBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)) }
+            };
+
             // Apply gradient background with OMEN accent
             var gradientBg = new LinearGradientBrush(
                 Color.FromRgb(18, 20, 35),
@@ -679,44 +681,6 @@ namespace OmenCore.Utils
 
                 // Center the text
                 var origin = new Point((size - formatted.Width) / 2, (size - formatted.Height) / 2);
-                dc.DrawText(formatted, origin);
-            }
-
-            var rtb = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
-            rtb.Render(visual);
-            rtb.Freeze();
-            return rtb;
-        }
-
-        [Obsolete("Use CreateTempIcon instead")]
-        private ImageSource? CreateCpuTempIcon(double cpuTemp)
-        {
-            const int size = 32;
-            var visual = new DrawingVisual();
-
-            using (var dc = visual.RenderOpen())
-            {
-                var background = new LinearGradientBrush(
-                    Color.FromRgb(8, 10, 20),
-                    Color.FromRgb(21, 25, 43),
-                    new Point(0, 0),
-                    new Point(1, 1));
-                dc.DrawRoundedRectangle(background, null, new Rect(0, 0, size, size), 6, 6);
-
-                var accent = new SolidColorBrush(Color.FromRgb(255, 0, 92));
-                dc.DrawEllipse(accent, null, new Point(size / 2.0, size / 2.0), size / 2.1, size / 2.1);
-
-                var text = cpuTemp.ToString("F0");
-                var formatted = new FormattedText(
-                    text,
-                    CultureInfo.InvariantCulture,
-                    FlowDirection.LeftToRight,
-                    new Typeface(new FontFamily("Segoe UI Semibold"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
-                    14,
-                    Brushes.White,
-                    1.25);
-
-                var origin = new Point((size - formatted.Width) / 2, (size - formatted.Height) / 2 + 1);
                 dc.DrawText(formatted, origin);
             }
 

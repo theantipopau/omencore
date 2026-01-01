@@ -502,28 +502,13 @@ namespace OmenCore.Services.Corsair
             var report = new byte[65];
             report[0] = 0x00;
 
-            // Default commit is 0x07 with flag 0x28
-            byte commitCmd = 0x07;
-
             // For some keyboard PIDs, a different commit command may be required (use same as setCmd for safety)
-            switch (device.ProductId)
+            byte commitCmd = device.ProductId switch
             {
-                case 0x1B2D:
-                case 0x1B11:
-                case 0x1B17:
-                case 0x1B60:
-                    commitCmd = 0x09;
-                    break;
-                case 0x1B2E:
-                case 0x1B4B:
-                case 0x1B34:
-                    commitCmd = 0x05;
-                    break;
-                default:
-                    commitCmd = 0x07;
-                    break;
-            }
-
+                0x1B2D or 0x1B11 or 0x1B17 or 0x1B60 => 0x09,
+                0x1B2E or 0x1B4B or 0x1B34 => 0x05,
+                _ => 0x07,
+            };
             report[1] = commitCmd;
             report[2] = 0x28;
             return report;

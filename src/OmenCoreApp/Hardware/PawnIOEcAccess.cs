@@ -442,9 +442,8 @@ namespace OmenCore.Hardware
         {
             ulong[] input = { port };
             ulong[] output = new ulong[1];
-            IntPtr returnSize;
 
-            int hr = _pawnioExecute!(_handle, "ioctl_pio_read", input, (IntPtr)1, output, (IntPtr)1, out returnSize);
+            int hr = _pawnioExecute!(_handle, "ioctl_pio_read", input, (IntPtr)1, output, (IntPtr)1, out IntPtr returnSize);
             if (hr < 0)
             {
                 throw new InvalidOperationException($"PawnIO read failed: HRESULT 0x{hr:X8}");
@@ -457,9 +456,8 @@ namespace OmenCore.Hardware
         {
             ulong[] input = { port, value };
             ulong[] output = Array.Empty<ulong>();
-            IntPtr returnSize;
 
-            int hr = _pawnioExecute!(_handle, "ioctl_pio_write", input, (IntPtr)2, output, IntPtr.Zero, out returnSize);
+            int hr = _pawnioExecute!(_handle, "ioctl_pio_write", input, (IntPtr)2, output, IntPtr.Zero, out IntPtr returnSize);
             if (hr < 0)
             {
                 throw new InvalidOperationException($"PawnIO write failed: HRESULT 0x{hr:X8}");

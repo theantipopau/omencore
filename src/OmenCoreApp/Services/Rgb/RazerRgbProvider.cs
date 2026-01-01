@@ -46,7 +46,7 @@ namespace OmenCore.Services.Rgb
 
             if (effectId.StartsWith("color:", StringComparison.OrdinalIgnoreCase))
             {
-                var hex = effectId.Substring("color:".Length);
+                var hex = effectId["color:".Length..];
                 // parse hex to RGB
                 if (byte.TryParse(hex.Substring(1,2), System.Globalization.NumberStyles.HexNumber, null, out var r) &&
                     byte.TryParse(hex.Substring(3,2), System.Globalization.NumberStyles.HexNumber, null, out var g) &&

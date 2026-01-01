@@ -53,7 +53,7 @@ namespace OmenCore.ViewModels
         public ICommand ApplyCorsairPresetToSystemCommand { get; }
         
         // Razer properties
-        private ObservableCollection<RazerDevice> _razerDevices = new();
+        private readonly ObservableCollection<RazerDevice> _razerDevices = new();
         private string _razerColorHex = "#00FF00"; // Razer Green
         private int _razerRedValue = 0;
         private int _razerGreenValue = 255;
@@ -814,7 +814,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        public async Task RestoreCorsairDpiAsync(bool skipConfirmation = false)
+        public Task RestoreCorsairDpiAsync(bool skipConfirmation = false)
         {
             if (!skipConfirmation)
             {
@@ -827,7 +827,7 @@ namespace OmenCore.ViewModels
                 if (res != MessageBoxResult.Yes)
                 {
                     _logging.Info("User cancelled DPI restore");
-                    return;
+                    return Task.CompletedTask;
                 }
             }
 
@@ -840,7 +840,7 @@ namespace OmenCore.ViewModels
                     CorsairDpiStages.Add(new CorsairDpiStage { Name = s.Name, Dpi = s.Dpi, IsDefault = s.IsDefault, AngleSnapping = s.AngleSnapping, LiftOffDistanceMm = s.LiftOffDistanceMm, Index = s.Index });
                 }
                 _logging.Info("Restored DPI stages from config defaults");
-                return;
+                return Task.CompletedTask;
             }
 
             // Fallback built-in defaults
@@ -849,6 +849,7 @@ namespace OmenCore.ViewModels
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 2", Dpi = 1600, Index = 1 });
             CorsairDpiStages.Add(new CorsairDpiStage { Name = "Stage 3", Dpi = 3200, Index = 2 });
             _logging.Info("Restored built-in DPI defaults");
+            return Task.CompletedTask;
         }
 
         public async Task ApplyCorsairDpiProfileAsync()
@@ -915,8 +916,10 @@ namespace OmenCore.ViewModels
         private async Task SaveCorsairDpiProfileAsync()
         {
             // Prompt for a profile name
-            var namePrompt = new InputPromptWindow("Save DPI Profile", "Enter a name for the DPI profile:");
-            namePrompt.Owner = Application.Current.MainWindow;
+            var namePrompt = new InputPromptWindow("Save DPI Profile", "Enter a name for the DPI profile:")
+            {
+                Owner = Application.Current.MainWindow
+            };
             if (namePrompt.ShowDialog() != true || string.IsNullOrWhiteSpace(namePrompt.Input))
             {
                 _logging.Info("User cancelled Save DPI Profile");
@@ -1155,7 +1158,7 @@ namespace OmenCore.ViewModels
         /// Applies saved keyboard colors on app startup.
         /// Call this after the keyboard lighting service is ready.
         /// </summary>
-        public async Task ApplySavedKeyboardColorsAsync()
+        public Task ApplySavedKeyboardColorsAsync()
         {
             try
             {
@@ -1163,13 +1166,13 @@ namespace OmenCore.ViewModels
                 if (config == null || !config.ApplyOnStartup)
                 {
                     _logging.Info("Keyboard color restore disabled or no saved colors");
-                    return;
+                    return Task.CompletedTask;
                 }
                 
                 if (_keyboardLightingService == null || !_keyboardLightingService.IsAvailable)
                 {
                     _logging.Warn("Keyboard lighting not available for color restore");
-                    return;
+                    return Task.CompletedTask;
                 }
                 
                 // Apply the saved colors
@@ -1188,8 +1191,10 @@ namespace OmenCore.ViewModels
             {
                 _logging.Warn($"Failed to restore keyboard colors: {ex.Message}");
             }
+
+            return Task.CompletedTask;
         }
-        
+
         private void ApplyKeyboardPresetColors(KeyboardPreset preset)
         {
             Zone1ColorHex = preset.Zone1;
@@ -1203,7 +1208,7 @@ namespace OmenCore.ViewModels
             try
             {
                 if (hex.StartsWith("#"))
-                    hex = hex.Substring(1);
+                    hex = hex[1..];
                 if (hex.Length == 6)
                 {
                     return System.Windows.Media.Color.FromRgb(
@@ -1221,7 +1226,7 @@ namespace OmenCore.ViewModels
             try
             {
                 if (hex.StartsWith("#"))
-                    hex = hex.Substring(1);
+                    hex = hex[1..];
                 if (hex.Length == 6)
                 {
                     return System.Drawing.Color.FromArgb(

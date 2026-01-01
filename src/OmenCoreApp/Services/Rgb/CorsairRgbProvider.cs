@@ -46,14 +46,14 @@ namespace OmenCore.Services.Rgb
 
             if (effectId.StartsWith("color:", StringComparison.OrdinalIgnoreCase))
             {
-                var hex = effectId.Substring("color:".Length);
+                var hex = effectId["color:".Length..];
                 await _service.ApplyLightingToAllAsync(hex);
                 return;
             }
 
             if (effectId.StartsWith("preset:", StringComparison.OrdinalIgnoreCase))
             {
-                var presetName = effectId.Substring("preset:".Length);
+                var presetName = effectId["preset:".Length..];
 
                 // Look up preset from the ConfigurationService
                 var cfgPreset = _configService.Config.CorsairLightingPresets?.FirstOrDefault(p => string.Equals(p.Name, presetName, StringComparison.OrdinalIgnoreCase));

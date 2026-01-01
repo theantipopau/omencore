@@ -42,10 +42,12 @@ namespace OmenCoreApp.Tests.ViewModels
             var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
             var bios = new OmenCore.Services.BiosUpdateService(logging);
 
-            var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios);
+            var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios)
+            {
 
-            // Enable the HID-only mode
-            vm.CorsairDisableIcueFallback = true;
+                // Enable the HID-only mode
+                CorsairDisableIcueFallback = true
+            };
 
             // ConfigurationService writes to disk on Save; reload from disk to verify persistence
             var cfgReload = new ConfigurationService();

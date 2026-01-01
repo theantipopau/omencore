@@ -153,7 +153,7 @@ namespace OmenCore.Models
             // Windows process names from Process.ProcessName typically omit the ".exe" extension.
             if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
-                name = name.Substring(0, name.Length - 4);
+                name = name[0..^4];
             }
 
             return name;

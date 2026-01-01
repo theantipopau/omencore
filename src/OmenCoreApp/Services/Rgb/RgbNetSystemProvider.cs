@@ -58,8 +58,8 @@ namespace OmenCore.Services.Rgb
 
             if (effectId.StartsWith("color:", StringComparison.OrdinalIgnoreCase))
             {
-                var hex = effectId.Substring("color:".Length);
-                if (hex.StartsWith("#")) hex = hex.Substring(1);
+                var hex = effectId["color:".Length..];
+                if (hex.StartsWith("#")) hex = hex[1..];
                 if (hex.Length != 6)
                 {
                     _logging.Warn($"Invalid color hex '{hex}'");

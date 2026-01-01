@@ -60,9 +60,9 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                var state = _verifier.GetCurrentFanState(SelectedFanIndex);
-                CurrentRpm = state.rpm;
-                CurrentLevel = state.level;
+                var (rpm, level) = _verifier.GetCurrentFanState(SelectedFanIndex);
+                CurrentRpm = rpm;
+                CurrentLevel = level;
             }
             catch (Exception ex)
             {
@@ -74,8 +74,8 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                var stable = await _verifier.GetStableFanRpmAsync(SelectedFanIndex, 3, ct);
-                CurrentRpm = stable.avg;
+                var (avg, min, max) = await _verifier.GetStableFanRpmAsync(SelectedFanIndex, 3, ct);
+                CurrentRpm = avg;
                 CurrentLevel = _verifier.GetCurrentFanState(SelectedFanIndex).level;
             }
             catch (Exception ex)

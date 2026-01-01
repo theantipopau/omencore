@@ -34,37 +34,41 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await ApplyTcpNoDelayAsync());
-            results.Add(await ApplyTcpAckFrequencyAsync());
-            results.Add(await DisableDeliveryOptimizationAsync());
-            results.Add(await DisableNagleAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await ApplyTcpNoDelayAsync(),
+                await ApplyTcpAckFrequencyAsync(),
+                await DisableDeliveryOptimizationAsync(),
+                await DisableNagleAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: TCP optimizations, Delivery Optimization disabled
-            results.Add(await ApplyTcpNoDelayAsync());
-            results.Add(await ApplyTcpAckFrequencyAsync());
-            results.Add(await DisableDeliveryOptimizationAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: TCP optimizations, Delivery Optimization disabled
+                await ApplyTcpNoDelayAsync(),
+                await ApplyTcpAckFrequencyAsync(),
+                await DisableDeliveryOptimizationAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await RevertTcpNoDelayAsync());
-            results.Add(await RevertTcpAckFrequencyAsync());
-            results.Add(await EnableDeliveryOptimizationAsync());
-            results.Add(await RevertNagleAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await RevertTcpNoDelayAsync(),
+                await RevertTcpAckFrequencyAsync(),
+                await EnableDeliveryOptimizationAsync(),
+                await RevertNagleAsync()
+            };
+
             return results;
         }
 

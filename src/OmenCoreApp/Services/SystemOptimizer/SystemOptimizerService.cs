@@ -15,7 +15,6 @@ namespace OmenCore.Services.SystemOptimizer
     {
         private readonly LoggingService _logger;
         private readonly RegistryBackupService _backupService;
-        private readonly OptimizationVerifier _verifier;
         
         // Individual optimizers
         private readonly PowerOptimizer _powerOptimizer;
@@ -32,7 +31,7 @@ namespace OmenCore.Services.SystemOptimizer
         {
             _logger = logger;
             _backupService = new RegistryBackupService(logger);
-            _verifier = new OptimizationVerifier(logger);
+            _ = new OptimizationVerifier(logger);
             
             // Initialize all optimizers
             _powerOptimizer = new PowerOptimizer(logger, _backupService);

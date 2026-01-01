@@ -40,37 +40,41 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await ApplyUltimatePerformancePlanAsync());
-            results.Add(await ApplyHardwareGpuSchedulingAsync());
-            results.Add(await ApplyGameModeAsync());
-            results.Add(await ApplyForegroundPriorityAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await ApplyUltimatePerformancePlanAsync(),
+                await ApplyHardwareGpuSchedulingAsync(),
+                await ApplyGameModeAsync(),
+                await ApplyForegroundPriorityAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: High Performance (not Ultimate), GPU scheduling, Game Mode, priority
-            results.Add(await ApplyHighPerformancePlanAsync());
-            results.Add(await ApplyHardwareGpuSchedulingAsync());
-            results.Add(await ApplyGameModeAsync());
-            results.Add(await ApplyForegroundPriorityAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: High Performance (not Ultimate), GPU scheduling, Game Mode, priority
+                await ApplyHighPerformancePlanAsync(),
+                await ApplyHardwareGpuSchedulingAsync(),
+                await ApplyGameModeAsync(),
+                await ApplyForegroundPriorityAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await RevertToBalancedPlanAsync());
-            // GPU scheduling and Game Mode don't need explicit revert
-            results.Add(await RevertForegroundPriorityAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await RevertToBalancedPlanAsync(),
+                // GPU scheduling and Game Mode don't need explicit revert
+                await RevertForegroundPriorityAsync()
+            };
+
             return results;
         }
 

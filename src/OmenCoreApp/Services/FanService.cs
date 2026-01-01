@@ -521,15 +521,15 @@ namespace OmenCore.Services
         /// Apply fan curve based on current temperature if curve is enabled.
         /// This is the core OmenMon-style continuous fan control with hysteresis support.
         /// </summary>
-        private async Task ApplyCurveIfNeededAsync(double cpuTemp, double gpuTemp, bool immediate = false, CancellationToken ct = default)
+        private Task ApplyCurveIfNeededAsync(double cpuTemp, double gpuTemp, bool immediate = false, CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
             // Skip curve application if thermal protection is active
             if (_thermalProtectionActive)
-                return;
-                
+                return Task.CompletedTask;
             if (!_curveEnabled || _activeCurve == null || !FanWritesAvailable)
-                return;
-                
+                return Task.CompletedTask;
+
             // Only update curve every CurveUpdateIntervalMs
             var now = DateTime.Now;
             var timeSinceLastUpdate = (now - _lastCurveUpdate).TotalMilliseconds;
@@ -540,12 +540,11 @@ namespace OmenCore.Services
             bool forceRefresh = timeSinceForceRefresh >= CurveForceRefreshMs;
             
             if (timeSinceLastUpdate < CurveUpdateIntervalMs && !forceRefresh && !immediate)
-                return;
-                
+                return Task.CompletedTask;
             lock (_curveLock)
             {
-                if (_activeCurve == null) return;
-                
+                if (_activeCurve == null)
+                    return Task.CompletedTask;
                 try
                 {
                     // Use max of CPU/GPU temp to determine fan speed
@@ -555,8 +554,8 @@ namespace OmenCore.Services
                     var targetPoint = _activeCurve.LastOrDefault(p => p.TemperatureC <= maxTemp) 
                                       ?? _activeCurve.FirstOrDefault();
                                       
-                    if (targetPoint == null) return;
-                    
+                    if (targetPoint == null)
+                        return Task.CompletedTask;
                     var targetFanPercent = targetPoint.FanPercent;
                     
                     // If immediate flag passed, bypass hysteresis and smoothing and apply now
@@ -570,7 +569,8 @@ namespace OmenCore.Services
                             _lastCurveUpdate = now;
                             _logging.Info($"Immediate curve applied: {targetFanPercent}% @ {maxTemp:F1}°C");
                         }
-                        return;
+
+                        return Task.CompletedTask;
                     }
                     
                     // Apply hysteresis if enabled
@@ -583,7 +583,7 @@ namespace OmenCore.Services
                         {
                             // Within dead-zone, don't change fan speed
                             _lastCurveUpdate = now;
-                            return;
+                            return Task.CompletedTask;
                         }
                         
                         // Apply ramp delay for speed changes
@@ -597,7 +597,7 @@ namespace OmenCore.Services
                             _pendingIncrease = isIncrease;
                             _lastFanChangeRequest = now;
                             _lastCurveUpdate = now;
-                            return;
+                            return Task.CompletedTask;
                         }
                         
                         // Check if delay has elapsed
@@ -605,7 +605,7 @@ namespace OmenCore.Services
                         if (timeSinceRequest < requiredDelay)
                         {
                             _lastCurveUpdate = now;
-                            return;
+                            return Task.CompletedTask;
                         }
                     }                    
                     // Apply if fan percent changed OR if we're forcing a refresh
@@ -651,6 +651,8 @@ namespace OmenCore.Services
                     _logging.Warn($"Failed to apply fan curve: {ex.Message}");
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         private async Task RampFanToPercentAsync(int targetPercent, CancellationToken cancellationToken)

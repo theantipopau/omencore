@@ -11,6 +11,7 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.ViewModels
 {
+    [Collection("Config Isolation")]
     public class LightingViewModelDpiProfileTests : IDisposable
     {
         private readonly string _tempDir;

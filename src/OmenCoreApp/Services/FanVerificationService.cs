@@ -48,9 +48,6 @@ namespace OmenCore.Services
         private readonly HpWmiBios? _wmiBios;
         private readonly FanService? _fanService;
         private readonly LoggingService _logging;
-        
-        // Calibration constants (could be model-specific in future)
-        private const int MinLevel = 0;
         private const int MaxLevel = 55;  // HP uses 55 as max on most models
         private const int MinRpm = 0;
         private const int MaxRpm = 5500;  // Typical max RPM

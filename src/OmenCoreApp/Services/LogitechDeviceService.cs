@@ -71,8 +71,10 @@ namespace OmenCore.Services
                 await sdk.InitializeAsync();
             }
 
-            var service = new LogitechDeviceService(sdk, logging);
-            service._initialized = true;
+            var service = new LogitechDeviceService(sdk, logging)
+            {
+                _initialized = true
+            };
             return service;
         }
 

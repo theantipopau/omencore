@@ -10,6 +10,7 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.Services
 {
+    [Collection("Config Isolation")]
     public class SettingsRestorationServiceTests
     {
         public SettingsRestorationServiceTests()

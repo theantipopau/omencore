@@ -45,7 +45,7 @@ namespace OmenCore.Services.Rgb
             // color:#RRGGBB or color:#RRGGBB@<brightness>
             if (effectId.StartsWith("color:", StringComparison.OrdinalIgnoreCase))
             {
-                var payload = effectId.Substring("color:".Length);
+                var payload = effectId["color:".Length..];
                 var hex = payload;
                 var brightness = 100;
 
@@ -67,7 +67,7 @@ namespace OmenCore.Services.Rgb
             // breathing:#RRGGBB or breathing:#RRGGBB@<speed>
             if (effectId.StartsWith("breathing:", StringComparison.OrdinalIgnoreCase))
             {
-                var payload = effectId.Substring("breathing:".Length);
+                var payload = effectId["breathing:".Length..];
                 var hex = payload;
                 var speed = 2; // default breathing speed
 

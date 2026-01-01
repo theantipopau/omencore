@@ -28,7 +28,7 @@ namespace OmenCore.Services
             name = name.Trim();
             if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
-                name = name.Substring(0, name.Length - 4);
+                name = name[0..^4];
             }
 
             return name.ToLowerInvariant();

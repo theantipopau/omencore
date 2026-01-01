@@ -15,21 +15,20 @@ namespace OmenCore.Services.KeyboardLighting
     {
         private readonly IEcAccess? _ecAccess;
         private readonly LoggingService _logging;
-        private readonly KeyboardModelConfig? _modelConfig;
         private bool _initialized;
         private bool _disposed;
         
         // Default EC register addresses (common on OMEN 15/16/17 2020-2022)
-        private byte[] _colorRegisters = new byte[]
+        private readonly byte[] _colorRegisters = new byte[]
         {
             0xB1, 0xB2, 0xB3,  // Zone 0 RGB
             0xB4, 0xB5, 0xB6,  // Zone 1 RGB
             0xB7, 0xB8, 0xB9,  // Zone 2 RGB
             0xBA, 0xBB, 0xBC   // Zone 3 RGB
         };
-        private byte _brightnessRegister = 0xBD;
-        private byte _effectRegister = 0xBE;
-        private byte _backlightControlRegister = 0xB0;
+        private readonly byte _brightnessRegister = 0xBD;
+        private readonly byte _effectRegister = 0xBE;
+        private readonly byte _backlightControlRegister = 0xB0;
         
         public string Name => "EC Direct";
         public KeyboardMethod Method => KeyboardMethod.EcDirect;
@@ -42,7 +41,7 @@ namespace OmenCore.Services.KeyboardLighting
         {
             _ecAccess = ecAccess;
             _logging = logging;
-            _modelConfig = modelConfig;
+            _ = modelConfig;
             
             // Use model-specific registers if available
             if (modelConfig?.EcColorRegisters != null && modelConfig.EcColorRegisters.Length >= 12)

@@ -257,11 +257,11 @@ namespace OmenCore.Hardware
                 ("Backlight:Get", "Keyboard backlight")
             };
             
-            foreach (var (cmd, desc) in testCommands)
+            foreach (var (cmd, _) in testCommands)
             {
                 try
                 {
-                    var result = ExecuteOghCommandSilent(cmd, null);
+                    var result = ExecuteOghCommandSilent(cmd);
                     if (result != null)
                     {
                         _logging?.Info($"  OGH command test successful ({cmd}) ✓");
@@ -294,7 +294,7 @@ namespace OmenCore.Hardware
         /// <summary>
         /// Execute OGH command without logging errors (for testing).
         /// </summary>
-        private byte[]? ExecuteOghCommandSilent(string command, byte[]? inputData)
+        private byte[]? ExecuteOghCommandSilent(string command)
         {
             if (!Status.WmiAvailable || _oghInterface == null)
                 return null;
@@ -586,7 +586,7 @@ namespace OmenCore.Hardware
                 
                 foreach (var cmd in commands)
                 {
-                    var result = ExecuteOghCommandSilent(cmd, null);
+                    var result = ExecuteOghCommandSilent(cmd);
                     if (result != null && result.Length > 0)
                     {
                         // Parse GPU power data structure:
@@ -778,7 +778,7 @@ namespace OmenCore.Hardware
                 
                 foreach (var cmd in commands)
                 {
-                    var result = ExecuteOghCommandSilent(cmd, null);
+                    var result = ExecuteOghCommandSilent(cmd);
                     if (result != null && result.Length >= 9)
                     {
                         // SystemData structure from OmenMon:
@@ -892,11 +892,11 @@ namespace OmenCore.Hardware
             };
             
             results.AppendLine("GET Commands:");
-            foreach (var (cmd, desc) in getCommands)
+            foreach (var (cmd, _) in getCommands)
             {
                 try
                 {
-                    var result = ExecuteOghCommandSilent(cmd, null);
+                    var result = ExecuteOghCommandSilent(cmd);
                     if (result != null && result.Length > 0)
                     {
                         var dataPreview = result.Length <= 8 
@@ -920,11 +920,11 @@ namespace OmenCore.Hardware
             results.AppendLine();
             
             // Get system info if available
-            var sysInfo = GetSystemInfo();
-            if (sysInfo.success)
+            var (success, thermalPolicy, gpuModeSwitch, supportFlags) = GetSystemInfo();
+            if (success)
             {
-                results.AppendLine($"System Info: ThermalPolicy=V{sysInfo.thermalPolicy}, " +
-                    $"GpuModeSwitch={sysInfo.gpuModeSwitch}, SupportFlags=0x{sysInfo.supportFlags:X2}");
+                results.AppendLine($"System Info: ThermalPolicy=V{thermalPolicy}, " +
+                    $"GpuModeSwitch={gpuModeSwitch}, SupportFlags=0x{supportFlags:X2}");
             }
             
             // Get GPU info

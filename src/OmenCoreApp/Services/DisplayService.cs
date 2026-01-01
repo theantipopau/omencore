@@ -110,9 +110,11 @@ namespace OmenCore.Services
         {
             try
             {
-                var dm = new DEVMODE();
-                dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-                
+                var dm = new DEVMODE
+                {
+                    dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
+                };
+
                 if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) != 0)
                 {
                     return dm.dmDisplayFrequency;
@@ -134,9 +136,11 @@ namespace OmenCore.Services
             
             try
             {
-                var dm = new DEVMODE();
-                dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-                
+                var dm = new DEVMODE
+                {
+                    dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
+                };
+
                 // Get current resolution
                 if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) == 0)
                     return refreshRates.ToList();
@@ -174,9 +178,11 @@ namespace OmenCore.Services
         {
             try
             {
-                var dm = new DEVMODE();
-                dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-                
+                var dm = new DEVMODE
+                {
+                    dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
+                };
+
                 if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) == 0)
                 {
                     _logging.Warn("Failed to get current display settings");
@@ -350,9 +356,11 @@ namespace OmenCore.Services
         {
             try
             {
-                var dm = new DEVMODE();
-                dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-                
+                var dm = new DEVMODE
+                {
+                    dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
+                };
+
                 if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) != 0)
                 {
                     return new DisplayInfo

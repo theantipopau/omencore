@@ -71,9 +71,9 @@ namespace OmenCore.ViewModels
         private readonly BiosUpdateService _biosUpdateService;
         private readonly PowerAutomationService _powerAutomationService;
         private readonly OmenKeyService _omenKeyService;
-        private OsdService? _osdService;
-        private HpWmiBios? _wmiBios;
-        private OghServiceProxy? _oghProxy;
+        private readonly OsdService? _osdService;
+        private readonly HpWmiBios? _wmiBios;
+        private readonly OghServiceProxy? _oghProxy;
         private HotkeyOsdWindow? _hotkeyOsd;
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
@@ -267,7 +267,7 @@ namespace OmenCore.ViewModels
         private bool _respectExternalUndervolt = true;
         private MonitoringSample? _latestMonitoringSample;
         private bool _monitoringLowOverhead;
-        private bool _monitoringInitialized;
+        private readonly bool _monitoringInitialized;
         private string _logitechColorHex = "#E6002E";
         private int _logitechBrightness = 80;
         private bool _isMacroRecording;
@@ -968,7 +968,7 @@ namespace OmenCore.ViewModels
             
             // Initialize hardware monitor bridge first (needed by ThermalSensorProvider and FanController)
             // Use out-of-process worker to isolate NVML/driver crashes from main app
-            LibreHardwareMonitorImpl monitorBridge = new LibreHardwareMonitorImpl(
+            LibreHardwareMonitorImpl monitorBridge = new(
                 msg => _logging.Info($"[Monitor] {msg}"),
                 useWorker: true);
             
@@ -1304,7 +1304,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async Task ApplyGameProfileAsync(GameProfile profile)
+        private Task ApplyGameProfileAsync(GameProfile profile)
         {
             // Apply fan preset
             if (!string.IsNullOrEmpty(profile.FanPresetName) && FanControl != null)
@@ -1374,9 +1374,10 @@ namespace OmenCore.ViewModels
             }
 
             _logging.Info($"✓ Profile '{profile.Name}' applied successfully");
+            return Task.CompletedTask;
         }
 
-        private async Task RestoreDefaultSettingsAsync()
+        private Task RestoreDefaultSettingsAsync()
         {
             // Restore to balanced defaults
             if (FanControl != null)
@@ -1398,6 +1399,7 @@ namespace OmenCore.ViewModels
             }
 
             _logging.Info("✓ Restored default settings");
+            return Task.CompletedTask;
         }
 
         private void OpenGameProfileManager()
@@ -2594,8 +2596,7 @@ namespace OmenCore.ViewModels
         
         private void OnOmenKeyToggleMaxCooling(object? sender, EventArgs e)
         {
-            Application.Current?.Dispatcher?.BeginInvoke(async () =>
-            {
+            Application.Current?.Dispatcher?.BeginInvoke(() => {
                 try
                 {
                     // Toggle between Max and Auto
@@ -2617,6 +2618,8 @@ namespace OmenCore.ViewModels
                 {
                     _logging.Warn($"OMEN key max cooling toggle failed: {ex.Message}");
                 }
+
+                return Task.CompletedTask;
             });
         }
 

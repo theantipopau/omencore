@@ -85,8 +85,10 @@ namespace OmenCore.Services
                 await sdk.InitializeAsync();
             }
 
-            var service = new CorsairDeviceService(sdk, logging);
-            service._initialized = true;
+            var service = new CorsairDeviceService(sdk, logging)
+            {
+                _initialized = true
+            };
             return service;
         }
 

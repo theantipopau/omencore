@@ -33,7 +33,6 @@ namespace OmenCore.Hardware
         
         private Process? _workerProcess;
         private NamedPipeClientStream? _pipeClient;
-        private readonly object _lock = new();
         private readonly Action<string>? _logger;
         
         private HardwareSample _cachedSample = new();

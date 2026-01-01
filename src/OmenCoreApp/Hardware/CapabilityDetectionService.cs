@@ -200,16 +200,15 @@ namespace OmenCore.Hardware
                 using var searcher = new ManagementObjectSearcher("SELECT ChassisTypes FROM Win32_SystemEnclosure");
                 foreach (var obj in searcher.Get())
                 {
-                    var chassisTypes = obj["ChassisTypes"] as ushort[];
-                    if (chassisTypes != null && chassisTypes.Length > 0)
+                    if (obj["ChassisTypes"] is ushort[] chassisTypes && chassisTypes.Length > 0)
                     {
                         var chassisValue = chassisTypes[0];
                         Capabilities.Chassis = (ChassisType)chassisValue;
-                        
-                        var formFactor = Capabilities.IsDesktop ? "Desktop" : 
+
+                        var formFactor = Capabilities.IsDesktop ? "Desktop" :
                                         Capabilities.IsLaptop ? "Laptop" : "Other";
                         _logging?.Info($"  Chassis: {Capabilities.Chassis} ({formFactor})");
-                        
+
                         // Warn about limited desktop support
                         if (Capabilities.IsDesktop)
                         {

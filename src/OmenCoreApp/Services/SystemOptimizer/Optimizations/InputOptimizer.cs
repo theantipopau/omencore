@@ -34,36 +34,40 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await DisableMouseAccelerationAsync());
-            results.Add(await DisableGameDVRAsync());
-            results.Add(await DisableGameBarAsync());
-            results.Add(await EnableFullscreenOptimizationsAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await DisableMouseAccelerationAsync(),
+                await DisableGameDVRAsync(),
+                await DisableGameBarAsync(),
+                await EnableFullscreenOptimizationsAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: Disable Game DVR (high impact), leave mouse alone
-            results.Add(await DisableGameDVRAsync());
-            results.Add(await EnableFullscreenOptimizationsAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: Disable Game DVR (high impact), leave mouse alone
+                await DisableGameDVRAsync(),
+                await EnableFullscreenOptimizationsAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await EnableMouseAccelerationAsync());
-            results.Add(await EnableGameDVRAsync());
-            results.Add(await EnableGameBarAsync());
-            results.Add(await RevertFullscreenOptimizationsAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await EnableMouseAccelerationAsync(),
+                await EnableGameDVRAsync(),
+                await EnableGameBarAsync(),
+                await RevertFullscreenOptimizationsAsync()
+            };
+
             return results;
         }
 

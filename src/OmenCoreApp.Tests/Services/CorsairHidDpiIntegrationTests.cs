@@ -8,8 +8,16 @@ using OmenCore.Corsair;
 
 namespace OmenCoreApp.Tests.Services
 {
+    [Collection("Config Isolation")]
     public class CorsairHidDpiIntegrationTests
     {
+        public CorsairHidDpiIntegrationTests()
+        {
+            var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OmenCoreTests", Guid.NewGuid().ToString());
+            System.IO.Directory.CreateDirectory(tmp);
+            Environment.SetEnvironmentVariable("OMENCORE_CONFIG_DIR", tmp);
+        }
+
         private class FlakyDpiCorsairHidDirect : CorsairHidDirect
         {
             private int _attempts = 0;

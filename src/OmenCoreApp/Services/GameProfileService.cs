@@ -16,7 +16,6 @@ namespace OmenCore.Services
     {
         private readonly LoggingService _logging;
         private readonly ProcessMonitoringService _processMonitor;
-        private readonly ConfigurationService _config;
         private readonly string _profilesPath;
         private readonly ObservableCollection<GameProfile> _profiles = new();
         private GameProfile? _activeProfile;
@@ -53,7 +52,7 @@ namespace OmenCore.Services
         {
             _logging = logging;
             _processMonitor = processMonitor;
-            _config = config;
+            _ = config;
 
             // Store profiles in AppData
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);

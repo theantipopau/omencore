@@ -239,6 +239,7 @@ namespace OmenCore.Services.Logitech
         {
             // Logitech G devices expose multiple HID interfaces
             // Accept first valid interface per product
+            _ = device;
             return true;
         }
 

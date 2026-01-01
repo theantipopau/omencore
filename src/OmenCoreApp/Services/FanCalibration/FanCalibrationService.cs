@@ -26,7 +26,7 @@ namespace OmenCore.Services.FanCalibration
         
         // Calibration wizard state
         private bool _calibrationInProgress = false;
-        private List<CalibrationStep> _calibrationSteps = new();
+        private readonly List<CalibrationStep> _calibrationSteps = new();
         private int _currentStep = 0;
         
         // Known good profiles (can be loaded from file)
@@ -37,10 +37,7 @@ namespace OmenCore.Services.FanCalibration
         
         // Fan response delay (mechanical inertia)
         private const int FanResponseDelayMs = 3000;
-        
-        // Verification tolerance
-        private const double VerificationTolerance = 0.15; // 15%
-        
+
         public FanCalibrationProfile? ActiveProfile => _activeProfile;
         public bool IsCalibrating => _calibrationInProgress;
         public int CalibrationProgress => _calibrationSteps.Count > 0 

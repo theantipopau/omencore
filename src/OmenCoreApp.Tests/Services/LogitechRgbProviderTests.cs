@@ -19,7 +19,7 @@ namespace OmenCoreApp.Tests.Services
             public int LastBrightness = -1;
             public string? LastBreathingHex;
             public int LastBreathingSpeed = -1;
-            public LogitechDevice Device = new LogitechDevice { Name = "G915 TKL", DeviceType = LogitechDeviceType.Keyboard };
+            public LogitechDevice Device = new() { Name = "G915 TKL", DeviceType = LogitechDeviceType.Keyboard };
 
             public Task<bool> InitializeAsync() { return Task.FromResult(true); }
             public Task<IEnumerable<LogitechDevice>> DiscoverDevicesAsync() => Task.FromResult<IEnumerable<LogitechDevice>>(new[] { Device });

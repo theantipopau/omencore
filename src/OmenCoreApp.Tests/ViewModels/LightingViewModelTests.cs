@@ -10,15 +10,25 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.ViewModels
 {
+    [Collection("Config Isolation")]
     public class LightingViewModelTests
     {
+        public LightingViewModelTests()
+        {
+            var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OmenCoreTests", Guid.NewGuid().ToString());
+            System.IO.Directory.CreateDirectory(tmp);
+            Environment.SetEnvironmentVariable("OMENCORE_CONFIG_DIR", tmp);
+        }
+
         [Fact]
         public async Task ApplyCorsairPresetToSystem_AppliesPresetToAllRegisteredProviders()
         {
             // Arrange
             Environment.SetEnvironmentVariable("OMENCORE_DISABLE_FILE_LOG", "1");
-            var logging = new LoggingService();
-            logging.Level = LogLevel.Info;
+            var logging = new LoggingService
+            {
+                Level = LogLevel.Info
+            };
 
             var corsairStub = new OmenCore.Services.Corsair.CorsairSdkStub(logging);
             var corsairService = new CorsairDeviceService(corsairStub, logging);
@@ -27,10 +37,12 @@ namespace OmenCoreApp.Tests.ViewModels
             var logitechService = new OmenCore.Services.LogitechDeviceService(logitechStub, logging);
 
             var configService = new ConfigurationService();
-            var cfg = new OmenCore.Models.AppConfig();
-            cfg.CorsairLightingPresets = new System.Collections.Generic.List<OmenCore.Corsair.CorsairLightingPreset>
+            var cfg = new OmenCore.Models.AppConfig
+            {
+                CorsairLightingPresets = new System.Collections.Generic.List<OmenCore.Corsair.CorsairLightingPreset>
             {
                 new OmenCore.Corsair.CorsairLightingPreset { Name = "TestPreset", ColorHex = "#112233" }
+            }
             };
             configService.Replace(cfg);
 

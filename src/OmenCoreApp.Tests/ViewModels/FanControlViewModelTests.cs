@@ -8,6 +8,7 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.ViewModels
 {
+    [Collection("Config Isolation")]
     public class FanControlViewModelTests
     {
         public FanControlViewModelTests()
@@ -53,11 +54,12 @@ namespace OmenCoreApp.Tests.ViewModels
             var controller = new TestFanController();
             var fanService = new FanService(controller, thermalProvider, logging, 1000);
 
-            var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging);
-
-            vm.SmoothingDurationMs = 1500;
-            vm.SmoothingStepMs = 100;
-            vm.ImmediateApplyOnApply = true;
+            var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging)
+            {
+                SmoothingDurationMs = 1500,
+                SmoothingStepMs = 100,
+                ImmediateApplyOnApply = true
+            };
 
             var loaded = configService.Load();
             loaded.FanTransition.SmoothingDurationMs.Should().Be(1500);

@@ -12,12 +12,20 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.Services
 {
+    [Collection("Config Isolation")]
     public class CorsairRgbProviderTests
     {
+        public CorsairRgbProviderTests()
+        {
+            var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OmenCoreTests", Guid.NewGuid().ToString());
+            System.IO.Directory.CreateDirectory(tmp);
+            Environment.SetEnvironmentVariable("OMENCORE_CONFIG_DIR", tmp);
+        }
+
         private class TestProvider : ICorsairSdkProvider
         {
             public CorsairLightingPreset? LastPreset;
-            public CorsairDevice Device = new CorsairDevice { Name = "Test Keyboard", DeviceType = CorsairDeviceType.Keyboard };
+            public CorsairDevice Device = new() { Name = "Test Keyboard", DeviceType = CorsairDeviceType.Keyboard };
 
             public Task<bool> InitializeAsync() { return Task.FromResult(true); }
             public Task<IEnumerable<CorsairDevice>> DiscoverDevicesAsync() => Task.FromResult<IEnumerable<CorsairDevice>>(new[] { Device });

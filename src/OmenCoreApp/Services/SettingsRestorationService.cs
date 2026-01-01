@@ -70,12 +70,12 @@ namespace OmenCore.Services
         /// <summary>
         /// Wait for WMI BIOS to be available and responding.
         /// </summary>
-        private async Task<bool> WaitForHardwareAsync(CancellationToken ct)
+        private Task<bool> WaitForHardwareAsync(CancellationToken ct)
         {
             if (_wmiBios == null)
             {
                 _logging.Warn("SettingsRestoration: WMI BIOS not available");
-                return false;
+                return Task.FromResult(false);
             }
             
             try
@@ -85,22 +85,22 @@ namespace OmenCore.Services
                 if (fanCount > 0)
                 {
                     _logging.Info($"SettingsRestoration: Hardware ready (detected {fanCount} fans)");
-                    return true;
+                    return Task.FromResult(true);
                 }
                 
                 // Fallback: check if WMI is available
                 if (_wmiBios.IsAvailable)
                 {
                     _logging.Info("SettingsRestoration: Hardware ready (WMI available)");
-                    return true;
+                    return Task.FromResult(true);
                 }
                 
-                return false;
+                return Task.FromResult(false);
             }
             catch (Exception ex)
             {
                 _logging.Warn($"SettingsRestoration: Hardware not ready - {ex.Message}");
-                return false;
+                return Task.FromResult(false);
             }
         }
         

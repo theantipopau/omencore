@@ -70,29 +70,23 @@ namespace OmenCore.Hardware
         private const uint CMD_FAN_GET_COUNT = 0x10;
         private const uint CMD_FAN_SET_LEVEL = 0x2E;  // SetFanLevel (OmenMon 0x2E)
         private const uint CMD_FAN_GET_LEVEL = 0x2D;  // GetFanLevel (OmenMon 0x2D)
-        private const uint CMD_FAN_GET_TYPE = 0x2C;   // GetFanType
         private const uint CMD_FAN_MODE_SET = 0x1A;   // SetFanMode (OmenMon 0x1A)
         private const uint CMD_FAN_MAX_GET = 0x26;    // GetMaxFan (OmenMon 0x26)
         private const uint CMD_FAN_MAX_SET = 0x27;    // SetMaxFan (OmenMon 0x27)
-        private const uint CMD_FAN_GET_TABLE = 0x2F;  // GetFanTable
-        private const uint CMD_FAN_SET_TABLE = 0x32;  // SetFanTable
         private const uint CMD_SYSTEM_GET_DATA = 0x28;
         private const uint CMD_GPU_GET_POWER = 0x21;  // GetGpuPower (OmenMon 0x21)
         private const uint CMD_GPU_SET_POWER = 0x22;  // SetGpuPower (OmenMon 0x22)
         private const uint CMD_GPU_GET_MODE = 0x52;   // GetGpuMode - uses Legacy cmd
         private const uint CMD_GPU_SET_MODE = 0x52;   // SetGpuMode - uses GpuMode cmd
         private const uint CMD_TEMP_GET = 0x23;       // GetTemperature (OmenMon 0x23)
-        private const uint CMD_BACKLIGHT_GET = 0x04;  // GetBacklight - uses Keyboard cmd
         private const uint CMD_BACKLIGHT_SET = 0x05;  // SetBacklight - uses Keyboard cmd
         private const uint CMD_COLOR_GET = 0x02;      // GetColorTable - uses Keyboard cmd
         private const uint CMD_COLOR_SET = 0x03;      // SetColorTable - uses Keyboard cmd
         private const uint CMD_KBD_TYPE_GET = 0x01;   // GetKbdType - uses Keyboard cmd
         private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight check - uses Keyboard cmd
-        private const uint CMD_THROTTLE_GET = 0x35;
         private const uint CMD_IDLE_SET = 0x31;       // SetIdle (OmenMon 0x31)
         private const uint CMD_BATTERY_CARE = 0x24;   // Battery care mode (charge limit)
-        private const uint CMD_SMART_ADAPTER = 0x25;  // Smart adapter status
-        
+
         /// <summary>
         /// Fan performance mode enumeration.
         /// On Thermal Policy Version 1 systems, only Default, Performance, and Cool are used.
@@ -969,56 +963,52 @@ namespace OmenCore.Hardware
             
             try
             {
-                using (CimInstance input = new CimInstance(_biosData!))
+                using CimInstance input = new(_biosData!);
+                // Define the input arguments for the request
+                input.CimInstanceProperties["Command"].Value = command;
+                input.CimInstanceProperties["CommandType"].Value = commandType;
+
+                if (inData == null)
                 {
-                    // Define the input arguments for the request
-                    input.CimInstanceProperties["Command"].Value = command;
-                    input.CimInstanceProperties["CommandType"].Value = commandType;
-                    
-                    if (inData == null)
+                    // Allow for a call with no data payload
+                    input.CimInstanceProperties["Size"].Value = 0;
+                }
+                else
+                {
+                    input.CimInstanceProperties[BIOS_DATA_FIELD].Value = inData;
+                    input.CimInstanceProperties["Size"].Value = inData.Length;
+                }
+
+                // Prepare the method parameters
+                CimMethodParametersCollection methodParams = new();
+                methodParams.Add(CimMethodParameter.Create("InData", input, Microsoft.Management.Infrastructure.CimType.Instance, CimFlags.In));
+
+                // Call the pertinent method depending on the data size
+                CimMethodResult result = _cimSession.InvokeMethod(
+                    _biosMethods, BIOS_METHOD + Convert.ToString(outDataSize), methodParams);
+
+                // Retrieve the resulting data
+                using CimInstance? resultData = result.OutParameters["OutData"].Value as CimInstance;
+                if (resultData != null)
+                {
+                    // Populate the output data variable
+                    if (outDataSize != 0)
                     {
-                        // Allow for a call with no data payload
-                        input.CimInstanceProperties["Size"].Value = 0;
+                        outData = resultData.CimInstanceProperties["Data"].Value as byte[] ?? outData;
+                    }
+
+                    // Get return code
+                    var returnCode = Convert.ToInt32(resultData.CimInstanceProperties[BIOS_RETURN_CODE_FIELD].Value);
+
+                    if (returnCode == 0)
+                    {
+                        _consecutiveFailures = 0; // Reset on success
+                        return outData;
                     }
                     else
                     {
-                        input.CimInstanceProperties[BIOS_DATA_FIELD].Value = inData;
-                        input.CimInstanceProperties["Size"].Value = inData.Length;
-                    }
-                    
-                    // Prepare the method parameters
-                    CimMethodParametersCollection methodParams = new();
-                    methodParams.Add(CimMethodParameter.Create("InData", input, Microsoft.Management.Infrastructure.CimType.Instance, CimFlags.In));
-                    
-                    // Call the pertinent method depending on the data size
-                    CimMethodResult result = _cimSession.InvokeMethod(
-                        _biosMethods, BIOS_METHOD + Convert.ToString(outDataSize), methodParams);
-                    
-                    // Retrieve the resulting data
-                    using (CimInstance? resultData = result.OutParameters["OutData"].Value as CimInstance)
-                    {
-                        if (resultData != null)
-                        {
-                            // Populate the output data variable
-                            if (outDataSize != 0)
-                            {
-                                outData = resultData.CimInstanceProperties["Data"].Value as byte[] ?? outData;
-                            }
-                            
-                            // Get return code
-                            var returnCode = Convert.ToInt32(resultData.CimInstanceProperties[BIOS_RETURN_CODE_FIELD].Value);
-                            
-                            if (returnCode == 0)
-                            {
-                                _consecutiveFailures = 0; // Reset on success
-                                return outData;
-                            }
-                            else
-                            {
-                                // Log error but don't spam
-                                LogThrottledError($"BIOS command {command}:{commandType:X2} returned code {returnCode}");
-                            }
-                        }
+                        // Log error but don't spam
+                        LogThrottledError($"BIOS command {command}:{commandType:X2} returned code {returnCode}");
                     }
                 }
             }

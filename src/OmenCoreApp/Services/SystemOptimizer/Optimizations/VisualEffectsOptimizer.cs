@@ -34,35 +34,39 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await DisableTransparencyAsync());
-            results.Add(await DisableAnimationsAsync());
-            results.Add(await DisableShadowsAsync());
-            results.Add(await ApplyBestPerformanceAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await DisableTransparencyAsync(),
+                await DisableAnimationsAsync(),
+                await DisableShadowsAsync(),
+                await ApplyBestPerformanceAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: Disable animations only (biggest performance impact)
-            results.Add(await DisableAnimationsAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: Disable animations only (biggest performance impact)
+                await DisableAnimationsAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await EnableTransparencyAsync());
-            results.Add(await EnableAnimationsAsync());
-            results.Add(await EnableShadowsAsync());
-            results.Add(await RevertVisualEffectsAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await EnableTransparencyAsync(),
+                await EnableAnimationsAsync(),
+                await EnableShadowsAsync(),
+                await RevertVisualEffectsAsync()
+            };
+
             return results;
         }
 
@@ -413,14 +417,6 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                 @"HKCU\Control Panel\Desktop\WindowMetrics",
                 "MinAnimate");
             return value != null && value.ToString() == "0";
-        }
-
-        private bool IsShadowsDisabled()
-        {
-            var value = _backup.GetRegistryValue(
-                @"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
-                "ListviewShadow");
-            return value != null && (int)value == 0;
         }
 
         private bool IsVisualEffectsOptimized()

@@ -1,0 +1,794 @@
+[
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "a6596194-3a4e-42ed-909f-4cbf66f0202f"
+    },
+    "FileName": "AmdUndervoltProvider.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\AmdUndervoltProvider.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 56,
+        "CharNumber": 88,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027token\u0027 if it is not part of a shipped public API"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "7ebf5627-d2f1-42fc-9e3e-a577be6be289"
+    },
+    "FileName": "WmiFanController.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\WmiFanController.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 38,
+        "CharNumber": 21,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027WmiFanController._commandSuccessCount\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "795d8a71-0c45-4d37-bcdb-333e91fe27a4"
+    },
+    "FileName": "CorsairHidDirect.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\Corsair\\CorsairHidDirect.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 506,
+        "CharNumber": 18,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027commitCmd\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "07111c72-5c0e-4c29-b646-1cb2b0e8c53b"
+    },
+    "FileName": "FanController.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\FanController.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 73,
+        "CharNumber": 55,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027fanIndex\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "f958a5cd-1f39-4fa1-8adf-a8cd5e58eccf"
+    },
+    "FileName": "BiosUpdateService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\BiosUpdateService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 258,
+        "CharNumber": 73,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027systemInfo\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ef8c98fa-baa7-44cd-a5a0-66972111f8f7"
+    },
+    "FileName": "DarkContextMenu.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Controls\\DarkContextMenu.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 21,
+        "CharNumber": 39,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027DarkContextMenu.SurfaceMedium\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ef8c98fa-baa7-44cd-a5a0-66972111f8f7"
+    },
+    "FileName": "DarkContextMenu.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Controls\\DarkContextMenu.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 22,
+        "CharNumber": 39,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027DarkContextMenu.SurfaceLight\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "274197f4-ed67-4a0a-8c72-c96b2efc2f9f"
+    },
+    "FileName": "HardwareWorkerClient.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\HardwareWorkerClient.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 36,
+        "CharNumber": 33,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027HardwareWorkerClient._lock\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "784f18b4-c281-4bb7-8192-9f3eeee24d87"
+    },
+    "FileName": "OghServiceProxy.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\OghServiceProxy.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 260,
+        "CharNumber": 32,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027desc\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "784f18b4-c281-4bb7-8192-9f3eeee24d87"
+    },
+    "FileName": "OghServiceProxy.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\OghServiceProxy.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 895,
+        "CharNumber": 32,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027desc\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "784f18b4-c281-4bb7-8192-9f3eeee24d87"
+    },
+    "FileName": "OghServiceProxy.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\OghServiceProxy.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 357,
+        "CharNumber": 66,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027inputData\u0027 if it is not part of a shipped public API"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "784f18b4-c281-4bb7-8192-9f3eeee24d87"
+    },
+    "FileName": "OghServiceProxy.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\OghServiceProxy.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 297,
+        "CharNumber": 73,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027inputData\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "5b0793e3-3699-4544-88f0-fee51ccca110"
+    },
+    "FileName": "MainWindow.xaml.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Views\\MainWindow.xaml.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 48,
+        "CharNumber": 54,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027sender\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "5b0793e3-3699-4544-88f0-fee51ccca110"
+    },
+    "FileName": "MainWindow.xaml.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Views\\MainWindow.xaml.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 48,
+        "CharNumber": 72,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027e\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "67bd6d74-65d0-44fc-9a00-855523e2c77c"
+    },
+    "FileName": "FanService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\FanService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 524,
+        "CharNumber": 120,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027ct\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "62210ad8-d191-4cf2-b2c1-d97332755a1c"
+    },
+    "FileName": "GameProfileService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\GameProfileService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 19,
+        "CharNumber": 47,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027GameProfileService._config\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "4df346bd-ba72-447d-ac11-c7a6ce02c1b0"
+    },
+    "FileName": "SystemOptimizerService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\SystemOptimizer\\SystemOptimizerService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 18,
+        "CharNumber": 47,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027SystemOptimizerService._verifier\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "cf7ac6d7-da69-4f57-858b-0f3d7a59d3f3"
+    },
+    "FileName": "NotificationService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\NotificationService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 26,
+        "CharNumber": 33,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027NotificationService._appIconPath\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "49ce4a6b-fd47-473a-854f-da3cdcd528b9"
+    },
+    "FileName": "EcDirectBackend.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLighting\\EcDirectBackend.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 18,
+        "CharNumber": 47,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027EcDirectBackend._modelConfig\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "6d151bd8-f809-4d13-a231-4987724fb58a"
+    },
+    "FileName": "LogitechHidDirect.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\Logitech\\LogitechHidDirect.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 238,
+        "CharNumber": 47,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027device\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ce8ca7dc-e9d0-4877-baa0-8616c623cd00"
+    },
+    "FileName": "KeyboardLightingService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLightingService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 488,
+        "CharNumber": 96,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027speed\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ce8ca7dc-e9d0-4877-baa0-8616c623cd00"
+    },
+    "FileName": "KeyboardLightingService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLightingService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 488,
+        "CharNumber": 78,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027secondary\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ce8ca7dc-e9d0-4877-baa0-8616c623cd00"
+    },
+    "FileName": "KeyboardLightingService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLightingService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 207,
+        "CharNumber": 120,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027zones\u0027 if it is not part of a shipped public API"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ce8ca7dc-e9d0-4877-baa0-8616c623cd00"
+    },
+    "FileName": "KeyboardLightingService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLightingService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 42,
+        "CharNumber": 28,
+        "DiagnosticId": "IDE0051",
+        "FormatDescription": "info IDE0051: Private member \u0027KeyboardLightingService.EC_KB_BACKLIGHT_CTRL\u0027 is unused"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "ce8ca7dc-e9d0-4877-baa0-8616c623cd00"
+    },
+    "FileName": "KeyboardLightingService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\KeyboardLightingService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 47,
+        "CharNumber": 28,
+        "DiagnosticId": "IDE0051",
+        "FormatDescription": "info IDE0051: Private member \u0027KeyboardLightingService.EC_KB_EFFECT\u0027 is unused"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "357d19ec-21fd-4e21-aacd-6763e0f77405"
+    },
+    "FileName": "LibreHardwareMonitorImpl.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\LibreHardwareMonitorImpl.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 281,
+        "CharNumber": 90,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027token\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "357d19ec-21fd-4e21-aacd-6763e0f77405"
+    },
+    "FileName": "LibreHardwareMonitorImpl.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\LibreHardwareMonitorImpl.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 77,
+        "CharNumber": 22,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027LibreHardwareMonitorImpl._lowOverheadMode\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "6fedd116-68b8-45be-a66f-5175c74b3b77"
+    },
+    "FileName": "SettingsViewModel.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\ViewModels\\SettingsViewModel.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 1609,
+        "CharNumber": 54,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027exePath\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "78a5b0df-5b95-43d3-8fae-b77af8c066b7"
+    },
+    "FileName": "TemperatureToColorConverter.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Utils\\TemperatureToColorConverter.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 37,
+        "CharNumber": 20,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027temp\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "78a5b0df-5b95-43d3-8fae-b77af8c066b7"
+    },
+    "FileName": "TemperatureToColorConverter.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Utils\\TemperatureToColorConverter.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 106,
+        "CharNumber": 20,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027load\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "07acb43d-d94d-4fb4-a0ac-5b270cc8c318"
+    },
+    "FileName": "ScrollSpeedBehavior.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Utils\\ScrollSpeedBehavior.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 69,
+        "CharNumber": 21,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027scrollAmount\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "3f1cdd66-db2e-48d1-baa0-4958b6b438b3"
+    },
+    "FileName": "FanControllerFactory.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\FanControllerFactory.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 444,
+        "CharNumber": 42,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027WmiFanControllerWrapper._logging\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "3f1cdd66-db2e-48d1-baa0-4958b6b438b3"
+    },
+    "FileName": "FanControllerFactory.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Hardware\\FanControllerFactory.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 489,
+        "CharNumber": 51,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027EcFanControllerWrapper._hwMonitor\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "f1314161-0c70-41b0-9983-6ac6ed499d7c"
+    },
+    "FileName": "ICorsairSdkProvider.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\Corsair\\ICorsairSdkProvider.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 66,
+        "CharNumber": 22,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027CorsairSdkStub._initialized\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "f0e375a7-791e-442f-81f2-b35afd64cc35"
+    },
+    "FileName": "FanDiagnosticsViewModel.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\ViewModels\\FanDiagnosticsViewModel.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 15,
+        "CharNumber": 37,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027FanDiagnosticsViewModel._fanService\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "e187b728-fe53-4bf6-a008-8a5710254c0c"
+    },
+    "FileName": "ILogitechEnhancedSdkProvider.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\Logitech\\ILogitechEnhancedSdkProvider.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 58,
+        "CharNumber": 73,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027LogitechEnhancedSdkStub._capabilities\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "d8cb587a-e3e8-4d29-9de5-4713cd0ace6c"
+    },
+    "FileName": "SettingsRestorationService.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\SettingsRestorationService.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 26,
+        "CharNumber": 50,
+        "DiagnosticId": "IDE0052",
+        "FormatDescription": "info IDE0052: Private member \u0027SettingsRestorationService._fanVerifier\u0027 can be removed as the value assigned to it is never read"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "2d294a57-2b18-4785-9e9d-0ad27bf3880d"
+    },
+    "FileName": "LogitechGSDK.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\Services\\Logitech\\LogitechGSDK.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 7,
+        "CharNumber": 17,
+        "DiagnosticId": "IDE1006",
+        "FormatDescription": "info IDE1006: Naming rule violation: These words must begin with upper case characters: keyboardNames"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "55d3c7e4-05bf-41c6-bbc3-7083ee5fa1c7"
+    },
+    "FileName": "FanControlViewModel.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\ViewModels\\FanControlViewModel.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 499,
+        "CharNumber": 52,
+        "DiagnosticId": "CS1503",
+        "FormatDescription": "error CS1503: Argument 1: cannot convert from \u0027System.Collections.ObjectModel.ObservableCollection\u003COmenCore.Models.FanCurvePoint\u003E\u0027 to \u0027IEnumerable\u003COmenCore.Models.FanCurvePoint\u003E\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "248f772f-e577-45a2-831e-2ca5a5ee6d06"
+      },
+      "Id": "55d3c7e4-05bf-41c6-bbc3-7083ee5fa1c7"
+    },
+    "FileName": "FanControlViewModel.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp\\ViewModels\\FanControlViewModel.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 578,
+        "CharNumber": 52,
+        "DiagnosticId": "CS1503",
+        "FormatDescription": "error CS1503: Argument 1: cannot convert from \u0027System.Collections.ObjectModel.ObservableCollection\u003COmenCore.Models.FanCurvePoint\u003E\u0027 to \u0027IEnumerable\u003COmenCore.Models.FanCurvePoint\u003E\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "ca232df5-93fa-4ecf-98cf-c92a2fe2e97e"
+      },
+      "Id": "f7f2a696-2e75-4943-8d09-da15ed66daae"
+    },
+    "FileName": "FanControlViewModelTests.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp.Tests\\ViewModels\\FanControlViewModelTests.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 56,
+        "CharNumber": 17,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027vm\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "ca232df5-93fa-4ecf-98cf-c92a2fe2e97e"
+      },
+      "Id": "aba5e576-7b89-42a1-85bf-ab7a2ee2974c"
+    },
+    "FileName": "AutoUpdateServiceTests.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp.Tests\\Services\\AutoUpdateServiceTests.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 60,
+        "CharNumber": 17,
+        "DiagnosticId": "IDE0059",
+        "FormatDescription": "info IDE0059: Unnecessary assignment of a value to \u0027service\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "ca232df5-93fa-4ecf-98cf-c92a2fe2e97e"
+      },
+      "Id": "924ad155-5360-4c35-91c3-d364108d1f2a"
+    },
+    "FileName": "KeyboardDiagnosticsViewModelTests.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp.Tests\\ViewModels\\KeyboardDiagnosticsViewModelTests.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 42,
+        "CharNumber": 90,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027devices\u0027"
+      }
+    ]
+  },
+  {
+    "DocumentId": {
+      "ProjectId": {
+        "Id": "ca232df5-93fa-4ecf-98cf-c92a2fe2e97e"
+      },
+      "Id": "924ad155-5360-4c35-91c3-d364108d1f2a"
+    },
+    "FileName": "KeyboardDiagnosticsViewModelTests.cs",
+    "FilePath": "F:\\Omen\\src\\OmenCoreApp.Tests\\ViewModels\\KeyboardDiagnosticsViewModelTests.cs",
+    "FileChanges": [
+      {
+        "LineNumber": 42,
+        "CharNumber": 131,
+        "DiagnosticId": "IDE0060",
+        "FormatDescription": "info IDE0060: Remove unused parameter \u0027profile\u0027"
+      }
+    ]
+  }
+]

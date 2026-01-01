@@ -35,36 +35,40 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await DisableTelemetryAsync());
-            results.Add(await DisableSysMainAsync());
-            results.Add(await DisableSearchIndexingAsync());
-            results.Add(await DisableDiagTrackAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await DisableTelemetryAsync(),
+                await DisableSysMainAsync(),
+                await DisableSearchIndexingAsync(),
+                await DisableDiagTrackAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: Telemetry and DiagTrack only (SysMain/Search may be useful for some)
-            results.Add(await DisableTelemetryAsync());
-            results.Add(await DisableDiagTrackAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: Telemetry and DiagTrack only (SysMain/Search may be useful for some)
+                await DisableTelemetryAsync(),
+                await DisableDiagTrackAsync()
+            };
+
             return results;
         }
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await EnableTelemetryAsync());
-            results.Add(await EnableSysMainAsync());
-            results.Add(await EnableSearchIndexingAsync());
-            results.Add(await EnableDiagTrackAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await EnableTelemetryAsync(),
+                await EnableSysMainAsync(),
+                await EnableSearchIndexingAsync(),
+                await EnableDiagTrackAsync()
+            };
+
             return results;
         }
 

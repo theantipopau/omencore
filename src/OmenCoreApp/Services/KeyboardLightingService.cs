@@ -36,25 +36,10 @@ namespace OmenCore.Services
 
         // HP OMEN WMI namespace and class identifiers (legacy)
         private const string OmenWmiNamespace = @"root\hp\InstrumentedBIOS";
-        private const string OmenWmiClass = "HPBIOS_BIOSSettingInterface";
-        
-        // EC register addresses for keyboard backlight (varies by model)
-        // These are common addresses for OMEN 15/16/17 series
-        private const byte EC_KB_BACKLIGHT_CTRL = 0xB0;
         private const byte EC_KB_ZONE1_R = 0xB1;
-        private const byte EC_KB_ZONE1_G = 0xB2;
-        private const byte EC_KB_ZONE1_B = 0xB3;
         private const byte EC_KB_ZONE2_R = 0xB4;
-        private const byte EC_KB_ZONE2_G = 0xB5;
-        private const byte EC_KB_ZONE2_B = 0xB6;
         private const byte EC_KB_ZONE3_R = 0xB7;
-        private const byte EC_KB_ZONE3_G = 0xB8;
-        private const byte EC_KB_ZONE3_B = 0xB9;
         private const byte EC_KB_ZONE4_R = 0xBA;
-        private const byte EC_KB_ZONE4_G = 0xBB;
-        private const byte EC_KB_ZONE4_B = 0xBC;
-        private const byte EC_KB_BRIGHTNESS = 0xBD;
-        private const byte EC_KB_EFFECT = 0xBE;
 
         // Keyboard zones
         public enum KeyboardZone { Left = 0, MiddleLeft = 1, MiddleRight = 2, Right = 3, All = 255 }
@@ -497,6 +482,8 @@ namespace OmenCore.Services
 
         private void ApplyViaWmi(KeyboardEffect effect, Color primary, Color secondary, double speed, int brightness)
         {
+            _ = secondary;
+            _ = speed;
             try
             {
                 // HP OMEN uses specific BIOS settings for keyboard backlight
@@ -513,32 +500,6 @@ namespace OmenCore.Services
             catch (Exception ex)
             {
                 _logging.Warn($"WMI keyboard control failed: {ex.Message}");
-            }
-        }
-
-        private void ApplyViaEc(KeyboardEffect effect, Color primary, Color secondary, double speed, int brightness)
-        {
-            if (_ecAccess == null) return;
-
-            try
-            {
-                // Set effect mode
-                _ecAccess.WriteByte(EC_KB_EFFECT, (byte)effect);
-                
-                // Set all zones to primary color for static/breathing
-                SetZoneColor(KeyboardZone.All, primary);
-                
-                // Set brightness
-                SetBrightness(brightness);
-                
-                // Enable backlight
-                _ecAccess.WriteByte(EC_KB_BACKLIGHT_CTRL, 0x01);
-                
-                _logging.Info($"Keyboard lighting set via EC: {effect} #{primary.R:X2}{primary.G:X2}{primary.B:X2} @ {brightness}%");
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"EC keyboard control failed: {ex.Message}");
             }
         }
 

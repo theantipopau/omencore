@@ -156,7 +156,7 @@ namespace OmenCore.Services
                 var dashIndex = versionString.IndexOf('-');
                 if (dashIndex > 0)
                 {
-                    semverSuffix = versionString.Substring(dashIndex); // e.g., "-beta2"
+                    semverSuffix = versionString[dashIndex..]; // e.g., "-beta2"
                     versionString = versionString.Substring(0, dashIndex); // e.g., "1.4.0"
                 }
                 
@@ -480,7 +480,7 @@ namespace OmenCore.Services
                         var dashIndex = candidate.IndexOf('-');
                         if (dashIndex > 0)
                         {
-                            _currentPrereleaseTag = candidate.Substring(dashIndex); // e.g., "-beta2"
+                            _currentPrereleaseTag = candidate[dashIndex..]; // e.g., "-beta2"
                             versionPart = candidate.Substring(0, dashIndex); // e.g., "1.4.0"
                         }
                         

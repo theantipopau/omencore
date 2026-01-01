@@ -23,6 +23,8 @@ namespace OmenCore.Views
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            _ = sender;
+            _ = e;
             (DataContext as MainViewModel)?.DiscoverCorsairCommand.Execute(null);
             UpdateMaximizedBounds();
             
@@ -33,6 +35,8 @@ namespace OmenCore.Views
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
+            _ = sender;
+            _ = e;
             SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
             (DataContext as MainViewModel)?.Dispose();
         }
@@ -85,17 +89,23 @@ namespace OmenCore.Views
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {
+            _ = sender;
+            _ = e;
             // Minimize to system tray instead of taskbar
             Hide();
         }
 
         private void MaximizeButton_Click(object sender, RoutedEventArgs e)
         {
+            _ = sender;
+            _ = e;
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            _ = sender;
+            _ = e;
             // Hide to tray on close button (user can exit from tray menu)
             Hide();
         }

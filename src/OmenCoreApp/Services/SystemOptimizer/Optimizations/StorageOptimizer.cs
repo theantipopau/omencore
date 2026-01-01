@@ -54,11 +54,13 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> ApplyRecommendedAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            // Recommended: Disable last access timestamps (safe, minor performance gain)
-            results.Add(await DisableLastAccessAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+
+                // Recommended: Disable last access timestamps (safe, minor performance gain)
+                await DisableLastAccessAsync()
+            };
+
             if (DetectSSD())
             {
                 results.Add(await EnableTRIMAsync());
@@ -69,13 +71,14 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
 
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
-            var results = new List<OptimizationResult>();
-            
-            results.Add(await DisableTRIMAsync());
-            results.Add(await EnableLastAccessAsync());
-            results.Add(await Enable8Dot3NamesAsync());
-            results.Add(await EnablePrefetchAsync());
-            
+            var results = new List<OptimizationResult>
+            {
+                await DisableTRIMAsync(),
+                await EnableLastAccessAsync(),
+                await Enable8Dot3NamesAsync(),
+                await EnablePrefetchAsync()
+            };
+
             return results;
         }
 

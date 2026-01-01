@@ -1288,17 +1288,16 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                 return;
             }
 
-            await ExecuteWithLoadingAsync(async () =>
-            {
+            await ExecuteWithLoadingAsync(() => {
                 var targetMode = SelectedGpuMode.Value;
                 _logging.Info($"⚡ Attempting to switch GPU mode to: {targetMode}");
-                
+
                 var success = _gpuSwitchService.Switch(targetMode);
-                
+
                 if (success)
                 {
                     _logging.Info($"✓ GPU mode switch initiated. System restart required to apply changes.");
-                    
+
                     // Show restart prompt
                     var result = System.Windows.MessageBox.Show(
                         $"GPU mode has been set to {targetMode}.\n\n" +
@@ -1307,7 +1306,7 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                         "Restart Required - OmenCore",
                         System.Windows.MessageBoxButton.YesNo,
                         System.Windows.MessageBoxImage.Question);
-                    
+
                     if (result == System.Windows.MessageBoxResult.Yes)
                     {
                         // Restart the system
@@ -1323,6 +1322,8 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                         System.Windows.MessageBoxButton.OK,
                         System.Windows.MessageBoxImage.Error);
                 }
+
+                return Task.CompletedTask;
             });
         }
 

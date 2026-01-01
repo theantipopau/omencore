@@ -221,7 +221,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        public async Task ClearTestPatternAsync()
+        public Task ClearTestPatternAsync()
         {
             try
             {
@@ -270,6 +270,8 @@ namespace OmenCore.ViewModels
             {
                 IsRunningTest = false;
             }
+
+            return Task.CompletedTask;
         }
 
         private void CollectLogs()

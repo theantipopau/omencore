@@ -48,7 +48,7 @@ namespace OmenCore.Hardware
         private bool _cachedIsOnAc = true;
         private double _cachedDischargeRate = 0;
         private string _cachedBatteryTimeRemaining = "";
-        private List<double> _cachedCoreClocks = new();
+        private readonly List<double> _cachedCoreClocks = new();
         private DateTime _lastUpdate = DateTime.MinValue;
         private TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(100);
         private string _lastGpuName = string.Empty;
@@ -331,8 +331,7 @@ namespace OmenCore.Hardware
         private int _nvmlFailures = 0;
         private const int MaxNvmlFailuresBeforeDisable = 3;
         private bool _nvmlDisabled = false;
-        private const int GpuUpdateTimeoutMs = 500; // 500ms timeout for GPU updates
-        
+
         /// <summary>
         /// Safely updates GPU hardware with timeout protection.
         /// NVML can hang or throw exceptions during high GPU load (e.g., benchmarks).
@@ -791,18 +790,16 @@ namespace OmenCore.Hardware
                 }
 
                 // Performance counters for CPU/RAM
-                using (var cpuCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total"))
-                using (var ramCounter = new System.Diagnostics.PerformanceCounter("Memory", "Available MBytes"))
-                {
-                    cpuCounter.NextValue(); // First call returns 0
-                    System.Threading.Thread.Sleep(100);
-                    _cachedCpuLoad = cpuCounter.NextValue();
-                    
-                    var availableMb = ramCounter.NextValue();
-                    var totalRamGb = GetTotalPhysicalMemoryGB();
-                    _cachedRamTotal = totalRamGb;
-                    _cachedRamUsage = totalRamGb - (availableMb / 1024.0);
-                }
+                using var cpuCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total");
+                using var ramCounter = new System.Diagnostics.PerformanceCounter("Memory", "Available MBytes");
+                cpuCounter.NextValue(); // First call returns 0
+                System.Threading.Thread.Sleep(100);
+                _cachedCpuLoad = cpuCounter.NextValue();
+
+                var availableMb = ramCounter.NextValue();
+                var totalRamGb = GetTotalPhysicalMemoryGB();
+                _cachedRamTotal = totalRamGb;
+                _cachedRamUsage = totalRamGb - (availableMb / 1024.0);
             }
             catch
             {
@@ -814,13 +811,11 @@ namespace OmenCore.Hardware
         {
             try
             {
-                using (var searcher = new System.Management.ManagementObjectSearcher("SELECT TotalPhysicalMemory FROM Win32_ComputerSystem"))
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT TotalPhysicalMemory FROM Win32_ComputerSystem");
+                foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
-                    foreach (System.Management.ManagementObject obj in searcher.Get())
-                    {
-                        var bytes = Convert.ToUInt64(obj["TotalPhysicalMemory"]);
-                        return bytes / 1024.0 / 1024.0 / 1024.0; // Convert to GB
-                    }
+                    var bytes = Convert.ToUInt64(obj["TotalPhysicalMemory"]);
+                    return bytes / 1024.0 / 1024.0 / 1024.0; // Convert to GB
                 }
             }
             catch
