@@ -394,20 +394,71 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ## 🚀 Installation
 
-### Option 1: Installer (Recommended)
-1. Download `OmenCoreSetup-1.5.0-beta2.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+### Windows
+
+#### Option 1: Installer (Recommended)
+1. Download `OmenCoreSetup-2.0.1-beta.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Run installer as Administrator
 3. (Optional) Select "Install PawnIO driver" for advanced EC features
 4. Launch OmenCore from Start Menu or Desktop
 5. (Optional) Use OGH Cleanup in Settings to remove OMEN Gaming Hub
 6. (Optional) Use HP Bloatware Removal to clean pre-installed apps
 
-### Option 2: Portable ZIP
-1. Download `OmenCore-1.5.0-beta2-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+#### Option 2: Portable ZIP
+1. Download `OmenCore-2.0.1-beta-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Extract to `C:\OmenCore` (or preferred location)
 3. Right-click `OmenCore.exe` → Run as Administrator
 
-### First Launch
+### 🐧 Linux
+
+#### Prerequisites
+```bash
+# Enable EC write access (required for fan control)
+sudo modprobe ec_sys write_support=1
+
+# Make it permanent (add to /etc/modules-load.d/)
+echo "ec_sys" | sudo tee /etc/modules-load.d/ec_sys.conf
+echo "options ec_sys write_support=1" | sudo tee /etc/modprobe.d/ec_sys.conf
+```
+
+#### Option 1: CLI Only (Recommended)
+```bash
+# Download and extract
+wget https://github.com/theantipopau/omencore/releases/download/v2.0.1-beta/OmenCore-2.0.1-beta-linux-x64.zip
+unzip OmenCore-2.0.1-beta-linux-x64.zip
+
+# Install
+sudo cp omencore-cli /usr/local/bin/
+sudo chmod +x /usr/local/bin/omencore-cli
+
+# Test
+omencore-cli status
+```
+
+#### Option 2: systemd Daemon (Background Service)
+```bash
+# Install the CLI first (see above), then:
+sudo omencore-cli daemon --install   # Creates systemd service
+sudo systemctl enable omencore       # Start on boot
+sudo systemctl start omencore        # Start now
+
+# Manage
+sudo systemctl status omencore       # Check status
+sudo systemctl stop omencore         # Stop service
+journalctl -u omencore -f            # View logs
+```
+
+#### Configuration (Linux)
+- **Config file:** `/etc/omencore/config.toml` (daemon) or `~/.config/omencore/config.toml` (user)
+- **Generate default config:** `omencore-cli daemon --generate-config > config.toml`
+
+#### Linux Notes
+- Requires root/sudo for EC access
+- Fan control uses `/sys/kernel/debug/ec/ec0/io` 
+- Temperature reading via hwmon/sysfs
+- Tested on Ubuntu 22.04+, Fedora 38+, Arch Linux
+
+### First Launch (Windows)
 - OmenCore auto-detects your model and selects the best fan control method
 - WMI BIOS is used by default (no drivers needed for basic fan control)
 - Config saved to `%APPDATA%\OmenCore\config.json`

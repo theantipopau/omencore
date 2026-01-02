@@ -99,7 +99,7 @@ New files:
 
 ### Fixed
 
-#### � Thread Safety Improvements
+#### 🔒 Thread Safety Improvements
 - **Issue:** Race conditions in tray icon updates and OMEN key debouncing could cause inconsistent behavior
 - **Fix:**
   - `TrayIconService._isUpdatingIcon` changed from `bool` to `int` with `Interlocked.CompareExchange`
@@ -136,7 +136,7 @@ New files:
 - **Fix:** Added `if (!OperatingSystem.IsWindows()) return null;` guard before Registry operations
 - **Files changed:** `GameLibraryService.cs`
 
-#### �🖥️ Remote Desktop (RDP) Window Activation
+#### 🖥️ Remote Desktop (RDP) Window Activation
 - **Issue:** Window would unexpectedly open/activate when starting an RDP session
 - **Fix:** Added `SessionSwitch` event handling to suppress window activation during:
   - Remote connect/disconnect events
@@ -276,6 +276,8 @@ omencore-cli daemon --uninstall       # Remove service
 ## Current Status
 
 - **Version:** 2.0.1-beta
-- **Branch:** `v2.0-dev`
+- **Branch:** `main`
 - **Build:** ✅ Succeeded (all 5 projects)
 - **Tests:** ✅ 66/66 passing
+- **Windows:** OmenCoreSetup-2.0.1-beta.exe (100 MB)
+- **Linux:** OmenCore-2.0.1-beta-linux-x64.zip (5.7 MB)
