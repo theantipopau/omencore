@@ -45,11 +45,8 @@ class Program
 
         var rootCommand = new RootCommand("OmenCore Linux CLI - HP OMEN laptop control utility");
         
-        // Add version option
-        var versionOption = new Option<bool>(
-            aliases: new[] { "--version", "-V" },
-            description: "Show version information");
-        rootCommand.AddOption(versionOption);
+        // NOTE: Do not add a --version option here; System.CommandLine may add one internally,
+        // and we already handle --version/-V early to print the banner.
         
         // Add commands
         rootCommand.AddCommand(FanCommand.Create());
