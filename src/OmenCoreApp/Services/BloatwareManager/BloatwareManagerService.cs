@@ -608,6 +608,15 @@ namespace OmenCore.Services.BloatwareManager
 
         private static bool IsKnownBloatware(string name, out BloatwareCategory category, out string description, out RemovalRisk risk)
         {
+            // Exclude OmenCore from bloatware detection - we're not bloatware!
+            if (name.Contains("OmenCore", StringComparison.OrdinalIgnoreCase))
+            {
+                category = BloatwareCategory.Unknown;
+                description = "";
+                risk = RemovalRisk.Unknown;
+                return false;
+            }
+
             // HP Bloatware
             if (name.Contains("HP Sure", StringComparison.OrdinalIgnoreCase))
             {
@@ -783,6 +792,16 @@ namespace OmenCore.Services.BloatwareManager
 
         private static bool IsKnownBloatwareStartup(string name, string value, out BloatwareCategory category, out string description, out RemovalRisk risk)
         {
+            // Exclude OmenCore from bloatware detection
+            if (name.Contains("OmenCore", StringComparison.OrdinalIgnoreCase) ||
+                value.Contains("OmenCore", StringComparison.OrdinalIgnoreCase))
+            {
+                category = BloatwareCategory.Unknown;
+                description = "";
+                risk = RemovalRisk.Unknown;
+                return false;
+            }
+
             if (name.Contains("OneDrive", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.WindowsApps;
@@ -804,8 +823,10 @@ namespace OmenCore.Services.BloatwareManager
                 risk = RemovalRisk.Low;
                 return true;
             }
-            if (name.Contains("HP", StringComparison.OrdinalIgnoreCase) || 
-                value.Contains("HP", StringComparison.OrdinalIgnoreCase))
+            if ((name.Contains("HP", StringComparison.OrdinalIgnoreCase) || 
+                value.Contains("HP", StringComparison.OrdinalIgnoreCase)) &&
+                !name.Contains("OmenCore", StringComparison.OrdinalIgnoreCase) &&
+                !value.Contains("OmenCore", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.OemSoftware;
                 description = "HP software startup item";
@@ -830,7 +851,17 @@ namespace OmenCore.Services.BloatwareManager
 
         private static bool IsKnownBloatwareTask(string taskName, out BloatwareCategory category, out string description, out RemovalRisk risk)
         {
-            if (taskName.Contains("HP", StringComparison.OrdinalIgnoreCase))
+            // Exclude OmenCore from bloatware detection
+            if (taskName.Contains("OmenCore", StringComparison.OrdinalIgnoreCase))
+            {
+                category = BloatwareCategory.Unknown;
+                description = "";
+                risk = RemovalRisk.Unknown;
+                return false;
+            }
+
+            if (taskName.Contains("HP", StringComparison.OrdinalIgnoreCase) &&
+                !taskName.Contains("OmenCore", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.OemSoftware;
                 description = "HP scheduled task";
