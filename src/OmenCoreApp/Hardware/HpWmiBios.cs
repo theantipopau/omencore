@@ -77,6 +77,8 @@ namespace OmenCore.Hardware
         private const uint CMD_FAN_GET_COUNT = 0x10;
         private const uint CMD_FAN_SET_LEVEL = 0x2E;  // SetFanLevel (OmenMon 0x2E)
         private const uint CMD_FAN_GET_LEVEL = 0x2D;  // GetFanLevel (OmenMon 0x2D)
+        private const uint CMD_FAN_GET_LEVEL_V2 = 0x37; // GetFanLevel V2 (OMEN Max 2025+)
+        private const uint CMD_FAN_GET_RPM = 0x38;    // GetFanRPM direct (OMEN Max 2025+)
         private const uint CMD_FAN_MODE_SET = 0x1A;   // SetFanMode (OmenMon 0x1A)
         private const uint CMD_FAN_MAX_GET = 0x26;    // GetMaxFan (OmenMon 0x26)
         private const uint CMD_FAN_MAX_SET = 0x27;    // SetMaxFan (OmenMon 0x27)
@@ -147,7 +149,8 @@ namespace OmenCore.Hardware
         public enum ThermalPolicyVersion : byte
         {
             V0 = 0x00,  // Legacy devices
-            V1 = 0x01   // Current devices (Default/Performance/Cool)
+            V1 = 0x01,  // Current devices (Default/Performance/Cool)
+            V2 = 0x02   // OMEN Max 2025+ (new fan commands)
         }
 
         public bool IsAvailable => _isAvailable;
@@ -356,6 +359,12 @@ namespace OmenCore.Hardware
                 {
                     ThermalPolicy = (ThermalPolicyVersion)result[3];
                     _logging?.Info($"  Thermal Policy: V{(int)ThermalPolicy}");
+                    
+                    // OMEN Max 2025+ detection
+                    if (ThermalPolicy >= ThermalPolicyVersion.V2)
+                    {
+                        _logging?.Info($"  ✓ OMEN Max 2025+ detected (V2 thermal policy) - using enhanced fan commands");
+                    }
 
                     // Query fan count
                     var fanResult = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
@@ -460,7 +469,7 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Get current fan speed levels.
-        /// OmenMon: Cmd.Default, 0x2D
+        /// OmenMon: Cmd.Default, 0x2D (V1), 0x37 (V2 OMEN Max 2025+)
         /// </summary>
         public (byte fan1, byte fan2)? GetFanLevel()
         {
@@ -468,6 +477,33 @@ namespace OmenCore.Hardware
 
             try
             {
+                // Try V2 command first for OMEN Max 2025+ (ThermalPolicy V2)
+                if (ThermalPolicy >= ThermalPolicyVersion.V2)
+                {
+                    var v2Result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_LEVEL_V2, new byte[4], 128);
+                    if (v2Result != null && v2Result.Length >= 2 && (v2Result[0] > 0 || v2Result[1] > 0))
+                    {
+                        _logging?.Debug($"Fan level via V2 (0x37): Fan1={v2Result[0]}, Fan2={v2Result[1]}");
+                        return (v2Result[0], v2Result[1]);
+                    }
+                    
+                    // Try direct RPM command (0x38) - returns actual RPM / 100
+                    var rpmResult = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_RPM, new byte[4], 128);
+                    if (rpmResult != null && rpmResult.Length >= 4)
+                    {
+                        // RPM command returns 16-bit values: [fan1_low, fan1_high, fan2_low, fan2_high]
+                        int fan1Rpm = rpmResult[0] | (rpmResult[1] << 8);
+                        int fan2Rpm = rpmResult.Length >= 4 ? (rpmResult[2] | (rpmResult[3] << 8)) : 0;
+                        _logging?.Debug($"Fan RPM via 0x38: Fan1={fan1Rpm}, Fan2={fan2Rpm}");
+                        // Convert RPM to krpm (divide by 100)
+                        if (fan1Rpm > 0 || fan2Rpm > 0)
+                        {
+                            return ((byte)(fan1Rpm / 100), (byte)(fan2Rpm / 100));
+                        }
+                    }
+                }
+                
+                // Standard V1 command
                 var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_LEVEL, new byte[4], 128);
                 if (result != null && result.Length >= 2)
                 {

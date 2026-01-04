@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### 🆕 OMEN Max 2025 Support (ThermalPolicy V2)
+Enhanced support for the new OMEN Max 16/17 (2025) with RTX 50-series:
+- **V2 thermal policy detection** - Auto-detects OMEN Max 2025+ systems
+- **New fan reading commands** - Uses 0x37/0x38 WMI commands for V2 devices
+- **Direct RPM reading** - Fallback to raw RPM values for accurate fan monitoring
+- **Per-key RGB ready** - Keyboard model database includes OMEN Max per-key RGB support
+
 #### 🔀 Independent CPU/GPU Fan Curves
 Separate fan control for CPU and GPU based on individual component temperatures:
 - **Visual curve editors** - Dedicated editors for CPU and GPU fan curves
