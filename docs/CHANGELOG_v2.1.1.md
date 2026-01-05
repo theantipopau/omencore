@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+#### 🆕 OMEN Max 2025 Fan RPM Showing 0% (ThermalPolicy V2)
+- **Issue:** OMEN Max 16/17 (2025) with RTX 50-series showed 0% / 0 RPM for fans even though fans were spinning
+- **Root Cause:** OMEN Max 2025 uses ThermalPolicy V2 which requires different WMI commands for fan level reading. The existing V1 commands (0x2D) return 0 on V2 devices.
+- **Fix:** 
+  - Added `ThermalPolicyVersion.V2` enum for OMEN Max 2025+ detection
+  - Added new fan commands: `CMD_FAN_GET_LEVEL_V2` (0x37) and `CMD_FAN_GET_RPM` (0x38)
+  - Enhanced `GetFanLevel()` to try V2 commands first on V2 devices, fallback to V1
+  - Added logging for V2 device detection
+- **Files changed:** `HpWmiBios.cs`
+
 #### 🔧 Tray Icon: Minimize to Tray Not Working
 - **Issue:** Clicking the X button (or Alt+F4) with "Minimize to tray on close" enabled would hide the window but make the app unresponsive. Clicking the tray icon wouldn't bring the window back, requiring Task Manager to kill the process.
 - **Root Cause:** `MainWindow_Closing` event was disposing the ViewModel without checking the `MinimizeToTrayOnClose` setting. The window was disposed but the process kept running without a usable UI.
