@@ -129,7 +129,15 @@ New files:
 
 ### Fixed
 
-#### � EC Fan Control Safety Allowlist
+#### 🌡️ Stale CPU Temperature in Fan Curves
+- **Issue:** FanService reads CPU temperature via `GetCpuTemperature()` which returns cached value without checking freshness. When HardwareMonitoringService and FanService loops are out of sync, fan curves could respond to stale (old) temperatures, causing fans to ramp based on outdated readings.
+- **Root Cause:** `GetCpuTemperature()` and `GetGpuTemperature()` directly returned `_cachedCpuTemp`/`_cachedGpuTemp` without verifying the cache was fresh (within `_cacheLifetime`). This meant fan curves could use temperatures from seconds ago.
+- **Fix:** Added `EnsureCacheFresh()` method that checks `_lastUpdate` against `_cacheLifetime`. If stale:
+  - **In-process mode:** Calls `UpdateHardwareReadings()` synchronously
+  - **Worker mode:** Requests fresh sample from HardwareWorker with 500ms timeout
+- **Files changed:** `LibreHardwareMonitorImpl.cs`
+
+#### 🐛 EC Fan Control Safety Allowlist
 - **Issue:** Fan preset 'Max' failed with "EC write to address 0x2C is blocked for safety"
 - **Root Cause:** Missing EC registers 0x2C/0x2D (XSS1/XSS2 - Fan 1/2 set speed %) from safety allowlist. These are used by OmenMon-style fan control on newer OMEN models (2022+)
 - **Fix:** Added 0x2C, 0x2D, 0x2E, 0x2F to `AllowedWriteAddresses` in both EC backends

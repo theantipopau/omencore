@@ -886,10 +886,12 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
-        /// Get current CPU package temperature in Celsius
+        /// Get current CPU package temperature in Celsius.
+        /// Ensures cache is fresh before returning value.
         /// </summary>
         public double GetCpuTemperature()
         {
+            EnsureCacheFresh();
             lock (_lock)
             {
                 return _cachedCpuTemp;
@@ -897,13 +899,70 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
-        /// Get current GPU core temperature in Celsius
+        /// Get current GPU core temperature in Celsius.
+        /// Ensures cache is fresh before returning value.
         /// </summary>
         public double GetGpuTemperature()
         {
+            EnsureCacheFresh();
             lock (_lock)
             {
                 return _cachedGpuTemp;
+            }
+        }
+        
+        /// <summary>
+        /// Ensures the hardware cache is fresh before reading values.
+        /// If cache is stale, triggers a synchronous update.
+        /// </summary>
+        private void EnsureCacheFresh()
+        {
+            bool needsUpdate;
+            lock (_lock)
+            {
+                needsUpdate = DateTime.Now - _lastUpdate > _cacheLifetime;
+            }
+            
+            if (needsUpdate && _initialized && !_disposed)
+            {
+                if (_useWorker && _workerClient != null)
+                {
+                    // Request fresh sample from worker (fire-and-forget async but sync wait briefly)
+                    try
+                    {
+                        var task = _workerClient.GetSampleAsync();
+                        if (task.Wait(TimeSpan.FromMilliseconds(500)))
+                        {
+                            var sample = task.Result;
+                            if (sample != null)
+                            {
+                                lock (_lock)
+                                {
+                                    _cachedCpuTemp = sample.CpuTemperature;
+                                    _cachedGpuTemp = sample.GpuTemperature;
+                                    _cachedCpuLoad = sample.CpuLoad;
+                                    _cachedGpuLoad = sample.GpuLoad;
+                                    _cachedCpuPower = sample.CpuPower;
+                                    _cachedGpuPower = sample.GpuPower;
+                                    _lastUpdate = DateTime.Now;
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Timeout or error - use cached value
+                    }
+                }
+                else
+                {
+                    // In-process mode - trigger direct update
+                    UpdateHardwareReadings();
+                    lock (_lock)
+                    {
+                        _lastUpdate = DateTime.Now;
+                    }
+                }
             }
         }
 
