@@ -6,6 +6,18 @@ This release focuses on bug fixes reported by the community, security hardening 
 
 ---
 
+## 📦 Downloads
+
+| File | Size | SHA256 |
+|------|------|--------|
+| OmenCoreSetup-2.2.0.exe | 80 MB | `B4982315E979D8DE38471032A7FE07D80165F522372F5EFA43095DE2D42FF56B` |
+| OmenCore-2.2.0-win-x64.zip | 104 MB | `542D65C5FD18D03774B14BD0C376914D0A7EE486F8B12D841A195823A0503288` |
+| OmenCore-2.2.0-linux-x64.zip | 6 MB | `ADBF700F1DA0741D2EE47061EE2194A031B519C5618491526BC380FE0370F179` |
+
+All builds are **self-contained** - .NET 8 runtime is bundled, no separate installation required.
+
+---
+
 ## ✨ New Features
 
 ### GPU Overclock Profiles

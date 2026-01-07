@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.0] - 2026-01-07
 
+### 📦 Downloads
+| File | SHA256 |
+|------|--------|
+| OmenCoreSetup-2.2.0.exe | `B4982315E979D8DE38471032A7FE07D80165F522372F5EFA43095DE2D42FF56B` |
+| OmenCore-2.2.0-win-x64.zip | `542D65C5FD18D03774B14BD0C376914D0A7EE486F8B12D841A195823A0503288` |
+| OmenCore-2.2.0-linux-x64.zip | `ADBF700F1DA0741D2EE47061EE2194A031B519C5618491526BC380FE0370F179` |
+
 ### ✨ New Features
 - **GPU OC Profiles** - Save and load GPU overclock configurations
   - Create named profiles with core clock, memory clock, and power limit settings
