@@ -1,4 +1,4 @@
-# Generate Inno Setup wizard images for OmenCore v1.5
+# Generate Inno Setup wizard images for OmenCore
 # Creates modern, professional-looking installer images
 # Requires: System.Drawing (included in .NET)
 
@@ -8,6 +8,16 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logoPath = Join-Path $scriptDir "..\src\OmenCoreApp\Assets\logo.png"
 $largePath = Join-Path $scriptDir "wizard-large.bmp"
 $smallPath = Join-Path $scriptDir "wizard-small.bmp"
+$versionPath = Join-Path $scriptDir "..\VERSION.txt"
+
+# Read version from VERSION.txt
+if (Test-Path $versionPath) {
+    $version = (Get-Content $versionPath -First 1).Trim()
+    Write-Host "Version: v$version" -ForegroundColor Cyan
+} else {
+    $version = "2.2.1"
+    Write-Host "Warning: VERSION.txt not found, using default v$version" -ForegroundColor Yellow
+}
 
 # Check if logo exists
 if (-not (Test-Path $logoPath)) {
@@ -71,7 +81,7 @@ $largeGraphics.DrawString("OmenCore", $titleFont, $titleBrush, $titleRect, $form
 $versionFont = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $versionBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 138, 43, 226))
 $versionRect = New-Object System.Drawing.RectangleF(0, 185, $largeWidth, 20)
-$largeGraphics.DrawString("v2.0.0-alpha1", $versionFont, $versionBrush, $versionRect, $format)
+$largeGraphics.DrawString("v$version", $versionFont, $versionBrush, $versionRect, $format)
 
 # Tagline
 $tagFont = New-Object System.Drawing.Font("Segoe UI", 9)
@@ -79,11 +89,11 @@ $tagBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArg
 $tagRect = New-Object System.Drawing.RectangleF(0, 210, $largeWidth, 20)
 $largeGraphics.DrawString("Gaming Laptop Control", $tagFont, $tagBrush, $tagRect, $format)
 
-# Feature icons (small text hints)
+# Feature icons (small text hints) - using ASCII-safe symbols
 $featureFont = New-Object System.Drawing.Font("Segoe UI", 8)
 $featureBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 120, 120, 140))
 $y = 250
-$features = @("🌀 Fan Control", "📊 Monitoring", "⚡ Performance", "💡 RGB Lighting")
+$features = @("* Fan Control", "* Monitoring", "* Performance", "* RGB Lighting")
 foreach ($feature in $features) {
     $featureRect = New-Object System.Drawing.RectangleF(0, $y, $largeWidth, 15)
     $largeGraphics.DrawString($feature, $featureFont, $featureBrush, $featureRect, $format)
@@ -92,7 +102,7 @@ foreach ($feature in $features) {
 
 # Save large image
 $largeBmp.Save($largePath, [System.Drawing.Imaging.ImageFormat]::Bmp)
-Write-Host "✓ Created: $largePath (164x314)" -ForegroundColor Green
+Write-Host "[OK] Created: $largePath (164x314)" -ForegroundColor Green
 
 # ==================================
 # CREATE SMALL WIZARD IMAGE (55x55)
@@ -126,7 +136,7 @@ if ($useLogo) {
 
 # Save small image
 $smallBmp.Save($smallPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
-Write-Host "✓ Created: $smallPath (55x55)" -ForegroundColor Green
+Write-Host "[OK] Created: $smallPath (55x55)" -ForegroundColor Green
 
 # Cleanup
 if ($useLogo) { $logo.Dispose() }
@@ -135,6 +145,7 @@ $smallBmp.Dispose()
 $largeGraphics.Dispose()
 $smallGraphics.Dispose()
 
-Write-Host "`n✅ Wizard images generated successfully!" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "[DONE] Wizard images generated successfully!" -ForegroundColor Cyan
 Write-Host "   Large: wizard-large.bmp (164x314 px)" -ForegroundColor Gray
 Write-Host "   Small: wizard-small.bmp (55x55 px)" -ForegroundColor Gray

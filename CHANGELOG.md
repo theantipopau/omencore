@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.1] - 2026-01-08
+
+### ✨ New Features
+- **EC Reset to Defaults** - Added option to reset EC to factory state
+  - New "Reset EC" button in Settings → Hardware Driver section
+  - Resets fan speed overrides, boost mode, BIOS control flags, and thermal timers
+  - Use this if BIOS displays show stuck/incorrect fan values after using OmenCore
+  - Shows confirmation dialog with explanation of what will be reset
+
+### 🐛 Bug Fixes
+- **Thermal Protection Logic (#32)** - Fixed thermal protection reducing fan speed instead of boosting
+  - No longer drops from 100% to 77% when temps hit warning threshold
+  - Correctly restores original fan mode/preset after thermal event (not always "Quiet")
+  - Remembers pre-thermal state: Max mode stays Max, custom presets stay custom
+- **Tray Menu Max/Auto Not Working (#33)** - Fixed system tray fan mode buttons
+  - "Max" now correctly enables SetFanMax for true 100% fan speed
+  - "Auto" properly enables BIOS-controlled automatic fan mode
+  - "Quiet" correctly applies quiet/silent mode
+- **OMEN Max 16 Light Bar Zone Order** - Fixed inverted RGB zones
+  - Added "Invert RGB Zone Order" setting in Settings → Hardware
+  - Enable for OMEN Max 16 where light bar zones run right-to-left
+  - Zone 1 = Right, Zone 4 = Left when inverted
+- **CPU Temp Stuck at 0°C (#35)** - Improved temperature sensor fallback
+  - Better detection of alternative temperature sensors when primary fails
+  - Auto-reinitialize hardware monitor after consecutive zero readings
+- **CPU Temp Always 96°C (#36)** - Fixed TjMax being displayed instead of current temp
+  - Added validation to detect stuck-at-TjMax readings
+  - Automatically switches to alternative sensor when primary reports TjMax
+- **Temperature Freeze When Drives Sleep** - Fixed temps freezing after SafeFileHandle error
+  - Storage drives going to sleep no longer freeze all temperature monitoring
+  - HardwareWorker now catches disposed object errors at visitor level
+  - Other sensors continue updating when one hardware device fails
+
+### ⚠️ Known Issues
+- **OMEN Max 16 Keyboard Lighting** - The RGB controls only affect the front light bar, not the keyboard
+  - Hardware limitation: OMEN Max 16 keyboard uses single-color white/amber backlight (Fn+F4)
+  - RGB section in OmenCore controls the 4-zone front light bar only
+- **Linux: Fedora 43+ ec_sys module missing** - Use `hp-wmi` driver as alternative or build module from source
+
+---
+
 ## [2.2.0] - 2026-01-07
 
 ### 📦 Downloads

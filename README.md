@@ -12,7 +12,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.2.0)
+[![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.2.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -20,6 +20,23 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C.svg?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
 
 ![OmenCore Screenshot](docs/screenshots/main-window.png)
+
+---
+
+## 🆕 What's New in v2.2.1
+
+### ✨ New Features
+- **EC Reset to Defaults** - New button in Settings → Hardware to restore BIOS fan displays to normal values
+
+### 🐛 Bug Fixes
+- **Thermal Protection Logic (#32)** - Fixed thermal protection reducing fan speed instead of boosting
+- **Tray Menu Max/Auto (#33)** - Fixed system tray fan mode buttons not working correctly
+- **OMEN Max 16 Light Bar Zones** - Added "Invert RGB Zone Order" setting for inverted light bars
+- **CPU Temp Stuck at 0°C (#35)** - Improved temperature sensor fallback
+- **CPU Temp Always 96°C (#36)** - Fixed TjMax being displayed instead of current temp
+- **Temperature Freeze on Drive Sleep** - Fixed temps freezing when storage drives go to sleep
+
+Full changelog: [CHANGELOG_v2.2.1.md](docs/CHANGELOG_v2.2.1.md)
 
 ---
 
@@ -490,6 +507,15 @@ sudo modprobe ec_sys write_support=1
 echo "ec_sys" | sudo tee /etc/modules-load.d/ec_sys.conf
 echo "options ec_sys write_support=1" | sudo tee /etc/modprobe.d/ec_sys.conf
 ```
+
+> **⚠️ ec_sys module not found?** Some distros (Fedora 43+, some Arch builds) don't include `ec_sys` by default.
+> 
+> **Alternatives:**
+> 1. **Use hp-wmi driver instead:** `sudo modprobe hp-wmi` (works for newer OMEN 2023+ models)
+> 2. **Build ec_sys module:** See your distro's kernel module build docs
+> 3. **Check if acpi_ec works:** Some systems use `/sys/kernel/debug/ec/ec0/io` without ec_sys
+> 
+> **Fedora-specific:** The `ec_sys` module was removed from default kernel config. You may need to use `hp-wmi` or build a custom kernel module.
 
 #### Option 1: CLI Only (Recommended)
 ```bash

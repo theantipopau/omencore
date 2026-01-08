@@ -792,6 +792,30 @@
                                     HorizontalAlignment="Left"
                                     Padding="20,10"/>
                         </StackPanel>
+                        
+                        <!-- EC Reset Section -->
+                        <Border Background="#1AFF6B6B" CornerRadius="8" Padding="12" Margin="0,16,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Reset EC to Defaults" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                        <Run Text="Restores BIOS fan control. Use if BIOS shows stuck/incorrect fan values."/>
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="1" 
+                                        Content="🔧 Reset EC"
+                                        Style="{StaticResource ModernButton}"
+                                        Background="#E57373"
+                                        Command="{Binding ResetEcToDefaultsCommand}"
+                                        VerticalAlignment="Center"
+                                        Padding="16,8"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -1251,6 +1275,25 @@
                                               VerticalAlignment="Center"
                                               ItemsSource="{Binding KeyboardBackendOptions}"
                                               SelectedItem="{Binding PreferredKeyboardBackend}"/>
+                                </Grid>
+                                
+                                <!-- Zone Order Inversion (OMEN Max 16 Light Bar) -->
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Invert RGB Zone Order" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                            <Run Text="Enable for OMEN Max 16 light bar (zones run right-to-left)"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" 
+                                                  Style="{StaticResource ModernToggleButton}"
+                                                  IsChecked="{Binding InvertRgbZoneOrder}"
+                                                  VerticalAlignment="Center"/>
                                 </Grid>
                                 
                                 <TextBlock Text="💡 Safe alternative: Use HP Omen Gaming Hub for keyboard lighting" 

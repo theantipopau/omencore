@@ -552,6 +552,73 @@ namespace OmenCore.Hardware
                 _logging?.Warn($"MAX mode reset sequence error: {ex.Message}");
             }
         }
+        
+        /// <summary>
+        /// Reset EC to factory defaults.
+        /// Performs a comprehensive reset sequence to restore BIOS control and clear all manual overrides.
+        /// This fixes stuck fan readings, incorrect BIOS display values, and other EC-related issues.
+        /// </summary>
+        public bool ResetEcToDefaults()
+        {
+            if (!IsAvailable)
+            {
+                _logging?.Warn("Cannot reset EC: WMI BIOS not available");
+                return false;
+            }
+            
+            _logging?.Info("═══════════════════════════════════════════════════");
+            _logging?.Info("Starting EC Reset to Defaults...");
+            _logging?.Info("═══════════════════════════════════════════════════");
+            
+            try
+            {
+                // Step 1: Disable max fan speed
+                _logging?.Info("Step 1: Disabling max fan mode...");
+                _wmiBios.SetFanMax(false);
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 2: Set fan mode to Default (restores BIOS thermal policy)
+                _logging?.Info("Step 2: Setting fan mode to Default...");
+                _wmiBios.SetFanMode(HpWmiBios.FanMode.Default);
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 3: Reset fan levels to 0 (let BIOS control)
+                _logging?.Info("Step 3: Clearing manual fan levels...");
+                _wmiBios.SetFanLevel(0, 0);
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 4: Extend countdown to prevent immediate timeout
+                _logging?.Info("Step 4: Extending BIOS countdown timer...");
+                _wmiBios.ExtendFanCountdown();
+                System.Threading.Thread.Sleep(50);
+                
+                // Step 5: Set performance mode to Balanced
+                _logging?.Info("Step 5: Setting performance mode to Balanced...");
+                SetPerformanceMode("Balanced");
+                System.Threading.Thread.Sleep(100);
+                
+                // Step 6: Final fan mode reset to Default
+                _logging?.Info("Step 6: Final fan mode reset to Default...");
+                _wmiBios.SetFanMode(HpWmiBios.FanMode.Default);
+                
+                // Clear internal state
+                IsManualControlActive = false;
+                _isMaxModeActive = false;
+                _lastMode = HpWmiBios.FanMode.Default;
+                
+                _logging?.Info("═══════════════════════════════════════════════════");
+                _logging?.Info("✓ EC Reset to Defaults completed successfully");
+                _logging?.Info("  BIOS should now have full control of fans");
+                _logging?.Info("═══════════════════════════════════════════════════");
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"EC Reset failed: {ex.Message}", ex);
+                return false;
+            }
+        }
 
         /// <summary>
         /// Read current fan telemetry data.

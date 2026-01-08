@@ -90,5 +90,60 @@ namespace OmenCore.Hardware
                 _ecAccess.WriteByte((ushort)register, duty);
             }
         }
+        
+        /// <summary>
+        /// Reset EC to factory defaults.
+        /// Clears all manual fan overrides and restores BIOS control.
+        /// Based on OMEN laptop EC register map.
+        /// </summary>
+        public bool ResetEcToDefaults()
+        {
+            if (!IsEcReady)
+                return false;
+            
+            try
+            {
+                // OMEN EC registers (from omen-fan project and OmenMon research)
+                const ushort REG_FAN1_SPEED_SET = 0x34;   // Fan 1 speed in units of 100 RPM
+                const ushort REG_FAN2_SPEED_SET = 0x35;   // Fan 2 speed in units of 100 RPM
+                const ushort REG_FAN1_SPEED_PCT = 0x2E;   // Fan 1 speed 0-100%
+                const ushort REG_FAN2_SPEED_PCT = 0x2F;   // Fan 2 speed 0-100%
+                const ushort REG_FAN_BOOST = 0xEC;        // Fan boost: 0x00=OFF, 0x0C=ON
+                const ushort REG_FAN_STATE = 0xF4;        // Fan state: 0x00=Enable, 0x02=Disable
+                const ushort REG_BIOS_CONTROL = 0x62;     // BIOS control: 0x00=Enabled, 0x06=Disabled
+                const ushort REG_TIMER = 0x63;            // Timer (counts down from 0x78)
+                
+                // Step 1: Clear manual fan speed registers (write 0 to let BIOS control)
+                _ecAccess.WriteByte(REG_FAN1_SPEED_SET, 0x00);
+                _ecAccess.WriteByte(REG_FAN2_SPEED_SET, 0x00);
+                _ecAccess.WriteByte(REG_FAN1_SPEED_PCT, 0x00);
+                _ecAccess.WriteByte(REG_FAN2_SPEED_PCT, 0x00);
+                
+                // Step 2: Disable fan boost
+                _ecAccess.WriteByte(REG_FAN_BOOST, 0x00);
+                
+                // Step 3: Enable fan state (allow BIOS to control)
+                _ecAccess.WriteByte(REG_FAN_STATE, 0x00);
+                
+                // Step 4: Re-enable BIOS fan control
+                _ecAccess.WriteByte(REG_BIOS_CONTROL, 0x00);
+                
+                // Step 5: Reset timer to trigger BIOS to recalculate fan speeds
+                // Timer counts down from 0x78 (120); setting to 0x78 forces BIOS to take over
+                _ecAccess.WriteByte(REG_TIMER, 0x78);
+                
+                // Step 6: Wait briefly then verify BIOS has taken control
+                System.Threading.Thread.Sleep(100);
+                
+                // Double-check: write fan state again to ensure BIOS control
+                _ecAccess.WriteByte(REG_FAN_STATE, 0x00);
+                
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

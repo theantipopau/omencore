@@ -161,6 +161,13 @@ namespace OmenCore.Models
         public string PreferredKeyboardBackend { get; set; } = "Auto";
         
         /// <summary>
+        /// Invert the order of RGB zones (right-to-left instead of left-to-right).
+        /// Needed for OMEN Max 16 light bar which has inverted zone order.
+        /// Zone mapping when inverted: Zone1=Right, Zone2=Middle-Right, Zone3=Middle-Left, Zone4=Left
+        /// </summary>
+        public bool InvertRgbZoneOrder { get; set; } = false;
+        
+        /// <summary>
         /// Saved keyboard zone colors (4 zones). Applied on startup.
         /// </summary>
         public KeyboardLightingSettings KeyboardLighting { get; set; } = new();

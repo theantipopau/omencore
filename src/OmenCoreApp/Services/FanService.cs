@@ -551,6 +551,11 @@ namespace OmenCore.Services
         /// - 80°C: Start ramping fans aggressively
         /// - 88°C: Emergency max fans
         /// </summary>
+        // Remember the fan mode/preset BEFORE thermal protection kicks in
+        private string? _preThermalFanMode;
+        private FanPreset? _preThermalPreset;
+        private int _preThermalFanPercent;
+        
         private void CheckThermalProtection(double cpuTemp, double gpuTemp)
         {
             if (!_thermalProtectionEnabled || !FanWritesAvailable)
@@ -563,6 +568,11 @@ namespace OmenCore.Services
             {
                 if (!_thermalProtectionActive)
                 {
+                    // Store current fan state BEFORE thermal protection
+                    _preThermalFanMode = _currentFanMode;
+                    _preThermalPreset = _activePreset;
+                    _preThermalFanPercent = _lastAppliedFanPercent;
+                    
                     _thermalProtectionActive = true;
                     _logging.Warn($"⚠️ THERMAL EMERGENCY: {maxTemp:F0}°C - forcing fans to 100%!");
                 }
@@ -572,21 +582,34 @@ namespace OmenCore.Services
                 return;
             }
             
-            // Warning: temps >= 80°C - ramp up fans aggressively
+            // Warning: temps >= 80°C - boost fans if not already at higher speed
             if (maxTemp >= ThermalProtectionThreshold)
             {
                 if (!_thermalProtectionActive)
                 {
+                    // Store current fan state BEFORE thermal protection
+                    _preThermalFanMode = _currentFanMode;
+                    _preThermalPreset = _activePreset;
+                    _preThermalFanPercent = _lastAppliedFanPercent;
+                    
                     _thermalProtectionActive = true;
                     _logging.Warn($"⚠️ THERMAL WARNING: {maxTemp:F0}°C - boosting fan speed");
                 }
                 
-                // Calculate aggressive fan speed: 80°C = 70%, scaling to 100% at 88°C
-                // More aggressive than before: 70% + ~3.75% per °C above 80
-                var fanPercent = (int)(70 + (maxTemp - ThermalProtectionThreshold) * 3.75);
-                fanPercent = Math.Min(100, fanPercent);
+                // Calculate thermal protection target: 80°C = 85%, scaling to 100% at 88°C
+                // More aggressive starting point than before
+                var thermalTargetPercent = (int)(85 + (maxTemp - ThermalProtectionThreshold) * 1.875);
+                thermalTargetPercent = Math.Min(100, thermalTargetPercent);
                 
-                _fanController.SetFanSpeed(fanPercent);
+                // BUG FIX #32: Don't REDUCE fan speed if already at higher speed!
+                // If user is in Max mode at 100%, don't drop to 85%
+                if (_preThermalFanPercent >= thermalTargetPercent)
+                {
+                    _logging.Info($"Thermal protection: keeping existing fan speed ({_preThermalFanPercent}%) >= thermal target ({thermalTargetPercent}%)");
+                    return;
+                }
+                
+                _fanController.SetFanSpeed(thermalTargetPercent);
                 return;
             }
             
@@ -597,20 +620,40 @@ namespace OmenCore.Services
                 _thermalProtectionActive = false;
                 _logging.Info($"✓ Temps normalized ({maxTemp:F0}°C) - thermal protection released");
                 
-                // Re-apply the current preset to restore BIOS control
-                if (_activePreset != null)
+                // BUG FIX #32: Restore the ORIGINAL fan state from BEFORE thermal protection
+                // Not necessarily _activePreset, which may have been changed during thermal event
+                if (_preThermalFanMode == "Max")
                 {
-                    _logging.Info($"Restoring preset '{_activePreset.Name}' after thermal protection");
-                    _fanController.ApplyPreset(_activePreset);
+                    _logging.Info($"Restoring Max fan mode after thermal protection");
+                    _fanController.ApplyMaxCooling();
+                    _fanController.SetFanSpeed(100);
+                    _currentFanMode = "Max";
+                    _lastAppliedFanPercent = 100;
+                }
+                else if (_preThermalPreset != null)
+                {
+                    _logging.Info($"Restoring preset '{_preThermalPreset.Name}' after thermal protection");
+                    _fanController.ApplyPreset(_preThermalPreset);
+                    _activePreset = _preThermalPreset;
+                }
+                else if (_preThermalFanPercent > 0)
+                {
+                    _logging.Info($"Restoring fan speed {_preThermalFanPercent}% after thermal protection");
+                    _fanController.SetFanSpeed(_preThermalFanPercent);
                 }
                 else
                 {
-                    // No preset - use RestoreAutoControl() to properly return control to BIOS
+                    // No pre-thermal state - use RestoreAutoControl() to properly return control to BIOS
                     // NOTE: SetFanSpeed(0) is NOT safe on WMI backend - some firmware treats
                     // it as "minimum speed" rather than "auto". Always use RestoreAutoControl().
                     _logging.Info("Restoring fan control to BIOS auto mode");
                     _fanController.RestoreAutoControl();
                 }
+                
+                // Clear pre-thermal state
+                _preThermalFanMode = null;
+                _preThermalPreset = null;
+                _preThermalFanPercent = 0;
             }
         }
         
@@ -953,6 +996,39 @@ namespace OmenCore.Services
         /// Get the current fan mode name.
         /// </summary>
         public string? GetCurrentFanMode() => _currentFanMode;
+        
+        /// <summary>
+        /// Reset EC (Embedded Controller) to factory defaults.
+        /// Restores BIOS control of fans and clears all manual overrides.
+        /// Use this to fix stuck fan readings, incorrect BIOS display values, and other EC-related issues.
+        /// </summary>
+        public bool ResetEcToDefaults()
+        {
+            _logging.Info("═══════════════════════════════════════════════════");
+            _logging.Info("FanService: Initiating EC Reset to Defaults...");
+            _logging.Info("═══════════════════════════════════════════════════");
+            
+            // First, disable any active fan curve
+            DisableCurve();
+            
+            // Clear our internal state
+            _currentFanMode = "Auto";
+            _lastAppliedFanPercent = 0;
+            
+            // Delegate to the fan controller
+            var result = _fanController.ResetEcToDefaults();
+            
+            if (result)
+            {
+                _logging.Info("✓ EC Reset completed successfully via FanService");
+            }
+            else
+            {
+                _logging.Warn("EC Reset returned false - may have partially succeeded");
+            }
+            
+            return result;
+        }
 
         #endregion
 

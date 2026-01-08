@@ -269,7 +269,20 @@ class Program
                 FanSpeeds = new Dictionary<string, double>(_lastSample.FanSpeeds)
             };
             
-            _computer.Accept(new UpdateVisitor());
+            // UpdateVisitor can throw if storage goes to sleep - catch and continue
+            try
+            {
+                _computer.Accept(new UpdateVisitor());
+            }
+            catch (ObjectDisposedException)
+            {
+                // Storage drive went to sleep - this is normal, continue with individual hardware updates
+            }
+            catch (Exception ex) when (ex.Message.Contains("disposed", StringComparison.OrdinalIgnoreCase) ||
+                                        ex.Message.Contains("SafeFileHandle", StringComparison.OrdinalIgnoreCase))
+            {
+                // Also catch nested disposed errors
+            }
             
             foreach (var hardware in _computer.Hardware)
             {
@@ -576,9 +589,21 @@ internal class UpdateVisitor : IVisitor
     public void VisitComputer(IComputer computer) => computer.Traverse(this);
     public void VisitHardware(IHardware hardware)
     {
-        hardware.Update();
-        foreach (var sub in hardware.SubHardware)
-            sub.Accept(this);
+        try
+        {
+            hardware.Update();
+            foreach (var sub in hardware.SubHardware)
+                sub.Accept(this);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Hardware went to sleep (storage drives) - skip this hardware
+        }
+        catch (Exception ex) when (ex.Message.Contains("disposed", StringComparison.OrdinalIgnoreCase) ||
+                                    ex.Message.Contains("SafeFileHandle", StringComparison.OrdinalIgnoreCase))
+        {
+            // Also catch nested disposed errors from storage drives
+        }
     }
     public void VisitSensor(ISensor sensor) { }
     public void VisitParameter(IParameter parameter) { }

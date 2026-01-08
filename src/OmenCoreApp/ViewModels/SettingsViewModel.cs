@@ -82,6 +82,9 @@ namespace OmenCore.ViewModels
         private string _biosCheckStatus = "Not checked";
         private bool _isBiosCheckInProgress;
         private Brush _biosStatusColor = Brushes.Gray;
+        
+        // Fan service for EC reset
+        private readonly FanService? _fanService;
 
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
@@ -90,7 +93,8 @@ namespace OmenCore.ViewModels
             OmenKeyService? omenKeyService = null,
             OsdService? osdService = null,
             HardwareMonitoringService? hardwareMonitoringService = null,
-            PowerAutomationService? powerAutomationService = null)
+            PowerAutomationService? powerAutomationService = null,
+            FanService? fanService = null)
         {
             _logging = logging;
             _configService = configService;
@@ -98,6 +102,7 @@ namespace OmenCore.ViewModels
             _systemInfoService = systemInfoService;
             _fanCleaningService = fanCleaningService;
             _biosUpdateService = biosUpdateService;
+            _fanService = fanService;
             _wmiBios = wmiBios;
             _omenKeyService = omenKeyService;
             _osdService = osdService;
@@ -124,6 +129,7 @@ namespace OmenCore.ViewModels
             DownloadBiosUpdateCommand = new RelayCommand(_ => DownloadBiosUpdate(), _ => BiosUpdateAvailable && !string.IsNullOrEmpty(BiosDownloadUrl));
             ScanBloatwareCommand = new AsyncRelayCommand(async _ => await ScanBloatwareAsync(), _ => !IsScanningBloatware);
             RemoveBloatwareCommand = new AsyncRelayCommand(async _ => await RemoveBloatwareAsync(), _ => !IsScanningBloatware && BloatwareCount > 0);
+            ResetEcToDefaultsCommand = new RelayCommand(_ => ResetEcToDefaults(), _ => _fanService != null);
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -886,6 +892,25 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+        
+        /// <summary>
+        /// Invert RGB zone order for OMEN Max 16 light bar (zones run right-to-left).
+        /// When enabled: Zone 1 = Right, Zone 4 = Left
+        /// </summary>
+        public bool InvertRgbZoneOrder
+        {
+            get => _config.InvertRgbZoneOrder;
+            set
+            {
+                if (_config.InvertRgbZoneOrder != value)
+                {
+                    _config.InvertRgbZoneOrder = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    _logging.Info($"RGB zone order inversion: {(value ? "Enabled" : "Disabled")} (for light bar compatibility)");
+                }
+            }
+        }
 
         #endregion
 
@@ -1387,6 +1412,7 @@ namespace OmenCore.ViewModels
         public ICommand RefreshDriverStatusCommand { get; }
         public ICommand CheckBiosUpdatesCommand { get; }
         public ICommand DownloadBiosUpdateCommand { get; }
+        public ICommand ResetEcToDefaultsCommand { get; }
 
         #endregion
         
@@ -2176,6 +2202,85 @@ namespace OmenCore.ViewModels
             catch
             {
                 return false;
+            }
+        }
+        
+        /// <summary>
+        /// Reset EC (Embedded Controller) to factory defaults.
+        /// Shows a confirmation dialog before proceeding.
+        /// </summary>
+        private void ResetEcToDefaults()
+        {
+            var result = MessageBox.Show(
+                "This will reset the Embedded Controller (EC) to factory defaults.\n\n" +
+                "This action will:\n" +
+                "• Restore BIOS control of fans\n" +
+                "• Clear all manual fan speed overrides\n" +
+                "• Reset fan boost mode\n" +
+                "• Reset thermal policy timers\n\n" +
+                "Use this if:\n" +
+                "• Fan speeds appear stuck in BIOS\n" +
+                "• BIOS shows incorrect fan readings\n" +
+                "• You want to completely restore factory fan behavior\n\n" +
+                "The app will apply Auto mode after reset.\n\n" +
+                "Do you want to continue?",
+                "Reset EC to Defaults",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            
+            if (result != MessageBoxResult.Yes)
+                return;
+            
+            try
+            {
+                _logging.Info("User initiated EC reset to defaults...");
+                
+                if (_fanService == null)
+                {
+                    MessageBox.Show(
+                        "Fan service is not available. EC reset cannot be performed.",
+                        "EC Reset Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+                
+                var success = _fanService.ResetEcToDefaults();
+                
+                if (success)
+                {
+                    MessageBox.Show(
+                        "EC has been reset to factory defaults.\n\n" +
+                        "BIOS should now have full control of fans.\n" +
+                        "If your BIOS displays still show incorrect values,\n" +
+                        "try restarting your laptop.",
+                        "EC Reset Successful",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    
+                    _logging.Info("EC reset to defaults completed successfully");
+                }
+                else
+                {
+                    MessageBox.Show(
+                        "EC reset may have partially completed.\n\n" +
+                        "Some systems may require a full restart\n" +
+                        "for all changes to take effect.",
+                        "EC Reset Result",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    
+                    _logging.Warn("EC reset returned false - may have partially succeeded");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"EC reset failed: {ex.Message}", ex);
+                MessageBox.Show(
+                    $"Failed to reset EC: {ex.Message}",
+                    "EC Reset Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
         

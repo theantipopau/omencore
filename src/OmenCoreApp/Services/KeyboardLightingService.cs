@@ -305,6 +305,15 @@ namespace OmenCore.Services
                 var backend = BackendType;
                 _logging.Info($"SetAllZoneColors using backend: {backend}");
                 
+                // BUG FIX: Apply zone inversion for OMEN Max 16 light bar
+                // The light bar has zones in reverse order (right-to-left)
+                var orderedColors = zoneColors;
+                if (_configService?.Config?.InvertRgbZoneOrder ?? false)
+                {
+                    _logging.Info("Applying inverted zone order (right-to-left for light bar)");
+                    orderedColors = new Color[] { zoneColors[3], zoneColors[2], zoneColors[1], zoneColors[0] };
+                }
+                
                 // Check if experimental EC writes are allowed
                 if (forceEcAccess && !IsExperimentalEcEnabled)
                 {
@@ -318,11 +327,11 @@ namespace OmenCore.Services
                     _logging.Warn("⚠️ Using EXPERIMENTAL EC keyboard writes - crash risk!");
                     for (int i = 0; i < 4; i++)
                     {
-                        SetZoneColorViaEc((KeyboardZone)i, zoneColors[i]);
+                        SetZoneColorViaEc((KeyboardZone)i, orderedColors[i]);
                     }
                     TrackEcResult(true);
                     _logging.Info("✓ All zone colors set via EC (EXPERIMENTAL)");
-                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{zoneColors[0].R:X2}{zoneColors[0].G:X2}{zoneColors[0].B:X2}, Z2=#{zoneColors[1].R:X2}{zoneColors[1].G:X2}{zoneColors[1].B:X2}, Z3=#{zoneColors[2].R:X2}{zoneColors[2].G:X2}{zoneColors[2].B:X2}, Z4=#{zoneColors[3].R:X2}{zoneColors[3].G:X2}{zoneColors[3].B:X2}");
+                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
                     return;
                 }
                 
@@ -333,9 +342,9 @@ namespace OmenCore.Services
                     var colorTable = new byte[12];
                     for (int i = 0; i < 4; i++)
                     {
-                        colorTable[i * 3] = zoneColors[i].R;
-                        colorTable[i * 3 + 1] = zoneColors[i].G;
-                        colorTable[i * 3 + 2] = zoneColors[i].B;
+                        colorTable[i * 3] = orderedColors[i].R;
+                        colorTable[i * 3 + 1] = orderedColors[i].G;
+                        colorTable[i * 3 + 2] = orderedColors[i].B;
                     }
                     
                     bool wmiSuccess = _wmiBios.SetColorTable(colorTable);
@@ -344,7 +353,7 @@ namespace OmenCore.Services
                     if (wmiSuccess)
                     {
                         _logging.Info($"✓ Keyboard color table set via WMI BIOS ({colorTable.Length} bytes)");
-                        _logging.Info($"✓ Applied keyboard zone colors: Z1=#{zoneColors[0].R:X2}{zoneColors[0].G:X2}{zoneColors[0].B:X2}, Z2=#{zoneColors[1].R:X2}{zoneColors[1].G:X2}{zoneColors[1].B:X2}, Z3=#{zoneColors[2].R:X2}{zoneColors[2].G:X2}{zoneColors[2].B:X2}, Z4=#{zoneColors[3].R:X2}{zoneColors[3].G:X2}{zoneColors[3].B:X2}");
+                        _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
                         
                         // Tip for users if WMI doesn't visually work
                         if (!IsExperimentalEcEnabled)
@@ -359,7 +368,7 @@ namespace OmenCore.Services
                 // Fallback: set each zone individually via WMI
                 for (int i = 0; i < 4; i++)
                 {
-                    SetZoneColorInternal((KeyboardZone)i, zoneColors[i]);
+                    SetZoneColorInternal((KeyboardZone)i, orderedColors[i]);
                 }
                 _logging.Info("✓ All zone colors set individually via WMI");
             }

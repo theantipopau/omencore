@@ -86,6 +86,9 @@ namespace OmenCore.Hardware
         private int _consecutiveZeroTempReadings = 0;
         private const int MaxZeroTempReadingsBeforeReinit = 6;
         private bool _noFanSensorsLogged = false;
+        
+        // BUG FIX #36: Track stuck-at-TjMax temperature readings
+        private int _stuckTempReadings = 0;
 
         /// <summary>
         /// Create an in-process hardware monitor (default).
@@ -456,7 +459,38 @@ namespace OmenCore.Hardware
                                 ?? GetSensor(hardware, SensorType.Temperature, "Socket")                            // Socket temp
                                 ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Value > 0);
                             
-                            _cachedCpuTemp = cpuTempSensor?.Value ?? 0;
+                            var rawCpuTemp = cpuTempSensor?.Value ?? 0;
+                            
+                            // BUG FIX #36: Validate temperature is not stuck at TjMax (96°C or 100°C)
+                            // Some sensors report TjMax instead of current temperature
+                            if (rawCpuTemp >= 95 && rawCpuTemp <= 100)
+                            {
+                                _stuckTempReadings++;
+                                if (_stuckTempReadings >= 5) // 5 consecutive readings at TjMax
+                                {
+                                    // Temperature likely stuck at TjMax - try alternative sensors
+                                    var altSensor = hardware.Sensors
+                                        .Where(s => s.SensorType == SensorType.Temperature && s.Value.HasValue && s.Value.Value > 20 && s.Value.Value < 90)
+                                        .OrderByDescending(s => s.Value!.Value)
+                                        .FirstOrDefault();
+                                    
+                                    if (altSensor != null)
+                                    {
+                                        _logger?.Invoke($"CPU temp stuck at {rawCpuTemp}°C (TjMax), using alternative: {altSensor.Name}={altSensor.Value}°C");
+                                        rawCpuTemp = altSensor.Value!.Value;
+                                    }
+                                    else
+                                    {
+                                        _logger?.Invoke($"CPU temp appears stuck at TjMax ({rawCpuTemp}°C), no alternative sensor available");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                _stuckTempReadings = 0;
+                            }
+                            
+                            _cachedCpuTemp = rawCpuTemp;
                             
                             // Apply temperature smoothing to reduce spurious readings
                             if (_cachedCpuTemp > 0)

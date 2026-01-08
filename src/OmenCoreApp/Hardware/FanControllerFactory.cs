@@ -27,6 +27,13 @@ namespace OmenCore.Hardware
         void ApplyMaxCooling();
         void ApplyAutoMode();
         void ApplyQuietMode();
+        
+        /// <summary>
+        /// Reset EC (Embedded Controller) to factory defaults.
+        /// Restores BIOS control of fans and clears all manual overrides.
+        /// Use this to fix stuck fan readings or restore normal BIOS display values.
+        /// </summary>
+        bool ResetEcToDefaults();
     }
 
     /// <summary>
@@ -424,6 +431,14 @@ namespace OmenCore.Hardware
         public void ApplyMaxCooling() => _proxy.SetMaxFan(true);
         public void ApplyAutoMode() => _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Default);
         public void ApplyQuietMode() => _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Cool);
+        
+        public bool ResetEcToDefaults()
+        {
+            _logging?.Info("Resetting EC to defaults via OGH proxy...");
+            // OGH proxy: disable max fan and restore default thermal policy
+            _proxy.SetMaxFan(false);
+            return _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Default);
+        }
 
         public void Dispose()
         {
@@ -476,6 +491,12 @@ namespace OmenCore.Hardware
         public void ApplyMaxCooling() => _controller.SetMaxFanSpeed(true);
         public void ApplyAutoMode() => _controller.RestoreAutoControl();
         public void ApplyQuietMode() => _controller.SetPerformanceMode("Cool");
+        
+        public bool ResetEcToDefaults()
+        {
+            _logging?.Info("Resetting EC to defaults via WMI BIOS...");
+            return _controller.ResetEcToDefaults();
+        }
 
         public void Dispose() => _controller.Dispose();
     }
@@ -580,6 +601,12 @@ namespace OmenCore.Hardware
         public void ApplyMaxCooling() => SetFanSpeed(100);
         public void ApplyAutoMode() => SetFanSpeed(50);
         public void ApplyQuietMode() => SetFanSpeed(30);
+        
+        public bool ResetEcToDefaults()
+        {
+            _logging?.Info("Resetting EC to defaults via EC access...");
+            return _controller.ResetEcToDefaults();
+        }
 
         public void Dispose()
         {
@@ -683,6 +710,12 @@ namespace OmenCore.Hardware
         public void ApplyMaxCooling() => _logging?.Warn("Fan control not available: Cannot apply max cooling");
         public void ApplyAutoMode() => _logging?.Warn("Fan control not available: Cannot apply auto mode");
         public void ApplyQuietMode() => _logging?.Warn("Fan control not available: Cannot apply quiet mode");
+        
+        public bool ResetEcToDefaults()
+        {
+            _logging?.Warn("EC reset not available: No fan control backend");
+            return false;
+        }
 
         public void Dispose()
         {

@@ -93,8 +93,23 @@ public static class StatusCommand
         Console.WriteLine("║              OmenCore Linux - System Status               ║");
         Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
         
-        // EC Access
-        Console.WriteLine($"║  EC Access: {(ec.IsAvailable ? "✓ Available" : "✗ Unavailable"),-43} ║");
+        // EC Access - show detailed status
+        if (ec.IsAvailable)
+        {
+            Console.WriteLine($"║  EC Access: ✓ Available ({ec.AccessMethod})                       ║".PadRight(63) + "║");
+        }
+        else
+        {
+            Console.WriteLine("║  EC Access: ✗ Unavailable                                  ║");
+            Console.WriteLine("║                                                            ║");
+            Console.WriteLine("║  ⚠️  Neither ec_sys nor hp-wmi detected.                   ║");
+            Console.WriteLine("║                                                            ║");
+            Console.WriteLine("║  Try one of:                                               ║");
+            Console.WriteLine("║    sudo modprobe ec_sys write_support=1                    ║");
+            Console.WriteLine("║    sudo modprobe hp-wmi  (for 2023+ models)                ║");
+            Console.WriteLine("║                                                            ║");
+            Console.WriteLine("║  Fedora 43+: ec_sys not in kernel, use hp-wmi              ║");
+        }
         
         // Temperatures
         Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");

@@ -171,7 +171,7 @@ namespace OmenCore.ViewModels
             {
                 if (_settings == null)
                 {
-                    _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, _fanCleaningService, _biosUpdateService, _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, _powerAutomationService);
+                    _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, _fanCleaningService, _biosUpdateService, _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, _powerAutomationService, _fanService);
                     
                     // Subscribe to low overhead mode changes from Settings
                     _settings.LowOverheadModeChanged += (s, enabled) =>
@@ -2592,12 +2592,37 @@ namespace OmenCore.ViewModels
             _logging.Info($"Fan mode change requested from tray: {mode}");
             try
             {
-                FanPreset? targetPreset = mode switch
+                // BUG FIX #33: Handle Max and Auto modes directly instead of searching for presets
+                switch (mode)
                 {
-                    "Max" => FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Performance", StringComparison.OrdinalIgnoreCase)),
-                    "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
-                    _ => FanPresets.FirstOrDefault(p => p.Name.Contains("Auto", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Balanced", StringComparison.OrdinalIgnoreCase))
-                };
+                    case "Max":
+                        // Use ApplyMaxCooling for true 100% fan speed via SetFanMax
+                        _fanService.ApplyMaxCooling();
+                        CurrentFanMode = "Max";
+                        PushEvent($"🌀 Fan mode: Max (100%)");
+                        _logging.Info("Fan mode set to Max via ApplyMaxCooling");
+                        return;
+                        
+                    case "Auto":
+                        // Use ApplyAutoMode for BIOS-controlled auto mode
+                        _fanService.ApplyAutoMode();
+                        CurrentFanMode = "Auto";
+                        PushEvent($"🌀 Fan mode: Auto");
+                        _logging.Info("Fan mode set to Auto via ApplyAutoMode");
+                        return;
+                        
+                    case "Quiet":
+                        // Use ApplyQuietMode for quiet/silent mode
+                        _fanService.ApplyQuietMode();
+                        CurrentFanMode = "Quiet";
+                        PushEvent($"🌀 Fan mode: Quiet");
+                        _logging.Info("Fan mode set to Quiet via ApplyQuietMode");
+                        return;
+                }
+                
+                // Fallback: search for matching preset (for custom modes)
+                FanPreset? targetPreset = FanPresets.FirstOrDefault(p => 
+                    p.Name.Equals(mode, StringComparison.OrdinalIgnoreCase));
 
                 if (targetPreset != null)
                 {
@@ -2608,7 +2633,7 @@ namespace OmenCore.ViewModels
                 }
                 else
                 {
-                    // No matching preset found, just update state
+                    _logging.Warn($"Unknown fan mode requested from tray: {mode}");
                     CurrentFanMode = mode;
                     PushEvent($"🌀 Fan mode: {mode} (preset not found)");
                 }
