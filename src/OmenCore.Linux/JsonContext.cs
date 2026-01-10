@@ -8,6 +8,7 @@ namespace OmenCore.Linux;
 /// </summary>
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(SystemStatus))]
+[JsonSerializable(typeof(Commands.DiagnoseInfo))]
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower)]

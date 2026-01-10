@@ -53,7 +53,11 @@ public class LinuxEcController
     public LinuxEcController()
     {
         HasEcAccess = File.Exists(EC_PATH);
-        HasHpWmiAccess = Directory.Exists(HP_WMI_PATH);
+        HasHpWmiAccess = Directory.Exists(HP_WMI_PATH) && (
+            File.Exists(HP_WMI_THERMAL) ||
+            File.Exists(HP_WMI_FAN_ALWAYS_ON) ||
+            File.Exists(HP_WMI_FAN1) ||
+            File.Exists(HP_WMI_FAN2));
         IsAvailable = HasEcAccess || HasHpWmiAccess;
         
         if (HasHpWmiAccess)
@@ -74,7 +78,7 @@ public class LinuxEcController
     /// </summary>
     public byte? ReadByte(byte address)
     {
-        if (!IsAvailable) return null;
+        if (!HasEcAccess) return null;
         
         try
         {
@@ -94,7 +98,7 @@ public class LinuxEcController
     /// </summary>
     public bool WriteByte(byte address, byte value)
     {
-        if (!IsAvailable) return false;
+        if (!HasEcAccess) return false;
         
         try
         {
@@ -117,6 +121,9 @@ public class LinuxEcController
     /// </summary>
     public (int fan1, int fan2) GetFanSpeeds()
     {
+        if (!HasEcAccess)
+            return (0, 0);
+
         var fan1 = (ReadByte(REG_FAN1_SPEED_SET) ?? 0) * 100;
         var fan2 = (ReadByte(REG_FAN2_SPEED_SET) ?? 0) * 100;
         return (fan1, fan2);
@@ -127,6 +134,9 @@ public class LinuxEcController
     /// </summary>
     public (int fan1, int fan2) GetFanSpeedPercent()
     {
+        if (!HasEcAccess)
+            return (0, 0);
+
         var fan1 = ReadByte(REG_FAN1_SPEED_PCT) ?? 0;
         var fan2 = ReadByte(REG_FAN2_SPEED_PCT) ?? 0;
         return (fan1, fan2);

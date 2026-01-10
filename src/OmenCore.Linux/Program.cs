@@ -55,6 +55,7 @@ class Program
         rootCommand.AddCommand(PerformanceCommand.Create());
         rootCommand.AddCommand(KeyboardCommand.Create());
         rootCommand.AddCommand(StatusCommand.Create());
+        rootCommand.AddCommand(DiagnoseCommand.Create());
         rootCommand.AddCommand(MonitorCommand.Create());
         rootCommand.AddCommand(ConfigCommand.Create());
         rootCommand.AddCommand(DaemonCommand.Create());
