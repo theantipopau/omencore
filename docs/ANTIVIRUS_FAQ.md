@@ -41,6 +41,25 @@ If you see "Windows protected your PC" when running the installer:
 
 This warning appears because the installer is not code-signed with an Extended Validation (EV) certificate ($500+/year).
 
+### Windows 11 Smart App Control
+
+**Smart App Control** (Windows 11 22H2+) is more restrictive than SmartScreen and may block OmenCore entirely with no "Run anyway" option.
+
+**If Smart App Control is blocking OmenCore:**
+
+1. **Option 1: Temporarily disable Smart App Control**
+   - Open **Windows Security** → **App & browser control** → **Smart App Control settings**
+   - Set to **Off** (Note: This cannot be re-enabled without reinstalling Windows)
+   
+2. **Option 2: Use Evaluation Mode**
+   - If Smart App Control is in "Evaluation" mode, it may allow OmenCore after learning it's safe
+   
+3. **Option 3: Download from Microsoft Store** (coming soon)
+   - Microsoft Store apps bypass Smart App Control
+
+**Why is this happening?**
+Smart App Control uses cloud reputation to block apps without extensive download history. As a niche utility for HP OMEN laptops, OmenCore doesn't yet have the download volume to build reputation. This affects many legitimate open-source tools.
+
 ### Other Antivirus Software
 
 Most antivirus programs have similar whitelist/exclusion features:

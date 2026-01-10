@@ -12,7 +12,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.2.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.2.2)
+[![Version](https://img.shields.io/badge/version-2.2.3-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.2.3)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -23,18 +23,18 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.2.2
+## 🆕 What's New in v2.2.3
 
 ### 🐛 Bug Fixes
-- **Critical: Temperature Monitoring Freezes (#39, #40)** - Fixed temps getting stuck causing fans to stay at high RPM or not respond to heat
-  - Added staleness detection to auto-restart monitoring when sensors freeze
-  - Prevents thermal throttling from unresponsive fan curves
+- **Critical: Fan Speed Drops to 0 RPM** - Fixed fans dropping to minimum speed when temperature exceeded curve definition
+  - Curve fallback now uses highest fan% instead of lowest as safety measure
+- **Fan Diagnostics Improvements** - Fixed curve engine overriding test speeds, 100% now achieves true max RPM
 
-Full changelog: [CHANGELOG_v2.2.2.md](docs/CHANGELOG_v2.2.2.md)
+Full changelog: [CHANGELOG_v2.2.3.md](docs/CHANGELOG_v2.2.3.md)
 
 ---
 
-## 🆕 What's New in v2.2.1
+## 🆕 What's New in v2.2.2
 
 ### ✨ New Features
 - **EC Reset to Defaults** - New button in Settings → Hardware to restore BIOS fan displays to normal values

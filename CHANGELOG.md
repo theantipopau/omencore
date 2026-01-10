@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.3] - 2026-01-11
+
+### 🐛 Bug Fixes
+- **Critical: Fan Speed Drops to 0 RPM** - Fixed fans dropping to minimum when temp exceeded curve
+  - Curve fallback now uses highest fan% instead of lowest as safety measure
+  - Prevents thermal shutdowns when temperature exceeds defined curve points
+- **Fan Diagnostics: Curve Override** - Test speeds no longer get overridden by curve engine
+  - Added diagnostic mode that suspends curve during fan testing
+- **Fan Diagnostics: 100% Not Max** - Setting 100% now uses SetFanMax for true maximum RPM
+- **Fan Diagnostics: UI Not Updating** - Fixed display not refreshing after test completion
+
+### 📝 Documentation
+- **Smart App Control** - Added workarounds for Windows 11 Smart App Control blocking installer
+
+---
+
 ## [2.2.2] - 2026-01-10
 
 ### 🐛 Bug Fixes

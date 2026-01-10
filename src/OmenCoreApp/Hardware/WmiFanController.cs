@@ -221,8 +221,10 @@ namespace OmenCore.Hardware
                 var maxTemp = Math.Max(cpuTemp, gpuTemp);
 
                 // Find appropriate curve point
+                // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
+                // This prevents fans from dropping to low speed at high temps
                 var targetPoint = curveList.LastOrDefault(p => p.TemperatureC <= maxTemp) 
-                                  ?? curveList.First();
+                                  ?? curveList.Last(); // Use highest, not lowest!
 
                 // Convert percentage to krpm (0-100% maps to 0-MaxFanLevel)
                 byte fanLevel = (byte)(targetPoint.FanPercent * MaxFanLevel / 100);

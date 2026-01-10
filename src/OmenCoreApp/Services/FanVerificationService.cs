@@ -130,31 +130,57 @@ namespace OmenCore.Services
                 // Convert percent to level
                 result.AppliedLevel = PercentToLevel(targetPercent);
                 
-                // Apply the fan level (need both fans)
-                byte fan1Level = (byte)(fanIndex == 0 ? result.AppliedLevel : 0);
-                byte fan2Level = (byte)(fanIndex == 1 ? result.AppliedLevel : 0);
-                
-                // Get current levels for the other fan to preserve it
-                var currentLevels = _wmiBios.GetFanLevel();
-                if (currentLevels.HasValue)
+                // For 100%, use SetFanMax which achieves true maximum RPM
+                // SetFanLevel(55) may be capped by BIOS on some models
+                if (targetPercent >= 100)
                 {
-                    if (fanIndex == 0)
-                        fan2Level = currentLevels.Value.fan2;
+                    result.WmiCallSucceeded = _wmiBios.SetFanMax(true);
+                    if (result.WmiCallSucceeded)
+                    {
+                        _logging.Info($"Fan {fanIndex} set to MAX (100%) via SetFanMax");
+                    }
                     else
-                        fan1Level = currentLevels.Value.fan1;
+                    {
+                        // Fallback to SetFanLevel
+                        result.WmiCallSucceeded = _wmiBios.SetFanLevel(55, 55);
+                        _logging.Info($"Fan {fanIndex} set to 100% via SetFanLevel(55) fallback");
+                    }
+                }
+                else
+                {
+                    // For <100%, disable max mode first (in case it was enabled)
+                    _wmiBios.SetFanMax(false);
+                    
+                    // Apply the fan level (need both fans)
+                    byte fan1Level = (byte)(fanIndex == 0 ? result.AppliedLevel : 0);
+                    byte fan2Level = (byte)(fanIndex == 1 ? result.AppliedLevel : 0);
+                    
+                    // Get current levels for the other fan to preserve it
+                    var currentLevels = _wmiBios.GetFanLevel();
+                    if (currentLevels.HasValue)
+                    {
+                        if (fanIndex == 0)
+                            fan2Level = currentLevels.Value.fan2;
+                        else
+                            fan1Level = currentLevels.Value.fan1;
+                    }
+                    
+                    result.WmiCallSucceeded = _wmiBios.SetFanLevel(fan1Level, fan2Level);
+                    
+                    if (result.WmiCallSucceeded)
+                    {
+                        _logging.Info($"Fan {fanIndex} set to level {result.AppliedLevel} ({targetPercent}%)");
+                    }
                 }
                 
-                result.WmiCallSucceeded = _wmiBios.SetFanLevel(fan1Level, fan2Level);
-                
+                // Check if WMI call failed
                 if (!result.WmiCallSucceeded)
                 {
-                    _logging.Warn($"WMI SetFanLevel failed for fan {fanIndex}, level {result.AppliedLevel}");
+                    _logging.Warn($"WMI fan control failed for fan {fanIndex}, level {result.AppliedLevel}");
                     result.ErrorMessage = "WMI call returned false";
                     result.Duration = DateTime.Now - startTime;
                     return result;
                 }
-                
-                _logging.Info($"Fan {fanIndex} set to level {result.AppliedLevel} ({targetPercent}%)");
                 
                 // Wait for fan to respond (fans have mechanical inertia)
                 await Task.Delay(FanResponseDelayMs, ct);

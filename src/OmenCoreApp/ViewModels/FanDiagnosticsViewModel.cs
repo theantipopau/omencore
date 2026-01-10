@@ -14,6 +14,8 @@ namespace OmenCore.ViewModels
         private readonly IFanVerificationService _verifier;
         private readonly FanService _fanService;
         private readonly LoggingService _logging;
+        
+        private bool _isDiagnosticActive;
 
         public ObservableCollection<FanApplyResult> History { get; } = new();
 
@@ -36,6 +38,15 @@ namespace OmenCore.ViewModels
 
         private int _currentLevel;
         public int CurrentLevel { get => _currentLevel; set { _currentLevel = value; OnPropertyChanged(); } }
+        
+        /// <summary>
+        /// Whether a diagnostic test is currently running.
+        /// </summary>
+        public bool IsDiagnosticActive
+        {
+            get => _isDiagnosticActive;
+            private set { _isDiagnosticActive = value; OnPropertyChanged(); }
+        }
 
         public bool IsVerificationAvailable => _verifier?.IsAvailable ?? false;
 
@@ -49,7 +60,7 @@ namespace OmenCore.ViewModels
             _logging = logging ?? throw new ArgumentNullException(nameof(logging));
 
             RefreshStateCommand = new RelayCommand(_ => _ = UpdateCurrentStateAsync());
-            ApplyAndVerifyCommand = new AsyncRelayCommand(_ => ApplyAndVerifyAsync(), _ => IsVerificationAvailable);
+            ApplyAndVerifyCommand = new AsyncRelayCommand(_ => ApplyAndVerifyAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive);
 
             // Default to CPU fan
             SelectedFanIndex = 0;
@@ -88,14 +99,32 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                var result = await _verifier.ApplyAndVerifyFanSpeedAsync(SelectedFanIndex, TargetPercent);
-                History.Insert(0, result);
-                // Update state after apply
-                await UpdateCurrentStateAsync();
+                IsDiagnosticActive = true;
+                
+                // Enter diagnostic mode to suspend curve engine during test
+                _fanService.EnterDiagnosticMode();
+                
+                try
+                {
+                    var result = await _verifier.ApplyAndVerifyFanSpeedAsync(SelectedFanIndex, TargetPercent);
+                    History.Insert(0, result);
+                    
+                    // Update state after apply - force UI refresh
+                    await UpdateCurrentStateAsync();
+                    OnPropertyChanged(nameof(CurrentRpm));
+                    OnPropertyChanged(nameof(CurrentLevel));
+                }
+                finally
+                {
+                    // Always exit diagnostic mode when done
+                    _fanService.ExitDiagnosticMode();
+                    IsDiagnosticActive = false;
+                }
             }
             catch (Exception ex)
             {
                 _logging.Error("Apply and verify failed", ex);
+                IsDiagnosticActive = false;
             }
         }
     }

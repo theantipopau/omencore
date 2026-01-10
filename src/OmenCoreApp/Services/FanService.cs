@@ -81,6 +81,9 @@ namespace OmenCore.Services
         private const double ThermalEmergencyThreshold = 88.0;  // °C - max fans immediately (was 95)
         private volatile bool _thermalProtectionActive = false;
         
+        // Diagnostic mode - suspends curve engine to allow manual fan testing
+        private volatile bool _diagnosticModeActive = false;
+        
         // Fan level constants - HP WMI uses 0-55 krpm range
         private const int MaxFanLevel = 55;
         private bool _thermalProtectionEnabled = true; // Can be disabled in settings
@@ -129,6 +132,30 @@ namespace OmenCore.Services
         /// Whether thermal protection is currently overriding fan control.
         /// </summary>
         public bool IsThermalProtectionActive => _thermalProtectionActive;
+        
+        /// <summary>
+        /// Whether diagnostic mode is active (suspends curve engine for manual testing).
+        /// </summary>
+        public bool IsDiagnosticModeActive => _diagnosticModeActive;
+        
+        /// <summary>
+        /// Enter diagnostic mode - suspends curve engine to allow manual fan testing.
+        /// Call ExitDiagnosticMode() when done to resume normal operation.
+        /// </summary>
+        public void EnterDiagnosticMode()
+        {
+            _diagnosticModeActive = true;
+            _logging.Info("🔧 Entered fan diagnostic mode - curve engine suspended");
+        }
+        
+        /// <summary>
+        /// Exit diagnostic mode - resumes normal curve engine operation.
+        /// </summary>
+        public void ExitDiagnosticMode()
+        {
+            _diagnosticModeActive = false;
+            _logging.Info("✓ Exited fan diagnostic mode - curve engine resumed");
+        }
         
         /// <summary>
         /// Event raised when a preset is applied (for UI synchronization).
@@ -667,6 +694,10 @@ namespace OmenCore.Services
             // Skip curve application if thermal protection is active
             if (_thermalProtectionActive)
                 return Task.CompletedTask;
+                
+            // Skip curve application if diagnostic mode is active (manual testing)
+            if (_diagnosticModeActive)
+                return Task.CompletedTask;
             
             // Check if curves are available
             bool hasSingleCurve = _activeCurve != null;
@@ -703,8 +734,10 @@ namespace OmenCore.Services
                     var maxTemp = Math.Max(cpuTemp, gpuTemp);
                     
                     // Find the appropriate curve point
+                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
+                    // This prevents fans from dropping to 0% at high temps
                     var targetPoint = _activeCurve.LastOrDefault(p => p.TemperatureC <= maxTemp) 
-                                      ?? _activeCurve.FirstOrDefault();
+                                      ?? _activeCurve.LastOrDefault(); // Use highest, not lowest!
                                       
                     if (targetPoint == null)
                         return Task.CompletedTask;
@@ -820,12 +853,14 @@ namespace OmenCore.Services
                 try
                 {
                     // Evaluate CPU curve against CPU temperature
+                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
                     var cpuTargetPoint = _cpuCurve.LastOrDefault(p => p.TemperatureC <= cpuTemp) 
-                                         ?? _cpuCurve.FirstOrDefault();
+                                         ?? _cpuCurve.LastOrDefault(); // Use highest, not lowest!
                     
                     // Evaluate GPU curve against GPU temperature
+                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
                     var gpuTargetPoint = _gpuCurve.LastOrDefault(p => p.TemperatureC <= gpuTemp) 
-                                         ?? _gpuCurve.FirstOrDefault();
+                                         ?? _gpuCurve.LastOrDefault(); // Use highest, not lowest!
                     
                     if (cpuTargetPoint == null || gpuTargetPoint == null)
                         return Task.CompletedTask;
