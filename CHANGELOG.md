@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Version display and connection indicator
   - "Linux Edition" branding
 
+### 🐧 Linux CLI
+- **New: Diagnose command** - `omencore-cli diagnose` prints kernel/modules/sysfs status and next-step recommendations
+- **Improved: 2023+ model detection** - More accurate `hp-wmi` detection and fewer misleading EC availability reports
+
 ### 📝 Documentation
 - **Smart App Control** - Added workarounds for Windows 11 Smart App Control blocking installer
 

@@ -117,6 +117,15 @@ At 85°C: NEW behavior → falls back to 80°C point → 80% fans ✓
 
 ---
 
+## 🐧 Linux CLI Improvements
+
+### Better Diagnostics for 2023+ Models
+- **New**: `omencore-cli diagnose` command (and `--json`) to print kernel/module/sysfs status and recommended next steps
+- **Improved**: More accurate `hp-wmi` detection (only reports available when OMEN control files are actually exposed)
+- **Improved**: Prevents EC register reads/writes when only `hp-wmi` is present (reduces confusing false “EC available” states)
+
+---
+
 ## 🔧 Technical Details
 
 ### Files Changed
@@ -155,6 +164,17 @@ At 85°C: NEW behavior → falls back to 80°C point → 80% fans ✓
 
 - `src/OmenCore.Linux/Program.cs`
   - ConfigManager now uses source-generated JSON serialization
+
+- `src/OmenCore.Linux/Commands/DiagnoseCommand.cs` (NEW)
+  - Added `diagnose` command to collect Linux environment + hardware interface diagnostics
+  - Supports `--json` output using source-generated JSON
+
+- `src/OmenCore.Linux/Hardware/LinuxEcController.cs`
+  - Improved `hp-wmi` capability detection (requires OMEN control files to be present)
+  - Avoids EC register I/O when `ec_sys` is not available
+
+- `src/OmenCore.Linux/JsonContext.cs`
+  - Added `DiagnoseInfo` DTO to JSON source generation context
 
 - Test files (3 files)
   - Added `ResetEcToDefaults()` to all test IFanController implementations
