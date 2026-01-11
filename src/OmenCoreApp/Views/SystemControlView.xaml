@@ -350,6 +350,135 @@
                     </StackPanel>
                 </Border>
 
+                <!-- AMD Power/Temperature Controls (Ryzen) -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding IsAmdCpu, Converter={StaticResource BoolToVisibility}}"
+                        ToolTip="Control AMD Ryzen power limits (STAPM) and temperature throttle point (Tctl) via SMU.">
+                    <StackPanel>
+                        <TextBlock Text="AMD Power/Temperature Controls" FontSize="20" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        
+                        <Border Background="{StaticResource SurfaceDarkBrush}" 
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16"
+                                BorderBrush="#FF9800" BorderThickness="2">
+                            <TextBlock FontSize="12" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap">
+                                <Run Text="ℹ️ AMD POWER MANAGEMENT" FontWeight="Bold" Foreground="#FF9800" FontSize="13"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="• STAPM Limit: Sustained power limit in watts (15W-54W)"/>
+                                <LineBreak/>
+                                <Run Text="• Temperature Limit: CPU throttle point in °C (75°C-105°C)"/>
+                                <LineBreak/>
+                                <Run Text="• Lower STAPM = reduced performance but cooler/quieter"/>
+                                <LineBreak/>
+                                <Run Text="• Higher STAPM = better performance but more heat/fan noise"/>
+                                <LineBreak/>
+                                <Run Text="• Temperature limit sets thermal throttle threshold"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="✓ Safe ranges: 20-35W STAPM, 85-95°C temp for laptops"/>
+                            </TextBlock>
+                        </Border>
+
+                        <!-- STAPM Limit Slider -->
+                        <StackPanel Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="STAPM Power Limit:" 
+                                           FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding AmdStapmLimitText}" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                            </Grid>
+                            
+                            <Slider Minimum="15" Maximum="54" 
+                                    TickFrequency="1" 
+                                    TickPlacement="BottomRight"
+                                    Value="{Binding AmdStapmLimitWatts, Mode=TwoWay}"
+                                    IsSnapToTickEnabled="True"/>
+                            
+                            <!-- Tick labels for key values -->
+                            <Grid Margin="0,2,0,0">
+                                <TextBlock Text="15W (Quiet)" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Left"/>
+                                <TextBlock Text="25W (Balanced)" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center" Margin="-20,0,0,0"/>
+                                <TextBlock Text="54W (Max)" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            
+                            <TextBlock Text="Default: 25W (balanced performance/thermals)" 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Temperature Limit Slider -->
+                        <StackPanel Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="CPU Temperature Limit:" 
+                                           FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding AmdTempLimitText}" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                            </Grid>
+                            
+                            <Slider Minimum="75" Maximum="105" 
+                                    TickFrequency="5" 
+                                    TickPlacement="BottomRight"
+                                    Value="{Binding AmdTempLimitC, Mode=TwoWay}"
+                                    IsSnapToTickEnabled="True"/>
+                            
+                            <!-- Tick labels for key values -->
+                            <Grid Margin="0,2,0,0">
+                                <TextBlock Text="75°C (Cool)" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Left"/>
+                                <TextBlock Text="90°C" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center" Margin="-10,0,0,0"/>
+                                <TextBlock Text="105°C (Stock)" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Right"/>
+                            </Grid>
+                            
+                            <TextBlock Text="Default: 95°C (safe for most Ryzen CPUs)" 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Apply Buttons -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="1" 
+                                    Content="Apply Settings" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ApplyAmdPowerLimitsCommand}"
+                                    IsEnabled="{Binding IsAmdCpu}"
+                                    Padding="16,8" Margin="0,0,8,0"/>
+                            
+                            <Button Grid.Column="2" 
+                                    Content="Reset to Default" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ResetAmdPowerLimitsCommand}"
+                                    IsEnabled="{Binding IsAmdCpu}"
+                                    Padding="16,8"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- HP Omen Gaming Hub Cleanup -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
@@ -615,6 +744,33 @@
                                     IsSnapToTickEnabled="True"
                                     TickPlacement="BottomRight"/>
                             <TextBlock Text="100% = Default TDP. Lower values reduce power/heat, higher allows more boost." 
+                                       FontSize="11" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Voltage Offset -->
+                        <StackPanel Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Voltage Offset:" 
+                                           FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding GpuVoltageOffsetText}" 
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource AccentBrush}"/>
+                            </Grid>
+                            <Slider Value="{Binding GpuVoltageOffsetMv, Mode=TwoWay}"
+                                    Minimum="-200"
+                                    Maximum="100"
+                                    TickFrequency="10"
+                                    IsSnapToTickEnabled="True"
+                                    TickPlacement="BottomRight"/>
+                            <TextBlock Text="Negative = undervolt (reduce heat/power), Positive = overvolt (stability). -50 to -100mV recommended for undervolting." 
                                        FontSize="11" 
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Margin="0,4,0,0"/>

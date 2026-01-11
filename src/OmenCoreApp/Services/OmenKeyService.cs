@@ -44,6 +44,12 @@ namespace OmenCore.Services
         private const int VK_OMEN_157 = 0x9D;     // 157 decimal - some OMEN models
         private const int VK_F24 = 0x87;          // F24 - some OMEN models
         private const int VK_OEM_OMEN = 0xFF;     // Some models use this
+        
+        // Brightness keys that should NEVER be treated as OMEN key
+        private const int VK_BRIGHTNESS_DOWN = 0x70;  // F1 - brightness down
+        private const int VK_BRIGHTNESS_UP = 0x71;    // F2 - brightness up
+        private const int VK_F2 = 0x71;               // F2
+        private const int VK_F3 = 0x72;               // F3
 
         // HP OMEN-specific scan codes (varies by model)
         private static readonly int[] OmenScanCodes = { 0xE045, 0xE046, 0x0046, 0x009D };
@@ -526,6 +532,15 @@ namespace OmenCore.Services
 
         private bool IsOmenKey(uint vkCode, uint scanCode)
         {
+            // CRITICAL: Exclude brightness keys and other function keys that should never trigger OMEN actions
+            // These keys are commonly used with Fn modifier and can conflict with OMEN key detection
+            if (vkCode == VK_BRIGHTNESS_DOWN || vkCode == VK_BRIGHTNESS_UP ||
+                vkCode == VK_F2 || vkCode == VK_F3 ||
+                vkCode >= 0x70 && vkCode <= 0x87) // All F1-F24 keys
+            {
+                return false;
+            }
+            
             // First, exclude known non-OMEN keys that share VK codes
             foreach (var excludedScan in ExcludedScanCodes)
             {

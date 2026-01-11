@@ -92,6 +92,21 @@ namespace OmenCore.Models
         public string? LastGpuOcProfileName { get; set; }
         
         /// <summary>
+        /// AMD Ryzen power and temperature limits (STAPM, Tctl).
+        /// </summary>
+        public AmdPowerLimits? AmdPowerLimits { get; set; }
+        
+        /// <summary>
+        /// Per-game automatic profile configurations.
+        /// </summary>
+        public List<GameProfile> GameProfiles { get; set; } = new();
+        
+        /// <summary>
+        /// Automation rules for conditional profile switching.
+        /// </summary>
+        public List<AutomationRule> AutomationRules { get; set; } = new();
+        
+        /// <summary>
         /// Last applied TCC (Thermal Control Circuit) offset in degrees C.
         /// Re-applied on startup to maintain CPU temperature limits.
         /// 0 = no limit (full TjMax), higher values = lower temp limit.
@@ -325,6 +340,12 @@ namespace OmenCore.Models
         /// <summary>Show GPU memory usage</summary>
         public bool ShowVramUsage { get; set; } = false;
         
+        /// <summary>Show package power (CPU+GPU combined wattage)</summary>
+        public bool ShowPackagePower { get; set; } = false;
+        
+        /// <summary>Show GPU hotspot (junction) temperature</summary>
+        public bool ShowGpuHotspot { get; set; } = false;
+        
         /// <summary>Show toast notifications when mode changes (fan profile, performance mode, etc.)</summary>
         public bool ShowModeChangeNotifications { get; set; } = true;
         
@@ -337,8 +358,11 @@ namespace OmenCore.Models
     /// </summary>
     public class BatterySettings
     {
-        /// <summary>Enable 80% charge limit for battery longevity</summary>
+        /// <summary>Enable charge limit for battery longevity</summary>
         public bool ChargeLimitEnabled { get; set; } = false;
+        
+        /// <summary>Charge threshold percentage (60-100%, default 80%)</summary>
+        public int ChargeThresholdPercent { get; set; } = 80;
         
         /// <summary>Show battery health warnings</summary>
         public bool ShowHealthWarnings { get; set; } = true;
@@ -415,4 +439,161 @@ namespace OmenCore.Models
         /// <summary>When this profile was last modified</summary>
         public DateTime ModifiedAt { get; set; } = DateTime.Now;
     }
+
+    /// <summary>
+    /// AMD Ryzen power and temperature limits.
+    /// </summary>
+    public class AmdPowerLimits
+    {
+        /// <summary>STAPM (Sustained Power) limit in Watts (15-54W typical range)</summary>
+        public uint StapmLimitWatts { get; set; } = 25;
+        
+        /// <summary>CPU temperature limit in Celsius (75-105°C range)</summary>
+        public uint TempLimitC { get; set; } = 95;
+    }
+
+    /// <summary>
+    /// Automation rule for conditional system behavior.
+    /// Triggers when specified conditions are met, applies actions automatically.
+    /// </summary>
+    public class AutomationRule
+    {
+        /// <summary>Unique identifier for this rule</summary>
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        
+        /// <summary>Display name for the rule (e.g., "Silent Mode at Night")</summary>
+        public string Name { get; set; } = "";
+        
+        /// <summary>Optional description</summary>
+        public string? Description { get; set; }
+        
+        /// <summary>Is this rule enabled?</summary>
+        public bool Enabled { get; set; } = true;
+        
+        /// <summary>Rule priority (lower number = higher priority). Default: 50</summary>
+        public int Priority { get; set; } = 50;
+        
+        /// <summary>Trigger type</summary>
+        public TriggerType Trigger { get; set; }
+        
+        /// <summary>Trigger configuration (JSON-serialized based on trigger type)</summary>
+        public TriggerConfig TriggerData { get; set; } = new();
+        
+        /// <summary>Actions to execute when triggered</summary>
+        public List<RuleAction> Actions { get; set; } = new();
+        
+        /// <summary>When was this rule created</summary>
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        
+        /// <summary>When was this rule last triggered</summary>
+        public DateTime? LastTriggeredAt { get; set; }
+        
+        /// <summary>How many times this rule has triggered</summary>
+        public int TriggerCount { get; set; }
+    }
+
+    /// <summary>
+    /// Automation trigger types
+    /// </summary>
+    public enum TriggerType
+    {
+        /// <summary>Time-based trigger (specific time or time range)</summary>
+        Time,
+        
+        /// <summary>Battery percentage threshold</summary>
+        Battery,
+        
+        /// <summary>AC power connected/disconnected</summary>
+        ACPower,
+        
+        /// <summary>Temperature threshold (CPU or GPU)</summary>
+        Temperature,
+        
+        /// <summary>Specific process running</summary>
+        Process,
+        
+        /// <summary>System idle for duration</summary>
+        Idle,
+        
+        /// <summary>WiFi SSID connected (location-based)</summary>
+        WiFiSSID
+    }
+
+    /// <summary>
+    /// Trigger configuration data (type-specific)
+    /// </summary>
+    public class TriggerConfig
+    {
+        // Time trigger
+        public TimeSpan? StartTime { get; set; }
+        public TimeSpan? EndTime { get; set; }
+        public List<DayOfWeek>? Days { get; set; }
+        
+        // Battery trigger
+        public int? BatteryThreshold { get; set; }
+        public string? BatteryCondition { get; set; } // "Below", "Above"
+        
+        // ACPower trigger
+        public bool? ACConnected { get; set; }
+        
+        // Temperature trigger
+        public string? TemperatureSensor { get; set; } // "CPU", "GPU"
+        public int? TemperatureThreshold { get; set; }
+        public string? TemperatureCondition { get; set; } // "Above", "Below"
+        
+        // Process trigger
+        public string? ProcessName { get; set; }
+        
+        // Idle trigger
+        public int? IdleMinutes { get; set; }
+        
+        // WiFi trigger
+        public string? WiFiSSID { get; set; }
+    }
+
+    /// <summary>
+    /// Action to execute when rule triggers
+    /// </summary>
+    public class RuleAction
+    {
+        /// <summary>Action type</summary>
+        public ActionType Type { get; set; }
+        
+        /// <summary>Action-specific parameter (e.g., preset name, mode name)</summary>
+        public string? Parameter { get; set; }
+        
+        /// <summary>Optional numeric parameter (e.g., power limit watts)</summary>
+        public int? NumericParameter { get; set; }
+    }
+
+    /// <summary>
+    /// Automation action types
+    /// </summary>
+    public enum ActionType
+    {
+        /// <summary>Apply fan preset by name</summary>
+        SetFanPreset,
+        
+        /// <summary>Set performance mode (Balanced/Performance/Silent)</summary>
+        SetPerformanceMode,
+        
+        /// <summary>Apply GPU OC profile by name</summary>
+        SetGpuOcProfile,
+        
+        /// <summary>Set power limit in watts</summary>
+        SetPowerLimit,
+        
+        /// <summary>Set AMD STAPM limit</summary>
+        SetAmdStapmLimit,
+        
+        /// <summary>Set AMD temperature limit</summary>
+        SetAmdTempLimit,
+        
+        /// <summary>Enable/disable keyboard lighting</summary>
+        SetKeyboardLighting,
+        
+        /// <summary>Show notification message</summary>
+        ShowNotification
+    }
 }
+

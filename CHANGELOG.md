@@ -7,7 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.2.3] - 2026-01-11
+## [2.3.0] - 2026-01-11 - Major Feature Release 🚀
+
+**Safety, Diagnostics, and Enhanced Linux Support**
+
+### 🛡️ Fan Curve Safety System
+- **Real-time validation** in fan curve editor detects dangerous configurations
+- **Hardware watchdog** monitors for frozen temperature sensors (auto-sets 100% if frozen)
+- **Curve recovery** system auto-reverts to last-known-good preset on sustained overheating
+- Visual warning banners with specific recommendations
+
+### 📦 Profile Import/Export
+- **Unified `.omencore` format** for complete configuration backup
+- Export fan presets, performance modes, RGB presets, and settings
+- Selective import (choose which components to merge)
+
+### 🔋 Custom Battery Thresholds
+- **Adjustable charge limit slider** (60-100%, previously fixed at 80%)
+- Recommendations: 60-70% for longevity, 80% for daily use, 100% for travel
+- Real-time threshold application via HP WMI BIOS
+
+### 🔄 Auto-Update Check
+- **Non-intrusive GitHub Releases API check** (once per session)
+- Privacy-respecting, no telemetry
+- Shows update availability in status bar (UI integration pending)
+
+### 📊 Diagnostics Export
+- **One-click ZIP bundle** with logs, config, system info, hardware status
+- Ready to attach to GitHub issues
+
+### 🐧 Linux Improvements
+- **Enhanced 2023+ OMEN support** with HP-WMI thermal profile switching
+- `omencore-cli diagnose --report` generates pasteable GitHub issue templates
+- Direct fan control via `fan1_output`/`fan2_output` (when available)
+- Improved detection: hp-wmi only reports available when control files exist
+- Thermal profiles work even without direct fan PWM access
+
+[Full v2.3.0 Changelog](docs/CHANGELOG_v2.3.0.md)
+
+---
+
+## [2.2.3] - Not Released (Merged into v2.3.0)
 
 ### 🐛 Bug Fixes
 - **Critical: Fan Speed Drops to 0 RPM** - Fixed fans dropping to minimum when temp exceeded curve

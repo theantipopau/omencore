@@ -64,6 +64,7 @@ namespace OmenCore.ViewModels
         private readonly OmenGamingHubCleanupService _hubCleanupService;
         private readonly SystemInfoService _systemInfoService;
         private readonly AutoUpdateService _autoUpdateService;
+        private readonly UpdateCheckService _updateCheckService;
         private readonly ProcessMonitoringService _processMonitoringService;
         private readonly GameProfileService _gameProfileService;
         private readonly FanCleaningService _fanCleaningService;
@@ -77,6 +78,12 @@ namespace OmenCore.ViewModels
         private readonly OghServiceProxy? _oghProxy;
         private readonly NvapiService? _nvapiService;
         private HotkeyOsdWindow? _hotkeyOsd;
+        
+        // Update check properties
+        private bool _updateAvailable;
+        private string _updateVersion = "";
+        private string _updateUrl = "";
+        private bool _isCheckingForUpdates;
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
         private FanControlViewModel? _fanControl;
@@ -171,7 +178,9 @@ namespace OmenCore.ViewModels
             {
                 if (_settings == null)
                 {
-                    _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, _fanCleaningService, _biosUpdateService, _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, _powerAutomationService, _fanService);
+                    var profileExportService = new ProfileExportService(_logging, _configService);
+                    var diagnosticsExportService = new DiagnosticsExportService(_logging, _configService);
+                    _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService, _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, _powerAutomationService, _fanService);
                     
                     // Subscribe to low overhead mode changes from Settings
                     _settings.LowOverheadModeChanged += (s, enabled) =>
@@ -333,7 +342,7 @@ namespace OmenCore.ViewModels
         public ObservableCollection<string> OmenCleanupSteps { get; } = new();
         public ReadOnlyObservableCollection<GameProfile> GameProfiles => _gameProfileService.Profiles;
         
-        public SystemInfo SystemInfo { get; private set; }
+        public OmenCore.Models.SystemInfo SystemInfo { get; private set; }
         
         /// <summary>
         /// Device capabilities detected at startup.
@@ -375,6 +384,58 @@ namespace OmenCore.ViewModels
                 {
                     _appVersionLabel = value;
                     OnPropertyChanged(nameof(AppVersionLabel));
+                }
+            }
+        }
+
+        public bool UpdateAvailable
+        {
+            get => _updateAvailable;
+            set
+            {
+                if (_updateAvailable != value)
+                {
+                    _updateAvailable = value;
+                    OnPropertyChanged(nameof(UpdateAvailable));
+                }
+            }
+        }
+
+        public string UpdateVersion
+        {
+            get => _updateVersion;
+            set
+            {
+                if (_updateVersion != value)
+                {
+                    _updateVersion = value;
+                    OnPropertyChanged(nameof(UpdateVersion));
+                }
+            }
+        }
+
+        public string UpdateUrl
+        {
+            get => _updateUrl;
+            set
+            {
+                if (_updateUrl != value)
+                {
+                    _updateUrl = value;
+                    OnPropertyChanged(nameof(UpdateUrl));
+                }
+            }
+        }
+
+        public bool IsCheckingForUpdates
+        {
+            get => _isCheckingForUpdates;
+            set
+            {
+                if (_isCheckingForUpdates != value)
+                {
+                    _isCheckingForUpdates = value;
+                    OnPropertyChanged(nameof(IsCheckingForUpdates));
                 }
             }
         }
@@ -1029,6 +1090,7 @@ namespace OmenCore.ViewModels
         public ICommand InstallUpdateCommand { get; }
         public ICommand CheckForUpdatesCommand { get; }
         public ICommand OpenReleaseNotesCommand { get; }
+        public ICommand OpenUpdateUrlCommand { get; }
         public ICommand OpenGameProfileManagerCommand { get; }
         public ICommand ExportConfigurationCommand { get; }
         public ICommand ImportConfigurationCommand { get; }
@@ -1189,6 +1251,9 @@ namespace OmenCore.ViewModels
             _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
             _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService, _wmiBios, _oghProxy);
             _biosUpdateService = new BiosUpdateService(_logging);
+            _updateCheckService = new UpdateCheckService(_logging);
+            var profileExportService = new ProfileExportService(_logging, _configService);
+            var diagnosticsExportService = new DiagnosticsExportService(_logging, _configService);
             _hotkeyService = new HotkeyService(_logging);
             _notificationService = new NotificationService(_logging);
             _powerAutomationService = new PowerAutomationService(_logging, _fanService, _performanceModeService, _configService, _gpuSwitchService);
@@ -1298,6 +1363,7 @@ namespace OmenCore.ViewModels
             InstallUpdateCommand = _installUpdateCommand;
             _openReleaseNotesCommand = new RelayCommand(_ => OpenReleaseNotes(), _ => CanOpenReleaseNotes());
             OpenReleaseNotesCommand = _openReleaseNotesCommand;
+            OpenUpdateUrlCommand = new RelayCommand(_ => OpenUpdateUrl());
             _openGameProfileManagerCommand = new RelayCommand(_ => OpenGameProfileManager());
             OpenGameProfileManagerCommand = _openGameProfileManagerCommand;
             ExportConfigurationCommand = new AsyncRelayCommand(_ => ExportConfigurationAsync());
@@ -1339,6 +1405,9 @@ namespace OmenCore.ViewModels
             {
                 _ = CheckForUpdatesBannerAsync();
             }
+            
+            // Also check for updates using the new non-intrusive update check service (once per session)
+            _ = CheckForLatestVersionAsync();
             
             // Initialize game profile system
             InitializeGameProfilesAsync();
@@ -1722,6 +1791,59 @@ namespace OmenCore.ViewModels
             _installUpdateCommand.RaiseCanExecuteChanged();
             _openReleaseNotesCommand.RaiseCanExecuteChanged();
             _checkForUpdatesCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OpenUpdateUrl()
+        {
+            if (!UpdateAvailable || string.IsNullOrWhiteSpace(UpdateUrl))
+                return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = UpdateUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to open update URL", ex);
+            }
+        }
+
+        private async Task CheckForLatestVersionAsync()
+        {
+            if (IsCheckingForUpdates)
+                return;
+
+            try
+            {
+                IsCheckingForUpdates = true;
+                var updateInfo = await _updateCheckService.CheckForUpdatesAsync();
+
+                if (updateInfo != null)
+                {
+                    UpdateAvailable = true;
+                    UpdateVersion = updateInfo.Version;
+                    UpdateUrl = updateInfo.ReleaseUrl;
+                    _logging.Info($"🔔 Update available: {UpdateVersion}");
+                }
+                else
+                {
+                    UpdateAvailable = false;
+                    _logging.Info("✓ OmenCore is up to date");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Update check failed", ex);
+                UpdateAvailable = false;
+            }
+            finally
+            {
+                IsCheckingForUpdates = false;
+            }
         }
 
         private void HydrateCollections()

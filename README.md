@@ -12,7 +12,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.2.3-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.2.3)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -23,14 +23,18 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.2.3
+## 🆕 What's New in v2.3.0
 
-### 🐛 Bug Fixes
-- **Critical: Fan Speed Drops to 0 RPM** - Fixed fans dropping to minimum speed when temperature exceeded curve definition
-  - Curve fallback now uses highest fan% instead of lowest as safety measure
-- **Fan Diagnostics Improvements** - Fixed curve engine overriding test speeds, 100% now achieves true max RPM
+- 🛡️ **Fan Curve Safety System** - Real-time validation, hardware watchdog, and automatic curve recovery
+- 📦 **Profile Import/Export** - Share complete configurations (fan curves, RGB, settings) as `.omencore` files
+- 🔋 **Custom Battery Thresholds** - Adjustable charge limit slider (60-100%, previously fixed at 80%)
+- 🔄 **Auto-Update Check** - Privacy-respecting GitHub Releases API integration
+- 📊 **Diagnostics Export** - One-click ZIP bundle with logs, config, and system info
+- 🐧 **Enhanced Linux Support** - HP-WMI thermal profiles for 2023+ OMEN, `--report` flag for issue templates
+- 🐛 **Critical Fix** - Fans dropping to 0% when temperature exceeds curve (now uses highest fan speed as safety)
+- 🎨 **Linux GUI Overhaul** - Complete visual redesign matching Windows version with 300+ style definitions
 
-Full changelog: [CHANGELOG_v2.2.3.md](docs/CHANGELOG_v2.2.3.md)
+Full changelog: [CHANGELOG_v2.3.0.md](docs/CHANGELOG_v2.3.0.md)
 
 ---
 

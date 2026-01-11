@@ -206,6 +206,9 @@ namespace OmenCore.Hardware
         /// <summary>Current GPU memory clock offset in MHz.</summary>
         public int MemoryClockOffsetMHz { get; private set; }
 
+        /// <summary>Current GPU core voltage offset in mV.</summary>
+        public int VoltageOffsetMv { get; private set; }
+
         /// <summary>Current power limit percentage (100 = default TDP).</summary>
         public int PowerLimitPercent { get; private set; } = 100;
 
@@ -577,6 +580,69 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Set GPU core voltage offset for undervolting/overvolting.
+        /// </summary>
+        /// <param name="offsetMv">Offset in mV (negative = undervolt, positive = overvolt)</param>
+        /// <returns>True if successful</returns>
+        public bool SetVoltageOffset(int offsetMv)
+        {
+            if (!_initialized)
+            {
+                _logging.Warn("NVAPI: Not initialized");
+                return false;
+            }
+
+            if (!SupportsOverclocking)
+            {
+                _logging.Warn("NVAPI: GPU does not support voltage offset control");
+                return false;
+            }
+
+            // Clamp to safe range: -200mV to +100mV
+            offsetMv = Math.Clamp(offsetMv, -200, 100);
+
+            try
+            {
+                _logging.Info($"NVAPI: Setting core voltage offset to {offsetMv} mV");
+                
+                if (_nvAPI_GPU_SetPstates20 != null && GpuCount > 0)
+                {
+                    // Convert mV to µV
+                    int offsetUv = offsetMv * 1000;
+                    
+                    // Domain 0 = core voltage
+                    const int NVAPI_GPU_PERF_VOLTAGE_INFO_DOMAIN_CORE = 0;
+                    
+                    var result = SetVoltageOffsetInternal(NVAPI_GPU_PERF_VOLTAGE_INFO_DOMAIN_CORE, offsetUv);
+                    
+                    if (result == NVAPI_OK)
+                    {
+                        VoltageOffsetMv = offsetMv;
+                        _logging.Info($"NVAPI: Voltage offset set to {offsetMv} mV successfully");
+                        return true;
+                    }
+                    else
+                    {
+                        _logging.Warn($"NVAPI: SetPstates20 for voltage failed with code {result}");
+                        VoltageOffsetMv = offsetMv;
+                        return result == NVAPI_NO_IMPLEMENTATION;
+                    }
+                }
+                else
+                {
+                    VoltageOffsetMv = offsetMv;
+                    _logging.Warn("NVAPI: SetPstates20 not available - voltage offset stored but not applied");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"NVAPI: Failed to set voltage offset: {ex.Message}", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Internal method to set clock offset via Pstates20.
         /// </summary>
         private int SetClockOffset(int domainId, int deltaKHz)
@@ -616,6 +682,56 @@ namespace OmenCore.Hardware
                 Marshal.WriteInt32(buffer, clockOffset + 12, -500000); // freqDelta_kHz_min (-500 MHz)
                 Marshal.WriteInt32(buffer, clockOffset + 16, 500000);  // freqDelta_kHz_max (+500 MHz)
                 Marshal.WriteInt32(buffer, clockOffset + 20, deltaKHz); // freqDelta_kHz (target)
+
+                var result = _nvAPI_GPU_SetPstates20(_gpuHandles[0], buffer);
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        /// <summary>
+        /// Internal method to set voltage offset via Pstates20.
+        /// </summary>
+        private int SetVoltageOffsetInternal(int domainId, int deltaUv)
+        {
+            if (_nvAPI_GPU_SetPstates20 == null) return NVAPI_NO_IMPLEMENTATION;
+
+            // Allocate and build the Pstates20 structure
+            int bufferSize = 0x10000;
+            var buffer = Marshal.AllocHGlobal(bufferSize);
+            
+            try
+            {
+                // Zero the buffer
+                for (int i = 0; i < bufferSize; i += IntPtr.Size)
+                    Marshal.WriteIntPtr(buffer, i, IntPtr.Zero);
+
+                // Build minimal structure for setting voltage offset
+                // Structure: Version (4) + bIsEditable (4) + numPstates (4) + numClocks (4) + numBaseVoltages (4)
+                //           + pstates array [each pstate has: pstateId (4) + clocks array + voltages array]
+                
+                uint version = (2 << 16) | 0x7D8; // V2 with approximate size
+                Marshal.WriteInt32(buffer, 0, (int)version);
+                Marshal.WriteInt32(buffer, 4, 1);  // bIsEditable = true
+                Marshal.WriteInt32(buffer, 8, 1);  // numPstates = 1 (P0)
+                Marshal.WriteInt32(buffer, 12, 0); // numClocks = 0 (not setting clocks)
+                Marshal.WriteInt32(buffer, 16, 1); // numBaseVoltages = 1
+
+                // P-state 0 (P0 = max performance)
+                int pstateOffset = 20;
+                Marshal.WriteInt32(buffer, pstateOffset, NVAPI_GPU_PERF_PSTATE_P0); // pstateId
+                
+                // Voltage entry (after pstateId + padding, no clocks)
+                int voltageOffset = pstateOffset + 8; // After pstateId and padding
+                Marshal.WriteInt32(buffer, voltageOffset, domainId);       // domainId (0 = core voltage)
+                Marshal.WriteInt32(buffer, voltageOffset + 4, 1);          // bIsEditable = true
+                Marshal.WriteInt32(buffer, voltageOffset + 8, 0);          // volt_uV (not setting absolute voltage)
+                Marshal.WriteInt32(buffer, voltageOffset + 12, -200000);   // voltDelta_uV_min (-200 mV)
+                Marshal.WriteInt32(buffer, voltageOffset + 16, 100000);    // voltDelta_uV_max (+100 mV)
+                Marshal.WriteInt32(buffer, voltageOffset + 20, deltaUv);   // voltDelta_uV (target)
 
                 var result = _nvAPI_GPU_SetPstates20(_gpuHandles[0], buffer);
                 return result;

@@ -18,19 +18,30 @@ public static class DiagnoseCommand
             aliases: new[] { "--json", "-j" },
             description: "Output in JSON format");
 
-        command.AddOption(jsonOption);
+        var reportOption = new Option<bool>(
+            aliases: new[] { "--report", "-r" },
+            description: "Generate GitHub issue report template");
 
-        command.SetHandler(async (json) =>
+        command.AddOption(jsonOption);
+        command.AddOption(reportOption);
+
+        command.SetHandler(async (json, report) =>
         {
-            await HandleDiagnoseAsync(json);
-        }, jsonOption);
+            await HandleDiagnoseAsync(json, report);
+        }, jsonOption, reportOption);
 
         return command;
     }
 
-    private static async Task HandleDiagnoseAsync(bool jsonOutput)
+    private static async Task HandleDiagnoseAsync(bool jsonOutput, bool generateReport)
     {
         var info = await CollectAsync();
+
+        if (generateReport)
+        {
+            PrintGitHubIssueReport(info);
+            return;
+        }
 
         if (jsonOutput)
         {
@@ -237,6 +248,81 @@ public static class DiagnoseCommand
         if (value.Length <= max)
             return value;
         return value[..(max - 1)] + "…";
+    }
+
+    private static void PrintGitHubIssueReport(DiagnoseInfo info)
+    {
+        Console.WriteLine();
+        Console.WriteLine("<!-- Copy everything below this line and paste into your GitHub issue -->");
+        Console.WriteLine();
+        Console.WriteLine("## System Information");
+        Console.WriteLine();
+        Console.WriteLine($"- **OmenCore Version:** {info.Version}");
+        Console.WriteLine($"- **Runtime:** {info.Runtime}");
+        Console.WriteLine($"- **OS:** {info.OsPrettyName}");
+        Console.WriteLine($"- **Kernel:** {info.KernelRelease}");
+        Console.WriteLine($"- **Model:** {info.Model}");
+        Console.WriteLine();
+        Console.WriteLine("## Hardware Access Diagnostics");
+        Console.WriteLine();
+        Console.WriteLine("| Component | Status |");
+        Console.WriteLine("|-----------|--------|");
+        Console.WriteLine($"| Root Access | {(info.IsRoot ? "✓ Yes" : "✗ No")} |");
+        Console.WriteLine($"| debugfs Mounted | {(info.DebugFsMounted ? "✓ Yes" : "✗ No")} |");
+        Console.WriteLine($"| `ec_sys` Module | {(info.EcSysModuleLoaded ? "✓ Loaded" : "✗ Not Loaded")} |");
+        Console.WriteLine($"| `ec_sys` Write Support | {(string.IsNullOrWhiteSpace(info.EcSysWriteSupport) ? "N/A" : info.EcSysWriteSupport)} |");
+        Console.WriteLine($"| EC I/O Path (`/sys/kernel/debug/ec/ec0/io`) | {(info.EcIoPathExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| `hp-wmi` Module | {(info.HpWmiModuleLoaded ? "✓ Loaded" : "✗ Not Loaded")} |");
+        Console.WriteLine($"| HP-WMI Directory | {(info.HpWmiPathExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| Thermal Profile Control | {(info.HpWmiThermalProfileExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| Fan 1 Output Control | {(info.HpWmiFan1OutputExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| Fan 2 Output Control | {(info.HpWmiFan2OutputExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine();
+        Console.WriteLine($"**Detected Access Method:** `{info.DetectedAccessMethod}`");
+        Console.WriteLine();
+        Console.WriteLine($"**Controller Available:** {(info.EcControllerAvailable ? "✓ Yes" : "✗ No")}");
+        Console.WriteLine();
+
+        if (info.Notes.Count > 0)
+        {
+            Console.WriteLine("## Notes");
+            Console.WriteLine();
+            foreach (var note in info.Notes)
+            {
+                Console.WriteLine($"- {note}");
+            }
+            Console.WriteLine();
+        }
+
+        if (info.Recommendations.Count > 0)
+        {
+            Console.WriteLine("## Recommended Steps");
+            Console.WriteLine();
+            foreach (var rec in info.Recommendations)
+            {
+                Console.WriteLine($"1. {rec}");
+            }
+            Console.WriteLine();
+        }
+
+        Console.WriteLine("## Issue Description");
+        Console.WriteLine();
+        Console.WriteLine("<!-- Describe what you're experiencing here -->");
+        Console.WriteLine();
+        Console.WriteLine("### Expected Behavior");
+        Console.WriteLine();
+        Console.WriteLine("<!-- What should happen? -->");
+        Console.WriteLine();
+        Console.WriteLine("### Actual Behavior");
+        Console.WriteLine();
+        Console.WriteLine("<!-- What actually happens? -->");
+        Console.WriteLine();
+        Console.WriteLine("### Steps to Reproduce");
+        Console.WriteLine();
+        Console.WriteLine("1. ");
+        Console.WriteLine("2. ");
+        Console.WriteLine("3. ");
+        Console.WriteLine();
     }
 }
 

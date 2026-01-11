@@ -62,6 +62,11 @@ namespace OmenCore.Views
         private string _networkLatency = "--";
         private Brush _networkLatencyColor = Brushes.Gray;
         private string _vramUsage = "-- GB";
+        private string _packagePower = "";
+        private double _gpuHotspotTemp;
+        private Brush _cpuTempColor = Brushes.White;
+        private Brush _gpuTempColor = Brushes.White;
+        private Brush _gpuHotspotTempColor = Brushes.White;
         
         public double CpuTemp { get => _cpuTemp; set { _cpuTemp = value; OnPropertyChanged(); } }
         public double GpuTemp { get => _gpuTemp; set { _gpuTemp = value; OnPropertyChanged(); } }
@@ -81,6 +86,11 @@ namespace OmenCore.Views
         public string NetworkLatency { get => _networkLatency; set { _networkLatency = value; OnPropertyChanged(); } }
         public Brush NetworkLatencyColor { get => _networkLatencyColor; set { _networkLatencyColor = value; OnPropertyChanged(); } }
         public string VramUsage { get => _vramUsage; set { _vramUsage = value; OnPropertyChanged(); } }
+        public string PackagePower { get => _packagePower; set { _packagePower = value; OnPropertyChanged(); } }
+        public double GpuHotspotTemp { get => _gpuHotspotTemp; set { _gpuHotspotTemp = value; OnPropertyChanged(); UpdateGpuHotspotTempColor(); } }
+        public Brush CpuTempColor { get => _cpuTempColor; set { _cpuTempColor = value; OnPropertyChanged(); } }
+        public Brush GpuTempColor { get => _gpuTempColor; set { _gpuTempColor = value; OnPropertyChanged(); } }
+        public Brush GpuHotspotTempColor { get => _gpuHotspotTempColor; set { _gpuHotspotTempColor = value; OnPropertyChanged(); } }
         
         // Settings-bound visibility - now using backing fields for live updates
         private bool _showCpuTemp;
@@ -99,6 +109,8 @@ namespace OmenCore.Views
         private bool _showCpuPower;
         private bool _showNetworkLatency;
         private bool _showVramUsage;
+        private bool _showPackagePower;
+        private bool _showGpuHotspot;
         
         public bool ShowCpuTemp { get => _showCpuTemp; set { _showCpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
         public bool ShowGpuTemp { get => _showGpuTemp; set { _showGpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
@@ -116,6 +128,8 @@ namespace OmenCore.Views
         public bool ShowCpuPower { get => _showCpuPower; set { _showCpuPower = value; OnPropertyChanged(); } }
         public bool ShowNetworkLatency { get => _showNetworkLatency; set { _showNetworkLatency = value; OnPropertyChanged(); } }
         public bool ShowVramUsage { get => _showVramUsage; set { _showVramUsage = value; OnPropertyChanged(); } }
+        public bool ShowPackagePower { get => _showPackagePower; set { _showPackagePower = value; OnPropertyChanged(); } }
+        public bool ShowGpuHotspot { get => _showGpuHotspot; set { _showGpuHotspot = value; OnPropertyChanged(); } }
         
         // Computed visibility for separators
         public bool ShowSeparator1 => (_showPerformanceMode || _showFanMode) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
@@ -185,6 +199,8 @@ namespace OmenCore.Views
             ShowCpuPower = settings.ShowCpuPower;
             ShowNetworkLatency = settings.ShowNetworkLatency;
             ShowVramUsage = settings.ShowVramUsage;
+            ShowPackagePower = settings.ShowPackagePower;
+            ShowGpuHotspot = settings.ShowGpuHotspot;
         }
         
         /// <summary>
@@ -306,6 +322,10 @@ namespace OmenCore.Views
                     CpuLoad = sample.CpuLoadPercent;
                     GpuLoad = sample.GpuLoadPercent;
                     
+                    // Update temperature colors
+                    UpdateCpuTempColor();
+                    UpdateGpuTempColor();
+                    
                     // Power draw
                     if (sample.CpuPowerWatts > 0)
                         CpuPower = $"{sample.CpuPowerWatts:F0}W";
@@ -316,6 +336,19 @@ namespace OmenCore.Views
                         GpuPower = $"{sample.GpuPowerWatts:F0}W";
                     else
                         GpuPower = "";
+                    
+                    // Package power (CPU + GPU total)
+                    if (sample.CpuPowerWatts > 0 || sample.GpuPowerWatts > 0)
+                        PackagePower = $"{(sample.CpuPowerWatts + sample.GpuPowerWatts):F0}W";
+                    else
+                        PackagePower = "";
+                    
+                    // GPU hotspot temperature (estimate from GPU temp + ~10-15°C typical delta)
+                    // Real hotspot would require LibreHardwareMonitor GPU junction temp sensor
+                    if (_showGpuHotspot && sample.GpuTemperatureC > 0)
+                        GpuHotspotTemp = sample.GpuTemperatureC + 12; // Estimated hotspot delta
+                    else
+                        GpuHotspotTemp = 0;
                     
                     // Estimate FPS from GPU load (rough approximation when no game hook)
                     // High GPU load typically correlates with higher FPS gaming
@@ -442,6 +475,51 @@ namespace OmenCore.Views
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        
+        /// <summary>
+        /// Update CPU temperature text color based on value
+        /// </summary>
+        private void UpdateCpuTempColor()
+        {
+            if (_cpuTemp < 60)
+                CpuTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<60°C)
+            else if (_cpuTemp < 75)
+                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (60-75°C)
+            else if (_cpuTemp < 85)
+                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (75-85°C)
+            else
+                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>85°C)
+        }
+        
+        /// <summary>
+        /// Update GPU temperature text color based on value
+        /// </summary>
+        private void UpdateGpuTempColor()
+        {
+            if (_gpuTemp < 65)
+                GpuTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<65°C)
+            else if (_gpuTemp < 75)
+                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (65-75°C)
+            else if (_gpuTemp < 85)
+                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (75-85°C)
+            else
+                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>85°C)
+        }
+        
+        /// <summary>
+        /// Update GPU hotspot temperature text color based on value
+        /// </summary>
+        private void UpdateGpuHotspotTempColor()
+        {
+            if (_gpuHotspotTemp < 75)
+                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<75°C)
+            else if (_gpuHotspotTemp < 85)
+                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (75-85°C)
+            else if (_gpuHotspotTemp < 95)
+                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (85-95°C)
+            else
+                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>95°C)
         }
     }
 }

@@ -43,6 +43,23 @@
                         <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
                             <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource AccentBrush}" FontWeight="Medium" />
                         </Border>
+                        
+                        <!-- Update Available Indicator -->
+                        <Border Background="#1A4CAF50" BorderBrush="#4CAF50" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
+                                Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}"
+                                Cursor="Hand"
+                                ToolTip="Click to download the latest version">
+                            <Border.InputBindings>
+                                <MouseBinding MouseAction="LeftClick" Command="{Binding OpenUpdateUrlCommand}" />
+                            </Border.InputBindings>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔔" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="#4CAF50" VerticalAlignment="Center">
+                                    <Run Text="Update:"/>
+                                    <Run Text="{Binding UpdateVersion}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
                         <Button Content="—" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" FontSize="12" />

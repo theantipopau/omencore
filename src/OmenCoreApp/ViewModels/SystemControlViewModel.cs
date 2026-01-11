@@ -260,6 +260,48 @@ namespace OmenCore.ViewModels
             _ => "Close or disable the external application, then restart OmenCore."
         };
 
+        // AMD Power Control Properties
+        private bool _isAmdCpu;
+        public bool IsAmdCpu
+        {
+            get => _isAmdCpu;
+            private set { _isAmdCpu = value; OnPropertyChanged(); }
+        }
+
+        private uint _amdStapmLimitWatts = 25;
+        public uint AmdStapmLimitWatts
+        {
+            get => _amdStapmLimitWatts;
+            set
+            {
+                if (_amdStapmLimitWatts != value)
+                {
+                    _amdStapmLimitWatts = Math.Clamp(value, 15u, 54u);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(AmdStapmLimitText));
+                }
+            }
+        }
+
+        public string AmdStapmLimitText => $"{AmdStapmLimitWatts}W";
+
+        private uint _amdTempLimitC = 95;
+        public uint AmdTempLimitC
+        {
+            get => _amdTempLimitC;
+            set
+            {
+                if (_amdTempLimitC != value)
+                {
+                    _amdTempLimitC = Math.Clamp(value, 75u, 105u);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(AmdTempLimitText));
+                }
+            }
+        }
+
+        public string AmdTempLimitText => $"{AmdTempLimitC}°C";
+
         public string PerformanceModeDescription => SelectedPerformanceMode?.Description ?? SelectedPerformanceMode?.Name switch
         {
             "Balanced" => "Normal mode - balanced performance",
@@ -418,6 +460,23 @@ namespace OmenCore.ViewModels
         }
 
         public string GpuPowerLimitText => $"{GpuPowerLimitPercent}%";
+
+        private int _gpuVoltageOffsetMv;
+        public int GpuVoltageOffsetMv
+        {
+            get => _gpuVoltageOffsetMv;
+            set
+            {
+                if (_gpuVoltageOffsetMv != value)
+                {
+                    _gpuVoltageOffsetMv = Math.Clamp(value, -200, 100);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(GpuVoltageOffsetText));
+                }
+            }
+        }
+
+        public string GpuVoltageOffsetText => GpuVoltageOffsetMv >= 0 ? $"+{GpuVoltageOffsetMv} mV" : $"{GpuVoltageOffsetMv} mV";
 
         private bool _gpuOcAvailable;
         public bool GpuOcAvailable
@@ -668,6 +727,8 @@ namespace OmenCore.ViewModels
         public ICommand ResetGpuOcCommand { get; }
         public ICommand SaveGpuOcProfileCommand { get; }
         public ICommand DeleteGpuOcProfileCommand { get; }
+        public ICommand ApplyAmdPowerLimitsCommand { get; }
+        public ICommand ResetAmdPowerLimitsCommand { get; }
 
         public SystemControlViewModel(
             UndervoltService undervoltService, 
@@ -725,6 +786,17 @@ namespace OmenCore.ViewModels
             DeleteGpuOcProfileCommand = new RelayCommand(_ => DeleteGpuOcProfile(), _ => SelectedGpuOcProfile != null);
             ApplyTccOffsetCommand = new RelayCommand(_ => ApplyTccOffset(), _ => TccStatus.IsSupported);
             ResetTccOffsetCommand = new RelayCommand(_ => ResetTccOffset(), _ => TccStatus.IsSupported);
+            ApplyAmdPowerLimitsCommand = new RelayCommand(_ => ApplyAmdPowerLimits(), _ => IsAmdCpu);
+            ResetAmdPowerLimitsCommand = new RelayCommand(_ => ResetAmdPowerLimits(), _ => IsAmdCpu);
+            
+            // Detect AMD CPU
+            IsAmdCpu = Hardware.CpuUndervoltProviderFactory.DetectedVendor == Hardware.CpuUndervoltProviderFactory.CpuVendor.AMD;
+            
+            // Restore AMD power limits if applicable
+            if (IsAmdCpu)
+            {
+                RestoreAmdPowerLimitsFromConfig();
+            }
             
             // Load saved GPU OC profiles
             LoadGpuOcProfiles();
@@ -1358,6 +1430,7 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     GpuCoreClockOffset = _nvapiService.CoreClockOffsetMHz;
                     GpuMemoryClockOffset = _nvapiService.MemoryClockOffsetMHz;
                     GpuPowerLimitPercent = _nvapiService.PowerLimitPercent;
+                    GpuVoltageOffsetMv = _nvapiService.VoltageOffsetMv;
                     
                     if (GpuOcAvailable)
                     {
@@ -1409,6 +1482,7 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
             bool coreSuccess = true;
             bool memSuccess = true;
             bool powerSuccess = true;
+            bool voltageSuccess = true;
             
             try
             {
@@ -1433,10 +1507,17 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     _logging.Info($"GPU power limit {(powerSuccess ? "applied" : "failed")}: {GpuPowerLimitPercent}%");
                 }
                 
-                // Update status
-                if (coreSuccess && memSuccess && powerSuccess)
+                // Apply voltage offset
+                if (GpuVoltageOffsetMv != 0 || _nvapiService.VoltageOffsetMv != 0)
                 {
-                    GpuOcStatus = $"✓ Applied: Core {GpuCoreClockOffsetText}, Mem {GpuMemoryClockOffsetText}, Power {GpuPowerLimitText}";
+                    voltageSuccess = _nvapiService.SetVoltageOffset(GpuVoltageOffsetMv);
+                    _logging.Info($"GPU voltage offset {(voltageSuccess ? "applied" : "failed")}: {GpuVoltageOffsetMv} mV");
+                }
+                
+                // Update status
+                if (coreSuccess && memSuccess && powerSuccess && voltageSuccess)
+                {
+                    GpuOcStatus = $"✓ Applied: Core {GpuCoreClockOffsetText}, Mem {GpuMemoryClockOffsetText}, Power {GpuPowerLimitText}, Voltage {GpuVoltageOffsetText}";
                     SaveGpuOcToConfig();
                 }
                 else
@@ -1445,6 +1526,7 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     if (!coreSuccess) failures.Add("core");
                     if (!memSuccess) failures.Add("memory");
                     if (!powerSuccess) failures.Add("power");
+                    if (!voltageSuccess) failures.Add("voltage");
                     GpuOcStatus = $"⚠ Partial: {string.Join(", ", failures)} failed - API may be restricted";
                 }
             }
@@ -1463,15 +1545,17 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
             GpuCoreClockOffset = 0;
             GpuMemoryClockOffset = 0;
             GpuPowerLimitPercent = 100;
+            GpuVoltageOffsetMv = 0;
             
             if (_nvapiService != null && GpuOcAvailable)
             {
                 _nvapiService.SetCoreClockOffset(0);
                 _nvapiService.SetMemoryClockOffset(0);
                 _nvapiService.SetPowerLimit(100);
+                _nvapiService.SetVoltageOffset(0);
             }
             
-            GpuOcStatus = "Reset to defaults (Core: 0 MHz, Memory: 0 MHz, Power: 100%)";
+            GpuOcStatus = "Reset to defaults (Core: 0 MHz, Memory: 0 MHz, Power: 100%, Voltage: 0 mV)";
             SaveGpuOcToConfig();
             _logging.Info("GPU OC reset to defaults");
         }
@@ -1490,10 +1574,11 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                 config.GpuOc.CoreClockOffsetMHz = GpuCoreClockOffset;
                 config.GpuOc.MemoryClockOffsetMHz = GpuMemoryClockOffset;
                 config.GpuOc.PowerLimitPercent = GpuPowerLimitPercent;
+                config.GpuOc.VoltageOffsetMv = GpuVoltageOffsetMv;
                 config.GpuOc.ApplyOnStartup = true; // Default to reapply
                 
                 _configService.Save(config);
-                _logging.Info($"GPU OC settings saved: Core={GpuCoreClockOffset}, Mem={GpuMemoryClockOffset}, Power={GpuPowerLimitPercent}%");
+                _logging.Info($"GPU OC settings saved: Core={GpuCoreClockOffset}, Mem={GpuMemoryClockOffset}, Power={GpuPowerLimitPercent}%, Voltage={GpuVoltageOffsetMv}mV");
             }
             catch (Exception ex)
             {
@@ -1514,8 +1599,9 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                     GpuCoreClockOffset = config.GpuOc.CoreClockOffsetMHz;
                     GpuMemoryClockOffset = config.GpuOc.MemoryClockOffsetMHz;
                     GpuPowerLimitPercent = config.GpuOc.PowerLimitPercent;
+                    GpuVoltageOffsetMv = config.GpuOc.VoltageOffsetMv ?? 0;
                     
-                    _logging.Info($"GPU OC settings restored from config: Core={GpuCoreClockOffset}, Mem={GpuMemoryClockOffset}, Power={GpuPowerLimitPercent}%");
+                    _logging.Info($"GPU OC settings restored from config: Core={GpuCoreClockOffset}, Mem={GpuMemoryClockOffset}, Power={GpuPowerLimitPercent}%, Voltage={GpuVoltageOffsetMv}mV");
                     
                     // Apply restored settings after a short delay
                     _ = Task.Run(async () =>
@@ -2066,6 +2152,99 @@ The HP WMI BIOS interface exists but GPU power commands return empty results. " 
                 OnPropertyChanged(nameof(HasCleanupSteps));
             });
         }
+
+        #region AMD Power/Temperature Controls
+
+        private void ApplyAmdPowerLimits()
+        {
+            if (_undervoltService?.Provider is not AmdUndervoltProvider amdProvider)
+            {
+                _logging.Warn("AMD power limits not available - not an AMD CPU or provider not initialized");
+                return;
+            }
+
+            try
+            {
+                // Apply STAPM limit (sustained power)
+                uint stapmMw = AmdStapmLimitWatts * 1000; // Convert W to mW
+                var stapmResult = amdProvider.SetStapmLimit(stapmMw);
+                
+                // Apply temperature limit
+                var tempResult = amdProvider.SetTctlTemp(AmdTempLimitC);
+                
+                if (stapmResult == RyzenSmu.SmuStatus.Ok && tempResult == RyzenSmu.SmuStatus.Ok)
+                {
+                    _logging.Info($"AMD power limits applied: STAPM={AmdStapmLimitWatts}W, Temp={AmdTempLimitC}°C");
+                    SaveAmdPowerLimitsToConfig();
+                }
+                else
+                {
+                    _logging.Warn($"AMD power limits partially applied: STAPM={stapmResult}, Temp={tempResult}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply AMD power limits: {ex.Message}", ex);
+            }
+        }
+
+        private void ResetAmdPowerLimits()
+        {
+            // Reset to conservative defaults
+            AmdStapmLimitWatts = 25;
+            AmdTempLimitC = 95;
+            
+            ApplyAmdPowerLimits();
+            _logging.Info("AMD power limits reset to defaults");
+        }
+
+        private void SaveAmdPowerLimitsToConfig()
+        {
+            try
+            {
+                var config = _configService.Config;
+                if (config.AmdPowerLimits == null)
+                    config.AmdPowerLimits = new AmdPowerLimits();
+                
+                config.AmdPowerLimits.StapmLimitWatts = AmdStapmLimitWatts;
+                config.AmdPowerLimits.TempLimitC = AmdTempLimitC;
+                
+                _configService.Save(config);
+                _logging.Info($"AMD power limits saved: STAPM={AmdStapmLimitWatts}W, Temp={AmdTempLimitC}°C");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to save AMD power limits: {ex.Message}");
+            }
+        }
+
+        private void RestoreAmdPowerLimitsFromConfig()
+        {
+            try
+            {
+                var config = _configService.Config;
+                if (config.AmdPowerLimits != null)
+                {
+                    AmdStapmLimitWatts = config.AmdPowerLimits.StapmLimitWatts;
+                    AmdTempLimitC = config.AmdPowerLimits.TempLimitC;
+                    
+                    _logging.Info($"AMD power limits restored: STAPM={AmdStapmLimitWatts}W, Temp={AmdTempLimitC}°C");
+                    
+                    // Apply after delay
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(2000);
+                        System.Windows.Application.Current?.Dispatcher?.Invoke(() => ApplyAmdPowerLimits());
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to restore AMD power limits: {ex.Message}");
+            }
+        }
+
+        #endregion
 
 public class PerCoreOffsetViewModel : ViewModelBase
         {

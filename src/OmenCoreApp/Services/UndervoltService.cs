@@ -17,6 +17,8 @@ namespace OmenCore.Services
 
         public event EventHandler<UndervoltStatus>? StatusChanged;
 
+        public ICpuUndervoltProvider Provider => _provider;
+
         public UndervoltService(ICpuUndervoltProvider provider, LoggingService logging, int pollIntervalMs)
         {
             _provider = provider;

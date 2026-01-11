@@ -13,7 +13,7 @@
         ShowActivated="True"
         ResizeMode="NoResize"
         Width="320"
-        Height="420"
+        Height="480"
         WindowStartupLocation="Manual"
         Deactivated="Window_Deactivated">
     

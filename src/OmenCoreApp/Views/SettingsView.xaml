@@ -1576,21 +1576,21 @@
                             <StackPanel>
                                 <TextBlock Text="Battery Care" FontSize="20" FontWeight="SemiBold" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Extend battery lifespan with charge limiting" FontSize="12" 
+                                <TextBlock Text="Extend battery lifespan with smart charge limiting" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Charge Limit -->
-                        <Grid Margin="0,0,0,12">
+                        <!-- Enable/Disable Charge Limit -->
+                        <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Limit Charge to 80%" FontSize="14" 
+                                <TextBlock Text="Enable Charge Limit" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Preserves battery health by stopping charge at 80%" FontSize="12" 
+                                <TextBlock Text="Stop charging at a custom threshold to preserve battery health" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
@@ -1598,12 +1598,45 @@
                                           IsChecked="{Binding BatteryChargeLimitEnabled}"/>
                         </Grid>
 
-                        <Border Background="#1A4CAF50" CornerRadius="4" Padding="12" Margin="0,8,0,0">
+                        <!-- Charge Threshold Slider (shown when enabled) -->
+                        <Border Background="#1A6B4C9A" CornerRadius="8" Padding="16" Margin="0,0,0,12"
+                                Visibility="{Binding BatteryChargeLimitEnabled, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="140"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Charge Threshold" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Set maximum battery charge level" FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Slider Minimum="60" Maximum="100" 
+                                            TickFrequency="5"
+                                            IsSnapToTickEnabled="True"
+                                            Value="{Binding BatteryChargeThresholdPercent}"
+                                            Width="80" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding BatteryChargeThresholdPercent, StringFormat={}{0}%}" 
+                                               FontSize="16" FontWeight="Bold" Width="50" TextAlignment="Right"
+                                               Foreground="#81C784"
+                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Info Banner -->
+                        <Border Background="#1A4CAF50" CornerRadius="4" Padding="12" Margin="0,0,0,0">
                             <TextBlock TextWrapping="Wrap" FontSize="12" 
                                        Foreground="{StaticResource TextSecondaryBrush}">
-                                <Run FontWeight="SemiBold" Foreground="#81C784">💡 Battery Health:</Run>
-                                Limiting charge to 80% can extend your battery's lifespan by 2-4x.
-                                This is especially useful if your laptop is usually plugged in.
+                                <Run FontWeight="SemiBold" Foreground="#81C784">💡 Battery Health Tips:</Run>
+                                <LineBreak/>
+                                • <Run FontWeight="SemiBold">80%</Run> is recommended for daily use (doubles battery lifespan)
+                                <LineBreak/>
+                                • <Run FontWeight="SemiBold">60-70%</Run> for maximum longevity if always plugged in
+                                <LineBreak/>
+                                • <Run FontWeight="SemiBold">100%</Run> when you need full capacity for travel
                             </TextBlock>
                         </Border>
                     </StackPanel>
@@ -1892,6 +1925,57 @@
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            Margin="0,4,0,0"/>
                             </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Profile Management -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Path Data="M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z" 
+                                  Fill="#64B5F6" 
+                                  Width="24" Height="24" Stretch="Uniform" 
+                                  VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <StackPanel>
+                                <TextBlock Text="Profile Management" FontSize="20" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Save and load your complete OmenCore configuration" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Profile buttons -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="📥 Import Profile" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ImportProfileCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="Load fan curves, performance modes, and GPU OC settings from .omencore file"/>
+                            <Button Content="📤 Export Profile" 
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding ExportProfileCommand}"
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="Save your current configuration to share or backup"/>
+                            <Button Content="🔬 Export Diagnostics" 
+                                    Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding ExportDiagnosticsCommand}"
+                                    Padding="16,8"
+                                    ToolTip="Export logs and system info for troubleshooting"/>
+                        </StackPanel>
+
+                        <!-- Info -->
+                        <Border Background="#1A64B5F6" CornerRadius="4" Padding="12">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" 
+                                       Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run FontWeight="SemiBold" Foreground="#64B5F6">💡 Profile Info:</Run>
+                                <LineBreak/>
+                                • Profiles include fan curves, performance modes, GPU OC settings, battery/hysteresis config
+                                <LineBreak/>
+                                • Safe to share - no personal data included, just hardware settings
+                                <LineBreak/>
+                                • Diagnostics export creates a troubleshooting bundle (logs, config, hardware status)
+                            </TextBlock>
                         </Border>
                     </StackPanel>
                 </Border>

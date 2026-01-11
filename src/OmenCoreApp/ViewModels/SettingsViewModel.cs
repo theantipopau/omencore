@@ -30,6 +30,8 @@ namespace OmenCore.ViewModels
         private readonly HardwareMonitoringService? _hardwareMonitoringService;
         private readonly Hardware.HpWmiBios? _wmiBios;
         private readonly PowerAutomationService? _powerAutomationService;
+        private readonly ProfileExportService _profileExportService;
+        private readonly DiagnosticsExportService _diagnosticsExportService;
         
         private bool _startWithWindows;
         private bool _startMinimized;
@@ -89,6 +91,8 @@ namespace OmenCore.ViewModels
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
             BiosUpdateService biosUpdateService,
+            ProfileExportService profileExportService,
+            DiagnosticsExportService diagnosticsExportService,
             Hardware.HpWmiBios? wmiBios = null,
             OmenKeyService? omenKeyService = null,
             OsdService? osdService = null,
@@ -108,6 +112,8 @@ namespace OmenCore.ViewModels
             _osdService = osdService;
             _hardwareMonitoringService = hardwareMonitoringService;
             _powerAutomationService = powerAutomationService;
+            _profileExportService = profileExportService;
+            _diagnosticsExportService = diagnosticsExportService;
 
             // Load saved settings
             LoadSettings();
@@ -130,6 +136,9 @@ namespace OmenCore.ViewModels
             ScanBloatwareCommand = new AsyncRelayCommand(async _ => await ScanBloatwareAsync(), _ => !IsScanningBloatware);
             RemoveBloatwareCommand = new AsyncRelayCommand(async _ => await RemoveBloatwareAsync(), _ => !IsScanningBloatware && BloatwareCount > 0);
             ResetEcToDefaultsCommand = new RelayCommand(_ => ResetEcToDefaults(), _ => _fanService != null);
+            ImportProfileCommand = new AsyncRelayCommand(async _ => await ImportProfileAsync());
+            ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
+            ExportDiagnosticsCommand = new AsyncRelayCommand(async _ => await ExportDiagnosticsAsync());
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -1198,12 +1207,33 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged();
                     SaveSettings();
                     // Apply battery care mode immediately
-                    ApplyBatteryChargeLimit(value);
+                    ApplyBatteryChargeLimit(value, BatteryChargeThresholdPercent);
                 }
             }
         }
 
-        private void ApplyBatteryChargeLimit(bool enabled)
+        public int BatteryChargeThresholdPercent
+        {
+            get => _config.Battery?.ChargeThresholdPercent ?? 80;
+            set
+            {
+                if (_config.Battery == null) _config.Battery = new BatterySettings();
+                var clamped = Math.Clamp(value, 60, 100);
+                if (_config.Battery.ChargeThresholdPercent != clamped)
+                {
+                    _config.Battery.ChargeThresholdPercent = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    // Apply if enabled
+                    if (BatteryChargeLimitEnabled)
+                    {
+                        ApplyBatteryChargeLimit(true, clamped);
+                    }
+                }
+            }
+        }
+
+        private void ApplyBatteryChargeLimit(bool enabled, int thresholdPercent = 80)
         {
             try
             {
@@ -1230,7 +1260,7 @@ namespace OmenCore.ViewModels
                     var currentMode = _wmiBios.GetBatteryCareMode();
                     if (currentMode == enabled)
                     {
-                        _logging.Info($"✓ Battery charge limit: {(enabled ? "Enabled 80% limit" : "Disabled (full charge)")}");
+                        _logging.Info($"✓ Battery charge limit: {(enabled ? $"Enabled {thresholdPercent}% limit" : "Disabled (full charge)")}");
                     }
                     else
                     {
@@ -1413,6 +1443,9 @@ namespace OmenCore.ViewModels
         public ICommand CheckBiosUpdatesCommand { get; }
         public ICommand DownloadBiosUpdateCommand { get; }
         public ICommand ResetEcToDefaultsCommand { get; }
+        public ICommand ImportProfileCommand { get; }
+        public ICommand ExportProfileCommand { get; }
+        public ICommand ExportDiagnosticsCommand { get; }
 
         #endregion
         
@@ -2757,6 +2790,129 @@ namespace OmenCore.ViewModels
             finally
             {
                 IsScanningBloatware = false;
+            }
+        }
+        
+        #endregion
+        
+        #region Profile Management
+        
+        private async Task ImportProfileAsync()
+        {
+            try
+            {
+                var dialog = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "Import OmenCore Profile",
+                    Filter = "OmenCore Profile (*.omencore)|*.omencore|All Files (*.*)|*.*",
+                    DefaultExt = ".omencore"
+                };
+                
+                if (dialog.ShowDialog() != true)
+                    return;
+                
+                var profile = await _profileExportService.ImportProfileAsync(dialog.FileName);
+                
+                // Show import options dialog
+                var result = MessageBox.Show(
+                    $"Import profile from {Path.GetFileName(dialog.FileName)}?\\n\\n" +
+                    $"This will apply:\\n" +
+                    $"• {profile.FanPresets?.Count ?? 0} fan preset(s)\\n" +
+                    $"• {profile.PerformanceModes?.Count ?? 0} performance mode(s)\\n" +
+                    $"• {profile.GpuOcProfiles?.Count ?? 0} GPU OC profile(s)\\n" +
+                    $"• Battery & hysteresis settings\\n\\n" +
+                    "Existing settings will be overwritten.",
+                    "Import Profile",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                
+                if (result != MessageBoxResult.Yes)
+                    return;
+                
+                _profileExportService.ApplyProfile(profile, _configService, _config);
+                
+                _logging.Info($"Profile imported successfully from {dialog.FileName}");
+                
+                MessageBox.Show(
+                    "Profile imported successfully!\\n\\n" +
+                    "Settings have been applied. Some changes may require restarting the app.",
+                    "Import Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to import profile", ex);
+                MessageBox.Show($"Failed to import profile: {ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private async Task ExportProfileAsync()
+        {
+            try
+            {
+                var dialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Export OmenCore Profile",
+                    Filter = "OmenCore Profile (*.omencore)|*.omencore|All Files (*.*)|*.*",
+                    DefaultExt = ".omencore",
+                    FileName = $"omencore-profile-{DateTime.Now:yyyy-MM-dd}.omencore"
+                };
+                
+                if (dialog.ShowDialog() != true)
+                    return;
+                
+                await _profileExportService.ExportProfileAsync(dialog.FileName, _config);
+                
+                _logging.Info($"Profile exported successfully to {dialog.FileName}");
+                
+                MessageBox.Show(
+                    $"Profile exported successfully!\\n\\n" +
+                    $"File: {Path.GetFileName(dialog.FileName)}\\n" +
+                    $"Location: {Path.GetDirectoryName(dialog.FileName)}",
+                    "Export Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to export profile", ex);
+                MessageBox.Show($"Failed to export profile: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private async Task ExportDiagnosticsAsync()
+        {
+            try
+            {
+                var dialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Export Diagnostics Bundle",
+                    Filter = "ZIP Archive (*.zip)|*.zip|All Files (*.*)|*.*",
+                    DefaultExt = ".zip",
+                    FileName = $"omencore-diagnostics-{DateTime.Now:yyyy-MM-dd-HHmmss}.zip"
+                };
+                
+                if (dialog.ShowDialog() != true)
+                    return;
+                
+                await _diagnosticsExportService.ExportDiagnosticsAsync(dialog.FileName, _systemInfoService, _hardwareMonitoringService);
+                
+                _logging.Info($"Diagnostics exported successfully to {dialog.FileName}");
+                
+                MessageBox.Show(
+                    $"Diagnostics bundle exported successfully!\\n\\n" +
+                    $"File: {Path.GetFileName(dialog.FileName)}\\n" +
+                    $"Location: {Path.GetDirectoryName(dialog.FileName)}\\n\\n" +
+                    "You can attach this ZIP file to GitHub issues for troubleshooting.",
+                    "Export Complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to export diagnostics", ex);
+                MessageBox.Show($"Failed to export diagnostics: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         

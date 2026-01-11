@@ -195,6 +195,68 @@ namespace OmenCore.Controls
         private void CurvePoints_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             RenderCurve();
+            ValidateCurve(); // Validate after any change
+        }
+        
+        #endregion
+
+        #region Curve Validation
+        
+        /// <summary>
+        /// Validate curve for safety issues and show warnings
+        /// </summary>
+        private void ValidateCurve()
+        {
+            if (CurvePoints == null || CurvePoints.Count < 2)
+            {
+                HideValidationWarning();
+                return;
+            }
+
+            var sorted = CurvePoints.OrderBy(p => p.TemperatureC).ToList();
+            
+            // Check for dangerous inverted curves (fan speed decreases as temperature increases)
+            for (int i = 0; i < sorted.Count - 1; i++)
+            {
+                var tempDiff = sorted[i + 1].TemperatureC - sorted[i].TemperatureC;
+                var fanDiff = sorted[i + 1].FanPercent - sorted[i].FanPercent;
+                
+                // If temperature increases by 10°C+ but fan speed decreases by 15%+, that's dangerous
+                if (tempDiff >= 10 && fanDiff <= -15)
+                {
+                    ShowValidationWarning($"Dangerous curve: At {sorted[i+1].TemperatureC}°C the fan speed drops to {sorted[i+1].FanPercent}% (was {sorted[i].FanPercent}% at {sorted[i].TemperatureC}°C). This could cause overheating!");
+                    return;
+                }
+            }
+            
+            // Check if high temperature (85°C+) has low fan speed (< 50%)
+            var highTempPoints = sorted.Where(p => p.TemperatureC >= 85).ToList();
+            if (highTempPoints.Any(p => p.FanPercent < 50))
+            {
+                var problematic = highTempPoints.First(p => p.FanPercent < 50);
+                ShowValidationWarning($"Safety warning: {problematic.TemperatureC}°C has only {problematic.FanPercent}% fan speed. Recommend at least 70% at high temperatures to prevent throttling.");
+                return;
+            }
+            
+            // Check if curve doesn't cover high temps (< 85°C)
+            if (sorted[^1].TemperatureC < 85)
+            {
+                ShowValidationWarning($"Incomplete coverage: Curve only extends to {sorted[^1].TemperatureC}°C. Add points up to 95°C to protect against thermal spikes.");
+                return;
+            }
+            
+            HideValidationWarning();
+        }
+        
+        private void ShowValidationWarning(string message)
+        {
+            ValidationWarningText.Text = message;
+            ValidationWarning.Visibility = Visibility.Visible;
+        }
+        
+        private void HideValidationWarning()
+        {
+            ValidationWarning.Visibility = Visibility.Collapsed;
         }
         
         #endregion

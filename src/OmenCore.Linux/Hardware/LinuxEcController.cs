@@ -53,11 +53,14 @@ public class LinuxEcController
     public LinuxEcController()
     {
         HasEcAccess = File.Exists(EC_PATH);
+        
+        // HP-WMI is available if directory exists AND has actual control files
         HasHpWmiAccess = Directory.Exists(HP_WMI_PATH) && (
             File.Exists(HP_WMI_THERMAL) ||
             File.Exists(HP_WMI_FAN_ALWAYS_ON) ||
             File.Exists(HP_WMI_FAN1) ||
             File.Exists(HP_WMI_FAN2));
+        
         IsAvailable = HasEcAccess || HasHpWmiAccess;
         
         if (HasHpWmiAccess)
@@ -113,6 +116,124 @@ public class LinuxEcController
             return false;
         }
     }
+    
+    #region HP-WMI Support (2023+ Models)
+    
+    /// <summary>
+    /// Set thermal profile via hp-wmi (for 2023+ OMEN models).
+    /// Available profiles: "quiet", "balanced", "performance", "extreme"
+    /// </summary>
+    public bool SetHpWmiThermalProfile(string profile)
+    {
+        if (!HasHpWmiAccess || !File.Exists(HP_WMI_THERMAL))
+            return false;
+
+        try
+        {
+            var validProfiles = new[] { "quiet", "balanced", "performance", "extreme" };
+            if (!validProfiles.Contains(profile.ToLower()))
+                return false;
+
+            File.WriteAllText(HP_WMI_THERMAL, profile.ToLower());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Get current thermal profile from hp-wmi.
+    /// </summary>
+    public string? GetHpWmiThermalProfile()
+    {
+        if (!HasHpWmiAccess || !File.Exists(HP_WMI_THERMAL))
+            return null;
+
+        try
+        {
+            return File.ReadAllText(HP_WMI_THERMAL).Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+    
+    /// <summary>
+    /// Set fan speed via hp-wmi (if fan output controls exist).
+    /// </summary>
+    public bool SetHpWmiFanSpeed(int fanIndex, int percent)
+    {
+        if (!HasHpWmiAccess)
+            return false;
+
+        var fanPath = fanIndex == 0 ? HP_WMI_FAN1 : HP_WMI_FAN2;
+        if (!File.Exists(fanPath))
+            return false;
+
+        try
+        {
+            // Enable fan_always_on to prevent BIOS from overriding
+            if (File.Exists(HP_WMI_FAN_ALWAYS_ON))
+            {
+                File.WriteAllText(HP_WMI_FAN_ALWAYS_ON, "1");
+            }
+
+            // Write fan speed percentage
+            File.WriteAllText(fanPath, percent.ToString());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Get fan speed from hp-wmi.
+    /// </summary>
+    public int? GetHpWmiFanSpeed(int fanIndex)
+    {
+        if (!HasHpWmiAccess)
+            return null;
+
+        var fanPath = fanIndex == 0 ? HP_WMI_FAN1 : HP_WMI_FAN2;
+        if (!File.Exists(fanPath))
+            return null;
+
+        try
+        {
+            var text = File.ReadAllText(fanPath).Trim();
+            if (int.TryParse(text, out var value))
+                return value;
+        }
+        catch
+        {
+            // Ignore
+        }
+
+        return null;
+    }
+    
+    /// <summary>
+    /// Check if hp-wmi has fan output controls (for direct fan speed setting).
+    /// </summary>
+    public bool HasHpWmiFanControls()
+    {
+        return HasHpWmiAccess && (File.Exists(HP_WMI_FAN1) || File.Exists(HP_WMI_FAN2));
+    }
+    
+    /// <summary>
+    /// Check if hp-wmi has thermal profile control.
+    /// </summary>
+    public bool HasHpWmiThermalProfile()
+    {
+        return HasHpWmiAccess && File.Exists(HP_WMI_THERMAL);
+    }
+    
+    #endregion
     
     #region Fan Control
     
