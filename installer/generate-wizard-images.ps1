@@ -15,7 +15,7 @@ if (Test-Path $versionPath) {
     $version = (Get-Content $versionPath -First 1).Trim()
     Write-Host "Version: v$version" -ForegroundColor Cyan
 } else {
-    $version = "2.3.0"
+    $version = "2.3.1"
     Write-Host "Warning: VERSION.txt not found, using default v$version" -ForegroundColor Yellow
 }
 

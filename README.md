@@ -12,7 +12,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.0)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -23,7 +23,19 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.3.0
+## 🆕 What's New in v2.3.1
+
+- 🔥 **Critical Fix**: Battlefield 6 thermal shutdown when storage drives sleep - SafeFileHandle crash prevented fans from responding to RTX 4090 @ 87°C
+- 📊 **OSD Network Speeds**: Upload/download monitoring in Mbps with auto-detection of active interface
+- 🎯 **FAQ**: Clarified polling interval doesn't affect fan response speed (common misconception)
+
+Full changelog: [CHANGELOG_v2.3.1.md](docs/CHANGELOG_v2.3.1.md)
+
+---
+
+## 📖 Previous Releases
+
+### v2.3.0 - Major Feature Release
 
 - 🛡️ **Fan Curve Safety System** - Real-time validation, hardware watchdog, and automatic curve recovery
 - 📦 **Profile Import/Export** - Share complete configurations (fan curves, RGB, settings) as `.omencore` files

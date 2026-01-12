@@ -296,13 +296,50 @@ class Program
             {
                 try
                 {
-                    hardware.Update();
+                    // CRITICAL: Isolate each hardware device update in its own try-catch
+                    // If storage drives go to sleep, their SafeFileHandle gets disposed,
+                    // but we must not let that crash CPU/GPU monitoring
+                    
+                    // First, try to update the hardware device itself
+                    try
+                    {
+                        hardware.Update();
+                    }
+                    catch (ObjectDisposedException ex) when (hardware.HardwareType == HardwareType.Storage)
+                    {
+                        // Storage drive went to sleep - this is NORMAL, skip this device
+                        continue;
+                    }
+                    catch (Exception ex) when ((hardware.HardwareType == HardwareType.Storage) &&
+                                               (ex.Message.Contains("disposed", StringComparison.OrdinalIgnoreCase) ||
+                                                ex.Message.Contains("SafeFileHandle", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        // Storage SafeFileHandle disposed - skip this device
+                        continue;
+                    }
+                    
+                    // Process the hardware data (CPU, GPU, RAM, etc.)
                     ProcessHardware(hardware, sample);
                     
+                    // Update sub-hardware (fans, sensors)
                     foreach (var subHardware in hardware.SubHardware)
                     {
-                        subHardware.Update();
-                        ProcessSubHardware(subHardware, sample);
+                        try
+                        {
+                            subHardware.Update();
+                            ProcessSubHardware(subHardware, sample);
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // Sub-device went to sleep - skip it
+                            continue;
+                        }
+                        catch (Exception ex) when (ex.Message.Contains("disposed", StringComparison.OrdinalIgnoreCase) ||
+                                                   ex.Message.Contains("SafeFileHandle", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Sub-device SafeFileHandle disposed - skip it
+                            continue;
+                        }
                     }
                     
                     hardwareUpdated++;
@@ -339,6 +376,9 @@ class Program
                     {
                         File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Error updating {hardware.Name}: {ex.Message}\n");
                     }
+                    
+                    // CRITICAL: Even if this hardware device failed, continue to next device
+                    // This prevents storage failures from stopping CPU/GPU monitoring
                 }
             }
             

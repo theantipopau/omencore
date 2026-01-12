@@ -351,6 +351,15 @@ namespace OmenCore.Models
         
         /// <summary>Use RTSS (RivaTuner) for accurate FPS data when available</summary>
         public bool UseRtssForFps { get; set; } = true;
+        
+        /// <summary>Layout orientation: Vertical or Horizontal</summary>
+        public string Layout { get; set; } = "Vertical";
+        
+        /// <summary>Show network upload speed in Mbps</summary>
+        public bool ShowNetworkUpload { get; set; } = false;
+        
+        /// <summary>Show network download speed in Mbps</summary>
+        public bool ShowNetworkDownload { get; set; } = false;
     }
     
     /// <summary>

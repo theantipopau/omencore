@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.1] - 2026-01-12 - Critical Bug Fix Release 🔥
+
+**Thermal Shutdown Fix + OSD Enhancements**
+
+### 🔴 Critical: Battlefield 6 Thermal Shutdown Fix
+- **Fixed**: Storage drive sleep causing SafeFileHandle disposal crash → thermal shutdown during gaming
+- RTX 4090 at 87°C: when storage drives slept, temp monitoring crashed, fans couldn't respond → shutdown
+- Added per-device exception isolation: storage failures no longer affect CPU/GPU monitoring
+- Prevents thermal shutdowns during extended gaming sessions
+
+### 📊 OSD Network Traffic Monitoring
+- **Upload speed** display in Mbps (blue arrow ↑)
+- **Download speed** display in Mbps (green arrow ↓)
+- Auto-detects active network interface (Ethernet/WiFi)
+- Updates every 5 seconds alongside ping monitoring
+
+### 🎯 FAQ Clarification
+- **Polling interval** (1500ms) only affects UI updates, NOT fan response speed
+- Fan curve engine runs independently every 10 seconds - changing polling doesn't make fans react faster
+
+[Full v2.3.1 Changelog](docs/CHANGELOG_v2.3.1.md)
+
+---
+
 ## [2.3.0] - 2025-01-12 - Major Feature Release 🚀
 
 **Safety, Diagnostics, and Enhanced Linux Support**

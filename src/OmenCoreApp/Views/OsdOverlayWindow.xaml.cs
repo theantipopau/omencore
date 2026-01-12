@@ -67,6 +67,14 @@ namespace OmenCore.Views
         private Brush _cpuTempColor = Brushes.White;
         private Brush _gpuTempColor = Brushes.White;
         private Brush _gpuHotspotTempColor = Brushes.White;
+        private string _networkUpload = "0.0";
+        private string _networkDownload = "0.0";
+        
+        // Network traffic monitoring
+        private NetworkInterface? _activeNetworkInterface;
+        private long _lastBytesSent;
+        private long _lastBytesReceived;
+        private DateTime _lastNetworkCheck = DateTime.MinValue;
         
         public double CpuTemp { get => _cpuTemp; set { _cpuTemp = value; OnPropertyChanged(); } }
         public double GpuTemp { get => _gpuTemp; set { _gpuTemp = value; OnPropertyChanged(); } }
@@ -91,6 +99,8 @@ namespace OmenCore.Views
         public Brush CpuTempColor { get => _cpuTempColor; set { _cpuTempColor = value; OnPropertyChanged(); } }
         public Brush GpuTempColor { get => _gpuTempColor; set { _gpuTempColor = value; OnPropertyChanged(); } }
         public Brush GpuHotspotTempColor { get => _gpuHotspotTempColor; set { _gpuHotspotTempColor = value; OnPropertyChanged(); } }
+        public string NetworkUpload { get => _networkUpload; set { _networkUpload = value; OnPropertyChanged(); } }
+        public string NetworkDownload { get => _networkDownload; set { _networkDownload = value; OnPropertyChanged(); } }
         
         // Settings-bound visibility - now using backing fields for live updates
         private bool _showCpuTemp;
@@ -111,6 +121,8 @@ namespace OmenCore.Views
         private bool _showVramUsage;
         private bool _showPackagePower;
         private bool _showGpuHotspot;
+        private bool _showNetworkUpload;
+        private bool _showNetworkDownload;
         
         public bool ShowCpuTemp { get => _showCpuTemp; set { _showCpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
         public bool ShowGpuTemp { get => _showGpuTemp; set { _showGpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
@@ -130,10 +142,12 @@ namespace OmenCore.Views
         public bool ShowVramUsage { get => _showVramUsage; set { _showVramUsage = value; OnPropertyChanged(); } }
         public bool ShowPackagePower { get => _showPackagePower; set { _showPackagePower = value; OnPropertyChanged(); } }
         public bool ShowGpuHotspot { get => _showGpuHotspot; set { _showGpuHotspot = value; OnPropertyChanged(); } }
+        public bool ShowNetworkUpload { get => _showNetworkUpload; set { _showNetworkUpload = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator2)); } }
+        public bool ShowNetworkDownload { get => _showNetworkDownload; set { _showNetworkDownload = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator2)); } }
         
         // Computed visibility for separators
         public bool ShowSeparator1 => (_showPerformanceMode || _showFanMode) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
-        public bool ShowSeparator2 => (_showFps || _showFrametime || _showNetworkLatency) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
+        public bool ShowSeparator2 => (_showFps || _showFrametime || _showNetworkLatency || _showNetworkUpload || _showNetworkDownload) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
         
         public event PropertyChangedEventHandler? PropertyChanged;
         
@@ -201,6 +215,8 @@ namespace OmenCore.Views
             ShowVramUsage = settings.ShowVramUsage;
             ShowPackagePower = settings.ShowPackagePower;
             ShowGpuHotspot = settings.ShowGpuHotspot;
+            ShowNetworkUpload = settings.ShowNetworkUpload;
+            ShowNetworkDownload = settings.ShowNetworkDownload;
         }
         
         /// <summary>
@@ -268,6 +284,78 @@ namespace OmenCore.Views
         {
             if (_showNetworkLatency)
                 UpdateNetworkLatency();
+            
+            if (_showNetworkUpload || _showNetworkDownload)
+                UpdateNetworkTraffic();
+        }
+        
+        private void UpdateNetworkTraffic()
+        {
+            try
+            {
+                // Find active network interface (Ethernet or WiFi with actual traffic)
+                if (_activeNetworkInterface == null || !_activeNetworkInterface.OperationalStatus.Equals(OperationalStatus.Up))
+                {
+                    _activeNetworkInterface = null;
+                    foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+                    {
+                        if (nic.OperationalStatus == OperationalStatus.Up &&
+                            (nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
+                             nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) &&
+                            !nic.Name.Contains("Virtual", StringComparison.OrdinalIgnoreCase) &&
+                            !nic.Name.Contains("VPN", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _activeNetworkInterface = nic;
+                            break;
+                        }
+                    }
+                }
+                
+                if (_activeNetworkInterface == null)
+                {
+                    NetworkUpload = "0.0";
+                    NetworkDownload = "0.0";
+                    return;
+                }
+                
+                // Get current stats
+                var stats = _activeNetworkInterface.GetIPv4Statistics();
+                var currentBytesSent = stats.BytesSent;
+                var currentBytesReceived = stats.BytesReceived;
+                var now = DateTime.Now;
+                
+                // Calculate speeds if we have previous data
+                if (_lastNetworkCheck != DateTime.MinValue)
+                {
+                    var timeDelta = (now - _lastNetworkCheck).TotalSeconds;
+                    if (timeDelta > 0)
+                    {
+                        var bytesSentDelta = currentBytesSent - _lastBytesSent;
+                        var bytesReceivedDelta = currentBytesReceived - _lastBytesReceived;
+                        
+                        // Convert to Mbps (megabits per second)
+                        var uploadMbps = (bytesSentDelta * 8) / (timeDelta * 1_000_000);
+                        var downloadMbps = (bytesReceivedDelta * 8) / (timeDelta * 1_000_000);
+                        
+                        // Cap negative values (interface reset)
+                        if (uploadMbps < 0) uploadMbps = 0;
+                        if (downloadMbps < 0) downloadMbps = 0;
+                        
+                        NetworkUpload = uploadMbps >= 1 ? $"{uploadMbps:F1}" : $"{(uploadMbps * 1000):F0}k";
+                        NetworkDownload = downloadMbps >= 1 ? $"{downloadMbps:F1}" : $"{(downloadMbps * 1000):F0}k";
+                    }
+                }
+                
+                // Update last values
+                _lastBytesSent = currentBytesSent;
+                _lastBytesReceived = currentBytesReceived;
+                _lastNetworkCheck = now;
+            }
+            catch
+            {
+                NetworkUpload = "0.0";
+                NetworkDownload = "0.0";
+            }
         }
         
         private void UpdateNetworkLatency()

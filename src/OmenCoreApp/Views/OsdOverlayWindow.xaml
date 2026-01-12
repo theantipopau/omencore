@@ -206,6 +206,34 @@
                 <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="12" Foreground="{Binding NetworkLatencyColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
+            <!-- Network Upload Speed -->
+            <Grid Margin="0,3" Visibility="{Binding ShowNetworkUpload, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="↑ UP" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding NetworkUpload}" FontSize="12" Foreground="#42A5F5" FontFamily="Segoe UI" FontWeight="Medium"/>
+                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                </StackPanel>
+            </Grid>
+            
+            <!-- Network Download Speed -->
+            <Grid Margin="0,3" Visibility="{Binding ShowNetworkDownload, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="↓ DN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding NetworkDownload}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium"/>
+                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                </StackPanel>
+            </Grid>
+            
             <!-- Throttling Warning -->
             <Border Background="#44FF4444" 
                     CornerRadius="4" 
