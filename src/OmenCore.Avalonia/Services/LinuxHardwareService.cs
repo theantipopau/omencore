@@ -315,39 +315,116 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         {
             foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
             {
-                var name = await File.ReadAllTextAsync(Path.Combine(hwmon, "name"));
-                if (name.Trim() == type)
+                try
                 {
-                    var temp = await File.ReadAllTextAsync(Path.Combine(hwmon, "temp1_input"));
-                    return int.Parse(temp.Trim());
+                    var namePath = Path.Combine(hwmon, "name");
+                    if (!File.Exists(namePath)) continue;
+                    
+                    var name = (await File.ReadAllTextAsync(namePath)).Trim().ToLower();
+                    
+                    // Match multiple CPU temperature sensor names
+                    // Intel: coretemp, AMD: k10temp, zenpower, amd_energy
+                    bool isCpuSensor = type == "coretemp" && 
+                        (name == "coretemp" || name == "k10temp" || name == "zenpower" || 
+                         name == "amd_energy" || name.Contains("cpu") || name.Contains("tctl"));
+                    
+                    if (isCpuSensor || name == type)
+                    {
+                        // Try different temperature input patterns
+                        var tempFiles = new[] { "temp1_input", "temp2_input", "temp3_input", "Tctl" };
+                        foreach (var tempFile in tempFiles)
+                        {
+                            var tempPath = Path.Combine(hwmon, tempFile);
+                            if (File.Exists(tempPath))
+                            {
+                                var tempStr = await File.ReadAllTextAsync(tempPath);
+                                if (int.TryParse(tempStr.Trim(), out var temp) && temp > 0)
+                                    return temp;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        
+        // Fallback: Try to find any temperature sensor
+        try
+        {
+            foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
+            {
+                var tempFiles = Directory.GetFiles(hwmon, "temp*_input");
+                foreach (var tempFile in tempFiles)
+                {
+                    var tempStr = await File.ReadAllTextAsync(tempFile);
+                    if (int.TryParse(tempStr.Trim(), out var temp) && temp > 1000 && temp < 150000)
+                        return temp; // Valid temperature in millidegrees
                 }
             }
         }
         catch { }
+        
         return 0;
     }
 
     private static async Task<int> ReadGpuTemperatureAsync()
     {
-        // Try NVIDIA first
+        // Try NVIDIA first via nvidia-smi
         try
         {
             var nvidiaTemp = await RunCommandAsync("nvidia-smi", "--query-gpu=temperature.gpu --format=csv,noheader,nounits");
-            if (int.TryParse(nvidiaTemp.Trim(), out var temp))
+            if (int.TryParse(nvidiaTemp.Trim(), out var temp) && temp > 0)
                 return temp * 1000;
         }
         catch { }
 
-        // Try AMD
+        // Try AMD via hwmon
         foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
         {
             try
             {
-                var name = await File.ReadAllTextAsync(Path.Combine(hwmon, "name"));
-                if (name.Trim() == "amdgpu")
+                var namePath = Path.Combine(hwmon, "name");
+                if (!File.Exists(namePath)) continue;
+                
+                var name = (await File.ReadAllTextAsync(namePath)).Trim().ToLower();
+                if (name == "amdgpu" || name.Contains("radeon") || name.Contains("gpu"))
                 {
-                    var temp = await File.ReadAllTextAsync(Path.Combine(hwmon, "temp1_input"));
-                    return int.Parse(temp.Trim());
+                    // Try different temperature files for AMD GPUs
+                    var tempFiles = new[] { "temp1_input", "temp2_input", "edge", "junction" };
+                    foreach (var tempFile in tempFiles)
+                    {
+                        var tempPath = Path.Combine(hwmon, tempFile);
+                        if (File.Exists(tempPath))
+                        {
+                            var tempStr = await File.ReadAllTextAsync(tempPath);
+                            if (int.TryParse(tempStr.Trim(), out var temp) && temp > 0)
+                                return temp;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Try Intel integrated GPU
+        foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
+        {
+            try
+            {
+                var namePath = Path.Combine(hwmon, "name");
+                if (!File.Exists(namePath)) continue;
+                
+                var name = (await File.ReadAllTextAsync(namePath)).Trim().ToLower();
+                if (name.Contains("i915") || name.Contains("intel"))
+                {
+                    var tempPath = Path.Combine(hwmon, "temp1_input");
+                    if (File.Exists(tempPath))
+                    {
+                        var tempStr = await File.ReadAllTextAsync(tempPath);
+                        if (int.TryParse(tempStr.Trim(), out var temp) && temp > 0)
+                            return temp;
+                    }
                 }
             }
             catch { }
@@ -362,12 +439,58 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         {
             foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
             {
-                // Look for fan speed inputs
-                var fanInputs = Directory.GetFiles(hwmon, "fan*_input");
-                foreach (var fanInput in fanInputs)
+                try
                 {
-                    var rpm = await File.ReadAllTextAsync(fanInput);
-                    if (int.TryParse(rpm.Trim(), out var rpmValue))
+                    // Check if this hwmon is related to the requested type
+                    var namePath = Path.Combine(hwmon, "name");
+                    var deviceName = File.Exists(namePath) ? 
+                        (await File.ReadAllTextAsync(namePath)).Trim().ToLower() : "";
+                    
+                    // Look for fan speed inputs
+                    var fanInputs = Directory.GetFiles(hwmon, "fan*_input");
+                    if (fanInputs.Length == 0)
+                    {
+                        // Some HP laptops expose fans via PWM files
+                        fanInputs = Directory.GetFiles(hwmon, "pwm*");
+                    }
+                    
+                    foreach (var fanInput in fanInputs)
+                    {
+                        var rpm = await File.ReadAllTextAsync(fanInput);
+                        if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
+                            return rpmValue;
+                    }
+                }
+                catch { }
+            }
+            
+            // Try HP-specific fan paths
+            var hpFanPaths = new[]
+            {
+                "/sys/devices/platform/hp-wmi/fan1_input",
+                "/sys/devices/platform/hp-wmi/fan2_input",
+                "/sys/class/hwmon/hwmon*/fan1_input"
+            };
+            
+            foreach (var fanPath in hpFanPaths)
+            {
+                if (fanPath.Contains("*"))
+                {
+                    var matches = Directory.GetFiles(Path.GetDirectoryName(fanPath) ?? "", Path.GetFileName(fanPath));
+                    foreach (var match in matches)
+                    {
+                        if (File.Exists(match))
+                        {
+                            var rpm = await File.ReadAllTextAsync(match);
+                            if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
+                                return rpmValue;
+                        }
+                    }
+                }
+                else if (File.Exists(fanPath))
+                {
+                    var rpm = await File.ReadAllTextAsync(fanPath);
+                    if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
                         return rpmValue;
                 }
             }
@@ -495,22 +618,83 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static async Task<string> ReadGpuNameAsync()
     {
-        // Try NVIDIA
+        // Try NVIDIA nvidia-smi
         try
         {
             var gpuName = await RunCommandAsync("nvidia-smi", "--query-gpu=gpu_name --format=csv,noheader");
-            if (!string.IsNullOrWhiteSpace(gpuName))
+            if (!string.IsNullOrWhiteSpace(gpuName) && !gpuName.Contains("error", StringComparison.OrdinalIgnoreCase))
                 return gpuName.Trim();
         }
         catch { }
 
-        // Try lspci
+        // Try lspci for discrete GPUs (VGA compatible controller or 3D controller)
         try
         {
-            var lspci = await RunCommandAsync("lspci", "-d ::0302");
-            var match = System.Text.RegularExpressions.Regex.Match(lspci, @"\[(.+?)\]");
-            if (match.Success)
-                return match.Groups[1].Value;
+            // 0300 = VGA compatible controller, 0302 = 3D controller (discrete GPUs)
+            var lspciOutput = await RunCommandAsync("lspci", "");
+            var lines = lspciOutput.Split('\n');
+            
+            foreach (var line in lines)
+            {
+                var lower = line.ToLower();
+                // Look for NVIDIA or AMD discrete GPUs
+                if ((lower.Contains("vga") || lower.Contains("3d")) && 
+                    (lower.Contains("nvidia") || lower.Contains("radeon") || lower.Contains("amd")))
+                {
+                    // Extract GPU name from line like "01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [GeForce RTX 3070]"
+                    var colonIndex = line.IndexOf(':');
+                    if (colonIndex > 0 && colonIndex < line.Length - 1)
+                    {
+                        var colonIndex2 = line.IndexOf(':', colonIndex + 1);
+                        if (colonIndex2 > 0 && colonIndex2 < line.Length - 1)
+                        {
+                            return line.Substring(colonIndex2 + 1).Trim();
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: Any VGA/3D device
+            foreach (var line in lines)
+            {
+                if (line.ToLower().Contains("vga") || line.ToLower().Contains("3d"))
+                {
+                    var colonIndex = line.IndexOf(':');
+                    if (colonIndex > 0)
+                    {
+                        var colonIndex2 = line.IndexOf(':', colonIndex + 1);
+                        if (colonIndex2 > 0)
+                            return line.Substring(colonIndex2 + 1).Trim();
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Try reading from DRM subsystem
+        try
+        {
+            var drmPath = "/sys/class/drm";
+            if (Directory.Exists(drmPath))
+            {
+                var cards = Directory.GetDirectories(drmPath).Where(d => Path.GetFileName(d).StartsWith("card"));
+                foreach (var card in cards)
+                {
+                    var devicePath = Path.Combine(card, "device");
+                    if (Directory.Exists(devicePath))
+                    {
+                        // Try to read vendor/device info
+                        var vendorPath = Path.Combine(devicePath, "vendor");
+                        if (File.Exists(vendorPath))
+                        {
+                            var vendor = (await File.ReadAllTextAsync(vendorPath)).Trim();
+                            if (vendor == "0x10de") return "NVIDIA GPU";
+                            if (vendor == "0x1002") return "AMD Radeon GPU";
+                            if (vendor == "0x8086") return "Intel Integrated Graphics";
+                        }
+                    }
+                }
+            }
         }
         catch { }
 

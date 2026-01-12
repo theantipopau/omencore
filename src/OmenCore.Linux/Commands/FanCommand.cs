@@ -7,6 +7,7 @@ namespace OmenCore.Linux.Commands;
 /// Fan control command.
 /// 
 /// Examples:
+///   omencore-cli fan --status            # Show current fan status
 ///   omencore-cli fan --profile auto
 ///   omencore-cli fan --speed 80
 ///   omencore-cli fan --curve "40:20,50:30,60:50,80:80,90:100"
@@ -19,6 +20,10 @@ public static class FanCommand
         var command = new Command("fan", "Control fan speed and profiles");
         
         // Options
+        var statusOption = new Option<bool>(
+            aliases: new[] { "--status", "-S" },
+            description: "Show current fan speeds and status");
+        
         var profileOption = new Option<string?>(
             aliases: new[] { "--profile", "-p" },
             description: "Fan profile: auto, silent, balanced, gaming, max");
@@ -47,6 +52,11 @@ public static class FanCommand
             aliases: new[] { "--battery-aware", "-B" },
             description: "Auto-switch to quiet profile on battery power");
         
+        var verboseOption = new Option<bool>(
+            aliases: new[] { "--verbose", "-v" },
+            description: "Show detailed fan information");
+        
+        command.AddOption(statusOption);
         command.AddOption(profileOption);
         command.AddOption(speedOption);
         command.AddOption(curveOption);
@@ -54,18 +64,30 @@ public static class FanCommand
         command.AddOption(fan2Option);
         command.AddOption(boostOption);
         command.AddOption(batteryAwareOption);
+        command.AddOption(verboseOption);
         
-        command.SetHandler(async (profile, speed, curve, fan1, fan2, boost, batteryAware) =>
+        // Use InvocationContext to handle >8 options (System.CommandLine limitation)
+        command.SetHandler(async (context) =>
         {
-            await HandleFanCommandAsync(profile, speed, curve, fan1, fan2, boost, batteryAware);
-        }, profileOption, speedOption, curveOption, fan1Option, fan2Option, boostOption, batteryAwareOption);
+            var status = context.ParseResult.GetValueForOption(statusOption);
+            var profile = context.ParseResult.GetValueForOption(profileOption);
+            var speed = context.ParseResult.GetValueForOption(speedOption);
+            var curve = context.ParseResult.GetValueForOption(curveOption);
+            var fan1 = context.ParseResult.GetValueForOption(fan1Option);
+            var fan2 = context.ParseResult.GetValueForOption(fan2Option);
+            var boost = context.ParseResult.GetValueForOption(boostOption);
+            var batteryAware = context.ParseResult.GetValueForOption(batteryAwareOption);
+            var verbose = context.ParseResult.GetValueForOption(verboseOption);
+            
+            await HandleFanCommandAsync(status, profile, speed, curve, fan1, fan2, boost, batteryAware, verbose);
+        });
         
         return command;
     }
     
     private static async Task HandleFanCommandAsync(
-        string? profile, int? speed, string? curve, 
-        int? fan1, int? fan2, bool? boost, bool batteryAware)
+        bool status, string? profile, int? speed, string? curve, 
+        int? fan1, int? fan2, bool? boost, bool batteryAware, bool verbose)
     {
         // Check root
         if (!LinuxEcController.CheckRootAccess())
@@ -92,6 +114,14 @@ public static class FanCommand
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.WriteLine($"Using access method: {ec.AccessMethod}");
         Console.ResetColor();
+        
+        // Handle explicit --status flag first
+        if (status)
+        {
+            ShowFanStatus(ec, verbose);
+            await Task.CompletedTask;
+            return;
+        }
         
         // Handle battery-aware mode
         if (batteryAware)
@@ -199,7 +229,7 @@ public static class FanCommand
         }
         
         // No options - show current status
-        ShowFanStatus(ec);
+        ShowFanStatus(ec, verbose);
         await Task.CompletedTask;
     }
     
@@ -243,19 +273,45 @@ public static class FanCommand
         Console.ResetColor();
     }
     
-    private static void ShowFanStatus(LinuxEcController ec)
+    private static void ShowFanStatus(LinuxEcController ec, bool verbose = false)
     {
         Console.WriteLine();
-        Console.WriteLine("╔══════════════════════════════════════╗");
-        Console.WriteLine("║           Fan Status                 ║");
-        Console.WriteLine("╠══════════════════════════════════════╣");
+        Console.WriteLine("╔══════════════════════════════════════════════╗");
+        Console.WriteLine("║               Fan Status                     ║");
+        Console.WriteLine("╠══════════════════════════════════════════════╣");
         
         var (fan1Speed, fan2Speed) = ec.GetFanSpeeds();
         var (fan1Pct, fan2Pct) = ec.GetFanSpeedPercent();
         
-        Console.WriteLine($"║  Fan 1 (CPU): {fan1Speed,5} RPM  ({fan1Pct,3}%)  ║");
-        Console.WriteLine($"║  Fan 2 (GPU): {fan2Speed,5} RPM  ({fan2Pct,3}%)  ║");
-        Console.WriteLine("╚══════════════════════════════════════╝");
+        Console.WriteLine($"║  Fan 1 (CPU):   {fan1Speed,5} RPM  ({fan1Pct,3}%)       ║");
+        Console.WriteLine($"║  Fan 2 (GPU):   {fan2Speed,5} RPM  ({fan2Pct,3}%)       ║");
+        
+        if (verbose)
+        {
+            Console.WriteLine("╠══════════════════════════════════════════════╣");
+            Console.WriteLine($"║  Access Method: {ec.AccessMethod,-27} ║");
+            
+            // Try to get temperatures
+            var cpuTemp = ec.GetCpuTemperature();
+            var gpuTemp = ec.GetGpuTemperature();
+            if (cpuTemp > 0 || gpuTemp > 0)
+            {
+                Console.WriteLine("╠══════════════════════════════════════════════╣");
+                if (cpuTemp > 0)
+                    Console.WriteLine($"║  CPU Temp:      {cpuTemp,5}°C                    ║");
+                if (gpuTemp > 0)
+                    Console.WriteLine($"║  GPU Temp:      {gpuTemp,5}°C                    ║");
+            }
+        }
+        
+        Console.WriteLine("╚══════════════════════════════════════════════╝");
         Console.WriteLine();
+        
+        if (!verbose)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine("Tip: Use --verbose for more details, --profile to set mode");
+            Console.ResetColor();
+        }
     }
 }

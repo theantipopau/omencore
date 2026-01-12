@@ -36,8 +36,10 @@ namespace OmenCoreApp.Tests.ViewModels
             var sysInfo = new OmenCore.Services.SystemInfoService(logging);
             var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
             var bios = new OmenCore.Services.BiosUpdateService(logging);
+            var profileExport = new OmenCore.Services.ProfileExportService(logging, cfg);
+            var diagnosticsExport = new OmenCore.Services.DiagnosticsExportService(logging, cfg);
 
-            var vm = new SettingsViewModel(logging, cfg, sysInfo, fanCleaning, bios);
+            var vm = new SettingsViewModel(logging, cfg, sysInfo, fanCleaning, bios, profileExport, diagnosticsExport);
 
             // Default off
             vm.TelemetryEnabled.Should().BeFalse();

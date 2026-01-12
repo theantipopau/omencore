@@ -41,8 +41,10 @@ namespace OmenCoreApp.Tests.ViewModels
             var sysInfo = new OmenCore.Services.SystemInfoService(logging);
             var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
             var bios = new OmenCore.Services.BiosUpdateService(logging);
+            var profileExport = new OmenCore.Services.ProfileExportService(logging, cfgService);
+            var diagnosticsExport = new OmenCore.Services.DiagnosticsExportService(logging, cfgService);
 
-            var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios)
+            var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios, profileExport, diagnosticsExport)
             {
 
                 // Enable the HID-only mode

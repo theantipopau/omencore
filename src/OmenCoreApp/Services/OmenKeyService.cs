@@ -534,10 +534,13 @@ namespace OmenCore.Services
         {
             // CRITICAL: Exclude brightness keys and other function keys that should never trigger OMEN actions
             // These keys are commonly used with Fn modifier and can conflict with OMEN key detection
+            // Issue #42: Fn+F2/F3 brightness keys incorrectly triggering OmenCore
+            // User report: Fn+F3/F4 on Victus triggering app open
             if (vkCode == VK_BRIGHTNESS_DOWN || vkCode == VK_BRIGHTNESS_UP ||
                 vkCode == VK_F2 || vkCode == VK_F3 ||
-                vkCode >= 0x70 && vkCode <= 0x87) // All F1-F24 keys
+                (vkCode >= 0x70 && vkCode <= 0x87)) // All F1-F24 keys (VK_F1=0x70 through VK_F24=0x87)
             {
+                _logging.Debug($"Excluded F-key: VK=0x{vkCode:X2}, Scan=0x{scanCode:X4} - NOT OMEN key");
                 return false;
             }
             

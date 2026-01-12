@@ -2829,7 +2829,8 @@ namespace OmenCore.ViewModels
                 if (result != MessageBoxResult.Yes)
                     return;
                 
-                _profileExportService.ApplyProfile(profile, _configService, _config);
+                _profileExportService.ApplyProfile(profile, _config);
+                _configService.Save(_config);
                 
                 _logging.Info($"Profile imported successfully from {dialog.FileName}");
                 
@@ -2896,7 +2897,14 @@ namespace OmenCore.ViewModels
                 if (dialog.ShowDialog() != true)
                     return;
                 
-                await _diagnosticsExportService.ExportDiagnosticsAsync(dialog.FileName, _systemInfoService, _hardwareMonitoringService);
+                var exportedPath = await _diagnosticsExportService.ExportDiagnosticsAsync();
+                
+                // Copy to user-selected location if export succeeded
+                if (exportedPath != null && File.Exists(exportedPath))
+                {
+                    File.Copy(exportedPath, dialog.FileName, overwrite: true);
+                    try { File.Delete(exportedPath); } catch { }
+                }
                 
                 _logging.Info($"Diagnostics exported successfully to {dialog.FileName}");
                 

@@ -17,12 +17,14 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
     
-    <Border Background="#AA101020" 
-            BorderBrush="#55FF005C" 
-            BorderThickness="1.5" 
-            CornerRadius="6"
-            Padding="12,10"
-            Margin="4">
+    <!-- Improved contrast and sizing for high-DPI (1440p+) displays -->
+    <Border Background="#DD0A0A14" 
+            BorderBrush="#88FF005C" 
+            BorderThickness="2" 
+            CornerRadius="8"
+            Padding="16,12"
+            Margin="6"
+            MinWidth="180">
         <Border.Effect>
             <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="10" ShadowDepth="2"/>
         </Border.Effect>
@@ -30,187 +32,187 @@
         <StackPanel>
             <!-- Clock Time -->
             <TextBlock Text="{Binding ClockTime}" 
-                       FontSize="11" 
+                       FontSize="13" 
                        FontWeight="SemiBold" 
-                       Foreground="#AAAAAA" 
+                       Foreground="#CCCCCC" 
                        HorizontalAlignment="Center"
-                       Margin="0,0,0,4"
-                       FontFamily="Consolas"
+                       Margin="0,0,0,6"
+                       FontFamily="Segoe UI"
                        Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- Current Mode Header (if enabled) -->
-            <Border Background="#22FF005C" CornerRadius="2" Padding="6,2" Margin="0,0,0,6"
+            <Border Background="#33FF005C" CornerRadius="4" Padding="8,4" Margin="0,0,0,8"
                     Visibility="{Binding ShowCurrentMode, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="{Binding CurrentMode}" 
-                           FontSize="10" 
+                           FontSize="12" 
                            FontWeight="Bold" 
-                           Foreground="#FF005C" 
+                           Foreground="#FF3377" 
                            HorizontalAlignment="Center"/>
             </Border>
             
             <!-- Performance Mode -->
-            <Grid Margin="0,1" Visibility="{Binding ShowPerformanceMode, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowPerformanceMode, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="MODE" FontSize="9" Foreground="#666" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding PerformanceMode}" FontSize="10" Foreground="#FFD700" FontFamily="Consolas" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="MODE" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding PerformanceMode}" FontSize="12" Foreground="#FFD700" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Fan Mode -->
-            <Grid Margin="0,1" Visibility="{Binding ShowFanMode, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowFanMode, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FANS" FontSize="9" Foreground="#666" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding FanMode}" FontSize="10" Foreground="#00BFFF" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FANS" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding FanMode}" FontSize="12" Foreground="#00BFFF" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Separator -->
-            <Border Height="1" Background="#33FFFFFF" Margin="0,4" 
+            <Border Height="1" Background="#44FFFFFF" Margin="0,6" 
                     Visibility="{Binding ShowSeparator1, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- CPU Stats -->
-            <Grid Margin="0,1" Visibility="{Binding ShowCpuTemp, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowCpuTemp, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="CPU" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
+                <TextBlock Grid.Column="0" Text="CPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°}" FontSize="10" Foreground="{Binding CpuTempColor}" FontFamily="Consolas"/>
-                    <TextBlock Text=" " FontSize="10" Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F0}%}" FontSize="10" Foreground="#FF005C" FontFamily="Consolas" 
+                    <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding CpuTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold"/>
+                    <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#FF3366" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text=" " FontSize="10" Visibility="{Binding ShowCpuPower, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding CpuPower}" FontSize="10" Foreground="#FF9500" FontFamily="Consolas" 
+                    <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowCpuPower, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding CpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowCpuPower, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
             </Grid>
             
             <!-- GPU Stats -->
-            <Grid Margin="0,1" Visibility="{Binding ShowGpuTemp, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowGpuTemp, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="GPU" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
+                <TextBlock Grid.Column="0" Text="GPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding GpuTemp, StringFormat={}{0:F0}°}" FontSize="10" Foreground="{Binding GpuTempColor}" FontFamily="Consolas"/>
-                    <TextBlock Text=" " FontSize="10" Visibility="{Binding ShowGpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding GpuLoad, StringFormat={}{0:F0}%}" FontSize="10" Foreground="#00D4FF" FontFamily="Consolas" 
+                    <TextBlock Text="{Binding GpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold"/>
+                    <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowGpuLoad, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding GpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#00D4FF" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowGpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text=" " FontSize="10" Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding GpuPower}" FontSize="10" Foreground="#FF9500" FontFamily="Consolas" 
+                    <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding GpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
             </Grid>
             
             <!-- GPU Hotspot Temperature -->
-            <Grid Margin="0,1" Visibility="{Binding ShowGpuHotspot, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowGpuHotspot, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="TJUNC" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding GpuHotspotTemp, StringFormat={}{0:F0}°}" FontSize="10" Foreground="{Binding GpuHotspotTempColor}" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="TJUNC" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding GpuHotspotTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuHotspotTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- VRAM Usage -->
-            <Grid Margin="0,1" Visibility="{Binding ShowVramUsage, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowVramUsage, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="VRAM" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding VramUsage}" FontSize="10" Foreground="#AB47BC" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="VRAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding VramUsage}" FontSize="12" Foreground="#AB47BC" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Package Power (CPU+GPU) -->
-            <Grid Margin="0,1" Visibility="{Binding ShowPackagePower, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowPackagePower, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="PKG" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding PackagePower}" FontSize="10" Foreground="#FFA726" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="PKG" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding PackagePower}" FontSize="12" Foreground="#FFA726" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Fan Speed -->
-            <Grid Margin="0,1" Visibility="{Binding ShowFanSpeed, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowFanSpeed, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FAN" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding FanSpeed}" FontSize="10" Foreground="#999" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FAN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding FanSpeed}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- RAM Usage -->
-            <Grid Margin="0,1" Visibility="{Binding ShowRamUsage, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowRamUsage, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="RAM" FontSize="10" Foreground="#888" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="10" Foreground="#999" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="RAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Separator -->
-            <Border Height="1" Background="#33FFFFFF" Margin="0,4" 
+            <Border Height="1" Background="#44FFFFFF" Margin="0,6" 
                     Visibility="{Binding ShowSeparator2, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- FPS (prominent display) -->
-            <Grid Margin="0,2" Visibility="{Binding ShowFps, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,4" Visibility="{Binding ShowFps, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FPS" FontSize="11" Foreground="#00FF88" FontFamily="Consolas" FontWeight="Bold"/>
-                <TextBlock Grid.Column="2" Text="{Binding Fps, StringFormat={}{0:F0}}" FontSize="14" Foreground="#00FF88" FontFamily="Consolas" FontWeight="Bold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FPS" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold"/>
+                <TextBlock Grid.Column="2" Text="{Binding Fps, StringFormat={}{0:F0}}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Frametime -->
-            <Grid Margin="0,1" Visibility="{Binding ShowFrametime, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowFrametime, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FT" FontSize="9" Foreground="#666" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding Frametime, StringFormat={}{0:F1}ms}" FontSize="10" Foreground="#66BB6A" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding Frametime, StringFormat={}{0:F1}ms}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Network Latency -->
-            <Grid Margin="0,1" Visibility="{Binding ShowNetworkLatency, Converter={StaticResource BoolToVisibility}}">
+            <Grid Margin="0,3" Visibility="{Binding ShowNetworkLatency, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="PING" FontSize="9" Foreground="#666" FontFamily="Consolas"/>
-                <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="10" Foreground="{Binding NetworkLatencyColor}" FontFamily="Consolas" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="PING" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="12" Foreground="{Binding NetworkLatencyColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Throttling Warning -->
-            <Border Background="#33FF4444" 
-                    CornerRadius="2" 
-                    Padding="4,2" 
-                    Margin="0,4,0,0"
+            <Border Background="#44FF4444" 
+                    CornerRadius="4" 
+                    Padding="8,4" 
+                    Margin="0,6,0,0"
                     Visibility="{Binding IsThrottling, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="⚠ THERMAL THROTTLE" FontSize="9" Foreground="#FF6666" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock Text="⚠ THERMAL THROTTLE" FontSize="11" Foreground="#FF6666" FontWeight="Bold" HorizontalAlignment="Center"/>
             </Border>
         </StackPanel>
     </Border>

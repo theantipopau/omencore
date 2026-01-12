@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.3.0] - 2026-01-11 - Major Feature Release 🚀
+## [2.3.0] - 2025-01-12 - Major Feature Release 🚀
 
 **Safety, Diagnostics, and Enhanced Linux Support**
 

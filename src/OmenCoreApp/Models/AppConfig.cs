@@ -409,6 +409,9 @@ namespace OmenCore.Models
         /// <summary>Power limit percentage (50-125, 100 = default TDP)</summary>
         public int PowerLimitPercent { get; set; } = 100;
         
+        /// <summary>GPU voltage offset in mV (optional, not all GPUs support)</summary>
+        public int? VoltageOffsetMv { get; set; } = null;
+        
         /// <summary>Reapply OC settings on application startup</summary>
         public bool ApplyOnStartup { get; set; } = false;
     }

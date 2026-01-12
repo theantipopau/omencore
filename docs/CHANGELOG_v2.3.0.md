@@ -1,6 +1,6 @@
 # OmenCore v2.3.0 - Major Feature Release
 
-**Release Date:** 2026-01-11
+**Release Date:** 2025-01-12
 
 This is a major feature release focused on safety, diagnostics, enhanced Linux support, and introducing **automation frameworks** for future development. We've added comprehensive fan curve validation, profile import/export, automatic update checking, custom battery thresholds, hardware watchdogs, significant improvements for 2023+ OMEN models on Linux, plus critical fan safety fixes, a complete Linux GUI overhaul, AMD power controls, enhanced OSD metrics, and **foundational automation systems** (per-game profiles and smart scheduling infrastructure).
 
@@ -181,6 +181,44 @@ This is a major feature release focused on safety, diagnostics, enhanced Linux s
 - **Fixed**: Bottom buttons (Display Off, Refresh Rate) cut off in Quick Access popup
 - **Solution**: Increased window height from 420px to 480px
 - **Affected**: All users using OMEN key quick access popup
+
+### 🟢 OSD Overlay Readability on 1440p+ Monitors
+- **Fixed**: OSD overlay was difficult to read on high-DPI monitors (1440p, 4K)
+- **Solution**: Complete styling overhaul:
+  - Font sizes increased 40-60% (FPS value: 14pt→18pt, labels: 9pt→11pt)
+  - Background opacity increased (#AA101020 → #DD0A0A14)
+  - Changed font from Consolas to Segoe UI for better readability
+  - Border thickness: 1.5px → 2px, corner radius: 6→8
+  - Added minimum width (180px) and improved spacing
+- **Affected**: All users, especially on 1440p and 4K monitors
+
+### 🟢 Fn+F3/F4 Opening OmenCore on Victus Laptops
+- **Fixed**: Brightness keys (Fn+F3/F4) incorrectly triggered OmenCore to open
+- **Cause**: Operator precedence bug in F-key exclusion logic - missing parentheses
+- **Solution**: Added proper grouping in VK code range check: `(vkCode >= 0x70 && vkCode <= 0x87)`
+- **Also**: Added debug logging for excluded F-keys to aid future troubleshooting
+
+### 🟢 Temperatures Getting Stuck After Extended Use
+- **Fixed**: CPU/GPU temperatures would freeze at a fixed value after running for a while
+- **Cause**: HardwareWorker's stale detection incorrectly flagged stable temperatures as "stuck"
+- **Old logic**: If temp didn't change by 0.01°C, mark as stale (wrong - stable temps at idle are normal!)
+- **New logic**: Track whether `hardware.Update()` succeeded, not whether temperature changed
+- **Affected**: All users, especially during idle periods with stable temperatures
+
+### 🟢 Linux Hardware Detection on Fedora 43
+- **Fixed**: CPU showing 0°C, GPU showing "Unknown GPU" on Fedora and AMD systems
+- **Cause**: OmenCore only looked for Intel-specific sensor names (coretemp)
+- **Solution**: Enhanced multi-vendor hardware detection:
+  - **CPU:** Added AMD sensors: k10temp, zenpower, amd_energy, Tctl/Tdie
+  - **GPU:** Added AMD (amdgpu, radeon) and Intel (i915) driver support
+  - **GPU Name:** Added lspci fallback and DRM subsystem vendor ID detection
+  - **Fans:** Added HP-specific paths `/sys/devices/platform/hp-wmi/fan*_input`
+
+### 🟢 Linux CLI Missing `--status` Flag
+- **Fixed**: Linux users couldn't check fan status via CLI
+- **Solution**: Added `--status` (-S) and `--verbose` (-v) options to fan command
+- **Usage**: `omencore fan --status --verbose`
+- **Verbose output**: Shows temps, fan percentages, and EC access method
 
 ---
 
@@ -568,15 +606,13 @@ Special thanks to:
 
 ### Windows
 - **OmenCoreSetup-2.3.0.exe** - Full installer with auto-update
-  - SHA256: `TBD`
+  - SHA256: `D13F72210069C1226194840997F0A8EC0FE94922CA5B1465E3C6151EBFE61AE6`
 - **OmenCore-2.3.0-win-x64.zip** - Portable version
-  - SHA256: `TBD`
+  - SHA256: `501A85EC5D2763C56C43AE3E89200550F9A17A6FE3D6947AE503502BF263FC76`
 
 ### Linux
-- **omencore-cli-2.3.0-linux-x64.tar.gz** - Command-line tool
-  - SHA256: `TBD`
-- **OmenCore-2.3.0-linux-x64.zip** - Avalonia GUI (experimental)
-  - SHA256: `TBD`
+- **OmenCore-2.3.0-linux-x64.zip** - GUI + CLI bundle
+  - SHA256: `9ADD24772AB8E7623B902B58770D540B0B3074C1514E8F743F1AEA75E1F49AF0`
 
 ---
 

@@ -985,13 +985,31 @@ Create advanced curves in `config.json`:
 1. CPU doesn't support undervolting (10th-gen+ may have locked MSR)
 2. BIOS setting "Undervolting Lock" enabled
 3. ThrottleStop/Intel XTU conflicting
-4. Wrong CPU architecture (AMD not supported)
+4. **AMD CPU** - undervolting not supported (see below)
 
 **Solutions**:
 1. Check BIOS for "Overclocking" or "Undervolting" settings
 2. Exit other undervolting tools
 3. Try Intel XTU to verify MSR accessibility
 4. Some laptops have undervolting permanently locked
+
+### Why doesn't undervolting work on AMD Ryzen (7640hs, 8645hs, etc.)?
+
+**Short answer**: AMD uses a completely different architecture that doesn't support Intel-style MSR undervolting.
+
+**Technical explanation**:
+- Intel CPUs use MSR 0x150 for voltage offset control, which OmenCore can access
+- AMD Ryzen uses **Curve Optimizer** and **PBO (Precision Boost Overdrive)** for voltage tuning
+- AMD's voltage control is built into the **SMU (System Management Unit)** and requires BIOS access
+- There's no equivalent software-accessible MSR on AMD that allows the same undervolt approach
+
+**What AMD users can do**:
+1. **BIOS settings** - Enable Curve Optimizer in BIOS (typically -15 to -30 per core)
+2. **Ryzen Master** - AMD's official tool for per-CCX voltage adjustments
+3. **PBO2** - Precision Boost Overdrive 2 with per-core curve offsets
+4. **OmenCore works for**: Fan control, temperature monitoring, RGB lighting, performance modes, OSD overlay
+
+**Note**: AMD laptop BIOSes often have limited or no Curve Optimizer options compared to desktop. HP OMEN AMD laptops may have some tuning available under "Advanced BIOS" settings.
 
 ### Auto-update fails
 **Cause**: Missing SHA256 hash in release notes

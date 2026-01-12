@@ -243,9 +243,8 @@ class Program
         
         lock (_lock)
         {
-            // Track if we got fresh CPU temperature this cycle
+            // Track if CPU hardware update succeeded this cycle
             var previousCpuTemp = _lastSample.CpuTemperature;
-            bool cpuTempUpdated = false;
             
             // Start with last known values to preserve data if some hardware fails
             var sample = new HardwareSample
@@ -291,6 +290,8 @@ class Program
             }
             
             int hardwareUpdated = 0;
+            bool cpuHardwareUpdateSucceeded = false;
+            
             foreach (var hardware in _computer.Hardware)
             {
                 try
@@ -306,11 +307,10 @@ class Program
                     
                     hardwareUpdated++;
                     
-                    // Check if CPU temp was updated (different from previous)
-                    if (hardware.HardwareType == HardwareType.Cpu && 
-                        Math.Abs(sample.CpuTemperature - previousCpuTemp) > 0.01)
+                    // Track if CPU hardware update succeeded (not just temp changed)
+                    if (hardware.HardwareType == HardwareType.Cpu)
                     {
-                        cpuTempUpdated = true;
+                        cpuHardwareUpdateSucceeded = true;
                     }
                 }
                 catch (Exception ex)
@@ -342,12 +342,13 @@ class Program
                 }
             }
             
-            // Detect stale data - if CPU temp hasn't changed in many readings, mark as stale
-            if (!cpuTempUpdated && sample.CpuTemperature > 0)
+            // Detect stale data - if CPU hardware update failed (not just temp unchanged), mark as stale
+            // Note: Stable temps during idle are NORMAL, don't flag as stale just because temp didn't change
+            if (!cpuHardwareUpdateSucceeded && sample.CpuTemperature > 0)
             {
                 sample.StaleCount = _lastSample.StaleCount + 1;
                 
-                // If stale for 20+ cycles (about 30+ seconds), mark as not fresh
+                // If CPU update failed for 20+ cycles (about 30+ seconds), mark as not fresh
                 if (sample.StaleCount >= 20)
                 {
                     sample.IsFresh = false;
@@ -356,7 +357,7 @@ class Program
                     if (_lastSample.IsFresh)
                     {
                         File.AppendAllText(GetLogPath(), 
-                            $"[{DateTime.Now:O}] ⚠️ CPU temp appears stuck at {sample.CpuTemperature:F1}°C for {sample.StaleCount} cycles. Reinitializing sensors...\n");
+                            $"[{DateTime.Now:O}] ⚠️ CPU hardware update failed for {sample.StaleCount} cycles (temp={sample.CpuTemperature:F1}°C). Reinitializing sensors...\n");
                         
                         // Try to reinitialize CPU sensors
                         try
@@ -373,6 +374,7 @@ class Program
             }
             else
             {
+                // CPU hardware updated successfully - reset stale count even if temp unchanged
                 sample.StaleCount = 0;
                 sample.IsFresh = true;
             }
