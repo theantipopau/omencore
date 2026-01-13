@@ -1540,6 +1540,14 @@
                                         <TextBlock Text="Network Ping" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowNetworkLatency}"/>
                                     </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Net Upload" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowNetworkUpload}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Net Download" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowNetworkDownload}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                                 
                                 <!-- System Status -->
@@ -1562,6 +1570,14 @@
                                         <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowTime}"/>
                                     </StackPanel>
                                 </WrapPanel>
+                                
+                                <!-- Layout -->
+                                <TextBlock Text="Layout" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,8,0,4"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Horizontal Layout" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding IsOsdHorizontalLayout}"/>
+                                    <TextBlock Text="(Compact bar at screen edge)" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -1732,6 +1748,26 @@
                                         <TextBox Text="{Binding FanHysteresisRampDownDelay, StringFormat=F1}" 
                                                  Width="50" Padding="6,4" TextAlignment="Right"/>
                                         <TextBlock Text="s" VerticalAlignment="Center" Margin="4,0,0,0" 
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Thermal Protection Threshold -->
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="80"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Thermal Protection Threshold" FontSize="13" 
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Fans ramp up when temps exceed this (70-90°C)" FontSize="11" 
+                                                   Foreground="{StaticResource TextTertiaryBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBox Text="{Binding ThermalProtectionThreshold, StringFormat=F0}" 
+                                                 Width="50" Padding="6,4" TextAlignment="Right"/>
+                                        <TextBlock Text="°C" VerticalAlignment="Center" Margin="4,0,0,0" 
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </StackPanel>
                                 </Grid>

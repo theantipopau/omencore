@@ -250,8 +250,15 @@ namespace OmenCore.Models
         /// <summary>Ramp-down delay in seconds before decreasing fan speed.</summary>
         public double RampDownDelay { get; set; } = 3.0;
         
-        /// <summary>Enable thermal protection override - forces max fans when temps exceed 90°C, even in Auto mode.</summary>
+        /// <summary>Enable thermal protection override - forces max fans when temps exceed threshold, even in Auto mode.</summary>
         public bool ThermalProtectionEnabled { get; set; } = true;
+        
+        /// <summary>
+        /// Temperature threshold in °C for thermal protection to activate (start ramping fans).
+        /// Default: 80°C. Advanced users can increase to 85-90°C if their laptop handles heat better.
+        /// Range: 70-90°C. Values outside this range will be clamped.
+        /// </summary>
+        public double ThermalProtectionThreshold { get; set; } = 80.0;
     }
 
     /// <summary>

@@ -76,9 +76,11 @@ namespace OmenCore.Services
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
         
         // Thermal protection - override Auto mode when temps get too high
-        // Lowered thresholds based on user feedback - fans were spinning up too late
-        private const double ThermalProtectionThreshold = 80.0; // °C - start ramping fans (was 90)
-        private const double ThermalEmergencyThreshold = 88.0;  // °C - max fans immediately (was 95)
+        // Configurable via FanHysteresisSettings for user customization
+        private double _thermalProtectionThreshold = 80.0;      // °C - start ramping fans (configurable)
+        private const double ThermalEmergencyThreshold = 88.0;  // °C - max fans immediately
+        private const double ThermalSafeReleaseTemp = 55.0;     // °C - truly safe to release to Auto mode
+        private const int ThermalReleaseMinFanPercent = 30;     // Min fan % when releasing above safe temp
         private volatile bool _thermalProtectionActive = false;
         
         // Diagnostic mode - suspends curve engine to allow manual fan testing
@@ -178,11 +180,18 @@ namespace OmenCore.Services
         
         /// <summary>
         /// Configure hysteresis settings to prevent fan oscillation.
+        /// Also loads thermal protection threshold from settings.
         /// </summary>
         public void SetHysteresis(FanHysteresisSettings settings)
         {
             _hysteresis = settings ?? new FanHysteresisSettings();
+            _thermalProtectionEnabled = _hysteresis.ThermalProtectionEnabled;
+            
+            // Load configurable thermal protection threshold, clamp to safe range
+            _thermalProtectionThreshold = Math.Clamp(settings?.ThermalProtectionThreshold ?? 80.0, 70.0, 90.0);
+            
             _logging.Info($"Fan hysteresis: {(_hysteresis.Enabled ? $"Enabled (deadzone={_hysteresis.DeadZone}°C, ramp↑={_hysteresis.RampUpDelay}s, ramp↓={_hysteresis.RampDownDelay}s)" : "Disabled")}");
+            _logging.Info($"Thermal protection: {(_thermalProtectionEnabled ? $"Enabled at {_thermalProtectionThreshold}°C" : "Disabled")}");
         }
 
         /// <summary>
@@ -609,8 +618,8 @@ namespace OmenCore.Services
                 return;
             }
             
-            // Warning: temps >= 80°C - boost fans if not already at higher speed
-            if (maxTemp >= ThermalProtectionThreshold)
+            // Warning: temps >= configurable threshold (default 80°C) - boost fans
+            if (maxTemp >= _thermalProtectionThreshold)
             {
                 if (!_thermalProtectionActive)
                 {
@@ -623,9 +632,10 @@ namespace OmenCore.Services
                     _logging.Warn($"⚠️ THERMAL WARNING: {maxTemp:F0}°C - boosting fan speed");
                 }
                 
-                // Calculate thermal protection target: 80°C = 85%, scaling to 100% at 88°C
-                // More aggressive starting point than before
-                var thermalTargetPercent = (int)(85 + (maxTemp - ThermalProtectionThreshold) * 1.875);
+                // Calculate thermal protection target: threshold = 85%, scaling to 100% at 88°C
+                // Formula scales based on configurable threshold
+                var tempRange = ThermalEmergencyThreshold - _thermalProtectionThreshold;
+                var thermalTargetPercent = (int)(85 + (maxTemp - _thermalProtectionThreshold) * (15.0 / tempRange));
                 thermalTargetPercent = Math.Min(100, thermalTargetPercent);
                 
                 // BUG FIX #32: Don't REDUCE fan speed if already at higher speed!
@@ -641,11 +651,17 @@ namespace OmenCore.Services
             }
             
             // Temps back to safe range - release thermal protection
-            // Use 5°C hysteresis (release at 75°C instead of 80°C)
-            if (_thermalProtectionActive && maxTemp < ThermalProtectionThreshold - 5)
+            // Use 5°C hysteresis below configurable threshold
+            var releaseThreshold = _thermalProtectionThreshold - 5;
+            if (_thermalProtectionActive && maxTemp < releaseThreshold)
             {
                 _thermalProtectionActive = false;
                 _logging.Info($"✓ Temps normalized ({maxTemp:F0}°C) - thermal protection released");
+                
+                // BUG FIX v2.3.1: SAFE RELEASE - Don't let BIOS drop fans to 0 RPM at warm temps!
+                // If temps are still "gaming warm" (above ThermalSafeReleaseTemp), keep fans
+                // spinning at minimum floor to prevent 0 RPM bug on Victus/OMEN laptops.
+                bool stillWarm = maxTemp >= ThermalSafeReleaseTemp;
                 
                 // BUG FIX #32: Restore the ORIGINAL fan state from BEFORE thermal protection
                 // Not necessarily _activePreset, which may have been changed during thermal event
@@ -662,6 +678,15 @@ namespace OmenCore.Services
                     _logging.Info($"Restoring preset '{_preThermalPreset.Name}' after thermal protection");
                     _fanController.ApplyPreset(_preThermalPreset);
                     _activePreset = _preThermalPreset;
+                    
+                    // If still warm and restoring to Auto/Default preset, set minimum fan floor
+                    var presetNameLower = _preThermalPreset.Name.ToLowerInvariant();
+                    if (stillWarm && (presetNameLower.Contains("auto") || presetNameLower.Contains("default")))
+                    {
+                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor (temps still {maxTemp:F0}°C)");
+                        _fanController.SetFanSpeed(ThermalReleaseMinFanPercent);
+                        _lastAppliedFanPercent = ThermalReleaseMinFanPercent;
+                    }
                 }
                 else if (_preThermalFanPercent > 0)
                 {
@@ -670,11 +695,20 @@ namespace OmenCore.Services
                 }
                 else
                 {
-                    // No pre-thermal state - use RestoreAutoControl() to properly return control to BIOS
-                    // NOTE: SetFanSpeed(0) is NOT safe on WMI backend - some firmware treats
-                    // it as "minimum speed" rather than "auto". Always use RestoreAutoControl().
-                    _logging.Info("Restoring fan control to BIOS auto mode");
-                    _fanController.RestoreAutoControl();
+                    // No pre-thermal state - restore to BIOS auto mode
+                    // BUG FIX v2.3.1: If still warm, set minimum fan floor to prevent 0 RPM
+                    if (stillWarm)
+                    {
+                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor (temps still {maxTemp:F0}°C)");
+                        _fanController.SetFanSpeed(ThermalReleaseMinFanPercent);
+                        _lastAppliedFanPercent = ThermalReleaseMinFanPercent;
+                    }
+                    else
+                    {
+                        // Truly cool (<55°C) - safe to let BIOS control
+                        _logging.Info("Restoring fan control to BIOS auto mode (temps low enough)");
+                        _fanController.RestoreAutoControl();
+                    }
                 }
                 
                 // Clear pre-thermal state

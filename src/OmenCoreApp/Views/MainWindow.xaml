@@ -9,7 +9,7 @@
         xmlns:models="clr-namespace:OmenCore.Models"
         xmlns:utils="clr-namespace:OmenCore.Utils"
         mc:Ignorable="d"
-        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="700" MinWidth="1100"
+        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="600" MinWidth="900"
         Icon="/Assets/OmenCore.ico"
         Background="{StaticResource BackgroundDarkBrush}"
         WindowStyle="None"
@@ -71,8 +71,8 @@
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="260" MinWidth="230" MaxWidth="300" />
-                    <ColumnDefinition Width="*" MinWidth="800" />
+                    <ColumnDefinition Width="260" MinWidth="200" MaxWidth="300" />
+                    <ColumnDefinition Width="*" MinWidth="600" />
                 </Grid.ColumnDefinitions>
 
                 <!-- Sidebar -->

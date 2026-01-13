@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.3.1] - 2026-01-12 - Critical Bug Fix Release 🔥
 
-**Thermal Shutdown Fix + OSD Enhancements**
+**Thermal Shutdown Fix + Fan Control Improvements + OSD Enhancements**
 
 ### 🔴 Critical: Battlefield 6 Thermal Shutdown Fix
 - **Fixed**: Storage drive sleep causing SafeFileHandle disposal crash → thermal shutdown during gaming
@@ -17,15 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added per-device exception isolation: storage failures no longer affect CPU/GPU monitoring
 - Prevents thermal shutdowns during extended gaming sessions
 
+### 🔴 Critical: Fan Drops to 0 RPM Fix
+- **Fixed**: Fans would boost high then drop to 0 RPM at 60-70°C after thermal protection
+- Affected Victus 16 and OMEN Max 16 laptops with aggressive BIOS fan control
+- Added "safe release" temperature (55°C) and minimum fan floor (30%)
+- Prevents BIOS from stopping fans when system is still gaming-warm
+
+### 🌡️ Adjustable Thermal Protection Threshold
+- **NEW**: Thermal protection threshold now configurable 70-90°C (default 80°C)
+- Advanced users can increase if their laptop handles heat better
+- Setting in: Settings → Fan Hysteresis → Thermal Protection Threshold
+
 ### 📊 OSD Network Traffic Monitoring
 - **Upload speed** display in Mbps (blue arrow ↑)
 - **Download speed** display in Mbps (green arrow ↓)
 - Auto-detects active network interface (Ethernet/WiFi)
 - Updates every 5 seconds alongside ping monitoring
 
-### 🎯 FAQ Clarification
-- **Polling interval** (1500ms) only affects UI updates, NOT fan response speed
-- Fan curve engine runs independently every 10 seconds - changing polling doesn't make fans react faster
+### 📐 OSD Horizontal Layout Option
+- Added layout toggle in Settings → OSD → Horizontal Layout
+- Stores preference in config (full XAML implementation coming in v2.3.2)
+
+### 📐 Window Sizing for Multi-Monitor
+- Reduced minimum window size from 1100×700 to 900×600
+- Works better with smaller/vertical secondary monitors
+
+### 🐧 Linux Kernel 6.18 Notes
+- Added documentation for upcoming HP-WMI driver improvements
+- Better native fan curve control via sysfs
 
 [Full v2.3.1 Changelog](docs/CHANGELOG_v2.3.1.md)
 

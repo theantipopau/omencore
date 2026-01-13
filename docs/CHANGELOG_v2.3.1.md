@@ -2,7 +2,7 @@
 
 **Release Date:** 2026-01-12
 
-This is a critical bug fix release addressing a thermal shutdown issue during gaming and adding highly requested OSD enhancements.
+This is a critical bug fix release addressing thermal shutdown issues, fan control bugs, and adding highly requested OSD enhancements.
 
 ---
 
@@ -16,16 +16,28 @@ This is a critical bug fix release addressing a thermal shutdown issue during ga
 - **Impact**: Prevents thermal shutdowns during extended gaming sessions when drives go to sleep
 - **Files**: `Program.cs` (HardwareWorker)
 
+### 🔴 **Fan Drops to 0 RPM at 60-70°C Fix** (NEW)
+- **Fixed**: Fans would boost high during gaming, then suddenly drop to 0 RPM when temps were still 60-70°C
+- **Symptom**: Reported by Solar & kastenbier2743 - "Fans shoot up then go to 0 RPM" on Victus 16 and OMEN Max 16
+- **Root cause**: When thermal protection released at 75°C, the code immediately restored BIOS auto-control, which on some HP laptop firmware would set fans to 0 RPM even at warm temps
+- **Solution**: Added "safe release" temperature (55°C) and minimum fan floor (30%) when releasing thermal protection
+  - If temps are above 55°C when thermal protection releases, keep fans at minimum 30% instead of handing back to BIOS
+  - Prevents aggressive BIOS fan stopping at gaming-warm temperatures
+- **Files**: `FanService.cs`
+
 **Technical details**:
 ```csharp
-// OLD: Single try-catch around all hardware - storage failure stops everything
-hardware.Update(); // ← Throws when storage sleeps, stops CPU/GPU monitoring
+// OLD: Release at 75°C and immediately restore BIOS auto-control
+if (_thermalProtectionActive && maxTemp < ThermalProtectionThreshold - 5) {
+    _fanController.RestoreAutoControl(); // BIOS might set fans to 0!
+}
 
-// NEW: Per-device isolation - storage fails independently
-try {
-    hardware.Update();
-} catch (ObjectDisposedException) when (hardware.HardwareType == HardwareType.Storage) {
-    continue; // Skip sleeping storage, CPU/GPU monitoring continues
+// NEW: Safe release - keep minimum fan floor if still warm
+bool stillWarm = maxTemp >= ThermalSafeReleaseTemp; // 55°C
+if (stillWarm) {
+    _fanController.SetFanSpeed(ThermalReleaseMinFanPercent); // 30% minimum
+} else {
+    _fanController.RestoreAutoControl(); // Only if truly cool
 }
 ```
 
@@ -46,6 +58,31 @@ try {
   - Upload: Blue arrow ↑ (42A5F5)
   - Download: Green arrow ↓ (66BB6A)
 - **Files**: `OsdOverlayWindow.xaml`, `OsdOverlayWindow.xaml.cs`, `AppConfig.cs`
+
+### 🌡️ **Adjustable Thermal Protection Threshold**
+- **NEW**: Thermal protection threshold is now configurable from 70°C to 90°C (default 80°C)
+- Advanced users can increase to 85-90°C if their laptop handles heat better
+- Setting in: **Settings → Fan Hysteresis → Thermal Protection Threshold**
+- **Files**: `FanHysteresisSettings`, `FanService.cs`, `SettingsViewModel.cs`, `SettingsView.xaml`
+
+### 📐 **OSD Horizontal Layout Option** (UI Framework)
+- Added layout toggle: **Settings → OSD → Layout → Horizontal Layout**
+- Stores preference in config (`OsdSettings.Layout = "Vertical" | "Horizontal"`)
+- Full horizontal XAML implementation coming in v2.3.2
+- **Files**: `OsdSettings`, `SettingsViewModel.cs`, `SettingsView.xaml`
+
+### 📐 **Window Sizing for Multi-Monitor**
+- **Improved**: Window can now be resized smaller for secondary monitors
+- Reduced minimum width from 1100px to 900px
+- Reduced minimum height from 700px to 600px
+- Works better with smaller/vertical secondary monitors
+- **Files**: `MainWindow.xaml`
+
+### 🐧 **Linux Kernel 6.18 Documentation**
+- Added notes about upcoming Linux kernel 6.18 HP-WMI improvements
+- Better native fan curve control via sysfs
+- Improved thermal profile switching
+- **Files**: `README.md`
 
 ---
 
@@ -111,10 +148,12 @@ Added new properties:
 ## 🙏 Credits
 
 **Bug Reports**:
-- u/matth (Discord) - Battlefield 6 thermal shutdown crash logs
-- u/unknown (Discord) - OSD horizontal layout request
-- u/unknown (Discord) - Network speed display request
-- u/unknown (Discord) - Polling interval confusion
+- **matth** (Discord) - Battlefield 6 thermal shutdown crash logs
+- **Solar** (Discord) - Fan drops to 0 RPM bug report (Victus 16)
+- **kastenbier2743** (Discord) - Fan 0 RPM confirmation + adjustable thermal limit request (OMEN Max 16)
+- **SimplyCarrying** (Discord) - OSD horizontal layout request
+- **replaY!** (Discord) - Window resizing for multi-monitor
+- **vuvu** (Discord) - Linux kernel 6.18 HP-WMI notes
 
 **Testing**:
 - Community testing on Discord
@@ -135,7 +174,7 @@ This is a **critical bug fix release** - all v2.3.0 users should update immediat
 ## 🚀 What's Next?
 
 ### v2.3.2 (Planned)
-- OSD horizontal layout toggle in Settings UI
+- OSD horizontal layout full XAML implementation
 - OSD preset layouts (Minimal, Standard, Full, Custom)
 - More robust storage device exclusion (ignore all HDD/SSD sleep)
 

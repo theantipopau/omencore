@@ -1191,6 +1191,64 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public bool OsdShowNetworkUpload
+        {
+            get => _config.Osd?.ShowNetworkUpload ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowNetworkUpload = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowNetworkDownload
+        {
+            get => _config.Osd?.ShowNetworkDownload ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowNetworkDownload = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        /// <summary>
+        /// OSD Layout: "Vertical" (default) or "Horizontal"
+        /// </summary>
+        public string OsdLayout
+        {
+            get => _config.Osd?.Layout ?? "Vertical";
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                if (_config.Osd.Layout != value)
+                {
+                    _config.Osd.Layout = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsOsdHorizontalLayout));
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Helper for checkbox binding - true when layout is horizontal
+        /// </summary>
+        public bool IsOsdHorizontalLayout
+        {
+            get => OsdLayout == "Horizontal";
+            set
+            {
+                OsdLayout = value ? "Horizontal" : "Vertical";
+            }
+        }
+
         #endregion
 
         #region Battery Settings
@@ -1352,6 +1410,26 @@ namespace OmenCore.ViewModels
                 if (Math.Abs(_config.FanHysteresis.RampDownDelay - value) > 0.01)
                 {
                     _config.FanHysteresis.RampDownDelay = Math.Max(0, Math.Min(30, value));
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Thermal protection threshold in °C. Default 80°C, range 70-90°C.
+        /// Fans will ramp up when temps exceed this threshold.
+        /// </summary>
+        public double ThermalProtectionThreshold
+        {
+            get => _config.FanHysteresis?.ThermalProtectionThreshold ?? 80.0;
+            set
+            {
+                if (_config.FanHysteresis == null) _config.FanHysteresis = new FanHysteresisSettings();
+                var clamped = Math.Max(70, Math.Min(90, value));
+                if (Math.Abs(_config.FanHysteresis.ThermalProtectionThreshold - clamped) > 0.1)
+                {
+                    _config.FanHysteresis.ThermalProtectionThreshold = clamped;
                     OnPropertyChanged();
                     SaveSettings();
                 }

@@ -185,7 +185,13 @@ omencore-cli daemon --start
 
 **Requirements:** 
 - **Pre-2023 models**: `ec_sys` kernel module with `write_support=1`
-- **2023+ models**: `hp-wmi` driver (kernel 6.5+ recommended)
+- **2023+ models**: `hp-wmi` driver (kernel 6.5+ recommended, kernel 6.18+ has improved fan/thermal support)
+
+**Kernel 6.18+ Improvements** (upcoming):
+- Enhanced HP-WMI driver with better OMEN laptop support
+- Native fan curve control via sysfs
+- Improved thermal profile switching
+- See [Linux kernel HP-WMI patches](https://patchwork.kernel.org/project/platform-driver-x86/list/?series=hp-wmi) for details
 
 See [LINUX_TESTING.md](docs/LINUX_TESTING.md) for detailed setup instructions.
 
