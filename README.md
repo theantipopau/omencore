@@ -189,16 +189,35 @@ omencore-cli daemon --start
 - Pop!_OS 22.04+
 
 #### Linux Hardware Access Methods
-| OMEN Model | Access Method | Notes |
-|------------|---------------|-------|
-| 2020-2022 | `ec_sys` | `sudo modprobe ec_sys write_support=1` |
-| 2023+ (13700HX, etc.) | `hp-wmi` | `sudo modprobe hp-wmi` |
+| OMEN Model | Kernel | Access Method | Notes |
+|------------|--------|---------------|-------|
+| 2023+ (13th Gen+) | 6.18+ | `hp-wmi` | ✅ **Recommended** - Best support via HP-WMI driver |
+| 2023+ (13th Gen+) | 6.5-6.17 | `hp-wmi` | Basic support, some features limited |
+| 2020-2022 | Any | `ec_sys` | `sudo modprobe ec_sys write_support=1` |
+| Pre-2020 | Any | `ec_sys` | Limited support, EC registers vary |
 
-**Requirements:** 
-- **Pre-2023 models**: `ec_sys` kernel module with `write_support=1`
-- **2023+ models**: `hp-wmi` driver (kernel 6.5+ recommended, kernel 6.18+ has improved fan/thermal support)
+**📋 Linux Requirements:**
 
-**Kernel 6.18+ Improvements** (upcoming):
+| Requirement | Recommended | Minimum |
+|-------------|-------------|---------|
+| **Kernel** | **6.18+** (best HP-WMI support) | 6.5+ for 2023+ models |
+| **Display Server** | Wayland or X11 | X11 |
+| **.NET Runtime** | Bundled (self-contained) | - |
+
+**Why Kernel 6.18+?**
+- Linux kernel 6.18 includes enhanced HP-WMI driver patches specifically for OMEN laptops
+- Native fan curve control via sysfs
+- Improved thermal profile switching  
+- Better fan speed reporting
+- Most gaming distros (Arch, Nobara, CachyOS) already ship 6.18+ kernels
+- Ubuntu LTS users can use [Ubuntu Mainline Kernel](https://github.com/bkw777/mainline) to upgrade
+
+**For Older Models (Pre-2023):**
+- Still require `ec_sys` module with write support
+- Kernel 6.18 HP-WMI won't help - EC access needed
+- Command: `sudo modprobe ec_sys write_support=1`
+
+**Kernel 6.18+ Improvements** (HP-WMI driver):
 - Enhanced HP-WMI driver with better OMEN laptop support
 - Native fan curve control via sysfs
 - Improved thermal profile switching

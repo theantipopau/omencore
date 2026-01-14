@@ -133,13 +133,22 @@ This release adds critical desktop safety protections and fixes multiple bugs re
 - **Goga** (Discord) - Undervolt FAQ question
 - **Anonymous** (Reddit) - Limited Mode FAQ, FPS OSD question
 
+**Feedback & Suggestions**:
+- **vuvu** (Discord) - Linux kernel 6.18 base requirement suggestion
+- **SlopeSlayer910** (Discord) - EC support clarification for older models
+
 ---
 
 ## 📖 Upgrade Notes
 
-**Linux users**: This release fixes the GUI crash - please update if you experienced the `DarkBackgroundBrush not found` error.
+**Linux users**: 
+- This release fixes the GUI crash - please update if you experienced the `DarkBackgroundBrush not found` error.
+- **Kernel 6.18+ recommended** for best HP-WMI support on 2023+ models
+- Pre-2023 models still require `ec_sys` module (kernel version less important)
 
-**Windows users**: No critical changes - update optional unless you want the latest fixes.
+**Windows users**: No critical changes - update recommended for desktop safety improvements.
+
+**Desktop PC users**: OmenCore now actively blocks fan control on desktops to prevent hardware damage. Monitoring-only mode is available if you acknowledge the risks.
 
 ---
 
