@@ -69,10 +69,10 @@
                     <!-- Current Mode Indicator -->
                     <Border Background="#141414" CornerRadius="6" Padding="12,10">
                         <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="Current:" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Current:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" />
                             <Border Background="#1A00BFFF" CornerRadius="4" Padding="12,4">
                                 <TextBlock Text="{Binding CurrentPerformanceMode}" FontWeight="SemiBold" 
-                                           Foreground="{StaticResource OmenBlueBrush}" />
+                                           Foreground="{DynamicResource OmenBlueBrush}" />
                             </Border>
                             <ProgressBar IsIndeterminate="True" Width="80"
                                          IsVisible="{Binding IsPerformanceModeChanging}" />
@@ -107,9 +107,9 @@
                     
                     <Border Background="#141414" CornerRadius="6" Padding="12,10">
                         <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="Current Mode:" Foreground="{StaticResource SecondaryTextBrush}" />
+                            <TextBlock Text="Current Mode:" Foreground="{DynamicResource SecondaryTextBrush}" />
                             <TextBlock Text="{Binding CurrentGpuMode}" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource OmenBlueBrush}" />
+                                       Foreground="{DynamicResource OmenBlueBrush}" />
                         </StackPanel>
                     </Border>
                     
@@ -134,7 +134,7 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Grid.Column="0" Text="Brightness" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="{Binding KeyboardBrightness, StringFormat={}{0}%}" 
-                                           Foreground="{StaticResource OmenBlueBrush}" FontWeight="SemiBold" />
+                                           Foreground="{DynamicResource OmenBlueBrush}" FontWeight="SemiBold" />
                             </Grid>
                             <Slider Value="{Binding KeyboardBrightness}" 
                                     Minimum="0" Maximum="100"
@@ -197,7 +197,7 @@
                         <!-- Color Preview -->
                         <TextBlock Classes="caption" Text="Preview" Margin="0,12,0,4" />
                         <Border Height="40" CornerRadius="6"
-                                Background="{StaticResource OmenBlueBrush}" 
+                                Background="{DynamicResource OmenBlueBrush}" 
                                 Name="ColorPreviewBorder" />
                     </StackPanel>
                 </StackPanel>

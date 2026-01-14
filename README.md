@@ -2,6 +2,8 @@
 
 **A modern, lightweight, and fully independent control center for HP OMEN & Victus gaming laptops.**
 
+> ⚠️ **LAPTOPS ONLY** - OmenCore is designed exclusively for HP OMEN and Victus **laptops**. It is **NOT compatible** with OMEN desktops (25L, 30L, 40L, 45L, Tower series). Desktop systems use different cooling hardware (liquid cooling pumps, tower fans) that require completely different control methods. Running OmenCore on an OMEN desktop may cause hardware damage or overheating. If you have a desktop, please use HP OMEN Gaming Hub instead.
+
 OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services required, no bloatware, no telemetry, no ads. Built with WPF on .NET 8, it provides professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
 
 **🎯 Key Differentiators:**
@@ -12,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.1)
+[![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.2)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -23,19 +25,28 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.3.1
+## 🆕 What's New in v2.3.2
+
+- 🛡️ **Desktop Safety Protection** - OmenCore now detects OMEN desktops and blocks fan control to prevent hardware damage (monitoring-only mode available)
+- 🐧 **Linux GUI Crash Fixed** - Resolved Avalonia startup crash on Linux (`StaticResource 'DarkBackgroundBrush' not found`)
+- 🔧 **OMEN 17/Max Fan Presets** - Improved V2→V1 command fallback for models where BIOS returns error code 6
+- 📊 **OSD Mode Updates** - Performance and fan mode changes now immediately refresh the on-screen display
+- 🪟 **Window Rounded Corners** - Fixed missing rounded corners on Windows with DWM composition
+- 📐 **Smaller Minimum Window** - Reduced from 900×600 to 800×500 for smaller displays
+
+Full changelog: [CHANGELOG_v2.3.2.md](docs/CHANGELOG_v2.3.2.md)
+
+---
+
+## 📖 Previous Releases
+
+### v2.3.1 - Critical Bug Fix
 
 - 🔥 **Critical Fix**: Battlefield 6 thermal shutdown when storage drives sleep - SafeFileHandle crash prevented fans from responding to RTX 4090 @ 87°C
 - 📊 **OSD Network Speeds**: Upload/download monitoring in Mbps with auto-detection of active interface
 - 🎯 **FAQ**: Clarified polling interval doesn't affect fan response speed (common misconception)
 
 Full changelog: [CHANGELOG_v2.3.1.md](docs/CHANGELOG_v2.3.1.md)
-
----
-
-## 📖 Previous Releases
-
-### v2.3.0 - Major Feature Release
 
 - 🛡️ **Fan Curve Safety System** - Real-time validation, hardware watchdog, and automatic curve recovery
 - 📦 **Profile Import/Export** - Share complete configurations (fan curves, RGB, settings) as `.omencore` files

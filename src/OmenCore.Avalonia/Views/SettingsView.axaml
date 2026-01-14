@@ -129,9 +129,9 @@
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Spacing="4">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Version:" Foreground="{StaticResource SecondaryTextBrush}" />
+                                    <TextBlock Text="Version:" Foreground="{DynamicResource SecondaryTextBrush}" />
                                     <TextBlock Text="{Binding Version}" FontWeight="SemiBold" 
-                                               Foreground="{StaticResource OmenBlueBrush}" />
+                                               Foreground="{DynamicResource OmenBlueBrush}" />
                                 </StackPanel>
                                 <TextBlock Classes="caption" Text="Open-source gaming laptop control for Linux" />
                             </StackPanel>
@@ -150,7 +150,7 @@
             <Border Classes="infoBanner" 
                     IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="✓" FontSize="14" Foreground="{StaticResource OmenGreenBrush}" />
+                    <TextBlock Text="✓" FontSize="14" Foreground="{DynamicResource OmenGreenBrush}" />
                     <TextBlock Text="{Binding StatusMessage}" />
                 </StackPanel>
             </Border>

@@ -483,6 +483,7 @@ namespace OmenCore.Hardware
         /// <summary>
         /// Get current fan speed levels.
         /// OmenMon: Cmd.Default, 0x2D (V1), 0x37 (V2 OMEN Max 2025+)
+        /// Includes fallback logic when V2 commands fail on certain models.
         /// </summary>
         public (byte fan1, byte fan2)? GetFanLevel()
         {
@@ -500,7 +501,7 @@ namespace OmenCore.Hardware
                         return (v2Result[0], v2Result[1]);
                     }
                     
-                    // Try direct RPM command (0x38) - returns actual RPM / 100
+                    // V2 command failed or returned zeros - try direct RPM command (0x38)
                     var rpmResult = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_RPM, new byte[4], 128);
                     if (rpmResult != null && rpmResult.Length >= 4)
                     {
@@ -514,9 +515,13 @@ namespace OmenCore.Hardware
                             return ((byte)(fan1Rpm / 100), (byte)(fan2Rpm / 100));
                         }
                     }
+                    
+                    // V2 commands not working - fall through to V1 commands
+                    // This handles OMEN Max models that report V2 but don't support V2 read commands
+                    _logging?.Debug("V2 fan commands failed, falling back to V1");
                 }
                 
-                // Standard V1 command
+                // Standard V1 command (fallback for all systems)
                 var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_LEVEL, new byte[4], 128);
                 if (result != null && result.Length >= 2)
                 {

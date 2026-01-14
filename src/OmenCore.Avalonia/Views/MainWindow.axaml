@@ -6,7 +6,7 @@
         x:DataType="vm:MainWindowViewModel"
         Title="OmenCore"
         Width="1200" Height="800"
-        MinWidth="900" MinHeight="600"
+        MinWidth="800" MinHeight="500"
         WindowStartupLocation="CenterScreen">
     
     <Grid ColumnDefinitions="240,*">
@@ -18,7 +18,7 @@
                 <StackPanel DockPanel.Dock="Top" Margin="16,20,16,16" HorizontalAlignment="Center">
                     <TextBlock Text="OMENCORE" 
                                FontSize="22" FontWeight="Bold" 
-                               Foreground="{StaticResource OmenBlueBrush}"
+                               Foreground="{DynamicResource OmenBlueBrush}"
                                HorizontalAlignment="Center"
                                LetterSpacing="2" />
                     <TextBlock Text="Linux Edition" 
@@ -28,7 +28,7 @@
                                Margin="0,2,0,0" />
                     <TextBlock Text="{Binding ModelName}" 
                                FontSize="11"
-                               Foreground="{StaticResource SecondaryTextBrush}"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
                                HorizontalAlignment="Center"
                                TextTrimming="CharacterEllipsis"
                                Margin="0,8,0,0" />
@@ -50,7 +50,7 @@
                                 <TextBlock Text="PERFORMANCE" FontSize="8" FontWeight="SemiBold" Foreground="#666666" />
                                 <TextBlock Text="{Binding PerformanceMode, FallbackValue=Balanced}" 
                                            FontSize="11" FontWeight="Bold" 
-                                           Foreground="{StaticResource OmenBlueBrush}" />
+                                           Foreground="{DynamicResource OmenBlueBrush}" />
                             </StackPanel>
                         </Grid>
                         
@@ -63,7 +63,7 @@
                                 <TextBlock Text="FAN MODE" FontSize="8" FontWeight="SemiBold" Foreground="#666666" />
                                 <TextBlock Text="{Binding FanMode, FallbackValue=Auto}" 
                                            FontSize="11" FontWeight="Bold" 
-                                           Foreground="{StaticResource PrimaryTextBrush}" />
+                                           Foreground="{DynamicResource PrimaryTextBrush}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
@@ -86,7 +86,7 @@
                             </Ellipse>
                             <TextBlock Text="{Binding StatusText}" 
                                        FontSize="11"
-                                       Foreground="{StaticResource SecondaryTextBrush}" />
+                                       Foreground="{DynamicResource SecondaryTextBrush}" />
                         </StackPanel>
                     </Border>
                     
@@ -155,7 +155,7 @@
         </Border>
         
         <!-- Main Content Area -->
-        <Border Grid.Column="1" Background="{StaticResource DarkBackgroundBrush}" Padding="24,20">
+        <Border Grid.Column="1" Background="{DynamicResource DarkBackgroundBrush}" Padding="24,20">
             <ContentControl Content="{Binding CurrentView}">
                 <ContentControl.DataTemplates>
                     <DataTemplate DataType="{x:Type vm:DashboardViewModel}">

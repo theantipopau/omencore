@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.2] - 2026-01-14 - Critical Safety & Bug Fix Release 🛡️
+
+**Desktop safety protection + Linux GUI fix + Multiple bug fixes**
+
+### 🛡️ CRITICAL: Desktop PC Safety
+- **Desktop systems now require explicit user confirmation before enabling fan control**
+- OmenCore is designed for OMEN LAPTOPS - desktop EC registers are completely different
+- Warning upgraded from "experimental" to "NOT SUPPORTED - USE AT YOUR OWN RISK"
+- Fan control disabled by default on desktop systems
+- Added blocking confirmation dialog for desktop users
+
+### 🐧 Linux GUI Crash Fix
+- **Fixed**: GUI crashed on startup with "StaticResource 'DarkBackgroundBrush' not found"
+- Changed `StaticResource` to `DynamicResource` in all Avalonia XAML views
+- Fixes resource loading order issue on Debian 13 and Ubuntu 24.04
+
+### 🔧 Bug Fixes
+- **OSD Mode Update**: OSD now properly updates when switching performance/fan modes
+- **Fan Control Fallback**: Improved V2 command fallback for OMEN Max/17-ck models
+- **Window Corners**: Improved rounded corner rendering with explicit clip geometry
+- **Window Size**: Reduced minimum size from 900×600 to 850×550
+
+### 📋 Known Issues
+- FPS counter is estimated from GPU load (accurate FPS via D3D11 hook in v2.4.0)
+- Some OMEN Max/17-ck models may still have fan control issues - we need more testing data
+
+---
+
 ## [2.3.1] - 2026-01-12 - Critical Bug Fix Release 🔥
 
 **Thermal Shutdown Fix + Fan Control Improvements + OSD Enhancements**

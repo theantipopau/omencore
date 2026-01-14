@@ -9,9 +9,9 @@
         xmlns:models="clr-namespace:OmenCore.Models"
         xmlns:utils="clr-namespace:OmenCore.Utils"
         mc:Ignorable="d"
-        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="600" MinWidth="900"
+        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="500" MinWidth="800"
         Icon="/Assets/OmenCore.ico"
-        Background="{StaticResource BackgroundDarkBrush}"
+        Background="Transparent"
         WindowStyle="None"
         AllowsTransparency="True"
         ResizeMode="CanResizeWithGrip"
@@ -27,7 +27,12 @@
     
     <!-- DataContext will be set via dependency injection in code-behind -->
     
-    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12">
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12"
+            Background="{StaticResource BackgroundDarkBrush}">
+        <Border.Effect>
+            <!-- Subtle shadow for depth on systems that support it -->
+            <DropShadowEffect BlurRadius="15" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.3" />
+        </Border.Effect>
         <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />

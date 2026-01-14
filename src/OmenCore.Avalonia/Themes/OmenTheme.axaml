@@ -1,6 +1,36 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     
+    <!-- ==================== Theme Resources ==================== -->
+    <!-- These must be defined here so they're available when styles load -->
+    <Styles.Resources>
+        <!-- Background Colors -->
+        <Color x:Key="DarkBackground">#0D0D0D</Color>
+        <Color x:Key="CardBackground">#1A1A1A</Color>
+        <Color x:Key="SurfaceBackground">#141414</Color>
+        <Color x:Key="SurfaceBorder">#252525</Color>
+        
+        <!-- Text Colors -->
+        <Color x:Key="PrimaryText">#FFFFFF</Color>
+        <Color x:Key="SecondaryText">#B0B0B0</Color>
+        
+        <!-- Brand Colors -->
+        <Color x:Key="OmenBlue">#00BFFF</Color>
+        <Color x:Key="OmenRed">#E31837</Color>
+        <Color x:Key="OmenGreen">#39FF14</Color>
+        
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource DarkBackground}" />
+        <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackground}" />
+        <SolidColorBrush x:Key="SurfaceBackgroundBrush" Color="{StaticResource SurfaceBackground}" />
+        <SolidColorBrush x:Key="SurfaceBorderBrush" Color="{StaticResource SurfaceBorder}" />
+        <SolidColorBrush x:Key="PrimaryTextBrush" Color="{StaticResource PrimaryText}" />
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource SecondaryText}" />
+        <SolidColorBrush x:Key="OmenBlueBrush" Color="{StaticResource OmenBlue}" />
+        <SolidColorBrush x:Key="OmenRedBrush" Color="{StaticResource OmenRed}" />
+        <SolidColorBrush x:Key="OmenGreenBrush" Color="{StaticResource OmenGreen}" />
+    </Styles.Resources>
+    
     <!-- Window Base Style -->
     <Style Selector="Window">
         <Setter Property="Background" Value="{StaticResource DarkBackgroundBrush}" />

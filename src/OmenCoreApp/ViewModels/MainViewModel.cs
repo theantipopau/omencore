@@ -1121,8 +1121,38 @@ namespace OmenCore.ViewModels
             // Set capability warning if functionality is limited
             if (capabilities.IsDesktop)
             {
-                CapabilityWarning = $"Desktop PC detected ({capabilities.Chassis}). OMEN desktop fan control is experimental - EC registers differ from laptops.";
-                _logging.Warn("Desktop OMEN PC - fan control support is limited. Consider using OMEN Gaming Hub for desktop systems.");
+                CapabilityWarning = $"⚠️ DESKTOP PC DETECTED - Fan control DISABLED for safety. OmenCore is designed for OMEN LAPTOPS only.";
+                _logging.Warn("Desktop OMEN PC detected - fan control DISABLED. OmenCore is designed for laptops only. Desktop EC registers differ significantly and can cause hardware damage.");
+                
+                // Show blocking warning dialog for desktops - require explicit acknowledgment
+                var result = System.Windows.MessageBox.Show(
+                    "⚠️ DESKTOP PC DETECTED\n\n" +
+                    "OmenCore is designed for OMEN LAPTOPS only.\n\n" +
+                    "Desktop OMEN systems (25L, 30L, 40L, 45L) use completely different\n" +
+                    "EC registers and fan control mechanisms. Using OmenCore on desktops\n" +
+                    "can cause:\n\n" +
+                    "• Fans stuck at wrong speeds\n" +
+                    "• Cooling system malfunction\n" +
+                    "• CPU/GPU overheating\n" +
+                    "• Potential hardware damage\n\n" +
+                    "Fan control has been DISABLED for your safety.\n" +
+                    "You can still use monitoring features.\n\n" +
+                    "Click OK to continue in monitoring-only mode,\n" +
+                    "or Cancel to exit.",
+                    "OmenCore - Desktop Not Supported",
+                    System.Windows.MessageBoxButton.OKCancel,
+                    System.Windows.MessageBoxImage.Warning);
+                
+                if (result == System.Windows.MessageBoxResult.Cancel)
+                {
+                    _logging.Info("User chose to exit after desktop warning");
+                    System.Windows.Application.Current.Shutdown();
+                    return;
+                }
+                
+                // Force monitoring-only mode on desktops
+                capabilities.FanControl = Hardware.FanControlMethod.MonitoringOnly;
+                capabilities.CanSetFanSpeed = false;
             }
             else if (capabilities.SecureBootEnabled && !capabilities.OghRunning)
             {
@@ -2721,6 +2751,7 @@ namespace OmenCore.ViewModels
                         // Use ApplyMaxCooling for true 100% fan speed via SetFanMax
                         _fanService.ApplyMaxCooling();
                         CurrentFanMode = "Max";
+                        _osdService?.SetFanMode("Max");  // Update OSD
                         PushEvent($"🌀 Fan mode: Max (100%)");
                         _logging.Info("Fan mode set to Max via ApplyMaxCooling");
                         return;
@@ -2729,6 +2760,7 @@ namespace OmenCore.ViewModels
                         // Use ApplyAutoMode for BIOS-controlled auto mode
                         _fanService.ApplyAutoMode();
                         CurrentFanMode = "Auto";
+                        _osdService?.SetFanMode("Auto");  // Update OSD
                         PushEvent($"🌀 Fan mode: Auto");
                         _logging.Info("Fan mode set to Auto via ApplyAutoMode");
                         return;
@@ -2737,6 +2769,7 @@ namespace OmenCore.ViewModels
                         // Use ApplyQuietMode for quiet/silent mode
                         _fanService.ApplyQuietMode();
                         CurrentFanMode = "Quiet";
+                        _osdService?.SetFanMode("Quiet");  // Update OSD
                         PushEvent($"🌀 Fan mode: Quiet");
                         _logging.Info("Fan mode set to Quiet via ApplyQuietMode");
                         return;
@@ -2751,6 +2784,7 @@ namespace OmenCore.ViewModels
                     SelectedPreset = targetPreset;
                     _fanService.ApplyPreset(targetPreset);
                     CurrentFanMode = mode;
+                    _osdService?.SetFanMode(mode);  // Update OSD
                     PushEvent($"🌀 Fan mode: {mode}");
                 }
                 else
@@ -2781,6 +2815,7 @@ namespace OmenCore.ViewModels
                         SystemControl.SelectedPerformanceMode = targetMode;
                         SystemControl.ApplyPerformanceModeCommand?.Execute(null);
                         CurrentPerformanceMode = mode;
+                        _osdService?.SetPerformanceMode(mode);  // Update OSD
                         PushEvent($"⚡ Performance: {mode}");
                     }
                 }
@@ -2789,6 +2824,7 @@ namespace OmenCore.ViewModels
                     // Direct service call as fallback
                     _performanceModeService.Apply(new PerformanceMode { Name = mode });
                     CurrentPerformanceMode = mode;
+                    _osdService?.SetPerformanceMode(mode);  // Update OSD
                     PushEvent($"⚡ Performance: {mode}");
                 }
             }
