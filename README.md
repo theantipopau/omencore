@@ -212,6 +212,12 @@ omencore-cli daemon --start
 - Most gaming distros (Arch, Nobara, CachyOS) already ship 6.18+ kernels
 - Ubuntu LTS users can use [Ubuntu Mainline Kernel](https://github.com/bkw777/mainline) to upgrade
 
+**⚠️ Very New Models (2025+):**
+- Brand-new models like **OMEN MAX 16z-ak000** (Ryzen AI 9 HX) may not yet be in the hp-wmi driver
+- Fan presets/performance profiles may have no effect until kernel patches are merged
+- Check `dmesg | grep -i wmi` to see if your model is recognized
+- Advanced users can [patch the hp-wmi driver](https://patchwork.kernel.org/project/platform-driver-x86/list/) to add their board ID
+
 **For Older Models (Pre-2023):**
 - Still require `ec_sys` module with write support
 - Kernel 6.18 HP-WMI won't help - EC access needed

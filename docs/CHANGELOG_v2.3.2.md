@@ -55,6 +55,14 @@ This release adds critical desktop safety protections and fixes multiple bugs re
 - **Reporter**: @SY-07
 - **Files**: `OmenKeyService.cs`
 
+### ✅ **Linux: GitHub Button Not Working** (Fixed)
+- **Symptom**: Clicking GitHub button does nothing, log shows `kfmclient: command not found`
+- **Root Cause**: `xdg-open` fails on some Linux DEs without proper defaults configured
+- **Fix**: Added fallback to try common browsers directly (firefox, chromium, chrome, brave)
+- **Also Fixed**: Wrong GitHub URL (pointed to old fork)
+- **Reporter**: Discord user (OMEN MAX 16z tester)
+- **Files**: `MainWindowViewModel.cs`, `SettingsViewModel.cs`
+
 ### ✅ **Window Minimum Size Reduced**
 - **Change**: Reduced minimum size from 900×600 to 850×550
 - **Reporter**: @replaY!
@@ -120,7 +128,7 @@ This release adds critical desktop safety protections and fixes multiple bugs re
 
 ### Linux
 - **OmenCore-2.3.2-linux-x64.zip** - GUI + CLI bundle
-  - SHA256: `91D3E3A21334AB868458D757CD991713F814361E585599ED81B1A27D288F65BE`
+  - SHA256: `8E3F4C3EE29A1D27B435D0111291D7F76BDE025FC999D3216A0BC1AA5A0EF249`
 
 ---
 
@@ -144,6 +152,24 @@ This release adds critical desktop safety protections and fixes multiple bugs re
 **Feedback & Suggestions**:
 - **vuvu** (Discord) - Linux kernel 6.18 base requirement suggestion
 - **SlopeSlayer910** (Discord) - EC support clarification for older models
+
+---
+
+## ⚠️ Known Linux Limitations
+
+### 🐧 **OMEN MAX 16z-ak000 (AMD Ryzen AI 9 HX 375)** - Kernel Driver Required
+- **Issue**: Fan presets and performance profiles have no effect
+- **Root Cause**: The Linux `hp-wmi` kernel driver doesn't yet support this 2025 OMEN MAX AMD model
+- **User Workaround**: Manually patched hp-wmi driver to add board model for 100W CPU boost
+- **Status**: This is a **Linux kernel limitation**, not an OmenCore bug
+- **Action**: Consider submitting the board ID to the [Linux HP-WMI maintainers](https://patchwork.kernel.org/project/platform-driver-x86/list/)
+- **Reporter**: Discord user (OMEN MAX 16z tester)
+
+**Note for Linux users on newer OMEN models:**
+- OmenCore relies on the `hp-wmi` kernel driver for fan/thermal control
+- New models may not be supported until kernel patches are merged
+- Check `dmesg | grep -i wmi` to see if your model is recognized
+- Kernel 6.18+ has better OMEN support, but brand-new models may still need patches
 
 ---
 

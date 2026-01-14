@@ -148,17 +148,42 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void OpenGitHub()
     {
+        OpenUrl("https://github.com/theantipopau/omencore");
+    }
+    
+    private void OpenUrl(string url)
+    {
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "https://github.com/Jeyloh/OmenCore",
+                FileName = url,
                 UseShellExecute = true
             });
         }
         catch
         {
-            // Ignore
+            // Fallback for Linux when xdg-open fails
+            try
+            {
+                var browsers = new[] { "firefox", "chromium", "google-chrome", "brave-browser", "xdg-open" };
+                foreach (var browser in browsers)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = browser,
+                            Arguments = url,
+                            UseShellExecute = false,
+                            RedirectStandardError = true
+                        });
+                        return;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
     }
 }
