@@ -238,26 +238,26 @@ EC write to address 0x2C is blocked for safety. Only approved addresses can be w
 **Old Behavior:** Settings was a single long scrolling page with 2000+ lines, requiring extensive scrolling
 
 **New Behavior:**
-- Settings now uses TabControl for organization
-- Initial implementation: Single "Status" tab (foundation for future sub-tabs)
-- Planned organization:
-  - **Status**: System info, backend status, Secure Boot, PawnIO, OGH
-  - **General**: Start with Windows, minimize behavior, telemetry, Corsair settings
-  - **Advanced**: Monitoring intervals, hotkeys, fan hysteresis, EC reset, OMEN key
+- Settings now organized into 5 logical tabs
+- Complete organization:
+  - **Status**: System info, backend status, Secure Boot, PawnIO, OGH, telemetry opt-in
+  - **General**: Start with Windows, minimize behavior, Corsair settings, auto-update
+  - **Advanced**: Monitoring intervals, hotkeys, fan hysteresis, EC reset, OMEN key, battery care
   - **Appearance**: OSD settings, notifications, UI preferences
-  - **About**: Version info, update settings, links
+  - **About**: Version info, update settings, links, GitHub/issues
 
 **Benefits:**
-- Reduced scrolling - settings grouped by category
+- Dramatically reduced scrolling - settings grouped by category
 - Faster navigation to specific settings
-- Foundation for future settings organization
+- Cleaner, more organized UI
+- Foundation for future nested settings
 
 **Files Changed:**
-- `Views/SettingsView.xaml` - Wrapped content in TabControl
+- `Views/SettingsView.xaml` - Reorganized into TabControl with 5 TabItems
 
-**Status:** ⚙️ IN PROGRESS - Tab structure added, content reorganization in next iteration
+**Status:** ✅ COMPLETED - All 5 tabs properly implemented and content organized
 
-**User Impact:** Foundation for better settings navigation
+**User Impact:** Much faster settings navigation with logical grouping
 
 
 ---

@@ -207,6 +207,17 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+            </StackPanel>
+        </ScrollViewer>
+            </TabItem>
+            
+            <!-- General Tab -->
+            <TabItem Header="General">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
+                              utils:ScrollSpeedBehavior.ScrollSpeedMultiplier="1.2"
+                              IsDeferredScrollingEnabled="True"
+                              Padding="0,0,12,0">
+                    <StackPanel Margin="20,20,20,40">
                 
                 <!-- General Settings -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
@@ -327,7 +338,12 @@
                                           ToolTipService.ToolTip="Share anonymous PID success/failure counts to help improve device support. Opt-in only; stored at %LOCALAPPDATA%\OmenCore\telemetry.json"/>
                         </Grid>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Advanced">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" Padding="0,0,12,0">
+                    <StackPanel Margin="20,20,20,40">
 
                 <!-- Monitoring Settings -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
@@ -1425,6 +1441,14 @@
                     </StackPanel>
                 </Border>
 
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Appearance">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" Padding="0,0,12,0">
+                    <StackPanel Margin="20,20,20,40">
+
                 <!-- In-Game OSD Settings -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
@@ -2056,6 +2080,14 @@
                     </StackPanel>
                 </Border>
 
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="About">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" Padding="0,0,12,0">
+                    <StackPanel Margin="20,20,20,40">
+
                 <!-- About Section -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24">
                     <StackPanel>
@@ -2091,8 +2123,8 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-            </StackPanel>
-        </ScrollViewer>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
         
