@@ -28,6 +28,7 @@ namespace OmenCore.Services
         private readonly double _lowOverheadChangeThreshold = 3.0; // Higher threshold in low overhead mode
         private volatile bool _isPaused; // For S0 Modern Standby support (volatile for thread-safety)
         private readonly object _pauseLock = new();
+        private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
@@ -148,15 +149,21 @@ namespace OmenCore.Services
                     {
                         if (!_lowOverheadMode)
                         {
-                            // Use BeginInvoke to avoid potential deadlocks
-                            Application.Current?.Dispatcher?.BeginInvoke(() =>
+                            // Throttle UI updates to prevent Dispatcher backlog during heavy load
+                            if (!_pendingUIUpdate)
                             {
-                                _samples.Add(sample);
-                                while (_samples.Count > _history)
+                                _pendingUIUpdate = true;
+                                // Use BeginInvoke to avoid potential deadlocks
+                                Application.Current?.Dispatcher?.BeginInvoke(() =>
                                 {
-                                    _samples.RemoveAt(0);
-                                }
-                            });
+                                    _samples.Add(sample);
+                                    while (_samples.Count > _history)
+                                    {
+                                        _samples.RemoveAt(0);
+                                    }
+                                    _pendingUIUpdate = false;
+                                });
+                            }
                         }
 
                         SampleUpdated?.Invoke(this, sample);

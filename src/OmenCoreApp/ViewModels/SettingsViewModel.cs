@@ -2886,11 +2886,23 @@ namespace OmenCore.ViewModels
                     DefaultExt = ".omencore"
                 };
                 
-                if (dialog.ShowDialog() != true || string.IsNullOrEmpty(dialog.FileName))
+                if (dialog.ShowDialog() != true)
                     return;
                 
-                var fileName = dialog.FileName!; // Guaranteed non-null after ShowDialog() == true check
+                var fileName = dialog.FileName;
+                if (string.IsNullOrEmpty(fileName))
+                    return;
+                
                 var profile = await _profileExportService.ImportProfileAsync(fileName);
+                if (profile == null)
+                {
+                    MessageBox.Show(
+                        "Failed to import profile. The file may be corrupted or incompatible.",
+                        "Import Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
                 
                 // Show import options dialog
                 var result = MessageBox.Show(
@@ -2908,7 +2920,7 @@ namespace OmenCore.ViewModels
                 if (result != MessageBoxResult.Yes)
                     return;
                 
-                _profileExportService.ApplyProfile(profile!, _config); // profile is guaranteed non-null here
+                _profileExportService.ApplyProfile(profile, _config);
                 _configService.Save(_config);
                 
                 _logging.Info($"Profile imported successfully from {fileName}");

@@ -1072,9 +1072,15 @@ namespace OmenCore.Hardware
                 CimMethodParametersCollection methodParams = new();
                 methodParams.Add(CimMethodParameter.Create("InData", input, Microsoft.Management.Infrastructure.CimType.Instance, CimFlags.In));
 
+                // Set 5-second timeout to prevent UI freeze from WMI hangs
+                using var options = new CimOperationOptions
+                {
+                    Timeout = TimeSpan.FromSeconds(5)
+                };
+
                 // Call the pertinent method depending on the data size
                 CimMethodResult result = _cimSession.InvokeMethod(
-                    _biosMethods, BIOS_METHOD + Convert.ToString(outDataSize), methodParams);
+                    _biosMethods, BIOS_METHOD + Convert.ToString(outDataSize), methodParams, options);
 
                 // Retrieve the resulting data
                 using CimInstance? resultData = result.OutParameters["OutData"].Value as CimInstance;

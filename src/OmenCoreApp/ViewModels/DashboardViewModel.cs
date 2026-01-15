@@ -20,6 +20,7 @@ namespace OmenCore.ViewModels
         private string _currentPerformanceMode = "Auto";
         private string _currentFanMode = "Auto";
         private bool _disposed;
+        private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
         
         // Session tracking (v2.2)
         private readonly DateTime _sessionStartTime = DateTime.Now;
@@ -188,24 +189,30 @@ namespace OmenCore.ViewModels
         {
             LatestMonitoringSample = sample;
             
-            // Marshal to UI thread for ObservableCollection updates
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+            // Throttle UI updates to prevent Dispatcher backlog during heavy load
+            if (!_pendingUIUpdate)
             {
-                // Convert to ThermalSample for temperature charts
-                _thermalSamples.Add(new ThermalSample
+                _pendingUIUpdate = true;
+                // Marshal to UI thread for ObservableCollection updates
+                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
                 {
-                    Timestamp = sample.Timestamp,
-                    CpuCelsius = sample.CpuTemperatureC,
-                    GpuCelsius = sample.GpuTemperatureC
+                    // Convert to ThermalSample for temperature charts
+                    _thermalSamples.Add(new ThermalSample
+                    {
+                        Timestamp = sample.Timestamp,
+                        CpuCelsius = sample.CpuTemperatureC,
+                        GpuCelsius = sample.GpuTemperatureC
+                    });
+                    
+                    // Trim to max history size - remove excess items in one pass
+                    var excessCount = _thermalSamples.Count - MaxThermalSampleHistory;
+                    for (int i = 0; i < excessCount; i++)
+                    {
+                        _thermalSamples.RemoveAt(0);
+                    }
+                    _pendingUIUpdate = false;
                 });
-                
-                // Trim to max history size - remove excess items in one pass
-                var excessCount = _thermalSamples.Count - MaxThermalSampleHistory;
-                for (int i = 0; i < excessCount; i++)
-                {
-                    _thermalSamples.RemoveAt(0);
-                }
-            });
+            }
         }
         
         /// <summary>

@@ -75,7 +75,10 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         
         // Read CPU/memory usage from /proc
         status.CpuUsage = await ReadCpuUsageAsync();
-        status.MemoryUsage = await ReadMemoryUsageAsync();
+        var (memPercentage, memUsedGb, memTotalGb) = await ReadMemoryUsageAsync();
+        status.MemoryUsage = memPercentage;
+        status.MemoryUsedGb = memUsedGb;
+        status.MemoryTotalGb = memTotalGb;
         
         // Read battery status
         (status.BatteryPercentage, status.IsOnBattery) = await ReadBatteryStatusAsync();
@@ -530,7 +533,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         return parts.Skip(1).Select(long.Parse).ToArray();
     }
 
-    private static async Task<double> ReadMemoryUsageAsync()
+    private static async Task<(double percentage, double usedGb, double totalGb)> ReadMemoryUsageAsync()
     {
         try
         {
@@ -545,10 +548,16 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                     available = long.Parse(line.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1]);
             }
 
-            return total > 0 ? (1.0 - (double)available / total) * 100 : 0;
+            if (total > 0)
+            {
+                var totalGb = total / 1024.0 / 1024.0; // Convert KB to GB
+                var usedGb = (total - available) / 1024.0 / 1024.0;
+                var percentage = (1.0 - (double)available / total) * 100;
+                return (percentage, usedGb, totalGb);
+            }
         }
         catch { }
-        return 0;
+        return (0, 0, 0);
     }
 
     private static async Task<(int percentage, bool onBattery)> ReadBatteryStatusAsync()
