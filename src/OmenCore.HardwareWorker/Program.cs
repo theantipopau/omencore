@@ -166,13 +166,42 @@ class Program
         Console.WriteLine("LibreHardwareMonitor initialized.");
         
         // Log detected GPUs for diagnostics
-        LogDetectedGpus();
+        LogDetectedHardware();
     }
     
-    private static void LogDetectedGpus()
+    private static void LogDetectedHardware()
     {
         if (_computer?.Hardware == null) return;
         
+        var logPath = GetLogPath();
+        
+        // Log CPU sensors first (critical for fan control)
+        foreach (var hw in _computer.Hardware)
+        {
+            if (hw.HardwareType == HardwareType.Cpu)
+            {
+                hw.Update();
+                var tempSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Temperature).ToList();
+                var loadSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Load).ToList();
+                var powerSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Power).ToList();
+                
+                Console.WriteLine($"[CPU Detected] {hw.Name}");
+                Console.WriteLine($"  Temp sensors ({tempSensors.Count}): [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]");
+                Console.WriteLine($"  Load sensors ({loadSensors.Count}): [{string.Join(", ", loadSensors.Select(s => $"{s.Name}={s.Value:F0}%"))}]");
+                Console.WriteLine($"  Power sensors ({powerSensors.Count}): [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]");
+                
+                File.AppendAllText(logPath, $"[{DateTime.Now:O}] [CPU Detected] {hw.Name}\n");
+                File.AppendAllText(logPath, $"  Temp sensors ({tempSensors.Count}): [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
+                
+                if (tempSensors.Count == 0)
+                {
+                    File.AppendAllText(logPath, $"  ⚠️ WARNING: No CPU temperature sensors detected!\n");
+                    Console.WriteLine("  ⚠️ WARNING: No CPU temperature sensors detected!");
+                }
+            }
+        }
+        
+        // Log GPU sensors
         foreach (var hw in _computer.Hardware)
         {
             if (hw.HardwareType == HardwareType.GpuNvidia ||
@@ -198,7 +227,6 @@ class Program
                 Console.WriteLine($"  Power sensors: [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]");
                 
                 // Also log to file
-                var logPath = GetLogPath();
                 File.AppendAllText(logPath, $"[{DateTime.Now:O}] [GPU Detected] {gpuType}: {hw.Name}\n");
                 File.AppendAllText(logPath, $"  Temp sensors: [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
             }
