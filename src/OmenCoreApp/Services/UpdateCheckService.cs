@@ -15,7 +15,7 @@ namespace OmenCore.Services
         private readonly LoggingService _logging;
         private readonly HttpClient _httpClient;
         private const string GitHubApiUrl = "https://api.github.com/repos/theantipopau/omencore/releases/latest";
-        private const string CurrentVersion = "2.4.0";
+        private const string CurrentVersion = "2.5.0";
 
         private bool _hasChecked = false;
         private UpdateInfo? _latestUpdate;

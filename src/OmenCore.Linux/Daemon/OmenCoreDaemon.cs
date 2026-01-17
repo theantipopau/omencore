@@ -82,7 +82,7 @@ public class OmenCoreDaemon : IDisposable
         SetupConfigWatcher();
         
         Log("═══════════════════════════════════════════════════════════");
-        Log("          OmenCore Linux Daemon v2.4.0 Started            ");
+        Log("          OmenCore Linux Daemon v2.5.0 Started            ");
         Log("═══════════════════════════════════════════════════════════");
         Log($"Config: {(_config.Fan.Profile == "custom" ? "Custom fan curve" : $"Profile: {_config.Fan.Profile}")}");
         Log($"Poll interval: {_config.General.PollIntervalMs}ms");
