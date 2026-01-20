@@ -652,8 +652,19 @@ namespace OmenCore.Hardware
 
         public IEnumerable<FanTelemetry> ReadFanSpeeds() => _controller.ReadFanSpeeds();
 
-        public void ApplyMaxCooling() => SetFanSpeed(100);
-        public void ApplyAutoMode() => SetFanSpeed(50);
+        public void ApplyMaxCooling()
+        {
+            // Use the proper SetMaxSpeed method with fan boost, not just SetFanSpeed
+            _logging?.Info("Applying Max cooling via EC (with fan boost)...");
+            _controller.SetMaxSpeed();
+        }
+        
+        public void ApplyAutoMode()
+        {
+            // Actually restore BIOS auto control instead of setting fixed 50%
+            _logging?.Info("Applying Auto mode via EC (restoring BIOS control)...");
+            RestoreAutoControl();
+        }
         public void ApplyQuietMode() => SetFanSpeed(30);
         
         public bool ResetEcToDefaults()

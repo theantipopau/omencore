@@ -312,12 +312,48 @@ namespace OmenCore.Services
         {
             try
             {
-                // Since we only register for the specific OMEN key event query
-                // (eventId=29, eventData=8613), any event we receive here IS the OMEN key
-                var eventData = e.NewEvent;
-                var className = eventData.ClassPath?.ClassName ?? "Unknown";
+                // Even though we query for eventId=29, eventData=8613, HP BIOS on some models
+                // may use the same event codes for brightness and other Fn keys.
+                // We need to verify the actual event data to filter out false positives.
+                var wmiEvent = e.NewEvent;
+                var className = wmiEvent.ClassPath?.ClassName ?? "Unknown";
                 
-                _logging.Info($"🔑 OMEN key detected via WMI ({className})");
+                // Try to extract eventId and eventData from the WMI event
+                int? eventId = null;
+                int? eventData = null;
+                
+                try
+                {
+                    eventId = Convert.ToInt32(wmiEvent["eventId"]);
+                    eventData = Convert.ToInt32(wmiEvent["eventData"]);
+                }
+                catch 
+                { 
+                    // Properties may not exist on all models
+                }
+                
+                _logging.Debug($"WMI event received: class={className}, eventId={eventId}, eventData={eventData}");
+                
+                // Known brightness/hotkey event IDs to exclude (varies by model)
+                // eventId 17 = Brightness change events on some HP models
+                // eventId 4 = Power/battery events
+                // eventId 5 = Thermal events
+                // Only eventId=29 with eventData=8613 should be OMEN key
+                if (eventId.HasValue && eventId.Value != 29)
+                {
+                    _logging.Debug($"WMI event filtered: eventId={eventId} is not 29 (OMEN key)");
+                    return;
+                }
+                
+                // Some models report different eventData for brightness (e.g., 8610, 8611, 8612)
+                // Only 8613 is the OMEN key
+                if (eventData.HasValue && eventData.Value != 8613)
+                {
+                    _logging.Debug($"WMI event filtered: eventData={eventData} is not 8613 (OMEN key)");
+                    return;
+                }
+                
+                _logging.Info($"🔑 OMEN key detected via WMI ({className}, eventId={eventId}, eventData={eventData})");
                 
                 // Debounce to prevent double-triggers (thread-safe)
                 var lastTicks = Interlocked.Read(ref _lastKeyPressTicks);

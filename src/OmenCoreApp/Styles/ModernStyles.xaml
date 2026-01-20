@@ -211,6 +211,17 @@
     <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}" />
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessGreen}" />
+
+    <!-- Backwards-compatible aliases for older resource keys (avoid breaking UI that
+         references the legacy names like TextBrush / SecondaryTextBrush / CardBackgroundBrush) -->
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextPrimary}" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource TextSecondary}" />
+    <SolidColorBrush x:Key="TextMutedBrushAlias" Color="{StaticResource TextMuted}" />
+    <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource BackgroundDark}" />
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource SurfaceDark}" />
+    <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#1AFFAA33" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningOrange}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentRed}" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningOrange}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorRed}" />
     <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoBlue}" />
