@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.3.2)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.5.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -22,6 +22,37 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C.svg?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
 
 ![OmenCore Screenshot](docs/screenshots/main-window.png)
+
+---
+
+## 🆕 What's New in v2.5.0
+
+### 🎨 Advanced RGB Lighting System
+- **Temperature-Responsive Lighting**: Keyboard and RGB devices change colors based on CPU/GPU temps with configurable thresholds
+- **Performance Mode Sync**: RGB lighting automatically syncs with Performance/Balanced/Silent modes
+- **Throttling Indicators**: Flashing red lighting alerts when thermal throttling is detected
+- **6 New Lighting Presets**: Wave Blue/Red, Breathing Green, Reactive Purple, Spectrum Flow, Audio Reactive
+- **Multi-Vendor Support**: HP OMEN, Corsair, Logitech, and Razer devices with unified control
+
+### 📊 Hardware Monitoring Enhancements
+- **Power Consumption Tracking**: Real-time power monitoring with efficiency metrics and trend analysis
+- **Battery Health Monitoring**: Comprehensive battery assessment with wear level and cycle count tracking
+- **Live Fan Curve Visualization**: Interactive charts showing temperature vs fan speed relationships
+- **Real-time Current Metrics**: Live CPU/GPU temps, power consumption, battery health, and efficiency metrics
+
+### 🛡️ Critical Fixes
+- **Fan Auto-Control Restoration**: Fans now properly return to BIOS control when app closes (no more fans staying at high RPM!)
+- **OMEN Key Fix**: Fixed app popping up on brightness keys (Fn+F2/F3) - added settings toggle to disable if needed
+- **Victus 16 Stability**: Enhanced stuck sensor detection, worker robustness, and fan control retry logic
+- **Monitoring Tab Fixes**: Resolved empty tables and data display issues
+
+### 🔧 Technical Improvements
+- **Power Limit Verification**: Reads back EC registers to verify power limits applied successfully
+- **Enhanced Diagnostics**: Better logging and conflict detection for troubleshooting
+- **GPU Power Boost Integration**: Combined WMI BIOS + NVAPI control for accurate power management
+- **Fan Control Hardening**: Multi-level retry logic with verification and enhanced logging
+
+Full changelog: [CHANGELOG_v2.5.0.md](docs/CHANGELOG_v2.5.0.md)
 
 ---
 

@@ -352,3 +352,20 @@ Special thanks to:
 - Linux daemon hardening: smoother start/stop, better logs, and packaging polish
 - Diagnostics UX: one-click export wired into GUI/CLI + auto-attach to GitHub issue template
 - Thermal guidance: paste/pad guidance surfaced contextually in troubleshooting
+
+---
+
+## Installer Hashes (SHA256)
+
+**OmenCore v2.5.0 Release Artifacts**
+
+| File | SHA256 Hash |
+|------|-------------|
+| `OmenCoreSetup-2.5.0.exe` | `17A2391818D7F3EF4AB272518D0F1564E2569A8907BAEFD25A870512FB1F8420` |
+| `OmenCore-2.5.0-win-x64.zip` | `BAA942FA447EE998B14EC3A575A448BA01F13628930CFED8BBB270CBEB1C9448` |
+| `OmenCore-2.5.0-linux-x64.zip` | `39786981FCED4CE267C3E432DD942589DFA69E068F31F0C0051BD6041A81508E` |
+
+**Verification Instructions:**
+- Windows: `Get-FileHash -Algorithm SHA256 OmenCoreSetup-2.5.0.exe`
+- Linux: `sha256sum OmenCore-2.5.0-linux-x64.zip`
+- Cross-platform: Compare against the hashes above to verify download integrity

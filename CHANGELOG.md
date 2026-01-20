@@ -68,6 +68,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MSI Afterburner shared memory conflicts (detection added, resolution planned for v2.6.0)
 - Some older Linux kernels may have limited HP WMI integration
 
+### 📦 Installer Hashes (SHA256)
+
+**OmenCore v2.5.0 Release Artifacts**
+
+| File | SHA256 Hash |
+|------|-------------|
+| `OmenCoreSetup-2.5.0.exe` | `17A2391818D7F3EF4AB272518D0F1564E2569A8907BAEFD25A870512FB1F8420` |
+| `OmenCore-2.5.0-win-x64.zip` | `BAA942FA447EE998B14EC3A575A448BA01F13628930CFED8BBB270CBEB1C9448` |
+| `OmenCore-2.5.0-linux-x64.zip` | `39786981FCED4CE267C3E432DD942589DFA69E068F31F0C0051BD6041A81508E` |
+
+**Verification Instructions:**
+- Windows: `Get-FileHash -Algorithm SHA256 OmenCoreSetup-2.5.0.exe`
+- Linux: `sha256sum OmenCore-2.5.0-linux-x64.zip`
+- Cross-platform: Compare against the hashes above to verify download integrity
+
 ---
 
 ## [2.3.2] - 2026-01-14 - Critical Safety & Bug Fix Release 🛡️
