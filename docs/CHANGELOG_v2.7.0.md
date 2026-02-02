@@ -28,6 +28,9 @@
 - **Enhanced Status Header**: Added monitoring health, sample age, and status indicators
 - **HasHistoricalData/HasLiveData Properties**: For proper empty state UI handling
 
+### Fan Diagnostics
+- **Guided Fan Diagnostic Script**: One-click test sequence (30% → 60% → 100%) for both CPU and GPU fans with pass/fail summary
+
 ### Standalone Operation
 - **Dependency Audit System**: Startup validation checks for OGH, HP services, WMI BIOS, LHM, PawnIO
 - **Standalone Status Display**: Settings shows "Standalone/Degraded/Limited" status with summary
@@ -78,12 +81,14 @@
 - `DashboardViewModel.cs`: Added `MonitoringHealthStatus`, `MonitoringHealthStatusText`, `MonitoringHealthColor`, `LastSampleAge`, `HasHistoricalData`, `HasLiveData`
 - `MainViewModel.cs`: Added `_osdService.SetPerformanceMode()` call in `OnPerformanceModeApplied` handler
 - `SettingsViewModel.cs`: Added `StandaloneStatus`, `StandaloneStatusColor`, `StandaloneStatusSummary`, `DependencyAudit`, `PawnIOOnlyMode` properties and `RefreshStandaloneStatus()` method
+- `FanDiagnosticsViewModel.cs`: Added guided diagnostic script with `RunGuidedDiagnosticAsync()`, progress tracking, and pass/fail summary
 
 ### Views Modified
 - `DashboardView.xaml`: Added health status display in header with color-coded indicator
 - `OsdOverlayWindow.xaml`: Changed FPS label to "GPU" (activity indicator) with tooltip
 - `OsdOverlayWindow.xaml.cs`: Replaced fake FPS estimation with GPU load display, added sample staleness detection (5s threshold)
 - `SettingsView.xaml`: Added Standalone Status panel with color-coded status/summary, PawnIO-Only Mode toggle
+- `FanDiagnosticsView.xaml`: Added Guided Diagnostic panel with Run Full Test button, progress bar, and results display
 
 ### Models Modified
 - `FeaturePreferences.cs`: Added `SuppressHotkeysInRdp` setting (default: true), `PawnIOOnlyMode` setting (default: false)
