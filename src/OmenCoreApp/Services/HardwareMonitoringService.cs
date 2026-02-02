@@ -268,15 +268,19 @@ namespace OmenCore.Services
                     
                     consecutiveErrors = 0; // Reset error counter on success
 
-                    _logging.Info($"MonitorLoop: Got sample - CPU: {sample.CpuTemperatureC}°C, GPU: {sample.GpuTemperatureC}°C, CPULoad: {sample.CpuLoadPercent}%, GPULoad: {sample.GpuLoadPercent}%, RAM: {sample.RamUsageGb}GB");
+                    _logging.Debug($"MonitorLoop: Got sample - CPU: {sample.CpuTemperatureC}°C, GPU: {sample.GpuTemperatureC}°C, CPULoad: {sample.CpuLoadPercent}%, GPULoad: {sample.GpuLoadPercent}%, RAM: {sample.RamUsageGb}GB");
 
+                    // ALWAYS update historical metrics for charts/graphs (bug fix v2.7.0)
+                    // The history must be populated even when UI updates are skipped
+                    UpdateDashboardMetrics(sample);
+                    
                     // Change detection optimization - only update UI if values changed significantly
                     var shouldUpdate = ShouldUpdateUI(sample);
-                    _logging.Info($"MonitorLoop: ShouldUpdateUI={shouldUpdate}, lastSample null={_lastSample == null}");
+                    _logging.Debug($"MonitorLoop: ShouldUpdateUI={shouldUpdate}, lastSample null={_lastSample == null}");
                     
                     if (shouldUpdate)
                     {
-                        _logging.Info("MonitorLoop: ShouldUpdateUI returned true, updating dashboard metrics");
+                        _logging.Debug("MonitorLoop: ShouldUpdateUI returned true, updating UI");
 
                         if (!_lowOverheadMode)
                         {
@@ -297,15 +301,13 @@ namespace OmenCore.Services
                             }
                         }
 
-                        // Update dashboard metrics for the new monitoring dashboard
-                        UpdateDashboardMetrics(sample);
-
                         SampleUpdated?.Invoke(this, sample);
                         _lastSample = sample;
                     }
                     else
                     {
-                        _logging.Info("MonitorLoop: ShouldUpdateUI returned false, skipping update");
+                        // UI not updated, but history and lastSample still need tracking
+                        _lastSample = sample;
                     }
                 }
                 catch (OperationCanceledException)
@@ -552,7 +554,7 @@ namespace OmenCore.Services
                 FanEfficiency = 70.0 // Placeholder - would need fan speed data
             };
 
-            _logging.Info($"UpdateDashboardMetrics: Created metrics - CPU: {metrics.CpuTemperature}°C, GPU: {metrics.GpuTemperature}°C, Power: {metrics.PowerConsumption}W");
+            _logging.Debug($"UpdateDashboardMetrics: Created metrics - CPU: {metrics.CpuTemperature}°C, GPU: {metrics.GpuTemperature}°C, Power: {metrics.PowerConsumption}W");
 
             // Calculate trend
             if (_metricsHistory.Count >= 2)
@@ -575,7 +577,7 @@ namespace OmenCore.Services
                 CheckForAlerts(metrics);
             }
 
-            _logging.Info("UpdateDashboardMetrics: _lastMetrics updated successfully");
+            _logging.Debug("UpdateDashboardMetrics: _lastMetrics updated successfully");
         }
 
         private double CalculateEstimatedPowerConsumption(MonitoringSample sample)

@@ -256,18 +256,19 @@ var fanService = new FanService(controller, thermalProvider, logging, notificati
             fanService.SetSmoothingSettings(new FanTransitionSettings { EnableSmoothing = true, SmoothingDurationMs = 500, SmoothingStepMs = 100 });
 
             // Apply a custom curve and force an immediate curve computation
-            var curve = new List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 40, FanPercent = 40 }, new FanCurvePoint { TemperatureC = 80, FanPercent = 80 } };
+            // Use 70C instead of 80C to avoid safety bounds (90% min at 80C)
+            var curve = new List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 40, FanPercent = 40 }, new FanCurvePoint { TemperatureC = 70, FanPercent = 70 } };
             fanService.ApplyCustomCurve(curve, immediate: false);
 
-            // Force apply for CPU temp 80C
-            await fanService.ForceApplyCurveNowAsync(80, 0, immediate: false);
+            // Force apply for CPU temp 70C (safety bounds: min 70% at 70C, curve gives 70%)
+            await fanService.ForceApplyCurveNowAsync(70, 0, immediate: false);
 
             // Allow some time for ramp to run
             await Task.Delay(700);
 
-            // Smoothing should have resulted in at least one SetFanSpeed call and final percent 80
+            // Smoothing should have resulted in at least one SetFanSpeed call and final percent 70
             controller.SetCallCount.Should().BeGreaterThan(0);
-            controller.LastSetPercent.Should().Be(80);
+            controller.LastSetPercent.Should().Be(70);
 
             logging.Dispose();
         }
@@ -287,16 +288,17 @@ var fanService = new FanService(controller, thermalProvider, logging, notificati
 
             fanService.SetSmoothingSettings(new FanTransitionSettings { EnableSmoothing = true, SmoothingDurationMs = 500, SmoothingStepMs = 100 });
 
-            var curve = new List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 40, FanPercent = 40 }, new FanCurvePoint { TemperatureC = 80, FanPercent = 80 } };
+            // Use 70C instead of 80C to avoid safety bounds (90% min at 80C)
+            var curve = new List<FanCurvePoint> { new FanCurvePoint { TemperatureC = 40, FanPercent = 40 }, new FanCurvePoint { TemperatureC = 70, FanPercent = 70 } };
             // Apply curve but don't rely on ApplyCustomCurve's internal immediate (it uses internal temps)
             fanService.ApplyCustomCurve(curve, immediate: false);
 
-            // Force immediate apply with supplied temps
-            await fanService.ForceApplyCurveNowAsync(80, 0, immediate: true);
+            // Force immediate apply with supplied temps (70C, safety bounds: min 70%)
+            await fanService.ForceApplyCurveNowAsync(70, 0, immediate: true);
 
-            // Immediate apply should result in single SetFanSpeed call and final percent 80
+            // Immediate apply should result in single SetFanSpeed call and final percent 70
             controller.SetCallCount.Should().BeGreaterThan(0);
-            controller.LastSetPercent.Should().Be(80);
+            controller.LastSetPercent.Should().Be(70);
 
             logging.Dispose();
         }
