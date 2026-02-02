@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.7.0] - 2026-01-XX - Reliability & Diagnostics Overhaul 🔧🔍
+
+**Focus:** Hardware monitoring reliability, per-model capability detection, enhanced diagnostics, and fan curve UX improvements
+
+### 🔧 Hardware Monitoring Reliability
+- **Worker Auto-Restart**: LibreHardwareMonitor worker process now auto-restarts after 3 consecutive read timeouts
+- **Degraded Mode Warning**: Toast notification when monitoring enters degraded mode (2+ timeouts)
+- **Graceful Failover**: Seamless fallback to in-process monitoring if worker restart fails
+- **TryRestartAsync Interface**: New `IHardwareMonitorBridge.TryRestartAsync()` method for bridge implementations
+
+### ⚙️ PawnIO-Only Mode
+- **New Setting**: Optional "PawnIO-Only Mode" to skip WinRing0 entirely for Secure Boot compatibility
+- **Settings UI**: Toggle in Settings → Hardware section for users who want exclusive PawnIO access
+- **Config Persistence**: Setting saved to user configuration for persistence across sessions
+
+### 🔍 Guided Fan Diagnostic
+- **Step-by-Step Testing**: New guided diagnostic that tests 30% → 60% → 100% fan speeds
+- **Pass/Fail Summary**: Clear results showing which fan zones responded correctly
+- **Progress Tracking**: Real-time status updates during diagnostic execution
+- **UI Integration**: "Run Guided Diagnostic" button in Fan Diagnostics view
+
+### 📈 Fan Curve Preview & Validation
+- **Live Curve Preview**: Real-time display of predicted fan percentage based on current temperature
+- **Curve Validation**: Warnings for dangerous configurations (fan off above 60°C, flat curves above 80°C)
+- **Interpolation Logic**: Linear interpolation between curve points with safety clamping
+- **Visual Feedback**: Preview panel shows "At X°C → Y%" with color-coded validation messages
+
+### 🎯 Per-Model Capability Database
+- **ModelCapabilityDatabase**: Comprehensive database of known OMEN/Victus model capabilities
+- **Model-Specific Features**: Per-model flags for fan control, MUX switch, RGB, undervolt support
+- **Known Models**: OMEN 15/16/17 (2020-2024), Transcend 14/16, Victus 15/16, Desktop 25L-45L
+- **UI Visibility Helpers**: Properties like `ShowFanCurveEditor`, `ShowMuxSwitch`, `ShowRgbLighting` for conditional UI
+- **Runtime Probing**: `ProbeRuntimeCapabilities()` validates detected capabilities against actual hardware
+- **Model Warnings**: User-facing notes for unknown models or unverified configurations
+- **Family Fallbacks**: Unknown models inherit defaults from their detected family (OMEN16, Victus, etc.)
+
+### 🐛 Bug Fixes
+- **Monitoring Timeout Handling**: Fixed consecutive timeout detection logic for accurate degraded mode triggering
+- **Fan Curve Temperature Bounds**: Curve preview properly handles temperatures outside defined points
+
+### 📋 Technical Details
+- **New Files**: `ModelCapabilityDatabase.cs` with 400+ lines of model configurations
+- **Interface Changes**: `IHardwareMonitorBridge` extended with `TryRestartAsync()`
+- **Config Schema**: Added `FeaturePreferences.PawnIOOnlyMode` boolean property
+
+---
+
 ## [2.6.0] - 2026-01-18 - Monitoring Dashboard Overhaul 📊🔧
 
 **Complete rewrite of hardware monitoring tab with direct MainViewModel integration**
