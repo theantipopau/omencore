@@ -301,6 +301,46 @@
                                               VerticalAlignment="Center" Margin="16,0,0,0"/>
                             </Grid>
                         </Border>
+                        
+                        <!-- BIOS Reliability Stats (v2.7.0) -->
+                        <Border Margin="0,12,0,0" Padding="16" CornerRadius="8" 
+                                Background="{StaticResource CardBackgroundBrush}" 
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="BIOS WMI Reliability" FontSize="14" FontWeight="SemiBold" 
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding BiosReliabilityText, FallbackValue=Waiting for commands...}" 
+                                               FontSize="12" Margin="0,4,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{Binding BiosReliabilityColor}"/>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value=""/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BiosReliabilityStats.IsUsingLegacyWmi}" Value="True">
+                                                        <Setter Property="Text" Value="Using Legacy WMI (BIOS F.15+ fallback)"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Refresh" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding RefreshBiosReliabilityCommand}"
+                                        Padding="12,6" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

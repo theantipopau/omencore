@@ -49,6 +49,13 @@ namespace OmenCore.Hardware
         private const int MaxConsecutiveFailures = 5;
         private bool _wmiCommandsDisabled = false;
         
+        // BIOS Reliability Tracking (v2.7.0)
+        private long _totalCommandAttempts = 0;
+        private long _totalCommandSuccesses = 0;
+        private long _totalCommandFailures = 0;
+        private readonly object _statsLock = new();
+        private DateTime _statsResetTime = DateTime.Now;
+        
         // Heartbeat timer for 2023+ models
         private Timer? _heartbeatTimer;
         private const int HeartbeatIntervalMs = 60000; // 60 seconds
@@ -1304,6 +1311,7 @@ namespace OmenCore.Hardware
                     if (returnCode == 0)
                     {
                         _consecutiveFailures = 0; // Reset on success
+                        TrackCommandResult(true);
                         return outData;
                     }
                     else
@@ -1318,6 +1326,7 @@ namespace OmenCore.Hardware
                         }
                         
                         LogThrottledError(errorMsg);
+                        TrackCommandResult(false);
                     }
                 }
             }
@@ -1326,11 +1335,13 @@ namespace OmenCore.Hardware
                 // Log detailed CIM error for debugging BIOS F.15+ compatibility issues
                 LogThrottledError($"CIM command failed: {ex.Message} (NativeErrorCode: {ex.NativeErrorCode}, StatusCode: {ex.StatusCode})");
                 _consecutiveFailures++;
+                TrackCommandResult(false);
             }
             catch (Exception ex)
             {
                 LogThrottledError($"BIOS command failed: {ex.Message}");
                 _consecutiveFailures++;
+                TrackCommandResult(false);
             }
             
             // Check if we should disable WMI commands
@@ -1420,6 +1431,7 @@ namespace OmenCore.Hardware
                             var returnCode = Convert.ToInt32(outDataObj["rwReturnCode"]);
                             if (returnCode == 0)
                             {
+                                TrackCommandResult(true);
                                 if (outDataSize > 0)
                                 {
                                     return outDataObj["Data"] as byte[] ?? new byte[outDataSize];
@@ -1427,6 +1439,7 @@ namespace OmenCore.Hardware
                                 return new byte[0];
                             }
                             _logging?.Debug($"Legacy WMI: Command returned code {returnCode}");
+                            TrackCommandResult(false);
                         }
                     }
                 }
@@ -1434,6 +1447,7 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Debug($"Legacy WMI fallback failed: {ex.Message}");
+                TrackCommandResult(false);
             }
             
             return null;
@@ -1605,6 +1619,66 @@ namespace OmenCore.Hardware
         }
 
         #endregion
+        
+        #region BIOS Reliability Tracking (v2.7.0)
+        
+        /// <summary>
+        /// Track a command result for reliability statistics.
+        /// </summary>
+        private void TrackCommandResult(bool success)
+        {
+            lock (_statsLock)
+            {
+                _totalCommandAttempts++;
+                if (success)
+                    _totalCommandSuccesses++;
+                else
+                    _totalCommandFailures++;
+            }
+        }
+        
+        /// <summary>
+        /// Get BIOS query reliability statistics.
+        /// </summary>
+        public BiosReliabilityStats GetReliabilityStats()
+        {
+            lock (_statsLock)
+            {
+                return new BiosReliabilityStats
+                {
+                    TotalAttempts = _totalCommandAttempts,
+                    Successes = _totalCommandSuccesses,
+                    Failures = _totalCommandFailures,
+                    SuccessRate = _totalCommandAttempts > 0 
+                        ? (double)_totalCommandSuccesses / _totalCommandAttempts * 100.0 
+                        : 0,
+                    ConsecutiveFailures = _consecutiveFailures,
+                    HeartbeatHealth = _heartbeatHealth,
+                    HeartbeatAge = HeartbeatAge,
+                    StatsResetTime = _statsResetTime,
+                    StatsDuration = DateTime.Now - _statsResetTime,
+                    IsUsingLegacyWmi = _useLegacyWmi,
+                    WmiCommandsDisabled = _wmiCommandsDisabled
+                };
+            }
+        }
+        
+        /// <summary>
+        /// Reset reliability statistics (e.g., after a manual reset or mode change).
+        /// </summary>
+        public void ResetReliabilityStats()
+        {
+            lock (_statsLock)
+            {
+                _totalCommandAttempts = 0;
+                _totalCommandSuccesses = 0;
+                _totalCommandFailures = 0;
+                _statsResetTime = DateTime.Now;
+                _logging?.Info("BIOS reliability stats reset");
+            }
+        }
+        
+        #endregion
 
         public void Dispose()
         {
@@ -1635,5 +1709,57 @@ namespace OmenCore.Hardware
         
         /// <summary>Multiple consecutive failures - WMI commands may not work.</summary>
         Failing
+    }
+    
+    /// <summary>
+    /// BIOS WMI query reliability statistics (v2.7.0).
+    /// </summary>
+    public class BiosReliabilityStats
+    {
+        /// <summary>Total number of WMI command attempts.</summary>
+        public long TotalAttempts { get; set; }
+        
+        /// <summary>Number of successful commands.</summary>
+        public long Successes { get; set; }
+        
+        /// <summary>Number of failed commands.</summary>
+        public long Failures { get; set; }
+        
+        /// <summary>Success rate as percentage (0-100).</summary>
+        public double SuccessRate { get; set; }
+        
+        /// <summary>Current consecutive failure count.</summary>
+        public int ConsecutiveFailures { get; set; }
+        
+        /// <summary>Heartbeat health status.</summary>
+        public WmiHeartbeatHealth HeartbeatHealth { get; set; }
+        
+        /// <summary>Time since last successful heartbeat.</summary>
+        public TimeSpan HeartbeatAge { get; set; }
+        
+        /// <summary>When statistics tracking started.</summary>
+        public DateTime StatsResetTime { get; set; }
+        
+        /// <summary>Duration of statistics tracking.</summary>
+        public TimeSpan StatsDuration { get; set; }
+        
+        /// <summary>Whether legacy WMI is being used.</summary>
+        public bool IsUsingLegacyWmi { get; set; }
+        
+        /// <summary>Whether WMI commands have been disabled due to failures.</summary>
+        public bool WmiCommandsDisabled { get; set; }
+        
+        /// <summary>Overall health rating based on success rate.</summary>
+        public string HealthRating => SuccessRate switch
+        {
+            >= 99 => "Excellent",
+            >= 95 => "Good",
+            >= 80 => "Fair",
+            >= 50 => "Poor",
+            _ => "Critical"
+        };
+        
+        /// <summary>Summary text for UI display.</summary>
+        public string Summary => $"{Successes}/{TotalAttempts} commands ({SuccessRate:F1}% success, {HealthRating})";
     }
 }

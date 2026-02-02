@@ -139,6 +139,7 @@ namespace OmenCore.ViewModels
             ImportProfileCommand = new AsyncRelayCommand(async _ => await ImportProfileAsync());
             ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
             ExportDiagnosticsCommand = new AsyncRelayCommand(async _ => await ExportDiagnosticsAsync());
+            RefreshBiosReliabilityCommand = new RelayCommand(_ => RefreshBiosReliability());
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -1571,6 +1572,7 @@ namespace OmenCore.ViewModels
         public ICommand ImportProfileCommand { get; }
         public ICommand ExportProfileCommand { get; }
         public ICommand ExportDiagnosticsCommand { get; }
+        public ICommand RefreshBiosReliabilityCommand { get; }
 
         #endregion
         
@@ -1706,6 +1708,47 @@ namespace OmenCore.ViewModels
                         _logging.Info($"PawnIO-Only Mode: {(value ? "Enabled" : "Disabled")}");
                     }
                 }
+            }
+        }
+        
+        // BIOS Reliability Stats (v2.7.0)
+        private Hardware.BiosReliabilityStats? _biosReliabilityStats;
+        
+        /// <summary>
+        /// BIOS WMI query reliability statistics.
+        /// </summary>
+        public Hardware.BiosReliabilityStats? BiosReliabilityStats
+        {
+            get => _biosReliabilityStats;
+            private set { _biosReliabilityStats = value; OnPropertyChanged(); OnPropertyChanged(nameof(BiosReliabilityText)); OnPropertyChanged(nameof(BiosReliabilityColor)); }
+        }
+        
+        /// <summary>
+        /// Summary text for BIOS reliability.
+        /// </summary>
+        public string BiosReliabilityText => _biosReliabilityStats?.Summary ?? "Not available";
+        
+        /// <summary>
+        /// Color for BIOS reliability indicator.
+        /// </summary>
+        public string BiosReliabilityColor => _biosReliabilityStats?.HealthRating switch
+        {
+            "Excellent" => "#4CAF50",
+            "Good" => "#8BC34A",
+            "Fair" => "#FFC107",
+            "Poor" => "#FF9800",
+            "Critical" => "#F44336",
+            _ => "#9E9E9E"
+        };
+        
+        /// <summary>
+        /// Refresh BIOS reliability statistics.
+        /// </summary>
+        public void RefreshBiosReliability()
+        {
+            if (_wmiBios != null && _wmiBios.IsAvailable)
+            {
+                BiosReliabilityStats = _wmiBios.GetReliabilityStats();
             }
         }
         
