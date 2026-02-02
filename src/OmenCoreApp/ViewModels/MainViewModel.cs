@@ -2707,7 +2707,7 @@ namespace OmenCore.ViewModels
 
         /// <summary>
         /// Handle performance mode changes from PerformanceModeService (e.g., power automation).
-        /// Updates all UI indicators: sidebar, tray, dashboard.
+        /// Updates all UI indicators: sidebar, tray, dashboard, OSD.
         /// </summary>
         private void OnPerformanceModeApplied(object? sender, string modeName)
         {
@@ -2721,6 +2721,9 @@ namespace OmenCore.ViewModels
                 {
                     _dashboard.CurrentPerformanceMode = modeName;
                 }
+                
+                // Update OSD overlay with new performance mode
+                _osdService?.SetPerformanceMode(modeName);
                 
                 // Update SystemControlViewModel's selected mode (without re-applying)
                 SystemControl?.SelectModeByNameNoApply(modeName);

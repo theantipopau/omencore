@@ -173,15 +173,15 @@
             <Border Height="1" Background="#44FFFFFF" Margin="0,6" 
                     Visibility="{Binding ShowSeparator2, Converter={StaticResource BoolToVisibility}}"/>
             
-            <!-- FPS (prominent display) -->
+            <!-- FPS/GPU Activity (prominent display) -->
             <Grid Margin="0,4" Visibility="{Binding ShowFps, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FPS" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold"/>
-                <TextBlock Grid.Column="2" Text="{Binding Fps, StringFormat={}{0:F0}}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="GPU" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" ToolTip="GPU Activity Level (estimated from GPU load)"/>
+                <TextBlock Grid.Column="2" Text="{Binding Fps, StringFormat={}{0:F0}%}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Frametime -->

@@ -403,7 +403,11 @@ namespace OmenCore.Views
                 
                 // Try to get data from monitoring sample first (more accurate)
                 var sample = _getMonitoringSample?.Invoke();
-                if (sample != null)
+                
+                // Check if sample is stale (older than 5 seconds)
+                bool isStale = sample == null || (DateTime.Now - sample.Timestamp).TotalSeconds > 5;
+                
+                if (sample != null && !isStale)
                 {
                     CpuTemp = sample.CpuTemperatureC;
                     GpuTemp = sample.GpuTemperatureC;
@@ -438,20 +442,21 @@ namespace OmenCore.Views
                     else
                         GpuHotspotTemp = 0;
                     
-                    // Estimate FPS from GPU load (rough approximation when no game hook)
-                    // High GPU load typically correlates with higher FPS gaming
-                    if (_showFps && sample.GpuLoadPercent > 10)
+                    // Show GPU activity (load percentage) - no fake FPS estimation
+                    // Real FPS would require game hooks (RivaTuner/RTSS integration)
+                    if (_showFps && sample.GpuLoadPercent > 0)
                     {
-                        // Use a weighted estimation - higher load = more frames being rendered
-                        // This is a rough approximation: ~60 FPS at 50% load, scales up/down
-                        double estimatedFps = Math.Max(10, Math.Min(240, sample.GpuLoadPercent * 1.5 + 20));
-                        Fps = estimatedFps;
+                        // Show GPU load as activity indicator
+                        Fps = sample.GpuLoadPercent;
                         
-                        // Calculate frametime from FPS
-                        if (_showFrametime && Fps > 0)
-                            Frametime = 1000.0 / Fps;
+                        // Calculate estimated frametime from GPU activity (rough indicator)
+                        // Lower GPU load = less activity = higher effective "frametime" (idle state)
+                        if (_showFrametime && sample.GpuLoadPercent > 10)
+                            Frametime = Math.Max(1, 100 - sample.GpuLoadPercent + 8); // Rough activity indicator
+                        else
+                            Frametime = 0;
                     }
-                    else if (sample.GpuLoadPercent <= 10)
+                    else if (sample.GpuLoadPercent <= 0)
                     {
                         Fps = 0;
                         Frametime = 0;
@@ -460,9 +465,9 @@ namespace OmenCore.Views
                     // Throttling detection
                     IsThrottling = CpuTemp > 95 || GpuTemp > 95;
                 }
-                else if (_thermalProvider != null)
+                else if (isStale && _thermalProvider != null)
                 {
-                    // Fallback to thermal provider
+                    // Sample is stale - fallback to thermal provider for live data
                     var temps = _thermalProvider.ReadTemperatures();
                     foreach (var reading in temps)
                     {
@@ -476,12 +481,16 @@ namespace OmenCore.Views
                         }
                     }
                     
+                    // Update colors for fresh temps
+                    UpdateCpuTempColor();
+                    UpdateGpuTempColor();
+                    
                     IsThrottling = CpuTemp > 95 || GpuTemp > 95;
                     
-                    // Estimate load from temp if no sample
-                    if (_showCpuLoad && sample == null)
+                    // Estimate load from temp when sample is stale
+                    if (_showCpuLoad)
                         CpuLoad = Math.Min(100, Math.Max(0, (CpuTemp - 40) * 2));
-                    if (_showGpuLoad && sample == null)
+                    if (_showGpuLoad)
                         GpuLoad = Math.Min(100, Math.Max(0, (GpuTemp - 40) * 2));
                 }
                 

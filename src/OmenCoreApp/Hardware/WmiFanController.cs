@@ -35,8 +35,9 @@ namespace OmenCore.Hardware
         private const int MaxFanLevel = 55;
         
         // Countdown extension timer - keeps fan settings from reverting
+        // HP BIOS aggressively reverts fan settings, especially on OMEN 16/Max models
         private Timer? _countdownExtensionTimer;
-        private const int CountdownExtensionIntervalMs = 15000; // 15 seconds (OmenMon-style - more aggressive)
+        private const int CountdownExtensionIntervalMs = 8000; // 8 seconds - more aggressive to combat BIOS reversion
         private bool _countdownExtensionEnabled = false;
         
         // Command verification tracking

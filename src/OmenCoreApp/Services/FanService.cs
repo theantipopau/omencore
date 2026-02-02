@@ -44,9 +44,10 @@ namespace OmenCore.Services
         /// </summary>
         public ThermalSensorProvider ThermalProvider => _thermalProvider;
         
-        // Curve update timing (like OmenMon's 15-second interval)
-        private const int CurveUpdateIntervalMs = 10000; // 10 seconds between curve updates (reduced from 15)
-        private const int CurveForceRefreshMs = 60000;   // Force re-apply every 60 seconds even if unchanged
+        // Curve update timing - more aggressive for responsive fan control
+        // v2.7.0: Reduced intervals to combat BIOS fan reversion on OMEN 16/Max models
+        private const int CurveUpdateIntervalMs = 5000;  // 5 seconds between curve updates (reduced from 10)
+        private const int CurveForceRefreshMs = 30000;   // Force re-apply every 30 seconds (reduced from 60)
         private const int MonitorMinIntervalMs = 1000;   // 1 second minimum for UI updates
         private const int MonitorMaxIntervalMs = 5000;   // 5 seconds when temps stable
         private DateTime _lastCurveUpdate = DateTime.MinValue;
