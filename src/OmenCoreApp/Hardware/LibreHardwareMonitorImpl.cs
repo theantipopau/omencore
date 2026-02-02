@@ -97,11 +97,14 @@ namespace OmenCore.Hardware
         // BUG FIX #36: Track stuck-at-TjMax temperature readings
         private int _stuckTempReadings = 0;
         
-        // BUG FIX: Track stuck temperature readings (any value)
+        // BUG FIX v2.6.1: Track stuck temperature readings (any value) with improved thresholds
         private double _lastCpuTempReading = 0;
         private int _consecutiveSameTempReadings = 0;
-        private const int MaxSameTempReadingsBeforeLog = 10; // 10 identical readings = stuck sensor
-        private const int MaxSameTempReadingsBeforeReinit = 20; // After trying alternatives, reinitialize
+        private const int MaxSameTempReadingsBeforeLog = 5; // 5 identical readings = stuck sensor (10s @ 2s poll)
+        private const int MaxSameTempReadingsBeforeReinit = 10; // After trying alternatives, reinitialize (20s @ 2s poll)
+        private int _reinitializeAttempts = 0;
+        private const int MaxReinitializeAttempts = 3; // After 3 failed reinits, switch to WMI-only mode
+        private bool _forceWmiBiosMode = false; // If true, skip LHM and use WMI BIOS only for temps
         
         // GPU stuck detection
         private double _lastGpuTempReading = 0;
@@ -517,6 +520,13 @@ namespace OmenCore.Hardware
         
         private void UpdateHardwareReadings()
         {
+            // BUG FIX v2.6.1: If in WMI-only mode due to repeated stuck temps, bypass LHM
+            if (_forceWmiBiosMode)
+            {
+                UpdateViaWmiBiosFallback();
+                return;
+            }
+            
             if (!_initialized || _disposed)
             {
                 // Fall back to WMI/performance counters if LibreHardwareMonitor unavailable
@@ -636,13 +646,13 @@ namespace OmenCore.Hardware
                             
                             _cachedCpuTemp = rawCpuTemp;
                             
-                            // BUG FIX: Detect stuck temperature readings (same value repeating)
+                            // BUG FIX v2.6.1: Detect stuck temperature readings (same value repeating) with improved fallback
                             if (_cachedCpuTemp > 0 && Math.Abs(_cachedCpuTemp - _lastCpuTempReading) < 0.1)
                             {
                                 _consecutiveSameTempReadings++;
                                 if (_consecutiveSameTempReadings >= MaxSameTempReadingsBeforeReinit)
                                 {
-                                    _logger?.Invoke($"🚨 CPU temp stuck at {_cachedCpuTemp:F1}°C for {_consecutiveSameTempReadings} readings. Trying WMI BIOS fallback before reinitialize...");
+                                    _logger?.Invoke($"🚨 CPU temp stuck at {_cachedCpuTemp:F1}°C for {_consecutiveSameTempReadings} readings. Trying WMI BIOS fallback...");
                                     
                                     // Try WMI BIOS fallback first before full reinitialize
                                     UpdateViaWmiBiosFallback();
@@ -652,36 +662,59 @@ namespace OmenCore.Hardware
                                     {
                                         _logger?.Invoke($"✅ WMI BIOS fallback provided different temperature: {_cachedCpuTemp:F1}°C");
                                         _consecutiveSameTempReadings = 0;
+                                        _reinitializeAttempts = 0; // Reset reinit counter on success
                                     }
                                     else
                                     {
-                                        // WMI didn't help, do full reinitialize
-                                        _logger?.Invoke($"WMI BIOS fallback didn't help. Triggering full hardware reinitialize...");
-                                        Task.Run(() => Reinitialize());
-                                        _consecutiveSameTempReadings = 0;
+                                        _reinitializeAttempts++;
+                                        if (_reinitializeAttempts >= MaxReinitializeAttempts)
+                                        {
+                                            // Too many failed reinits - switch to WMI-only mode for temperature
+                                            _logger?.Invoke($"⚠️ {MaxReinitializeAttempts} reinitialize attempts failed. Switching to WMI-only temperature mode.");
+                                            _forceWmiBiosMode = true;
+                                            _consecutiveSameTempReadings = 0;
+                                        }
+                                        else
+                                        {
+                                            // WMI didn't help, do full reinitialize
+                                            _logger?.Invoke($"WMI BIOS fallback didn't help (attempt {_reinitializeAttempts}/{MaxReinitializeAttempts}). Triggering hardware reinitialize...");
+                                            Task.Run(() => Reinitialize());
+                                            _consecutiveSameTempReadings = 0;
+                                        }
                                     }
                                 }
                                 else if (_consecutiveSameTempReadings >= MaxSameTempReadingsBeforeLog)
                                 {
-                                    _logger?.Invoke($"⚠️ CPU temp appears stuck at {_cachedCpuTemp:F1}°C for {_consecutiveSameTempReadings} readings. Attempting sensor refresh...");
-                                    // Force hardware update to try to unstick sensor
-                                    hardware.Update();
+                                    _logger?.Invoke($"⚠️ CPU temp appears stuck at {_cachedCpuTemp:F1}°C for {_consecutiveSameTempReadings} readings. Trying WMI BIOS first...");
                                     
-                                    // Try alternative sensor
-                                    var altSensor = hardware.Sensors
-                                        .Where(s => s.SensorType == SensorType.Temperature && 
-                                                   s.Value.HasValue && 
-                                                   s.Value.Value > 20 && 
-                                                   s.Value.Value < 100 &&
-                                                   Math.Abs(s.Value.Value - _cachedCpuTemp) > 1) // Different from stuck value
-                                        .OrderByDescending(s => s.Value!.Value)
-                                        .FirstOrDefault();
-                                    
-                                    if (altSensor != null)
+                                    // Try WMI BIOS fallback immediately before alternative sensors
+                                    UpdateViaWmiBiosFallback();
+                                    if (Math.Abs(_cachedCpuTemp - _lastCpuTempReading) > 1)
                                     {
-                                        _logger?.Invoke($"Using alternative CPU temp sensor: {altSensor.Name}={altSensor.Value:F1}°C");
-                                        _cachedCpuTemp = altSensor.Value!.Value;
+                                        _logger?.Invoke($"✅ WMI BIOS unstuck temperature: {_cachedCpuTemp:F1}°C");
                                         _consecutiveSameTempReadings = 0;
+                                    }
+                                    else
+                                    {
+                                        // WMI didn't help, force hardware update and try alternative sensor
+                                        hardware.Update();
+                                    
+                                        // Try alternative sensor
+                                        var altSensor = hardware.Sensors
+                                            .Where(s => s.SensorType == SensorType.Temperature && 
+                                                       s.Value.HasValue && 
+                                                       s.Value.Value > 20 && 
+                                                       s.Value.Value < 100 &&
+                                                       Math.Abs(s.Value.Value - _cachedCpuTemp) > 1) // Different from stuck value
+                                            .OrderByDescending(s => s.Value!.Value)
+                                            .FirstOrDefault();
+                                    
+                                        if (altSensor != null)
+                                        {
+                                            _logger?.Invoke($"Using alternative CPU temp sensor: {altSensor.Name}={altSensor.Value:F1}°C");
+                                            _cachedCpuTemp = altSensor.Value!.Value;
+                                            _consecutiveSameTempReadings = 0;
+                                        }
                                     }
                                 }
                             }

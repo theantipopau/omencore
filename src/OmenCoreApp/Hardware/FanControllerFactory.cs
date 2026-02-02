@@ -516,6 +516,13 @@ namespace OmenCore.Hardware
         {
             try
             {
+                // BUG FIX v2.6.1: Check for explicit Max mode or "Max" preset name and use SetMaxFan
+                if (preset.Mode == FanMode.Max || preset.Name.Equals("Max", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logging?.Info("OGH ApplyPreset: Max mode detected, calling SetMaxFan(true)");
+                    return _proxy.SetMaxFan(true);
+                }
+                
                 // Map preset to OGH thermal policy
                 var policy = MapPresetToThermalPolicy(preset);
                 return _proxy.SetThermalPolicy(policy);

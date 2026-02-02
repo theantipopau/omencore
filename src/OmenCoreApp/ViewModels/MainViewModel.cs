@@ -2336,9 +2336,11 @@ namespace OmenCore.ViewModels
             _logging.Info($"Fan mode change requested from tray: {mode}");
             try
             {
+                // BUG FIX v2.6.1: Prioritize exact match for "Max" to avoid picking "Performance" first
                 FanPreset? targetPreset = mode switch
                 {
-                    "Max" => FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Performance", StringComparison.OrdinalIgnoreCase)),
+                    "Max" => FanPresets.FirstOrDefault(p => p.Name.Equals("Max", StringComparison.OrdinalIgnoreCase)) 
+                             ?? FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase)),
                     "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
                     _ => FanPresets.FirstOrDefault(p => p.Name.Contains("Auto", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Balanced", StringComparison.OrdinalIgnoreCase))
                 };
@@ -2346,7 +2348,8 @@ namespace OmenCore.ViewModels
                 if (targetPreset != null)
                 {
                     SelectedPreset = targetPreset;
-                    _fanService.ApplyPreset(targetPreset);
+                    // BUG FIX v2.6.1: Use immediate=true so max fan is applied right away
+                    _fanService.ApplyPreset(targetPreset, immediate: true);
                     CurrentFanMode = mode;
                     PushEvent($"🌀 Fan mode: {mode}");
                 }

@@ -39,7 +39,7 @@ namespace OmenCore.Services
                 var systemInfo = new StringBuilder();
                 systemInfo.AppendLine("=== OmenCore Diagnostics Export ===");
                 systemInfo.AppendLine($"Export Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-                systemInfo.AppendLine($"OmenCore Version: 2.6.0");
+                systemInfo.AppendLine($"OmenCore Version: 2.6.1");
                 systemInfo.AppendLine();
                 systemInfo.AppendLine("=== System Information ===");
                 systemInfo.AppendLine($"OS: {Environment.OSVersion}");

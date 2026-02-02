@@ -48,6 +48,7 @@ namespace OmenCore.Services
                 new FanPreset
                 {
                     Name = "Max",
+                    Mode = FanMode.Max, // BUG FIX v2.6.1: Explicit Max mode for proper SetMaxFan handling
                     IsBuiltIn = true,
                     Curve = new List<FanCurvePoint>
                     {

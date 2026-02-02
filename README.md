@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.6.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.6.0)
+[![Version](https://img.shields.io/badge/version-2.6.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.6.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -25,39 +25,28 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.6.0
+## 🆕 What's New in v2.6.1
 
-### 🔧 WMI BIOS Compatibility (BIOS F.15+)
-- **Legacy WMI Fallback** - CIM-based commands now gracefully fall back to System.Management API
-- **GPU Power Boost Fixed** - Now works on systems with latest BIOS updates (F.15+)
-- **Automatic Detection** - Seamless switching to legacy mode when needed
+### 🐛 Critical Bug Fixes
 
-### 🌀 Fan Control Improvements
-- **Fixed Dual Curve UI** - Single/dual curve editors no longer overlap
-- **RPM Parsing for V2 Systems** - Fixed absurd readings (20297 RPM, 78 RPM) with sanity validation
-- **Constant Speed Mode** - Set fans to fixed percentage (0-100%) with estimated RPM display
-- **EC Conflict Detection** - Graceful coexistence with OmenMon (retry logic)
+**🌀 Fan Max Mode from Quick Access**
+- **Fixed:** "Max" from system tray now correctly applies maximum fan speed
+- Previously would show "Performance" and not actually run at max RPM
+- Now prioritizes exact "Max" preset match and calls `SetMaxFan(true)` immediately
 
-### 🌈 New Features
-- **Temperature-Based RGB** - Keyboard color changes based on CPU/GPU temp (blue→yellow→red)
-- **RAM Display Fix** - Fixed "0/0 GB" with WMI fallback
-- **Self-Sufficient Architecture** - Works without LibreHardwareMonitor using HP WMI BIOS
-- **PL1/PL2 Control** - Power limit detection and atomic set with verification
+**🌡️ Temperature Freezing**
+- **Improved:** Faster detection and recovery from frozen temperature readings
+- Reduced stuck detection from 40s to 20s
+- Added permanent WMI BIOS fallback mode after 3 failed recovery attempts
+- No more app restarts needed for stuck temps
 
-### ⚡ Performance
-- **Faster Startup** - Hardware worker now starts 1 second faster (500ms vs 1500ms delay)
-
-### 🐛 Bug Fixes
-- **Ctrl+S Hotkey Conflict** - Replaced with `Ctrl+Shift+Alt+A` for apply settings
-- **Temperature Freezing** - Enhanced stuck-temperature detection with WMI fallback
-
-Full changelog: [CHANGELOG_v2.6.0.md](docs/CHANGELOG_v2.6.0.md)
+Full changelog: [CHANGELOG_v2.6.1.md](docs/CHANGELOG_v2.6.1.md)
 
 ---
 
 ## 📖 Previous Releases
 
-### v2.5.1 - Critical Safety Improvements
+### v2.6.0 - Fan Control & Stability
 
 - 🛡️ **Desktop Safety Protection** - OmenCore now detects OMEN desktops and blocks fan control to prevent hardware damage (monitoring-only mode available)
 - 🐧 **Linux GUI Crash Fixed** - Resolved Avalonia startup crash on Linux (`StaticResource 'DarkBackgroundBrush' not found`)
