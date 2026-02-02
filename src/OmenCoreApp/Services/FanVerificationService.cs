@@ -25,6 +25,16 @@ namespace OmenCore.Services
         public TimeSpan Duration { get; set; }
         
         /// <summary>
+        /// RPM standard deviation from multi-sample verification (lower = more stable).
+        /// </summary>
+        public double RpmStandardDeviation { get; set; }
+        
+        /// <summary>
+        /// Number of samples taken during verification.
+        /// </summary>
+        public int SampleCount { get; set; }
+        
+        /// <summary>
         /// True if the fan speed change was successfully applied and verified.
         /// </summary>
         public bool Success => WmiCallSucceeded && VerificationPassed;
@@ -35,6 +45,54 @@ namespace OmenCore.Services
         public double DeviationPercent => ExpectedRpm > 0 
             ? Math.Abs(ActualRpmAfter - ExpectedRpm) / (double)ExpectedRpm * 100 
             : 0;
+        
+        /// <summary>
+        /// Overall verification score 0-100 (v2.7.0).
+        /// Combines accuracy, stability, and success factors.
+        /// 100 = perfect match, 0 = complete failure.
+        /// </summary>
+        public int VerificationScore
+        {
+            get
+            {
+                if (!WmiCallSucceeded) return 0;
+                if (ActualRpmAfter <= 0 && RequestedPercent > 0) return 5; // Minimal score for zero RPM
+                
+                // Accuracy score (0-50): Based on deviation from expected RPM
+                // 0% deviation = 50 points, 15% deviation = 0 points
+                double accuracyScore = Math.Max(0, 50 - (DeviationPercent / 15.0 * 50));
+                
+                // Stability score (0-30): Based on standard deviation of samples
+                // 0 std dev = 30 points, 200+ std dev = 0 points
+                double stabilityScore = Math.Max(0, 30 - (RpmStandardDeviation / 200.0 * 30));
+                
+                // Response score (0-20): Based on actual change from before
+                // Full change = 20 points, no change = 0 points
+                double responseScore = 0;
+                if (ActualRpmBefore != ActualRpmAfter && RequestedPercent > 0)
+                {
+                    responseScore = 20; // Fan responded
+                }
+                else if (RequestedPercent == 0 && ActualRpmAfter < 1000)
+                {
+                    responseScore = 20; // Correctly went to low/off
+                }
+                
+                return (int)Math.Round(accuracyScore + stabilityScore + responseScore);
+            }
+        }
+        
+        /// <summary>
+        /// Human-readable score rating (Excellent/Good/Fair/Poor/Failed).
+        /// </summary>
+        public string ScoreRating => VerificationScore switch
+        {
+            >= 90 => "Excellent",
+            >= 70 => "Good",
+            >= 50 => "Fair",
+            >= 25 => "Poor",
+            _ => "Failed"
+        };
     }
 
     /// <summary>
@@ -224,15 +282,21 @@ namespace OmenCore.Services
                     
                     // Use average RPM for verification
                     result.ActualRpmAfter = (int)rpmSamples.Average();
+                    result.SampleCount = VerificationSamples;
                     
-                    _logging.Info($"Fan {fanIndex} RPM samples: [{string.Join(", ", rpmSamples)}], Average: {result.ActualRpmAfter} RPM");
+                    // Calculate standard deviation for stability scoring (v2.7.0)
+                    double mean = rpmSamples.Average();
+                    double sumSquares = rpmSamples.Sum(r => Math.Pow(r - mean, 2));
+                    result.RpmStandardDeviation = Math.Sqrt(sumSquares / rpmSamples.Length);
+                    
+                    _logging.Info($"Fan {fanIndex} RPM samples: [{string.Join(", ", rpmSamples)}], Average: {result.ActualRpmAfter} RPM, StdDev: {result.RpmStandardDeviation:F1}");
                     
                     // Verify the change
                     result.VerificationPassed = VerifyRpm(result);
                     
                     if (result.VerificationPassed)
                     {
-                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM (expected ~{result.ExpectedRpm}, deviation {result.DeviationPercent:F1}%)");
+                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM (expected ~{result.ExpectedRpm}, deviation {result.DeviationPercent:F1}%, score {result.VerificationScore}/100 {result.ScoreRating})");
                         break;
                     }
                     else if (attempt < VerificationRetries)
@@ -348,15 +412,21 @@ namespace OmenCore.Services
 
                     // Use average RPM
                     result.ActualRpmAfter = (int)rpmSamples.Average();
+                    result.SampleCount = VerificationSamples;
+                    
+                    // Calculate standard deviation for stability scoring (v2.7.0)
+                    double mean = rpmSamples.Average();
+                    double sumSquares = rpmSamples.Sum(r => Math.Pow(r - mean, 2));
+                    result.RpmStandardDeviation = Math.Sqrt(sumSquares / rpmSamples.Length);
 
-                    _logging.Info($"Fan {fanIndex} RPM samples: [{string.Join(", ", rpmSamples)}], Average: {result.ActualRpmAfter} RPM");
+                    _logging.Info($"Fan {fanIndex} RPM samples: [{string.Join(", ", rpmSamples)}], Average: {result.ActualRpmAfter} RPM, StdDev: {result.RpmStandardDeviation:F1}");
 
                     // Verify
                     result.VerificationPassed = VerifyRpm(result);
 
                     if (result.VerificationPassed)
                     {
-                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM (expected ~{result.ExpectedRpm}, deviation {result.DeviationPercent:F1}%)");
+                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM (expected ~{result.ExpectedRpm}, deviation {result.DeviationPercent:F1}%, score {result.VerificationScore}/100 {result.ScoreRating})");
                         break;
                     }
                     else if (attempt < VerificationRetries)
@@ -739,6 +809,32 @@ namespace OmenCore.Services
         public TimeSpan Duration { get; set; }
         public bool Success { get; set; }
         public string? ErrorMessage { get; set; }
+        
+        /// <summary>
+        /// Overall calibration score (0-100) based on all test points (v2.7.0).
+        /// </summary>
+        public int OverallScore
+        {
+            get
+            {
+                if (!CalibrationPoints.Any()) return 0;
+                var validPoints = CalibrationPoints.Where(p => p.VerificationPassed).ToList();
+                if (!validPoints.Any()) return 0;
+                return (int)validPoints.Average(p => p.Score);
+            }
+        }
+        
+        /// <summary>
+        /// Human-readable score rating for the overall calibration.
+        /// </summary>
+        public string OverallRating => OverallScore switch
+        {
+            >= 90 => "Excellent",
+            >= 70 => "Good",
+            >= 50 => "Fair",
+            >= 25 => "Poor",
+            _ => "Failed"
+        };
     }
 
     /// <summary>
@@ -754,5 +850,39 @@ namespace OmenCore.Services
         public bool VerificationPassed { get; set; }
         public TimeSpan Duration { get; set; }
         public string? ErrorMessage { get; set; }
+        
+        /// <summary>
+        /// Expected RPM for the requested percent.
+        /// </summary>
+        public int ExpectedRpm => (int)(RequestedPercent / 100.0 * 5500);
+        
+        /// <summary>
+        /// Deviation percentage from expected RPM.
+        /// </summary>
+        public double DeviationPercent => ExpectedRpm > 0 
+            ? Math.Abs(MeasuredRpm - ExpectedRpm) / (double)ExpectedRpm * 100 
+            : 0;
+        
+        /// <summary>
+        /// Score for this calibration point (0-100).
+        /// </summary>
+        public int Score
+        {
+            get
+            {
+                if (!VerificationPassed) return 0;
+                if (MeasuredRpm <= 0 && RequestedPercent > 0) return 5;
+                
+                // Score based on deviation (15% = 0, 0% = 100)
+                double score = Math.Max(0, 100 - (DeviationPercent / 15.0 * 100));
+                
+                // Bonus for stability (narrow RPM range)
+                int range = RpmRangeMax - RpmRangeMin;
+                if (range < 50) score = Math.Min(100, score + 5); // Very stable
+                else if (range > 200) score = Math.Max(0, score - 10); // Unstable
+                
+                return (int)Math.Round(score);
+            }
+        }
     }
 }

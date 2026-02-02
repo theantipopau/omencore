@@ -208,7 +208,7 @@ namespace OmenCore.ViewModels
             
             var testLevels = new[] { 30, 60, 100 };
             var fanNames = new[] { "CPU", "GPU" };
-            var results = new System.Collections.Generic.List<(string fan, int target, bool passed, int rpm, double deviation)>();
+            var results = new System.Collections.Generic.List<(string fan, int target, bool passed, int rpm, double deviation, int score, string rating)>();
             
             _logging.Info("=== GUIDED FAN DIAGNOSTIC STARTED ===");
             _fanService.EnterDiagnosticMode();
@@ -231,12 +231,12 @@ namespace OmenCore.ViewModels
                             
                             // Consider ≤15% deviation as passing
                             var passed = Math.Abs(result.DeviationPercent) <= 15;
-                            results.Add((fanName, targetPercent, passed, result.ActualRpmAfter, result.DeviationPercent));
+                            results.Add((fanName, targetPercent, passed, result.ActualRpmAfter, result.DeviationPercent, result.VerificationScore, result.ScoreRating));
                             
                             // Add to history
                             History.Insert(0, result);
                             
-                            _logging.Info($"[GuidedDiagnostic] {fanName} at {targetPercent}%: RPM={result.ActualRpmAfter}, Deviation={result.DeviationPercent:F1}% → {(passed ? "PASS" : "FAIL")}");
+                            _logging.Info($"[GuidedDiagnostic] {fanName} at {targetPercent}%: RPM={result.ActualRpmAfter}, Deviation={result.DeviationPercent:F1}%, Score={result.VerificationScore}/100 ({result.ScoreRating}) → {(passed ? "PASS" : "FAIL")}");
                             
                             // Brief delay between tests
                             await Task.Delay(1000);
@@ -244,31 +244,42 @@ namespace OmenCore.ViewModels
                         catch (Exception ex)
                         {
                             _logging.Error($"[GuidedDiagnostic] {fanName} at {targetPercent}% FAILED: {ex.Message}");
-                            results.Add((fanName, targetPercent, false, 0, 0));
+                            results.Add((fanName, targetPercent, false, 0, 0, 0, "Failed"));
                         }
                     }
                     
                     GuidedTestProgress = ((levelIndex + 1) * 100) / testLevels.Length;
                 }
                 
-                // Generate summary
+                // Generate summary with scores (v2.7.0)
                 var passCount = results.Count(r => r.passed);
                 var totalTests = results.Count;
                 var overallPassed = passCount == totalTests;
+                var avgScore = results.Any() ? (int)results.Average(r => r.score) : 0;
+                var overallRating = avgScore switch
+                {
+                    >= 90 => "Excellent",
+                    >= 70 => "Good",
+                    >= 50 => "Fair",
+                    >= 25 => "Poor",
+                    _ => "Failed"
+                };
                 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"=== DIAGNOSTIC COMPLETE: {(overallPassed ? "✅ PASS" : "❌ FAIL")} ===");
-                summary.AppendLine($"Tests: {passCount}/{totalTests} passed");
+                summary.AppendLine($"Tests: {passCount}/{totalTests} passed | Overall Score: {avgScore}/100 ({overallRating})");
                 summary.AppendLine();
                 
                 foreach (var r in results)
                 {
                     var statusIcon = r.passed ? "✓" : "✗";
-                    summary.AppendLine($"{statusIcon} {r.fan} @ {r.target}%: {r.rpm} RPM ({r.deviation:+0.0;-0.0}%)");
+                    summary.AppendLine($"{statusIcon} {r.fan} @ {r.target}%: {r.rpm} RPM ({r.deviation:+0.0;-0.0}%) - Score: {r.score}");
                 }
                 
                 GuidedTestResult = summary.ToString();
-                GuidedTestStatus = overallPassed ? "All tests passed!" : "Some tests failed - see results";
+                GuidedTestStatus = overallPassed 
+                    ? $"All tests passed! Score: {avgScore}/100 ({overallRating})" 
+                    : $"Some tests failed - Score: {avgScore}/100 ({overallRating})";
                 
                 _logging.Info(summary.ToString());
             }
