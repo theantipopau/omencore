@@ -47,6 +47,15 @@ namespace OmenCore.Utils
         private MenuItem? _perfPerformanceMenuItem;
         private MenuItem? _perfQuietMenuItem;
         
+        // v2.7.0: GPU Power and Keyboard backlight menu items
+        private MenuItem? _gpuPowerMenuItem;
+        private MenuItem? _gpuPowerMinMenuItem;
+        private MenuItem? _gpuPowerMedMenuItem;
+        private MenuItem? _gpuPowerMaxMenuItem;
+        private MenuItem? _keyboardBacklightMenuItem;
+        private string _currentGpuPowerLevel = "Medium";
+        private int _currentKeyboardBrightness = 3;
+        
         // Throttling to prevent flicker during system events (brightness keys, etc.)
         // Use Interlocked for thread-safe access from timer callback
         private int _isUpdatingIcon = 0; // 0 = false, 1 = true (for Interlocked)
@@ -56,6 +65,9 @@ namespace OmenCore.Utils
         public event Action<string>? FanModeChangeRequested;
         public event Action<string>? PerformanceModeChangeRequested;
         public event Action<string>? QuickProfileChangeRequested;
+        public event Action<string>? GpuPowerChangeRequested;
+        public event Action<int>? KeyboardBacklightChangeRequested;
+        public event Action? KeyboardBacklightToggleRequested;
         
         /// <summary>
         /// Forces immediate refresh of the tray icon (e.g., when temp display setting changes).
@@ -337,6 +349,92 @@ namespace OmenCore.Utils
             };
 
             advancedMenuItem.Items.Add(_displayMenuItem);
+            
+            // GPU Power submenu (v2.7.0)
+            _gpuPowerMenuItem = new MenuItem { Header = "⚡ GPU Power ▶" };
+            
+            _gpuPowerMinMenuItem = new MenuItem { Header = "   🔋 Minimum — Base TGP, best battery" };
+            _gpuPowerMinMenuItem.Click += (s, e) => RequestGpuPowerChange("Minimum");
+            _gpuPowerMedMenuItem = new MenuItem { Header = "✓ ⚖️ Medium — Custom TGP" };
+            _gpuPowerMedMenuItem.Click += (s, e) => RequestGpuPowerChange("Medium");
+            _gpuPowerMaxMenuItem = new MenuItem { Header = "   🔥 Maximum — TGP + Dynamic Boost" };
+            _gpuPowerMaxMenuItem.Click += (s, e) => RequestGpuPowerChange("Maximum");
+            
+            _gpuPowerMenuItem.Items.Add(_gpuPowerMinMenuItem);
+            _gpuPowerMenuItem.Items.Add(_gpuPowerMedMenuItem);
+            _gpuPowerMenuItem.Items.Add(_gpuPowerMaxMenuItem);
+            _gpuPowerMenuItem.ItemContainerStyle = menuItemStyle;
+            _gpuPowerMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    _gpuPowerMenuItem.ApplyTemplate();
+                    var popup = _gpuPowerMenuItem.Template.FindName("PART_Popup", _gpuPowerMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Tray] GPU Power submenu style error: {ex.Message}"); }
+            };
+            advancedMenuItem.Items.Add(_gpuPowerMenuItem);
+            
+            // Keyboard backlight toggle (v2.7.0)
+            _keyboardBacklightMenuItem = new MenuItem { Header = "💡 Keyboard Backlight ▶" };
+            
+            var kbOff = new MenuItem { Header = "   🌑 Off" };
+            kbOff.Click += (s, e) => RequestKeyboardBacklight(0);
+            var kbLow = new MenuItem { Header = "   🔅 Low" };
+            kbLow.Click += (s, e) => RequestKeyboardBacklight(1);
+            var kbMed = new MenuItem { Header = "   🔆 Medium" };
+            kbMed.Click += (s, e) => RequestKeyboardBacklight(2);
+            var kbHigh = new MenuItem { Header = "✓ 💡 High" };
+            kbHigh.Click += (s, e) => RequestKeyboardBacklight(3);
+            var kbToggle = new MenuItem { Header = "🔄 Toggle" };
+            kbToggle.Click += (s, e) => RequestKeyboardBacklightToggle();
+            
+            _keyboardBacklightMenuItem.Items.Add(kbOff);
+            _keyboardBacklightMenuItem.Items.Add(kbLow);
+            _keyboardBacklightMenuItem.Items.Add(kbMed);
+            _keyboardBacklightMenuItem.Items.Add(kbHigh);
+            _keyboardBacklightMenuItem.Items.Add(new Separator());
+            _keyboardBacklightMenuItem.Items.Add(kbToggle);
+            _keyboardBacklightMenuItem.ItemContainerStyle = menuItemStyle;
+            _keyboardBacklightMenuItem.SubmenuOpened += (s, e) =>
+            {
+                try
+                {
+                    _keyboardBacklightMenuItem.ApplyTemplate();
+                    var popup = _keyboardBacklightMenuItem.Template.FindName("PART_Popup", _keyboardBacklightMenuItem) as System.Windows.Controls.Primitives.Popup;
+                    if (popup?.Child != null)
+                    {
+                        if (popup.Child is System.Windows.Controls.Border b)
+                        {
+                            b.Background = contextMenu.Background;
+                            if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                        else if (popup.Child is System.Windows.Controls.Control ctrl)
+                        {
+                            ctrl.Background = contextMenu.Background;
+                            ctrl.Foreground = (Brush)contextMenu.Foreground;
+                        }
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[Tray] Keyboard submenu style error: {ex.Message}"); }
+            };
+            advancedMenuItem.Items.Add(_keyboardBacklightMenuItem);
+            
             advancedMenuItem.ItemContainerStyle = menuItemStyle;
             advancedMenuItem.SubmenuOpened += (s, e) =>
             {
@@ -537,6 +635,81 @@ namespace OmenCore.Utils
                 _perfPerformanceMenuItem.Header = (activeMode == "Performance" ? "✓" : "  ") + " 🚀 Performance — Max power";
             if (_perfQuietMenuItem != null)
                 _perfQuietMenuItem.Header = (activeMode == "Quiet" ? "✓" : "  ") + " 🔋 Power Saver — Battery life";
+        }
+        
+        /// <summary>
+        /// Request GPU power level change (v2.7.0)
+        /// </summary>
+        private void RequestGpuPowerChange(string level)
+        {
+            _currentGpuPowerLevel = level;
+            UpdateGpuPowerCheckmarks(level);
+            GpuPowerChangeRequested?.Invoke(level);
+            App.Logging.Info($"GPU power level changed from tray: {level}");
+        }
+        
+        /// <summary>
+        /// Update GPU power level checkmarks (v2.7.0)
+        /// </summary>
+        private void UpdateGpuPowerCheckmarks(string activeLevel)
+        {
+            if (_gpuPowerMinMenuItem != null)
+                _gpuPowerMinMenuItem.Header = (activeLevel == "Minimum" ? "✓" : "  ") + " 🔋 Minimum — Base TGP, best battery";
+            if (_gpuPowerMedMenuItem != null)
+                _gpuPowerMedMenuItem.Header = (activeLevel == "Medium" ? "✓" : "  ") + " ⚖️ Medium — Custom TGP";
+            if (_gpuPowerMaxMenuItem != null)
+                _gpuPowerMaxMenuItem.Header = (activeLevel == "Maximum" ? "✓" : "  ") + " 🔥 Maximum — TGP + Dynamic Boost";
+        }
+        
+        /// <summary>
+        /// Update GPU power level from external source (v2.7.0)
+        /// </summary>
+        public void SetGpuPowerLevel(string level)
+        {
+            _currentGpuPowerLevel = level;
+            UpdateGpuPowerCheckmarks(level);
+            if (_gpuPowerMenuItem != null)
+            {
+                _gpuPowerMenuItem.Header = $"⚡ GPU Power ▶ [{level}]";
+            }
+        }
+        
+        /// <summary>
+        /// Request keyboard backlight level change (v2.7.0)
+        /// </summary>
+        private void RequestKeyboardBacklight(int level)
+        {
+            _currentKeyboardBrightness = level;
+            KeyboardBacklightChangeRequested?.Invoke(level);
+            App.Logging.Info($"Keyboard backlight changed from tray: level {level}");
+        }
+        
+        /// <summary>
+        /// Request keyboard backlight toggle (v2.7.0)
+        /// </summary>
+        private void RequestKeyboardBacklightToggle()
+        {
+            KeyboardBacklightToggleRequested?.Invoke();
+            App.Logging.Info("Keyboard backlight toggle requested from tray");
+        }
+        
+        /// <summary>
+        /// Update keyboard brightness from external source (v2.7.0)
+        /// </summary>
+        public void SetKeyboardBrightness(int level)
+        {
+            _currentKeyboardBrightness = level;
+            if (_keyboardBacklightMenuItem != null)
+            {
+                string levelName = level switch
+                {
+                    0 => "Off",
+                    1 => "Low",
+                    2 => "Medium",
+                    _ => "High"
+                };
+                _keyboardBacklightMenuItem.Header = $"💡 Keyboard Backlight ▶ [{levelName}]";
+            }
         }
 
         private string GetRefreshRateDisplay()

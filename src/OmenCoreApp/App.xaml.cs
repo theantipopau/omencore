@@ -321,6 +321,22 @@ namespace OmenCore
                 {
                     mainViewModel.ApplyQuickProfileFromTray(profile);
                 };
+                
+                // v2.7.0: GPU Power and Keyboard backlight quick actions
+                _trayIconService.GpuPowerChangeRequested += level =>
+                {
+                    mainViewModel.SetGpuPowerFromTray(level);
+                };
+                
+                _trayIconService.KeyboardBacklightChangeRequested += level =>
+                {
+                    mainViewModel.SetKeyboardBacklightFromTray(level);
+                };
+                
+                _trayIconService.KeyboardBacklightToggleRequested += () =>
+                {
+                    mainViewModel.ToggleKeyboardBacklightFromTray();
+                };
 
                 // Subscribe to MainViewModel mode changes to update tray display
                 mainViewModel.PropertyChanged += (s, e) =>
@@ -332,6 +348,14 @@ namespace OmenCore
                     else if (e.PropertyName == nameof(MainViewModel.CurrentPerformanceMode))
                     {
                         _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
+                    }
+                    else if (e.PropertyName == nameof(MainViewModel.CurrentGpuPowerLevel))
+                    {
+                        _trayIconService?.SetGpuPowerLevel(mainViewModel.CurrentGpuPowerLevel);
+                    }
+                    else if (e.PropertyName == nameof(MainViewModel.CurrentKeyboardBrightness))
+                    {
+                        _trayIconService?.SetKeyboardBrightness(mainViewModel.CurrentKeyboardBrightness);
                     }
                 };
 

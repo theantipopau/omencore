@@ -389,6 +389,36 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+        
+        // v2.7.0: GPU Power and Keyboard state for tray sync
+        private string _currentGpuPowerLevel = "Medium";
+        private int _currentKeyboardBrightness = 3;
+        
+        public string CurrentGpuPowerLevel
+        {
+            get => _currentGpuPowerLevel;
+            set
+            {
+                if (_currentGpuPowerLevel != value)
+                {
+                    _currentGpuPowerLevel = value;
+                    OnPropertyChanged(nameof(CurrentGpuPowerLevel));
+                }
+            }
+        }
+        
+        public int CurrentKeyboardBrightness
+        {
+            get => _currentKeyboardBrightness;
+            set
+            {
+                if (_currentKeyboardBrightness != value)
+                {
+                    _currentKeyboardBrightness = value;
+                    OnPropertyChanged(nameof(CurrentKeyboardBrightness));
+                }
+            }
+        }
 
         public bool UpdateBannerVisible
         {
@@ -2463,6 +2493,77 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to apply quick profile from tray: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Set GPU power level from system tray (v2.7.0)
+        /// </summary>
+        public void SetGpuPowerFromTray(string level)
+        {
+            _logging.Info($"GPU power level change requested from tray: {level}");
+            try
+            {
+                if (SystemControl != null)
+                {
+                    SystemControl.GpuPowerBoostLevel = level;
+                    SystemControl.ApplyGpuPowerBoostCommand?.Execute(null);
+                    CurrentGpuPowerLevel = level;
+                    PushEvent($"⚡ GPU Power: {level}");
+                    _notificationService.ShowInfo("GPU Power", $"Set to {level}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to set GPU power from tray: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Set keyboard backlight level from system tray (v2.7.0)
+        /// </summary>
+        public void SetKeyboardBacklightFromTray(int level)
+        {
+            _logging.Info($"Keyboard backlight change requested from tray: level {level}");
+            try
+            {
+                if (_keyboardLightingService?.IsAvailable == true)
+                {
+                    // Convert level 0-3 to brightness byte (0, 85, 170, 255)
+                    int brightness = level switch
+                    {
+                        0 => 0,
+                        1 => 85,
+                        2 => 170,
+                        _ => 255
+                    };
+                    _keyboardLightingService.SetBrightness(brightness);
+                    CurrentKeyboardBrightness = level;
+                    string levelName = level switch { 0 => "Off", 1 => "Low", 2 => "Medium", _ => "High" };
+                    PushEvent($"💡 Keyboard: {levelName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to set keyboard backlight from tray: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Toggle keyboard backlight from system tray (v2.7.0)
+        /// </summary>
+        public void ToggleKeyboardBacklightFromTray()
+        {
+            _logging.Info("Keyboard backlight toggle requested from tray");
+            try
+            {
+                // Cycle through levels: Off -> Low -> Medium -> High -> Off
+                int newLevel = (CurrentKeyboardBrightness + 1) % 4;
+                SetKeyboardBacklightFromTray(newLevel);
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to toggle keyboard backlight from tray: {ex.Message}");
             }
         }
 
