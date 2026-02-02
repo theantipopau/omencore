@@ -1629,6 +1629,59 @@ namespace OmenCore.ViewModels
             set { _oghDetectionDetail = value; OnPropertyChanged(); }
         }
         
+        // Standalone status properties (v2.7.0)
+        private string _standaloneStatus = "Checking...";
+        private string _standaloneStatusColor = "Gray";
+        private string _standaloneStatusSummary = "";
+        private DependencyAudit? _dependencyAudit;
+        
+        public string StandaloneStatus
+        {
+            get => _standaloneStatus;
+            set { _standaloneStatus = value; OnPropertyChanged(); }
+        }
+        
+        public string StandaloneStatusColor
+        {
+            get => _standaloneStatusColor;
+            set { _standaloneStatusColor = value; OnPropertyChanged(); }
+        }
+        
+        public string StandaloneStatusSummary
+        {
+            get => _standaloneStatusSummary;
+            set { _standaloneStatusSummary = value; OnPropertyChanged(); }
+        }
+        
+        public DependencyAudit? DependencyAudit
+        {
+            get => _dependencyAudit;
+            set { _dependencyAudit = value; OnPropertyChanged(); }
+        }
+        
+        /// <summary>
+        /// Refresh the standalone dependency audit.
+        /// </summary>
+        public void RefreshStandaloneStatus()
+        {
+            try
+            {
+                _systemInfoService.ClearAuditCache();
+                var audit = _systemInfoService.PerformDependencyAudit();
+                DependencyAudit = audit;
+                StandaloneStatus = audit.StatusText;
+                StandaloneStatusColor = audit.StatusColor;
+                StandaloneStatusSummary = audit.Summary;
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to perform dependency audit: {ex.Message}", ex);
+                StandaloneStatus = "Error";
+                StandaloneStatusColor = "#FF6B6B";
+                StandaloneStatusSummary = $"Audit failed: {ex.Message}";
+            }
+        }
+        
         #endregion
         
         #region BIOS Update Properties
@@ -2566,6 +2619,9 @@ namespace OmenCore.ViewModels
                     FanBackend = "WMI BIOS + Legacy EC";
                 else
                     FanBackend = "WMI BIOS";
+                    
+                // Perform standalone dependency audit (v2.7.0)
+                RefreshStandaloneStatus();
             }
             catch (Exception ex)
             {

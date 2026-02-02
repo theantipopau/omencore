@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Management;
+using System.ServiceProcess;
 using OmenCore.Models;
 
 namespace OmenCore.Services
@@ -10,10 +13,302 @@ namespace OmenCore.Services
     {
         private readonly LoggingService _logging;
         private SystemInfo? _cachedInfo;
+        private DependencyAudit? _cachedAudit;
         
         public SystemInfoService(LoggingService logging)
         {
             _logging = logging;
+        }
+        
+        /// <summary>
+        /// Perform a dependency audit to check for standalone operation.
+        /// </summary>
+        public DependencyAudit PerformDependencyAudit()
+        {
+            if (_cachedAudit != null && (DateTime.Now - _cachedAudit.AuditTime).TotalMinutes < 5)
+                return _cachedAudit;
+                
+            _logging.Info("═══════════════════════════════════════════════════");
+            _logging.Info("Starting Standalone Dependency Audit...");
+            
+            var audit = new DependencyAudit();
+            
+            // Check 1: HP WMI BIOS Provider (required for fan control)
+            audit.Checks.Add(CheckHpWmiBios());
+            
+            // Check 2: OMEN Gaming Hub service
+            audit.Checks.Add(CheckOmenGamingHub());
+            
+            // Check 3: HP System Event Utility
+            audit.Checks.Add(CheckHpSystemEventUtility());
+            
+            // Check 4: LibreHardwareMonitor availability
+            audit.Checks.Add(CheckLibreHardwareMonitor());
+            
+            // Check 5: PawnIO driver
+            audit.Checks.Add(CheckPawnIODriver());
+            
+            // Check 6: WinRing0 driver (legacy, not needed)
+            audit.Checks.Add(CheckWinRing0Driver());
+            
+            // Determine overall status
+            var requiredMissing = audit.Checks.Where(c => c.IsRequired && !c.IsDetected).ToList();
+            var optionalMissing = audit.Checks.Where(c => c.IsOptional && !c.IsDetected).ToList();
+            
+            if (requiredMissing.Any())
+            {
+                audit.Status = StandaloneStatus.Limited;
+                audit.StatusText = "Limited";
+                audit.StatusColor = "#FF6B6B"; // Red
+                audit.Summary = $"Missing {requiredMissing.Count} required component(s): {string.Join(", ", requiredMissing.Select(c => c.Name))}";
+            }
+            else if (optionalMissing.Count >= 2)
+            {
+                audit.Status = StandaloneStatus.Degraded;
+                audit.StatusText = "Degraded";
+                audit.StatusColor = "#FFD93D"; // Yellow
+                audit.Summary = $"Fully standalone, but {optionalMissing.Count} optional component(s) unavailable";
+            }
+            else
+            {
+                audit.Status = StandaloneStatus.OK;
+                audit.StatusText = "Standalone";
+                audit.StatusColor = "#00FF88"; // Green
+                audit.Summary = "OmenCore is running fully standalone without HP dependencies";
+            }
+            
+            _logging.Info($"Dependency Audit Complete: {audit.StatusText}");
+            _logging.Info($"  Summary: {audit.Summary}");
+            _logging.Info("═══════════════════════════════════════════════════");
+            
+            _cachedAudit = audit;
+            return audit;
+        }
+        
+        private DependencyCheck CheckHpWmiBios()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "HP WMI BIOS",
+                Description = "HP WMI interface for fan/thermal control",
+                IsRequired = true,
+                IsOptional = false
+            };
+            
+            try
+            {
+                using var searcher = new ManagementObjectSearcher(@"root\wmi", "SELECT * FROM hpqBIntM");
+                var results = searcher.Get();
+                check.IsDetected = results.Count > 0;
+                check.Status = check.IsDetected ? "OK" : "Missing";
+                check.Details = check.IsDetected 
+                    ? "HP WMI BIOS interface available" 
+                    : "HP WMI BIOS not found - fan control will be limited";
+            }
+            catch
+            {
+                check.IsDetected = false;
+                check.Status = "Missing";
+                check.Details = "HP WMI BIOS query failed";
+            }
+            
+            _logging.Info($"  [{(check.IsDetected ? "✓" : "✗")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        private DependencyCheck CheckOmenGamingHub()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "OMEN Gaming Hub",
+                Description = "HP OMEN Gaming Hub (OGH) - NOT required for standalone operation",
+                IsRequired = false,
+                IsOptional = true
+            };
+            
+            try
+            {
+                // Check for OGH service
+                var services = ServiceController.GetServices();
+                var oghService = services.FirstOrDefault(s => 
+                    s.ServiceName.Contains("OMEN", StringComparison.OrdinalIgnoreCase) ||
+                    s.ServiceName.Contains("HPOmen", StringComparison.OrdinalIgnoreCase) ||
+                    s.ServiceName.Contains("OmenAgent", StringComparison.OrdinalIgnoreCase));
+                    
+                if (oghService != null)
+                {
+                    check.IsDetected = true;
+                    check.Status = oghService.Status == ServiceControllerStatus.Running ? "Running" : "Stopped";
+                    check.Details = $"OGH service found: {oghService.ServiceName} ({check.Status})";
+                }
+                else
+                {
+                    // Check for OGH process
+                    var oghProcess = Process.GetProcesses().FirstOrDefault(p =>
+                        p.ProcessName.Contains("OmenCommand", StringComparison.OrdinalIgnoreCase) ||
+                        p.ProcessName.Contains("HPOmen", StringComparison.OrdinalIgnoreCase));
+                        
+                    check.IsDetected = oghProcess != null;
+                    check.Status = check.IsDetected ? "Running" : "Not Installed";
+                    check.Details = check.IsDetected 
+                        ? "OGH process detected - OmenCore can coexist"
+                        : "OGH not installed - OmenCore running standalone ✓";
+                }
+            }
+            catch (Exception ex)
+            {
+                check.IsDetected = false;
+                check.Status = "Unknown";
+                check.Details = $"Could not check OGH status: {ex.Message}";
+            }
+            
+            _logging.Info($"  [{(check.IsDetected ? "!" : "✓")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        private DependencyCheck CheckHpSystemEventUtility()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "HP System Event Utility",
+                Description = "Required for OMEN key handling on some models",
+                IsRequired = false,
+                IsOptional = true
+            };
+            
+            try
+            {
+                var services = ServiceController.GetServices();
+                var hpSeu = services.FirstOrDefault(s => 
+                    s.ServiceName.Equals("HPSysEventSvc", StringComparison.OrdinalIgnoreCase) ||
+                    s.ServiceName.Contains("HPSystemEvent", StringComparison.OrdinalIgnoreCase));
+                    
+                check.IsDetected = hpSeu != null;
+                check.Status = check.IsDetected 
+                    ? (hpSeu!.Status == ServiceControllerStatus.Running ? "Running" : "Stopped")
+                    : "Not Installed";
+                check.Details = check.IsDetected
+                    ? $"HP System Event Utility: {check.Status}"
+                    : "HP System Event Utility not installed - OMEN key may use fallback";
+            }
+            catch
+            {
+                check.IsDetected = false;
+                check.Status = "Unknown";
+                check.Details = "Could not check HP System Event Utility";
+            }
+            
+            _logging.Info($"  [{(check.IsDetected ? "✓" : "○")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        private DependencyCheck CheckLibreHardwareMonitor()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "LibreHardwareMonitor",
+                Description = "Hardware monitoring library (bundled)",
+                IsRequired = true,
+                IsOptional = false
+            };
+            
+            try
+            {
+                // Check if LHM DLL exists
+                var lhmPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LibreHardwareMonitorLib.dll");
+                check.IsDetected = File.Exists(lhmPath);
+                check.Status = check.IsDetected ? "OK" : "Missing";
+                check.Details = check.IsDetected
+                    ? "LibreHardwareMonitor library bundled"
+                    : "LibreHardwareMonitor library missing - monitoring disabled";
+            }
+            catch
+            {
+                check.IsDetected = false;
+                check.Status = "Error";
+                check.Details = "Could not verify LibreHardwareMonitor";
+            }
+            
+            _logging.Info($"  [{(check.IsDetected ? "✓" : "✗")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        private DependencyCheck CheckPawnIODriver()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "PawnIO Driver",
+                Description = "Ring0 driver for EC access (optional)",
+                IsRequired = false,
+                IsOptional = true
+            };
+            
+            try
+            {
+                // Check for PawnIO service
+                var services = ServiceController.GetServices();
+                var pawnio = services.FirstOrDefault(s => 
+                    s.ServiceName.Equals("PawnIO", StringComparison.OrdinalIgnoreCase));
+                    
+                check.IsDetected = pawnio != null;
+                check.Status = check.IsDetected 
+                    ? (pawnio!.Status == ServiceControllerStatus.Running ? "Running" : "Stopped")
+                    : "Not Installed";
+                check.Details = check.IsDetected
+                    ? $"PawnIO driver: {check.Status} - EC access available"
+                    : "PawnIO not installed - using WMI fallback";
+            }
+            catch
+            {
+                check.IsDetected = false;
+                check.Status = "Unknown";
+                check.Details = "Could not check PawnIO status";
+            }
+            
+            _logging.Info($"  [{(check.IsDetected ? "✓" : "○")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        private DependencyCheck CheckWinRing0Driver()
+        {
+            var check = new DependencyCheck
+            {
+                Name = "WinRing0 Driver",
+                Description = "Legacy Ring0 driver (NOT used by OmenCore)",
+                IsRequired = false,
+                IsOptional = false // We don't use this
+            };
+            
+            try
+            {
+                // Check for WinRing0 service
+                var services = ServiceController.GetServices();
+                var winring0 = services.FirstOrDefault(s => 
+                    s.ServiceName.Contains("WinRing", StringComparison.OrdinalIgnoreCase));
+                    
+                check.IsDetected = winring0 != null;
+                check.Status = check.IsDetected ? "Detected" : "Not Present";
+                check.Details = check.IsDetected
+                    ? "WinRing0 detected - OmenCore does not use this driver"
+                    : "WinRing0 not present - this is expected ✓";
+            }
+            catch
+            {
+                check.IsDetected = false;
+                check.Status = "Unknown";
+                check.Details = "Could not check WinRing0 status";
+            }
+            
+            _logging.Info($"  [{(!check.IsDetected ? "✓" : "○")}] {check.Name}: {check.Status}");
+            return check;
+        }
+        
+        /// <summary>
+        /// Clear the dependency audit cache to force a fresh check.
+        /// </summary>
+        public void ClearAuditCache()
+        {
+            _cachedAudit = null;
         }
         
         public SystemInfo GetSystemInfo()

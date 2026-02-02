@@ -211,6 +211,74 @@
                                 </TextBlock>
                             </Border>
                         </Grid>
+                        
+                        <!-- Standalone Status (v2.7.0) -->
+                        <Border Margin="0,16,0,0" Padding="16" CornerRadius="8" BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#1A00FF88"/>
+                                    <Setter Property="BorderBrush" Value="#4000FF88"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StandaloneStatus}" Value="Degraded">
+                                            <Setter Property="Background" Value="#1AFFD93D"/>
+                                            <Setter Property="BorderBrush" Value="#40FFD93D"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StandaloneStatus}" Value="Limited">
+                                            <Setter Property="Background" Value="#1AFF6B6B"/>
+                                            <Setter Property="BorderBrush" Value="#40FF6B6B"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="🔍" FontSize="24"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Standalone Status" FontSize="14" FontWeight="SemiBold" 
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding StandaloneStatusSummary, FallbackValue=Checking dependencies...}" 
+                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" 
+                                               TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <Border Grid.Column="2" CornerRadius="4" Padding="12,6" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#2000FF88"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StandaloneStatus}" Value="Degraded">
+                                                    <Setter Property="Background" Value="#20FFD93D"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding StandaloneStatus}" Value="Limited">
+                                                    <Setter Property="Background" Value="#20FF6B6B"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding StandaloneStatus, FallbackValue=Checking...}" 
+                                               FontSize="13" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#00FF88"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding StandaloneStatus}" Value="Degraded">
+                                                        <Setter Property="Foreground" Value="#FFD93D"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding StandaloneStatus}" Value="Limited">
+                                                        <Setter Property="Foreground" Value="#FF6B6B"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

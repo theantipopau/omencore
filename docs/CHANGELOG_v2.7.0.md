@@ -27,6 +27,11 @@
 - **Enhanced Status Header**: Added monitoring health, sample age, and status indicators
 - **HasHistoricalData/HasLiveData Properties**: For proper empty state UI handling
 
+### Standalone Operation
+- **Dependency Audit System**: Startup validation checks for OGH, HP services, WMI BIOS, LHM, PawnIO
+- **Standalone Status Display**: Settings shows "Standalone/Degraded/Limited" status with summary
+- **No HP Software Required**: Clear visibility into what dependencies are detected vs required
+
 ---
 
 ## 🐛 Bug Fixes
@@ -40,11 +45,13 @@
 - [x] **More Aggressive Fan Retention**: Reduced countdown extension from 15s → 8s to combat BIOS reversion
 - [x] **Faster Curve Updates**: Reduced curve update interval from 10s → 5s for more responsive fan control
 - [x] **More Frequent Force Refresh**: Reduced force refresh from 60s → 30s to maintain fan settings
-- [ ] **Max Profile Drops**: Fan ramps to max (~6300 RPM) then drops to low and stays there (timing improved)
-- [ ] **Extreme Profile No Effect**: "Max @ 75°C" profile doesn't change fan behavior (timing improved)
-- [ ] **Gaming Profile Stuck at Max**: "Max @ 80°C" runs fans at max even at 30°C temps
-- [ ] **Auto Profile RPM Zero**: BIOS Auto mode causes RPM to drop to 0
-- [ ] **Silent Profile Glitches**: Fans oscillate rapidly (1200→200→2200→500 RPM in 1-2s cycles)
+
+> **Note:** The following issues are timing-related and should be improved by the above changes. User testing required to confirm fixes:
+> - Max Profile Drops (fan ramps then drops)
+> - Extreme Profile No Effect
+> - Gaming Profile Stuck at Max
+> - Auto Profile RPM Zero
+> - Silent Profile Glitches
 
 ---
 
@@ -57,6 +64,7 @@
 - `HpWmiBios.cs`: Added `WmiHeartbeatHealth` enum, heartbeat failure tracking, `HeartbeatHealthChanged` event
 - `FanService.cs`: Reduced curve update interval (10s → 5s), force refresh (60s → 30s) for more responsive control
 - `OsdService.cs`: Performance mode now properly synced via `ModeApplied` event handler
+- `SystemInfoService.cs`: Added `PerformDependencyAudit()` method with 6 dependency checks (HP WMI BIOS, OGH, HP System Event, LHM, PawnIO, WinRing0)
 
 ### Hardware Modified
 - `WmiFanController.cs`: Reduced countdown extension interval (15s → 8s) for more aggressive fan retention
@@ -64,14 +72,17 @@
 ### ViewModels Modified
 - `DashboardViewModel.cs`: Added `MonitoringHealthStatus`, `MonitoringHealthStatusText`, `MonitoringHealthColor`, `LastSampleAge`, `HasHistoricalData`, `HasLiveData`
 - `MainViewModel.cs`: Added `_osdService.SetPerformanceMode()` call in `OnPerformanceModeApplied` handler
+- `SettingsViewModel.cs`: Added `StandaloneStatus`, `StandaloneStatusColor`, `StandaloneStatusSummary`, `DependencyAudit` properties and `RefreshStandaloneStatus()` method
 
 ### Views Modified
 - `DashboardView.xaml`: Added health status display in header with color-coded indicator
 - `OsdOverlayWindow.xaml`: Changed FPS label to "GPU" (activity indicator) with tooltip
 - `OsdOverlayWindow.xaml.cs`: Replaced fake FPS estimation with GPU load display, added sample staleness detection (5s threshold)
+- `SettingsView.xaml`: Added Standalone Status panel with color-coded status and summary
 
 ### Models Modified
 - `FeaturePreferences.cs`: Added `SuppressHotkeysInRdp` setting (default: true)
+- `SystemInfo.cs`: Added `DependencyCheck`, `StandaloneStatus` enum, `DependencyAudit` classes for standalone operation tracking
 
 ---
 
@@ -99,9 +110,9 @@
 - [x] Unified status header (#14)
 - [x] Empty states for charts (#16)
 - [x] Desktop safe mode detection (#12 - already existed)
+- [x] Standalone dependency audit + UI (#1)
 
 ### 🔲 Remaining High Priority
-- [ ] Standalone dependency audit + UI (#1)
 - [ ] PawnIO-only mode (#2)
 - [ ] Worker auto-restart/failover (#4)
 - [ ] Guided fan diagnostic script (#5)
