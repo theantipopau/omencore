@@ -71,6 +71,15 @@
                     <TextBlock Text="{Binding PeakCpuTemp, StringFormat={}{0:F0}°C}" Style="{StaticResource Caption}" Foreground="#FF6B6B"/>
                     <TextBlock Text=" • GPU " Style="{StaticResource Caption}" Opacity="0.7" Margin="6,0,0,0"/>
                     <TextBlock Text="{Binding PeakGpuTemp, StringFormat={}{0:F0}°C}" Style="{StaticResource Caption}" Foreground="#45C7FF"/>
+                    <TextBlock Text=" • " Style="{StaticResource Caption}" Opacity="0.7" Margin="6,0,0,0"/>
+                    <TextBlock Text="{Binding MonitoringHealthStatusText}" Style="{StaticResource Caption}">
+                        <TextBlock.Foreground>
+                            <SolidColorBrush Color="{Binding MonitoringHealthColor}"/>
+                        </TextBlock.Foreground>
+                    </TextBlock>
+                    <TextBlock Text=" (" Style="{StaticResource Caption}" Opacity="0.7"/>
+                    <TextBlock Text="{Binding LastSampleAge}" Style="{StaticResource Caption}" Opacity="0.7"/>
+                    <TextBlock Text=")" Style="{StaticResource Caption}" Opacity="0.7"/>
                 </StackPanel>
             </StackPanel>
             

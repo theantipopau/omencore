@@ -312,6 +312,13 @@ namespace OmenCore.Services
         {
             try
             {
+                // Check if we should suppress OMEN key during RDP sessions
+                if (ShouldSuppressForRdp())
+                {
+                    _logging.Debug("OMEN key WMI event suppressed - RDP session active");
+                    return;
+                }
+                
                 // Even though we query for eventId=29, eventData=8613, HP BIOS on some models
                 // may use the same event codes for brightness and other Fn keys.
                 // We need to verify the actual event data to filter out false positives.
@@ -415,6 +422,12 @@ namespace OmenCore.Services
         {
             if (nCode >= 0 && _isEnabled)
             {
+                // Check if we should suppress OMEN key during RDP sessions
+                if (ShouldSuppressForRdp())
+                {
+                    return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+                }
+                
                 var hookStruct = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
                 int msg = wParam.ToInt32();
                 
@@ -712,6 +725,30 @@ namespace OmenCore.Services
             {
                 StopInterception();
                 _disposed = true;
+            }
+        }
+        
+        /// <summary>
+        /// Check if OMEN key should be suppressed due to RDP session.
+        /// Uses App.ShouldSuppressWindowActivation which tracks remote/locked session state.
+        /// </summary>
+        private bool ShouldSuppressForRdp()
+        {
+            try
+            {
+                // Check configuration setting first
+                var config = App.Configuration?.Config;
+                if (config?.Features?.SuppressHotkeysInRdp != true)
+                {
+                    return false; // User disabled RDP suppression
+                }
+                
+                // Check if we're in a remote session
+                return App.ShouldSuppressWindowActivation;
+            }
+            catch
+            {
+                return false; // Fail-safe: don't suppress if we can't check
             }
         }
     }

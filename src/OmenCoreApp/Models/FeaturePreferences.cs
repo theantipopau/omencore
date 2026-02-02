@@ -98,5 +98,12 @@ namespace OmenCore.Models
         /// When disabled, shows the static OmenCore logo instead.
         /// </summary>
         public bool TrayTempDisplayEnabled { get; set; } = true;
+        
+        /// <summary>
+        /// Suppress hotkeys and OMEN key during Remote Desktop (RDP) sessions.
+        /// Prevents OmenCore from stealing focus or responding to keyboard events during remote sessions.
+        /// Default: true (suppress during RDP).
+        /// </summary>
+        public bool SuppressHotkeysInRdp { get; set; } = true;
     }
 }

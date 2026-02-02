@@ -294,6 +294,13 @@ namespace OmenCore.Services
         {
             if (msg == WM_HOTKEY && _isEnabled)
             {
+                // Check if we should suppress hotkeys during RDP sessions
+                if (ShouldSuppressForRdp())
+                {
+                    _logging.Debug("Hotkey suppressed - RDP session active");
+                    return IntPtr.Zero;
+                }
+                
                 int id = wParam.ToInt32();
                 if (_registeredHotkeys.TryGetValue(id, out var binding))
                 {
@@ -354,6 +361,30 @@ namespace OmenCore.Services
             if (modifiers.HasFlag(ModifierKeys.Shift)) result |= MOD_SHIFT;
             if (modifiers.HasFlag(ModifierKeys.Windows)) result |= MOD_WIN;
             return result;
+        }
+        
+        /// <summary>
+        /// Check if hotkeys should be suppressed due to RDP session.
+        /// Uses App.ShouldSuppressWindowActivation which tracks remote/locked session state.
+        /// </summary>
+        private bool ShouldSuppressForRdp()
+        {
+            try
+            {
+                // Check configuration setting first
+                var config = App.Configuration?.Config;
+                if (config?.Features?.SuppressHotkeysInRdp != true)
+                {
+                    return false; // User disabled RDP suppression
+                }
+                
+                // Check if we're in a remote session
+                return App.ShouldSuppressWindowActivation;
+            }
+            catch
+            {
+                return false; // Fail-safe: don't suppress if we can't check
+            }
         }
 
         public void Dispose()

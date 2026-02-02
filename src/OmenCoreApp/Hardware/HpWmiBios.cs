@@ -53,6 +53,11 @@ namespace OmenCore.Hardware
         private Timer? _heartbeatTimer;
         private const int HeartbeatIntervalMs = 60000; // 60 seconds
         private bool _heartbeatEnabled = false;
+        
+        // Heartbeat health tracking (v2.7.0)
+        private int _consecutiveHeartbeatFailures = 0;
+        private DateTime _lastSuccessfulHeartbeat = DateTime.MinValue;
+        private volatile WmiHeartbeatHealth _heartbeatHealth = WmiHeartbeatHealth.Unknown;
 
         // HP WMI constants (from OmenMon)
         private const string BIOS_NAMESPACE = @"root\wmi";
@@ -163,6 +168,29 @@ namespace OmenCore.Hardware
         public ThermalPolicyVersion ThermalPolicy { get; private set; } = ThermalPolicyVersion.V1;
         public int FanCount { get; private set; } = 2;
         public bool HeartbeatEnabled => _heartbeatEnabled;
+        
+        // Heartbeat health properties (v2.7.0)
+        /// <summary>
+        /// Current WMI heartbeat health status.
+        /// </summary>
+        public WmiHeartbeatHealth HeartbeatHealth => _heartbeatHealth;
+        
+        /// <summary>
+        /// Time since last successful WMI heartbeat.
+        /// </summary>
+        public TimeSpan HeartbeatAge => _lastSuccessfulHeartbeat == DateTime.MinValue 
+            ? TimeSpan.MaxValue 
+            : DateTime.Now - _lastSuccessfulHeartbeat;
+        
+        /// <summary>
+        /// Number of consecutive heartbeat failures.
+        /// </summary>
+        public int ConsecutiveHeartbeatFailures => _consecutiveHeartbeatFailures;
+        
+        /// <summary>
+        /// Event fired when heartbeat health status changes.
+        /// </summary>
+        public event EventHandler<WmiHeartbeatHealth>? HeartbeatHealthChanged;
         
         // Cache static WMI data to avoid repeated queries
         private bool _staticDataCached = false;
@@ -332,12 +360,54 @@ namespace OmenCore.Hardware
                 var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
                 if (result == null)
                 {
-                    _logging?.Warn("WMI BIOS heartbeat failed - commands may stop working");
+                    _consecutiveHeartbeatFailures++;
+                    _logging?.Warn($"WMI BIOS heartbeat failed (consecutive: {_consecutiveHeartbeatFailures})");
+                    
+                    if (_consecutiveHeartbeatFailures >= 3)
+                    {
+                        UpdateHeartbeatHealth(WmiHeartbeatHealth.Failing);
+                    }
+                    else
+                    {
+                        UpdateHeartbeatHealth(WmiHeartbeatHealth.Degraded);
+                    }
+                }
+                else
+                {
+                    _consecutiveHeartbeatFailures = 0;
+                    _lastSuccessfulHeartbeat = DateTime.Now;
+                    UpdateHeartbeatHealth(WmiHeartbeatHealth.Healthy);
                 }
             }
             catch (Exception ex)
             {
+                _consecutiveHeartbeatFailures++;
                 _logging?.Warn($"WMI BIOS heartbeat error: {ex.Message}");
+                UpdateHeartbeatHealth(_consecutiveHeartbeatFailures >= 3 
+                    ? WmiHeartbeatHealth.Failing 
+                    : WmiHeartbeatHealth.Degraded);
+            }
+        }
+        
+        /// <summary>
+        /// Update heartbeat health status and fire event if changed.
+        /// </summary>
+        private void UpdateHeartbeatHealth(WmiHeartbeatHealth newHealth)
+        {
+            if (_heartbeatHealth != newHealth)
+            {
+                var oldHealth = _heartbeatHealth;
+                _heartbeatHealth = newHealth;
+                _logging?.Info($"WMI heartbeat health changed: {oldHealth} → {newHealth}");
+                
+                try
+                {
+                    HeartbeatHealthChanged?.Invoke(this, newHealth);
+                }
+                catch (Exception ex)
+                {
+                    _logging?.Error($"Error invoking HeartbeatHealthChanged: {ex.Message}", ex);
+                }
             }
         }
 
@@ -1547,5 +1617,23 @@ namespace OmenCore.Hardware
                 _disposed = true;
             }
         }
+    }
+    
+    /// <summary>
+    /// WMI heartbeat health status.
+    /// </summary>
+    public enum WmiHeartbeatHealth
+    {
+        /// <summary>Status not yet determined.</summary>
+        Unknown,
+        
+        /// <summary>Heartbeat working normally.</summary>
+        Healthy,
+        
+        /// <summary>Occasional failures but still functional.</summary>
+        Degraded,
+        
+        /// <summary>Multiple consecutive failures - WMI commands may not work.</summary>
+        Failing
     }
 }

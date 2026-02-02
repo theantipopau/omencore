@@ -31,6 +31,17 @@ namespace OmenCore.ViewModels
         public ReadOnlyObservableCollection<MonitoringSample> MonitoringSamples => _monitoringService.Samples;
         public ObservableCollection<ThermalSample> ThermalSamples => _thermalSamples;
         
+        /// <summary>
+        /// Whether there is historical chart data available.
+        /// Used to show/hide empty state panels (v2.7.0).
+        /// </summary>
+        public bool HasHistoricalData => _monitoringService.HasHistoricalData();
+        
+        /// <summary>
+        /// Whether there is live sensor data available.
+        /// </summary>
+        public bool HasLiveData => _latestMonitoringSample != null;
+        
         public string CurrentPerformanceMode
         {
             get => _currentPerformanceMode;
@@ -244,11 +255,69 @@ namespace OmenCore.ViewModels
             _monitoringService = monitoringService;
             _fanService = fanService;
             _monitoringService.SampleUpdated += OnSampleUpdated;
+            _monitoringService.HealthStatusChanged += OnHealthStatusChanged;
             
             // Start uptime timer for session tracking (v2.2)
             _uptimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _uptimeTimer.Tick += (s, e) => OnPropertyChanged(nameof(SessionUptime));
+            _uptimeTimer.Tick += (s, e) => 
+            {
+                OnPropertyChanged(nameof(SessionUptime));
+                OnPropertyChanged(nameof(LastSampleAge));
+            };
             _uptimeTimer.Start();
+        }
+        
+        // Monitoring health status properties (v2.7.0)
+        /// <summary>
+        /// Current monitoring health status.
+        /// </summary>
+        public MonitoringHealthStatus MonitoringHealthStatus => _monitoringService.HealthStatus;
+        
+        /// <summary>
+        /// Human-readable monitoring health status string.
+        /// </summary>
+        public string MonitoringHealthStatusText => _monitoringService.HealthStatus switch
+        {
+            MonitoringHealthStatus.Healthy => "✓ Healthy",
+            MonitoringHealthStatus.Degraded => "⚠ Degraded",
+            MonitoringHealthStatus.Stale => "⛔ Stale",
+            _ => "? Unknown"
+        };
+        
+        /// <summary>
+        /// Color for health status indicator.
+        /// </summary>
+        public string MonitoringHealthColor => _monitoringService.HealthStatus switch
+        {
+            MonitoringHealthStatus.Healthy => "#2ECC71",  // Green
+            MonitoringHealthStatus.Degraded => "#F1C40F", // Yellow
+            MonitoringHealthStatus.Stale => "#E74C3C",    // Red
+            _ => "#95A5A6"                                 // Gray
+        };
+        
+        /// <summary>
+        /// Time since last successful sensor reading.
+        /// </summary>
+        public string LastSampleAge
+        {
+            get
+            {
+                var age = _monitoringService.LastSampleAge;
+                if (age == TimeSpan.MaxValue) return "No data";
+                if (age.TotalSeconds < 2) return "Just now";
+                if (age.TotalSeconds < 60) return $"{age.TotalSeconds:F0}s ago";
+                return $"{age.TotalMinutes:F0}m ago";
+            }
+        }
+        
+        private void OnHealthStatusChanged(object? sender, MonitoringHealthStatus status)
+        {
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                OnPropertyChanged(nameof(MonitoringHealthStatus));
+                OnPropertyChanged(nameof(MonitoringHealthStatusText));
+                OnPropertyChanged(nameof(MonitoringHealthColor));
+            });
         }
 
         private void OnSampleUpdated(object? sender, MonitoringSample sample)
@@ -290,6 +359,8 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(PowerEfficiencySummary));
             OnPropertyChanged(nameof(BatteryHealthSummary));
             OnPropertyChanged(nameof(FanCurveSummary));
+            OnPropertyChanged(nameof(HasHistoricalData));
+            OnPropertyChanged(nameof(HasLiveData));
         }
         
         private void UpdateFanCurvePoints(MonitoringSample sample)
@@ -339,6 +410,7 @@ namespace OmenCore.ViewModels
             if (disposing)
             {
                 _monitoringService.SampleUpdated -= OnSampleUpdated;
+                _monitoringService.HealthStatusChanged -= OnHealthStatusChanged;
                 _uptimeTimer?.Stop();
                 _uptimeTimer = null;
             }

@@ -38,9 +38,20 @@ namespace OmenCore.Services
         private HardwareMetrics? _lastMetrics;
         private const int ReadSampleTimeoutMs = 10000; // 10 second timeout for sample reads
         private int _consecutiveTimeouts = 0; // Track consecutive timeouts for diagnostics
+        
+        // Monitoring health tracking (v2.7.0)
+        private DateTime _lastSuccessfulSampleTime = DateTime.MinValue;
+        private volatile MonitoringHealthStatus _healthStatus = MonitoringHealthStatus.Unknown;
+        private const int StaleSampleThresholdSeconds = 15;  // Mark stale after 15s without update
+        private const int DegradedTimeoutThreshold = 2;      // Mark degraded after 2 consecutive timeouts
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
+        
+        /// <summary>
+        /// Event fired when monitoring health status changes.
+        /// </summary>
+        public event EventHandler<MonitoringHealthStatus>? HealthStatusChanged;
 
         public HardwareMonitoringService(IHardwareMonitorBridge bridge, LoggingService logging, MonitoringPreferences preferences)
         {
@@ -61,6 +72,23 @@ namespace OmenCore.Services
         }
 
         public bool LowOverheadMode => _lowOverheadMode;
+        
+        /// <summary>
+        /// Current monitoring health status (Healthy, Degraded, or Stale).
+        /// </summary>
+        public MonitoringHealthStatus HealthStatus => _healthStatus;
+        
+        /// <summary>
+        /// Time since last successful sensor reading.
+        /// </summary>
+        public TimeSpan LastSampleAge => _lastSuccessfulSampleTime == DateTime.MinValue 
+            ? TimeSpan.MaxValue 
+            : DateTime.Now - _lastSuccessfulSampleTime;
+        
+        /// <summary>
+        /// Number of consecutive timeouts (useful for diagnostics).
+        /// </summary>
+        public int ConsecutiveTimeouts => _consecutiveTimeouts;
 
         public void SetLowOverheadMode(bool enabled)
         {
@@ -186,6 +214,8 @@ namespace OmenCore.Services
                     {
                         sample = await _bridge.ReadSampleAsync(readCts.Token);
                         _consecutiveTimeouts = 0; // Reset on successful read
+                        _lastSuccessfulSampleTime = DateTime.Now;
+                        UpdateHealthStatus(MonitoringHealthStatus.Healthy);
                     }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
@@ -193,8 +223,10 @@ namespace OmenCore.Services
                         _consecutiveTimeouts++;
                         _logging.Warn($"[MonitorLoop] ReadSampleAsync timed out after {ReadSampleTimeoutMs}ms (consecutive: {_consecutiveTimeouts})");
                         
-                        if (_consecutiveTimeouts >= 3)
+                        // Update health status based on consecutive timeouts
+                        if (_consecutiveTimeouts >= DegradedTimeoutThreshold)
                         {
+                            UpdateHealthStatus(MonitoringHealthStatus.Degraded);
                             _logging.Warn("[MonitorLoop] Multiple consecutive timeouts - hardware monitoring may be stuck");
                         }
                         
@@ -340,45 +372,38 @@ namespace OmenCore.Services
                     })
                     .ToList();
 
-                // If no real data, generate sample data for testing
-                if (realData.Count == 0)
-                {
-                    realData = GenerateSampleData(chartType, timeRange);
-                }
-
+                // v2.7.0: Return empty list instead of synthetic data to show proper empty state
+                // Synthetic data can mask telemetry failures and confuse users
                 return realData;
             }
         }
 
-        private List<HistoricalDataPoint> GenerateSampleData(ChartType chartType, TimeSpan timeRange)
+        /// <summary>
+        /// Check if there is historical data available for charts.
+        /// Use this to decide whether to show empty state UI.
+        /// </summary>
+        public bool HasHistoricalData()
         {
-            var data = new List<HistoricalDataPoint>();
-            var now = DateTime.Now;
-            var startTime = now - timeRange;
-            var interval = timeRange.TotalMinutes / 60; // Data points every minute for 1 hour = 60 points
-
-            for (int i = 0; i < 60; i++)
+            lock (_dashboardLock)
             {
-                var timestamp = startTime + TimeSpan.FromMinutes(i);
-                double value = chartType switch
-                {
-                    ChartType.PowerConsumption => 45 + 15 * Math.Sin(i * 0.1) + new Random(i).NextDouble() * 10, // 45-70W with variation
-                    ChartType.BatteryHealth => 95 + new Random(i).NextDouble() * 5, // 95-100%
-                    ChartType.Temperature => 50 + 20 * Math.Sin(i * 0.2) + new Random(i).NextDouble() * 10, // 50-80°C with variation
-                    ChartType.FanSpeeds => 1500 + 1000 * Math.Sin(i * 0.15) + new Random(i).NextDouble() * 500, // 1500-3500 RPM with variation
-                    _ => 0
-                };
-
-                data.Add(new HistoricalDataPoint
-                {
-                    Timestamp = timestamp,
-                    Value = Math.Round(value, 1),
-                    Label = GetLabelForChartType(chartType)
-                });
+                return _metricsHistory.Count > 0;
             }
-
-            return data;
         }
+        
+        /// <summary>
+        /// Check if there is historical data for a specific time range.
+        /// </summary>
+        public bool HasHistoricalData(TimeSpan timeRange)
+        {
+            lock (_dashboardLock)
+            {
+                var cutoffTime = DateTime.Now - timeRange;
+                return _metricsHistory.Any(m => m.Timestamp >= cutoffTime);
+            }
+        }
+
+        // REMOVED: GenerateSampleData method - replaced with empty state pattern
+        // Synthetic data masks telemetry failures and confuses users
 
         public Task<IEnumerable<HardwareSensorReading>> GetAllSensorDataAsync()
         {
@@ -652,6 +677,54 @@ namespace OmenCore.Services
                 disposableBridge.Dispose();
             }
         }
+        
+        /// <summary>
+        /// Update the monitoring health status and fire event if changed.
+        /// Also checks for stale data based on last sample time.
+        /// </summary>
+        private void UpdateHealthStatus(MonitoringHealthStatus newStatus)
+        {
+            // Check for stale data (takes precedence over other statuses)
+            if (_lastSuccessfulSampleTime != DateTime.MinValue && 
+                (DateTime.Now - _lastSuccessfulSampleTime).TotalSeconds > StaleSampleThresholdSeconds)
+            {
+                newStatus = MonitoringHealthStatus.Stale;
+            }
+            
+            if (_healthStatus != newStatus)
+            {
+                var oldStatus = _healthStatus;
+                _healthStatus = newStatus;
+                _logging.Info($"Monitoring health status changed: {oldStatus} → {newStatus}");
+                
+                try
+                {
+                    HealthStatusChanged?.Invoke(this, newStatus);
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Error invoking HealthStatusChanged: {ex.Message}", ex);
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Monitoring health status for the hardware monitoring service.
+    /// </summary>
+    public enum MonitoringHealthStatus
+    {
+        /// <summary>Status not yet determined.</summary>
+        Unknown,
+        
+        /// <summary>Monitoring is working normally with fresh data.</summary>
+        Healthy,
+        
+        /// <summary>Experiencing timeouts or partial failures but still functional.</summary>
+        Degraded,
+        
+        /// <summary>Data is stale - no successful reads for extended period.</summary>
+        Stale
     }
 
     public class HardwareSensorReading
