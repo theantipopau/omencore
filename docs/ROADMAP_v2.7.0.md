@@ -578,20 +578,20 @@ Targets:
 |---|---|---|---|---|---|---|
 | 1 | Standalone | Dependency audit + UI | High | ☐ |  | [src/OmenCoreApp/ViewModels/SettingsViewModel.cs](src/OmenCoreApp/ViewModels/SettingsViewModel.cs), [src/OmenCoreApp/Views/SettingsView.xaml](src/OmenCoreApp/Views/SettingsView.xaml) |
 | 2 | Standalone | PawnIO‑only mode | High | ☐ |  | [src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs](src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs#L1-L200), [src/OmenCoreApp/Services/HardwareMonitoringService.cs](src/OmenCoreApp/Services/HardwareMonitoringService.cs#L1-L220) |
-| 3 | Monitoring | Health status & stale detection | High | ☐ |  | [src/OmenCoreApp/Services/HardwareMonitoringService.cs](src/OmenCoreApp/Services/HardwareMonitoringService.cs#L1-L220), [src/OmenCoreApp/ViewModels/DashboardViewModel.cs](src/OmenCoreApp/ViewModels/DashboardViewModel.cs) |
+| 3 | Monitoring | Health status & stale detection | High | ✅ DONE |  | [src/OmenCoreApp/Services/HardwareMonitoringService.cs](src/OmenCoreApp/Services/HardwareMonitoringService.cs#L1-L220), [src/OmenCoreApp/ViewModels/DashboardViewModel.cs](src/OmenCoreApp/ViewModels/DashboardViewModel.cs) |
 | 4 | Monitoring | Worker auto‑restart/failover | High | ☐ |  | [src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs](src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs#L1-L200) |
 | 5 | Fan | Guided diagnostic script | High | ☐ |  | [src/OmenCoreApp/ViewModels/FanDiagnosticsViewModel.cs](src/OmenCoreApp/ViewModels/FanDiagnosticsViewModel.cs), [src/OmenCoreApp/Views/FanDiagnosticsView.xaml](src/OmenCoreApp/Views/FanDiagnosticsView.xaml) |
 | 6 | Fan | Curve validation + preview | High | ☐ |  | [src/OmenCoreApp/ViewModels/FanControlViewModel.cs](src/OmenCoreApp/ViewModels/FanControlViewModel.cs) |
 | 7 | OMEN | Capability probe per model | High | ☐ |  | [src/OmenCoreApp/Hardware/HpWmiBios.cs](src/OmenCoreApp/Hardware/HpWmiBios.cs), [src/OmenCoreApp/Models/DeviceCapabilities.cs](src/OmenCoreApp/Models/DeviceCapabilities.cs) |
-| 8 | OMEN | WMI heartbeat health | High | ☐ |  | [src/OmenCoreApp/Hardware/HpWmiBios.cs](src/OmenCoreApp/Hardware/HpWmiBios.cs) |
+| 8 | OMEN | WMI heartbeat health | High | ✅ DONE |  | [src/OmenCoreApp/Hardware/HpWmiBios.cs](src/OmenCoreApp/Hardware/HpWmiBios.cs) |
 | 9 | OMEN | Fan RPM verification scoring | High | ☐ |  | [src/OmenCoreApp/Services/FanService.cs](src/OmenCoreApp/Services/FanService.cs#L240-L360), [src/OmenCoreApp/ViewModels/FanDiagnosticsViewModel.cs](src/OmenCoreApp/ViewModels/FanDiagnosticsViewModel.cs) |
 | 10 | OMEN | GPU power/thermal policy UI | Medium | ☐ |  | [src/OmenCoreApp/ViewModels/SystemControlViewModel.cs](src/OmenCoreApp/ViewModels/SystemControlViewModel.cs) |
 | 11 | BIOS | Query reliability + UI | Medium | ☐ |  | [src/OmenCoreApp/Hardware/HpWmiBios.cs](src/OmenCoreApp/Hardware/HpWmiBios.cs), [src/OmenCoreApp/ViewModels/SettingsViewModel.cs](src/OmenCoreApp/ViewModels/SettingsViewModel.cs) |
-| 12 | Desktop | Monitor‑only safe mode | High | ☐ |  | [src/OmenCoreApp/Services/SystemInfoService.cs](src/OmenCoreApp/Services/SystemInfoService.cs) |
-| 13 | RDP | Suppress popups in RDP | High | ☐ |  | [src/OmenCoreApp/Services/HotkeyService.cs](src/OmenCoreApp/Services/HotkeyService.cs), [src/OmenCoreApp/Services/OmenKeyService.cs](src/OmenCoreApp/Services/OmenKeyService.cs) |
-| 14 | GUI | Unified status header | High | ☐ |  | [src/OmenCoreApp/Views/DashboardView.xaml](src/OmenCoreApp/Views/DashboardView.xaml) |
+| 12 | Desktop | Monitor‑only safe mode | High | ✅ EXISTS |  | [src/OmenCoreApp/Services/SystemInfoService.cs](src/OmenCoreApp/Services/SystemInfoService.cs) |
+| 13 | RDP | Suppress popups in RDP | High | ✅ DONE |  | [src/OmenCoreApp/Services/HotkeyService.cs](src/OmenCoreApp/Services/HotkeyService.cs), [src/OmenCoreApp/Services/OmenKeyService.cs](src/OmenCoreApp/Services/OmenKeyService.cs) |
+| 14 | GUI | Unified status header | High | ✅ EXISTS |  | [src/OmenCoreApp/Views/DashboardView.xaml](src/OmenCoreApp/Views/DashboardView.xaml) |
 | 15 | Tray | Quick actions + status | Medium | ☐ |  | [src/OmenCoreApp/ViewModels/MainViewModel.cs](src/OmenCoreApp/ViewModels/MainViewModel.cs) |
-| 16 | GUI | Empty states + spacing | Medium | ☐ |  | [src/OmenCoreApp/Views/DashboardView.xaml](src/OmenCoreApp/Views/DashboardView.xaml), [src/OmenCoreApp/Views/GeneralView.xaml](src/OmenCoreApp/Views/GeneralView.xaml) |
+| 16 | GUI | Empty states + spacing | Medium | ✅ DONE |  | [src/OmenCoreApp/Views/DashboardView.xaml](src/OmenCoreApp/Views/DashboardView.xaml), [src/OmenCoreApp/Views/GeneralView.xaml](src/OmenCoreApp/Views/GeneralView.xaml) |
 | 17 | GUI | Visual polish (gauges/sparklines) | Medium | ☐ |  | [src/OmenCoreApp/Views/DashboardView.xaml](src/OmenCoreApp/Views/DashboardView.xaml) |
 | 18 | RGB | Unified RGB layer | High | ☐ |  | [src/OmenCoreApp/Services/RgbService.cs](src/OmenCoreApp/Services/RgbService.cs) |
 | 19 | RGB | Logitech SDK | High | ☐ |  | [src/OmenCoreApp/Logitech/LogitechGHubSdk.cs](src/OmenCoreApp/Logitech/LogitechGHubSdk.cs) |
@@ -608,22 +608,22 @@ Targets:
 ### Standalone & Stability
 - [ ] Standalone audit shows no external dependencies required
 - [ ] PawnIO‑only mode works end‑to‑end (temps + fan control + basic telemetry)
-- [ ] Monitoring health status visible and accurate
+- [x] Monitoring health status visible and accurate ✅ IMPLEMENTED
 
 ### OMEN‑Specific Features
 - [ ] Per‑model capability probe gating UI actions
-- [ ] WMI heartbeat health + recovery visible
+- [x] WMI heartbeat health + recovery visible ✅ IMPLEMENTED
 - [ ] Fan RPM verification scoring integrated
 - [ ] GPU power/thermal policy shown in UI
 - [ ] BIOS query reliability improvements in UI
 
 ### Desktop Safe Mode
-- [ ] OMEN desktops forced to monitor‑only mode
+- [x] OMEN desktops forced to monitor‑only mode ✅ ALREADY EXISTS
 - [ ] UI explains safety lock
 
 ### RDP / Remote Sessions
-- [ ] Suppress popups during Remote Desktop sessions
-- [ ] Hotkeys and OMEN key ignored in RDP
+- [x] Suppress popups during Remote Desktop sessions ✅ IMPLEMENTED
+- [x] Hotkeys and OMEN key ignored in RDP ✅ IMPLEMENTED
 
 ### RGB & SDKs
 - [ ] Unified RGB abstraction enabled
@@ -632,9 +632,9 @@ Targets:
 - [ ] Razer Chroma SDK implemented
 
 ### UI/UX & Tray
-- [ ] Unified status header on dashboard
+- [x] Unified status header on dashboard ✅ ALREADY EXISTS + ENHANCED
 - [ ] Tray menu actions complete
-- [ ] Empty‑state panels for charts/diagnostics
+- [x] Empty‑state panels for charts/diagnostics ✅ IMPLEMENTED
 - [ ] Visual polish (gauges, sparklines, curve markers)
 
 ### Linux
