@@ -279,6 +279,28 @@
                                 </Border>
                             </Grid>
                         </Border>
+                        
+                        <!-- PawnIO-Only Mode Toggle (v2.7.0) -->
+                        <Border Margin="0,12,0,0" Padding="16" CornerRadius="8" 
+                                Background="{StaticResource CardBackgroundBrush}" 
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="PawnIO-Only Mode" FontSize="14" FontWeight="SemiBold" 
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Disable HP service-dependent features (performance modes, GPU switching). Use only PawnIO for EC fan control and temperature monitoring." 
+                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" 
+                                               TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <ToggleButton Grid.Column="1" IsChecked="{Binding PawnIOOnlyMode}" 
+                                              Style="{StaticResource ModernToggleButton}" 
+                                              VerticalAlignment="Center" Margin="16,0,0,0"/>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
             </StackPanel>

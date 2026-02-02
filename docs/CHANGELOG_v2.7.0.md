@@ -32,6 +32,7 @@
 - **Dependency Audit System**: Startup validation checks for OGH, HP services, WMI BIOS, LHM, PawnIO
 - **Standalone Status Display**: Settings shows "Standalone/Degraded/Limited" status with summary
 - **No HP Software Required**: Clear visibility into what dependencies are detected vs required
+- **PawnIO-Only Mode Toggle**: Settings option to force PawnIO-only backend (disables HP service-dependent features)
 
 ---
 
@@ -76,16 +77,16 @@
 ### ViewModels Modified
 - `DashboardViewModel.cs`: Added `MonitoringHealthStatus`, `MonitoringHealthStatusText`, `MonitoringHealthColor`, `LastSampleAge`, `HasHistoricalData`, `HasLiveData`
 - `MainViewModel.cs`: Added `_osdService.SetPerformanceMode()` call in `OnPerformanceModeApplied` handler
-- `SettingsViewModel.cs`: Added `StandaloneStatus`, `StandaloneStatusColor`, `StandaloneStatusSummary`, `DependencyAudit` properties and `RefreshStandaloneStatus()` method
+- `SettingsViewModel.cs`: Added `StandaloneStatus`, `StandaloneStatusColor`, `StandaloneStatusSummary`, `DependencyAudit`, `PawnIOOnlyMode` properties and `RefreshStandaloneStatus()` method
 
 ### Views Modified
 - `DashboardView.xaml`: Added health status display in header with color-coded indicator
 - `OsdOverlayWindow.xaml`: Changed FPS label to "GPU" (activity indicator) with tooltip
 - `OsdOverlayWindow.xaml.cs`: Replaced fake FPS estimation with GPU load display, added sample staleness detection (5s threshold)
-- `SettingsView.xaml`: Added Standalone Status panel with color-coded status and summary
+- `SettingsView.xaml`: Added Standalone Status panel with color-coded status/summary, PawnIO-Only Mode toggle
 
 ### Models Modified
-- `FeaturePreferences.cs`: Added `SuppressHotkeysInRdp` setting (default: true)
+- `FeaturePreferences.cs`: Added `SuppressHotkeysInRdp` setting (default: true), `PawnIOOnlyMode` setting (default: false)
 - `SystemInfo.cs`: Added `DependencyCheck`, `StandaloneStatus` enum, `DependencyAudit` classes for standalone operation tracking
 
 ---

@@ -105,5 +105,14 @@ namespace OmenCore.Models
         /// Default: true (suppress during RDP).
         /// </summary>
         public bool SuppressHotkeysInRdp { get; set; } = true;
+        
+        /// <summary>
+        /// Force PawnIO-only backend mode.
+        /// When enabled, OmenCore disables features that require HP WMI BIOS or HP services,
+        /// only using PawnIO for temperature monitoring, fan curves (via EC), and undervolting.
+        /// Useful for systems where HP services are not installed or causing issues.
+        /// Default: false (auto-detect available backends).
+        /// </summary>
+        public bool PawnIOOnlyMode { get; set; } = false;
     }
 }

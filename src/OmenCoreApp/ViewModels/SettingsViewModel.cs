@@ -1682,6 +1682,33 @@ namespace OmenCore.ViewModels
             }
         }
         
+        // PawnIO-Only Mode (v2.7.0)
+        private bool _pawnIOOnlyMode;
+        
+        /// <summary>
+        /// Force PawnIO-only backend mode. Disables HP service-dependent features.
+        /// </summary>
+        public bool PawnIOOnlyMode
+        {
+            get => _pawnIOOnlyMode;
+            set 
+            { 
+                if (_pawnIOOnlyMode != value)
+                {
+                    _pawnIOOnlyMode = value; 
+                    OnPropertyChanged();
+                    
+                    // Persist to config
+                    if (_config?.Features != null)
+                    {
+                        _config.Features.PawnIOOnlyMode = value;
+                        _configService.Save(_config);
+                        _logging.Info($"PawnIO-Only Mode: {(value ? "Enabled" : "Disabled")}");
+                    }
+                }
+            }
+        }
+        
         #endregion
         
         #region BIOS Update Properties
@@ -1792,7 +1819,10 @@ namespace OmenCore.ViewModels
             // Check startup status - first check Task Scheduler, then fall back to registry
             _startWithWindows = CheckStartupTaskExists() || CheckStartupRegistryExists();
             
-            _logging.Info($"Settings loaded: Hotkeys={_hotkeysEnabled}, Notifications={_notificationsEnabled}, PowerAutomation={_powerAutomationEnabled}");
+            // Load PawnIO-Only Mode (v2.7.0)
+            _pawnIOOnlyMode = _config.Features?.PawnIOOnlyMode ?? false;
+            
+            _logging.Info($"Settings loaded: Hotkeys={_hotkeysEnabled}, Notifications={_notificationsEnabled}, PowerAutomation={_powerAutomationEnabled}, PawnIOOnly={_pawnIOOnlyMode}");
         }
 
         private void SaveSettings()
