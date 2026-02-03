@@ -209,6 +209,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="24"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -225,7 +226,15 @@
                                        Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
                         </Border>
                     </Grid>
-                    <TextBlock Grid.Row="2" Text="{Binding CpuSummary}" 
+                    <!-- CPU Sparkline -->
+                    <controls:Sparkline Grid.Row="2" Height="20" Margin="0,4,0,4"
+                                        Values="{Binding RecentCpuTemps}"
+                                        Stroke="{StaticResource AccentBrush}"
+                                        StrokeThickness="1.5"
+                                        MinValue="30" MaxValue="100"
+                                        ShowEndDot="True"
+                                        Visibility="{Binding HasSparklineData, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Grid.Row="3" Text="{Binding CpuSummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
                                LineHeight="18"/>
@@ -239,6 +248,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="24"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -255,7 +265,15 @@
                                        Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
                         </Border>
                     </Grid>
-                    <TextBlock Grid.Row="2" Text="{Binding GpuSummary}" 
+                    <!-- GPU Sparkline -->
+                    <controls:Sparkline Grid.Row="2" Height="20" Margin="0,4,0,4"
+                                        Values="{Binding RecentGpuTemps}"
+                                        Stroke="#45C7FF"
+                                        StrokeThickness="1.5"
+                                        MinValue="25" MaxValue="90"
+                                        ShowEndDot="True"
+                                        Visibility="{Binding HasSparklineData, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Grid.Row="3" Text="{Binding GpuSummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
                                LineHeight="18"/>
@@ -269,6 +287,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="24"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -285,7 +304,15 @@
                                        Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
                         </Border>
                     </Grid>
-                    <TextBlock Grid.Row="2" Text="{Binding MemorySummary}" 
+                    <!-- RAM Sparkline -->
+                    <controls:Sparkline Grid.Row="2" Height="20" Margin="0,4,0,4"
+                                        Values="{Binding RecentRamUsage}"
+                                        Stroke="#9C27B0"
+                                        StrokeThickness="1.5"
+                                        MinValue="0" MaxValue="100"
+                                        ShowEndDot="True"
+                                        Visibility="{Binding HasSparklineData, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Grid.Row="3" Text="{Binding MemorySummary}" 
                                Style="{StaticResource BodyText}"
                                FontSize="13"
                                LineHeight="18"/>

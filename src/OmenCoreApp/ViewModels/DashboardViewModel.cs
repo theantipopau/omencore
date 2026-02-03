@@ -121,6 +121,33 @@ namespace OmenCore.ViewModels
 
         public bool MonitoringGraphsVisible => !MonitoringLowOverheadMode;
 
+        #region Sparkline Data
+        
+        /// <summary>
+        /// Recent CPU temperatures for sparkline display (last 20 samples).
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<double> RecentCpuTemps => 
+            _thermalSamples.TakeLast(20).Select(s => s.CpuCelsius);
+        
+        /// <summary>
+        /// Recent GPU temperatures for sparkline display (last 20 samples).
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<double> RecentGpuTemps => 
+            _thermalSamples.TakeLast(20).Select(s => s.GpuCelsius);
+        
+        /// <summary>
+        /// Recent RAM usage percentages for sparkline display.
+        /// </summary>
+        public System.Collections.Generic.IEnumerable<double> RecentRamUsage => 
+            _monitoringService.Samples.TakeLast(20).Select(s => s.RamUsagePercent);
+        
+        /// <summary>
+        /// Whether there's enough data for sparklines (at least 3 samples).
+        /// </summary>
+        public bool HasSparklineData => _thermalSamples.Count >= 3;
+        
+        #endregion
+
         public string CpuSummary => LatestMonitoringSample == null 
             ? "CPU telemetry unavailable" 
             : LatestMonitoringSample.CpuPowerWatts > 0 
@@ -349,6 +376,12 @@ namespace OmenCore.ViewModels
                     
                     // Update fan curve points for visualization
                     UpdateFanCurvePoints(sample);
+                    
+                    // Update sparkline data properties
+                    OnPropertyChanged(nameof(RecentCpuTemps));
+                    OnPropertyChanged(nameof(RecentGpuTemps));
+                    OnPropertyChanged(nameof(RecentRamUsage));
+                    OnPropertyChanged(nameof(HasSparklineData));
                     
                     _pendingUIUpdate = false;
                 });
