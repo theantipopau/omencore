@@ -40,6 +40,14 @@ namespace OmenCore.Hardware
         // Verify that Max fan speed was applied successfully.
         // Returns true if verification succeeded; "details" contains a short diagnostic description.
         bool VerifyMaxApplied(out string details);
+        
+        /// <summary>
+        /// Apply performance throttling mitigation via EC register 0x95.
+        /// Discovered from omen-fan Linux utility - writing 0x31 to this register
+        /// can help mitigate thermal throttling on some OMEN models.
+        /// </summary>
+        /// <returns>True if the mitigation was applied successfully.</returns>
+        bool ApplyThrottlingMitigation();
     }
     
 
@@ -690,6 +698,13 @@ namespace OmenCore.Hardware
             _proxy.SetMaxFan(false);
             return _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Default);
         }
+        
+        public bool ApplyThrottlingMitigation()
+        {
+            _logging?.Info("Applying throttling mitigation via OGH proxy...");
+            // OGH proxy: use Performance thermal policy for throttling mitigation
+            return _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Performance);
+        }
 
         public void Dispose()
         {
@@ -772,6 +787,8 @@ namespace OmenCore.Hardware
             _logging?.Info("Resetting EC to defaults via WMI BIOS...");
             return _controller.ResetEcToDefaults();
         }
+        
+        public bool ApplyThrottlingMitigation() => _controller.ApplyThrottlingMitigation();
 
         public void Dispose() => _controller.Dispose();
     }
@@ -999,6 +1016,37 @@ namespace OmenCore.Hardware
             _logging?.Info("Resetting EC to defaults via EC access...");
             return _controller.ResetEcToDefaults();
         }
+        
+        /// <summary>
+        /// Apply throttling mitigation via EC register 0x95.
+        /// Writes 0x31 (performance mode) to mitigate thermal throttling.
+        /// </summary>
+        public bool ApplyThrottlingMitigation()
+        {
+            const ushort EC_PERFORMANCE_REGISTER = 0x95;
+            const byte EC_PERFORMANCE_MODE = 0x31;
+            
+            _logging?.Info("Applying throttling mitigation via EC register 0x95...");
+            
+            try
+            {
+                if (!_controller.IsEcReady)
+                {
+                    _logging?.Warn("EC not ready - cannot apply throttling mitigation");
+                    return false;
+                }
+                
+                // Write performance mode to register 0x95
+                _controller.WriteEc(EC_PERFORMANCE_REGISTER, EC_PERFORMANCE_MODE);
+                _logging?.Info($"✓ Throttling mitigation applied: EC[0x{EC_PERFORMANCE_REGISTER:X2}] = 0x{EC_PERFORMANCE_MODE:X2}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Throttling mitigation failed: {ex.Message}");
+                return false;
+            }
+        }
 
         public void Dispose()
         {
@@ -1118,6 +1166,12 @@ namespace OmenCore.Hardware
         public bool ResetEcToDefaults()
         {
             _logging?.Warn("EC reset not available: No fan control backend");
+            return false;
+        }
+        
+        public bool ApplyThrottlingMitigation()
+        {
+            _logging?.Warn("Throttling mitigation not available: No fan control backend");
             return false;
         }
 

@@ -561,6 +561,60 @@ namespace OmenCore.Services
         }
         
         /// <summary>
+        /// Interpolate fan speed using slope-based linear interpolation (omen-fan style).
+        /// This provides smoother fan speed transitions between curve points by
+        /// calculating the exact speed based on where the temperature falls between points.
+        /// 
+        /// Based on the omen-fan Linux utility algorithm:
+        /// slope[i] = (speed[i] - speed[i-1]) / (temp[i] - temp[i-1])
+        /// speed = speed[i-1] + slope[i-1] * (current_temp - temp[i-1])
+        /// </summary>
+        /// <param name="curve">The fan curve points (must be sorted by temperature)</param>
+        /// <param name="temperature">Current temperature in degrees Celsius</param>
+        /// <returns>Interpolated fan speed percentage (0-100)</returns>
+        private static double InterpolateFanSpeed(List<FanCurvePoint> curve, double temperature)
+        {
+            if (curve == null || curve.Count == 0)
+                return 50; // Default fallback
+                
+            // Below first point - use minimum speed
+            if (temperature <= curve[0].TemperatureC)
+                return curve[0].FanPercent;
+                
+            // Above last point - use maximum speed (safety: always go to max, never drop)
+            if (temperature >= curve[^1].TemperatureC)
+                return curve[^1].FanPercent;
+                
+            // Find surrounding points and interpolate using slope calculation
+            for (int i = 0; i < curve.Count - 1; i++)
+            {
+                var lower = curve[i];
+                var upper = curve[i + 1];
+                
+                if (temperature >= lower.TemperatureC && temperature <= upper.TemperatureC)
+                {
+                    // Calculate slope: (speed_delta) / (temp_delta)
+                    double tempDelta = upper.TemperatureC - lower.TemperatureC;
+                    
+                    // Avoid division by zero (curve points at same temperature)
+                    if (tempDelta <= 0)
+                        return lower.FanPercent;
+                    
+                    double slope = (upper.FanPercent - lower.FanPercent) / tempDelta;
+                    
+                    // Calculate interpolated speed
+                    double interpolatedSpeed = lower.FanPercent + slope * (temperature - lower.TemperatureC);
+                    
+                    // Clamp to valid range (0-100%)
+                    return Math.Clamp(interpolatedSpeed, 0, 100);
+                }
+            }
+            
+            // Fallback: use last curve point (shouldn't reach here if curve is sorted)
+            return curve[^1].FanPercent;
+        }
+        
+        /// <summary>
         /// Configure smoothing settings programmatically.
         /// </summary>
         public void SetSmoothingSettings(FanTransitionSettings settings)
@@ -908,15 +962,9 @@ namespace OmenCore.Services
                     // Use max of CPU/GPU temp to determine fan speed
                     var maxTemp = Math.Max(cpuTemp, gpuTemp);
                     
-                    // Find the appropriate curve point
-                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
-                    // This prevents fans from dropping to 0% at high temps
-                    var targetPoint = _activeCurve.LastOrDefault(p => p.TemperatureC <= maxTemp) 
-                                      ?? _activeCurve.LastOrDefault(); // Use highest, not lowest!
-                                      
-                    if (targetPoint == null)
-                        return Task.CompletedTask;
-                    double targetFanPercent = targetPoint.FanPercent;
+                    // Calculate fan speed using slope-based interpolation (omen-fan style)
+                    // This provides smoother transitions between curve points
+                    double targetFanPercent = InterpolateFanSpeed(_activeCurve, maxTemp);
                     
                     // Adjust fan speed based on GPU power boost level
                     // Higher power boost levels generate more heat, so slightly increase fan speed
@@ -1042,6 +1090,7 @@ namespace OmenCore.Services
 
         /// <summary>
         /// Apply independent CPU and GPU fan curves based on their respective temperatures.
+        /// Uses slope-based interpolation for smooth fan speed transitions.
         /// </summary>
         private Task ApplyIndependentCurvesAsync(double cpuTemp, double gpuTemp, bool immediate, bool forceRefresh, DateTime now)
         {
@@ -1052,21 +1101,11 @@ namespace OmenCore.Services
                     
                 try
                 {
-                    // Evaluate CPU curve against CPU temperature
-                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
-                    var cpuTargetPoint = _cpuCurve.LastOrDefault(p => p.TemperatureC <= cpuTemp) 
-                                         ?? _cpuCurve.LastOrDefault(); // Use highest, not lowest!
+                    // Evaluate CPU curve using slope-based interpolation
+                    int cpuFanPercent = (int)Math.Round(InterpolateFanSpeed(_cpuCurve, cpuTemp));
                     
-                    // Evaluate GPU curve against GPU temperature
-                    // SAFETY: If temp exceeds all curve points, use LAST point (highest fan%)
-                    var gpuTargetPoint = _gpuCurve.LastOrDefault(p => p.TemperatureC <= gpuTemp) 
-                                         ?? _gpuCurve.LastOrDefault(); // Use highest, not lowest!
-                    
-                    if (cpuTargetPoint == null || gpuTargetPoint == null)
-                        return Task.CompletedTask;
-                    
-                    int cpuFanPercent = cpuTargetPoint.FanPercent;
-                    int gpuFanPercent = gpuTargetPoint.FanPercent;
+                    // Evaluate GPU curve using slope-based interpolation
+                    int gpuFanPercent = (int)Math.Round(InterpolateFanSpeed(_gpuCurve, gpuTemp));
                     
                     // Apply safety bounds clamping to both CPU and GPU fan speeds
                     cpuFanPercent = (int)Math.Round(ApplySafetyBoundsClamping(cpuFanPercent, cpuTemp));

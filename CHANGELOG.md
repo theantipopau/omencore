@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New Setting**: Optional "PawnIO-Only Mode" to skip WinRing0 entirely for Secure Boot compatibility
 - **Settings UI**: Toggle in Settings → Hardware section for users who want exclusive PawnIO access
 - **Config Persistence**: Setting saved to user configuration for persistence across sessions
+- **WinRing0 Removed**: Completely removed WinRing0 fallback from MsrAccessFactory - no more antivirus false positives
 
 ### 🔍 Guided Fan Diagnostic
 - **Step-by-Step Testing**: New guided diagnostic that tests 30% → 60% → 100% fan speeds
@@ -43,15 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Model Warnings**: User-facing notes for unknown models or unverified configurations
 - **Family Fallbacks**: Unknown models inherit defaults from their detected family (OMEN16, Victus, etc.)
 
+### 🖼️ UI/UX Polish
+- **Sidebar Temperature Display**: Fixed CPU/GPU temps showing "--" - now displays live temperatures correctly
+- **Quick Actions Disabled Styling**: Buttons now grey out (40% opacity) when unavailable with neutral icon backgrounds
+- **Version Display Fixed**: Settings → About now correctly shows v2.7.0 instead of v2.6.1
+
 ### 🐛 Bug Fixes
 - **Temperature History Not Recording**: Fixed bug where temperature charts showed no data when temps were stable (ShouldUpdateUI optimization was incorrectly skipping history updates)
 - **Monitoring Timeout Handling**: Fixed consecutive timeout detection logic for accurate degraded mode triggering
 - **Fan Curve Temperature Bounds**: Curve preview properly handles temperatures outside defined points
+- **Sidebar Temp Bindings**: Added CpuTemperature/GpuTemperature properties to DashboardViewModel for proper sidebar display
+- **Assembly Version Mismatch**: Updated AssemblyVersion and FileVersion from 2.6.1 to 2.7.0 in csproj
 
 ### 📋 Technical Details
 - **New Files**: `ModelCapabilityDatabase.cs` with 400+ lines of model configurations
 - **Interface Changes**: `IHardwareMonitorBridge` extended with `TryRestartAsync()`
 - **Config Schema**: Added `FeaturePreferences.PawnIOOnlyMode` boolean property
+- **MsrAccessFactory**: Removed WinRing0 fallback, PawnIO-only for MSR/undervolt access
+- **DashboardViewModel**: Added `CpuTemperature`, `GpuTemperature` properties with PropertyChanged notifications
+- **MainWindow.xaml**: Added IsEnabled triggers for Quick Actions disabled styling
 
 ---
 

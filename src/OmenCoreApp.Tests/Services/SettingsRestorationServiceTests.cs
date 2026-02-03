@@ -46,6 +46,7 @@ namespace OmenCoreApp.Tests.Services
             public void ApplyAutoMode() { LastAppliedPreset = "Auto"; }
             public void ApplyQuietMode() { LastAppliedPreset = "Quiet"; }
             public bool ResetEcToDefaults() => true;
+            public bool ApplyThrottlingMitigation() => true;
             public void Dispose() { }
             public bool VerifyMaxApplied(out string details) { details = ""; return true; }
         }

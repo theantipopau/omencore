@@ -1183,6 +1183,10 @@ namespace OmenCore.ViewModels
             _hardwareMonitoringService.SampleUpdated += HardwareMonitoringServiceOnSampleUpdated;
             _monitoringLowOverhead = _config.Monitoring?.LowOverheadMode ?? false;
             _hardwareMonitoringService.SetLowOverheadMode(_monitoringLowOverhead);
+            
+            // Enable WMI BIOS fallback for temperature freeze recovery (v2.7.0)
+            _hardwareMonitoringService.SetWmiBiosService(_wmiBios);
+            
             _systemRestoreService = new SystemRestoreService(_logging);
             _hubCleanupService = new OmenGamingHubCleanupService(_logging);
             _systemInfoService = new SystemInfoService(_logging);

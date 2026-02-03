@@ -751,6 +751,43 @@ namespace OmenCore.Hardware
                 return false;
             }
         }
+        
+        /// <summary>
+        /// Apply performance throttling mitigation via EC register 0x95.
+        /// Discovered from omen-fan Linux utility - writing 0x31 (performance mode) to register 0x95
+        /// can help mitigate thermal throttling on some OMEN models.
+        /// 
+        /// This is a fallback for cases where WMI SetFanMode doesn't fully enable performance mode.
+        /// Register 0x95 is documented in the omen-fan project as the performance mode register.
+        /// 
+        /// Note: For WMI-based controller, this primarily uses WMI SetFanMode. Direct EC access
+        /// requires the EC-based controller (EcFanControllerWrapper).
+        /// </summary>
+        public bool ApplyThrottlingMitigation()
+        {
+            _logging?.Info("Attempting throttling mitigation via WMI Performance mode...");
+            
+            try
+            {
+                // Use WMI SetFanMode to Performance as the primary method
+                if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Performance))
+                {
+                    _logging?.Info("✓ Set WMI FanMode to Performance for throttling mitigation");
+                    _lastMode = HpWmiBios.FanMode.Performance;
+                    return true;
+                }
+                else
+                {
+                    _logging?.Warn("WMI SetFanMode to Performance failed - throttling mitigation not applied");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Throttling mitigation failed: {ex.Message}");
+                return false;
+            }
+        }
 
         /// <summary>
         /// Read current fan telemetry data.

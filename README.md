@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.6.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.6.1)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.7.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -25,28 +25,44 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## 🆕 What's New in v2.6.1
+## 🆕 What's New in v2.7.0
 
-### 🐛 Critical Bug Fixes
+### 🚀 Major Features
 
-**🌀 Fan Max Mode from Quick Access**
-- **Fixed:** "Max" from system tray now correctly applies maximum fan speed
-- Previously would show "Performance" and not actually run at max RPM
-- Now prioritizes exact "Max" preset match and calls `SetMaxFan(true)` immediately
+**📖 HP Model Database Integration**
+- Built-in database of HP OMEN/Victus models with known capabilities
+- Automatic feature detection based on your laptop's product ID
+- Shows verified working configurations from community testing
 
-**🌡️ Temperature Freezing**
-- **Improved:** Faster detection and recovery from frozen temperature readings
-- Reduced stuck detection from 40s to 20s
-- Added permanent WMI BIOS fallback mode after 3 failed recovery attempts
-- No more app restarts needed for stuck temps
+**🔬 Fan Diagnostics Guided Test**
+- New automated fan testing at 30% → 60% → 100%
+- Verifies fan responsiveness and RPM accuracy
+- Clear pass/fail results with recommendations
 
-Full changelog: [CHANGELOG_v2.6.1.md](docs/CHANGELOG_v2.6.1.md)
+**🛡️ Enhanced Thermal Protection**
+- Emergency fan max mode at 85°C (lowered from 88°C)
+- Smarter release logic with minimum 50% fan until truly cool
+- Prevents temperature yo-yo behavior
+
+**🛡️ PawnIO-Only MSR Backend**
+- Removed WinRing0 completely to eliminate antivirus false positives
+- Now exclusively uses PawnIO for MSR access (undervolt, TCC offset)
+- Secure Boot compatible with signed driver
+
+### 🐛 Bug Fixes
+
+- **Version Display Fix** - Settings → About now shows correct version (was stuck at 2.6.1)
+- **Sidebar Temperature Fix** - CPU/GPU temperatures in sidebar now display actual values (was showing "--")
+- **Quick Actions Disabled Styling** - Buttons now grey out at 40% opacity when unavailable
+- **Temperature Freeze Detection** - Auto-detects frozen sensors and falls back to WMI BIOS readings
+
+Full changelog: [CHANGELOG_v2.7.0.md](docs/CHANGELOG_v2.7.0.md)
 
 ---
 
 ## 📖 Previous Releases
 
-### v2.6.0 - Fan Control & Stability
+### v2.6.1 - Bug Fix & UX Improvements
 
 - 🛡️ **Desktop Safety Protection** - OmenCore now detects OMEN desktops and blocks fan control to prevent hardware damage (monitoring-only mode available)
 - 🐧 **Linux GUI Crash Fixed** - Resolved Avalonia startup crash on Linux (`StaticResource 'DarkBackgroundBrush' not found`)
@@ -55,11 +71,7 @@ Full changelog: [CHANGELOG_v2.6.1.md](docs/CHANGELOG_v2.6.1.md)
 - 🪟 **Window Rounded Corners** - Fixed missing rounded corners on Windows with DWM composition
 - 📐 **Smaller Minimum Window** - Reduced from 900×600 to 800×500 for smaller displays
 
-Full changelog: [CHANGELOG_v2.3.2.md](docs/CHANGELOG_v2.3.2.md)
-
----
-
-## 📖 Previous Releases
+Full changelog: [CHANGELOG_v2.6.1.md](docs/CHANGELOG_v2.6.1.md)
 
 ### v2.3.1 - Critical Bug Fix
 

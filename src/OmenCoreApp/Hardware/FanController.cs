@@ -663,5 +663,17 @@ namespace OmenCore.Hardware
                 return false;
             }
         }
+        
+        /// <summary>
+        /// Write a value to an EC register (public wrapper for throttling mitigation).
+        /// Only allows writes to registers in the allowed write list.
+        /// </summary>
+        public void WriteEc(ushort address, byte value)
+        {
+            if (!IsEcReady)
+                throw new InvalidOperationException("EC not ready");
+                
+            _ecAccess.WriteByte(address, value);
+        }
     }
 }

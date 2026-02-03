@@ -31,7 +31,7 @@
             Background="{StaticResource BackgroundDarkBrush}">
         <Border.Effect>
             <!-- Subtle shadow for depth on systems that support it -->
-            <DropShadowEffect BlurRadius="15" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.3" />
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.25" />
         </Border.Effect>
         <Grid>
                                     <Grid.RowDefinitions>
@@ -42,15 +42,18 @@
             <!-- Custom Title Bar -->
             <Border Grid.Row="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12,12,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Height="44">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
-                        <Image Source="pack://application:,,,/OmenCore;component/Assets/logo-small.png" Width="26" Height="26" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
-                        <TextBlock Text="OmenCore" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                        <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource AccentBrush}" FontWeight="Medium" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0">
+                        <!-- App Title -->
+                        <Image Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,8,0"/>
+                        <TextBlock Text="OmenCore" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        
+                        <!-- Version Badge -->
+                        <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                           <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
                         </Border>
                         
                         <!-- Update Available Indicator -->
-                        <Border Background="#1A4CAF50" BorderBrush="#4CAF50" BorderThickness="1" CornerRadius="4" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center"
+                        <Border Background="{StaticResource SurfaceMediumBrush}" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="1" CornerRadius="4" Padding="10,4" Margin="12,0,0,0" VerticalAlignment="Center"
                                 Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}"
                                 Cursor="Hand"
                                 ToolTip="Click to download the latest version">
@@ -58,9 +61,9 @@
                                 <MouseBinding MouseAction="LeftClick" Command="{Binding OpenUpdateUrlCommand}" />
                             </Border.InputBindings>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🔔" FontSize="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="#4CAF50" VerticalAlignment="Center">
-                                    <Run Text="Update:"/>
+                                <TextBlock Text="⬇" FontSize="12" Foreground="{StaticResource SuccessBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center">
+                                    <Run Text="Update Available:"/>
                                     <Run Text="{Binding UpdateVersion}"/>
                                 </TextBlock>
                             </StackPanel>
@@ -81,51 +84,101 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Sidebar -->
-                <Border Grid.Column="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="0,0,0,12">
-                    <DockPanel LastChildFill="True" Margin="12,10,12,10">
-                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8" HorizontalAlignment="Center">
-                            <Image Source="pack://application:,,,/Assets/logo.png" Width="56" Height="56" Stretch="Uniform" />
-                            <TextBlock Text="OmenCore" Foreground="{StaticResource TextPrimaryBrush}" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,6,0,0" />
-                            <TextBlock Text="Gaming Control" Foreground="{StaticResource TextTertiaryBrush}" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                            
-                            <!-- System Status Indicator -->
-                            <Border Background="{StaticResource SurfaceMediumBrush}"
-                                    BorderBrush="{StaticResource AccentBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="5"
-                                    Padding="6,5"
-                                    Margin="0,8,0,0">
-                                <StackPanel>
-                                    <Grid Margin="0,0,0,4">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Path Grid.Column="0" Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="PERFORMANCE" FontSize="7" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
-                                            <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, FallbackValue=Auto}" 
-                                                       FontSize="10" FontWeight="Bold" 
-                                                       Foreground="{StaticResource AccentBrush}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                    
-                                    <Rectangle Height="1" Fill="{StaticResource BorderBrush}" Margin="0,2"/>
-                                    
-                                    <Grid Margin="0,4,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Path Grid.Column="0" Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="FAN MODE" FontSize="7" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}"/>
-                                            <TextBlock Text="{Binding Dashboard.CurrentFanMode, FallbackValue=Auto}" 
-                                                       FontSize="10" FontWeight="Bold" 
-                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Grid>
+                <Border Grid.Column="0" CornerRadius="0,0,0,12">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#0D1117" Offset="0"/>
+                            <GradientStop Color="#0A0E14" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <DockPanel LastChildFill="True" Margin="16,20,16,20">
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+                            <!-- Brand Header with Glow Effect -->
+                            <Border Background="Transparent" Padding="8" Margin="-8,0,-8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border CornerRadius="8" Padding="4">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#FF005C" BlurRadius="12" Opacity="0.3" ShadowDepth="0"/>
+                                        </Border.Effect>
+                                        <Image Source="pack://application:,,,/Assets/logo.png" Width="36" Height="36" Stretch="Uniform" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    </Border>
+                                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="OmenCore" Foreground="{StaticResource TextPrimaryBrush}" FontSize="20" FontWeight="Bold" />
+                                        <TextBlock Text="C O N T R O L   C E N T E R" Foreground="{StaticResource AccentBrush}" FontSize="8" FontWeight="Bold" Opacity="0.9"/>
+                                    </StackPanel>
                                 </StackPanel>
+                            </Border>
+                            
+                            <!-- Live Status Card with Enhanced Design -->
+                            <Border Margin="0,16,0,0" CornerRadius="10" Padding="14,12">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#161B28" Offset="0"/>
+                                        <GradientStop Color="#12161F" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" Opacity="0.2" ShadowDepth="2" Direction="270"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Performance Mode -->
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Path Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="PERFORMANCE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, FallbackValue=--}" 
+                                                   FontSize="13" FontWeight="SemiBold" 
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- Fan Mode -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Path Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="FAN MODE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Dashboard.CurrentFanMode, FallbackValue=--}" 
+                                                   FontSize="13" FontWeight="SemiBold" 
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Live Temp Indicators -->
+                                    <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0" 
+                                            Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="10,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                                <TextBlock Text="CPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Dashboard.CpuTemperature, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}"/>
+                                            </StackPanel>
+                                            <Rectangle Grid.Column="1" Width="1" Fill="{StaticResource BorderBrush}" Margin="8,2"/>
+                                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                                <TextBlock Text="GPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Dashboard.GpuTemperature, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" Foreground="{StaticResource AccentBlueBrush}" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
                             </Border>
                             
                             <!-- Capability Warning Banner (Desktop/Fan unavailable) -->
@@ -149,98 +202,216 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-                            <Button Command="{Binding CheckForUpdatesCommand}" Style="{StaticResource SecondaryButton}" Height="30" Margin="0,0,0,5" ToolTip="Manually check for a new version">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconUpdate}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Check for Updates" FontSize="10" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding OpenGameProfileManagerCommand}" Style="{StaticResource SecondaryButton}" Height="30" Margin="0,0,0,5" ToolTip="Manage per-game settings">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconGamepad}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Game Profiles" FontSize="10" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding ExportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="30" Margin="0,0,0,5">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconExport}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Export Config" FontSize="10" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding ImportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="30" Margin="0,0,0,5">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconImport}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                    <TextBlock Text="Import Config" FontSize="10" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="30">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource IconAbout}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                    <TextBlock Text="About" FontSize="10" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                        
+                        <!-- Bottom Utility Buttons -->
+                        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="0,12,0,0" BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}">
+                            <StackPanel>
+                                <TextBlock Text="UTILITIES" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                <UniformGrid Columns="2" Rows="2" Margin="0,0,0,8">
+                                    <Button Command="{Binding ExportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="0,0,4,4" ToolTip="Export your settings">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconExport}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Export" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding ImportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="4,0,0,4" ToolTip="Import settings file">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconImport}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Import" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding OpenGameProfileManagerCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="0,4,4,0" ToolTip="Manage per-game settings">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Profiles" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="4,4,0,0" ToolTip="About OmenCore">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconAbout}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="About" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </UniformGrid>
+                                <Button Command="{Binding CheckForUpdatesCommand}" Height="36" Margin="0,0,0,0" ToolTip="Manually check for a new version">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#1A2332" Offset="0"/>
+                                                        <GradientStop Color="#1E2940" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Button.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconUpdate}" Width="14" Height="14" Fill="{StaticResource SuccessBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Check for Updates" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
                         <ScrollViewer Style="{StaticResource SmoothScrollViewer}">
                             <StackPanel>
-                                <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextTertiaryBrush}" FontSize="8" FontWeight="SemiBold" Margin="0,4,0,6" />
-                                <Button Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,3" HorizontalContentAlignment="Left" Padding="6,4" Height="26">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource TextPrimaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Apply Fan Preset" FontSize="10" VerticalAlignment="Center"/>
+                                <!-- Quick Actions Section -->
+                                <Border Margin="0,0,0,16" Padding="0">
+                                    <StackPanel>
+                                        <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                        <Border CornerRadius="8" Padding="4">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#161B28" Offset="0"/>
+                                                    <GradientStop Color="#12161F" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <StackPanel>
+                                                <Button Command="{Binding ApplyFanPresetCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply your saved fan preset">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border x:Name="FanIconBorder" CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Apply Fan Preset" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding ApplyPerformanceModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Switch performance profile">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource WarningBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Performance Mode" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding ApplyLightingProfileCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply RGB lighting">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentPurpleBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Apply Lighting" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding GamingModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Enable gaming optimizations">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border Background="{StaticResource AccentBrush}" CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Gaming Mode" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,8,0,0" HorizontalContentAlignment="Center" Height="32">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Restore Defaults" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
                                     </StackPanel>
-                                </Button>
-                                <Button Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,3" HorizontalContentAlignment="Left" Padding="6,4" Height="26">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Performance Mode" FontSize="10" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <Button Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,3" HorizontalContentAlignment="Left" Padding="6,4" Height="26">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconLighting}" Width="12" Height="12" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Apply Lighting" FontSize="10" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <Button Command="{Binding GamingModeCommand}" Style="{StaticResource ModernButton}" Margin="0,0,0,3" HorizontalContentAlignment="Left" Padding="6,4" Height="26">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconGamepad}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Gaming Mode" FontSize="10" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,6,0,0" HorizontalContentAlignment="Left" Padding="6,4" Height="26">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Restore Defaults" FontSize="10" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
+                                </Border>
                                 
                                 <!-- System Information -->
-                                <TextBlock Text="SYSTEM INFO" Foreground="{StaticResource TextTertiaryBrush}" FontSize="8" FontWeight="SemiBold" Margin="0,14,0,6" />
-                                <Border Style="{StaticResource SurfaceCard}" Padding="8">
+                                <TextBlock Text="SYSTEM" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                <Border CornerRadius="8" Padding="12,10">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#161B28" Offset="0"/>
+                                            <GradientStop Color="#12161F" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
                                     <StackPanel>
                                         <!-- HP OMEN Model (shown for HP gaming systems) -->
-                                        <Grid Margin="0,0,0,6" Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                                        <Grid Margin="0,0,0,10" Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="20" />
+                                                <ColumnDefinition Width="24" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0" Source="pack://application:,,,/Assets/omen.png" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="HP OMEN" Foreground="{StaticResource AccentBrush}" FontSize="8" FontWeight="Bold" />
+                                            <Border Grid.Column="0" Background="{StaticResource AccentBrush}" CornerRadius="4" Width="20" Height="20" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                <Image Source="pack://application:,,,/Assets/omen.png" Width="14" Height="14" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="HP OMEN" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" />
                                                 <TextBlock Text="{Binding SystemInfo.ModelName, FallbackValue=HP OMEN Laptop}" 
-                                                           Foreground="{StaticResource TextPrimaryBrush}" 
-                                                           FontSize="9" TextWrapping="Wrap" />
+                                                           Foreground="{StaticResource TextSecondaryBrush}" 
+                                                           FontSize="10" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Grid>
                                         
                                         <!-- CPU -->
-                                        <Grid Margin="0,0,0,6">
+                                        <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="20" />
+                                                <ColumnDefinition Width="24" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,6,0">
+                                            <Image Grid.Column="0" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
                                                 <Image.Style>
                                                     <Style TargetType="Image">
                                                         <Setter Property="Source" Value="pack://application:,,,/Assets/intel.png" />
@@ -252,22 +423,24 @@
                                                     </Style>
                                                 </Image.Style>
                                             </Image>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="CPU" Foreground="{StaticResource TextTertiaryBrush}" FontSize="8" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding SystemInfo.CpuName}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="9" TextWrapping="Wrap" />
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="PROCESSOR" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.CpuName}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Grid>
                                         
                                         <!-- RAM -->
-                                        <Grid Margin="0,0,0,6">
+                                        <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="20" />
+                                                <ColumnDefinition Width="24" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Path Grid.Column="0" Data="{StaticResource IconRam}" Width="14" Height="14" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="RAM" Foreground="{StaticResource TextTertiaryBrush}" FontSize="8" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding SystemInfo.RamSizeFormatted}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="9" />
+                                            <Border Grid.Column="0" Background="{StaticResource AccentPurpleBrush}" CornerRadius="4" Width="20" Height="20" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                <Path Data="{StaticResource IconRam}" Width="12" Height="12" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="MEMORY" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.RamSizeFormatted}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" />
                                             </StackPanel>
                                         </Grid>
                                         
@@ -275,12 +448,12 @@
                                         <ItemsControl ItemsSource="{Binding SystemInfo.Gpus}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="0,0,0,6">
+                                                    <Grid Margin="0,0,0,8">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="20" />
+                                                            <ColumnDefinition Width="24" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
-                                                        <Image Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                        <Image Grid.Column="0" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
                                                             <Image.Style>
                                                                 <Style TargetType="Image">
                                                                     <Setter Property="Source" Value="/Assets/nvidia.png" />
@@ -295,9 +468,9 @@
                                                                 </Style>
                                                             </Image.Style>
                                                         </Image>
-                                                        <StackPanel Grid.Column="1">
-                                                            <TextBlock Text="GPU" Foreground="{StaticResource TextTertiaryBrush}" FontSize="8" FontWeight="SemiBold" />
-                                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="9" TextWrapping="Wrap" />
+                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                            <TextBlock Text="GRAPHICS" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextWrapping="Wrap" />
                                                         </StackPanel>
                                                     </Grid>
                                                 </DataTemplate>

@@ -160,7 +160,7 @@
                                             ToolTip="{Binding Description}">
                                         <Button.Style>
                                             <Style TargetType="Button">
-                                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                                <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
                                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                                                 <Setter Property="BorderThickness" Value="1"/>
                                                 <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
@@ -207,7 +207,7 @@
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsAmbientModeActive, Mode=TwoWay}"
-                                          Style="{StaticResource ToggleSwitchStyle}"/>
+                                          Style="{StaticResource ToggleButtonStyle}"/>
                         </Grid>
                     </StackPanel>
                 </Border>

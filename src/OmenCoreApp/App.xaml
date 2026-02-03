@@ -14,6 +14,7 @@
             <Color x:Key="OmenGray">#FF1D1F27</Color>
             <SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource OmenGray}" />
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" xmlns:local="clr-namespace:OmenCore.Utils" />
             <local:InverseBooleanConverter x:Key="InverseBooleanConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
@@ -26,6 +27,9 @@
             <local:BoolToYesNoConverter x:Key="BoolToYesNo" xmlns:local="clr-namespace:OmenCore.Utils" />
             <local:BoolToColorConverter x:Key="BoolToColor" xmlns:local="clr-namespace:OmenCore.Utils" />
             <local:HexToBrushConverter x:Key="HexToBrushConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:PowerToTotalConverter x:Key="PowerToTotalConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:FanSpeedConverter x:Key="FanSpeedConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:LatestFanSpeedConverter x:Key="LatestFanSpeedConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

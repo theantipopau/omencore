@@ -2357,6 +2357,24 @@
                                     Command="{Binding OpenIssuesCommand}"
                                     Padding="16,8"/>
                         </StackPanel>
+                        
+                        <!-- Support Section -->
+                        <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="16" Margin="0,20,0,0">
+                            <StackPanel>
+                                <TextBlock Text="💖 Support Development" FontSize="14" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                                <TextBlock Text="OmenCore is free and open source. If you find it useful, consider supporting its development!" 
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                <Button Command="{Binding OpenDonateCommand}" 
+                                        Style="{StaticResource PrimaryButton}"
+                                        Padding="20,10" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="☕" FontSize="16" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Donate via PayPal" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
                     </StackPanel>

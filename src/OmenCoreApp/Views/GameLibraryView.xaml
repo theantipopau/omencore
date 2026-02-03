@@ -197,7 +197,7 @@
                          Background="Transparent"
                          BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         Visibility="{Binding IsScanning, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                         Visibility="{Binding IsScanning, Converter={StaticResource InverseBoolToVisibility}}">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel/>

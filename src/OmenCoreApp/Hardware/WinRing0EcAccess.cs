@@ -73,6 +73,7 @@ namespace OmenCore.Hardware
             0x4D, // Fan 2 speed high byte
             0x62, // OMCC - BIOS manual/auto control (0x06=Manual, 0x00=Auto)
             0x63, // Timer register
+            0x95, // Performance mode register for throttling mitigation (write 0x31 for performance)
             0xB0, // Fan speed target CPU
             0xB1, // Fan speed target GPU
             0xEC, // Fan boost (0x00=OFF, 0x0C=ON)

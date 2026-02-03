@@ -46,6 +46,16 @@ namespace OmenCore.Services
         private const int DegradedTimeoutThreshold = 2;      // Mark degraded after 2 consecutive timeouts
         private const int RestartTimeoutThreshold = 3;       // Attempt bridge restart after 3 consecutive timeouts
         private bool _restartInProgress = false;             // Prevent concurrent restart attempts
+        
+        // Temperature freeze detection (v2.7.0 enhancement)
+        private double _lastCpuTempForFreezeCheck = 0;
+        private double _lastGpuTempForFreezeCheck = 0;
+        private int _consecutiveSameCpuTemp = 0;
+        private int _consecutiveSameGpuTemp = 0;
+        private const int FreezeThresholdReadings = 30;      // 30 readings with same temp = freeze
+        private const double TempFreezeEpsilon = 0.1;        // Temperature must change by at least 0.1°C
+        private HpWmiBios? _wmiBiosService;                  // Optional WMI fallback for temps
+        private bool _usingWmiFallback = false;              // Track if we're in fallback mode
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
@@ -112,6 +122,18 @@ namespace OmenCore.Services
             if (_bridge is LibreHardwareMonitorImpl lhwm)
             {
                 lhwm.SetMsrAccess(msrAccess);
+            }
+        }
+        
+        /// <summary>
+        /// Set WMI BIOS service for temperature fallback when primary sensors freeze.
+        /// </summary>
+        public void SetWmiBiosService(HpWmiBios? wmiBios)
+        {
+            _wmiBiosService = wmiBios;
+            if (wmiBios != null)
+            {
+                _logging.Info("WMI BIOS temperature fallback configured for freeze recovery");
             }
         }
 
@@ -269,6 +291,9 @@ namespace OmenCore.Services
                     consecutiveErrors = 0; // Reset error counter on success
 
                     _logging.Debug($"MonitorLoop: Got sample - CPU: {sample.CpuTemperatureC}°C, GPU: {sample.GpuTemperatureC}°C, CPULoad: {sample.CpuLoadPercent}%, GPULoad: {sample.GpuLoadPercent}%, RAM: {sample.RamUsageGb}GB");
+
+                    // Temperature freeze detection (v2.7.0)
+                    sample = CheckAndRecoverFrozenTemps(sample);
 
                     // ALWAYS update historical metrics for charts/graphs (bug fix v2.7.0)
                     // The history must be populated even when UI updates are skipped
@@ -710,6 +735,141 @@ namespace OmenCore.Services
             {
                 disposableBridge.Dispose();
             }
+        }
+        
+        /// <summary>
+        /// Check for frozen temperatures and attempt recovery via WMI BIOS fallback.
+        /// Temperatures are considered "frozen" when they don't change by even 0.1°C for 30+ readings.
+        /// This can happen when LibreHardwareMonitor returns stale cached values.
+        /// </summary>
+        private MonitoringSample CheckAndRecoverFrozenTemps(MonitoringSample sample)
+        {
+            bool cpuFrozen = false;
+            bool gpuFrozen = false;
+            
+            // Check CPU temperature for freeze
+            if (Math.Abs(sample.CpuTemperatureC - _lastCpuTempForFreezeCheck) < TempFreezeEpsilon)
+            {
+                _consecutiveSameCpuTemp++;
+                if (_consecutiveSameCpuTemp >= FreezeThresholdReadings)
+                {
+                    cpuFrozen = true;
+                    if (_consecutiveSameCpuTemp == FreezeThresholdReadings)
+                    {
+                        _logging.Warn($"🥶 CPU temperature appears frozen at {sample.CpuTemperatureC:F1}°C for {_consecutiveSameCpuTemp} readings");
+                    }
+                }
+            }
+            else
+            {
+                if (_consecutiveSameCpuTemp >= FreezeThresholdReadings)
+                {
+                    _logging.Info($"✅ CPU temperature unfroze: {_lastCpuTempForFreezeCheck:F1}°C → {sample.CpuTemperatureC:F1}°C");
+                    _usingWmiFallback = false;
+                }
+                _consecutiveSameCpuTemp = 0;
+                _lastCpuTempForFreezeCheck = sample.CpuTemperatureC;
+            }
+            
+            // Check GPU temperature for freeze
+            if (Math.Abs(sample.GpuTemperatureC - _lastGpuTempForFreezeCheck) < TempFreezeEpsilon)
+            {
+                _consecutiveSameGpuTemp++;
+                if (_consecutiveSameGpuTemp >= FreezeThresholdReadings)
+                {
+                    gpuFrozen = true;
+                    if (_consecutiveSameGpuTemp == FreezeThresholdReadings)
+                    {
+                        _logging.Warn($"🥶 GPU temperature appears frozen at {sample.GpuTemperatureC:F1}°C for {_consecutiveSameGpuTemp} readings");
+                    }
+                }
+            }
+            else
+            {
+                if (_consecutiveSameGpuTemp >= FreezeThresholdReadings)
+                {
+                    _logging.Info($"✅ GPU temperature unfroze: {_lastGpuTempForFreezeCheck:F1}°C → {sample.GpuTemperatureC:F1}°C");
+                }
+                _consecutiveSameGpuTemp = 0;
+                _lastGpuTempForFreezeCheck = sample.GpuTemperatureC;
+            }
+            
+            // Try WMI BIOS fallback for frozen temps
+            if ((cpuFrozen || gpuFrozen) && _wmiBiosService != null)
+            {
+                try
+                {
+                    var wmiTemps = _wmiBiosService.GetBothTemperatures();
+                    if (wmiTemps.HasValue)
+                    {
+                        var (wmiCpu, wmiGpu) = wmiTemps.Value;
+                        
+                        // Only use WMI temps if they're different and reasonable
+                        if (cpuFrozen && wmiCpu > 0 && wmiCpu < 150 && 
+                            Math.Abs(wmiCpu - sample.CpuTemperatureC) > 1)
+                        {
+                            if (!_usingWmiFallback)
+                            {
+                                _logging.Info($"🔄 Using WMI BIOS for CPU temp: {sample.CpuTemperatureC:F1}°C → {wmiCpu:F1}°C");
+                                _usingWmiFallback = true;
+                            }
+                            sample.CpuTemperatureC = wmiCpu;
+                            _consecutiveSameCpuTemp = 0;
+                            _lastCpuTempForFreezeCheck = wmiCpu;
+                        }
+                        
+                        if (gpuFrozen && wmiGpu > 0 && wmiGpu < 150 && 
+                            Math.Abs(wmiGpu - sample.GpuTemperatureC) > 1)
+                        {
+                            if (!_usingWmiFallback)
+                            {
+                                _logging.Info($"🔄 Using WMI BIOS for GPU temp: {sample.GpuTemperatureC:F1}°C → {wmiGpu:F1}°C");
+                                _usingWmiFallback = true;
+                            }
+                            sample.GpuTemperatureC = wmiGpu;
+                            _consecutiveSameGpuTemp = 0;
+                            _lastGpuTempForFreezeCheck = wmiGpu;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"WMI temp fallback failed: {ex.Message}");
+                }
+            }
+            
+            // Try to restart the bridge if both temps are frozen for too long
+            if (cpuFrozen && gpuFrozen && 
+                _consecutiveSameCpuTemp >= FreezeThresholdReadings * 2 && 
+                !_restartInProgress)
+            {
+                _logging.Warn("🔄 Both CPU and GPU temps frozen for extended period - attempting bridge restart...");
+                _restartInProgress = true;
+                
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var restarted = await _bridge.TryRestartAsync();
+                        if (restarted)
+                        {
+                            _logging.Info("✅ Bridge restart successful after temp freeze detection");
+                            _consecutiveSameCpuTemp = 0;
+                            _consecutiveSameGpuTemp = 0;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Error($"Bridge restart failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        _restartInProgress = false;
+                    }
+                });
+            }
+            
+            return sample;
         }
         
         /// <summary>

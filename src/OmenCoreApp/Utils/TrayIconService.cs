@@ -532,7 +532,7 @@ namespace OmenCore.Utils
                 var gpuPower = _latestSample.GpuPowerWatts;
                 var gpuPowerDisplay = gpuPower > 0 ? $" · {gpuPower:F0}W" : "";
                 
-                _trayIcon.ToolTipText = $"🎮 OmenCore v2.6.1\n" +
+                _trayIcon.ToolTipText = $"🎮 OmenCore v2.7.0\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
                                        $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%{gpuPowerDisplay}\n" +

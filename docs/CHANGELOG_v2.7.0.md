@@ -111,9 +111,61 @@
 - **Auto-Rescan**: Rescans sensors every 5 minutes to pick up newly loaded drivers
 - **GPU Sensor Support**: NVIDIA, Nouveau, and AMD GPU sensor detection
 
+### Desktop RGB HID Support (SignalRGB/OpenRGB Protocol)
+- **Direct HID Communication**: Uses HidSharp for USB HID access to HP OMEN desktop RGB controllers
+- **OpenRGB-Compatible Protocol**: 58-byte HID packet structure matching OpenRGB HPOmen30LController
+- **7 RGB Zones**: OMEN Logo, Light Bar, Front Fan, CPU Cooler, Bottom Fan, Middle Fan, Top Fan
+- **Device Auto-Detection**: Scans for HP OMEN RGB controllers (VID: 0x103C, PIDs: 0x84FD, 0x84FE, 0x8602, 0x8603)
+- **Brightness & Effects**: Supports brightness (25/50/75/100%), modes (static/breathing/cycle/wave/blinking/radial), themes, and speed
+- **WMI Fallback**: Falls back to WMI BIOS method when HID access fails
+
+### Desktop RGB Advanced Features (OpenRGB Research)
+- **Direct Mode**: Per-zone RGBA control with individual brightness for SignalRGB integration (`SetZoneDirectModeAsync`)
+- **Suspend State Colors**: Set different RGB colors for powered-on vs suspended states (`SetSuspendColorsAsync`)
+- **Per-Zone Brightness**: Independent brightness control for each zone (`SetZoneBrightnessAsync`)
+- **Predefined Themes**: Galaxy, Volcano, Jungle, Ocean, Unicorn from OMEN Command Center (`ApplyThemeAsync`)
+- **Effect Methods**: Breathing (`SetBreathingEffectAsync`), Color Cycle (`SetColorCycleEffectAsync`), Wave (`SetWaveEffectAsync`)
+- **Zone Power Control**: Turn off individual zones or all zones (`TurnOffZoneAsync`, `TurnOffAllAsync`)
+- **Desktop Model Support**: OMEN 45L, 40L, 35L, 30L, 25L, and Obelisk series
+
+### Performance Throttling Mitigation (omen-fan Research)
+- **EC Register 0x95 Support**: Added throttling mitigation register discovered from omen-fan Linux utility
+- **ApplyThrottlingMitigation() API**: New method in IFanController interface for all controller types
+- **EC Direct Write**: EcFanControllerWrapper writes 0x31 to register 0x95 for performance mode
+- **WMI Fallback**: WmiFanController uses WMI SetFanMode to Performance as fallback
+- **OGH Support**: OghFanControllerWrapper sets Performance thermal policy
+
+### Slope-Based Fan Curve Interpolation (omen-fan Algorithm)
+- **Linear Interpolation**: Smooth fan speed transitions between curve points instead of step changes
+- **omen-fan Algorithm**: `slope = (speed[i] - speed[i-1]) / (temp[i] - temp[i-1])`
+- **Applied Speed**: `speed = speed[i-1] + slope * (current_temp - temp[i-1])`
+- **Unified & Independent Modes**: Works with both single curve and separate CPU/GPU curves
+- **Safety Clamping**: Results clamped to 0-100% with existing thermal protection layers
+
 ---
 
 ## 🐛 Bug Fixes
+
+### Version Display Fix
+- **Settings → About Shows Correct Version**: Fixed version displaying as 2.6.1 instead of 2.7.0 - updated `AssemblyVersion` and `FileVersion` in OmenCoreApp.csproj
+
+### Sidebar Temperature Display Fix
+- **Live Temps Now Working**: Fixed sidebar CPU/GPU temperature indicators showing "--" instead of actual values
+- **New Properties**: Added `CpuTemperature` and `GpuTemperature` properties to `DashboardViewModel` that expose `LatestMonitoringSample` temperatures
+- **Proper Bindings**: Sidebar now correctly binds to `Dashboard.CpuTemperature` and `Dashboard.GpuTemperature`
+
+### Quick Actions Visual Feedback
+- **Disabled State Styling**: Quick Action buttons (Apply Fan Preset, Performance Mode, Apply Lighting) now show greyed out appearance when unavailable
+- **40% Opacity on Disabled**: Buttons fade to 40% opacity when their commands cannot execute
+- **Icon Background Changes**: Colored icon badges change to neutral `SurfaceMediumBrush` when disabled
+- **Better UX**: Users can now visually distinguish available vs unavailable actions
+
+### Temperature Freeze Detection & Recovery (Critical Fix)
+- **Consecutive Same-Temp Detection**: Tracks when CPU/GPU temperatures remain exactly the same for 30+ readings
+- **WMI BIOS Fallback**: When freeze detected, automatically falls back to HP WMI BIOS temperature readings
+- **Auto Bridge Restart**: If both CPU and GPU temps freeze for extended period, automatically restarts LibreHardwareMonitor
+- **Recovery Logging**: Clear log messages when freeze detected (`🥶`) and when temps recover (`✅`)
+- **Intelligent Detection**: Uses 0.1°C epsilon to differentiate frozen sensors from genuinely stable temps
 
 ### OSD / Overlay Issues
 - [x] **FPS Display Changed to GPU Activity**: OSD now shows GPU activity % instead of fake FPS estimate (no game hooks available)
@@ -136,8 +188,15 @@
 
 ## 🔧 Technical Changes
 
+### WinRing0 Removal (Antivirus False Positive Fix)
+- **PawnIO-Only MSR Backend**: Removed WinRing0 fallback from `MsrAccessFactory` - now exclusively uses PawnIO for MSR access
+- **No More AV False Positives**: WinRing0 device access attempts were triggering Windows Defender heuristics
+- **Marked Obsolete**: `MsrBackend.WinRing0` enum value marked with `[Obsolete("WinRing0 support removed in v2.7.0")]`
+- **Secure Boot Compatible**: PawnIO is signed and works with Secure Boot enabled
+- **Clean Install**: Users no longer need to whitelist WinRing0 in Windows Defender
+
 ### Services Modified
-- `HardwareMonitoringService.cs`: Added `MonitoringHealthStatus` enum, health tracking, removed synthetic data generation, added auto-restart after 3 consecutive timeouts
+- `HardwareMonitoringService.cs`: Added `MonitoringHealthStatus` enum, health tracking, removed synthetic data generation, added auto-restart after 3 consecutive timeouts, **added temperature freeze detection with WMI BIOS fallback**, consecutive same-temp tracking, `SetWmiBiosService()` method
 - `HotkeyService.cs`: Added `ShouldSuppressForRdp()` check in WndProc
 - `OmenKeyService.cs`: Added RDP suppression in hook callback and WMI event handler
 - `HpWmiBios.cs`: Added `WmiHeartbeatHealth` enum, heartbeat failure tracking, `HeartbeatHealthChanged` event
@@ -146,8 +205,17 @@
 - `SystemInfoService.cs`: Added `PerformDependencyAudit()` method with 6 dependency checks (HP WMI BIOS, OGH, HP System Event, LHM, PawnIO, WinRing0)
 
 ### Hardware Modified
-- `WmiFanController.cs`: Reduced countdown extension interval (15s → 8s) for more aggressive fan retention
+- `WmiFanController.cs`: Reduced countdown extension interval (15s → 8s) for more aggressive fan retention; Added `ApplyThrottlingMitigation()` method using WMI SetFanMode to Performance
 - `HardwareMonitorBridge.cs`: Added `TryRestartAsync()` method to interface for bridge restart capability
+- `FanControllerFactory.cs`: Added `ApplyThrottlingMitigation()` to IFanController interface; Implemented in all wrappers (EcFanControllerWrapper, WmiFanControllerWrapper, OghFanControllerWrapper, FallbackFanController)
+- `FanController.cs`: Added `WriteEc()` public method for throttling mitigation; Used by EcFanControllerWrapper
+- `OmenDesktopRgbService.cs`: Enhanced with HidSharp direct HID communication; Added 58-byte SignalRGB-compatible packet protocol; Added `SetZoneColorViaHidAsync()`, `BuildHidPacket()`, `WriteHidPacket()` methods; Added SignalRGB zone configuration (Diamond, Light Bar, CPU Cooler, ARGB 1-3)
+- `PawnIOEcAccess.cs`: Added EC register 0x95 to write allowlist for throttling mitigation
+- `WinRing0EcAccess.cs`: Added EC register 0x95 to write allowlist for throttling mitigation
+
+### Services Modified
+- `HardwareMonitoringService.cs`: Added `MonitoringHealthStatus` enum, health tracking, removed synthetic data generation, added auto-restart after 3 consecutive timeouts
+- `FanService.cs`: Reduced curve update interval (10s → 5s), force refresh (60s → 30s); Added `InterpolateFanSpeed()` method with slope-based linear interpolation; Applied to both unified and independent curve modes
 - `LibreHardwareMonitorImpl.cs`: Added `TryRestartAsync()` implementation - restarts worker or reinitializes in-process monitor
 - `WmiBiosMonitor.cs`: Added `TryRestartAsync()` stub (WMI BIOS has no persistent state)
 

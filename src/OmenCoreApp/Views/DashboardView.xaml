@@ -8,38 +8,7 @@
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1000">
     <UserControl.Resources>
-        <!-- Quick Action Button Style -->
-        <Style x:Key="QuickActionButton" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" 
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
-                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{StaticResource AccentBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!-- Styles inherited from ModernStyles.xaml -->
     </UserControl.Resources>
     
     <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
@@ -53,83 +22,84 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header with Quick Actions -->
-        <Grid Grid.Row="0" Margin="0,0,0,20">
+        <!-- Header: Title, Stats, Actions -->
+        <Grid Grid.Row="0" Margin="0,0,0,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="Hardware Monitoring" Style="{StaticResource Heading1}"/>
-                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                    <TextBlock Text="Session: " Style="{StaticResource Caption}" Opacity="0.7"/>
-                    <TextBlock Text="{Binding SessionUptime}" Style="{StaticResource Caption}" Foreground="{StaticResource AccentBrush}"/>
-                    <TextBlock Text=" • Peak: " Style="{StaticResource Caption}" Opacity="0.7" Margin="12,0,0,0"/>
-                    <TextBlock Text="CPU " Style="{StaticResource Caption}" Opacity="0.7"/>
-                    <TextBlock Text="{Binding PeakCpuTemp, StringFormat={}{0:F0}°C}" Style="{StaticResource Caption}" Foreground="#FF6B6B"/>
-                    <TextBlock Text=" • GPU " Style="{StaticResource Caption}" Opacity="0.7" Margin="6,0,0,0"/>
-                    <TextBlock Text="{Binding PeakGpuTemp, StringFormat={}{0:F0}°C}" Style="{StaticResource Caption}" Foreground="#45C7FF"/>
-                    <TextBlock Text=" • " Style="{StaticResource Caption}" Opacity="0.7" Margin="6,0,0,0"/>
-                    <TextBlock Text="{Binding MonitoringHealthStatusText}" Style="{StaticResource Caption}">
-                        <TextBlock.Foreground>
-                            <SolidColorBrush Color="{Binding MonitoringHealthColor}"/>
-                        </TextBlock.Foreground>
-                    </TextBlock>
-                    <TextBlock Text=" (" Style="{StaticResource Caption}" Opacity="0.7"/>
-                    <TextBlock Text="{Binding LastSampleAge}" Style="{StaticResource Caption}" Opacity="0.7"/>
-                    <TextBlock Text=")" Style="{StaticResource Caption}" Opacity="0.7"/>
-                </StackPanel>
+            <!-- Top Row: Title & Actions -->
+            <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="System Overview" Style="{StaticResource Heading1}" Margin="0,0,0,4"/>
+                <TextBlock Text="Real-time hardware telemetry" Style="{StaticResource Caption}" Opacity="0.6"/>
             </StackPanel>
             
-            <!-- Quick Action Buttons -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Style="{StaticResource QuickActionButton}" 
-                        Command="{Binding RefreshCommand}"
-                        ToolTip="Refresh all sensors" Margin="0,0,8,0">
+            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Throttling Alert -->
+                <Border x:Name="ThrottlingIndicator" 
+                        Visibility="{Binding IsThrottling, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
+                        Background="{StaticResource SurfaceDarkBrush}"
+                        BorderBrush="{StaticResource WarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="10,6"
+                        Margin="0,0,12,0">
                     <StackPanel Orientation="Horizontal">
-                        <Path Data="{StaticResource IconRestore}" Width="14" Height="14" 
+                        <TextBlock Text="⚠️" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="THROTTLING" FontSize="11" FontWeight="Bold" Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <Button Style="{StaticResource ModernOutlineButton}" 
+                        Command="{Binding RefreshCommand}"
+                        ToolTip="Refresh all sensors">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource IconRestore}" Width="12" Height="12" 
                               Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
                         <TextBlock Text="Refresh" FontSize="12"/>
                     </StackPanel>
                 </Button>
             </StackPanel>
-            
-            <!-- Throttling Status Indicator with pulse animation -->
-            <Border x:Name="ThrottlingIndicator" Grid.Column="1"
-                    Visibility="{Binding IsThrottling, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
-                    Background="{StaticResource SurfaceDarkBrush}"
-                    BorderBrush="#FFAA33"
-                    BorderThickness="1.5"
-                    CornerRadius="6"
-                    Padding="14,8"
-                    Margin="20,0"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    ToolTip="System is throttling due to thermal or power limits. Consider improving cooling or reducing workload.">
-                <Border.Triggers>
-                    <EventTrigger RoutedEvent="Border.Loaded">
-                        <BeginStoryboard>
-                            <Storyboard RepeatBehavior="Forever">
-                                <DoubleAnimation Storyboard.TargetProperty="Opacity" 
-                                                 From="1" To="0.65" Duration="0:0:0.8" AutoReverse="True">
-                                    <DoubleAnimation.EasingFunction>
-                                        <SineEase EasingMode="EaseInOut"/>
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </EventTrigger>
-                </Border.Triggers>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="⚠️" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="{Binding ThrottlingSummary, FallbackValue=Throttling}" 
-                               FontSize="13" FontWeight="SemiBold"
-                               Foreground="#FFAA33" 
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-            </Border>
+
+            <!-- Bottom Row: Stat Pills -->
+            <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,16,0,0">
+                 <!-- Uptime -->
+                <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="⏱" FontSize="10" Margin="0,0,6,0" Opacity="0.7" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding SessionUptime}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Peaks -->
+                <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CPU Peak:" FontSize="10" Opacity="0.6" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding PeakCpuTemp, StringFormat={}{0:F0}°C}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
+                        <Rectangle Width="1" Height="10" Fill="{StaticResource BorderBrush}" Margin="8,0"/>
+                        <TextBlock Text="GPU Peak:" FontSize="10" Opacity="0.6" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding PeakGpuTemp, StringFormat={}{0:F0}°C}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBlueBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Health -->
+                <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,4" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                         <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center">
+                             <Ellipse.Fill>
+                                 <SolidColorBrush Color="{Binding MonitoringHealthColor}" />
+                             </Ellipse.Fill>
+                         </Ellipse>
+                         <TextBlock Text="{Binding MonitoringHealthStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                         <TextBlock Text="{Binding LastSampleAge, StringFormat=' ({0})'}" FontSize="10" Opacity="0.5" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </WrapPanel>
         </Grid>
 
         <!-- Quick Status Bar (v2.2) -->

@@ -126,7 +126,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Live Status - v2.6.1: Enhanced with more metrics -->
+            <!-- Live Status - v2.7.0: Enhanced with more metrics -->
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

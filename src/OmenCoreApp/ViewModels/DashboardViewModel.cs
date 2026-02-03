@@ -91,6 +91,8 @@ namespace OmenCore.ViewModels
                 }
                 
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CpuTemperature));
+                OnPropertyChanged(nameof(GpuTemperature));
                 OnPropertyChanged(nameof(CpuSummary));
                 OnPropertyChanged(nameof(GpuSummary));
                 OnPropertyChanged(nameof(MemorySummary));
@@ -147,6 +149,18 @@ namespace OmenCore.ViewModels
         public bool HasSparklineData => _thermalSamples.Count >= 3;
         
         #endregion
+
+        /// <summary>
+        /// Current CPU temperature for sidebar display binding.
+        /// Returns 0 if no sample available (UI will show fallback).
+        /// </summary>
+        public double CpuTemperature => LatestMonitoringSample?.CpuTemperatureC ?? 0;
+        
+        /// <summary>
+        /// Current GPU temperature for sidebar display binding.
+        /// Returns 0 if no sample available (UI will show fallback).
+        /// </summary>
+        public double GpuTemperature => LatestMonitoringSample?.GpuTemperatureC ?? 0;
 
         public string CpuSummary => LatestMonitoringSample == null 
             ? "CPU telemetry unavailable" 

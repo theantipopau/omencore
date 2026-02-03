@@ -50,10 +50,10 @@
                         <TextBlock Text="Tests: 30% → 60% → 100%" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                         <Button Content="Run Full Test" Command="{Binding RunGuidedDiagnosticCommand}" 
                                 Style="{StaticResource ModernButton}" Margin="0,8,0,0" 
-                                IsEnabled="{Binding IsGuidedTestRunning, Converter={StaticResource InverseBoolConverter}}"/>
+                                IsEnabled="{Binding IsGuidedTestRunning, Converter={StaticResource InverseBooleanConverter}}"/>
                         
                         <!-- Progress -->
-                        <ProgressBar Value="{Binding GuidedTestProgress}" Maximum="100" Height="4" Margin="0,8,0,0"
+                        <ProgressBar Value="{Binding GuidedTestProgress, Mode=OneWay}" Maximum="100" Height="4" Margin="0,8,0,0"
                                      Visibility="{Binding IsGuidedTestRunning, Converter={StaticResource BoolToVisibilityConverter}}"/>
                         <TextBlock Text="{Binding GuidedTestStatus}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" 
                                    Margin="0,4,0,0" TextWrapping="Wrap"/>

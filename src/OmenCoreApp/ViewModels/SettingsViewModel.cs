@@ -127,6 +127,7 @@ namespace OmenCore.ViewModels
             OpenGitHubCommand = new RelayCommand(_ => OpenUrl("https://github.com/theantipopau/omencore"));
             OpenReleaseNotesCommand = new RelayCommand(_ => OpenUrl("https://github.com/theantipopau/omencore/releases"));
             OpenIssuesCommand = new RelayCommand(_ => OpenUrl("https://github.com/theantipopau/omencore/issues"));
+            OpenDonateCommand = new RelayCommand(_ => OpenUrl("https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD"));
             OpenHpSupportAssistantCommand = new RelayCommand(_ => OpenUrl("https://support.hp.com/drivers"));
             OpenHpDriversPageCommand = new RelayCommand(_ => OpenUrl("https://support.hp.com/drivers"));
             OpenOmenGamingHubCommand = new RelayCommand(_ => OpenUrl("https://apps.microsoft.com/detail/9nqdw009t0t0"));
@@ -1565,6 +1566,7 @@ namespace OmenCore.ViewModels
         public ICommand OpenGitHubCommand { get; }
         public ICommand OpenReleaseNotesCommand { get; }
         public ICommand OpenIssuesCommand { get; }
+        public ICommand OpenDonateCommand { get; }
         public ICommand OpenHpSupportAssistantCommand { get; }
         public ICommand OpenHpDriversPageCommand { get; }
         public ICommand OpenOmenGamingHubCommand { get; }
