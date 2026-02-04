@@ -14,14 +14,55 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.7.0)
+[![Version](https://img.shields.io/badge/version-2.7.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.7.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/rekzV3aR)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/AMwVGGyn)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C.svg?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
 
 ![OmenCore Screenshot](docs/screenshots/main-window.png)
+
+---
+
+## 🚀 Quick Installation
+
+### Windows
+```
+1. Download OmenCoreSetup-2.7.1.exe from Releases
+2. Run as Administrator
+3. (Optional) Check "Install PawnIO driver" for advanced features
+4. Launch from Start Menu
+```
+**[📖 Full Windows Installation Guide](INSTALL.md#-windows-installation)**
+
+### Linux (CachyOS, Arch, Ubuntu, Fedora)
+```bash
+# Download and extract
+wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/OmenCore-linux-x64.zip
+unzip OmenCore-linux-x64.zip && cd OmenCore-linux-x64
+
+# Make executable and run
+chmod +x OmenCore
+sudo ./OmenCore
+```
+**[📖 Full Linux Installation Guide](INSTALL.md#-linux-installation)**
+
+---
+
+## 🆕 What's New in v2.7.1
+
+### 🐛 Bug Fixes
+- **Desktop Detection Fix** - Non-HP desktops no longer blocked from launching
+- **Update Process Fix** - Fixed system slowdown during in-app updates ([#58](https://github.com/theantipopau/omencore/issues/58))
+- **PawnIO Installer Fix** - Fixed silent install parameter ([#59](https://github.com/theantipopau/omencore/issues/59))
+
+### ✨ Enhancements
+- **GPU Vendor Branding** - Tuning tab now shows NVIDIA/AMD logos and driver version
+- **CPU Info in Sidebar** - Shows core/thread count (e.g., "24 Cores / 32 Threads")
+- **NvAPIWrapper Integration** - Improved RTX 40 series GPU overclocking compatibility
+
+Full changelog: [CHANGELOG_v2.7.1.md](docs/CHANGELOG_v2.7.1.md)
 
 ---
 
@@ -591,80 +632,37 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ---
 
-## 🚀 Installation
+## � Installation
 
-### Windows
+**See [INSTALL.md](INSTALL.md) for complete installation instructions.**
 
-#### Option 1: Installer (Recommended)
-1. Download `OmenCoreSetup-2.1.2.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+### Quick Start - Windows
+
+1. Download `OmenCoreSetup-2.7.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Run installer as Administrator
-3. (Optional) Select "Install PawnIO driver" for advanced EC features
-4. Launch OmenCore from Start Menu or Desktop
-5. (Optional) Use OGH Cleanup in Settings to remove OMEN Gaming Hub
-6. (Optional) Use HP Bloatware Removal to clean pre-installed apps
+3. (Optional) Check "Install PawnIO driver" for advanced features
+4. Launch OmenCore from Start Menu
 
-#### Option 2: Portable ZIP
-1. Download `OmenCore-2.1.2-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
-2. Extract to `C:\OmenCore` (or preferred location)
-3. Right-click `OmenCore.exe` → Run as Administrator
+### Quick Start - Linux
 
-### 🐧 Linux
-
-#### Prerequisites
 ```bash
-# Enable EC write access (required for fan control)
-sudo modprobe ec_sys write_support=1
+# GUI (Avalonia)
+wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/OmenCore-linux-x64.zip
+unzip OmenCore-linux-x64.zip && cd OmenCore-linux-x64
+chmod +x OmenCore && sudo ./OmenCore
 
-# Make it permanent (add to /etc/modules-load.d/)
-echo "ec_sys" | sudo tee /etc/modules-load.d/ec_sys.conf
-echo "options ec_sys write_support=1" | sudo tee /etc/modprobe.d/ec_sys.conf
+# CLI only
+wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/omencore-cli-linux-x64.tar.gz
+tar -xzf omencore-cli-linux-x64.tar.gz
+sudo cp omencore-cli /usr/local/bin/ && sudo chmod +x /usr/local/bin/omencore-cli
+sudo omencore-cli status
 ```
 
-> **⚠️ ec_sys module not found?** Some distros (Fedora 43+, some Arch builds) don't include `ec_sys` by default.
-> 
-> **Alternatives:**
-> 1. **Use hp-wmi driver instead:** `sudo modprobe hp-wmi` (works for newer OMEN 2023+ models)
-> 2. **Build ec_sys module:** See your distro's kernel module build docs
-> 3. **Check if acpi_ec works:** Some systems use `/sys/kernel/debug/ec/ec0/io` without ec_sys
-> 
-> **Fedora-specific:** The `ec_sys` module was removed from default kernel config. You may need to use `hp-wmi` or build a custom kernel module.
+> **Linux Notes:** Requires sudo for hardware access. See [INSTALL.md](INSTALL.md#-linux-installation) for kernel requirements and troubleshooting.
 
-#### Option 1: CLI Only (Recommended)
-```bash
-# Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.1.2/omencore-linux-2.1.2.tar.gz
-tar -xzf omencore-linux-2.1.2.tar.gz
+---
 
-# Install
-sudo cp omencore-cli /usr/local/bin/
-sudo chmod +x /usr/local/bin/omencore-cli
-
-# Test
-omencore-cli status
-```
-
-#### Option 2: systemd Daemon (Background Service)
-```bash
-# Install the CLI first (see above), then:
-sudo omencore-cli daemon --install   # Creates systemd service
-sudo systemctl enable omencore       # Start on boot
-sudo systemctl start omencore        # Start now
-
-# Manage
-sudo systemctl status omencore       # Check status
-sudo systemctl stop omencore         # Stop service
-journalctl -u omencore -f            # View logs
-```
-
-#### Configuration (Linux)
-- **Config file:** `/etc/omencore/config.toml` (daemon) or `~/.config/omencore/config.toml` (user)
-- **Generate default config:** `omencore-cli daemon --generate-config > config.toml`
-
-#### Linux Notes
-- Requires root/sudo for EC access
-- Fan control uses `/sys/kernel/debug/ec/ec0/io` 
-- Temperature reading via hwmon/sysfs
-- Tested on Ubuntu 22.04+, Fedora 38+, Arch Linux
+## 🔧 Post-Installation
 
 ### First Launch (Windows)
 - OmenCore auto-detects your model and selects the best fan control method
@@ -672,7 +670,7 @@ journalctl -u omencore -f            # View logs
 - Config saved to `%APPDATA%\OmenCore\config.json`
 - Logs written to `%LOCALAPPDATA%\OmenCore\OmenCore_<timestamp>.log`
 
-### Uninstalling OMEN Gaming Hub
+### Removing OMEN Gaming Hub
 OmenCore includes a built-in **OGH Cleanup** tool (Settings tab):
 1. Creates a System Restore point (safety)
 2. Removes HP Gaming Hub Store packages
@@ -681,32 +679,9 @@ OmenCore includes a built-in **OGH Cleanup** tool (Settings tab):
 
 **After cleanup, OmenCore provides full fan control without OGH.**
 
-### 🗑️ Uninstalling OmenCore
+### Uninstalling OmenCore
 
-If you need to remove OmenCore (to troubleshoot issues or switch to another solution), follow these steps:
-
-#### Windows - Installer Version
-
-1. **Stop OmenCore** if running (right-click tray icon → Exit)
-2. **Uninstall via Control Panel:**
-   - Settings → Apps → Apps & features → Search "OmenCore" → Uninstall
-   - Or: Control Panel → Programs → Uninstall a program → OmenCore
-3. **Remove PawnIO driver** (if installed):
-   - Open Device Manager (Win+X → Device Manager)
-   - Expand "System devices" → Find "PawnIO" → Right-click → Uninstall device
-   - Check "Delete the driver software" → Uninstall
-4. **Remove WinRing0 driver** (if present):
-   - In Device Manager: System devices → "WinRing0_1_2_0" → Uninstall device
-5. **Delete remaining files** (optional):
-   - `C:\Program Files\OmenCore\` (installation folder)
-   - `%APPDATA%\OmenCore\` (user config)
-   - `%LOCALAPPDATA%\OmenCore\` (logs)
-
-#### Windows - Portable Version
-
-1. **Stop OmenCore** if running
-2. **Delete the folder** where you extracted it
-3. **Remove drivers** (same as above if you manually installed them)
+See [INSTALL.md - Uninstallation](INSTALL.md#-uninstallation) for complete removal instructions.
 4. **Delete config/logs:**
    - `%APPDATA%\OmenCore\`
    - `%LOCALAPPDATA%\OmenCore\`

@@ -206,58 +206,70 @@ namespace OmenCore
         /// <summary>
         /// Detect if this is an OMEN Desktop PC (NOT laptop).
         /// Desktop systems use different thermal management and fan control is incompatible.
+        /// Returns true ONLY for confirmed HP OMEN desktops, not generic desktops.
         /// </summary>
         private bool IsOmenDesktop()
         {
             try
             {
+                bool isHpSystem = false;
+                string model = "";
+                
                 using var searcher = new System.Management.ManagementObjectSearcher(
                     "SELECT * FROM Win32_ComputerSystem");
                 
                 foreach (var obj in searcher.Get())
                 {
                     var manufacturer = obj["Manufacturer"]?.ToString() ?? "";
-                    var model = obj["Model"]?.ToString() ?? "";
+                    model = obj["Model"]?.ToString() ?? "";
                     
                     // Check for HP manufacturer
-                    if (!manufacturer.Contains("HP", StringComparison.OrdinalIgnoreCase) &&
-                        !manufacturer.Contains("Hewlett", StringComparison.OrdinalIgnoreCase))
+                    if (manufacturer.Contains("HP", StringComparison.OrdinalIgnoreCase) ||
+                        manufacturer.Contains("Hewlett", StringComparison.OrdinalIgnoreCase))
                     {
-                        continue;
-                    }
-                    
-                    // Check for known desktop models
-                    if (model.Contains("25L", StringComparison.OrdinalIgnoreCase) ||
-                        model.Contains("30L", StringComparison.OrdinalIgnoreCase) ||
-                        model.Contains("35L", StringComparison.OrdinalIgnoreCase) ||
-                        model.Contains("40L", StringComparison.OrdinalIgnoreCase) ||
-                        model.Contains("45L", StringComparison.OrdinalIgnoreCase) ||
-                        model.Contains("Obelisk", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Logging.Info($"Desktop detection: {manufacturer} {model}");
-                        return true;
-                    }
-                }
-                
-                // Also check chassis type to be sure
-                using var chassisSearcher = new System.Management.ManagementObjectSearcher(
-                    "SELECT ChassisTypes FROM Win32_SystemEnclosure");
-                
-                foreach (var obj in chassisSearcher.Get())
-                {
-                    if (obj["ChassisTypes"] is ushort[] chassisTypes && chassisTypes.Length > 0)
-                    {
-                        var chassis = chassisTypes[0];
-                        // Desktop chassis types: 3=Desktop, 4=LowProfileDesktop, 5=PizzaBox, 
-                        // 6=MiniTower, 7=Tower, 13=AllInOne, 15=SpaceSaving
-                        if (chassis == 3 || chassis == 4 || chassis == 5 || chassis == 6 || 
-                            chassis == 7 || chassis == 13 || chassis == 15)
+                        isHpSystem = true;
+                        
+                        // Check for known OMEN desktop models by name
+                        if (model.Contains("25L", StringComparison.OrdinalIgnoreCase) ||
+                            model.Contains("30L", StringComparison.OrdinalIgnoreCase) ||
+                            model.Contains("35L", StringComparison.OrdinalIgnoreCase) ||
+                            model.Contains("40L", StringComparison.OrdinalIgnoreCase) ||
+                            model.Contains("45L", StringComparison.OrdinalIgnoreCase) ||
+                            model.Contains("Obelisk", StringComparison.OrdinalIgnoreCase))
                         {
-                            Logging.Info($"Desktop chassis type detected: {chassis}");
+                            Logging.Info($"OMEN Desktop detected by model: {manufacturer} {model}");
                             return true;
                         }
                     }
                 }
+                
+                // Only check chassis type for HP systems with OMEN in the model name
+                // This prevents false positives on non-HP desktops or HP laptops
+                if (isHpSystem && model.Contains("OMEN", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var chassisSearcher = new System.Management.ManagementObjectSearcher(
+                        "SELECT ChassisTypes FROM Win32_SystemEnclosure");
+                    
+                    foreach (var obj in chassisSearcher.Get())
+                    {
+                        if (obj["ChassisTypes"] is ushort[] chassisTypes && chassisTypes.Length > 0)
+                        {
+                            var chassis = chassisTypes[0];
+                            // Desktop chassis types: 3=Desktop, 4=LowProfileDesktop, 5=PizzaBox, 
+                            // 6=MiniTower, 7=Tower, 13=AllInOne, 15=SpaceSaving
+                            if (chassis == 3 || chassis == 4 || chassis == 5 || chassis == 6 || 
+                                chassis == 7 || chassis == 13 || chassis == 15)
+                            {
+                                Logging.Info($"OMEN Desktop detected by chassis type: {chassis} (model: {model})");
+                                return true;
+                            }
+                        }
+                    }
+                }
+                
+                // Not an OMEN desktop - allow the app to continue
+                // Non-HP desktops will still work (monitoring mode if fan control fails)
+                Logging.Info($"Desktop check passed: not an OMEN desktop (HP={isHpSystem}, Model={model})");
             }
             catch (Exception ex)
             {

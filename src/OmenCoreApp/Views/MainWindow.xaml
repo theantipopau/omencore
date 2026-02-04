@@ -52,22 +52,6 @@
                            <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
                         </Border>
                         
-                        <!-- Update Available Indicator -->
-                        <Border Background="{StaticResource SurfaceMediumBrush}" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="1" CornerRadius="4" Padding="10,4" Margin="12,0,0,0" VerticalAlignment="Center"
-                                Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVisibility}}"
-                                Cursor="Hand"
-                                ToolTip="Click to download the latest version">
-                            <Border.InputBindings>
-                                <MouseBinding MouseAction="LeftClick" Command="{Binding OpenUpdateUrlCommand}" />
-                            </Border.InputBindings>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⬇" FontSize="12" Foreground="{StaticResource SuccessBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" VerticalAlignment="Center">
-                                    <Run Text="Update Available:"/>
-                                    <Run Text="{Binding UpdateVersion}"/>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
                         <Button Content="—" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" FontSize="12" />
@@ -179,27 +163,6 @@
                                         </Grid>
                                     </Border>
                                 </Grid>
-                            </Border>
-                            
-                            <!-- Capability Warning Banner (Desktop/Fan unavailable) -->
-                            <Border Background="#2D2D1F"
-                                    BorderBrush="#FF9800"
-                                    BorderThickness="1"
-                                    CornerRadius="5"
-                                    Padding="6,5"
-                                    Margin="0,5,0,0"
-                                    Visibility="{Binding CapabilityWarning, Converter={StaticResource NullToVisibilityConverter}, FallbackValue=Collapsed}">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
-                                        <TextBlock Text="⚠" FontSize="10" Foreground="#FF9800" Margin="0,0,5,0"/>
-                                        <TextBlock Text="LIMITED MODE" FontSize="7" FontWeight="Bold" Foreground="#FF9800"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding CapabilityWarning}" 
-                                               FontSize="8" 
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               TextWrapping="Wrap"
-                                               MaxWidth="160"/>
-                                </StackPanel>
                             </Border>
                         </StackPanel>
                         
@@ -426,6 +389,12 @@
                                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                                 <TextBlock Text="PROCESSOR" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
                                                 <TextBlock Text="{Binding SystemInfo.CpuName}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextWrapping="Wrap" />
+                                                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="9" Margin="0,2,0,0">
+                                                    <Run Text="{Binding SystemInfo.CpuCores, Mode=OneWay}"/>
+                                                    <Run Text="Cores /"/>
+                                                    <Run Text="{Binding SystemInfo.CpuThreads, Mode=OneWay}"/>
+                                                    <Run Text="Threads"/>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Grid>
                                         
@@ -456,13 +425,13 @@
                                                         <Image Grid.Column="0" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
                                                             <Image.Style>
                                                                 <Style TargetType="Image">
-                                                                    <Setter Property="Source" Value="/Assets/nvidia.png" />
+                                                                    <Setter Property="Source" Value="pack://application:,,,/Assets/nvidia.png" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding Vendor}" Value="AMD">
-                                                                            <Setter Property="Source" Value="/Assets/amd.png" />
+                                                                            <Setter Property="Source" Value="pack://application:,,,/Assets/amd.png" />
                                                                         </DataTrigger>
                                                                         <DataTrigger Binding="{Binding Vendor}" Value="Intel">
-                                                                            <Setter Property="Source" Value="/Assets/intel.png" />
+                                                                            <Setter Property="Source" Value="pack://application:,,,/Assets/intel.png" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
@@ -582,9 +551,14 @@
                     <views:GeneralView DataContext="{Binding General}" />
                 </TabItem>
                 
-                <!-- Advanced Tab: CPU Undervolt, GPU Settings, Custom Fan Curves -->
-                <TabItem Header="Advanced">
+                <!-- OMEN Tab: HP OMEN-specific features -->
+                <TabItem Header="OMEN">
                     <views:AdvancedView DataContext="{Binding}" />
+                </TabItem>
+                
+                <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
+                <TabItem Header="CPU/GPU Tuning">
+                    <views:TuningView DataContext="{Binding}" />
                 </TabItem>
                 
                 <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->

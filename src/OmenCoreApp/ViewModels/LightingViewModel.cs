@@ -21,6 +21,7 @@ namespace OmenCore.ViewModels
         private readonly CorsairDeviceService? _corsairService;
         private readonly LogitechDeviceService? _logitechService;
         private readonly RazerService? _razerService;
+        private readonly OmenCore.Services.Rgb.OpenRgbProvider? _openRgbProvider;
         private readonly KeyboardLightingService? _keyboardLightingService;
         private readonly ConfigurationService? _configService;
         private readonly LoggingService _logging;
@@ -242,6 +243,15 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+        
+        // OpenRGB properties
+        public bool HasOpenRgbDevices => _openRgbProvider?.IsAvailable ?? false;
+        public int OpenRgbDeviceCount => _openRgbProvider?.DeviceCount ?? 0;
+        public string OpenRgbStatusText => HasOpenRgbDevices 
+            ? $"{OpenRgbDeviceCount} device(s) via OpenRGB" 
+            : "OpenRGB server not detected";
+        public System.Collections.Generic.IReadOnlyList<OmenCore.Services.Rgb.OpenRgbDevice> OpenRgbDevices => 
+            _openRgbProvider?.Devices ?? new System.Collections.Generic.List<OmenCore.Services.Rgb.OpenRgbDevice>();
         
         /// <summary>
         /// True if any Corsair devices have been discovered.
@@ -847,6 +857,7 @@ namespace OmenCore.ViewModels
         public ICommand SaveCorsairDpiProfileCommand { get; }
         public ICommand ApplyCorsairDpiProfileCommand { get; }
         public ICommand DeleteCorsairDpiProfileCommand { get; }
+        public ICommand FlashCorsairDeviceCommand { get; }
         public ICommand DiscoverLogitechCommand { get; }
         public ICommand ApplyLogitechColorCommand { get; }
         public ICommand DiscoverCorsairDevicesCommand { get; }
@@ -859,9 +870,13 @@ namespace OmenCore.ViewModels
         public ICommand ApplyRazerBreathingCommand { get; }
         public ICommand ApplyRazerSpectrumCommand { get; }
         
+        // OpenRGB Commands
+        public ICommand ApplyOpenRgbColorCommand { get; }
+        
         // 4-Zone Keyboard Commands
         public ICommand ApplyKeyboardColorsCommand { get; }
         public ICommand ApplyAllZonesSameColorCommand { get; }
+        public ICommand ApplyQuickColorCommand { get; }
         public ICommand SetZone1ColorCommand { get; }
         public ICommand SetZone2ColorCommand { get; }
         public ICommand SetZone3ColorCommand { get; }
@@ -881,6 +896,9 @@ namespace OmenCore.ViewModels
             _sceneService = sceneService;
             _screenSamplingService = screenSamplingService;
             
+            // Get OpenRGB provider from RgbManager if available
+            _openRgbProvider = rgbManager?.GetProvider("openrgb") as OmenCore.Services.Rgb.OpenRgbProvider;
+            
             // Load saved keyboard colors from config
             LoadKeyboardColorsFromConfig();
 
@@ -895,6 +913,11 @@ namespace OmenCore.ViewModels
             SaveCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await SaveCorsairDpiProfileAsync());
             ApplyCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await ApplyCorsairDpiProfileAsync(), _ => SelectedCorsairDpiProfile != null);
             DeleteCorsairDpiProfileCommand = new AsyncRelayCommand(async _ => await DeleteCorsairDpiProfileAsync(), _ => SelectedCorsairDpiProfile != null);
+            FlashCorsairDeviceCommand = new RelayCommand(async device => 
+            {
+                if (device is CorsairDevice corsairDevice && _corsairService != null)
+                    await _corsairService.FlashDeviceAsync(corsairDevice);
+            });
             
             // Sync All RGB Command
             SyncAllRgbCommand = new AsyncRelayCommand(async _ => await SyncAllRgbAsync());
@@ -911,12 +934,16 @@ namespace OmenCore.ViewModels
             ApplyRazerBreathingCommand = new AsyncRelayCommand(async _ => await ApplyRazerBreathingAsync());
             ApplyRazerSpectrumCommand = new AsyncRelayCommand(async _ => await ApplyRazerSpectrumAsync());
             
+            // OpenRGB Commands
+            ApplyOpenRgbColorCommand = new AsyncRelayCommand(async param => await ApplyOpenRgbColorAsync(param as string));
+            
             // Initialize Razer service
             _razerService?.Initialize();
             
             // 4-Zone Keyboard Commands
             ApplyKeyboardColorsCommand = new AsyncRelayCommand(async _ => await ApplyKeyboardColorsAsync());
             ApplyAllZonesSameColorCommand = new AsyncRelayCommand(async _ => await ApplyAllZonesSameColorAsync());
+            ApplyQuickColorCommand = new AsyncRelayCommand(async param => await ApplyQuickColorAsync(param as string));
             SetZone1ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(1, "WASD"));
             SetZone2ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(2, "Left"));
             SetZone3ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(3, "Right"));
@@ -976,6 +1003,16 @@ namespace OmenCore.ViewModels
             KeyboardPresets.Add(new KeyboardPreset { Name = "Reactive Purple", Zone1 = "#6600FF", Zone2 = "#9900FF", Zone3 = "#CC00FF", Zone4 = "#FF00FF" });
             KeyboardPresets.Add(new KeyboardPreset { Name = "Spectrum Flow", Zone1 = "#FF0000", Zone2 = "#FFFF00", Zone3 = "#00FF00", Zone4 = "#00FFFF" });
             KeyboardPresets.Add(new KeyboardPreset { Name = "Audio Reactive", Zone1 = "#FF4500", Zone2 = "#FF6600", Zone3 = "#FF8700", Zone4 = "#FFA800" });
+            
+            // Additional presets for more variety (v2.7.1)
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Cyberpunk", Zone1 = "#FF00FF", Zone2 = "#00FFFF", Zone3 = "#FF00FF", Zone4 = "#00FFFF" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Sunset", Zone1 = "#FF4500", Zone2 = "#FF6347", Zone3 = "#FF7F50", Zone4 = "#FFA07A" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Forest", Zone1 = "#228B22", Zone2 = "#32CD32", Zone3 = "#90EE90", Zone4 = "#228B22" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Ocean", Zone1 = "#000080", Zone2 = "#0000FF", Zone3 = "#1E90FF", Zone4 = "#00CED1" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Lava", Zone1 = "#8B0000", Zone2 = "#FF0000", Zone3 = "#FF4500", Zone4 = "#FF6600" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Ice", Zone1 = "#E0FFFF", Zone2 = "#B0E0E6", Zone3 = "#87CEEB", Zone4 = "#ADD8E6" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Stealth", Zone1 = "#1A1A1A", Zone2 = "#2D2D2D", Zone3 = "#404040", Zone4 = "#1A1A1A" });
+            KeyboardPresets.Add(new KeyboardPreset { Name = "Off", Zone1 = "#000000", Zone2 = "#000000", Zone3 = "#000000", Zone4 = "#000000" });
             
             // Only select default preset if we didn't load colors from config
             // (selecting a preset overwrites the colors, which would discard saved colors)
@@ -1117,6 +1154,27 @@ namespace OmenCore.ViewModels
                 _logging.Info("Applied Razer spectrum cycling effect");
                 await Task.CompletedTask;
             }, "Applying Razer spectrum...");
+        }
+        
+        private async Task ApplyOpenRgbColorAsync(string? colorHex)
+        {
+            if (_openRgbProvider == null || !_openRgbProvider.IsAvailable) return;
+            
+            await ExecuteWithLoadingAsync(async () =>
+            {
+                try
+                {
+                    var color = string.IsNullOrEmpty(colorHex) 
+                        ? System.Drawing.Color.Red 
+                        : System.Drawing.ColorTranslator.FromHtml(colorHex);
+                    await _openRgbProvider.SetStaticColorAsync(color);
+                    _logging.Info($"Applied OpenRGB color: {colorHex ?? "#FF0000"} to {_openRgbProvider.DeviceCount} device(s)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to apply OpenRGB color: {ex.Message}");
+                }
+            }, "Applying OpenRGB color...");
         }
 
         #endregion
@@ -1620,6 +1678,43 @@ namespace OmenCore.ViewModels
                 _logging.Info($"✓ Applied {_zone1ColorHex} to all keyboard zones");
                 await Task.CompletedTask;
             }, "Applying color to all zones...");
+        }
+        
+        /// <summary>
+        /// Quick color application - applies a single color to all keyboard zones instantly
+        /// </summary>
+        private async Task ApplyQuickColorAsync(string? colorHex)
+        {
+            if (string.IsNullOrEmpty(colorHex)) return;
+            
+            if (_keyboardLightingService == null || !_keyboardLightingService.IsAvailable)
+            {
+                _logging.Warn("Keyboard lighting not available");
+                return;
+            }
+            
+            try
+            {
+                var color = ParseDrawingColor(colorHex);
+                _keyboardLightingService.SetZoneColor(KeyboardLightingService.KeyboardZone.All, color);
+                
+                // Update all zone color properties to reflect the change
+                Zone1ColorHex = colorHex;
+                Zone2ColorHex = colorHex;
+                Zone3ColorHex = colorHex;
+                Zone4ColorHex = colorHex;
+                
+                // Save to config for persistence
+                SaveKeyboardColorsToConfig();
+                
+                _logging.Info($"✓ Quick color {colorHex} applied to all keyboard zones");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply quick color: {ex.Message}");
+            }
+            
+            await Task.CompletedTask;
         }
         
         private void LoadKeyboardColorsFromConfig()

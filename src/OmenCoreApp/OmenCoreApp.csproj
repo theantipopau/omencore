@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore</AssemblyName>
-    <AssemblyVersion>2.7.0</AssemblyVersion>
-    <FileVersion>2.7.0</FileVersion>
+    <AssemblyVersion>2.7.1</AssemblyVersion>
+    <FileVersion>2.7.1</FileVersion>
     <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
@@ -42,6 +42,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Management.Infrastructure" Version="3.0.0" />
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <PackageReference Include="NvAPIWrapper.Net" Version="0.8.1.101" />
     <PackageReference Include="RGB.NET.Core" Version="3.1.0" />
     <PackageReference Include="RGB.NET.Devices.Corsair" Version="3.1.0" />
     <PackageReference Include="System.Management" Version="9.0.0" />

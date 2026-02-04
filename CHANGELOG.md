@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.7.0] - 2026-01-XX - Reliability & Diagnostics Overhaul 🔧🔍
+## [2.7.1] - 2026-02-04 - Desktop Detection Hotfix 🔧
+
+### 🐛 Bug Fixes
+- **Desktop Detection Fix (Critical)**: Fixed issue where OmenCore would immediately close on ANY desktop PC, not just OMEN desktops
+- **Non-HP Systems Allowed**: App now only blocks confirmed HP OMEN desktop systems (25L, 30L, 35L, 40L, 45L, Obelisk)
+- **Improved Chassis Check**: Chassis type verification now only runs for HP systems with "OMEN" in the model name
+- **Better Logging**: Added clearer log messages for desktop detection debugging
+
+### 🔧 Technical Details
+- Refactored `IsOmenDesktop()` in App.xaml.cs to prevent false positives on non-HP desktops
+- Non-HP desktop PCs now launch normally (with monitoring-only mode if fan control unavailable)
+
+---
+
+## [2.7.0] - 2026-02-04 - Reliability & Diagnostics Overhaul 🔧🔍
 
 **Focus:** Hardware monitoring reliability, per-model capability detection, enhanced diagnostics, and fan curve UX improvements
 

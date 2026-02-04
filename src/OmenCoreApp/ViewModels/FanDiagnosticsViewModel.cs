@@ -17,6 +17,9 @@ namespace OmenCore.ViewModels
         private readonly LoggingService _logging;
         
         private bool _isDiagnosticActive;
+        
+        // v2.7.1: Remember preset before diagnostic to restore after
+        private FanPreset? _preTestPreset;
 
         public ObservableCollection<FanApplyResult> History { get; } = new();
 
@@ -121,6 +124,9 @@ namespace OmenCore.ViewModels
             {
                 IsDiagnosticActive = true;
                 
+                // v2.7.1: Save current preset before diagnostic
+                _preTestPreset = _fanService.ActivePreset;
+                
                 // Enter diagnostic mode to suspend curve engine during test
                 _fanService.EnterDiagnosticMode();
                 
@@ -138,6 +144,15 @@ namespace OmenCore.ViewModels
                 {
                     // Always exit diagnostic mode when done
                     _fanService.ExitDiagnosticMode();
+                    
+                    // v2.7.1: Restore previous fan preset after diagnostic
+                    if (_preTestPreset != null)
+                    {
+                        _logging.Info($"[FanDiagnostic] Restoring preset: {_preTestPreset.Name}");
+                        _fanService.ApplyPreset(_preTestPreset);
+                        _preTestPreset = null;
+                    }
+                    
                     IsDiagnosticActive = false;
                 }
             }
@@ -209,6 +224,9 @@ namespace OmenCore.ViewModels
             var testLevels = new[] { 30, 60, 100 };
             var fanNames = new[] { "CPU", "GPU" };
             var results = new System.Collections.Generic.List<(string fan, int target, bool passed, int rpm, double deviation, int score, string rating)>();
+            
+            // v2.7.1: Save current preset before diagnostic
+            _preTestPreset = _fanService.ActivePreset;
             
             _logging.Info("=== GUIDED FAN DIAGNOSTIC STARTED ===");
             _fanService.EnterDiagnosticMode();
@@ -286,6 +304,15 @@ namespace OmenCore.ViewModels
             finally
             {
                 _fanService.ExitDiagnosticMode();
+                
+                // v2.7.1: Restore previous fan preset after diagnostic
+                if (_preTestPreset != null)
+                {
+                    _logging.Info($"[GuidedDiagnostic] Restoring preset: {_preTestPreset.Name}");
+                    _fanService.ApplyPreset(_preTestPreset);
+                    _preTestPreset = null;
+                }
+                
                 IsGuidedTestRunning = false;
                 IsDiagnosticActive = false;
                 GuidedTestProgress = 100;

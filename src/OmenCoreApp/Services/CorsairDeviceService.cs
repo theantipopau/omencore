@@ -255,6 +255,29 @@ namespace OmenCore.Services
             }
         }
 
+        /// <summary>
+        /// Flash device LEDs to help identify which physical device is which.
+        /// Useful when user has multiple similar Corsair devices.
+        /// </summary>
+        public async Task FlashDeviceAsync(CorsairDevice device, int flashCount = 3)
+        {
+            if (device == null)
+            {
+                _logging.Warn("Cannot flash device: device is null");
+                return;
+            }
+
+            try
+            {
+                _logging.Info($"Flashing device {device.Name} for identification...");
+                await _sdk.FlashDeviceAsync(device, flashCount, 300);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to flash device {device.Name}", ex);
+            }
+        }
+
         public void Dispose()
         {
             _sdk?.Shutdown();

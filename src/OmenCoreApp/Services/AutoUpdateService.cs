@@ -425,11 +425,29 @@ namespace OmenCore.Services
                 
                 _logging.Info($"Installing update from {installerPath}...");
                 
-                // Launch installer with silent/quiet flags
+                // Stop HardwareWorker first to release any file locks
+                try
+                {
+                    var workerProcesses = Process.GetProcessesByName("OmenCore.HardwareWorker");
+                    foreach (var proc in workerProcesses)
+                    {
+                        _logging.Info($"Stopping HardwareWorker process (PID: {proc.Id})...");
+                        proc.Kill();
+                        proc.WaitForExit(3000);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Could not stop HardwareWorker: {ex.Message}");
+                }
+                
+                // Launch installer with silent flags
+                // Note: Don't use /CLOSEAPPLICATIONS as it can cause system slowness
+                // Instead, we close OmenCore ourselves before launching installer
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = installerPath,
-                    Arguments = "/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS",
+                    Arguments = "/SILENT /NORESTART",
                     UseShellExecute = true,
                     Verb = "runas" // Request elevation
                 };

@@ -79,11 +79,11 @@
         </Border>
 
         <!-- Toolbar -->
-        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,16" Padding="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*" MinWidth="200"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -92,29 +92,32 @@
                     <Button Command="{Binding ScanCommand}" 
                             Style="{StaticResource PrimaryButton}" 
                             Margin="0,0,8,0"
+                            Padding="12,6"
                             AutomationProperties.Name="Scan for Bloatware">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconRefresh}" Width="14" Height="14" Fill="White" Stretch="Uniform" Margin="0,0,6,0"/>
-                            <TextBlock Text="Scan System"/>
+                            <TextBlock Text="Scan" FontSize="12"/>
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding RemoveAllLowRiskCommand}" 
                             Style="{StaticResource ModernButton}" 
                             Background="#2E7D32"
                             Margin="0,0,8,0"
+                            Padding="10,6"
                             AutomationProperties.Name="Remove All Low-Risk Items">
                         <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource IconTrash}" Width="14" Height="14" Fill="White" Stretch="Uniform" Margin="0,0,6,0"/>
-                            <TextBlock Text="Remove All Low-Risk"/>
+                            <Path Data="{StaticResource IconTrash}" Width="12" Height="12" Fill="White" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="Remove Low-Risk" FontSize="11"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
 
                 <!-- Filter/Search -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="8,0">
                     <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" 
-                             Width="250"
-                             Margin="0,0,12,0">
+                             MinWidth="150"
+                             MaxWidth="250"
+                             Margin="0,0,8,0">
                         <TextBox.Style>
                             <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
                                 <Style.Triggers>
@@ -123,7 +126,7 @@
                                             <Setter.Value>
                                                 <VisualBrush Stretch="None" AlignmentX="Left">
                                                     <VisualBrush.Visual>
-                                                        <TextBlock Text="  Search apps..." Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
+                                                        <TextBlock Text="  Search..." Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
                                                     </VisualBrush.Visual>
                                                 </VisualBrush>
                                             </Setter.Value>
@@ -136,7 +139,7 @@
                     <ComboBox ItemsSource="{Binding Categories}" 
                               SelectedItem="{Binding SelectedCategory}"
                               Style="{StaticResource ModernComboBox}"
-                              Width="150"
+                              Width="120"
                               DisplayMemberPath="">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
@@ -152,18 +155,20 @@
                             Style="{StaticResource ModernButton}"
                             Background="#C62828"
                             Margin="0,0,8,0"
+                            Padding="10,6"
                             AutomationProperties.Name="Remove Selected Item">
                         <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource IconTrash}" Width="14" Height="14" Fill="White" Stretch="Uniform" Margin="0,0,6,0"/>
-                            <TextBlock Text="Remove"/>
+                            <Path Data="{StaticResource IconTrash}" Width="12" Height="12" Fill="White" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="Remove" FontSize="11"/>
                         </StackPanel>
                     </Button>
                     <Button Command="{Binding RestoreSelectedCommand}" 
                             Style="{StaticResource SecondaryButton}"
+                            Padding="10,6"
                             AutomationProperties.Name="Restore Selected Item">
                         <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource IconRestore}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                            <TextBlock Text="Restore"/>
+                            <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="Restore" FontSize="11"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>

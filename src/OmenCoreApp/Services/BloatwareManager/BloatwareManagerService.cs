@@ -616,6 +616,18 @@ namespace OmenCore.Services.BloatwareManager
                 risk = RemovalRisk.Unknown;
                 return false;
             }
+            
+            // CRITICAL: Exclude HP Support Assistant - it's needed for driver updates
+            // v2.7.1: Fixed false positive where HPSupportAssistant was flagged as bloatware
+            if (name.Contains("HPSupportAssistant", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("HP Support Assistant", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("AD2F1837.HPSupportAssistant", StringComparison.OrdinalIgnoreCase))
+            {
+                category = BloatwareCategory.Unknown;
+                description = "";
+                risk = RemovalRisk.Unknown;
+                return false;
+            }
 
             // HP Bloatware
             if (name.Contains("HP Sure", StringComparison.OrdinalIgnoreCase))
@@ -625,11 +637,13 @@ namespace OmenCore.Services.BloatwareManager
                 risk = RemovalRisk.Medium;
                 return true;
             }
-            if (name.Contains("HP Support", StringComparison.OrdinalIgnoreCase) ||
-                name.Contains("HP Customer", StringComparison.OrdinalIgnoreCase))
+            // Note: HP Support Assistant is explicitly excluded above - don't flag it
+            if (name.Contains("HP Customer", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("HPPrivacy", StringComparison.OrdinalIgnoreCase) ||
+                name.Contains("HPSystemEvent", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.OemSoftware;
-                description = "HP support and diagnostics tool";
+                description = "HP diagnostics/telemetry tool - safe to remove";
                 risk = RemovalRisk.Low;
                 return true;
             }

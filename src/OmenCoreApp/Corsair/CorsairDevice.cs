@@ -12,6 +12,11 @@ namespace OmenCore.Corsair
         public CorsairDeviceStatus Status { get; set; } = new();
         public List<CorsairDpiStage> DpiStages { get; set; } = new();
         
+        /// <summary>
+        /// Current RGB color hex code (e.g., "#FF0000"). Used to restore after flashing.
+        /// </summary>
+        public string? CurrentColorHex { get; set; }
+        
         public bool IsMouse => DeviceType == CorsairDeviceType.Mouse;
         public int CurrentDpi => DpiStages.FirstOrDefault()?.Dpi ?? 0;
     }

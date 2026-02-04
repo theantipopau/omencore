@@ -729,6 +729,43 @@ namespace OmenCore.Services.Corsair
             return Task.FromResult(new CorsairDeviceStatus());
         }
 
+        public async Task FlashDeviceAsync(CorsairDevice device, int flashCount = 3, int intervalMs = 300)
+        {
+            var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
+            if (hidDevice == null)
+            {
+                _logging.Warn($"Device {device.Name} not found for flash");
+                return;
+            }
+
+            try
+            {
+                // Store original color
+                var originalHex = device.CurrentColorHex ?? "#FF0000";
+                
+                // Flash white/off pattern
+                var whitePreset = new CorsairLightingPreset { Name = "Flash White", ColorHex = "#FFFFFF" };
+                var offPreset = new CorsairLightingPreset { Name = "Flash Off", ColorHex = "#000000" };
+                var originalPreset = new CorsairLightingPreset { Name = "Original", ColorHex = originalHex };
+
+                for (int i = 0; i < flashCount; i++)
+                {
+                    await ApplyLightingAsync(device, whitePreset);
+                    await Task.Delay(intervalMs);
+                    await ApplyLightingAsync(device, offPreset);
+                    await Task.Delay(intervalMs);
+                }
+
+                // Restore original color
+                await ApplyLightingAsync(device, originalPreset);
+                _logging.Info($"Flashed device {device.Name} {flashCount} times");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to flash device {device.Name}", ex);
+            }
+        }
+
         public void Shutdown()
         {
             _logging.Info("Corsair direct HID shut down");

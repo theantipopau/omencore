@@ -555,6 +555,7 @@ namespace OmenCore.ViewModels
                 {
                     _gpuOcAvailable = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(GpuOcNotAvailable));
                 }
             }
         }
@@ -569,6 +570,84 @@ namespace OmenCore.ViewModels
                 {
                     _gpuNvapiAvailable = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(GpuOcNotAvailable));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// True when NVAPI is available but clock offsets are not supported.
+        /// Used to show informational message in UI.
+        /// </summary>
+        public bool GpuOcNotAvailable => GpuNvapiAvailable && !GpuOcAvailable;
+        
+        /// <summary>
+        /// True when no tuning features are available at all.
+        /// Used to show "no tuning available" message in Tuning tab.
+        /// </summary>
+        public bool NoTuningAvailable => !IsUndervoltSupported && !TccStatus.IsSupported && !GpuNvapiAvailable && !GpuAmdAvailable && !GpuPowerBoostAvailable && !CpuPowerLimitsAvailable;
+
+        // GPU Vendor detection and info
+        private string _gpuVendor = "Unknown";
+        public string GpuVendor
+        {
+            get => _gpuVendor;
+            private set
+            {
+                if (_gpuVendor != value)
+                {
+                    _gpuVendor = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsNvidiaGpu));
+                    OnPropertyChanged(nameof(IsAmdGpu));
+                    OnPropertyChanged(nameof(GpuOcSectionVisible));
+                }
+            }
+        }
+        
+        public bool IsNvidiaGpu => GpuVendor == "NVIDIA";
+        public bool IsAmdGpu => GpuVendor == "AMD";
+        public bool GpuOcSectionVisible => GpuNvapiAvailable || GpuAmdAvailable;
+        
+        private string _gpuDriverVersion = "";
+        public string GpuDriverVersion
+        {
+            get => _gpuDriverVersion;
+            private set
+            {
+                if (_gpuDriverVersion != value)
+                {
+                    _gpuDriverVersion = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+        
+        private string _gpuDisplayName = "";
+        public string GpuDisplayName
+        {
+            get => _gpuDisplayName;
+            private set
+            {
+                if (_gpuDisplayName != value)
+                {
+                    _gpuDisplayName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+        
+        private bool _gpuAmdAvailable;
+        public bool GpuAmdAvailable
+        {
+            get => _gpuAmdAvailable;
+            private set
+            {
+                if (_gpuAmdAvailable != value)
+                {
+                    _gpuAmdAvailable = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(GpuOcSectionVisible));
                 }
             }
         }
@@ -693,6 +772,54 @@ namespace OmenCore.ViewModels
             }
         }
 
+        private bool _cpuPowerLimitsLocked;
+        public bool CpuPowerLimitsLocked
+        {
+            get => _cpuPowerLimitsLocked;
+            private set
+            {
+                if (_cpuPowerLimitsLocked != value)
+                {
+                    _cpuPowerLimitsLocked = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double _currentPl1Watts;
+        public double CurrentPl1Watts
+        {
+            get => _currentPl1Watts;
+            private set
+            {
+                if (Math.Abs(_currentPl1Watts - value) > 0.1)
+                {
+                    _currentPl1Watts = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CurrentPl1Text));
+                }
+            }
+        }
+
+        public string CurrentPl1Text => $"Current: {CurrentPl1Watts:F0}W";
+
+        private double _currentPl2Watts;
+        public double CurrentPl2Watts
+        {
+            get => _currentPl2Watts;
+            private set
+            {
+                if (Math.Abs(_currentPl2Watts - value) > 0.1)
+                {
+                    _currentPl2Watts = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CurrentPl2Text));
+                }
+            }
+        }
+
+        public string CurrentPl2Text => $"Current: {CurrentPl2Watts:F0}W";
+
         public string CpuPl1Description => "Sustained power limit (PL1) - Long-term sustained TDP";
         public string CpuPl2Description => "Burst power limit (PL2) - Short-term turbo boost power";
 
@@ -810,6 +937,9 @@ namespace OmenCore.ViewModels
         public ICommand DeleteGpuOcProfileCommand { get; }
         public ICommand ApplyAmdPowerLimitsCommand { get; }
         public ICommand ResetAmdPowerLimitsCommand { get; }
+        public ICommand ApplyCpuPowerLimitsCommand { get; }
+        public ICommand ResetCpuPowerLimitsCommand { get; }
+        public ICommand RefreshCpuPowerLimitsCommand { get; }
 
         public SystemControlViewModel(
             UndervoltService undervoltService, 
@@ -880,6 +1010,9 @@ namespace OmenCore.ViewModels
             ResetTccOffsetCommand = new RelayCommand(_ => ResetTccOffset(), _ => TccStatus.IsSupported);
             ApplyAmdPowerLimitsCommand = new RelayCommand(_ => ApplyAmdPowerLimits(), _ => IsAmdCpu);
             ResetAmdPowerLimitsCommand = new RelayCommand(_ => ResetAmdPowerLimits(), _ => IsAmdCpu);
+            ApplyCpuPowerLimitsCommand = new RelayCommand(_ => ApplyCpuPowerLimits(), _ => CpuPowerLimitsAvailable && !CpuPowerLimitsLocked);
+            ResetCpuPowerLimitsCommand = new RelayCommand(_ => ResetCpuPowerLimits(), _ => CpuPowerLimitsAvailable && !CpuPowerLimitsLocked);
+            RefreshCpuPowerLimitsCommand = new RelayCommand(_ => RefreshCpuPowerLimits());
             
             // Detect AMD CPU
             IsAmdCpu = Hardware.CpuUndervoltProviderFactory.DetectedVendor == Hardware.CpuUndervoltProviderFactory.CpuVendor.AMD;
@@ -958,7 +1091,8 @@ namespace OmenCore.ViewModels
             // Initialize TCC offset (Intel CPU temperature limit)
             InitializeTccOffset();
 
-
+            // Initialize CPU power limits (PL1/PL2)
+            InitializeCpuPowerLimits();
             
             // Load undervolt preferences from config (with null safety)
             var undervoltPrefs = _configService.Config.Undervolt ?? new UndervoltPreferences();
@@ -1277,6 +1411,182 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Error($"Failed to reset TCC offset: {ex.Message}", ex);
+            }
+        }
+
+        // ==========================================
+        // CPU Power Limits (PL1/PL2) Methods
+        // ==========================================
+
+        private void InitializeCpuPowerLimits()
+        {
+            if (_msrAccess == null || !_msrAccess.IsAvailable)
+            {
+                CpuPowerLimitsAvailable = false;
+                CpuPowerLimitsStatus = "No MSR access (install PawnIO for power limit control)";
+                CpuPowerLimitsLocked = true;
+                return;
+            }
+
+            try
+            {
+                var (pl1, pl2, pl1Enabled, pl2Enabled, isLocked) = _msrAccess.GetPowerLimitStatus();
+                
+                CurrentPl1Watts = pl1;
+                CurrentPl2Watts = pl2;
+                CpuPl1Watts = (int)Math.Round(pl1);
+                CpuPl2Watts = (int)Math.Round(pl2);
+                CpuPowerLimitsLocked = isLocked;
+
+                if (isLocked)
+                {
+                    CpuPowerLimitsAvailable = true;
+                    CpuPowerLimitsStatus = $"⚠️ BIOS Locked - Read-only (PL1: {pl1:F0}W, PL2: {pl2:F0}W)";
+                    _logging.Warn("CPU power limits are locked by BIOS - cannot modify until next reboot");
+                }
+                else
+                {
+                    CpuPowerLimitsAvailable = true;
+                    CpuPowerLimitsStatus = $"✓ Available (PL1: {pl1:F0}W, PL2: {pl2:F0}W)";
+                    _logging.Info($"CPU power limits initialized: PL1={pl1:F0}W, PL2={pl2:F0}W, Locked={isLocked}");
+                }
+
+                // Set reasonable max limits based on current values
+                CpuPl1Max = Math.Max(115, (int)(pl1 * 1.5));
+                CpuPl2Max = Math.Max(175, (int)(pl2 * 1.5));
+            }
+            catch (Exception ex)
+            {
+                CpuPowerLimitsAvailable = false;
+                CpuPowerLimitsStatus = $"Error: {ex.Message}";
+                CpuPowerLimitsLocked = true;
+                _logging.Warn($"Failed to initialize CPU power limits: {ex.Message}");
+            }
+        }
+
+        private void RefreshCpuPowerLimits()
+        {
+            InitializeCpuPowerLimits();
+            OnPropertyChanged(nameof(CpuPowerLimitsStatus));
+            OnPropertyChanged(nameof(CurrentPl1Text));
+            OnPropertyChanged(nameof(CurrentPl2Text));
+        }
+
+        private void ApplyCpuPowerLimits()
+        {
+            if (_msrAccess == null)
+            {
+                _logging.Warn("Cannot apply CPU power limits: MSR access not available");
+                System.Windows.MessageBox.Show(
+                    "CPU power limits cannot be applied - MSR access not available.\n\n" +
+                    "Install PawnIO driver from pawnio.eu to enable power limit control.",
+                    "Power Limits Unavailable",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+
+            if (CpuPowerLimitsLocked)
+            {
+                _logging.Warn("Cannot apply CPU power limits: locked by BIOS");
+                System.Windows.MessageBox.Show(
+                    "CPU power limits are locked by BIOS and cannot be modified.\n\n" +
+                    "This lock is set during boot and persists until the next restart.\n" +
+                    "Some laptops may require specific BIOS settings or Unleashed Mode to unlock.",
+                    "Power Limits Locked",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                // Ensure PL2 >= PL1
+                int pl1 = CpuPl1Watts;
+                int pl2 = Math.Max(CpuPl2Watts, pl1);
+
+                _logging.Info($"Applying CPU power limits: PL1={pl1}W, PL2={pl2}W");
+                
+                bool success = _msrAccess.SetPowerLimits(pl1, pl2);
+                
+                if (success)
+                {
+                    // Verify the write
+                    var (newPl1, newPl2, _, _, _) = _msrAccess.GetPowerLimitStatus();
+                    CurrentPl1Watts = newPl1;
+                    CurrentPl2Watts = newPl2;
+                    
+                    _logging.Info($"✓ CPU power limits applied: PL1={newPl1:F0}W, PL2={newPl2:F0}W");
+                    CpuPowerLimitsStatus = $"✓ Applied (PL1: {newPl1:F0}W, PL2: {newPl2:F0}W)";
+
+                    // Save to config
+                    SaveCpuPowerLimitsToConfig(pl1, pl2);
+                }
+                else
+                {
+                    _logging.Warn("CPU power limits write returned false - may be locked");
+                    System.Windows.MessageBox.Show(
+                        "Failed to apply CPU power limits.\n\n" +
+                        "The BIOS may have locked the MSR registers during boot.",
+                        "Power Limits Failed",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply CPU power limits: {ex.Message}", ex);
+                System.Windows.MessageBox.Show(
+                    $"Error applying CPU power limits: {ex.Message}",
+                    "Power Limits Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void ResetCpuPowerLimits()
+        {
+            if (_msrAccess == null || CpuPowerLimitsLocked)
+                return;
+
+            try
+            {
+                // Reset to Intel defaults: typically 45W PL1 and 65W PL2 for mobile
+                int defaultPl1 = 45;
+                int defaultPl2 = 65;
+
+                _logging.Info($"Resetting CPU power limits to defaults: PL1={defaultPl1}W, PL2={defaultPl2}W");
+                _msrAccess.SetPowerLimits(defaultPl1, defaultPl2);
+
+                CpuPl1Watts = defaultPl1;
+                CpuPl2Watts = defaultPl2;
+
+                var (newPl1, newPl2, _, _, _) = _msrAccess.GetPowerLimitStatus();
+                CurrentPl1Watts = newPl1;
+                CurrentPl2Watts = newPl2;
+                CpuPowerLimitsStatus = $"✓ Reset to defaults (PL1: {newPl1:F0}W, PL2: {newPl2:F0}W)";
+
+                _logging.Info("CPU power limits reset to defaults");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to reset CPU power limits: {ex.Message}", ex);
+            }
+        }
+
+        private void SaveCpuPowerLimitsToConfig(int pl1, int pl2)
+        {
+            try
+            {
+                var config = _configService.Config;
+                config.LastCpuPl1Watts = pl1;
+                config.LastCpuPl2Watts = pl2;
+                _configService.Save(config);
+                _logging.Info($"CPU power limits saved to config: PL1={pl1}W, PL2={pl2}W");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to save CPU power limits to config: {ex.Message}");
             }
         }
 
@@ -1776,6 +2086,9 @@ namespace OmenCore.ViewModels
         /// </summary>
         private void InitializeGpuOc()
         {
+            // First, detect GPU vendor from system info
+            DetectGpuVendor();
+            
             if (_nvapiService == null)
             {
                 GpuOcAvailable = false;
@@ -1789,6 +2102,25 @@ namespace OmenCore.ViewModels
                 {
                     GpuNvapiAvailable = true;
                     GpuOcAvailable = _nvapiService.SupportsOverclocking;
+                    GpuVendor = "NVIDIA";
+                    GpuDisplayName = _nvapiService.GpuName;
+                    
+                    // Preserve driver version from SystemInfo if not already set
+                    if (string.IsNullOrEmpty(GpuDriverVersion) || GpuDriverVersion == "Unknown")
+                    {
+                        var systemInfo = _systemInfoService?.GetSystemInfo();
+                        var nvidiaGpu = systemInfo?.Gpus?.FirstOrDefault(g => g.Vendor == "NVIDIA");
+                        if (nvidiaGpu != null && !string.IsNullOrEmpty(nvidiaGpu.DriverVersion))
+                        {
+                            GpuDriverVersion = nvidiaGpu.DriverVersion;
+                            _logging.Info($"GPU driver version from SystemInfo: {GpuDriverVersion}");
+                        }
+                        else
+                        {
+                            GpuDriverVersion = "Unknown";
+                            _logging.Warn("Could not retrieve GPU driver version from SystemInfo");
+                        }
+                    }
                     
                     // Set limits from the service
                     GpuCoreOffsetMin = _nvapiService.MinCoreOffset;
@@ -1822,6 +2154,9 @@ namespace OmenCore.ViewModels
                 {
                     GpuOcAvailable = false;
                     GpuOcStatus = "NVIDIA GPU not detected";
+                    
+                    // Try AMD GPU initialization
+                    InitializeAmdGpu();
                 }
             }
             catch (Exception ex)
@@ -1838,6 +2173,80 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(GpuMemoryOffsetMax));
             OnPropertyChanged(nameof(GpuPowerLimitMin));
             OnPropertyChanged(nameof(GpuPowerLimitMax));
+        }
+        
+        /// <summary>
+        /// Detect GPU vendor and driver version from SystemInfo.
+        /// </summary>
+        private void DetectGpuVendor()
+        {
+            try
+            {
+                _logging.Info("Detecting GPU vendor from SystemInfo...");
+                
+                var systemInfo = _systemInfoService?.GetSystemInfo();
+                if (systemInfo?.Gpus == null || systemInfo.Gpus.Count == 0)
+                {
+                    _logging.Warn("No GPUs found in SystemInfo");
+                    return;
+                }
+                
+                _logging.Info($"Found {systemInfo.Gpus.Count} GPU(s) in SystemInfo");
+                foreach (var gpu in systemInfo.Gpus)
+                {
+                    _logging.Info($"  → {gpu.Name} (Vendor: {gpu.Vendor}, Driver: {gpu.DriverVersion})");
+                }
+                
+                // Find first discrete GPU (prefer NVIDIA/AMD over Intel integrated)
+                var discreteGpu = systemInfo.Gpus.FirstOrDefault(g => 
+                    g.Vendor == "NVIDIA" || g.Vendor == "AMD") ?? systemInfo.Gpus[0];
+                
+                GpuVendor = discreteGpu.Vendor;
+                GpuDisplayName = discreteGpu.Name;
+                GpuDriverVersion = !string.IsNullOrEmpty(discreteGpu.DriverVersion) 
+                    ? discreteGpu.DriverVersion 
+                    : "Unknown";
+                
+                _logging.Info($"Primary GPU selected: {GpuDisplayName} ({GpuVendor}), Driver: {GpuDriverVersion}");
+                
+                // Notify UI of changes
+                OnPropertyChanged(nameof(GpuVendor));
+                OnPropertyChanged(nameof(GpuDisplayName));
+                OnPropertyChanged(nameof(GpuDriverVersion));
+                OnPropertyChanged(nameof(IsNvidiaGpu));
+                OnPropertyChanged(nameof(IsAmdGpu));
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to detect GPU vendor: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Initialize AMD GPU (placeholder for future ADLX integration).
+        /// </summary>
+        private void InitializeAmdGpu()
+        {
+            _logging.Info($"InitializeAmdGpu called, GpuVendor={GpuVendor}");
+            
+            if (GpuVendor != "AMD")
+            {
+                _logging.Info("Not an AMD GPU, skipping AMD initialization");
+                return;
+            }
+            
+            // AMD GPU detected but ADLX not yet implemented
+            GpuAmdAvailable = true;
+            GpuOcStatus = $"⚠ {GpuDisplayName} - AMD overclocking coming soon";
+            _logging.Info($"AMD GPU detected: {GpuDisplayName}, Driver: {GpuDriverVersion}. ADLX integration pending.");
+            
+            // TODO: Implement ADLX (AMD Display Library) for GPU overclocking
+            // AMD's ADLX SDK provides access to:
+            // - GPU clock frequency control
+            // - Memory clock control  
+            // - Power limit control
+            // - Fan control
+            // Reference: https://github.com/GPUOpen-LibrariesAndSDKs/ADLX
         }
         
         /// <summary>

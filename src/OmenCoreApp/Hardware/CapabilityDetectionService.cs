@@ -92,7 +92,24 @@ namespace OmenCore.Hardware
             
             var productId = Capabilities.ProductId;
             
-            // Check if model is in the database
+// First try matching by WMI model name pattern (more accurate for shared ProductIds)
+            var modelNameMatch = ModelCapabilityDatabase.GetCapabilitiesByModelName(Capabilities.ModelName);
+            if (modelNameMatch != null)
+            {
+                Capabilities.IsKnownModel = true;
+                Capabilities.ModelConfig = modelNameMatch;
+                _logging?.Info($"  ✓ Found model by name pattern: {Capabilities.ModelConfig.ModelName}");
+                _logging?.Info($"    Year: {Capabilities.ModelConfig.ModelYear}, Family: {Capabilities.ModelConfig.Family}");
+                
+                if (Capabilities.ModelConfig.UserVerified)
+                {
+                    _logging?.Info($"    ✓ User-verified configuration");
+                }
+                
+                return; // Found by name pattern, skip ProductId lookup
+            }
+            
+            // Check if model is in the database by ProductId
             Capabilities.IsKnownModel = ModelCapabilityDatabase.IsKnownModel(productId);
             
             if (Capabilities.IsKnownModel)
@@ -597,8 +614,18 @@ namespace OmenCore.Hardware
             // 4. OGH Proxy (LAST RESORT - only if WMI BIOS fails)
             // 5. Monitoring only
             
+            // Check if model database says WMI is ineffective for this model
+            // Some models (Transcend, 17-ck2xxx) have WMI that returns success but doesn't work
+            var modelSaysWmiWorks = Capabilities.ModelConfig?.SupportsFanControlWmi ?? true;
+            if (!modelSaysWmiWorks)
+            {
+                _logging?.Warn($"  ⚠ Model database indicates WMI fan control is ineffective for {Capabilities.ModelConfig?.ModelName}");
+                _logging?.Info("  → Skipping WMI BIOS, trying EC or OGH proxy...");
+            }
+            
             // Primary: WMI BIOS - works on most OMEN models without any dependencies
-            if (_wmiBios?.IsAvailable == true)
+            // BUT skip if model database says WMI is ineffective for this model
+            if (modelSaysWmiWorks && _wmiBios?.IsAvailable == true)
             {
                 Capabilities.FanControl = FanControlMethod.WmiBios;
                 Capabilities.CanSetFanSpeed = true;

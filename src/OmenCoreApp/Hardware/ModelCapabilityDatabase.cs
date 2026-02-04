@@ -13,8 +13,11 @@ namespace OmenCore.Hardware
         /// <summary>HP Product ID (e.g., "8A14", "8BAD", "8CD1").</summary>
         public string ProductId { get; set; } = "";
         
-        /// <summary>Human-readable model name.</summary>
+/// <summary>Human-readable model name.</summary>
         public string ModelName { get; set; } = "";
+        
+        /// <summary>Model name pattern for matching (e.g., "17-ck2" matches "OMEN by HP Laptop 17-ck2xxx").</summary>
+        public string? ModelNamePattern { get; set; }
         
         /// <summary>Model year (approximate).</summary>
         public int ModelYear { get; set; }
@@ -314,7 +317,7 @@ namespace OmenCore.Hardware
             // OMEN 17 Series (17.3" laptops)
             // ═══════════════════════════════════════════════════════════════════════════════════
             
-            AddModel(new ModelCapabilities
+AddModel(new ModelCapabilities
             {
                 ProductId = "8B9D",
                 ModelName = "OMEN 17 (2023) Intel",
@@ -327,6 +330,30 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 HasLightBar = true,
                 UserVerified = true
+            });
+            
+            // OMEN 17-ck2xxx (2023) - 13th gen Intel, RTX 4080/4090
+            // Note: ProductId 8BAD is shared with OMEN 15 (2021), but 17-ck2 model name takes precedence
+            // BUG FIX v2.7.1: WMI commands return success but don't actually change fan speed on 17-ck2
+            // Similar to Transcend models - requires OGH proxy or direct EC access
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "17CK2", // Virtual ID for model name matching
+                ModelName = "OMEN 17-ck2xxx (2023)",
+                ModelNamePattern = "17-ck2", // For model name matching
+                ModelYear = 2023,
+                Family = OmenModelFamily.OMEN17,
+                SupportsFanControlWmi = false, // WMI returns success but fans don't respond - needs OGH proxy
+                SupportsFanControlEc = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = true,
+                HasMuxSwitch = true, // 17-ck2 with RTX 4090 has MUX
+                SupportsGpuPowerBoost = true,
+                SupportsAdvancedOptimus = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = true, // 13th gen Intel supports undervolt
+                UserVerified = true,
+                Notes = "OMEN 17-ck2 series (2023) - WMI ineffective, use OGH proxy or EC access"
             });
             
             AddModel(new ModelCapabilities
@@ -503,7 +530,7 @@ namespace OmenCore.Hardware
             _knownModels[model.ProductId] = model;
         }
         
-        /// <summary>
+/// <summary>
         /// Get capabilities for a specific model by Product ID.
         /// Returns default capabilities if model not found.
         /// </summary>
@@ -516,6 +543,28 @@ namespace OmenCore.Hardware
                 return caps;
                 
             return DefaultCapabilities;
+        }
+        
+        /// <summary>
+        /// Get capabilities by matching the WMI model name pattern.
+        /// Use this when ProductId doesn't accurately identify the model.
+        /// </summary>
+        public static ModelCapabilities? GetCapabilitiesByModelName(string wmiModelName)
+        {
+            if (string.IsNullOrEmpty(wmiModelName))
+                return null;
+                
+            // Check all models for pattern match
+            foreach (var model in _knownModels.Values)
+            {
+                if (!string.IsNullOrEmpty(model.ModelNamePattern) &&
+                    wmiModelName.Contains(model.ModelNamePattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    return model;
+                }
+            }
+            
+            return null;
         }
         
         /// <summary>

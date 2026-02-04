@@ -8,6 +8,7 @@ namespace OmenCore.Models
         public string Name { get; set; } = string.Empty;
         public string Vendor { get; set; } = string.Empty; // "NVIDIA", "AMD", "Intel", or "Unknown"
         public string MemoryFormatted { get; set; } = string.Empty;
+        public string DriverVersion { get; set; } = string.Empty;
     }
     
     /// <summary>

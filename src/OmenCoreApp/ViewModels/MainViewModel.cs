@@ -72,6 +72,7 @@ namespace OmenCore.ViewModels
         private readonly BiosUpdateService _biosUpdateService;
         private readonly PowerAutomationService _powerAutomationService;
         private readonly OmenKeyService _omenKeyService;
+        private readonly NvapiService? _nvapiService;
         private OsdService? _osdService;
         private HpWmiBios? _wmiBios;
         private OghServiceProxy? _oghProxy;
@@ -123,7 +124,8 @@ namespace OmenCore.ViewModels
                         _configService,
                         _wmiBios,
                         _oghProxy,
-                        _systemInfoService
+                        _systemInfoService,
+                        _nvapiService
                     );
                     _systemControl.PropertyChanged += (s, e) =>
                     {
@@ -1166,6 +1168,17 @@ namespace OmenCore.ViewModels
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService);
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
+            
+            // Initialize NVAPI for GPU overclocking/tuning
+            try
+            {
+                _nvapiService = new NvapiService(_logging);
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"NVAPI service initialization failed: {ex.Message}");
+                _nvapiService = null;
+            }
             
             // Services initialized asynchronously
             InitializeServicesAsync();
@@ -2231,14 +2244,20 @@ namespace OmenCore.ViewModels
                     // Show lighting tab if:
                     // 1. Corsair or Logitech peripheral devices are found, OR
                     // 2. HP OMEN keyboard lighting is available, OR
-                    // 3. Razer Synapse is detected
+                    // 3. Razer Synapse is detected, OR
+                    // 4. OpenRGB server is running (for desktop/generic RGB support)
                     bool hasPeripherals = _corsairDeviceService.Devices.Any() || _logitechDeviceService.Devices.Any();
                     bool hasKeyboardLighting = _keyboardLightingService?.IsAvailable ?? false;
                     bool hasRazer = _razerService?.IsAvailable ?? false;
                     
-                    if (hasPeripherals || hasKeyboardLighting || hasRazer)
+                    // Try to detect OpenRGB server (runs on port 6742 by default)
+                    var openRgbProvider = new OmenCore.Services.Rgb.OpenRgbProvider(_logging);
+                    await openRgbProvider.InitializeAsync();
+                    bool hasOpenRgb = openRgbProvider.IsAvailable;
+                    
+                    if (hasPeripherals || hasKeyboardLighting || hasRazer || hasOpenRgb)
                     {
-                        // Initialize RGB manager and providers with priority: Corsair -> Logitech -> Razer -> SystemGeneric
+                        // Initialize RGB manager and providers with priority: Corsair -> Logitech -> Razer -> OpenRGB -> SystemGeneric
                         var rgbManager = new OmenCore.Services.Rgb.RgbManager();
                         var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService);
                         var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging);
@@ -2249,6 +2268,13 @@ namespace OmenCore.ViewModels
                         {
                             var razerProvider = new OmenCore.Services.Rgb.RazerRgbProvider(_logging, _razerService);
                             rgbManager.RegisterProvider(razerProvider);
+                        }
+                        
+                        // Register OpenRGB provider if available
+                        if (hasOpenRgb)
+                        {
+                            rgbManager.RegisterProvider(openRgbProvider);
+                            _logging.Info($"OpenRGB integration enabled with {openRgbProvider.DeviceCount} device(s)");
                         }
 
                         var systemProvider = new OmenCore.Services.Rgb.SystemRgbProvider(rgbManager, _logging);

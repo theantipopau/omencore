@@ -144,16 +144,18 @@
                 <!-- Current Mode Indicator + Save Custom -->
                 <Grid Grid.Row="2">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
-                    <!-- Current Mode Display -->
+                    <!-- Current Mode Display - compact inline style -->
                     <Border Grid.Column="0" 
                             Background="{StaticResource SurfaceDarkBrush}" 
                             CornerRadius="6" 
                             Padding="12,8"
-                            Margin="0,0,12,0">
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Active:" 
                                        Style="{StaticResource Caption}" 
@@ -182,8 +184,11 @@
                         </StackPanel>
                     </Border>
                     
+                    <!-- Spacer -->
+                    <Border Grid.Column="1"/>
+                    
                     <!-- Save Custom Preset + Fan Transition Settings -->
-                    <StackPanel Grid.Column="1" Orientation="Vertical">
+                    <StackPanel Grid.Column="2" Orientation="Vertical">
                         <!-- Save Custom Preset Row -->
                         <StackPanel Orientation="Horizontal">
                             <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 

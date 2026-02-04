@@ -1,7 +1,17 @@
 # OmenCore v2.7.0 Changelog
 
-**Release Date:** TBD  
-**Branch:** `feature/v2.7.0-development`
+**Release Date:** February 4, 2026  
+**Branch:** `main`
+
+---
+
+## 📦 Downloads
+
+| File | SHA256 |
+|------|--------|
+| `OmenCoreSetup-2.7.0.exe` | `7BB27ADC487DAB186F1CC2EB07C3A350572DE30C06DD7225557C9F0FE1C157A2` |
+| `OmenCore-2.7.0-win-x64.zip` | `E3334290C8F197E4577E5199970BFBB7C1F563FB6AC29AEF0877888AF9F35EB9` |
+| `OmenCore-2.7.0-linux-x64.zip` | `F6C7BB52920FAF6491DAAA7F943C2A587C8ED3830005AC872B53CAA76DC7BE29` |
 
 ---
 

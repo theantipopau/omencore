@@ -233,7 +233,7 @@ namespace OmenCore.Services
             return check;
         }
         
-        private DependencyCheck CheckPawnIODriver()
+private DependencyCheck CheckPawnIODriver()
         {
             var check = new DependencyCheck
             {
@@ -245,18 +245,48 @@ namespace OmenCore.Services
             
             try
             {
-                // Check for PawnIO service
+                // Method 1: Check for PawnIO service
                 var services = ServiceController.GetServices();
                 var pawnio = services.FirstOrDefault(s => 
                     s.ServiceName.Equals("PawnIO", StringComparison.OrdinalIgnoreCase));
-                    
-                check.IsDetected = pawnio != null;
-                check.Status = check.IsDetected 
-                    ? (pawnio!.Status == ServiceControllerStatus.Running ? "Running" : "Stopped")
-                    : "Not Installed";
-                check.Details = check.IsDetected
-                    ? $"PawnIO driver: {check.Status} - EC access available"
-                    : "PawnIO not installed - using WMI fallback";
+                
+                if (pawnio != null)
+                {
+                    check.IsDetected = true;
+                    check.Status = pawnio.Status == ServiceControllerStatus.Running ? "Running" : "Stopped";
+                    check.Details = $"PawnIO driver: {check.Status} - EC access available";
+                }
+                else
+                {
+                    // Method 2: Check registry (same as CapabilityDetectionService)
+                    using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
+                    if (key != null)
+                    {
+                        check.IsDetected = true;
+                        check.Status = "Installed";
+                        check.Details = "PawnIO installed (found in registry)";
+                    }
+                    else
+                    {
+                        // Method 3: Check default installation path
+                        string defaultPath = System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), 
+                            "PawnIO", "PawnIOLib.dll");
+                        if (System.IO.File.Exists(defaultPath))
+                        {
+                            check.IsDetected = true;
+                            check.Status = "Installed";
+                            check.Details = "PawnIO installed (found at default path)";
+                        }
+                        else
+                        {
+                            check.IsDetected = false;
+                            check.Status = "Not Installed";
+                            check.Details = "PawnIO not installed - using WMI fallback";
+                        }
+                    }
+                }
             }
             catch
             {
@@ -380,8 +410,33 @@ namespace OmenCore.Services
                             gpuInfo.Vendor = "Intel";
                         else
                             gpuInfo.Vendor = "Unknown";
+                        
+                        // Get driver version from WMI
+                        var driverVersion = gpu["DriverVersion"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(driverVersion))
+                        {
+                            // For NVIDIA, format the driver version (e.g., "32.0.15.6614" -> "566.14")
+                            if (gpuInfo.Vendor == "NVIDIA" && driverVersion.Contains("."))
+                            {
+                                gpuInfo.DriverVersion = FormatNvidiaDriverVersion(driverVersion);
+                            }
+                            else
+                            {
+                                gpuInfo.DriverVersion = driverVersion;
+                            }
+                        }
                             
                         _cachedInfo.Gpus.Add(gpuInfo);
+                    }
+                }
+                
+                // Log GPU collection results
+                if (_cachedInfo.Gpus.Count > 0)
+                {
+                    _logging.Info($"Collected {_cachedInfo.Gpus.Count} GPU(s) from WMI:");
+                    foreach (var g in _cachedInfo.Gpus)
+                    {
+                        _logging.Info($"  → {g.Name} (Vendor: {g.Vendor}, Driver: {g.DriverVersion})");
                     }
                 }
                 
@@ -473,7 +528,7 @@ namespace OmenCore.Services
                     }
                 }
                 
-                _logging.Info($"System Info: {_cachedInfo.CpuName}, {_cachedInfo.RamSizeFormatted}, {_cachedInfo.Gpus.Count} GPU(s)");
+                _logging.Info($"System Info: {_cachedInfo.CpuName}, {_cachedInfo.CpuCores} cores / {_cachedInfo.CpuThreads} threads, {_cachedInfo.RamSizeFormatted}, {_cachedInfo.Gpus.Count} GPU(s)");
             }
             catch (Exception ex)
             {
@@ -498,6 +553,37 @@ namespace OmenCore.Services
             }
             
             return $"{size:F0} {sizes[order]}";
+        }
+        
+        /// <summary>
+        /// Formats NVIDIA driver version from WMI format (e.g., "32.0.15.6614") to user-friendly format (e.g., "566.14").
+        /// </summary>
+        private string FormatNvidiaDriverVersion(string wmiVersion)
+        {
+            try
+            {
+                // NVIDIA WMI driver version format: "32.0.15.6614" or "31.0.15.5525"
+                // The last 5 digits represent the actual driver version: XXXYZ -> XXX.YZ
+                var parts = wmiVersion.Split('.');
+                if (parts.Length >= 4)
+                {
+                    var lastPart = parts[2] + parts[3]; // Combine last two parts
+                    if (lastPart.Length >= 5)
+                    {
+                        // Take last 5 digits and format as XXX.YY
+                        var versionDigits = lastPart.Substring(lastPart.Length - 5);
+                        var major = versionDigits.Substring(0, 3).TrimStart('0');
+                        var minor = versionDigits.Substring(3, 2);
+                        if (string.IsNullOrEmpty(major)) major = "0";
+                        return $"{major}.{minor}";
+                    }
+                }
+                return wmiVersion;
+            }
+            catch
+            {
+                return wmiVersion;
+            }
         }
         
         public void ClearCache()

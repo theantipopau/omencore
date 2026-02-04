@@ -51,6 +51,12 @@ namespace OmenCore.Services.Corsair
         Task<CorsairDeviceStatus> GetDeviceStatusAsync(CorsairDevice device);
 
         /// <summary>
+        /// Flash device LEDs to help identify which physical device this is.
+        /// Typically flashes white a few times then returns to original color.
+        /// </summary>
+        Task FlashDeviceAsync(CorsairDevice device, int flashCount = 3, int intervalMs = 300);
+
+        /// <summary>
         /// Release SDK resources.
         /// </summary>
         void Shutdown();
@@ -115,6 +121,12 @@ namespace OmenCore.Services.Corsair
         public Task<CorsairDeviceStatus> GetDeviceStatusAsync(CorsairDevice device)
         {
             return Task.FromResult(device.Status);
+        }
+
+        public Task FlashDeviceAsync(CorsairDevice device, int flashCount = 3, int intervalMs = 300)
+        {
+            _logging.Info($"[Stub] Flash device {device.Name} ({flashCount}x, {intervalMs}ms)");
+            return Task.CompletedTask;
         }
 
         public void Shutdown()
@@ -402,6 +414,59 @@ namespace OmenCore.Services.Corsair
                 FirmwareVersion = "Unknown",
                 ConnectionType = "USB"
             });
+        }
+
+        public async Task FlashDeviceAsync(CorsairDevice device, int flashCount = 3, int intervalMs = 300)
+        {
+            if (!_initialized)
+                return;
+
+            try
+            {
+                var rgbDevice = _surface.Devices.FirstOrDefault(d => d.GetHashCode().ToString() == device.DeviceId);
+                if (rgbDevice == null)
+                {
+                    _logging.Warn($"Device {device.Name} not found for flash");
+                    return;
+                }
+
+                // Store original colors
+                var originalColors = new Dictionary<Led, Color>();
+                foreach (var led in rgbDevice)
+                {
+                    originalColors[led] = led.Color;
+                }
+
+                // Flash white/off pattern
+                var white = new Color(255, 255, 255);
+                var off = new Color(0, 0, 0);
+
+                for (int i = 0; i < flashCount; i++)
+                {
+                    // Flash white
+                    foreach (var led in rgbDevice)
+                        led.Color = white;
+                    _surface.Update();
+                    await Task.Delay(intervalMs);
+
+                    // Flash off
+                    foreach (var led in rgbDevice)
+                        led.Color = off;
+                    _surface.Update();
+                    await Task.Delay(intervalMs);
+                }
+
+                // Restore original colors
+                foreach (var kvp in originalColors)
+                    kvp.Key.Color = kvp.Value;
+                _surface.Update();
+
+                _logging.Info($"Flashed device {device.Name} {flashCount} times");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to flash device {device.Name}", ex);
+            }
         }
 
         public void Shutdown()

@@ -114,6 +114,16 @@ namespace OmenCore.Models
         public int? LastTccOffset { get; set; }
         
         /// <summary>
+        /// Last applied CPU PL1 (sustained power limit) in watts.
+        /// </summary>
+        public int? LastCpuPl1Watts { get; set; }
+        
+        /// <summary>
+        /// Last applied CPU PL2 (burst power limit) in watts.
+        /// </summary>
+        public int? LastCpuPl2Watts { get; set; }
+        
+        /// <summary>
         /// Last applied fan preset name for restoration on startup.
         /// </summary>
         public string? LastFanPresetName { get; set; }

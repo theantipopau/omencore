@@ -45,18 +45,19 @@
                 
                 <!-- Guided Diagnostic (v2.7.0) -->
                 <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="16,0,0,0" VerticalAlignment="Top">
-                    <StackPanel Width="200">
+                    <StackPanel MinWidth="180" MaxWidth="280">
                         <TextBlock Text="Guided Diagnostic" FontWeight="SemiBold" />
                         <TextBlock Text="Tests: 30% → 60% → 100%" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                         <Button Content="Run Full Test" Command="{Binding RunGuidedDiagnosticCommand}" 
                                 Style="{StaticResource ModernButton}" Margin="0,8,0,0" 
                                 IsEnabled="{Binding IsGuidedTestRunning, Converter={StaticResource InverseBooleanConverter}}"/>
                         
-                        <!-- Progress -->
+                        <!-- Progress (only visible during test) -->
                         <ProgressBar Value="{Binding GuidedTestProgress, Mode=OneWay}" Maximum="100" Height="4" Margin="0,8,0,0"
                                      Visibility="{Binding IsGuidedTestRunning, Converter={StaticResource BoolToVisibilityConverter}}"/>
                         <TextBlock Text="{Binding GuidedTestStatus}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" 
-                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                   Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding GuidedTestStatus, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

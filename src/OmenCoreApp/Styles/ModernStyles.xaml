@@ -163,6 +163,32 @@
                          From="0" To="360" Duration="0:0:1"/>
     </Storyboard>
     
+    <!-- Loading spinner animation (smooth continuous rotation) -->
+    <Storyboard x:Key="SpinnerRotateStoryboard" RepeatBehavior="Forever">
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" 
+                         From="0" To="360" Duration="0:0:0.8">
+            <DoubleAnimation.EasingFunction>
+                <SineEase EasingMode="EaseInOut"/>
+            </DoubleAnimation.EasingFunction>
+        </DoubleAnimation>
+    </Storyboard>
+    
+    <!-- Success checkmark pop animation -->
+    <Storyboard x:Key="SuccessPopStoryboard">
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" 
+                         From="0" To="1" Duration="0:0:0.3">
+            <DoubleAnimation.EasingFunction>
+                <BackEase EasingMode="EaseOut" Amplitude="0.5"/>
+            </DoubleAnimation.EasingFunction>
+        </DoubleAnimation>
+        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" 
+                         From="0" To="1" Duration="0:0:0.3">
+            <DoubleAnimation.EasingFunction>
+                <BackEase EasingMode="EaseOut" Amplitude="0.5"/>
+            </DoubleAnimation.EasingFunction>
+        </DoubleAnimation>
+    </Storyboard>
+    
     <!-- ==================== END ANIMATIONS ==================== -->
 
     <!-- Color Palette -->
@@ -1093,14 +1119,6 @@
         <Setter Property="CornerRadius" Value="10" />
     </Style>
 
-    <!-- Status Badge Style -->
-    <Style x:Key="StatusBadge" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}" />
-        <Setter Property="CornerRadius" Value="4" />
-        <Setter Property="Padding" Value="8,4" />
-        <Setter Property="Margin" Value="0,4,0,0" />
-    </Style>
-
     <!-- Modern ProgressBar Style -->
     <Style TargetType="ProgressBar">
         <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}" />
@@ -1435,6 +1453,71 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+    
+    <!-- ==================== LOADING INDICATOR ==================== -->
+    
+    <!-- Compact Loading Spinner Style (use with Border) -->
+    <Style x:Key="LoadingSpinner" TargetType="Border">
+        <Setter Property="Width" Value="20"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="BorderBrush">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="{StaticResource AccentRed}" Offset="0"/>
+                    <GradientStop Color="Transparent" Offset="0.7"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <RotateTransform Angle="0"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <!-- Status Badge Styles -->
+    <Style x:Key="StatusBadge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="6,2"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+    
+    <Style x:Key="SuccessBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#1A00FF00"/>
+    </Style>
+    
+    <Style x:Key="WarningBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#1AFFAA00"/>
+    </Style>
+    
+    <Style x:Key="ErrorBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#1AFF0000"/>
+    </Style>
+    
+    <Style x:Key="InfoBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#1A00AAFF"/>
+    </Style>
+    
+    <!-- Smooth hover effect for interactive elements -->
+    <Style x:Key="HoverGlow" TargetType="Border">
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#FF005C" Opacity="0" BlurRadius="20" ShadowDepth="0"/>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="#FF005C" Opacity="0.3" BlurRadius="20" ShadowDepth="0"/>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
 </ResourceDictionary>

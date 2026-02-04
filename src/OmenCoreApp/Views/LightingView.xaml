@@ -256,6 +256,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Device Icon -->
@@ -283,8 +284,19 @@
                                                 </StackPanel>
                                             </StackPanel>
 
+                                            <!-- Identify Button -->
+                                            <Button Grid.Column="2" 
+                                                    Content="💡 Identify"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Command="{Binding DataContext.FlashCorsairDeviceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Flash device LEDs to identify this device"
+                                                    Padding="12,6"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"/>
+
                                             <!-- DPI Info (for mice) -->
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" 
+                                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="12,0,0,0"
                                                         Visibility="{Binding IsMouse, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                 <TextBlock Text="DPI" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Right"/>
                                                 <TextBlock Text="{Binding CurrentDpi}" 
@@ -753,6 +765,119 @@
                     </StackPanel>
                 </Border>
 
+                <!-- OpenRGB Devices Section (Desktop RGB Support) -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding HasOpenRgbDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <!-- Brand Header with Logo -->
+                        <StackPanel Style="{StaticResource BrandSectionHeader}">
+                            <Border Width="28" Height="28" Background="#FF6B35" CornerRadius="6" Margin="0,0,12,0">
+                                <TextBlock Text="🌈" FontSize="14"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="OpenRGB Devices" FontSize="20" FontWeight="SemiBold" 
+                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <Border Background="#1AFF6B35" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding OpenRgbStatusText}" FontSize="10" Foreground="#FF6B35"/>
+                            </Border>
+                        </StackPanel>
+                        
+                        <TextBlock Text="Generic RGB control via OpenRGB server (motherboard, RAM, GPU, fans, strips, etc.)" 
+                                   FontSize="12" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,16"/>
+                        
+                        <!-- OpenRGB Device List -->
+                        <ItemsControl ItemsSource="{Binding OpenRgbDevices}" Margin="0,0,0,16">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource DeviceCard}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Device Icon -->
+                                            <Border Grid.Column="0" Width="48" Height="48" 
+                                                    Background="#FF6B35" CornerRadius="24" Margin="0,0,16,0">
+                                                <TextBlock Text="💡" FontSize="18"
+                                                           HorizontalAlignment="Center" 
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Device Info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" 
+                                                           FontSize="14" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <Run Text="{Binding Type, Mode=OneWay}"/>
+                                                        <Run Text=" • "/>
+                                                        <Run Text="{Binding Vendor, Mode=OneWay}"/>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            
+                                            <!-- LED Count -->
+                                            <Border Grid.Column="2" Background="#1AFF6B35" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
+                                                <TextBlock FontSize="11" Foreground="#FF6B35">
+                                                    <Run Text="{Binding LedCount, Mode=OneWay}"/>
+                                                    <Run Text=" LEDs"/>
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Quick Color Buttons for OpenRGB -->
+                        <TextBlock Text="⚡ QUICK COLORS" 
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiaryBrush}" 
+                                   Margin="0,0,0,8"/>
+                        <WrapPanel Margin="0,0,0,0">
+                            <Button Content="🔴" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Red"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF0000"/>
+                            <Button Content="🔵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Blue"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#0066FF"/>
+                            <Button Content="🟢" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Green"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#00FF00"/>
+                            <Button Content="🟣" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Purple"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#9400D3"/>
+                            <Button Content="🟡" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Yellow"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFF00"/>
+                            <Button Content="⚪" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="White"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFFFF"/>
+                            <Button Content="🟠" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Orange"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF6B35"/>
+                            <Button Content="⬛" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Off"
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#000000"/>
+                        </WrapPanel>
+                        
+                        <!-- Info Box -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="4" 
+                                Padding="12" Margin="0,16,0,0">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                <Run Text="OpenRGB Integration:"/>
+                                <Run Text=" Controls any RGB device supported by OpenRGB (motherboards, RAM, GPUs, coolers, LED strips, etc). "/>
+                                <Run Text="Download OpenRGB from openrgb.org and enable the SDK Server (Settings → SDK Server → Start Server)."/>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <!-- HP OMEN Keyboard Lighting -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
                         Visibility="{Binding IsKeyboardLightingAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -775,7 +900,42 @@
                         <TextBlock Text="Your laptop's built-in 4-zone RGB keyboard" 
                                    FontSize="12" 
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Margin="0,0,0,16"/>
+                                   Margin="0,0,0,12"/>
+                        
+                        <!-- Quick Color Buttons -->
+                        <TextBlock Text="⚡ QUICK COLORS (click to apply to all zones)" 
+                                   FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiaryBrush}" 
+                                   Margin="0,0,0,8"/>
+                        <WrapPanel Margin="0,0,0,16">
+                            <Button Content="🔴" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="OMEN Red"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#E6002E"/>
+                            <Button Content="🔵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Blue"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#0066FF"/>
+                            <Button Content="🟢" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Green"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FF00"/>
+                            <Button Content="🟣" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Purple"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#9400D3"/>
+                            <Button Content="🟡" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Yellow"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFF00"/>
+                            <Button Content="⚪" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="White"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFFFF"/>
+                            <Button Content="🩵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Cyan"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FFFF"/>
+                            <Button Content="🩷" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Pink"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FF69B4"/>
+                            <Button Content="⬛" FontSize="14" Padding="8,4" Margin="0,0,6,4"
+                                    Style="{StaticResource ModernButton}" ToolTip="Off"
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#000000"/>
+                        </WrapPanel>
                         
                         <!-- Keyboard Status Hint (shows tips for models where WMI may not work) -->
                         <Border Background="#1A8B5CF6" CornerRadius="6" Padding="12,8" Margin="0,0,0,12"

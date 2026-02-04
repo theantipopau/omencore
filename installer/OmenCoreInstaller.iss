@@ -63,8 +63,8 @@ Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: 
 ; This avoids double-startup issues and ensures elevated privileges for hardware access
 
 [Run]
-; Install PawnIO driver if bundled
-Filename: "{tmp}\\PawnIO_setup.exe"; Parameters: "/SILENT"; StatusMsg: "Installing PawnIO driver (Secure Boot compatible)..."; Flags: waituntilterminated; Tasks: installpawnio; Check: PawnIOInstallerExists
+; Install PawnIO driver if bundled (note: PawnIO uses -silent not /SILENT)
+Filename: "{tmp}\PawnIO_setup.exe"; Parameters: "-silent"; StatusMsg: "Installing PawnIO driver (Secure Boot compatible)..."; Flags: waituntilterminated; Tasks: installpawnio; Check: PawnIOInstallerExists
 ; Create scheduled task for autostart if user selected it (runs with elevated privileges)
 Filename: "schtasks"; Parameters: "/create /tn ""OmenCore"" /tr ""\""{app}\\{#MyAppExeName}\"" --minimized"" /sc onlogon /rl highest /f"; Flags: runhidden; Tasks: autostart
 ; Launch OmenCore with elevation (shellexec verb=runas)
@@ -111,6 +111,21 @@ end;
 function InitializeSetup(): Boolean;
 begin
   Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+  NeedsRestart := False;
+  
+  // Stop OmenCore if running to prevent file locks
+  Exec('taskkill', '/F /IM OmenCore.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill', '/F /IM OmenCore.HardwareWorker.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  
+  // Small delay to ensure processes are fully terminated
+  Sleep(500);
 end;
 
 function InitializeUninstall(): Boolean;

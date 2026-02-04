@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Management;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,6 +30,8 @@ namespace OmenCore.Controls
         private readonly Queue<double> _powerHistory = new(60);
         private double _previousPower;
         private bool _isInitialized;
+        private double _cachedBatteryHealth = -1; // Cached battery health (expensive to query)
+        private DateTime _lastBatteryHealthCheck = DateTime.MinValue;
         
         /// <summary>
         /// Static reference to allow manual initialization from outside
@@ -264,12 +267,26 @@ namespace OmenCore.Controls
                 }
                 _previousPower = estimatedPower;
 
-                // Update battery health (using real data if available)
-                if (BatteryHealthValue != null) BatteryHealthValue.Text = "100";
+                // Update battery health using REAL data from WMI
+                var batteryHealth = await GetBatteryHealthPercentAsync();
+                if (BatteryHealthValue != null) BatteryHealthValue.Text = batteryHealth.ToString("F0");
                 if (BatteryHealthStatus != null)
                 {
-                    BatteryHealthStatus.Text = "Good";
-                    BatteryHealthStatus.Foreground = Brushes.LimeGreen;
+                    if (batteryHealth >= 80)
+                    {
+                        BatteryHealthStatus.Text = "Good";
+                        BatteryHealthStatus.Foreground = Brushes.LimeGreen;
+                    }
+                    else if (batteryHealth >= 50)
+                    {
+                        BatteryHealthStatus.Text = "Fair";
+                        BatteryHealthStatus.Foreground = Brushes.Orange;
+                    }
+                    else
+                    {
+                        BatteryHealthStatus.Text = "Replace";
+                        BatteryHealthStatus.Foreground = Brushes.Red;
+                    }
                 }
 
                 // CRITICAL FIX: Update temperatures with proper null checking and display
@@ -413,6 +430,71 @@ namespace OmenCore.Controls
             double ramPower = (sample.RamUsageGb / sample.RamTotalGb) * 5.0; // RAM contribution
             
             return cpuPower + gpuPower + basePower + ramPower;
+        }
+
+        /// <summary>
+        /// Gets real battery health percentage by comparing FullChargeCapacity to DesignCapacity.
+        /// Uses WMI BatteryStaticData for DesignCapacity and BatteryFullChargedCapacity for current capacity.
+        /// Caches result for 60 seconds to avoid excessive WMI queries.
+        /// </summary>
+        private async Task<double> GetBatteryHealthPercentAsync()
+        {
+            // Return cached value if recent (battery health doesn't change often)
+            if (_cachedBatteryHealth >= 0 && (DateTime.Now - _lastBatteryHealthCheck).TotalSeconds < 60)
+            {
+                return _cachedBatteryHealth;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    uint designCapacity = 0;
+                    uint fullChargeCapacity = 0;
+
+                    // Get DesignCapacity from BatteryStaticData (requires admin/elevated access on some systems)
+                    using (var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT DesignedCapacity FROM BatteryStaticData"))
+                    {
+                        foreach (var obj in searcher.Get())
+                        {
+                            designCapacity = Convert.ToUInt32(obj["DesignedCapacity"]);
+                            break;
+                        }
+                    }
+
+                    // Get FullChargeCapacity from BatteryFullChargedCapacity
+                    using (var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT FullChargedCapacity FROM BatteryFullChargedCapacity"))
+                    {
+                        foreach (var obj in searcher.Get())
+                        {
+                            fullChargeCapacity = Convert.ToUInt32(obj["FullChargedCapacity"]);
+                            break;
+                        }
+                    }
+
+                    if (designCapacity > 0 && fullChargeCapacity > 0)
+                    {
+                        _cachedBatteryHealth = (fullChargeCapacity * 100.0) / designCapacity;
+                        _cachedBatteryHealth = Math.Min(100.0, Math.Max(0.0, _cachedBatteryHealth)); // Clamp to 0-100
+                        _lastBatteryHealthCheck = DateTime.Now;
+                        App.Logging.Info($"[Dashboard] Battery health: {_cachedBatteryHealth:F1}% (FullCharge={fullChargeCapacity} mWh, Design={designCapacity} mWh)");
+                        return _cachedBatteryHealth;
+                    }
+
+                    // Fallback: use EstimatedChargeRemaining if above fails (less accurate)
+                    App.Logging.Warn("[Dashboard] Battery WMI data unavailable, showing 100% as fallback");
+                    _cachedBatteryHealth = 100.0;
+                    _lastBatteryHealthCheck = DateTime.Now;
+                    return _cachedBatteryHealth;
+                }
+                catch (Exception ex)
+                {
+                    App.Logging.Warn($"[Dashboard] Failed to get battery health: {ex.Message}");
+                    _cachedBatteryHealth = 100.0; // Fallback
+                    _lastBatteryHealthCheck = DateTime.Now;
+                    return _cachedBatteryHealth;
+                }
+            });
         }
 
         private double CalculateEfficiency(double workload, double avgTemp)

@@ -150,6 +150,11 @@ namespace OmenCore.Services
         public string? ActivePresetName => _activePreset?.Name;
         
         /// <summary>
+        /// The currently active preset (for diagnostic mode restoration).
+        /// </summary>
+        public FanPreset? ActivePreset => _activePreset;
+        
+        /// <summary>
         /// Whether thermal protection is currently overriding fan control.
         /// </summary>
         public bool IsThermalProtectionActive => _thermalProtectionActive;

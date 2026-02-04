@@ -23,6 +23,7 @@ namespace OmenCoreApp.Tests.ViewModels
             public Task ApplyMacroAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.MacroProfile macro) => Task.CompletedTask;
             public Task SyncWithThemeAsync(IEnumerable<OmenCore.Corsair.CorsairDevice> devices, OmenCore.Models.LightingProfile theme) => Task.CompletedTask;
             public Task<OmenCore.Corsair.CorsairDeviceStatus> GetDeviceStatusAsync(OmenCore.Corsair.CorsairDevice device) => Task.FromResult(device.Status);
+            public Task FlashDeviceAsync(OmenCore.Corsair.CorsairDevice device, int flashCount = 3, int intervalMs = 300) => Task.CompletedTask;
             public void Shutdown() { }
         }
 
