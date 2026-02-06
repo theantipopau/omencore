@@ -1804,7 +1804,7 @@
                                 <TextBlock Text="Performance" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,4"/>
                                 <WrapPanel Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                        <TextBlock Text="Est. FPS" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="FPS / GPU Activity" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowFps}"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,16,4">

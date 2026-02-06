@@ -39,9 +39,11 @@ namespace OmenCore.Views
         private readonly DispatcherTimer _pingTimer;
         private readonly ThermalSensorProvider? _thermalProvider;
         private readonly FanService? _fanService;
+        private readonly RtssIntegrationService? _rtssService;
         private OsdSettings _settings;
         private Func<OmenCore.Models.MonitoringSample?>? _getMonitoringSample;
         private int _lastPingMs = -1;
+        private bool _rtssInitialized;
         
         // Bindable properties
         private double _cpuTemp;
@@ -55,6 +57,9 @@ namespace OmenCore.Views
         private bool _isThrottling;
         private string _currentMode = "Auto";
         private double _fps;
+        private string _fpsLabel = "GPU";
+        private string _fpsDisplay = "0%";
+        private string _frametimeDisplay = "0.0ms";
         private string _fanMode = "Auto";
         private string _performanceMode = "Balanced";
         private double _frametime;
@@ -87,6 +92,9 @@ namespace OmenCore.Views
         public bool IsThrottling { get => _isThrottling; set { _isThrottling = value; OnPropertyChanged(); } }
         public string CurrentMode { get => _currentMode; set { _currentMode = value; OnPropertyChanged(); } }
         public double Fps { get => _fps; set { _fps = value; OnPropertyChanged(); } }
+        public string FpsLabel { get => _fpsLabel; set { _fpsLabel = value; OnPropertyChanged(); } }
+        public string FpsDisplay { get => _fpsDisplay; set { _fpsDisplay = value; OnPropertyChanged(); } }
+        public string FrametimeDisplay { get => _frametimeDisplay; set { _frametimeDisplay = value; OnPropertyChanged(); } }
         public string FanMode { get => _fanMode; set { _fanMode = value; OnPropertyChanged(); } }
         public string PerformanceMode { get => _performanceMode; set { _performanceMode = value; OnPropertyChanged(); } }
         public double Frametime { get => _frametime; set { _frametime = value; OnPropertyChanged(); } }
@@ -151,11 +159,12 @@ namespace OmenCore.Views
         
         public event PropertyChangedEventHandler? PropertyChanged;
         
-        public OsdOverlayWindow(OsdSettings settings, ThermalSensorProvider? thermalProvider = null, FanService? fanService = null)
+        public OsdOverlayWindow(OsdSettings settings, ThermalSensorProvider? thermalProvider = null, FanService? fanService = null, RtssIntegrationService? rtssService = null)
         {
             _settings = settings ?? new OsdSettings();
             _thermalProvider = thermalProvider;
             _fanService = fanService;
+            _rtssService = rtssService;
             
             // Initialize visibility from settings
             ApplySettings(_settings);
@@ -266,6 +275,17 @@ namespace OmenCore.Views
             _updateTimer.Start();
             if (_showNetworkLatency)
                 _pingTimer.Start();
+            
+            // Initialize RTSS for real FPS data
+            if (_rtssService != null && !_rtssInitialized)
+            {
+                if (_rtssService.Initialize())
+                {
+                    _rtssService.StartPolling(500);
+                    _rtssInitialized = true;
+                }
+            }
+            
             UpdateStats(); // Initial update
         }
         
@@ -273,6 +293,7 @@ namespace OmenCore.Views
         {
             _updateTimer.Stop();
             _pingTimer.Stop();
+            _rtssService?.StopPolling();
         }
         
         private void UpdateTimer_Tick(object? sender, EventArgs e)
@@ -442,24 +463,70 @@ namespace OmenCore.Views
                     else
                         GpuHotspotTemp = 0;
                     
-                    // Show GPU activity (load percentage) - no fake FPS estimation
-                    // Real FPS would require game hooks (RivaTuner/RTSS integration)
-                    if (_showFps && sample.GpuLoadPercent > 0)
+                    // FPS / GPU Activity display
+                    if (_showFps || _showFrametime)
                     {
-                        // Show GPU load as activity indicator
-                        Fps = sample.GpuLoadPercent;
+                        // Try RTSS for real FPS data first
+                        bool hasRtssData = false;
+                        if (_rtssService != null && _rtssService.IsAvailable && _rtssService.CurrentFps > 0)
+                        {
+                            hasRtssData = true;
+                            Fps = _rtssService.CurrentFps;
+                            FpsLabel = "FPS";
+                            FpsDisplay = $"{_rtssService.CurrentFps:F0}";
+                            
+                            if (_showFrametime && _rtssService.FrametimeMs > 0)
+                            {
+                                Frametime = _rtssService.FrametimeMs;
+                                FrametimeDisplay = $"{_rtssService.FrametimeMs:F1}ms";
+                            }
+                            else
+                            {
+                                // Calculate frametime from FPS
+                                Frametime = _rtssService.CurrentFps > 0 ? 1000.0 / _rtssService.CurrentFps : 0;
+                                FrametimeDisplay = $"{Frametime:F1}ms";
+                            }
+                        }
                         
-                        // Calculate estimated frametime from GPU activity (rough indicator)
-                        // Lower GPU load = less activity = higher effective "frametime" (idle state)
-                        if (_showFrametime && sample.GpuLoadPercent > 10)
-                            Frametime = Math.Max(1, 100 - sample.GpuLoadPercent + 8); // Rough activity indicator
-                        else
-                            Frametime = 0;
-                    }
-                    else if (sample.GpuLoadPercent <= 0)
-                    {
-                        Fps = 0;
-                        Frametime = 0;
+                        if (!hasRtssData)
+                        {
+                            // Retry RTSS connection periodically
+                            if (_rtssService != null && !_rtssService.IsAvailable && !_rtssInitialized)
+                            {
+                                if (_rtssService.Initialize())
+                                {
+                                    _rtssService.StartPolling(500);
+                                    _rtssInitialized = true;
+                                }
+                            }
+                            
+                            // Fall back to GPU load display
+                            if (sample.GpuLoadPercent > 0)
+                            {
+                                Fps = sample.GpuLoadPercent;
+                                FpsLabel = "GPU";
+                                FpsDisplay = $"{sample.GpuLoadPercent:F0}%";
+                                
+                                if (_showFrametime && sample.GpuLoadPercent > 10)
+                                {
+                                    Frametime = Math.Max(1, 100 - sample.GpuLoadPercent + 8);
+                                    FrametimeDisplay = $"{Frametime:F1}ms";
+                                }
+                                else
+                                {
+                                    Frametime = 0;
+                                    FrametimeDisplay = "0.0ms";
+                                }
+                            }
+                            else
+                            {
+                                Fps = 0;
+                                FpsLabel = "FPS";
+                                FpsDisplay = "--";
+                                Frametime = 0;
+                                FrametimeDisplay = "0.0ms";
+                            }
+                        }
                     }
                     
                     // Throttling detection

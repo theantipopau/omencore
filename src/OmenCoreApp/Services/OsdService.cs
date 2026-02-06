@@ -25,6 +25,7 @@ namespace OmenCore.Services
         private readonly LoggingService _logging;
         
         private OsdOverlayWindow? _overlayWindow;
+        private RtssIntegrationService? _rtssService;
         private HwndSource? _hotkeySource;
         private bool _isVisible;
         private bool _disposed;
@@ -83,11 +84,18 @@ namespace OmenCore.Services
             
             try
             {
+                // Create RTSS service for real FPS data (if RTSS is running)
+                if (_config.Config.Osd.UseRtssForFps)
+                {
+                    _rtssService = new RtssIntegrationService(_logging);
+                }
+                
                 // Create overlay window
                 _overlayWindow = new OsdOverlayWindow(
                     _config.Config.Osd,
                     _thermalProvider,
-                    _fanService);
+                    _fanService,
+                    _rtssService);
                 
                 // Pass monitoring sample source if available
                 if (_getMonitoringSample != null)
@@ -403,6 +411,8 @@ namespace OmenCore.Services
             {
                 _retryTimer?.Dispose();
                 _retryTimer = null;
+                _rtssService?.Dispose();
+                _rtssService = null;
                 Shutdown();
                 _disposed = true;
             }

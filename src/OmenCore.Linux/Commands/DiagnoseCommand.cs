@@ -127,10 +127,20 @@ public static class DiagnoseCommand
         info.HpWmiFan1OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan1_output");
         info.HpWmiFan2OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan2_output");
 
+        // ACPI platform_profile (kernel 5.18+, used by 2025+ models)
+        info.AcpiPlatformProfileExists = File.Exists("/sys/firmware/acpi/platform_profile");
+        if (info.AcpiPlatformProfileExists)
+        {
+            info.AcpiPlatformProfile = await ReadTextAsync("/sys/firmware/acpi/platform_profile");
+            info.AcpiPlatformProfileChoices = await ReadTextAsync("/sys/firmware/acpi/platform_profile_choices");
+        }
+
         // Detection (use current controller logic)
         var ec = new LinuxEcController();
         info.DetectedAccessMethod = ec.AccessMethod;
         info.EcControllerAvailable = ec.IsAvailable;
+        info.IsUnsafeEcModel = ec.IsUnsafeEcModel;
+        info.HasHwmonFanAccess = ec.HasHwmonFanAccess;
         
         // Add detailed diagnostics from controller
         var ecDiagnostics = ec.GetDiagnostics();
@@ -161,8 +171,25 @@ public static class DiagnoseCommand
 
         if (info.HpWmiPathExists && !info.HpWmiThermalProfileExists)
         {
-            info.Notes.Add("hp-wmi directory exists but thermal_profile not found; your kernel/firmware may not expose OMEN controls.");
-            info.Recommendations.Add("Try a newer kernel (6.5+ recommended for 2023+ OMEN) and ensure hp-wmi is loaded: sudo modprobe hp-wmi");
+            if (info.AcpiPlatformProfileExists)
+            {
+                info.Notes.Add("hp-wmi directory exists but thermal_profile not found. Using ACPI platform_profile instead.");
+            }
+            else
+            {
+                info.Notes.Add("hp-wmi directory exists but thermal_profile not found; your kernel/firmware may not expose OMEN controls.");
+                info.Recommendations.Add("Try a newer kernel (6.5+ recommended for 2023+ OMEN) and ensure hp-wmi is loaded: sudo modprobe hp-wmi");
+            }
+        }
+        
+        if (ec.IsUnsafeEcModel)
+        {
+            info.Notes.Add($"⚠ Model '{ec.DetectedModel}' has an unmapped EC register layout. Direct EC access is blocked for safety.");
+            info.Notes.Add("This model uses ACPI platform_profile and hp-wmi hwmon for fan control instead of legacy EC registers.");
+            if (ec.HasHwmonFanAccess)
+                info.Notes.Add("✓ hwmon fan control interface detected and available.");
+            if (info.AcpiPlatformProfileExists)
+                info.Notes.Add($"✓ ACPI platform profile available: {info.AcpiPlatformProfile} (choices: {info.AcpiPlatformProfileChoices})");
         }
 
         if (info.DetectedAccessMethod == "none")
@@ -253,9 +280,13 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  thermal:   {(info.HpWmiThermalProfileExists ? "✓ present" : "✗ missing"),-50}║");
         Console.WriteLine($"║  fan1_out:  {(info.HpWmiFan1OutputExists ? "✓ present" : "✗ missing"),-50}║");
         Console.WriteLine($"║  fan2_out:  {(info.HpWmiFan2OutputExists ? "✓ present" : "✗ missing"),-50}║");
+        Console.WriteLine($"║  acpi_prof: {(info.AcpiPlatformProfileExists ? $"✓ ({info.AcpiPlatformProfile ?? "?"})" : "✗ missing"),-50}║");
+        Console.WriteLine($"║  hwmon_fan: {(info.HasHwmonFanAccess ? "✓ present" : "✗ missing"),-50}║");
         Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
         Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-50}║");
         Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-50}║");
+        if (info.IsUnsafeEcModel)
+            Console.WriteLine($"║  EC Safety: {"⚠ Blocked (new model)",-50}║");
 
         if (info.Notes.Count > 0)
         {
@@ -390,7 +421,14 @@ public class DiagnoseInfo
 
     public string DetectedAccessMethod { get; set; } = "none";
     public bool EcControllerAvailable { get; set; }
+    public bool IsUnsafeEcModel { get; set; }
+    public bool HasHwmonFanAccess { get; set; }
     public Dictionary<string, object>? EcDiagnostics { get; set; }
+    
+    // ACPI platform_profile (2025+ models)
+    public bool AcpiPlatformProfileExists { get; set; }
+    public string? AcpiPlatformProfile { get; set; }
+    public string? AcpiPlatformProfileChoices { get; set; }
 
     public List<string> Notes { get; set; } = new();
     public List<string> Recommendations { get; set; } = new();

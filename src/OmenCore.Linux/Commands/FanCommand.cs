@@ -168,6 +168,70 @@ public static class FanCommand
         if (speed.HasValue)
         {
             var pct = Math.Clamp(speed.Value, 0, 100);
+            
+            // For 2025+ models with hwmon, use pwm_enable instead of direct EC writes
+            if (ec.IsUnsafeEcModel || ec.HasHwmonFanAccess)
+            {
+                bool success;
+                if (pct >= 100)
+                {
+                    // Max speed: pwm_enable=0 (full speed)
+                    success = ec.SetHwmonPwmEnable(0);
+                    if (success)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"✓ Fan speed set to MAX (pwm_enable=0, full speed)");
+                        Console.ForegroundColor = ConsoleColor.Yellow;
+                        Console.WriteLine("  Note: This is a temporary boost. Fans will return to BIOS control after ~1 minute.");
+                        Console.WriteLine("  Use '--profile performance' for sustained high performance.");
+                        Console.ResetColor();
+                    }
+                }
+                else if (pct <= 0)
+                {
+                    // Auto (BIOS control): pwm_enable=2
+                    success = ec.SetHwmonPwmEnable(2);
+                    if (success)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"✓ Fan control returned to BIOS (auto mode)");
+                        Console.ResetColor();
+                    }
+                }
+                else
+                {
+                    // Intermediate speeds: use ACPI profile as closest match
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"⚠ Your model ({ec.DetectedModel}) does not support precise fan speed control.");
+                    Console.WriteLine($"  The OMEN Max 2025 uses BIOS-managed fan profiles instead of direct speed control.");
+                    Console.ResetColor();
+                    
+                    // Map percentage to closest profile
+                    if (pct <= 30)
+                        success = ec.SetFanProfile(FanProfile.Silent);
+                    else if (pct <= 60)
+                        success = ec.SetFanProfile(FanProfile.Balanced);
+                    else
+                        success = ec.SetFanProfile(FanProfile.Gaming);
+                    
+                    if (success)
+                    {
+                        var mappedProfile = pct <= 30 ? "Silent (low-power)" : pct <= 60 ? "Balanced" : "Gaming (performance)";
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine($"  ✓ Applied closest profile: {mappedProfile}");
+                        Console.ResetColor();
+                    }
+                }
+                
+                if (!success)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"✗ Failed to set fan speed. Try: --profile auto|balanced|performance|max");
+                    Console.ResetColor();
+                }
+                return;
+            }
+            
             if (ec.SetFanSpeedPercent(pct))
             {
                 Console.ForegroundColor = ConsoleColor.Green;
@@ -281,15 +345,50 @@ public static class FanCommand
         Console.WriteLine("╠══════════════════════════════════════════════╣");
         
         var (fan1Speed, fan2Speed) = ec.GetFanSpeeds();
-        var (fan1Pct, fan2Pct) = ec.GetFanSpeedPercent();
         
-        Console.WriteLine($"║  Fan 1 (CPU):   {fan1Speed,5} RPM  ({fan1Pct,3}%)       ║");
-        Console.WriteLine($"║  Fan 2 (GPU):   {fan2Speed,5} RPM  ({fan2Pct,3}%)       ║");
+        // For hwmon/ACPI models, show different info
+        if (ec.HasHwmonFanAccess || ec.IsUnsafeEcModel)
+        {
+            Console.WriteLine($"║  Fan 1 (CPU):   {fan1Speed,5} RPM                ║");
+            Console.WriteLine($"║  Fan 2 (GPU):   {fan2Speed,5} RPM                ║");
+            
+            // Show current profile
+            var acpiProfile = ec.GetAcpiProfile();
+            if (acpiProfile != null)
+            {
+                Console.WriteLine("╠══════════════════════════════════════════════╣");
+                Console.WriteLine($"║  Profile:       {acpiProfile,-27} ║");
+            }
+            
+            var pwmEnable = ec.GetHwmonPwmEnable();
+            if (pwmEnable.HasValue)
+            {
+                var pwmMode = pwmEnable.Value switch
+                {
+                    0 => "Full Speed",
+                    1 => "Manual",
+                    2 => "Auto (BIOS)",
+                    3 => "Fan Off (!)",
+                    _ => $"Unknown ({pwmEnable.Value})"
+                };
+                Console.WriteLine($"║  Fan Mode:      {pwmMode,-27} ║");
+            }
+        }
+        else
+        {
+            var (fan1Pct, fan2Pct) = ec.GetFanSpeedPercent();
+            Console.WriteLine($"║  Fan 1 (CPU):   {fan1Speed,5} RPM  ({fan1Pct,3}%)       ║");
+            Console.WriteLine($"║  Fan 2 (GPU):   {fan2Speed,5} RPM  ({fan2Pct,3}%)       ║");
+        }
         
         if (verbose)
         {
             Console.WriteLine("╠══════════════════════════════════════════════╣");
             Console.WriteLine($"║  Access Method: {ec.AccessMethod,-27} ║");
+            if (ec.DetectedModel != null)
+                Console.WriteLine($"║  Model:         {ec.DetectedModel.PadRight(27).Substring(0, 27)} ║");
+            if (ec.IsUnsafeEcModel)
+                Console.WriteLine($"║  EC Access:     {"Blocked (safety)",-27} ║");
             
             // Try to get temperatures
             var cpuTemp = ec.GetCpuTemperature();
@@ -301,6 +400,17 @@ public static class FanCommand
                     Console.WriteLine($"║  CPU Temp:      {cpuTemp,5}°C                    ║");
                 if (gpuTemp > 0)
                     Console.WriteLine($"║  GPU Temp:      {gpuTemp,5}°C                    ║");
+            }
+            
+            // Show available ACPI profiles
+            if (ec.HasAcpiProfileAccess)
+            {
+                var choices = ec.GetAcpiProfileChoices();
+                if (choices.Length > 0)
+                {
+                    Console.WriteLine("╠══════════════════════════════════════════════╣");
+                    Console.WriteLine($"║  Available:     {string.Join(", ", choices).PadRight(27).Substring(0, 27)} ║");
+                }
             }
         }
         

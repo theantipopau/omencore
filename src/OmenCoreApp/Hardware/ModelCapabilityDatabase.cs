@@ -319,6 +319,8 @@ namespace OmenCore.Hardware
             
             // OMEN MAX 16 (2025) - ah0xxx series - Intel Core Ultra 9 275HX + RTX 5080
             // GitHub Issue #61: Model not in database
+            // GitHub Issue #60: EC registers have different layout on 2025 Max models!
+            // Direct EC access causes EC panic (caps lock blinking) - use WMI only.
             AddModel(new ModelCapabilities
             {
                 ProductId = "8D41",
@@ -327,9 +329,9 @@ namespace OmenCore.Hardware
                 ModelYear = 2025,
                 Family = OmenModelFamily.OMEN2024Plus,
                 SupportsFanControlWmi = true,
-                SupportsFanControlEc = true,
-                SupportsFanCurves = true,
-                SupportsIndependentFanCurves = true,
+                SupportsFanControlEc = false, // EC registers have different layout! Writing causes EC panic.
+                SupportsFanCurves = false, // No direct fan speed control via EC - uses ACPI platform_profile
+                SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = true,
                 FanZoneCount = 2,
                 SupportsPerformanceModes = true,
@@ -342,7 +344,42 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = true, // Intel Core Ultra 9 275HX
                 SupportsOverboost = true,
                 UserVerified = true,
-                Notes = "OMEN MAX Gaming Laptop 16-ah0xxx (2025) - Intel Core Ultra 9 275HX + RTX 5080. V2 fan commands forced."
+                Notes = "OMEN MAX Gaming Laptop 16-ah0xxx (2025) - Intel Core Ultra 9 275HX + RTX 5080. " +
+                       "WARNING: EC registers have completely different layout than legacy OMEN models. " +
+                       "Writing to legacy EC addresses (0x34, 0x62, etc.) corrupts EC state and causes " +
+                       "caps lock blinking panic. Use WMI/ACPI platform_profile only. " +
+                       "V2 fan commands forced."
+            });
+            
+            // OMEN MAX 16t (2025) - 16t-ah000 variant - Intel Core Ultra 7 255HX + RTX 5070 Ti
+            // GitHub Issue #60: Direct EC access causes EC panic
+            // User confirmed ACPI platform_profile and hp-wmi hwmon pwm_enable work.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8D42", // Placeholder - actual product ID may differ
+                ModelName = "OMEN MAX 16t (2025) ah000 Intel",
+                ModelNamePattern = "16t-ah0", // For model name matching "OMEN MAX Gaming Laptop 16t-ah000"
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN2024Plus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false, // EC registers have different layout! Writing causes EC panic.
+                SupportsFanCurves = false, // No direct fan speed control - uses ACPI platform_profile
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = true,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool" },
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                SupportsAdvancedOptimus = true,
+                HasKeyboardBacklight = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = true,
+                SupportsOverboost = true,
+                UserVerified = true,
+                Notes = "OMEN MAX Gaming Laptop 16t-ah000 (2025) - Intel Core Ultra 7 255HX + RTX 5070 Ti. " +
+                       "EC register layout incompatible with legacy addresses. Use ACPI platform_profile " +
+                       "(low-power/balanced/performance) and hp-wmi hwmon pwm_enable (0=full,2=auto) for fan control."
             });
             
             // ═══════════════════════════════════════════════════════════════════════════════════

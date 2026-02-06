@@ -180,8 +180,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="GPU" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" ToolTip="GPU Activity Level (estimated from GPU load)"/>
-                <TextBlock Grid.Column="2" Text="{Binding Fps, StringFormat={}{0:F0}%}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="{Binding FpsLabel}" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" ToolTip="FPS (via RTSS) or GPU Activity when RTSS not available"/>
+                <TextBlock Grid.Column="2" Text="{Binding FpsDisplay}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Frametime -->
@@ -192,7 +192,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="FT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding Frametime, StringFormat={}{0:F1}ms}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="2" Text="{Binding FrametimeDisplay}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Network Latency -->

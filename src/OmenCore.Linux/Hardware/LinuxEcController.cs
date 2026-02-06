@@ -26,7 +26,25 @@ public class LinuxEcController
     private const string HP_WMI_FAN1 = "/sys/devices/platform/hp-wmi/fan1_output";
     private const string HP_WMI_FAN2 = "/sys/devices/platform/hp-wmi/fan2_output";
     
+    // ACPI Platform Profile (kernel 5.18+, used by 2025+ OMEN models)
+    private const string ACPI_PLATFORM_PROFILE = "/sys/firmware/acpi/platform_profile";
+    private const string ACPI_PLATFORM_PROFILE_CHOICES = "/sys/firmware/acpi/platform_profile_choices";
+    
+    // HP-WMI hwmon paths (2025+ models use standard hwmon interface for fan control)
+    // Discovered at runtime since hwmon number varies
+    private string? _hwmonPwm1EnablePath;
+    private string? _hwmonPwm2EnablePath;
+    private string? _hwmonFan1InputPath;
+    private string? _hwmonFan2InputPath;
+    
+    // DMI paths for model detection
+    private const string DMI_PRODUCT_NAME = "/sys/class/dmi/id/product_name";
+    private const string DMI_PRODUCT_NAME_ALT = "/sys/devices/virtual/dmi/id/product_name";
+    
     // EC Register addresses (from omen-fan - older models OMEN 15 2020, etc.)
+    // WARNING: These registers are ONLY valid for pre-2025 OMEN models!
+    // 2025+ models (OMEN Max 16t, etc.) have a completely different EC register layout.
+    // Writing to these registers on 2025+ models WILL cause EC panic (caps lock blinking).
     private const byte REG_FAN1_SPEED_SET = 0x34;      // Fan 1 speed in units of 100 RPM
     private const byte REG_FAN2_SPEED_SET = 0x35;      // Fan 2 speed in units of 100 RPM
     private const byte REG_FAN1_SPEED_PCT = 0x2E;      // Fan 1 speed 0-100%
@@ -45,14 +63,32 @@ public class LinuxEcController
     private const byte PERF_MODE_PERFORMANCE = 0x31;
     private const byte PERF_MODE_COOL = 0x50;
     
+    // Model patterns where direct EC access is UNSAFE (different register layout)
+    // These models cause EC panic (caps lock blinking) when legacy EC registers are written
+    private static readonly string[] UnsafeEcModelPatterns = new[]
+    {
+        "16t-ah0",    // OMEN MAX Gaming Laptop 16t-ah000 (2025, Intel Core Ultra 7/9)
+        "16-ah0",     // OMEN MAX Gaming Laptop 16-ah0xxx (2025)
+        "17t-ah0",    // OMEN MAX Gaming Laptop 17t-ah0xxx (2025, if exists)
+        "17-ah0",     // OMEN MAX Gaming Laptop 17-ah0xxx (2025, if exists)
+    };
+    
     public bool IsAvailable { get; }
     public bool HasEcAccess { get; }
     public bool HasHpWmiAccess { get; }
+    public bool HasAcpiProfileAccess { get; }
+    public bool HasHwmonFanAccess { get; }
+    public bool IsUnsafeEcModel { get; }
     public string AccessMethod { get; }
+    public string? DetectedModel { get; }
     
     public LinuxEcController()
     {
-        HasEcAccess = File.Exists(EC_PATH);
+        // Detect model first to determine safe access methods
+        DetectedModel = DetectModelName();
+        IsUnsafeEcModel = CheckUnsafeEcModel(DetectedModel);
+        
+        HasEcAccess = File.Exists(EC_PATH) && !IsUnsafeEcModel;
         
         // HP-WMI is available if directory exists AND has actual control files
         HasHpWmiAccess = Directory.Exists(HP_WMI_PATH) && (
@@ -61,14 +97,102 @@ public class LinuxEcController
             File.Exists(HP_WMI_FAN1) ||
             File.Exists(HP_WMI_FAN2));
         
-        IsAvailable = HasEcAccess || HasHpWmiAccess;
+        // ACPI platform profile (kernel 5.18+, used by 2025+ models)
+        HasAcpiProfileAccess = File.Exists(ACPI_PLATFORM_PROFILE);
         
+        // Discover hp-wmi hwmon interface (pwm control for 2025+ models)
+        DiscoverHwmonFanControl();
+        HasHwmonFanAccess = _hwmonPwm1EnablePath != null;
+        
+        IsAvailable = HasEcAccess || HasHpWmiAccess || HasAcpiProfileAccess || HasHwmonFanAccess;
+        
+        // Priority: hp-wmi files > hwmon pwm > ACPI profile > ec_sys
         if (HasHpWmiAccess)
             AccessMethod = "hp-wmi";
+        else if (HasHwmonFanAccess)
+            AccessMethod = "hp-wmi-hwmon";
+        else if (HasAcpiProfileAccess)
+            AccessMethod = "acpi-profile";
         else if (HasEcAccess)
             AccessMethod = "ec_sys";
         else
             AccessMethod = "none";
+        
+        if (IsUnsafeEcModel)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"⚠ Model '{DetectedModel}' detected - direct EC register access disabled (different register layout).");
+            Console.WriteLine($"  Using safe interface: {AccessMethod}");
+            Console.ResetColor();
+        }
+    }
+    
+    /// <summary>
+    /// Detect HP model name from DMI.
+    /// </summary>
+    private static string? DetectModelName()
+    {
+        try
+        {
+            var path = File.Exists(DMI_PRODUCT_NAME) ? DMI_PRODUCT_NAME : DMI_PRODUCT_NAME_ALT;
+            if (File.Exists(path))
+                return File.ReadAllText(path).Trim();
+        }
+        catch { }
+        return null;
+    }
+    
+    /// <summary>
+    /// Check if the detected model has an unknown/unsafe EC register layout.
+    /// 2025+ OMEN Max models have completely different EC registers - writing legacy
+    /// addresses to them causes EC panic (caps lock blinking pattern).
+    /// GitHub Issue #60: OMEN Max 16t-ah000 EC panic from writing to 0x34/0x35
+    /// (these addresses contain serial number data on 2025 models, not fan registers).
+    /// </summary>
+    private static bool CheckUnsafeEcModel(string? modelName)
+    {
+        if (string.IsNullOrEmpty(modelName))
+            return false;
+        
+        var modelLower = modelName.ToLowerInvariant();
+        return UnsafeEcModelPatterns.Any(pattern => modelLower.Contains(pattern.ToLowerInvariant()));
+    }
+    
+    /// <summary>
+    /// Discover hp-wmi hwmon fan control paths.
+    /// 2025+ OMEN models expose fan control via standard hwmon interface:
+    ///   /sys/devices/platform/hp-wmi/hwmon/hwmonN/pwm1_enable
+    ///   0 = full speed, 1 = manual, 2 = auto (BIOS), 3 = fan off
+    /// </summary>
+    private void DiscoverHwmonFanControl()
+    {
+        var hpWmiHwmonPath = Path.Combine(HP_WMI_PATH, "hwmon");
+        if (!Directory.Exists(hpWmiHwmonPath))
+            return;
+        
+        foreach (var hwmonDir in Directory.GetDirectories(hpWmiHwmonPath))
+        {
+            var pwm1Enable = Path.Combine(hwmonDir, "pwm1_enable");
+            if (File.Exists(pwm1Enable))
+            {
+                _hwmonPwm1EnablePath = pwm1Enable;
+                
+                // Check for fan RPM inputs
+                var fan1Input = Path.Combine(hwmonDir, "fan1_input");
+                if (File.Exists(fan1Input))
+                    _hwmonFan1InputPath = fan1Input;
+                
+                var fan2Input = Path.Combine(hwmonDir, "fan2_input");
+                if (File.Exists(fan2Input))
+                    _hwmonFan2InputPath = fan2Input;
+                
+                var pwm2Enable = Path.Combine(hwmonDir, "pwm2_enable");
+                if (File.Exists(pwm2Enable))
+                    _hwmonPwm2EnablePath = pwm2Enable;
+                
+                break;
+            }
+        }
     }
     
     /// <summary>
@@ -212,10 +336,22 @@ public class LinuxEcController
     
     /// <summary>
     /// Write a byte to the EC at the specified address.
+    /// SAFETY: Blocked on 2025+ OMEN models with unknown EC register layouts.
     /// </summary>
     public bool WriteByte(byte address, byte value)
     {
         if (!HasEcAccess) return false;
+        
+        // Safety check: block EC writes on models with unknown register layout
+        if (IsUnsafeEcModel)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"✗ EC write blocked: Register 0x{address:X2} write denied for safety.");
+            Console.WriteLine($"  Model '{DetectedModel}' has an unmapped EC register layout.");
+            Console.WriteLine($"  Writing to legacy registers causes EC panic (caps lock blinking).");
+            Console.ResetColor();
+            return false;
+        }
         
         try
         {
@@ -349,13 +485,168 @@ public class LinuxEcController
     
     #endregion
     
+    #region ACPI Platform Profile (2025+ Models)
+    
+    /// <summary>
+    /// Get available ACPI platform profiles.
+    /// Returns profiles like: "low-power", "balanced", "performance"
+    /// </summary>
+    public string[] GetAcpiProfileChoices()
+    {
+        if (!HasAcpiProfileAccess || !File.Exists(ACPI_PLATFORM_PROFILE_CHOICES))
+            return Array.Empty<string>();
+        
+        try
+        {
+            return File.ReadAllText(ACPI_PLATFORM_PROFILE_CHOICES).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        }
+        catch { return Array.Empty<string>(); }
+    }
+    
+    /// <summary>
+    /// Get current ACPI platform profile.
+    /// </summary>
+    public string? GetAcpiProfile()
+    {
+        if (!HasAcpiProfileAccess)
+            return null;
+        
+        try
+        {
+            return File.ReadAllText(ACPI_PLATFORM_PROFILE).Trim();
+        }
+        catch { return null; }
+    }
+    
+    /// <summary>
+    /// Set ACPI platform profile.
+    /// Valid values typically: "low-power", "balanced", "performance"
+    /// </summary>
+    public bool SetAcpiProfile(string profile)
+    {
+        if (!HasAcpiProfileAccess)
+            return false;
+        
+        try
+        {
+            var choices = GetAcpiProfileChoices();
+            if (choices.Length > 0 && !choices.Contains(profile, StringComparer.OrdinalIgnoreCase))
+                return false;
+            
+            File.WriteAllText(ACPI_PLATFORM_PROFILE, profile.ToLowerInvariant());
+            return true;
+        }
+        catch { return false; }
+    }
+    
+    #endregion
+    
+    #region Hwmon PWM Fan Control (2025+ Models)
+    
+    /// <summary>
+    /// Set fan control mode via hwmon pwm_enable.
+    /// Used by 2025+ OMEN Max models where standard hp-wmi files don't exist
+    /// but hp-wmi/hwmon/hwmonN/pwm1_enable is available.
+    /// 
+    /// Values:
+    ///   0 = Full speed (all fans max)
+    ///   1 = Manual PWM control
+    ///   2 = Automatic (BIOS controlled) 
+    ///   3 = Fan off (DANGEROUS - use with extreme caution)
+    /// </summary>
+    public bool SetHwmonPwmEnable(int value)
+    {
+        if (_hwmonPwm1EnablePath == null)
+            return false;
+        
+        try
+        {
+            // Safety: never allow value 3 (fan off) through this interface
+            if (value == 3)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("✗ Fan off (pwm_enable=3) is blocked for safety.");
+                Console.ResetColor();
+                return false;
+            }
+            
+            File.WriteAllText(_hwmonPwm1EnablePath, value.ToString());
+            
+            // Also set pwm2 if it exists (second fan)
+            if (_hwmonPwm2EnablePath != null)
+                File.WriteAllText(_hwmonPwm2EnablePath, value.ToString());
+            
+            return true;
+        }
+        catch { return false; }
+    }
+    
+    /// <summary>
+    /// Get current hwmon pwm_enable value.
+    /// </summary>
+    public int? GetHwmonPwmEnable()
+    {
+        if (_hwmonPwm1EnablePath == null)
+            return null;
+        
+        try
+        {
+            var text = File.ReadAllText(_hwmonPwm1EnablePath).Trim();
+            if (int.TryParse(text, out var value))
+                return value;
+        }
+        catch { }
+        return null;
+    }
+    
+    /// <summary>
+    /// Get fan RPM from hwmon fan_input (if available).
+    /// </summary>
+    public (int fan1, int fan2) GetHwmonFanSpeeds()
+    {
+        int fan1 = 0, fan2 = 0;
+        
+        if (_hwmonFan1InputPath != null)
+        {
+            try
+            {
+                var text = File.ReadAllText(_hwmonFan1InputPath).Trim();
+                if (int.TryParse(text, out var val)) fan1 = val;
+            }
+            catch { }
+        }
+        
+        if (_hwmonFan2InputPath != null)
+        {
+            try
+            {
+                var text = File.ReadAllText(_hwmonFan2InputPath).Trim();
+                if (int.TryParse(text, out var val)) fan2 = val;
+            }
+            catch { }
+        }
+        
+        return (fan1, fan2);
+    }
+    
+    #endregion
+    
     #region Fan Control
     
     /// <summary>
     /// Get current fan speeds in RPM.
+    /// Tries hwmon first (2025+ models), then EC registers (legacy models).
     /// </summary>
     public (int fan1, int fan2) GetFanSpeeds()
     {
+        // Try hwmon fan_input first (2025+ models)
+        if (HasHwmonFanAccess)
+        {
+            var (f1, f2) = GetHwmonFanSpeeds();
+            if (f1 > 0 || f2 > 0)
+                return (f1, f2);
+        }
+        
         if (!HasEcAccess)
             return (0, 0);
 
@@ -415,14 +706,20 @@ public class LinuxEcController
     
     /// <summary>
     /// Set fan profile.
-    /// Uses hp-wmi if available, falls back to EC.
+    /// Uses hp-wmi if available, then ACPI platform_profile + hwmon, then EC.
     /// </summary>
     public bool SetFanProfile(FanProfile profile)
     {
-        // Try hp-wmi first (newer models like OMEN 16 2023+)
+        // Try hp-wmi thermal_profile first (newer 2023+ models)
         if (HasHpWmiAccess && File.Exists(HP_WMI_THERMAL))
         {
             return SetHpWmiThermalProfile(profile);
+        }
+        
+        // Try ACPI platform_profile + hwmon pwm (2025+ OMEN Max models)
+        if (HasAcpiProfileAccess || HasHwmonFanAccess)
+        {
+            return SetFanProfileViaAcpiHwmon(profile);
         }
         
         // Fall back to EC register method (older models)
@@ -478,6 +775,55 @@ public class LinuxEcController
     }
     
     /// <summary>
+    /// Set fan profile via ACPI platform_profile and/or hwmon pwm_enable.
+    /// Used by 2025+ OMEN Max models that don't have the legacy hp-wmi thermal_profile file.
+    /// 
+    /// ACPI profiles: "low-power" (quiet), "balanced", "performance"
+    /// Hwmon pwm_enable: 0=full speed, 2=auto (BIOS)
+    /// 
+    /// GitHub Issue #60: OMEN Max 16t-ah000 uses this interface.
+    /// </summary>
+    private bool SetFanProfileViaAcpiHwmon(FanProfile profile)
+    {
+        bool success = false;
+        
+        // Map fan profile to ACPI platform profile
+        if (HasAcpiProfileAccess)
+        {
+            var acpiProfile = profile switch
+            {
+                FanProfile.Auto => "balanced",
+                FanProfile.Silent => "low-power",
+                FanProfile.Balanced => "balanced",
+                FanProfile.Gaming => "performance",
+                FanProfile.Max => "performance",
+                _ => "balanced"
+            };
+            
+            success = SetAcpiProfile(acpiProfile);
+        }
+        
+        // For Max mode, also set pwm_enable=0 (full speed) for temporary boost
+        // For Auto mode, set pwm_enable=2 (BIOS auto)
+        if (HasHwmonFanAccess)
+        {
+            var pwmValue = profile switch
+            {
+                FanProfile.Max => 0,        // Full speed
+                FanProfile.Auto => 2,       // BIOS auto
+                FanProfile.Silent => 2,     // Let BIOS handle with low-power profile
+                FanProfile.Balanced => 2,   // Let BIOS handle with balanced profile
+                FanProfile.Gaming => 2,     // Let BIOS handle with performance profile
+                _ => 2
+            };
+            
+            success = SetHwmonPwmEnable(pwmValue) || success;
+        }
+        
+        return success;
+    }
+    
+    /// <summary>
     /// Restore BIOS automatic fan control via EC registers.
     /// This resets all manual overrides and lets the BIOS control fans.
     /// 
@@ -490,6 +836,17 @@ public class LinuxEcController
         if (HasHpWmiAccess && File.Exists(HP_WMI_THERMAL))
         {
             return RestoreAutoModeViaHpWmi();
+        }
+        
+        // Try ACPI/hwmon path (2025+ OMEN Max models)
+        if (HasAcpiProfileAccess || HasHwmonFanAccess)
+        {
+            bool success = false;
+            if (HasAcpiProfileAccess)
+                success = SetAcpiProfile("balanced");
+            if (HasHwmonFanAccess)
+                success = SetHwmonPwmEnable(2) || success; // 2 = BIOS auto
+            return success;
         }
         
         // Fall back to EC register method (older models)
@@ -583,18 +940,41 @@ public class LinuxEcController
     
     /// <summary>
     /// Get CPU temperature from EC.
+    /// Returns null on 2025+ models where EC register 0x57 contains non-temperature data.
     /// </summary>
     public int? GetCpuTemperature()
     {
-        return ReadByte(REG_CPU_TEMP);
+        if (IsUnsafeEcModel || !HasEcAccess)
+            return null;
+        
+        var temp = ReadByte(REG_CPU_TEMP);
+        
+        // Sanity check: reject obviously invalid temperatures
+        // Valid range: 10°C to 115°C (beyond TjMax of any current laptop CPU)
+        if (temp.HasValue && (temp.Value < 10 || temp.Value > 115))
+            return null;
+        
+        return temp;
     }
     
     /// <summary>
     /// Get GPU temperature from EC.
+    /// Returns null on 2025+ models where EC register 0xB7 contains non-temperature data
+    /// (e.g., reading 0xC0 = 192°C is clearly garbage from wrong register layout).
+    /// GitHub Issue #60: OMEN Max 16t reports 128°C/192°C from wrong EC registers.
     /// </summary>
     public int? GetGpuTemperature()
     {
-        return ReadByte(REG_GPU_TEMP);
+        if (IsUnsafeEcModel || !HasEcAccess)
+            return null;
+        
+        var temp = ReadByte(REG_GPU_TEMP);
+        
+        // Sanity check: reject obviously invalid temperatures
+        if (temp.HasValue && (temp.Value < 10 || temp.Value > 115))
+            return null;
+        
+        return temp;
     }
     
     #endregion
