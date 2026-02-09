@@ -262,9 +262,6 @@ namespace OmenCore.Services
                         ChangelogUrl = root.TryGetProperty("html_url", out var htmlUrl) ? htmlUrl.GetString() ?? string.Empty : string.Empty
                     };
 
-                    // Try to extract SHA256 hash from release notes
-                    result.LatestVersion.Sha256Hash = ExtractHashFromBody(result.LatestVersion.ReleaseNotes) ?? string.Empty;
-                    
                     // Get download URL from assets - platform-aware selection
                     if (root.TryGetProperty("assets", out var assets) && assets.GetArrayLength() > 0)
                     {
@@ -273,11 +270,15 @@ namespace OmenCore.Services
                         if (selectedAsset.ValueKind != JsonValueKind.Undefined)
                         {
                             result.LatestVersion.DownloadUrl = selectedAsset.GetProperty("browser_download_url").GetString() ?? string.Empty;
+                            result.LatestVersion.AssetFileName = selectedAsset.GetProperty("name").GetString() ?? string.Empty;
                             var size = selectedAsset.TryGetProperty("size", out var sizeElement) ? sizeElement.GetInt64() : 0;
                             result.LatestVersion.FileSize = size;
                             result.LatestVersion.FileSizeFormatted = FormatFileSize(size);
                         }
                     }
+                    
+                    // Extract SHA256 hash from release notes for the selected asset
+                    result.LatestVersion.Sha256Hash = ExtractHashForAsset(result.LatestVersion.ReleaseNotes, result.LatestVersion.AssetFileName) ?? string.Empty;
                     
                     if (string.IsNullOrWhiteSpace(result.LatestVersion.DownloadUrl))
                     {
@@ -329,7 +330,10 @@ namespace OmenCore.Services
                     return null;
                 }
                 
-                var fileName = $"OmenCore-{versionInfo.VersionString}-Setup.exe";
+                // Use actual asset filename from GitHub release, fallback to constructed name
+                var fileName = !string.IsNullOrWhiteSpace(versionInfo.AssetFileName) 
+                    ? versionInfo.AssetFileName 
+                    : $"OmenCoreSetup-{versionInfo.VersionString}.exe";
                 var downloadPath = Path.Combine(_downloadDirectory, fileName);
                 
                 // Delete existing file if present
@@ -397,7 +401,40 @@ namespace OmenCore.Services
                     _logging.Warn("⚠️ Update downloaded without SHA256 verification (hash not in release notes). Proceeding with caution.");
                 }
                 
-                _logging.Info($"Update downloaded successfully: {downloadPath}");
+                // Validate downloaded file before returning
+                var fileInfo = new System.IO.FileInfo(downloadPath);
+                if (fileInfo.Length < 100_000) // Less than 100KB is definitely not a valid installer or ZIP
+                {
+                    _logging.Error($"Downloaded file is suspiciously small ({fileInfo.Length} bytes) — likely an error page or corrupt download");
+                    File.Delete(downloadPath);
+                    return null;
+                }
+                
+                // Validate file header — PE executable (MZ) or ZIP archive (PK)
+                using (var headerStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    var header = new byte[4];
+                    await headerStream.ReadAsync(header, 0, 4, cancellationToken);
+                    var isMZ = header[0] == 0x4D && header[1] == 0x5A; // MZ = PE executable
+                    var isPK = header[0] == 0x50 && header[1] == 0x4B; // PK = ZIP archive
+                    
+                    if (!isMZ && !isPK)
+                    {
+                        _logging.Error($"Downloaded file has invalid header (0x{header[0]:X2}{header[1]:X2}) — not a valid executable or archive. File may be an HTML error page.");
+                        File.Delete(downloadPath);
+                        return null;
+                    }
+                    
+                    // If we expected an installer (.exe) but got a ZIP, or vice versa, warn
+                    if (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !isMZ)
+                    {
+                        _logging.Error($"Downloaded file has .exe extension but is not a PE executable (header: 0x{header[0]:X2}{header[1]:X2})");
+                        File.Delete(downloadPath);
+                        return null;
+                    }
+                }
+                
+                _logging.Info($"Update downloaded and validated successfully: {downloadPath} ({fileInfo.Length:N0} bytes)");
                 return downloadPath;
             }
             catch (Exception ex)
@@ -421,6 +458,25 @@ namespace OmenCore.Services
                     result.Success = false;
                     result.Message = "Installer file not found.";
                     return result;
+                }
+                
+                // Validate PE header before attempting to execute
+                try
+                {
+                    using var headerStream = new FileStream(installerPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    var header = new byte[2];
+                    headerStream.Read(header, 0, 2);
+                    if (header[0] != 0x4D || header[1] != 0x5A) // MZ header
+                    {
+                        result.Success = false;
+                        result.Message = "Downloaded file is not a valid Windows executable. The download may have been corrupted. Please try again or download manually from GitHub.";
+                        _logging.Error($"Installer failed PE validation — header bytes: 0x{header[0]:X2}{header[1]:X2} (expected MZ/0x4D5A). File: {installerPath}");
+                        return result;
+                    }
+                }
+                catch (Exception headerEx)
+                {
+                    _logging.Warn($"Could not validate installer header: {headerEx.Message}");
                 }
                 
                 _logging.Info($"Installing update from {installerPath}...");
@@ -680,18 +736,69 @@ namespace OmenCore.Services
             };
         }
 
-        private string? ExtractHashFromBody(string body)
+        /// <summary>
+        /// Extract SHA256 hash from release notes for a specific asset file.
+        /// Supports multiple formats:
+        ///   - "filename.exe:  HASH" (changelog format)
+        ///   - "SHA256: HASH" or "SHA-256: HASH" (generic)
+        ///   - "**SHA256**: `HASH`" (markdown formatted)
+        ///   - Bare 64-char hex on same line as filename
+        /// </summary>
+        private string? ExtractHashForAsset(string body, string assetFileName)
         {
             if (string.IsNullOrEmpty(body)) return null;
             
-            // Look for SHA256: [hex] or SHA-256: [hex]
-            // Matches 64-character hex string
-            var match = System.Text.RegularExpressions.Regex.Match(body, @"SHA-?256:\s*([a-fA-F0-9]{64})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (match.Success)
+            // 1. Try per-asset match: "filename: HASH" or "filename:    HASH"
+            if (!string.IsNullOrEmpty(assetFileName))
             {
-                return match.Groups[1].Value;
+                var escapedName = System.Text.RegularExpressions.Regex.Escape(assetFileName);
+                var assetMatch = System.Text.RegularExpressions.Regex.Match(
+                    body,
+                    escapedName + @"[:\s]+`?([a-fA-F0-9]{64})`?",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (assetMatch.Success)
+                {
+                    _logging.Info($"Extracted SHA256 for asset '{assetFileName}' from release notes");
+                    return assetMatch.Groups[1].Value;
+                }
             }
+            
+            // 2. Try "SHA256: HASH" with optional backticks, bold markers, hyphens
+            var shaMatch = System.Text.RegularExpressions.Regex.Match(
+                body,
+                @"SHA-?256[:\s*`]+([a-fA-F0-9]{64})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (shaMatch.Success)
+            {
+                return shaMatch.Groups[1].Value;
+            }
+            
+            // 3. Fallback: find any 64-char hex string that looks like a hash
+            //    (on a line containing "SHA" or "hash" or "checksum")
+            var lines = body.Split('\n');
+            foreach (var line in lines)
+            {
+                if (line.IndexOf("sha", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    line.IndexOf("hash", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    line.IndexOf("checksum", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    var hexMatch = System.Text.RegularExpressions.Regex.Match(line, @"([a-fA-F0-9]{64})");
+                    if (hexMatch.Success)
+                    {
+                        return hexMatch.Groups[1].Value;
+                    }
+                }
+            }
+            
             return null;
+        }
+        
+        /// <summary>
+        /// Legacy single-hash extraction (kept for backward compatibility)
+        /// </summary>
+        private string? ExtractHashFromBody(string body)
+        {
+            return ExtractHashForAsset(body, string.Empty);
         }
         
         /// <summary>

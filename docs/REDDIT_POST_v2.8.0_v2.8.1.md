@@ -104,6 +104,12 @@ All 12 of these were reported by community members during v2.8.0 testing — tha
 | **Keyboard reports 4-zone for per-key models** | DMI detection for per-key RGB models (16-wf0, Transcend, Max) |
 | **GUI missing from Linux ZIP** | Avalonia GUI now built and bundled |
 
+### System
+| Bug | Fix |
+|-----|-----|
+| **EC timeout / crash (dead battery)** | Auto-disables battery polling after 3× 0% on AC; 10s query cooldown; EC-safe AC detection |
+| **Auto-update "16-bit application" error** | SHA256 extraction fixed; PE header validation; corrupt downloads now caught before execution |
+
 ---
 
 ## 🧹 Code Cleanup (v2.8.0)

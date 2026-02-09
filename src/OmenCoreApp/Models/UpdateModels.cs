@@ -15,6 +15,10 @@ namespace OmenCore.Models
         public long FileSize { get; set; }
         public string FileSizeFormatted { get; set; } = string.Empty;
         public string Sha256Hash { get; set; } = string.Empty;
+        /// <summary>
+        /// The original filename of the selected GitHub release asset (e.g., "OmenCoreSetup-2.8.1.exe")
+        /// </summary>
+        public string AssetFileName { get; set; } = string.Empty;
         public bool IsMandatory { get; set; }
         public string MinimumRequiredVersion { get; set; } = "1.0.0";
         public string ReleaseNotes { get; set; } = string.Empty;

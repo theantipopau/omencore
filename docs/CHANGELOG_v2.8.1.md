@@ -82,6 +82,19 @@ v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8
   5. **IPC coordination** — `DISABLE_BATTERY` command propagated to out-of-process HardwareWorker via named pipe IPC
 - Reported by: Community — OMEN 15 (i7-9750H, RTX 2060, 2019) with dead battery (Discord)
 
+### Fix: Auto-Update "Unsupported 16-Bit Application" Error
+- **Root cause**: Multiple bugs in `AutoUpdateService.DownloadUpdateAsync`:
+  1. **SHA256 extraction broken** — regex `SHA-?256:\s*([a-fA-F0-9]{64})` failed on all real release note formats: backtick-wrapped hashes (`**SHA256**: \`HASH\``), per-file hashes (`OmenCoreSetup-2.8.1.exe: HASH`). Hash verification was effectively always skipped, allowing corrupt files through.
+  2. **No file validation** — downloaded file was never checked for valid PE header or minimum size. An HTML error page, incomplete download, or corrupt file would be saved as `.exe` and launched.
+  3. **Wrong save filename** — download always saved as `OmenCore-{ver}-Setup.exe` (hardcoded), ignoring the actual GitHub release asset name (e.g., `OmenCoreSetup-{ver}.exe`).
+  4. **Single hash for multiple assets** — only extracted one hash from release notes, even when multiple assets (installer, portable, Linux) each had their own.
+- **Fix**:
+  1. **Per-asset hash extraction** — new `ExtractHashForAsset()` method matches hash by filename first (`OmenCoreSetup-2.8.1.exe: HASH`), then tries `SHA-?256` patterns with optional backticks/markdown, then falls back to 64-char hex on SHA/hash/checksum lines
+  2. **PE header validation** — downloaded file is checked for MZ header (PE executable) or PK header (ZIP archive) before proceeding. Files with invalid headers are deleted with a clear error message
+  3. **Minimum size check** — downloads under 100KB are rejected as likely error pages
+  4. **Asset filename preserved** — `VersionInfo.AssetFileName` now stores the actual GitHub release asset name; download uses it as local filename
+- Reported by: fatin — OMEN 15 (Discord)
+
 ---
 
 ## 📝 Technical Details
@@ -103,6 +116,8 @@ v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8
 - `src/OmenCoreApp/Hardware/HardwareWorkerClient.cs` — SendDisableBatteryAsync() IPC method
 - `src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs` — Battery disable coordination with worker
 - `src/OmenCoreApp/ViewModels/MainViewModel.cs` — Config-driven battery disable wiring
+- `src/OmenCoreApp/Services/AutoUpdateService.cs` — SHA256 extraction, PE validation, asset filename, download integrity checks
+- `src/OmenCoreApp/Models/UpdateModels.cs` — Added `AssetFileName` property to `VersionInfo`
 
 ### Affected Models
 - **Victus by HP Gaming Laptop 16-s0xxx** (Product ID 8BD5) — Auto mode, RPM readings
@@ -116,7 +131,7 @@ v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8
 
 ## SHA256 Checksums
 ```
-OmenCoreSetup-2.8.1.exe:        02EB81C7E1FBC232EBC5A07462494270B5E56020FB30FB4F5E4ACE9ECD649E54
-OmenCore-2.8.1-win-x64.zip:     447925AE96940465FA9261D01FBB54E2056C8C5F501C2803C74D9BFBA3E96DC1
-OmenCore-2.8.1-linux-x64.zip:   4D0445F29D5ED0FA10B5EC55EE86026AA5B137C49FE771976181EC4925A1526E
+OmenCoreSetup-2.8.1.exe:        1D16ACA2A890DFEDEE6FA9078B64D17CF0A999D708BCC2C1E261DFD9CFE829B2
+OmenCore-2.8.1-win-x64.zip:     385EB22333FBAF2B7D0812178019C1620B688BC9B0C4C30F3A986853812E5315
+OmenCore-2.8.1-linux-x64.zip:   6D8BAE8AB2AE218A7E59820EDD56DED81156C6B16AAC09FBD3CC9B54CF0951AC
 ```
