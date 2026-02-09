@@ -185,12 +185,16 @@ namespace OmenCore.Hardware
 
         public void ApplyCoreVoltageOffset(int offsetMv)
         {
+            // Safety clamp: Intel undervolting safe range is -250 mV to 0 mV
+            offsetMv = Math.Clamp(offsetMv, -250, 0);
             // MSR 0x150 - IA32_VOLTAGE_PLANE_0 (Core)
             WriteVoltageOffset(0x150, offsetMv);
         }
 
         public void ApplyCacheVoltageOffset(int offsetMv)
         {
+            // Safety clamp: Intel undervolting safe range is -250 mV to 0 mV
+            offsetMv = Math.Clamp(offsetMv, -250, 0);
             // MSR 0x152 - IA32_VOLTAGE_PLANE_2 (Cache)
             WriteVoltageOffset(0x152, offsetMv);
         }

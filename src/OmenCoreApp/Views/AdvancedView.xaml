@@ -433,6 +433,36 @@
                     </Grid>
                 </StackPanel>
             </Border>
+            
+            <!-- Display Overdrive Section -->
+            <Border CornerRadius="12" Padding="20" Margin="0,0,0,16"
+                    Visibility="{Binding SystemControl.DisplayOverdriveSupported, Converter={StaticResource BoolToVisibility}}">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#161B28" Offset="0"/>
+                        <GradientStop Color="#1A2035" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="DISPLAY OVERDRIVE" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                    <TextBlock Text="Reduces panel response time for less motion blur during fast-paced gaming. May cause slight overshoot artifacts on some displays." 
+                               TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,12"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Panel Overdrive" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Improves pixel response time on 165Hz+ displays" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" 
+                                      IsChecked="{Binding SystemControl.DisplayOverdriveEnabled, Mode=TwoWay}" 
+                                      Style="{StaticResource ModernToggleButton}"
+                                      VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

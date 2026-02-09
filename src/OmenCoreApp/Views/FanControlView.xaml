@@ -342,6 +342,35 @@
                         </Button>
                     </StackPanel>
                     
+                    <!-- Saved Presets: Load / Delete / Import / Export -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="12,0">
+                        <TextBlock Text="Saved:" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <ComboBox ItemsSource="{Binding SavedCustomPresets}" 
+                                  SelectedItem="{Binding SelectedPreset}"
+                                  DisplayMemberPath="Name"
+                                  Width="130" Height="28" FontSize="10"
+                                  ToolTip="Select a saved custom preset to load"/>
+                        <Button Command="{Binding DeleteSelectedPresetCommand}" 
+                                Style="{StaticResource ModernButton}" 
+                                Height="28" Padding="6,0" Margin="4,0,0,0"
+                                ToolTip="Delete the selected custom preset">
+                            <TextBlock Text="🗑️" FontSize="10"/>
+                        </Button>
+                        <Button Command="{Binding ImportPresetsCommand}" 
+                                Style="{StaticResource ModernButton}" 
+                                Height="28" Padding="6,0" Margin="8,0,0,0"
+                                ToolTip="Import presets from a JSON file">
+                            <TextBlock Text="Import" FontSize="10"/>
+                        </Button>
+                        <Button Command="{Binding ExportPresetsCommand}" 
+                                Style="{StaticResource ModernButton}" 
+                                Height="28" Padding="6,0" Margin="4,0,0,0"
+                                ToolTip="Export presets to a JSON file">
+                            <TextBlock Text="Export" FontSize="10"/>
+                        </Button>
+                    </StackPanel>
+                    
                     <!-- Advanced Settings - Compact -->
                     <Border Grid.Column="2" Background="#0D0D0F" CornerRadius="8" Padding="12,8">
                         <StackPanel Orientation="Horizontal">
@@ -486,9 +515,9 @@
                                     <TextBlock Text="{Binding CurvePreviewText}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
                                 </StackPanel>
                                 
-                                <!-- Predicted Fan Speed -->
+                                <!-- Predicted Fan Speed (after safety clamping) -->
                                 <Border Grid.Column="2" Background="#2000FF88" CornerRadius="4" Padding="12,4">
-                                    <TextBlock Text="{Binding PredictedFanPercent, StringFormat='{}{0}%'}" 
+                                    <TextBlock Text="{Binding EffectiveFanPercent, StringFormat='{}{0}%'}" 
                                                FontSize="16" FontWeight="Bold" 
                                                Foreground="#00FF88"/>
                                 </Border>

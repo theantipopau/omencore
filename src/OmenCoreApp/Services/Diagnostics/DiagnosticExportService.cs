@@ -365,24 +365,114 @@ namespace OmenCore.Services.Diagnostics
 
         private string GetSecureBootStatus()
         {
-            // Placeholder - would check Windows security settings
-            return "N/A";
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State");
+                if (key != null)
+                {
+                    var value = key.GetValue("UEFISecureBootEnabled");
+                    return value is int i ? (i == 1 ? "Enabled" : "Disabled") : "Unknown";
+                }
+            }
+            catch { }
+            return "Unknown";
         }
 
         private string GetHvciStatus()
         {
-            return "N/A";
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity");
+                if (key != null)
+                {
+                    var value = key.GetValue("Enabled");
+                    return value is int i ? (i == 1 ? "Enabled" : "Disabled") : "Unknown";
+                }
+            }
+            catch { }
+            return "Not Configured";
         }
 
         private string GetWinRing0Status()
         {
-            // Placeholder - would check Windows driver status
-            return "N/A";
+            try
+            {
+                // Check if WinRing0 driver is loaded
+                var driverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers", "WinRing0x64.sys");
+                if (File.Exists(driverPath))
+                    return "Installed";
+                
+                // Also check temp directory (some apps drop it there)
+                var tempPath = Path.Combine(Path.GetTempPath(), "WinRing0x64.sys");
+                if (File.Exists(tempPath))
+                    return "Installed (temp)";
+            }
+            catch { }
+            return "Not Found";
         }
 
-        private string GetPawnIOStatus() => "Not Implemented";
-        private string GetXtuServiceStatus() => "Not Running";
-        private string GetAfterburnerStatus() => "Not Detected";
+        private string GetPawnIOStatus()
+        {
+            try
+            {
+                // Check if PawnIO driver service exists
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PawnIO");
+                if (key != null)
+                {
+                    var start = key.GetValue("Start");
+                    return start is int s ? s switch
+                    {
+                        0 or 1 or 2 => "Installed & Active",
+                        3 => "Installed (Manual Start)",
+                        4 => "Installed (Disabled)",
+                        _ => "Installed"
+                    } : "Installed";
+                }
+            }
+            catch { }
+            return "Not Installed";
+        }
+
+        private string GetXtuServiceStatus()
+        {
+            try
+            {
+                // Check if Intel XTU service is running
+                var xtuProcesses = System.Diagnostics.Process.GetProcessesByName("XTU3Service");
+                if (xtuProcesses.Length > 0)
+                {
+                    foreach (var p in xtuProcesses) p.Dispose();
+                    return "Running";
+                }
+                
+                // Check service registry
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\XTU3SERVICE");
+                if (key != null)
+                    return "Installed (Not Running)";
+            }
+            catch { }
+            return "Not Installed";
+        }
+
+        private string GetAfterburnerStatus()
+        {
+            try
+            {
+                var abProcesses = System.Diagnostics.Process.GetProcessesByName("MSIAfterburner");
+                if (abProcesses.Length > 0)
+                {
+                    foreach (var p in abProcesses) p.Dispose();
+                    return "Running";
+                }
+                
+                // Check common install path
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                if (File.Exists(Path.Combine(programFiles, "MSI Afterburner", "MSIAfterburner.exe")))
+                    return "Installed (Not Running)";
+            }
+            catch { }
+            return "Not Installed";
+        }
     }
 
     /// <summary>

@@ -21,6 +21,8 @@ class Program
 {
     private const string PipeName = "OmenCore_HardwareWorker";
     private const int UpdateIntervalMs = 500;
+    private const int OrphanTimeoutMs = 5 * 60 * 1000; // 5 minutes with no client before self-exit
+    private const string MutexName = "Global\\OmenCore_HardwareWorker_Mutex";
     
     private static Computer? _computer;
     private static readonly object _lock = new();
@@ -30,6 +32,11 @@ class Program
     private static int _parentProcessId = -1;
     private static readonly Dictionary<string, DateTime> _lastErrorLog = new(); // Rate-limit error logging
     private static bool _hasInitialized = false; // Track if we've done at least one full hardware update cycle
+    
+    // Resilience: worker survives parent exit and waits for new connections
+    private static bool _parentAlive = false;
+    private static DateTime _lastClientActivity = DateTime.Now;
+    private static Mutex? _singleInstanceMutex;
     
     // PawnIO fallback for CPU temp when LibreHardwareMonitor fails (Defender blocks WinRing0)
     private static PawnIOCpuTemp? _pawnIOCpuTemp;
@@ -43,7 +50,25 @@ class Program
         if (args.Length > 0 && int.TryParse(args[0], out var ppid))
         {
             _parentProcessId = ppid;
+            _parentAlive = true;
             Console.WriteLine($"Parent process ID: {_parentProcessId}");
+        }
+        
+        // Single-instance check: if another worker is already running, exit quietly
+        try
+        {
+            _singleInstanceMutex = new Mutex(true, MutexName, out var createdNew);
+            if (!createdNew)
+            {
+                Console.WriteLine("Another HardwareWorker is already running. Exiting.");
+                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Another worker already running (mutex held). Exiting duplicate.\n");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Can't acquire mutex — proceed anyway (don't block on mutex issues)
+            Console.WriteLine($"Mutex check failed: {ex.Message}");
         }
         
         // Rotate old log files
@@ -65,8 +90,11 @@ class Program
             // Start background update thread
             var updateTask = Task.Run(UpdateLoop);
             
-            // Start parent process monitor (exits worker if parent dies)
+            // Start parent process monitor (notifies worker but does NOT exit)
             var parentMonitorTask = Task.Run(MonitorParentProcess);
+            
+            // Start orphan watchdog (exits if no client connects for 5 minutes after parent dies)
+            var orphanWatchdogTask = Task.Run(OrphanWatchdog);
             
             // Run pipe server
             await RunPipeServer();
@@ -84,6 +112,9 @@ class Program
     
     /// <summary>
     /// Monitor parent process and exit if it dies (prevents orphaned workers).
+    /// Worker no longer exits when parent dies — it continues running and waits
+    /// for a new OmenCore instance to connect. This eliminates temperature gaps
+    /// across app restarts. The OrphanWatchdog handles cleanup if no client reconnects.
     /// </summary>
     private static async Task MonitorParentProcess()
     {
@@ -101,23 +132,49 @@ class Program
             
             if (parentProcess.HasExited)
             {
-                Console.WriteLine($"Parent process {_parentProcessId} exited, shutting down worker...");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} exited, worker shutting down\n");
-                _running = false;
-                Environment.Exit(0);
+                Console.WriteLine($"Parent process {_parentProcessId} exited. Worker continuing — waiting for new connection...");
+                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} exited. Worker staying alive for reconnection.\n");
+                _parentAlive = false;
+                // Do NOT exit — keep running so the next OmenCore instance can reuse us
+                // The OrphanWatchdog will handle cleanup if no client reconnects
             }
         }
         catch (ArgumentException)
         {
             // Parent process doesn't exist (already exited)
-            Console.WriteLine($"Parent process {_parentProcessId} not found, shutting down worker...");
-            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} not found, worker shutting down\n");
-            _running = false;
-            Environment.Exit(0);
+            Console.WriteLine($"Parent process {_parentProcessId} not found. Worker continuing — waiting for new connection...");
+            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} not found. Worker staying alive for reconnection.\n");
+            _parentAlive = false;
         }
         catch (Exception ex)
         {
             File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent monitor error: {ex.Message}\n");
+        }
+    }
+
+    /// <summary>
+    /// Watchdog that exits the worker if no client connects for OrphanTimeoutMs after parent dies.
+    /// Prevents orphaned worker processes from running indefinitely.
+    /// </summary>
+    private static async Task OrphanWatchdog()
+    {
+        while (_running)
+        {
+            await Task.Delay(30_000); // Check every 30 seconds
+            
+            // Only enforce timeout if parent is dead
+            if (_parentAlive) continue;
+            
+            var timeSinceActivity = DateTime.Now - _lastClientActivity;
+            if (timeSinceActivity.TotalMilliseconds > OrphanTimeoutMs)
+            {
+                Console.WriteLine($"No client activity for {timeSinceActivity.TotalMinutes:F1} minutes. Exiting orphaned worker.");
+                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");
+                _running = false;
+                
+                try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+                Environment.Exit(0);
+            }
         }
     }
 
@@ -833,8 +890,14 @@ class Program
                 Console.WriteLine("Waiting for client connection...");
                 await server.WaitForConnectionAsync();
                 Console.WriteLine("Client connected.");
+                _lastClientActivity = DateTime.Now;
                 
                 await HandleClient(server);
+                
+                // Client disconnected — update activity timestamp
+                // so orphan watchdog starts counting from NOW, not from last request
+                _lastClientActivity = DateTime.Now;
+                Console.WriteLine("Client session ended. Waiting for next connection...");
             }
             catch (Exception ex)
             {
@@ -857,6 +920,7 @@ class Program
                 if (bytesRead == 0) break;
                 
                 var request = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+                _lastClientActivity = DateTime.Now;
                 
                 string response;
                 if (request == "PING")
@@ -874,6 +938,29 @@ class Program
                             _lastSample.StaleCount = 999;  // High stale count to signal "not initialized"
                         }
                         response = JsonSerializer.Serialize(_lastSample);
+                    }
+                }
+                else if (request.StartsWith("SET_PARENT ", StringComparison.Ordinal))
+                {
+                    // New OmenCore instance registering as parent
+                    var pidStr = request.Substring("SET_PARENT ".Length).Trim();
+                    if (int.TryParse(pidStr, out var newPid) && newPid > 0)
+                    {
+                        var oldPid = _parentProcessId;
+                        _parentProcessId = newPid;
+                        _parentAlive = true;
+                        
+                        Console.WriteLine($"New parent registered: PID {newPid} (was {oldPid})");
+                        File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] New parent registered: PID {newPid} (was {oldPid}). Worker reattached.\n");
+                        
+                        // Start monitoring new parent in background
+                        _ = Task.Run(MonitorParentProcess);
+                        
+                        response = "OK";
+                    }
+                    else
+                    {
+                        response = "ERROR:INVALID_PID";
                     }
                 }
                 else if (request == "SHUTDOWN")

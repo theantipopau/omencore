@@ -78,18 +78,28 @@ namespace OmenCore.Services
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
         
         // Thermal protection - override Auto mode when temps get too high
-        // Configurable via FanHysteresisSettings for user customization
-        private double _thermalProtectionThreshold = 80.0;      // °C - start ramping fans (configurable)
-        private const double ThermalEmergencyThreshold = 85.0;  // v2.6.1: lowered from 88°C for high-power laptops
-        private const double ThermalSafeReleaseTemp = 60.0;     // v2.6.1: raised from 55°C - temps below this are truly safe
-        private const int ThermalReleaseMinFanPercent = 50;     // v2.6.1: raised from 30% to prevent temp yo-yo
+        // v2.8.0: Raised thresholds — 80°C/85°C was too aggressive for gaming laptops
+        // that routinely hit 85°C under heavy load. Users reported constant fan ramp-ups
+        // on Silent mode. Modern laptop CPUs throttle at 95-100°C; 85°C is normal.
+        // v2.8.0: Added time-based debounce to prevent fan yo-yo on CPUs that briefly spike
+        private double _thermalProtectionThreshold = 90.0;      // °C - start ramping fans (configurable)
+        private const double ThermalEmergencyThreshold = 95.0;  // Emergency 100% - actual danger zone
+        private const double ThermalSafeReleaseTemp = 65.0;     // Temps below this are truly safe for release
+        private const int ThermalReleaseMinFanPercent = 40;     // Min fan on thermal release to prevent yo-yo
+        private const double ThermalReleaseHysteresis = 10.0;   // °C below threshold to release (was 5°C, too tight)
         private volatile bool _thermalProtectionActive = false;
+        
+        // Debounce timers — prevent rapid activate/deactivate cycling
+        private DateTime _thermalAboveThresholdSince = DateTime.MinValue;  // When temp first exceeded threshold
+        private DateTime _thermalBelowReleaseSince = DateTime.MinValue;    // When temp first dropped below release
+        private const double ThermalActivateDebounceSeconds = 5.0;  // Must stay above threshold for 5s to activate
+        private const double ThermalReleaseDebounceSeconds = 15.0;  // Must stay below release for 15s to deactivate
         
         // Diagnostic mode - suspends curve engine to allow manual fan testing
         private volatile bool _diagnosticModeActive = false;
         
-        // Fan level constants - HP WMI uses 0-55 krpm range
-        private const int MaxFanLevel = 55;
+        // Fan level range note: HP WMI uses 0-55 (krpm) on classic models or 0-100 (percentage) on newer.
+        // Actual conversion is handled by WmiFanController which auto-detects the max level.
         private bool _thermalProtectionEnabled = true; // Can be disabled in settings
         
         // Hysteresis state
@@ -231,7 +241,9 @@ namespace OmenCore.Services
             _thermalProtectionEnabled = _hysteresis.ThermalProtectionEnabled;
             
             // Load configurable thermal protection threshold, clamp to safe range
-            _thermalProtectionThreshold = Math.Clamp(settings?.ThermalProtectionThreshold ?? 80.0, 70.0, 90.0);
+            // v2.8.0: Widened range — previous max of 90°C was too restrictive for
+            // high-power laptops where 85°C is normal gaming temp
+            _thermalProtectionThreshold = Math.Clamp(settings?.ThermalProtectionThreshold ?? 90.0, 75.0, 95.0);
             
             _logging.Info($"Fan hysteresis: {(_hysteresis.Enabled ? $"Enabled (deadzone={_hysteresis.DeadZone}°C, ramp↑={_hysteresis.RampUpDelay}s, ramp↓={_hysteresis.RampDownDelay}s)" : "Disabled")}");
             _logging.Info($"Thermal protection: {(_thermalProtectionEnabled ? $"Enabled at {_thermalProtectionThreshold}°C" : "Disabled")}");
@@ -521,48 +533,50 @@ namespace OmenCore.Services
         }
         
         /// <summary>
-        /// Apply multi-layer safety bounds clamping to prevent dangerous fan curves.
-        /// Implements emergency thermal protection at 85°C (v2.6.1: lowered from 88°C).
+        /// Apply safety bounds clamping to prevent dangerous fan curves.
+        /// v2.8.0: Relaxed thresholds — previous values (60°C→40%, 70°C→70%) were
+        /// far too aggressive for gaming laptops that routinely idle at 55-65°C and
+        /// run 75-90°C under load. Users reported fans ramping up on Silent.
+        /// Only intervene at genuinely dangerous temperatures.
         /// </summary>
         private double ApplySafetyBoundsClamping(double fanPercent, double temperatureC)
         {
-            // v2.6.1: Emergency thermal protection at 85°C (was 88°C)
-            // High-power laptops (i9/RTX 4090) need more aggressive cooling
-            if (temperatureC >= 85.0)
+            double clamped = fanPercent;
+            
+            // Emergency thermal protection at 95°C - force 100%
+            if (temperatureC >= 95.0)
             {
                 if (fanPercent < 100.0)
                 {
-                    _logging.Warn($"EMERGENCY: Temperature {temperatureC:F1}°C >= 85°C, forcing fans to 100% (was {fanPercent:F0}%)");
+                    _logging.Warn($"EMERGENCY: Temperature {temperatureC:F1}°C >= 95°C, forcing fans to 100% (curve wanted {fanPercent:F0}%)");
                     return 100.0;
                 }
             }
             
-            // Critical thermal protection: Minimum 90% fans at 80°C or above (was 80%)
-            if (temperatureC >= 80.0)
+            // Critical: 90°C+ — minimum 80% (genuine danger zone)
+            if (temperatureC >= 90.0)
             {
-                return Math.Max(fanPercent, 90.0);
+                clamped = Math.Max(fanPercent, 80.0);
+            }
+            // High: 85°C+ — minimum 60% (approaching throttle temp)
+            else if (temperatureC >= 85.0)
+            {
+                clamped = Math.Max(fanPercent, 60.0);
+            }
+            // Moderate: 80°C+ — minimum 40% (warm but typical under load)
+            else if (temperatureC >= 80.0)
+            {
+                clamped = Math.Max(fanPercent, 40.0);
+            }
+            // Light: below 80°C — trust the user's curve entirely
+            // Gaming laptops idle at 50-65°C; there's no danger here
+            
+            if (clamped > fanPercent)
+            {
+                _logging.Info($"Safety clamp: {fanPercent:F0}% → {clamped:F0}% (temp {temperatureC:F1}°C)");
             }
             
-            // High thermal protection: Minimum 70% fans at 70°C or above (was 60%)
-            if (temperatureC >= 70.0)
-            {
-                return Math.Max(fanPercent, 70.0);
-            }
-            
-            // Medium thermal protection: Minimum 40% fans at 60°C or above
-            if (temperatureC >= 60.0)
-            {
-                return Math.Max(fanPercent, 40.0);
-            }
-            
-            // Low thermal protection: Minimum 20% fans at 50°C or above
-            if (temperatureC >= 50.0)
-            {
-                return Math.Max(fanPercent, 20.0);
-            }
-            
-            // Ensure minimum fan speed for any temperature
-            return Math.Max(fanPercent, 10.0);
+            return clamped;
         }
         
         /// <summary>
@@ -762,9 +776,9 @@ namespace OmenCore.Services
         /// <summary>
         /// Thermal protection override - kicks fans to max when temps hit critical levels.
         /// This works even in Auto mode to prevent thermal throttling/damage.
-        /// Thresholds lowered based on user feedback:
-        /// - 80°C: Start ramping fans aggressively
-        /// - 88°C: Emergency max fans
+        /// v2.8.0: Raised thresholds based on community feedback:
+        /// - 90°C: Start ramping fans aggressively
+        /// - 95°C: Emergency max fans
         /// </summary>
         // Remember the fan mode/preset BEFORE thermal protection kicks in
         private string? _preThermalFanMode;
@@ -777,10 +791,14 @@ namespace OmenCore.Services
                 return;
                 
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
+            var now = DateTime.UtcNow;
             
-            // Emergency: temps >= 88°C - immediate max fans
+            // Emergency: temps >= 95°C - immediate max fans (no debounce, safety critical)
             if (maxTemp >= ThermalEmergencyThreshold)
             {
+                // Reset release timer
+                _thermalBelowReleaseSince = DateTime.MinValue;
+                
                 if (!_thermalProtectionActive)
                 {
                     // Store current fan state BEFORE thermal protection
@@ -800,25 +818,42 @@ namespace OmenCore.Services
                 return;
             }
             
-            // Warning: temps >= configurable threshold (default 80°C) - boost fans
+            // Warning: temps >= configurable threshold (default 90°C) - boost fans
+            // v2.8.0: Requires sustained temperature above threshold for debounce period
             if (maxTemp >= _thermalProtectionThreshold)
             {
+                // Reset release timer since we're above threshold
+                _thermalBelowReleaseSince = DateTime.MinValue;
+                
+                // Start tracking when temp first exceeded threshold
+                if (_thermalAboveThresholdSince == DateTime.MinValue)
+                {
+                    _thermalAboveThresholdSince = now;
+                }
+                
                 if (!_thermalProtectionActive)
                 {
+                    // Check debounce — temp must stay above threshold for N seconds
+                    var aboveDuration = (now - _thermalAboveThresholdSince).TotalSeconds;
+                    if (aboveDuration < ThermalActivateDebounceSeconds)
+                    {
+                        // Not yet sustained — don't activate yet
+                        return;
+                    }
+                    
                     // Store current fan state BEFORE thermal protection
                     _preThermalFanMode = _currentFanMode;
                     _preThermalPreset = _activePreset;
                     _preThermalFanPercent = _lastAppliedFanPercent;
                     
                     _thermalProtectionActive = true;
-                    _logging.Warn($"⚠️ THERMAL WARNING: {maxTemp:F0}°C - boosting fan speed");
+                    _logging.Warn($"⚠️ THERMAL WARNING: {maxTemp:F0}°C sustained for {aboveDuration:F0}s - boosting fan speed");
                     
                     // Notify user of thermal protection activation
                     _notificationService?.ShowThermalProtectionActivated(maxTemp, "Warning - Boosted Fans");
                 }
                 
-                // Calculate thermal protection target: threshold = 85%, scaling to 100% at 88°C
-                // Formula scales based on configurable threshold
+                // Calculate thermal protection target: threshold = 85%, scaling to 100% at emergency
                 var tempRange = ThermalEmergencyThreshold - _thermalProtectionThreshold;
                 var thermalTargetPercent = (int)(85 + (maxTemp - _thermalProtectionThreshold) * (15.0 / tempRange));
                 thermalTargetPercent = Math.Min(100, thermalTargetPercent);
@@ -835,11 +870,27 @@ namespace OmenCore.Services
                 return;
             }
             
+            // Temps dropped below threshold — reset activate timer
+            _thermalAboveThresholdSince = DateTime.MinValue;
+            
             // Temps back to safe range - release thermal protection
-            // Use 5°C hysteresis below configurable threshold
-            var releaseThreshold = _thermalProtectionThreshold - 5;
+            // v2.8.0: Increased hysteresis from 5°C to 10°C and added debounce timer
+            var releaseThreshold = _thermalProtectionThreshold - ThermalReleaseHysteresis;
             if (_thermalProtectionActive && maxTemp < releaseThreshold)
             {
+                // Start tracking when temp first dropped below release threshold
+                if (_thermalBelowReleaseSince == DateTime.MinValue)
+                {
+                    _thermalBelowReleaseSince = now;
+                }
+                
+                // Check debounce — temp must stay below release threshold for N seconds
+                var belowDuration = (now - _thermalBelowReleaseSince).TotalSeconds;
+                if (belowDuration < ThermalReleaseDebounceSeconds)
+                {
+                    // Not yet sustained — keep thermal protection active
+                    return;
+                }
                 _thermalProtectionActive = false;
                 _logging.Info($"✓ Temps normalized ({maxTemp:F0}°C) - thermal protection released");
                 
@@ -1032,9 +1083,6 @@ namespace OmenCore.Services
                     // Force refresh combats BIOS countdown timer that may have reset fan control
                     if (targetFanPercent != _lastAppliedFanPercent || forceRefresh)
                     {
-                        // Convert percentage to krpm (0-100% maps to 0-MaxFanLevel krpm)
-                        byte fanLevel = (byte)(targetFanPercent * MaxFanLevel / 100);
-                        
                         // If smoothing disabled or this is a force refresh or we have no previous applied value, just set directly
                         if (!_smoothingEnabled || _lastAppliedFanPercent < 0 || forceRefresh)
                         {
@@ -1061,11 +1109,11 @@ namespace OmenCore.Services
                                 if (forceRefresh)
                                 {
                                     _lastCurveForceRefresh = now;
-                                    _logging.Info($"Curve force-refreshed: {targetFanPercent}% @ {maxTemp:F1}°C (level: {fanLevel})");
+                                    _logging.Info($"Curve force-refreshed: {targetFanPercent}% @ {maxTemp:F1}°C");
                                 }
                                 else
                                 {
-                                    _logging.Info($"Curve applied: {targetFanPercent}% @ {maxTemp:F1}°C (level: {fanLevel})");
+                                    _logging.Info($"Curve applied: {targetFanPercent}% @ {maxTemp:F1}°C");
                                 }
                             }
                             else

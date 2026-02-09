@@ -30,7 +30,7 @@ Write-Host ""
 # Test 2: HP WMI BIOS Availability
 Write-Host "[TEST 2] HP WMI BIOS Availability" -ForegroundColor Yellow
 try {
-    $bios = Get-CimInstance -Namespace "root\wmi" -ClassName "hpqBIntM" -ErrorAction Stop
+    $null = Get-CimInstance -Namespace "root\wmi" -ClassName "hpqBIntM" -ErrorAction Stop
     Write-Host "  [OK] HP WMI BIOS (hpqBIntM) is available" -ForegroundColor Green
 } catch {
     Write-Host "  [WARN] HP WMI BIOS not available - this is expected on non-HP systems" -ForegroundColor Yellow

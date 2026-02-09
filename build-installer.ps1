@@ -74,6 +74,29 @@ $workerPublishArgs = @(
 & dotnet publish @workerPublishArgs
 Write-Host "Hardware worker built successfully" -ForegroundColor Green
 
+# Build Avalonia GUI for Linux platforms
+if ($Runtime -like "linux*") {
+    Write-Host "Building Avalonia GUI for Linux..." -ForegroundColor Yellow
+    $guiProject = "src/OmenCore.Avalonia/OmenCore.Avalonia.csproj"
+    if (Test-Path (Join-Path $root $guiProject)) {
+        $guiPublishArgs = @(
+            $guiProject,
+            "--configuration", $Configuration,
+            "-r", $Runtime,
+            "--self-contained", "true",
+            "-p:PublishTrimmed=false",
+            "-p:PublishSingleFile=true",
+            "-p:IncludeNativeLibrariesForSelfExtract=true",
+            "-p:IncludeAllContentForSelfExtract=true",
+            "-o", $publishDir
+        )
+        & dotnet publish @guiPublishArgs
+        Write-Host "Avalonia GUI built successfully" -ForegroundColor Green
+    } else {
+        Write-Host "Avalonia GUI project not found at $guiProject - skipping GUI build" -ForegroundColor Yellow
+    }
+}
+
 $zipPath = Join-Path $artifactsDir "OmenCore-$version-$Runtime.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath

@@ -820,22 +820,92 @@
                             </Grid>
                         </Border>
                         
-                        <!-- AMD GPU Coming Soon Message -->
-                        <Border Background="#2D1F1F"
-                                BorderBrush="#FF5722"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="12"
-                                Margin="0,0,0,16"
-                                Visibility="{Binding SystemControl.GpuAmdAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <StackPanel>
+                        <!-- AMD GPU Overclocking Controls (ADL2) -->
+                        <StackPanel Visibility="{Binding SystemControl.GpuAmdAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            
+                            <!-- AMD GPU Status -->
+                            <Border Background="#1F2D1F"
+                                    BorderBrush="#4CAF50"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12"
+                                    Margin="0,0,0,16">
                                 <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
-                                    <Run Text="🔧 AMD GPU Overclocking - Coming Soon" FontWeight="Bold" Foreground="#FF5722"/>
+                                    <Run Text="✓ AMD GPU Overclocking (ADL2)" FontWeight="Bold" Foreground="#4CAF50"/>
                                     <LineBreak/>
-                                    <Run Text="AMD ADLX integration is in development. For now, use AMD Adrenalin Software for GPU tuning."/>
+                                    <Run Text="AMD Radeon GPU overclocking is available via AMD Display Library. Adjust clock offsets and power limits below."/>
                                 </TextBlock>
+                            </Border>
+                            
+                            <!-- AMD Core Clock Offset -->
+                            <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Core Clock Offset (MHz)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemControl.AmdCoreClockOffset, StringFormat={}{0} MHz}" FontSize="13" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="-500" Maximum="500" 
+                                            Value="{Binding SystemControl.AmdCoreClockOffset, Mode=TwoWay}" 
+                                            TickFrequency="25" IsSnapToTickEnabled="True" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- AMD Memory Clock Offset -->
+                            <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="60"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Memory Clock Offset (MHz)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemControl.AmdMemoryClockOffset, StringFormat={}{0} MHz}" FontSize="13" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="-500" Maximum="500" 
+                                            Value="{Binding SystemControl.AmdMemoryClockOffset, Mode=TwoWay}" 
+                                            TickFrequency="25" IsSnapToTickEnabled="True" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- AMD Power Limit -->
+                            <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Power Limit (%)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemControl.AmdPowerLimitPercent, StringFormat={}{0}%}" FontSize="13" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Right"/>
+                                    <Slider Grid.Row="1" Grid.ColumnSpan="2" Minimum="-50" Maximum="50" 
+                                            Value="{Binding SystemControl.AmdPowerLimitPercent, Mode=TwoWay}" 
+                                            TickFrequency="5" IsSnapToTickEnabled="True" Margin="0,8,0,0"/>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- AMD Apply / Reset Buttons -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                <Button Content="Reset to Default" 
+                                        Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding SystemControl.ResetAmdGpuCommand}"
+                                        Margin="0,0,8,0" Padding="16,8"/>
+                                <Button Content="Apply AMD GPU OC" 
+                                        Style="{StaticResource ModernButton}"
+                                        Command="{Binding SystemControl.ApplyAmdGpuOcCommand}"
+                                        Padding="16,8"/>
                             </StackPanel>
-                        </Border>
+                        </StackPanel>
 
                         <!-- NVIDIA Controls - MSI Afterburner Style -->
                         <StackPanel Visibility="{Binding SystemControl.GpuNvapiAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">

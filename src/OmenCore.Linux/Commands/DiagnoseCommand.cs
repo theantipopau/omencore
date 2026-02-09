@@ -260,55 +260,67 @@ public static class DiagnoseCommand
 
     private static void PrintHumanReadable(DiagnoseInfo info)
     {
+        // Box width: 90 total (╔ + 88 inner + ╗)
+        const int innerWidth = 88;
+        const string topBorder    = "╔════════════════════════════════════════════════════════════════════════════════════════════╗";
+        const string midBorder    = "╠════════════════════════════════════════════════════════════════════════════════════════════╣";
+        const string bottomBorder = "╚════════════════════════════════════════════════════════════════════════════════════════════╝";
+        
         Console.WriteLine();
-        Console.WriteLine("╔═══════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║                 OmenCore Linux - Diagnose                ║");
-        Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
-        Console.WriteLine($"║  Version:   {info.Version,-50}║");
-        Console.WriteLine($"║  Runtime:   {info.Runtime,-50}║");
-        Console.WriteLine($"║  OS:        {info.OsPrettyName,-50}║");
-        Console.WriteLine($"║  Kernel:    {info.KernelRelease,-50}║");
-        Console.WriteLine($"║  Model:     {info.Model,-50}║");
-        Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
-        Console.WriteLine($"║  Root:      {(info.IsRoot ? "✓" : "✗"),-50}║");
-        Console.WriteLine($"║  debugfs:   {(info.DebugFsMounted ? "✓ mounted" : "✗ not mounted"),-50}║");
-        Console.WriteLine($"║  ec_io:     {(info.EcIoPathExists ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  ec_sys:    {(info.EcSysModuleLoaded ? "✓ loaded" : "✗ not loaded"),-50}║");
-        Console.WriteLine($"║  ec_sys ws: {(string.IsNullOrWhiteSpace(info.EcSysWriteSupport) ? "(n/a)" : info.EcSysWriteSupport),-50}║");
-        Console.WriteLine($"║  hp_wmi:    {(info.HpWmiModuleLoaded ? "✓ loaded" : "✗ not loaded"),-50}║");
-        Console.WriteLine($"║  hp-wmi dir:{(info.HpWmiPathExists ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  thermal:   {(info.HpWmiThermalProfileExists ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  fan1_out:  {(info.HpWmiFan1OutputExists ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  fan2_out:  {(info.HpWmiFan2OutputExists ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  acpi_prof: {(info.AcpiPlatformProfileExists ? $"✓ ({info.AcpiPlatformProfile ?? "?"})" : "✗ missing"),-50}║");
-        Console.WriteLine($"║  hwmon_fan: {(info.HasHwmonFanAccess ? "✓ present" : "✗ missing"),-50}║");
-        Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
-        Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-50}║");
-        Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-50}║");
+        Console.WriteLine(topBorder);
+        Console.WriteLine($"║{"OmenCore Linux - Diagnose",56}{"",-32}║");
+        Console.WriteLine(midBorder);
+        Console.WriteLine($"║  Version:   {info.Version,-76}║");
+        Console.WriteLine($"║  Runtime:   {info.Runtime,-76}║");
+        Console.WriteLine($"║  OS:        {info.OsPrettyName,-76}║");
+        Console.WriteLine($"║  Kernel:    {info.KernelRelease,-76}║");
+        Console.WriteLine($"║  Model:     {info.Model,-76}║");
+        Console.WriteLine(midBorder);
+        Console.WriteLine($"║  Root:      {(info.IsRoot ? "✓" : "✗"),-76}║");
+        Console.WriteLine($"║  debugfs:   {(info.DebugFsMounted ? "✓ mounted" : "✗ not mounted"),-76}║");
+        Console.WriteLine($"║  ec_io:     {(info.EcIoPathExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  ec_sys:    {(info.EcSysModuleLoaded ? "✓ loaded" : "✗ not loaded"),-76}║");
+        Console.WriteLine($"║  ec_sys ws: {(string.IsNullOrWhiteSpace(info.EcSysWriteSupport) ? "(n/a)" : info.EcSysWriteSupport),-76}║");
+        Console.WriteLine($"║  hp_wmi:    {(info.HpWmiModuleLoaded ? "✓ loaded" : "✗ not loaded"),-76}║");
+        Console.WriteLine($"║  hp-wmi dir:{(info.HpWmiPathExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  thermal:   {(info.HpWmiThermalProfileExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  fan1_out:  {(info.HpWmiFan1OutputExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  fan2_out:  {(info.HpWmiFan2OutputExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  acpi_prof: {(info.AcpiPlatformProfileExists ? $"✓ ({info.AcpiPlatformProfile ?? "?"})" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  hwmon_fan: {(info.HasHwmonFanAccess ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine(midBorder);
+        Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-76}║");
+        Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-76}║");
         if (info.IsUnsafeEcModel)
-            Console.WriteLine($"║  EC Safety: {"⚠ Blocked (new model)",-50}║");
+            Console.WriteLine($"║  EC Safety: {"⚠ Blocked (new model)",-76}║");
 
         if (info.Notes.Count > 0)
         {
-            Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
-            Console.WriteLine("║  Notes:                                                   ║");
+            Console.WriteLine(midBorder);
+            Console.WriteLine($"║  {"Notes:",-86}║");
             foreach (var note in info.Notes.Take(6))
             {
-                Console.WriteLine($"║   - {Truncate(note, 57),-57}║");
+                foreach (var line in WrapText(note, innerWidth - 7)) // 7 = "║   - " + "║"
+                {
+                    Console.WriteLine($"║   - {line,-(innerWidth - 5)}║");
+                }
             }
         }
 
         if (info.Recommendations.Count > 0)
         {
-            Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");
-            Console.WriteLine("║  Next Steps:                                              ║");
+            Console.WriteLine(midBorder);
+            Console.WriteLine($"║  {"Next Steps:",-86}║");
             foreach (var rec in info.Recommendations.Take(6))
             {
-                Console.WriteLine($"║   - {Truncate(rec, 57),-57}║");
+                foreach (var line in WrapText(rec, innerWidth - 7))
+                {
+                    Console.WriteLine($"║   - {line,-(innerWidth - 5)}║");
+                }
             }
         }
 
-        Console.WriteLine("╚═══════════════════════════════════════════════════════════╝");
+        Console.WriteLine(bottomBorder);
         Console.WriteLine();
     }
 
@@ -317,6 +329,40 @@ public static class DiagnoseCommand
         if (value.Length <= max)
             return value;
         return value[..(max - 1)] + "…";
+    }
+    
+    /// <summary>
+    /// Wrap text at word boundaries to fit inside the box.
+    /// First line includes "- " prefix, continuations use "  " indent.
+    /// </summary>
+    private static IEnumerable<string> WrapText(string text, int maxWidth)
+    {
+        if (text.Length <= maxWidth)
+        {
+            yield return text;
+            yield break;
+        }
+        
+        int pos = 0;
+        bool first = true;
+        while (pos < text.Length)
+        {
+            int available = first ? maxWidth : maxWidth - 2; // continuation lines indented
+            int len = Math.Min(available, text.Length - pos);
+            if (pos + len < text.Length)
+            {
+                int lastSpace = text.LastIndexOf(' ', pos + len - 1, Math.Min(len, len));
+                if (lastSpace > pos)
+                    len = lastSpace - pos;
+            }
+            var segment = text.Substring(pos, len).TrimEnd();
+            if (!first)
+                segment = "  " + segment; // indent continuation lines
+            yield return segment;
+            pos += len;
+            while (pos < text.Length && text[pos] == ' ') pos++;
+            first = false;
+        }
     }
 
     private static void PrintGitHubIssueReport(DiagnoseInfo info)

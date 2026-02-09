@@ -94,7 +94,37 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Human-readable curve preview text showing predicted fan speed.
         /// </summary>
-        public string CurvePreviewText => $"At {CurrentTemperature:F0}°C → {PredictedFanPercent}%";
+        /// <summary>
+        /// Effective fan percentage after safety clamping is applied.
+        /// Shows what fan speed will actually be commanded.
+        /// </summary>
+        public int EffectiveFanPercent
+        {
+            get
+            {
+                var raw = PredictedFanPercent;
+                var temp = CurrentTemperature;
+                
+                // Mirror FanService.ApplySafetyBoundsClamping thresholds
+                if (temp >= 95) return 100;
+                if (temp >= 90) return Math.Max(raw, 80);
+                if (temp >= 85) return Math.Max(raw, 60);
+                if (temp >= 80) return Math.Max(raw, 40);
+                return raw;
+            }
+        }
+        
+        public string CurvePreviewText
+        {
+            get
+            {
+                var raw = PredictedFanPercent;
+                var effective = EffectiveFanPercent;
+                if (effective != raw)
+                    return $"At {CurrentTemperature:F0}°C → {raw}% (safety: {effective}%)";
+                return $"At {CurrentTemperature:F0}°C → {raw}%";
+            }
+        }
         
         /// <summary>
         /// Validates the curve and returns any warnings.
@@ -131,6 +161,14 @@ namespace OmenCore.ViewModels
                     return "ℹ️ Curve never reaches 100% - may cause thermal throttling";
                 }
                 
+                // Warn if safety clamping will override at current temp
+                var currentRaw = PredictedFanPercent;
+                var currentEffective = EffectiveFanPercent;
+                if (currentEffective > currentRaw)
+                {
+                    return $"ℹ️ Safety floor active: {currentRaw}% → {currentEffective}% at {CurrentTemperature:F0}°C";
+                }
+                
                 return "✓ Curve looks good";
             }
         }
@@ -138,6 +176,7 @@ namespace OmenCore.ViewModels
         private void NotifyCurvePreviewChanged()
         {
             OnPropertyChanged(nameof(PredictedFanPercent));
+            OnPropertyChanged(nameof(EffectiveFanPercent));
             OnPropertyChanged(nameof(CurvePreviewText));
             OnPropertyChanged(nameof(CurveValidationMessage));
         }
@@ -300,6 +339,17 @@ namespace OmenCore.ViewModels
         public ICommand SaveCustomPresetCommand { get; }
         public ICommand ImportPresetsCommand { get; }
         public ICommand ExportPresetsCommand { get; }
+        public ICommand DeleteSelectedPresetCommand { get; }
+        
+        /// <summary>
+        /// Filtered view of FanPresets showing only user-saved (non-built-in) presets.
+        /// </summary>
+        public IEnumerable<FanPreset> SavedCustomPresets => FanPresets.Where(p => !p.IsBuiltIn);
+        
+        /// <summary>
+        /// Whether there are any saved custom presets to show.
+        /// </summary>
+        public bool HasSavedPresets => FanPresets.Any(p => !p.IsBuiltIn);
         
         // Curve editor commands
         public ICommand AddCurvePointCommand { get; }
@@ -442,6 +492,7 @@ namespace OmenCore.ViewModels
             SaveCustomPresetCommand = new RelayCommand(_ => SaveCustomPreset());
             ImportPresetsCommand = new RelayCommand(_ => ImportPresets());
             ExportPresetsCommand = new RelayCommand(_ => ExportPresets());
+            DeleteSelectedPresetCommand = new RelayCommand(_ => DeleteSelectedPreset(), _ => SelectedPreset != null && !SelectedPreset.IsBuiltIn);
             
             // Curve editor commands
             AddCurvePointCommand = new RelayCommand(_ => AddDefaultCurvePoint(), _ => CustomFanCurve.Count < 10);
@@ -504,7 +555,7 @@ namespace OmenCore.ViewModels
             
             // Default to Auto without applying/saving to config
             _suppressApplyOnSelection = true;
-            SelectedPreset = FanPresets[1]; // Default to Auto
+            SelectedPreset = FanPresets.FirstOrDefault(p => p.Name == "Auto") ?? FanPresets[2]; // Default to Auto
             _suppressApplyOnSelection = false;
         }
         
@@ -865,7 +916,37 @@ namespace OmenCore.ViewModels
             _fanService.ApplyPreset(preset);
             SaveLastPresetToConfig(preset.Name);
             
+            // Notify UI that saved presets list changed
+            OnPropertyChanged(nameof(SavedCustomPresets));
+            OnPropertyChanged(nameof(HasSavedPresets));
+            
             _logging.Info($"✓ Saved and applied custom fan preset: '{preset.Name}' with {preset.Curve.Count} points");
+        }
+        
+        private void DeleteSelectedPreset()
+        {
+            if (SelectedPreset == null || SelectedPreset.IsBuiltIn)
+                return;
+            
+            var presetName = SelectedPreset.Name;
+            var result = System.Windows.MessageBox.Show(
+                $"Delete custom preset '{presetName}'?",
+                "Delete Preset",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question);
+            
+            if (result != System.Windows.MessageBoxResult.Yes)
+                return;
+            
+            FanPresets.Remove(SelectedPreset);
+            SelectedPreset = null;
+            SavePresetsToConfig();
+            
+            // Notify UI that saved presets list changed
+            OnPropertyChanged(nameof(SavedCustomPresets));
+            OnPropertyChanged(nameof(HasSavedPresets));
+            
+            _logging.Info($"🗑️ Deleted custom fan preset: '{presetName}'");
         }
         
         private void SavePresetsToConfig()

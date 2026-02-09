@@ -788,14 +788,50 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <!-- Scrollable tab header row -->
+                        <ScrollViewer Grid.Row="0" 
+                                      HorizontalScrollBarVisibility="Auto" 
+                                      VerticalScrollBarVisibility="Disabled"
+                                      CanContentScroll="False"
+                                      Margin="0,0,0,8"
+                                      Style="{x:Null}">
+                            <ScrollViewer.Resources>
+                                <!-- Hide the scrollbar but keep scroll functionality (mouse wheel / drag) -->
+                                <Style TargetType="ScrollBar">
+                                    <Setter Property="Height" Value="4"/>
+                                    <Setter Property="Opacity" Value="0.3"/>
+                                </Style>
+                            </ScrollViewer.Resources>
+                            <TabPanel IsItemsHost="True" />
+                        </ScrollViewer>
+                        <!-- Tab content area -->
+                        <Border Grid.Row="1"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <ContentPresenter ContentSource="SelectedContent" 
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Modern TabItem Style -->
     <Style x:Key="ModernTabItem" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Padding" Value="10,10" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
@@ -803,7 +839,7 @@
                     <Border x:Name="Border"
                             Background="Transparent"
                             CornerRadius="6"
-                            Margin="0,0,4,0"
+                            Margin="0,0,2,0"
                             Padding="{TemplateBinding Padding}">
                         <StackPanel>
                             <ContentPresenter x:Name="ContentSite"

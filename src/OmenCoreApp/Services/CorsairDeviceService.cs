@@ -151,7 +151,9 @@ namespace OmenCore.Services
             var preset = new CorsairLightingPreset
             {
                 Name = "Custom Color",
-                ColorHex = colorHex
+                Effect = LightingEffectType.Static,
+                ColorHex = colorHex,
+                PrimaryColor = colorHex
             };
 
             foreach (var device in _devices)
@@ -167,6 +169,90 @@ namespace OmenCore.Services
             }
 
             _logging.Info($"Applied color {colorHex} to {_devices.Count} device(s)");
+        }
+
+        /// <summary>
+        /// Apply a breathing / pulse effect to all Corsair devices.
+        /// </summary>
+        public async Task ApplyBreathingToAllAsync(string hexColor, string? secondaryHex = null, double speed = 1.0)
+        {
+            var preset = new CorsairLightingPreset
+            {
+                Name = "Breathing",
+                Effect = LightingEffectType.Breathing,
+                PrimaryColor = hexColor,
+                ColorHex = hexColor,
+                SecondaryColor = secondaryHex ?? "#000000",
+                Speed = speed
+            };
+
+            foreach (var device in _devices)
+            {
+                try
+                {
+                    await _sdk.ApplyLightingAsync(device, preset);
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to apply breathing to {device.Name}", ex);
+                }
+            }
+
+            _logging.Info($"Applied breathing {hexColor} (speed {speed:F1}) to {_devices.Count} device(s)");
+        }
+
+        /// <summary>
+        /// Apply spectrum / rainbow cycle to all Corsair devices.
+        /// </summary>
+        public async Task ApplySpectrumToAllAsync(double speed = 1.0)
+        {
+            var preset = new CorsairLightingPreset
+            {
+                Name = "Spectrum Cycle",
+                Effect = LightingEffectType.ColorCycle,
+                Speed = speed
+            };
+
+            foreach (var device in _devices)
+            {
+                try
+                {
+                    await _sdk.ApplyLightingAsync(device, preset);
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to apply spectrum to {device.Name}", ex);
+                }
+            }
+
+            _logging.Info($"Applied spectrum cycle (speed {speed:F1}) to {_devices.Count} device(s)");
+        }
+
+        /// <summary>
+        /// Apply wave / sweep effect to all Corsair devices.
+        /// </summary>
+        public async Task ApplyWaveToAllAsync(double speed = 1.0)
+        {
+            var preset = new CorsairLightingPreset
+            {
+                Name = "Wave",
+                Effect = LightingEffectType.Wave,
+                Speed = speed
+            };
+
+            foreach (var device in _devices)
+            {
+                try
+                {
+                    await _sdk.ApplyLightingAsync(device, preset);
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to apply wave to {device.Name}", ex);
+                }
+            }
+
+            _logging.Info($"Applied wave (speed {speed:F1}) to {_devices.Count} device(s)");
         }
 
         /// <summary>

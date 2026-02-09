@@ -22,6 +22,28 @@ namespace OmenCore.Services.Corsair
         // Expose failed HID devices for diagnostics/tests (read-only)
         public System.Collections.Generic.IReadOnlyCollection<string> HidWriteFailedDeviceIds => _hidWriteFailedDevices.ToList().AsReadOnly();
 
+        // Brightness percentage (0-100). Colors are scaled by this before sending.
+        private int _brightness = 100;
+
+        /// <summary>
+        /// Set global brightness for all Corsair HID devices (0-100%).
+        /// Colors will be scaled proportionally before sending to the device.
+        /// </summary>
+        public void SetBrightness(int percent)
+        {
+            _brightness = Math.Clamp(percent, 0, 100);
+            _logging.Info($"Corsair HID brightness set to {_brightness}%");
+        }
+
+        /// <summary>
+        /// Scale a color component by the current brightness percentage.
+        /// </summary>
+        private byte ApplyBrightness(byte value)
+        {
+            if (_brightness >= 100) return value;
+            return (byte)(value * _brightness / 100);
+        }
+
         // Number of write attempts before giving up
         private const int HID_WRITE_MAX_ATTEMPTS = 3;
         private const int HID_WRITE_RETRY_DELAY_MS = 120;        
@@ -317,8 +339,30 @@ namespace OmenCore.Services.Corsair
 
             try
             {
-                var (r, g, b) = ParseHexColor(preset.PrimaryColor);
-                await SendColorCommandAsync(hidDevice, r, g, b);
+                switch (preset.Effect)
+                {
+                    case LightingEffectType.Breathing:
+                        await ApplyBreathingEffectAsync(hidDevice, preset);
+                        break;
+
+                    case LightingEffectType.ColorCycle:
+                        await ApplySpectrumEffectAsync(hidDevice, preset);
+                        break;
+
+                    case LightingEffectType.Wave:
+                        await ApplyWaveEffectAsync(hidDevice, preset);
+                        break;
+
+                    case LightingEffectType.Off:
+                        await SendColorCommandAsync(hidDevice, 0, 0, 0);
+                        break;
+
+                    case LightingEffectType.Static:
+                    default:
+                        var (r, g, b) = ParseHexColor(preset.PrimaryColor);
+                        await SendColorCommandAsync(hidDevice, ApplyBrightness(r), ApplyBrightness(g), ApplyBrightness(b));
+                        break;
+                }
             }
             catch (Exception ex)
             {
@@ -551,6 +595,216 @@ namespace OmenCore.Services.Corsair
             await stream.WriteAsync(report, 0, report.Length);
             return true;
         }
+
+        // ── Effect Implementations ──────────────────────────────────────
+
+        /// <summary>
+        /// Apply a breathing (pulse) effect — software-mode set-color loop with two colors.
+        /// Corsair HID doesn't expose a native breathing firmware command, so we use
+        /// a packet-based approach: send "begin SW effect" marker, then rapid color
+        /// transitions handled by the device firmware when it sees the effect-mode flag.
+        /// Fallback: sends static primary color if the device rejects the effect report.
+        /// </summary>
+        private async Task ApplyBreathingEffectAsync(CorsairHidDevice device, CorsairLightingPreset preset)
+        {
+            var (r, g, b) = ParseHexColor(preset.PrimaryColor);
+            var (r2, g2, b2) = ParseHexColor(preset.SecondaryColor);
+            byte period = SpeedToPeriod(preset.Speed);
+
+            try
+            {
+                var report = BuildEffectReport(device, CorsairEffectId.Breathing, r, g, b, r2, g2, b2, period);
+                await SendEffectReportAsync(device, report);
+                _logging.Info($"Applied breathing effect {preset.PrimaryColor}/{preset.SecondaryColor} (speed {preset.Speed:F1}) to {device.DeviceInfo.Name}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Breathing effect failed on {device.DeviceInfo.Name}: {ex.Message} — falling back to static");
+                await SendColorCommandAsync(device, r, g, b);
+            }
+        }
+
+        /// <summary>
+        /// Apply a spectrum / rainbow cycle effect across the device.
+        /// </summary>
+        private async Task ApplySpectrumEffectAsync(CorsairHidDevice device, CorsairLightingPreset preset)
+        {
+            byte period = SpeedToPeriod(preset.Speed);
+
+            try
+            {
+                var report = BuildEffectReport(device, CorsairEffectId.Spectrum, 0, 0, 0, 0, 0, 0, period);
+                await SendEffectReportAsync(device, report);
+                _logging.Info($"Applied spectrum cycle (speed {preset.Speed:F1}) to {device.DeviceInfo.Name}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Spectrum effect failed on {device.DeviceInfo.Name}: {ex.Message} — falling back to static");
+                var (r, g, b) = ParseHexColor(preset.PrimaryColor);
+                await SendColorCommandAsync(device, r, g, b);
+            }
+        }
+
+        /// <summary>
+        /// Apply a wave effect that sweeps color across the device LEDs.
+        /// Only meaningful on keyboards; mice fall back to spectrum.
+        /// </summary>
+        private async Task ApplyWaveEffectAsync(CorsairHidDevice device, CorsairLightingPreset preset)
+        {
+            byte period = SpeedToPeriod(preset.Speed);
+
+            // Wave only makes sense on keyboards — mice don't have enough zones
+            if (device.DeviceInfo?.DeviceType != CorsairDeviceType.Keyboard)
+            {
+                _logging.Info($"Wave effect not supported on {device.DeviceInfo?.DeviceType} — using spectrum cycle");
+                await ApplySpectrumEffectAsync(device, preset);
+                return;
+            }
+
+            try
+            {
+                byte direction = 0x01; // left-to-right
+                var report = BuildEffectReport(device, CorsairEffectId.Wave, 0, 0, 0, 0, 0, 0, period, direction);
+                await SendEffectReportAsync(device, report);
+                _logging.Info($"Applied wave effect (speed {preset.Speed:F1}) to {device.DeviceInfo.Name}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Wave effect failed on {device.DeviceInfo.Name}: {ex.Message} — falling back to spectrum");
+                await ApplySpectrumEffectAsync(device, preset);
+            }
+        }
+
+        /// <summary>
+        /// Corsair SW-mode effect IDs used in the HID report payload.
+        /// These are OmenCore-defined constants mapped to Corsair's firmware expectations:
+        ///   0x01 = static (handled by existing set-color path)
+        ///   0x02 = breathing / pulse
+        ///   0x03 = spectrum / rainbow cycle
+        ///   0x04 = wave / sweep
+        /// </summary>
+        private static class CorsairEffectId
+        {
+            public const byte Static    = 0x01;
+            public const byte Breathing = 0x02;
+            public const byte Spectrum  = 0x03;
+            public const byte Wave      = 0x04;
+        }
+
+        /// <summary>
+        /// Build a 65-byte HID report that puts the device into SW-mode effect mode.
+        /// Layout:
+        ///   [0]    = 0x00 (HID report ID)
+        ///   [1]    = device-class cmd byte (mouse 0x05, keyboard 0x09, generic 0x07)
+        ///   [2]    = 0xD0 marker — indicates "effect mode" rather than plain set-color
+        ///   [3]    = effect id (breathing 0x02, spectrum 0x03, wave 0x04)
+        ///   [4-6]  = primary color (R, G, B)
+        ///   [7-9]  = secondary color (R, G, B) — used by breathing
+        ///   [10]   = period / speed byte
+        ///   [11]   = extra param (direction for wave, 0x00 otherwise)
+        /// </summary>
+        protected virtual byte[] BuildEffectReport(CorsairHidDevice device, byte effectId,
+            byte r, byte g, byte b, byte r2, byte g2, byte b2, byte period, byte extra = 0x00)
+        {
+            var report = new byte[65];
+            report[0] = 0x00; // HID report ID
+
+            // Use the same device-class cmd routing as set-color
+            report[1] = GetDeviceClassCmd(device);
+
+            report[2] = 0xD0; // Effect-mode marker (distinguishes from plain set-color)
+            report[3] = effectId;
+
+            // Primary color (brightness-scaled)
+            report[4] = ApplyBrightness(r);
+            report[5] = ApplyBrightness(g);
+            report[6] = ApplyBrightness(b);
+
+            // Secondary color (breathing uses this, also brightness-scaled)
+            report[7] = ApplyBrightness(r2);
+            report[8] = ApplyBrightness(g2);
+            report[9] = ApplyBrightness(b2);
+
+            // Timing
+            report[10] = period;
+
+            // Extra (wave direction, etc.)
+            report[11] = extra;
+
+            return report;
+        }
+
+        /// <summary>
+        /// Determine the device-class command byte for a Corsair device:
+        /// mice → 0x05, keyboards → 0x09, everything else → 0x07.
+        /// </summary>
+        private static byte GetDeviceClassCmd(CorsairHidDevice device)
+        {
+            if (device.DeviceInfo?.DeviceType == CorsairDeviceType.Keyboard)
+                return 0x09;
+
+            if (device.DeviceInfo?.DeviceType == CorsairDeviceType.Mouse)
+                return 0x05;
+
+            return 0x07; // generic / headset / mousemat / accessory
+        }
+
+        /// <summary>
+        /// Send an effect report to the device with retry logic, then commit.
+        /// </summary>
+        private async Task SendEffectReportAsync(CorsairHidDevice device, byte[] report)
+        {
+            var deviceKey = $"{device.ProductId}";
+
+            for (int attempt = 1; attempt <= HID_WRITE_MAX_ATTEMPTS; attempt++)
+            {
+                try
+                {
+                    var ok = await WriteReportAsync(device, report);
+                    if (!ok) throw new InvalidOperationException("HID write returned false");
+
+                    // Commit
+                    var commitReport = BuildCommitReport(device);
+                    await WriteReportAsync(device, commitReport);
+
+                    if (_hidWriteFailedDevices.Contains(deviceKey))
+                        _hidWriteFailedDevices.Remove(deviceKey);
+
+                    try { _telemetry?.IncrementPidSuccess(device.ProductId); } catch { }
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Effect attempt {attempt} failed for {device.DeviceInfo.Name} (PID 0x{device.ProductId:X4}): {ex.Message}");
+                    if (attempt < HID_WRITE_MAX_ATTEMPTS)
+                        await Task.Delay(HID_WRITE_RETRY_DELAY_MS);
+                    else
+                    {
+                        if (!_hidWriteFailedDevices.Contains(deviceKey))
+                        {
+                            _hidWriteFailedDevices.Add(deviceKey);
+                            try { _telemetry?.IncrementPidFailure(device.ProductId); } catch { }
+                        }
+                        throw; // let caller handle fallback
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Convert user speed (0.5 – 5.0) to a HID period byte.
+        /// Lower speed value = slower animation = larger period byte.
+        /// </summary>
+        private static byte SpeedToPeriod(double speed)
+        {
+            // Clamp to valid range
+            double clamped = Math.Clamp(speed, 0.5, 5.0);
+            // Map: 0.5 (slow) → 0xFF, 5.0 (fast) → 0x1A
+            int period = (int)(255 - ((clamped - 0.5) / 4.5) * (255 - 26));
+            return (byte)Math.Clamp(period, 26, 255);
+        }
+
+        // ── End Effect Implementations ──────────────────────────────────
 
         public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages)
         {

@@ -57,8 +57,8 @@ namespace OmenCore.Views
         private bool _isThrottling;
         private string _currentMode = "Auto";
         private double _fps;
-        private string _fpsLabel = "GPU";
-        private string _fpsDisplay = "0%";
+        private string _fpsLabel = "FPS";
+        private string _fpsDisplay = "--";
         private string _frametimeDisplay = "0.0ms";
         private string _fanMode = "Auto";
         private string _performanceMode = "Balanced";
@@ -74,6 +74,10 @@ namespace OmenCore.Views
         private Brush _gpuHotspotTempColor = Brushes.White;
         private string _networkUpload = "0.0";
         private string _networkDownload = "0.0";
+        private string _batteryPercent = "--%";
+        private Brush _batteryColor = Brushes.White;
+        private string _cpuClockSpeed = "-- MHz";
+        private string _gpuClockSpeed = "-- MHz";
         
         // Network traffic monitoring
         private NetworkInterface? _activeNetworkInterface;
@@ -109,6 +113,10 @@ namespace OmenCore.Views
         public Brush GpuHotspotTempColor { get => _gpuHotspotTempColor; set { _gpuHotspotTempColor = value; OnPropertyChanged(); } }
         public string NetworkUpload { get => _networkUpload; set { _networkUpload = value; OnPropertyChanged(); } }
         public string NetworkDownload { get => _networkDownload; set { _networkDownload = value; OnPropertyChanged(); } }
+        public string BatteryPercent { get => _batteryPercent; set { _batteryPercent = value; OnPropertyChanged(); } }
+        public Brush BatteryColor { get => _batteryColor; set { _batteryColor = value; OnPropertyChanged(); } }
+        public string CpuClockSpeed { get => _cpuClockSpeed; set { _cpuClockSpeed = value; OnPropertyChanged(); } }
+        public string GpuClockSpeed { get => _gpuClockSpeed; set { _gpuClockSpeed = value; OnPropertyChanged(); } }
         
         // Settings-bound visibility - now using backing fields for live updates
         private bool _showCpuTemp;
@@ -131,6 +139,9 @@ namespace OmenCore.Views
         private bool _showGpuHotspot;
         private bool _showNetworkUpload;
         private bool _showNetworkDownload;
+        private bool _showBattery;
+        private bool _showCpuClock;
+        private bool _showGpuClock;
         
         public bool ShowCpuTemp { get => _showCpuTemp; set { _showCpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
         public bool ShowGpuTemp { get => _showGpuTemp; set { _showGpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
@@ -152,6 +163,9 @@ namespace OmenCore.Views
         public bool ShowGpuHotspot { get => _showGpuHotspot; set { _showGpuHotspot = value; OnPropertyChanged(); } }
         public bool ShowNetworkUpload { get => _showNetworkUpload; set { _showNetworkUpload = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator2)); } }
         public bool ShowNetworkDownload { get => _showNetworkDownload; set { _showNetworkDownload = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator2)); } }
+        public bool ShowBattery { get => _showBattery; set { _showBattery = value; OnPropertyChanged(); } }
+        public bool ShowCpuClock { get => _showCpuClock; set { _showCpuClock = value; OnPropertyChanged(); } }
+        public bool ShowGpuClock { get => _showGpuClock; set { _showGpuClock = value; OnPropertyChanged(); } }
         
         // Computed visibility for separators
         public bool ShowSeparator1 => (_showPerformanceMode || _showFanMode) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
@@ -226,6 +240,17 @@ namespace OmenCore.Views
             ShowGpuHotspot = settings.ShowGpuHotspot;
             ShowNetworkUpload = settings.ShowNetworkUpload;
             ShowNetworkDownload = settings.ShowNetworkDownload;
+            ShowBattery = settings.ShowBattery;
+            ShowCpuClock = settings.ShowCpuClock;
+            ShowGpuClock = settings.ShowGpuClock;
+            
+            // Apply layout orientation
+            if (MainPanel != null)
+            {
+                MainPanel.Orientation = settings.Layout?.Equals("Horizontal", StringComparison.OrdinalIgnoreCase) == true
+                    ? System.Windows.Controls.Orientation.Horizontal
+                    : System.Windows.Controls.Orientation.Vertical;
+            }
         }
         
         /// <summary>
@@ -273,7 +298,7 @@ namespace OmenCore.Views
         public void StartUpdates()
         {
             _updateTimer.Start();
-            if (_showNetworkLatency)
+            if (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload)
                 _pingTimer.Start();
             
             // Initialize RTSS for real FPS data
@@ -500,25 +525,15 @@ namespace OmenCore.Views
                                 }
                             }
                             
-                            // Fall back to GPU load display
-                            if (sample.GpuLoadPercent > 0)
-                            {
-                                Fps = sample.GpuLoadPercent;
-                                FpsLabel = "GPU";
-                                FpsDisplay = $"{sample.GpuLoadPercent:F0}%";
-                                
-                                if (_showFrametime && sample.GpuLoadPercent > 10)
-                                {
-                                    Frametime = Math.Max(1, 100 - sample.GpuLoadPercent + 8);
-                                    FrametimeDisplay = $"{Frametime:F1}ms";
-                                }
-                                else
-                                {
-                                    Frametime = 0;
-                                    FrametimeDisplay = "0.0ms";
-                                }
-                            }
-                            else
+                            // RTSS unavailable - show N/A instead of misleading GPU%
+                            // Users expect FPS when they enable "Show FPS", not GPU utilization
+                            Fps = 0;
+                            FpsLabel = "FPS";
+                            FpsDisplay = "N/A";
+                            Frametime = 0;
+                            FrametimeDisplay = "--";
+                            
+                            if (false) // GPU fallback disabled — caused user confusion
                             {
                                 Fps = 0;
                                 FpsLabel = "FPS";
@@ -531,6 +546,55 @@ namespace OmenCore.Views
                     
                     // Throttling detection
                     IsThrottling = CpuTemp > 95 || GpuTemp > 95;
+                    
+                    // Battery status
+                    if (_showBattery)
+                    {
+                        var pct = sample.BatteryChargePercent;
+                        if (pct > 0 || sample.IsOnAcPower)
+                        {
+                            var icon = sample.IsOnAcPower ? "⚡" : "🔋";
+                            BatteryPercent = $"{icon} {pct:F0}%";
+                            
+                            if (pct > 60)
+                                BatteryColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green
+                            else if (pct > 30)
+                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow
+                            else if (pct > 15)
+                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange
+                            else
+                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red
+                        }
+                        else
+                        {
+                            BatteryPercent = "AC";
+                            BatteryColor = new SolidColorBrush(Color.FromRgb(0, 255, 136));
+                        }
+                    }
+                    
+                    // CPU clock speed (average of all core clocks)
+                    if (_showCpuClock && sample.CpuCoreClocksMhz.Count > 0)
+                    {
+                        double avgClock = 0;
+                        foreach (var c in sample.CpuCoreClocksMhz)
+                            avgClock += c;
+                        avgClock /= sample.CpuCoreClocksMhz.Count;
+                        CpuClockSpeed = avgClock >= 1000 ? $"{(avgClock / 1000):F2} GHz" : $"{avgClock:F0} MHz";
+                    }
+                    else if (_showCpuClock)
+                    {
+                        CpuClockSpeed = "-- MHz";
+                    }
+                    
+                    // GPU clock speed
+                    if (_showGpuClock && sample.GpuClockMhz > 0)
+                    {
+                        GpuClockSpeed = sample.GpuClockMhz >= 1000 ? $"{(sample.GpuClockMhz / 1000):F2} GHz" : $"{sample.GpuClockMhz:F0} MHz";
+                    }
+                    else if (_showGpuClock)
+                    {
+                        GpuClockSpeed = "-- MHz";
+                    }
                 }
                 else if (isStale && _thermalProvider != null)
                 {

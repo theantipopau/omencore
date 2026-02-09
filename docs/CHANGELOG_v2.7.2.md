@@ -69,7 +69,45 @@ This release fixes a critical Linux issue where writing to EC registers on 2025 
 
 ---
 
-## 📋 Technical Details
+## � Community Bug Fixes (v2.7.2 Patch)
+
+### Window Not Showing After Reinstall (Windows)
+- **Fixed main window never appearing after uninstall/reinstall**
+  - Root cause: `%APPDATA%\OmenCore\config.json` survived uninstall with `StartMinimized=true`
+  - `ShowMainWindow()` was blocked by `ShouldSuppressWindowActivation` during session lock/unlock
+  - Added `ForceShowMainWindow()` that bypasses session suppression for explicit user actions (tray double-click, context menu "Show")
+  - Installer now cleans up `%APPDATA%\OmenCore` on uninstall to prevent stale config issues
+
+### Undervolt Apply/Reset Does Nothing (Windows)
+- **Fixed undervolt silently succeeding without actually writing MSR registers**
+  - `ApplyOffsetAsync()` was storing the offset in `_lastApplied` and returning success even when no MSR access was available
+  - `ProbeAsync()` then showed `_lastApplied` values as "current", making it appear the undervolt was applied
+  - Now throws `InvalidOperationException` with clear message when PawnIO MSR access is unavailable
+  - `_lastApplied` is only updated after confirmed successful MSR write
+
+### Fan Curves Reset on AC/Battery Switch (Windows)
+- **Fixed custom fan curves being discarded when switching between AC and battery power**
+  - `PowerAutomationService.ApplyPowerProfile()` was creating `FanPreset` with `Curve = new()` (empty curve)
+  - Added `LookupFanPreset()` that searches user's saved presets from config first, preserving custom curves
+  - Falls back to built-in curve definitions (`GetBuiltInCurve()`) for Max/Performance/Quiet/Auto modes
+
+### GPU Power Boost / Fan Preset Not Restored on Startup (Windows)
+- **Fixed PBO, GPU Power Boost, and fan preset settings not being applied on Windows startup**
+  - `SettingsRestorationService` existed but was never instantiated (dead code)
+  - Added `RestoreSettingsOnStartupAsync()` in MainViewModel with 2-second hardware stabilization delay
+  - Restores GPU Power Boost level, fan preset (with curves), and TCC offset from saved config
+  - Includes retry logic (3 attempts with 1-second delays) for GPU Power Boost
+
+### MIT LICENSE File Missing
+- **Added MIT LICENSE file to repository** — was returning 404 on GitHub
+
+### CI/Build Fixes
+- Fixed invisible whitespace in `.github/workflows/ci.yml` causing YAML parse error
+- Fixed PSScriptAnalyzer unused variable warning in `test-v2.6.0-features.ps1`
+
+---
+
+## �📋 Technical Details
 
 ### EC Safety Architecture (Linux)
 The new safety system works as follows:

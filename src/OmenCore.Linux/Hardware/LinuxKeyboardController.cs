@@ -5,6 +5,7 @@ namespace OmenCore.Linux.Hardware;
 /// 
 /// Uses /sys/devices/platform/hp-wmi/* interface for controlling
 /// the 4-zone RGB keyboard on HP OMEN laptops.
+/// Per-key RGB models are detected but require USB HID protocol (not yet supported on Linux).
 /// 
 /// Requires hp-wmi kernel module:
 ///   modprobe hp-wmi
@@ -13,14 +14,60 @@ public class LinuxKeyboardController
 {
     private const string HP_WMI_PATH = "/sys/devices/platform/hp-wmi";
     private const string KEYBOARD_BACKLIGHT_PATH = "/sys/class/leds/hp::kbd_backlight";
+    private const string DMI_PRODUCT_NAME_PATH = "/sys/class/dmi/id/product_name";
+    
+    /// <summary>
+    /// Model substrings known to have per-key RGB keyboards.
+    /// Sourced from the Windows KeyboardModelDatabase.
+    /// </summary>
+    private static readonly string[] PerKeyModelPatterns = new[]
+    {
+        "16-wf0",     // OMEN 16 (2024) per-key
+        "16-wf1",     // OMEN 16 (2025) per-key
+        "16t-wf0",    // OMEN 16t (2024) per-key
+        "16t-wf1",    // OMEN 16t (2025) per-key
+        "17-wf0",     // OMEN 17 (2024) per-key
+        "17-wf1",     // OMEN 17 (2025) per-key
+        "17t-wf0",    // OMEN 17t (2024) per-key
+        "16t-ah0",    // OMEN Max 16 (2025) per-key
+        "16-ah0",     // OMEN Max 16 (2025) per-key
+        "17t-ah0",    // OMEN Max 17 (2025) per-key
+        "Transcend 14", // OMEN Transcend 14 per-key
+        "Transcend 16", // OMEN Transcend 16 per-key
+    };
     
     public bool IsAvailable { get; }
     public bool HasZoneControl { get; }
+    public bool IsPerKeyRgb { get; }
+    public string KeyboardType => IsPerKeyRgb ? "Per-Key RGB" : "4-Zone";
+    public int ZoneCount => IsPerKeyRgb ? 0 : 4;
     
     public LinuxKeyboardController()
     {
         IsAvailable = Directory.Exists(HP_WMI_PATH) || Directory.Exists(KEYBOARD_BACKLIGHT_PATH);
         HasZoneControl = File.Exists(Path.Combine(HP_WMI_PATH, "keyboard_zones"));
+        IsPerKeyRgb = DetectPerKeyRgb();
+    }
+    
+    /// <summary>
+    /// Detect if this model has a per-key RGB keyboard based on DMI product name.
+    /// </summary>
+    private static bool DetectPerKeyRgb()
+    {
+        try
+        {
+            if (!File.Exists(DMI_PRODUCT_NAME_PATH))
+                return false;
+                
+            var productName = File.ReadAllText(DMI_PRODUCT_NAME_PATH).Trim();
+            foreach (var pattern in PerKeyModelPatterns)
+            {
+                if (productName.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        catch { }
+        return false;
     }
     
     /// <summary>

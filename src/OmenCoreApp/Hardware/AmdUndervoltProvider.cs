@@ -158,6 +158,9 @@ namespace OmenCore.Hardware
         /// </summary>
         private RyzenSmu.SmuStatus SetAllCoreCO(int value)
         {
+            // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
+            value = Math.Clamp(value, -30, 30);
+
             // Convert signed offset to SMU format
             // Formula from G-Helper: 0x100000 - (uint)(-1 * value) for negative values
             uint uvalue = value < 0 
@@ -226,6 +229,9 @@ namespace OmenCore.Hardware
         /// </summary>
         private RyzenSmu.SmuStatus SetIgpuCO(int value)
         {
+            // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
+            value = Math.Clamp(value, -30, 30);
+
             uint uvalue = value < 0
                 ? (uint)(0x100000 - (uint)(-value))
                 : (uint)value;

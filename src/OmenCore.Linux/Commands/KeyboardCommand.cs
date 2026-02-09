@@ -159,13 +159,22 @@ public static class KeyboardCommand
     private static void ShowKeyboardStatus(LinuxKeyboardController keyboard)
     {
         Console.WriteLine();
-        Console.WriteLine("╔══════════════════════════════════════╗");
-        Console.WriteLine("║       Keyboard RGB Status            ║");
-        Console.WriteLine("╠══════════════════════════════════════╣");
-        Console.WriteLine($"║  Available: {(keyboard.IsAvailable ? "Yes" : "No"),-24} ║");
-        Console.WriteLine($"║  Backend: HP WMI                     ║");
-        Console.WriteLine($"║  Zones: 4 (WASD, Left, Right, Far)   ║");
-        Console.WriteLine("╚══════════════════════════════════════╝");
+        Console.WriteLine("╔══════════════════════════════════════════════╗");
+        Console.WriteLine("║          Keyboard RGB Status                ║");
+        Console.WriteLine("╠══════════════════════════════════════════════╣");
+        Console.WriteLine($"║  Available: {(keyboard.IsAvailable ? "Yes" : "No"),-32} ║");
+        Console.WriteLine($"║  Backend: HP WMI                             ║");
+        Console.WriteLine($"║  Type: {keyboard.KeyboardType,-37} ║");
+        if (keyboard.IsPerKeyRgb)
+        {
+            Console.WriteLine($"║  Per-Key: USB HID (not yet on Linux)         ║");
+            Console.WriteLine($"║  4-Zone Fallback: {(keyboard.HasZoneControl ? "Available" : "Unavailable"),-26} ║");
+        }
+        else
+        {
+            Console.WriteLine($"║  Zones: 4 (WASD, Left, Right, Far)           ║");
+        }
+        Console.WriteLine("╚══════════════════════════════════════════════╝");
         Console.WriteLine();
     }
 }

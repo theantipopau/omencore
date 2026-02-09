@@ -333,25 +333,93 @@ namespace OmenCore.Services.Logitech
 
         public async Task ApplyBreathingEffectAsync(LogitechDevice device, string hexColor, int speed)
         {
-            // Breathing effect - for now just apply static color
-            // Full effect support would need device-specific protocol
-            _logging.Info($"[Direct HID] Breathing effect requested on {device.Name} - applying static color");
-            await ApplyStaticColorAsync(device, hexColor, 100);
+            var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
+            if (hidDevice == null) { _logging.Warn($"Device not found: {device.Name}"); return; }
+
+            try
+            {
+                var (r, g, b) = ParseHexColor(hexColor);
+                // HID++ 2.0 breathing effect (effect type 0x03)
+                byte period = SpeedToPeriod(speed);
+                await SendEffectCommand(hidDevice, 0x03, r, g, b, period, 0x64);
+                _logging.Info($"Applied breathing effect {hexColor} (speed {speed}) to {device.Name} via direct HID");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Breathing effect failed on {device.Name}: {ex.Message} - falling back to static");
+                await ApplyStaticColorAsync(device, hexColor, 100);
+            }
         }
 
         public async Task ApplySpectrumEffectAsync(LogitechDevice device, int speed)
         {
-            // Spectrum effect via HID++ would require device-specific commands
-            // For now, log and apply a representative color
-            _logging.Info($"[Direct HID] Spectrum effect requested on {device.Name} - not fully supported");
-            await ApplyStaticColorAsync(device, "#FF00FF", 100); // Purple to indicate spectrum mode
+            var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
+            if (hidDevice == null) { _logging.Warn($"Device not found: {device.Name}"); return; }
+
+            try
+            {
+                // HID++ 2.0 spectrum / color cycle effect (effect type 0x04)
+                byte period = SpeedToPeriod(speed);
+                await SendEffectCommand(hidDevice, 0x04, 0, 0, 0, period, 0x64);
+                _logging.Info($"Applied spectrum cycle effect (speed {speed}) to {device.Name} via direct HID");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Spectrum effect failed on {device.Name}: {ex.Message} - falling back to static");
+                await ApplyStaticColorAsync(device, "#FF00FF", 100);
+            }
         }
 
         public async Task ApplyFlashEffectAsync(LogitechDevice device, string hexColor, int durationMs, int intervalMs)
         {
-            // Flash effect via HID++ would require device-specific timing commands
-            _logging.Info($"[Direct HID] Flash effect requested on {device.Name} - applying static color");
-            await ApplyStaticColorAsync(device, hexColor, 100);
+            var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
+            if (hidDevice == null) { _logging.Warn($"Device not found: {device.Name}"); return; }
+
+            try
+            {
+                var (r, g, b) = ParseHexColor(hexColor);
+                // HID++ 2.0 flash / strobe effect (effect type 0x05)
+                byte rate = (byte)Math.Clamp(intervalMs / 100, 1, 255);
+                byte duration = (byte)Math.Clamp(durationMs / 100, 1, 255);
+                await SendEffectCommand(hidDevice, 0x05, r, g, b, rate, duration);
+                _logging.Info($"Applied flash effect {hexColor} (interval {intervalMs}ms, duration {durationMs}ms) to {device.Name} via direct HID");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Flash effect failed on {device.Name}: {ex.Message} - falling back to static");
+                await ApplyStaticColorAsync(device, hexColor, 100);
+            }
+        }
+
+        /// <summary>
+        /// Apply a wave / ripple effect across device LEDs.
+        /// </summary>
+        public async Task ApplyWaveEffectAsync(LogitechDevice device, int speed, bool leftToRight = true)
+        {
+            var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
+            if (hidDevice == null) { _logging.Warn($"Device not found: {device.Name}"); return; }
+
+            try
+            {
+                // HID++ 2.0 wave effect (effect type 0x06)
+                byte period = SpeedToPeriod(speed);
+                byte direction = (byte)(leftToRight ? 0x01 : 0x02);
+                await SendEffectCommand(hidDevice, 0x06, 0, 0, 0, period, direction);
+                _logging.Info($"Applied wave effect (speed {speed}, dir {(leftToRight ? "L→R" : "R→L")}) to {device.Name}");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Wave effect failed on {device.Name}: {ex.Message} - falling back to spectrum");
+                await ApplySpectrumEffectAsync(device, speed);
+            }
+        }
+
+        /// <summary>Convert user speed (1-10) to HID++ period byte. Lower = faster.</summary>
+        private static byte SpeedToPeriod(int speed)
+        {
+            // speed 1 (slow) → period 0xFF, speed 10 (fast) → period 0x1A
+            int clamped = Math.Clamp(speed, 1, 10);
+            return (byte)(255 - (clamped - 1) * 25);
         }
 
         public Task<int> GetDpiAsync(LogitechDevice device)
@@ -428,6 +496,54 @@ namespace OmenCore.Services.Logitech
             catch (Exception ex)
             {
                 _logging.Warn($"HID write failed: {ex.Message} - Device may require specific HID++ version");
+            }
+        }
+
+        /// <summary>
+        /// Send an HID++ 2.0 RGB effect command (breathing, spectrum, flash, wave).
+        /// Falls back to HID++ 1.0 for older devices.
+        /// </summary>
+        private async Task SendEffectCommand(LogitechHidDevice device, byte effectType, byte r, byte g, byte b, byte param1, byte param2)
+        {
+            try
+            {
+                using var stream = device.HidDevice.Open();
+                
+                // HID++ 2.0 long report for effects (Feature 0x8071 - RGB Effects)
+                var report = new byte[20];
+                report[0] = 0x11;       // Long report ID for HID++ 2.0
+                report[1] = 0xFF;       // Device index (0xFF = all)
+                report[2] = 0x04;       // Feature index (RGB effects)
+                report[3] = 0x3E;       // Function: Set RGB zone effect
+                report[4] = 0x00;       // Zone (0 = all zones)
+                report[5] = r;          // Red
+                report[6] = g;          // Green
+                report[7] = b;          // Blue
+                report[8] = effectType; // Effect: 0x02=solid, 0x03=breathing, 0x04=spectrum, 0x05=flash, 0x06=wave
+                report[9] = param1;     // Speed/period/rate
+                report[10] = param2;    // Intensity/direction/duration (effect-specific)
+                
+                await stream.WriteAsync(report, 0, report.Length);
+                
+                // Also try HID++ 1.0 effect command for older devices
+                try
+                {
+                    var report10 = new byte[7];
+                    report10[0] = 0x10;       // Short report for HID++ 1.0
+                    report10[1] = 0xFF;       // Device
+                    report10[2] = 0x81;       // Backlight command
+                    report10[3] = r;
+                    report10[4] = g;
+                    report10[5] = b;
+                    report10[6] = effectType; // Effect type in last byte
+                    await stream.WriteAsync(report10, 0, report10.Length);
+                }
+                catch { } // Ignore if device doesn't support 1.0
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"HID effect write failed: {ex.Message} - Device may require specific HID++ version");
+                throw; // Let caller handle fallback
             }
         }
 

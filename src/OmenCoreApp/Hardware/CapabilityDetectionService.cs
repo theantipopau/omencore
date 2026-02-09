@@ -414,11 +414,11 @@ namespace OmenCore.Hardware
                                         Capabilities.IsLaptop ? "Laptop" : "Other";
                         _logging?.Info($"  Chassis: {Capabilities.Chassis} ({formFactor})");
 
-                        // Warn about limited desktop support
+                        // Warn about different desktop architecture
                         if (Capabilities.IsDesktop)
                         {
-                            _logging?.Warn("  ⚠️ Desktop PC detected - EC-based fan control may have limited support");
-                            _logging?.Info("  💡 OMEN desktops (25L/30L/40L/45L) use different EC registers than laptops");
+                            _logging?.Info("  Desktop PC detected — WMI fan control available, EC-based control not applicable");
+                            _logging?.Info("  💡 OMEN desktops (25L/30L/35L/40L/45L) use WMI for fan control and USB HID for RGB");
                         }
                     }
                 }

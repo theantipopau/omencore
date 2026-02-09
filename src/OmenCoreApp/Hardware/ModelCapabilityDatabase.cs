@@ -530,7 +530,7 @@ AddModel(new ModelCapabilities
             });
             
             // ═══════════════════════════════════════════════════════════════════════════════════
-            // OMEN Desktop Series (limited support)
+            // OMEN Desktop Series (WMI fan control + desktop RGB)
             // ═══════════════════════════════════════════════════════════════════════════════════
             
             AddModel(new ModelCapabilities
@@ -539,16 +539,16 @@ AddModel(new ModelCapabilities
                 ModelName = "OMEN 25L Desktop",
                 ModelYear = 2021,
                 Family = OmenModelFamily.Desktop,
-                SupportsFanControlWmi = false, // Desktops use different EC
-                SupportsFanControlEc = false,
-                SupportsFanCurves = false,
-                SupportsRpmReadback = false,
-                SupportsPerformanceModes = true, // Via BIOS/OGH only
-                HasMuxSwitch = false, // No MUX on desktop
+                SupportsFanControlWmi = true, // WMI fan control works on OMEN desktops
+                SupportsFanControlEc = false, // Desktop EC registers differ from laptops
+                SupportsFanCurves = true, // Via WMI fan level commands
+                SupportsRpmReadback = true, // WMI RPM readback available
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = false,
                 SupportsGpuPowerBoost = false,
                 HasKeyboardBacklight = false,
                 HasFourZoneRgb = false,
-                Notes = "OMEN Desktop uses different EC - fan control not supported via OmenCore"
+                Notes = "OMEN 25L Desktop — WMI fan control supported, desktop RGB via USB HID"
             });
             
             AddModel(new ModelCapabilities
@@ -557,12 +557,28 @@ AddModel(new ModelCapabilities
                 ModelName = "OMEN 30L Desktop",
                 ModelYear = 2022,
                 Family = OmenModelFamily.Desktop,
-                SupportsFanControlWmi = false,
+                SupportsFanControlWmi = true,
                 SupportsFanControlEc = false,
-                SupportsFanCurves = false,
-                SupportsRpmReadback = false,
+                SupportsFanCurves = true,
+                SupportsRpmReadback = true,
+                SupportsPerformanceModes = true,
                 HasKeyboardBacklight = false,
-                Notes = "OMEN Desktop uses different EC - fan control not supported via OmenCore"
+                Notes = "OMEN 30L Desktop — WMI fan control supported, desktop RGB via USB HID"
+            });
+            
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "DESKTOP-35L",
+                ModelName = "OMEN 35L Desktop",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Desktop,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsRpmReadback = true,
+                SupportsPerformanceModes = true,
+                HasKeyboardBacklight = false,
+                Notes = "OMEN 35L Desktop — WMI fan control supported, desktop RGB via USB HID"
             });
             
             AddModel(new ModelCapabilities
@@ -571,12 +587,13 @@ AddModel(new ModelCapabilities
                 ModelName = "OMEN 40L Desktop",
                 ModelYear = 2023,
                 Family = OmenModelFamily.Desktop,
-                SupportsFanControlWmi = false,
+                SupportsFanControlWmi = true,
                 SupportsFanControlEc = false,
-                SupportsFanCurves = false,
-                SupportsRpmReadback = false,
+                SupportsFanCurves = true,
+                SupportsRpmReadback = true,
+                SupportsPerformanceModes = true,
                 HasKeyboardBacklight = false,
-                Notes = "OMEN Desktop uses different EC - fan control not supported via OmenCore"
+                Notes = "OMEN 40L Desktop — WMI fan control supported, desktop RGB via USB HID"
             });
             
             AddModel(new ModelCapabilities
@@ -585,12 +602,13 @@ AddModel(new ModelCapabilities
                 ModelName = "OMEN 45L Desktop",
                 ModelYear = 2023,
                 Family = OmenModelFamily.Desktop,
-                SupportsFanControlWmi = false,
+                SupportsFanControlWmi = true,
                 SupportsFanControlEc = false,
-                SupportsFanCurves = false,
-                SupportsRpmReadback = false,
+                SupportsFanCurves = true,
+                SupportsRpmReadback = true,
+                SupportsPerformanceModes = true,
                 HasKeyboardBacklight = false,
-                Notes = "OMEN Desktop uses different EC - fan control not supported via OmenCore"
+                Notes = "OMEN 45L Desktop — WMI fan control supported, desktop RGB via USB HID"
             });
         }
         

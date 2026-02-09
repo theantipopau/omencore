@@ -138,6 +138,13 @@ namespace OmenCore.Hardware
             
             try
             {
+                // FIRST: Try to connect to an already-running worker (survives parent restarts)
+                if (await TryConnectToExistingWorkerAsync())
+                {
+                    _logger?.Invoke("[Worker] Connected to existing worker — no new process needed");
+                    return true;
+                }
+                
                 // Find worker executable
                 var workerPath = FindWorkerExecutable();
                 if (workerPath == null)
@@ -179,7 +186,11 @@ namespace OmenCore.Hardware
                 for (int retry = 0; retry < MaxConnectionRetries; retry++)
                 {
                     if (await ConnectAsync())
+                    {
+                        // Register as new parent
+                        await RegisterAsParentAsync();
                         return true;
+                    }
                     
                     if (retry < MaxConnectionRetries - 1)
                     {
@@ -195,6 +206,78 @@ namespace OmenCore.Hardware
             {
                 _logger?.Invoke($"[Worker] Error starting worker: {ex.Message}");
                 return false;
+            }
+        }
+        
+        /// <summary>
+        /// Try to connect to an already-running worker process (from a previous app session).
+        /// This enables seamless temp readings across app restarts.
+        /// </summary>
+        private async Task<bool> TryConnectToExistingWorkerAsync()
+        {
+            try
+            {
+                _pipeClient?.Dispose();
+                _pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                
+                // Short timeout — either the worker is there or it isn't
+                using var cts = new CancellationTokenSource(1500);
+                await _pipeClient.ConnectAsync(cts.Token);
+                
+                // Verify it's alive
+                var response = await SendRequestAsync("PING");
+                if (response != "PONG")
+                {
+                    _logger?.Invoke($"[Worker] Existing worker ping failed: {response}");
+                    _pipeClient?.Dispose();
+                    _pipeClient = null;
+                    return false;
+                }
+                
+                // Register ourselves as the new parent
+                await RegisterAsParentAsync();
+                
+                _restartAttempts = 0;
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                // No existing worker — that's fine
+                _pipeClient?.Dispose();
+                _pipeClient = null;
+                return false;
+            }
+            catch (Exception)
+            {
+                // Connection failed — no existing worker
+                _pipeClient?.Dispose();
+                _pipeClient = null;
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Tell the worker to monitor our process as the new parent.
+        /// This re-attaches the orphan watchdog to our PID.
+        /// </summary>
+        private async Task RegisterAsParentAsync()
+        {
+            try
+            {
+                var pid = Environment.ProcessId;
+                var response = await SendRequestAsync($"SET_PARENT {pid}");
+                if (response == "OK")
+                {
+                    _logger?.Invoke($"[Worker] Registered as new parent (PID {pid})");
+                }
+                else
+                {
+                    _logger?.Invoke($"[Worker] SET_PARENT response: {response}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[Worker] Failed to register as parent: {ex.Message}");
             }
         }
         
@@ -275,7 +358,12 @@ namespace OmenCore.Hardware
             // Check if we need to restart worker
             if (!IsConnected || (_workerProcess?.HasExited == true))
             {
-                if (!await TryRestartWorkerAsync())
+                // Try connecting to an existing worker first (may have survived a parent restart)
+                if (await TryConnectToExistingWorkerAsync())
+                {
+                    _logger?.Invoke("[Worker] Reconnected to existing worker on demand");
+                }
+                else if (!await TryRestartWorkerAsync())
                 {
                     // Return cached sample if available
                     return SampleAge < TimeSpan.FromSeconds(10) ? _cachedSample : null;

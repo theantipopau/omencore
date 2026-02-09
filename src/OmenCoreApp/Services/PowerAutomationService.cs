@@ -310,16 +310,11 @@ namespace OmenCore.Services
 
             try
             {
-                // Apply fan preset
-                var fanPreset = isOnAc ? AcFanPreset : BatteryFanPreset;
-                var preset = new FanPreset 
-                { 
-                    Name = fanPreset,
-                    Mode = MapPresetNameToFanMode(fanPreset),
-                    Curve = new()
-                };
+                // Apply fan preset - look up from saved presets first to preserve curves
+                var fanPresetName = isOnAc ? AcFanPreset : BatteryFanPreset;
+                var preset = LookupFanPreset(fanPresetName);
                 _fanService.ApplyPreset(preset);
-                _logging.Info($"  Fan preset: {fanPreset}");
+                _logging.Info($"  Fan preset: {fanPresetName}" + (preset.Curve?.Any() == true ? $" ({preset.Curve.Count} curve points)" : ""));
 
                 // Apply performance mode
                 var perfMode = isOnAc ? AcPerformanceMode : BatteryPerformanceMode;
@@ -342,6 +337,74 @@ namespace OmenCore.Services
             {
                 _logging.Error($"Failed to apply power profile: {ex.Message}", ex);
             }
+        }
+
+        /// <summary>
+        /// Look up a fan preset by name from saved config, falling back to a built-in definition.
+        /// This preserves user-defined fan curves when switching power profiles.
+        /// </summary>
+        private FanPreset LookupFanPreset(string presetName)
+        {
+            try
+            {
+                // First try saved custom presets from config (these have user's curves)
+                var config = _configService.Load();
+                var saved = config.FanPresets?.FirstOrDefault(p => 
+                    p.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+                
+                if (saved != null)
+                {
+                    _logging.Debug($"Power automation: Found saved preset '{presetName}' with {saved.Curve?.Count ?? 0} curve points");
+                    return saved;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to look up preset '{presetName}' from config: {ex.Message}");
+            }
+            
+            // Fall back to built-in preset definitions
+            var mode = MapPresetNameToFanMode(presetName);
+            var preset = new FanPreset 
+            { 
+                Name = presetName,
+                Mode = mode,
+                IsBuiltIn = true,
+                Curve = GetBuiltInCurve(mode)
+            };
+            
+            _logging.Debug($"Power automation: Using built-in preset definition for '{presetName}'");
+            return preset;
+        }
+
+        /// <summary>
+        /// Get the default curve for a built-in fan mode.
+        /// </summary>
+        private static List<FanCurvePoint> GetBuiltInCurve(FanMode mode)
+        {
+            return mode switch
+            {
+                FanMode.Max => new() { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } },
+                FanMode.Performance => new()
+                {
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 40 },
+                    new FanCurvePoint { TemperatureC = 50, FanPercent = 50 },
+                    new FanCurvePoint { TemperatureC = 60, FanPercent = 65 },
+                    new FanCurvePoint { TemperatureC = 70, FanPercent = 80 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 95 },
+                    new FanCurvePoint { TemperatureC = 90, FanPercent = 100 },
+                },
+                FanMode.Quiet => new()
+                {
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 20 },
+                    new FanCurvePoint { TemperatureC = 50, FanPercent = 25 },
+                    new FanCurvePoint { TemperatureC = 60, FanPercent = 35 },
+                    new FanCurvePoint { TemperatureC = 70, FanPercent = 50 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 65 },
+                    new FanCurvePoint { TemperatureC = 90, FanPercent = 80 },
+                },
+                _ => new() // Auto/Default - empty curve lets BIOS control
+            };
         }
 
         private FanMode MapPresetNameToFanMode(string presetName)

@@ -1844,6 +1844,18 @@
                                         <TextBlock Text="Clock Time" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
                                         <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowTime}"/>
                                     </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Battery %" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowBattery}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="CPU Clock" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowCpuClock}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="GPU Clock" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowGpuClock}"/>
+                                    </StackPanel>
                                 </WrapPanel>
                                 
                                 <!-- Layout -->
@@ -2027,8 +2039,26 @@
                                     </StackPanel>
                                 </Grid>
                                 
+                                <!-- Thermal Protection Enable/Disable Toggle -->
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Thermal Protection" FontSize="13" 
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Auto-boost fans when temps exceed threshold. Disable if your laptop naturally runs hot and you manage fans manually." FontSize="11" 
+                                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" 
+                                                  Style="{StaticResource ModernToggleButton}"
+                                                  IsChecked="{Binding ThermalProtectionEnabled}"/>
+                                </Grid>
+                                
                                 <!-- Thermal Protection Threshold -->
-                                <Grid Margin="0,12,0,0">
+                                <Grid Margin="0,12,0,0"
+                                      IsEnabled="{Binding ThermalProtectionEnabled}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="80"/>
@@ -2036,7 +2066,7 @@
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Thermal Protection Threshold" FontSize="13" 
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="Fans ramp up when temps exceed this (70-90°C)" FontSize="11" 
+                                        <TextBlock Text="Fans ramp up when temps exceed this (70-95°C)" FontSize="11" 
                                                    Foreground="{StaticResource TextTertiaryBrush}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -2044,6 +2074,24 @@
                                                  Width="50" Padding="6,4" TextAlignment="Right"/>
                                         <TextBlock Text="°C" VerticalAlignment="Center" Margin="4,0,0,0" 
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <!-- Max Fan Level Override -->
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="80"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Max Fan Level Override" FontSize="13" 
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Override auto-detected max fan level. Set to 0 for auto-detect. If fans don't reach full speed, try 63 or 100. Requires restart." FontSize="11" 
+                                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBox Text="{Binding MaxFanLevelOverride, StringFormat=F0}" 
+                                                 Width="50" Padding="6,4" TextAlignment="Right"/>
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>

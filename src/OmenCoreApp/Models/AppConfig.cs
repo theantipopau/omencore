@@ -30,6 +30,15 @@ namespace OmenCore.Models
         /// Fan transition / smoothing settings for ramping and immediate apply behavior.
         /// </summary>
         public FanTransitionSettings FanTransition { get; set; } = new();
+        
+        /// <summary>
+        /// Override the auto-detected maximum fan level (0 = auto-detect).
+        /// Classic HP OMEN models use 0-55 (krpm), but some models support higher levels
+        /// (e.g., OMEN 16-xd0xxx maxes at level 63 = 6300 RPM).
+        /// Set this if your fans don't reach full speed. Typical values: 55, 63, 100.
+        /// The BIOS will clamp to the actual hardware maximum if the value is too high.
+        /// </summary>
+        public int MaxFanLevelOverride { get; set; } = 0;
         public OsdSettings Osd { get; set; } = new();
         public BatterySettings Battery { get; set; } = new();
         public AmbientLightingSettings AmbientLighting { get; set; } = new();
@@ -274,10 +283,11 @@ namespace OmenCore.Models
         
         /// <summary>
         /// Temperature threshold in °C for thermal protection to activate (start ramping fans).
-        /// Default: 80°C. Advanced users can increase to 85-90°C if their laptop handles heat better.
-        /// Range: 70-90°C. Values outside this range will be clamped.
+        /// Default: 90°C. Advanced users can lower to 80-85°C for more aggressive cooling.
+        /// v2.8.0: Raised from 80°C — laptops routinely hit 80-85°C under gaming load.
+        /// Range: 75-95°C. Values outside this range will be clamped.
         /// </summary>
-        public double ThermalProtectionThreshold { get; set; } = 80.0;
+        public double ThermalProtectionThreshold { get; set; } = 90.0;
     }
 
     /// <summary>
@@ -386,6 +396,15 @@ namespace OmenCore.Models
         
         /// <summary>Show network download speed in Mbps</summary>
         public bool ShowNetworkDownload { get; set; } = false;
+        
+        /// <summary>Show battery percentage and charge status</summary>
+        public bool ShowBattery { get; set; } = false;
+        
+        /// <summary>Show CPU clock speed (average across cores)</summary>
+        public bool ShowCpuClock { get; set; } = false;
+        
+        /// <summary>Show GPU clock speed</summary>
+        public bool ShowGpuClock { get; set; } = false;
     }
     
     /// <summary>

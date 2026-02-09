@@ -73,7 +73,9 @@ namespace OmenCore.ViewModels
         private readonly PowerAutomationService _powerAutomationService;
         private readonly OmenKeyService _omenKeyService;
         private readonly NvapiService? _nvapiService;
+        private AmdGpuService? _amdGpuService;
         private OsdService? _osdService;
+        private ConflictDetectionService? _conflictDetectionService;
         private HpWmiBios? _wmiBios;
         private OghServiceProxy? _oghProxy;
         private HotkeyOsdWindow? _hotkeyOsd;
@@ -125,7 +127,8 @@ namespace OmenCore.ViewModels
                         _wmiBios,
                         _oghProxy,
                         _systemInfoService,
-                        _nvapiService
+                        _nvapiService,
+                        amdGpuService: _amdGpuService
                     );
                     _systemControl.PropertyChanged += (s, e) =>
                     {
@@ -255,6 +258,21 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged(nameof(BloatwareManager));
                 }
                 return _bloatwareManager;
+            }
+        }
+        
+        private GameLibraryViewModel? _gameLibrary;
+        public GameLibraryViewModel? GameLibrary
+        {
+            get
+            {
+                if (_gameLibrary == null)
+                {
+                    var libraryService = new GameLibraryService(_logging);
+                    _gameLibrary = new GameLibraryViewModel(_logging, libraryService, _gameProfileService);
+                    OnPropertyChanged(nameof(GameLibrary));
+                }
+                return _gameLibrary;
             }
         }
         
@@ -1078,8 +1096,8 @@ namespace OmenCore.ViewModels
             // Set capability warning if functionality is limited
             if (capabilities.IsDesktop)
             {
-                CapabilityWarning = $"Desktop PC detected ({capabilities.Chassis}). OMEN desktop fan control is experimental - EC registers differ from laptops.";
-                _logging.Warn("Desktop OMEN PC - fan control support is limited. Consider using OMEN Gaming Hub for desktop systems.");
+                CapabilityWarning = $"Desktop PC detected ({capabilities.Chassis}). Fan control uses WMI — EC-based curves are not available on desktops.";
+                _logging.Info("Desktop OMEN PC — WMI fan control active. Desktop RGB available via USB HID.");
             }
             else if (capabilities.SecureBootEnabled && !capabilities.OghRunning)
             {
@@ -1115,7 +1133,7 @@ namespace OmenCore.ViewModels
 
             // Create fan controller with intelligent backend selection using pre-detected capabilities
             // Priority: OGH Proxy > WMI BIOS (no driver) > EC (requires WinRing0) > Fallback (monitoring only)
-            var fanControllerFactory = new FanControllerFactory(monitorBridge, ec, _config.EcFanRegisterMap, _logging, capabilities);
+            var fanControllerFactory = new FanControllerFactory(monitorBridge, ec, _config.EcFanRegisterMap, _logging, capabilities, _config.MaxFanLevelOverride);
             var fanController = fanControllerFactory.Create();
             FanBackend = fanControllerFactory.ActiveBackend;
             
@@ -1194,6 +1212,34 @@ namespace OmenCore.ViewModels
                 _nvapiService = null;
             }
             
+            // Initialize AMD GPU service (ADL2) for AMD GPU overclocking
+            try
+            {
+                _amdGpuService = new AmdGpuService(_logging);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var success = await _amdGpuService.InitializeAsync();
+                        if (!success)
+                        {
+                            _amdGpuService = null;
+                            _logging.Info("AMD GPU service: No AMD discrete GPU found or ADL not available");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _amdGpuService = null;
+                        _logging.Warn($"AMD GPU service async init failed: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"AMD GPU service initialization failed: {ex.Message}");
+                _amdGpuService = null;
+            }
+            
             // Services initialized asynchronously
             InitializeServicesAsync();
 
@@ -1231,6 +1277,26 @@ namespace OmenCore.ViewModels
             // Initialize OSD service (will only activate if enabled in settings)
             // Pass ThermalProvider from FanService for temperature data
             _osdService = new OsdService(_configService, _logging, _fanService?.ThermalProvider, _fanService);
+            
+            // Initialize conflict detection service for detecting conflicting software
+            _conflictDetectionService = new ConflictDetectionService(_logging);
+            _conflictDetectionService.OnConflictsDetected += (conflicts) =>
+            {
+                if (conflicts.Count > 0)
+                {
+                    _logging.Warn($"Detected {conflicts.Count} conflicting application(s): {_conflictDetectionService.GetConflictSummary()}");
+                }
+            };
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _conflictDetectionService.ScanForConflictsAsync();
+                    // Monitor every 60 seconds in the background
+                    await _conflictDetectionService.MonitorConflictsAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
+                }
+                catch (Exception ex) { _logging.Warn($"Conflict detection failed: {ex.Message}"); }
+            });
             
             _autoUpdateService.DownloadProgressChanged += OnUpdateDownloadProgressChanged;
             _autoUpdateService.UpdateCheckCompleted += OnBackgroundUpdateCheckCompleted;
@@ -1347,6 +1413,9 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(MonitoringLowOverheadMode));
             OnPropertyChanged(nameof(MonitoringGraphsVisible));
             _monitoringInitialized = true;
+            
+            // Restore saved settings (GPU Power Boost, TCC Offset, Fan Preset) on startup
+            _ = RestoreSettingsOnStartupAsync();
             _macroBufferNotifier = RecordingBuffer as INotifyCollectionChanged;
             if (_macroBufferNotifier != null)
             {
@@ -1365,6 +1434,125 @@ namespace OmenCore.ViewModels
             
             // Initialize game profile system
             InitializeGameProfilesAsync();
+        }
+
+        /// <summary>
+        /// Restore saved settings (GPU Power Boost, fan preset) on startup.
+        /// Runs after hardware initialization with retry logic for WMI readiness.
+        /// </summary>
+        private async Task RestoreSettingsOnStartupAsync()
+        {
+            try
+            {
+                // Brief delay to let hardware stabilize after boot
+                await Task.Delay(2000);
+                
+                // Restore GPU Power Boost level
+                var savedGpuPb = _config.LastGpuPowerBoostLevel;
+                if (!string.IsNullOrEmpty(savedGpuPb) && _wmiBios != null)
+                {
+                    for (int attempt = 1; attempt <= 3; attempt++)
+                    {
+                        try
+                        {
+                            var level = savedGpuPb switch
+                            {
+                                "Minimum" => HpWmiBios.GpuPowerLevel.Minimum,
+                                "Medium" => HpWmiBios.GpuPowerLevel.Medium,
+                                "Maximum" => HpWmiBios.GpuPowerLevel.Maximum,
+                                "Extended" => HpWmiBios.GpuPowerLevel.Extended3,
+                                _ => HpWmiBios.GpuPowerLevel.Medium
+                            };
+                            
+                            if (_wmiBios.SetGpuPower(level))
+                            {
+                                _logging.Info($"✓ GPU Power Boost restored on startup: {savedGpuPb}");
+                                break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logging.Warn($"GPU Power Boost restore attempt {attempt}/3 failed: {ex.Message}");
+                            if (attempt < 3) await Task.Delay(1500);
+                        }
+                    }
+                }
+                
+                // Restore fan preset
+                var savedFanPreset = _config.LastFanPresetName;
+                if (!string.IsNullOrEmpty(savedFanPreset) && _fanService != null)
+                {
+                    try
+                    {
+                        // Look up the saved preset from config
+                        var preset = _config.FanPresets?.FirstOrDefault(p => 
+                            p.Name.Equals(savedFanPreset, StringComparison.OrdinalIgnoreCase));
+                        
+                        if (preset != null)
+                        {
+                            _fanService.ApplyPreset(preset);
+                            _logging.Info($"✓ Fan preset restored on startup: {savedFanPreset} ({preset.Curve?.Count ?? 0} curve points)");
+                            
+                            // Sync UI with restored preset
+                            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                            {
+                                FanControl?.SelectPresetByNameNoApply(savedFanPreset);
+                                CurrentFanMode = savedFanPreset;
+                                if (_dashboard != null) _dashboard.CurrentFanMode = savedFanPreset;
+                            });
+                        }
+                        else
+                        {
+                            // Try built-in preset
+                            var builtIn = new FanPreset
+                            {
+                                Name = savedFanPreset,
+                                Mode = savedFanPreset.ToLowerInvariant() switch
+                                {
+                                    "max" or "maximum" => FanMode.Max,
+                                    "performance" or "turbo" => FanMode.Performance,
+                                    "quiet" or "silent" => FanMode.Quiet,
+                                    _ => FanMode.Auto
+                                },
+                                IsBuiltIn = true
+                            };
+                            _fanService.ApplyPreset(builtIn);
+                            _logging.Info($"✓ Fan preset restored on startup: {savedFanPreset} (built-in)");
+                            
+                            // Sync UI with restored preset
+                            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                            {
+                                FanControl?.SelectPresetByNameNoApply(savedFanPreset);
+                                CurrentFanMode = savedFanPreset;
+                                if (_dashboard != null) _dashboard.CurrentFanMode = savedFanPreset;
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"Fan preset restore failed: {ex.Message}");
+                    }
+                }
+                
+                // Restore TCC offset
+                var savedTcc = _config.LastTccOffset;
+                if (savedTcc.HasValue && savedTcc.Value > 0 && _wmiBios != null)
+                {
+                    try
+                    {
+                        // TCC offset via WMI BIOS if available
+                        _logging.Info($"TCC Offset restore: {savedTcc.Value}°C (requires reapply via System Control)");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"TCC offset restore failed: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Settings restoration failed: {ex.Message}", ex);
+            }
         }
 
         private async void InitializeGameProfilesAsync()

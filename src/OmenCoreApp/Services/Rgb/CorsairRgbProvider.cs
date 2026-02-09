@@ -24,6 +24,7 @@ namespace OmenCore.Services.Rgb
             RgbEffectType.Static,
             RgbEffectType.Breathing,
             RgbEffectType.Spectrum,
+            RgbEffectType.Wave,
             RgbEffectType.Custom,
             RgbEffectType.Off
         };
@@ -91,6 +92,33 @@ namespace OmenCore.Services.Rgb
                 }
 
                 _logging.Info($"Applied Corsair preset '{presetName}' to {_service.Devices.Count} device(s)");
+                return;
+            }
+
+            // Handle "effect:breathing", "effect:spectrum", "effect:wave"
+            if (effectId.StartsWith("effect:", StringComparison.OrdinalIgnoreCase))
+            {
+                var effectName = effectId["effect:".Length..].Trim().ToLowerInvariant();
+                switch (effectName)
+                {
+                    case "breathing":
+                        await _service.ApplyBreathingToAllAsync("#FF0000");
+                        break;
+                    case "spectrum":
+                    case "colorcycle":
+                    case "rainbow":
+                        await _service.ApplySpectrumToAllAsync();
+                        break;
+                    case "wave":
+                        await _service.ApplyWaveToAllAsync();
+                        break;
+                    case "off":
+                        await TurnOffAsync();
+                        break;
+                    default:
+                        _logging.Warn($"Unknown Corsair effect: {effectName}");
+                        break;
+                }
             }
         }
         
@@ -105,15 +133,27 @@ namespace OmenCore.Services.Rgb
         
         public async Task SetBreathingEffectAsync(Color color)
         {
-            // Corsair breathing is typically done via preset
-            // Fall back to static color for now
-            await SetStaticColorAsync(color);
+            if (!IsAvailable || _service == null)
+                return;
+
+            var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+            await _service.ApplyBreathingToAllAsync(hex);
         }
         
-        public Task SetSpectrumEffectAsync()
+        public async Task SetSpectrumEffectAsync()
         {
-            // Corsair spectrum cycling would require preset configuration
-            return Task.CompletedTask;
+            if (!IsAvailable || _service == null)
+                return;
+
+            await _service.ApplySpectrumToAllAsync();
+        }
+
+        public async Task SetWaveEffectAsync()
+        {
+            if (!IsAvailable || _service == null)
+                return;
+
+            await _service.ApplyWaveToAllAsync();
         }
         
         public async Task TurnOffAsync()

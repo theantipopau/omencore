@@ -31,13 +31,21 @@ namespace OmenCore.Hardware
         private bool _isMaxModeActive = false;  // Track if SetFanMax(true) is active
         private int _lastManualFanPercent = -1; // Track last manual fan percentage for re-apply
         
-        // Fan level constants - HP WMI uses 0-55 krpm range (0-5500 RPM)
-        private const int MaxFanLevel = 55;
+        // Fan level constants - HP WMI uses 0-55 krpm range (0-5500 RPM) on classic models,
+        // or 0-100 percentage on newer models. Auto-detected from WMI at startup.
+        private readonly int _maxFanLevel;
+        
+        // Maximum ceiling for "Max" mode operations. When the user requests maximum cooling,
+        // we send a high value and let the BIOS clamp to its hardware maximum.
+        // This ensures models with max levels > 55 (e.g., OMEN 16-xd0xxx with 6300 RPM = level 63)
+        // can actually reach their full speed, rather than being capped at _maxFanLevel (55).
+        private const int MaxFanLevelCeiling = 100;
         
         // Countdown extension timer - keeps fan settings from reverting
         // HP BIOS aggressively reverts fan settings, especially on OMEN 16/Max models
         private Timer? _countdownExtensionTimer;
-        private const int CountdownExtensionIntervalMs = 8000; // 8 seconds - more aggressive to combat BIOS reversion
+        private const int CountdownExtensionIntervalMs = 3000; // 3 seconds - aggressive to combat fast BIOS reversion on some models
+        private const int CountdownExtensionInitialDelayMs = 1000; // 1 second initial delay — first tick must fire before BIOS reverts
         private bool _countdownExtensionEnabled = false;
         
         // Command verification tracking
@@ -76,11 +84,19 @@ namespace OmenCore.Hardware
         /// </summary>
         public int VerifyFailCount => _commandVerifyFailCount;
 
-        public WmiFanController(LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null)
+        public WmiFanController(LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null, int maxFanLevelOverride = 0)
         {
             _hwMonitor = hwMonitor;
             _logging = logging;
             _wmiBios = new HpWmiBios(logging);
+            
+            // Apply user override if set, then read the (possibly overridden) max level
+            if (maxFanLevelOverride > 0)
+            {
+                _wmiBios.DetectMaxFanLevel(maxFanLevelOverride);
+            }
+            _maxFanLevel = _wmiBios.MaxFanLevel;
+            _logging?.Info($"WmiFanController: Max fan level = {_maxFanLevel}{(maxFanLevelOverride > 0 ? $" (user override: {maxFanLevelOverride})" : " (auto-detected)")}");
         }
         
         // Helper methods for getting sensor data with WMI BIOS fallback
@@ -123,16 +139,23 @@ namespace OmenCore.Hardware
                 }
                 catch { }
             }
-            // Fallback to WMI BIOS
-            var rpms = _wmiBios.GetFanRpmDirect();
-            var result = new List<(string, double)>();
-            if (rpms.HasValue)
+            // Fallback to WMI BIOS — only use V2 direct RPM command on V2+ systems
+            // CMD 0x38 (GetFanRpmDirect) is only valid on OMEN Max 2025+ with ThermalPolicy V2.
+            // On V0/V1 systems, it may return garbage data (e.g., fan levels misread as RPM)
+            // causing phantom 4200-4400 RPM readings when fans are actually quiet.
+            if (_wmiBios.ThermalPolicy >= HpWmiBios.ThermalPolicyVersion.V2)
             {
-                var (cpu, gpu) = rpms.Value;
-                if (HpWmiBios.IsValidRpm(cpu)) result.Add(("CPU Fan", cpu));
-                if (HpWmiBios.IsValidRpm(gpu)) result.Add(("GPU Fan", gpu));
+                var rpms = _wmiBios.GetFanRpmDirect();
+                var result = new List<(string, double)>();
+                if (rpms.HasValue)
+                {
+                    var (cpu, gpu) = rpms.Value;
+                    if (HpWmiBios.IsValidRpm(cpu)) result.Add(("CPU Fan", cpu));
+                    if (HpWmiBios.IsValidRpm(gpu)) result.Add(("GPU Fan", gpu));
+                }
+                if (result.Any()) return result;
             }
-            return result;
+            return Enumerable.Empty<(string, double)>();
         }
 
         /// <summary>
@@ -203,10 +226,13 @@ namespace OmenCore.Hardware
                         _logging?.Warn("SetFanMax command failed - trying alternative method");
                     }
 
-                    // Alternative: Try setting fan level directly to max (55 = ~5500 RPM)
-                    if (_wmiBios.SetFanLevel(55, 55))
+                    // Alternative: Try setting fan level directly to max
+                    // Use MaxFanLevelCeiling (100) instead of _maxFanLevel — let the BIOS clamp
+                    // to its actual hardware maximum. Models like OMEN 16-xd0xxx have max level 63
+                    // (6300 RPM), which _maxFanLevel (55) would miss.
+                    if (_wmiBios.SetFanLevel((byte)MaxFanLevelCeiling, (byte)MaxFanLevelCeiling))
                     {
-                        _logging?.Info("✓ Fan level set to maximum (55, 55) - awaiting verification...");
+                        _logging?.Info($"✓ Fan level set to ceiling ({MaxFanLevelCeiling}, {MaxFanLevelCeiling}) — BIOS will clamp to hardware max. Awaiting verification...");
 
                         if (VerifyMaxAppliedWithRetries())
                         {
@@ -217,7 +243,7 @@ namespace OmenCore.Hardware
                             return true;
                         }
 
-                        _logging?.Warn("Fan level set to 55 but verification failed");
+                        _logging?.Warn($"Fan level set to {MaxFanLevelCeiling} but verification failed");
                     }
 
                     _logging?.Error("Failed to enable Max fan speed: verification failed");
@@ -308,8 +334,8 @@ namespace OmenCore.Hardware
                 var targetPoint = curveList.LastOrDefault(p => p.TemperatureC <= maxTemp) 
                                   ?? curveList.Last(); // Use highest, not lowest!
 
-                // Convert percentage to krpm (0-100% maps to 0-MaxFanLevel)
-                byte fanLevel = (byte)(targetPoint.FanPercent * MaxFanLevel / 100);
+                // Convert percentage to fan level (0-100% maps to 0-_maxFanLevel)
+                byte fanLevel = (byte)(targetPoint.FanPercent * _maxFanLevel / 100);
 
                 if (_wmiBios.SetFanLevel(fanLevel, fanLevel))
                 {
@@ -382,8 +408,8 @@ namespace OmenCore.Hardware
                         // For <100%, disable max mode first (in case it was enabled)
                         _wmiBios.SetFanMax(false);
                         
-                        // Convert percentage to krpm level
-                        byte fanLevel = (byte)(percent * MaxFanLevel / 100);
+                        // Convert percentage to fan level
+                        byte fanLevel = (byte)(percent * _maxFanLevel / 100);
                         success = _wmiBios.SetFanLevel(fanLevel, fanLevel);
                         
                         if (success)
@@ -491,9 +517,9 @@ namespace OmenCore.Hardware
                     // Disable max mode first
                     _wmiBios.SetFanMax(false);
                     
-                    // Convert percentages to krpm levels (0-55 range)
-                    byte cpuLevel = (byte)(cpuPercent * MaxFanLevel / 100);
-                    byte gpuLevel = (byte)(gpuPercent * MaxFanLevel / 100);
+                    // Convert percentages to fan levels (0-_maxFanLevel range)
+                    byte cpuLevel = (byte)(cpuPercent * _maxFanLevel / 100);
+                    byte gpuLevel = (byte)(gpuPercent * _maxFanLevel / 100);
                     
                     success = _wmiBios.SetFanLevel(cpuLevel, gpuLevel);
                     
@@ -606,13 +632,24 @@ namespace OmenCore.Hardware
 
             try
             {
-                // Use the robust reset sequence
-                ResetFromMaxMode();
+                // Only run the full reset sequence if we were actually in max mode.
+                // The reset sequence sends SetFanLevel(0,0) which on some models (Victus, etc.)
+                // puts the EC into manual-0% mode, overriding BIOS auto control entirely.
+                // This causes fans to stay at minimum (~1000rpm) until thermal emergency kicks in.
+                if (_isMaxModeActive || IsManualControlActive)
+                {
+                    ResetFromMaxMode();
+                }
+                
+                // Stop countdown extension so we don't keep re-applying fan settings
+                StopCountdownExtension();
                 
                 // Set default mode to restore automatic control
                 if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Default))
                 {
                     IsManualControlActive = false;
+                    _isMaxModeActive = false;
+                    _lastManualFanPercent = -1;
                     _lastMode = HpWmiBios.FanMode.Default;
                     _logging?.Info("✓ Restored automatic fan control");
                     return true;
@@ -811,9 +848,11 @@ namespace OmenCore.Hardware
                 
                 if (fanLevel.HasValue)
                 {
+                    // Use _maxFanLevel (auto-detected per model) instead of hardcoded 55.
+                    // MaxFanLevel=55 for classic krpm models, 100 for percentage-based models.
                     levelPercent = index == 0 
-                        ? fanLevel.Value.fan1 * 100 / 55 
-                        : fanLevel.Value.fan2 * 100 / 55;
+                        ? fanLevel.Value.fan1 * 100 / _maxFanLevel 
+                        : fanLevel.Value.fan2 * 100 / _maxFanLevel;
                 }
                 else if (validatedRpm > 0)
                 {
@@ -853,16 +892,21 @@ namespace OmenCore.Hardware
                 int fan2Percent = 0;
                 bool gotValidData = false;
                 
-                // Try direct RPM reading first (V2 systems)
-                var directRpm = _wmiBios.GetFanRpmDirect();
-                if (directRpm.HasValue && (directRpm.Value.fan1Rpm > 0 || directRpm.Value.fan2Rpm > 0))
+                // Try direct RPM reading first — BUT only on V2+ systems.
+                // CMD 0x38 (GetFanRpmDirect) is a V2-only command; on V1 systems it returns
+                // garbage data (e.g., fan level values misinterpreted as RPM).
+                if (_wmiBios.ThermalPolicy >= HpWmiBios.ThermalPolicyVersion.V2)
                 {
-                    fan1Rpm = directRpm.Value.fan1Rpm;
-                    fan2Rpm = directRpm.Value.fan2Rpm;
-                    fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
-                    fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
-                    gotValidData = true;
-                    _logging?.Debug($"[FanRPM] Direct RPM: CPU={fan1Rpm} ({fan1Percent}%), GPU={fan2Rpm} ({fan2Percent}%)");
+                    var directRpm = _wmiBios.GetFanRpmDirect();
+                    if (directRpm.HasValue && (directRpm.Value.fan1Rpm > 0 || directRpm.Value.fan2Rpm > 0))
+                    {
+                        fan1Rpm = directRpm.Value.fan1Rpm;
+                        fan2Rpm = directRpm.Value.fan2Rpm;
+                        fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
+                        fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
+                        gotValidData = true;
+                        _logging?.Debug($"[FanRPM] Direct RPM: CPU={fan1Rpm} ({fan1Percent}%), GPU={fan2Rpm} ({fan2Percent}%)");
+                    }
                 }
                 
                 // Try fan level if direct RPM unavailable
@@ -1003,8 +1047,8 @@ namespace OmenCore.Hardware
         /// </summary>
         private bool VerifyMaxAppliedWithRetries()
         {
-            const int attempts = 3;
-            const int delayMs = 500;
+            const int attempts = 5;
+            const int delayMs = 1000; // 1 second between checks — fans need 3-5 seconds to spin up
 
             for (int attempt = 1; attempt <= attempts; attempt++)
             {
@@ -1017,8 +1061,9 @@ namespace OmenCore.Hardware
                         int maxRpm = Math.Max(rawRpm.Value.fan1Rpm, rawRpm.Value.fan2Rpm);
                         _logging?.Debug($"[VerifyMax] Attempt {attempt}/{attempts}: Raw RPM - CPU={rawRpm.Value.fan1Rpm}, GPU={rawRpm.Value.fan2Rpm}");
                         
-                        // For max mode, fans should be spinning fast (at least 4000 RPM)
-                        if (maxRpm >= 4000)
+                        // For max mode, fans should be spinning fast (at least 3000 RPM)
+                        // Lowered from 4000 to give faster verification on models that ramp slower
+                        if (maxRpm >= 3000)
                         {
                             _logging?.Info($"[VerifyMax] ✓ Verified: {maxRpm} RPM");
                             return true;
@@ -1040,10 +1085,10 @@ namespace OmenCore.Hardware
                             int maxLevel = Math.Max(fanLevel.Value.fan1, fanLevel.Value.fan2);
                             _logging?.Debug($"[VerifyMax] Attempt {attempt}/{attempts}: Fan level - CPU={fanLevel.Value.fan1}, GPU={fanLevel.Value.fan2}");
                             
-                            // Level 50+ is ~90% duty (max is 55)
-                            if (maxLevel >= 50)
+                            // Level 40+ indicates significant spin-up (works for both 0-55 and 0-100 ranges)
+                            if (maxLevel >= 40)
                             {
-                                _logging?.Info($"[VerifyMax] ✓ Verified via level: {maxLevel}/55");
+                                _logging?.Info($"[VerifyMax] ✓ Verified via level: {maxLevel}");
                                 return true;
                             }
                         }
@@ -1061,58 +1106,84 @@ namespace OmenCore.Hardware
                 System.Threading.Thread.Sleep(delayMs);
             }
             
-            _logging?.Warn("[VerifyMax] Failed after 3 attempts - fan command may not be effective on this model");
+            _logging?.Warn($"[VerifyMax] Failed after {attempts} attempts - fan command may not be effective on this model");
             return false;
         }
 
         private HpWmiBios.FanMode MapPresetToFanMode(FanPreset preset)
         {
+            // Determine the base mode from preset
+            HpWmiBios.FanMode baseMode;
+            
             // Check preset's FanMode enum first (if specified)
             switch (preset.Mode)
             {
                 case Models.FanMode.Max:
-                    return HpWmiBios.FanMode.Performance; // Max preset uses Performance thermal policy
+                    baseMode = HpWmiBios.FanMode.Performance;
+                    break;
                 case Models.FanMode.Performance:
-                    return HpWmiBios.FanMode.Performance;
+                    baseMode = HpWmiBios.FanMode.Performance;
+                    break;
                 case Models.FanMode.Quiet:
-                    return HpWmiBios.FanMode.Cool;
+                    baseMode = HpWmiBios.FanMode.Cool;
+                    break;
+                default:
+                    // Check preset name for hints
+                    var nameLower = preset.Name.ToLowerInvariant();
+                    
+                    // Max preset should use Performance mode for aggressive thermal management
+                    if (nameLower.Contains("max") && !nameLower.Contains("auto"))
+                    {
+                        baseMode = HpWmiBios.FanMode.Performance;
+                    }
+                    else if (nameLower.Contains("quiet") || nameLower.Contains("silent") || nameLower.Contains("cool"))
+                    {
+                        baseMode = HpWmiBios.FanMode.Cool;
+                    }
+                    else if (nameLower.Contains("performance") || nameLower.Contains("turbo") || nameLower.Contains("gaming"))
+                    {
+                        baseMode = HpWmiBios.FanMode.Performance;
+                    }
+                    else
+                    {
+                        // Map based on preset curve characteristics
+                        var maxFan = preset.Curve.Any() ? preset.Curve.Max(p => p.FanPercent) : 50;
+                        var avgFan = preset.Curve.Any() ? preset.Curve.Average(p => p.FanPercent) : 50;
+                        
+                        if (avgFan < 40)
+                            baseMode = HpWmiBios.FanMode.Cool;
+                        else if (avgFan > 70 || maxFan > 90)
+                            baseMode = HpWmiBios.FanMode.Performance;
+                        else
+                            baseMode = HpWmiBios.FanMode.Default;
+                    }
+                    break;
             }
             
-            // Check preset name for hints
-            var nameLower = preset.Name.ToLowerInvariant();
-            
-            // Max preset should use Performance mode for aggressive thermal management
-            if (nameLower.Contains("max") && !nameLower.Contains("auto"))
+            // Map to the correct command bytes based on ThermalPolicyVersion.
+            // V0/Legacy systems use different command bytes (0x00-0x03) than V1+ systems (0x30/0x31/0x50).
+            // Sending V1 bytes to V0 BIOS causes undefined behavior — e.g. Quiet (0x50) being 
+            // interpreted as max performance, Transcend 14 2025 "Quiet = max fans" bug.
+            if (_wmiBios.ThermalPolicy < HpWmiBios.ThermalPolicyVersion.V1)
             {
-                return HpWmiBios.FanMode.Performance;
+                // V0/Legacy mapping
+                switch (baseMode)
+                {
+                    case HpWmiBios.FanMode.Performance:
+                        _logging?.Debug("MapPresetToFanMode: Legacy V0 → LegacyPerformance (0x01)");
+                        return HpWmiBios.FanMode.LegacyPerformance;
+                    case HpWmiBios.FanMode.Cool:
+                        _logging?.Debug("MapPresetToFanMode: Legacy V0 → LegacyCool (0x02)");
+                        return HpWmiBios.FanMode.LegacyCool;
+                    case HpWmiBios.FanMode.Default:
+                    default:
+                        _logging?.Debug("MapPresetToFanMode: Legacy V0 → LegacyDefault (0x00)");
+                        return HpWmiBios.FanMode.LegacyDefault;
+                }
             }
             
-            if (nameLower.Contains("quiet") || nameLower.Contains("silent") || nameLower.Contains("cool"))
-            {
-                return HpWmiBios.FanMode.Cool;
-            }
-            
-            if (nameLower.Contains("performance") || nameLower.Contains("turbo") || nameLower.Contains("gaming"))
-            {
-                return HpWmiBios.FanMode.Performance;
-            }
-
-            // Map based on preset curve characteristics
-            var maxFan = preset.Curve.Any() ? preset.Curve.Max(p => p.FanPercent) : 50;
-            var avgFan = preset.Curve.Any() ? preset.Curve.Average(p => p.FanPercent) : 50;
-            
-            // Use curve characteristics
-            if (avgFan < 40)
-            {
-                return HpWmiBios.FanMode.Cool;
-            }
-            
-            if (avgFan > 70 || maxFan > 90)
-            {
-                return HpWmiBios.FanMode.Performance;
-            }
-
-            return HpWmiBios.FanMode.Default;
+            // V1+: use standard mode bytes (0x30, 0x31, 0x50)
+            return baseMode;
         }
 
         // NOTE: ApplyGpuPowerFromPreset() was removed in v1.5.0-beta3
@@ -1131,15 +1202,15 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Start the countdown extension timer to prevent BIOS from reverting fan settings.
-        /// HP BIOS will revert to default fan control after 120 seconds.
-        /// This timer re-applies the current settings every 90 seconds to keep them active.
+        /// HP BIOS aggressively reverts fan settings on many models (some within 3-5 seconds).
+        /// This timer re-applies the current settings every 3 seconds to keep them active.
         /// </summary>
         public void StartCountdownExtension()
         {
             if (_countdownExtensionEnabled) return;
             
             _countdownExtensionTimer = new Timer(CountdownExtensionCallback, null, 
-                CountdownExtensionIntervalMs, CountdownExtensionIntervalMs);
+                CountdownExtensionInitialDelayMs, CountdownExtensionIntervalMs);
             _countdownExtensionEnabled = true;
             _logging?.Info("✓ Fan countdown extension enabled (prevents settings reverting)");
         }
@@ -1159,8 +1230,9 @@ namespace OmenCore.Hardware
         
         /// <summary>
         /// Countdown extension callback - periodically re-applies fan settings.
-        /// OmenMon-style: Re-applies settings every 15 seconds to prevent BIOS reversion.
+        /// OmenMon-style: Re-applies settings every 3 seconds to prevent BIOS reversion.
         /// HP BIOS aggressively reverts fan settings, especially under load.
+        /// Some models (e.g., OMEN 16-xd0xxx) revert within 3-5 seconds.
         /// </summary>
         private void CountdownExtensionCallback(object? state)
         {
@@ -1181,14 +1253,14 @@ namespace OmenCore.Hardware
                         else
                         {
                             _logging?.Warn("Failed to re-apply Max mode - trying fallback");
-                            // Fallback: try setting level to max
-                            _wmiBios.SetFanLevel(55, 55);
+                            // Fallback: send ceiling value (100) — let BIOS clamp to hardware max
+                            _wmiBios.SetFanLevel((byte)MaxFanLevelCeiling, (byte)MaxFanLevelCeiling);
                         }
                     }
                     else if (_lastManualFanPercent >= 0)
                     {
                         // For custom fan curves, re-apply the last set percentage
-                        byte fanLevel = (byte)(_lastManualFanPercent * MaxFanLevel / 100);
+                        byte fanLevel = (byte)(_lastManualFanPercent * _maxFanLevel / 100);
                         if (_wmiBios.SetFanLevel(fanLevel, fanLevel))
                         {
                             _logging?.Debug($"Fan level re-applied: {_lastManualFanPercent}% via countdown extension (OmenMon-style)");

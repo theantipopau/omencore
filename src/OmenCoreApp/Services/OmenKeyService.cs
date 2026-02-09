@@ -336,7 +336,11 @@ namespace OmenCore.Services
                 }
                 catch 
                 { 
-                    // Properties may not exist on all models
+                    // FAIL-CLOSED: If we can't read event properties, reject the event entirely.
+                    // This prevents brightness keys (Fn+F2/F3) and other HP WMI events from
+                    // being treated as OMEN key presses when eventId/eventData can't be extracted.
+                    _logging.Debug($"WMI event rejected: could not extract eventId/eventData (fail-safe, class={className})");
+                    return;
                 }
                 
                 _logging.Debug($"WMI event received: class={className}, eventId={eventId}, eventData={eventData}");
@@ -346,7 +350,8 @@ namespace OmenCore.Services
                 // eventId 4 = Power/battery events
                 // eventId 5 = Thermal events
                 // Only eventId=29 with eventData=8613 should be OMEN key
-                if (eventId.HasValue && eventId.Value != 29)
+                // MUST match exactly — reject if null or wrong value (fail-closed)
+                if (!eventId.HasValue || eventId.Value != 29)
                 {
                     _logging.Debug($"WMI event filtered: eventId={eventId} is not 29 (OMEN key)");
                     return;
@@ -354,7 +359,8 @@ namespace OmenCore.Services
                 
                 // Some models report different eventData for brightness (e.g., 8610, 8611, 8612)
                 // Only 8613 is the OMEN key
-                if (eventData.HasValue && eventData.Value != 8613)
+                // MUST match exactly — reject if null or wrong value (fail-closed)
+                if (!eventData.HasValue || eventData.Value != 8613)
                 {
                     _logging.Debug($"WMI event filtered: eventData={eventData} is not 8613 (OMEN key)");
                     return;

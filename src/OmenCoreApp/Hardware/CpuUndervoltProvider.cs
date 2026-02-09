@@ -110,19 +110,23 @@ namespace OmenCore.Hardware
         {
             lock (_stateLock)
             {
-                _lastApplied = offset.Clone();
-                
-                if (_msrAccess != null && _msrAccess.IsAvailable)
+                if (_msrAccess == null || !_msrAccess.IsAvailable)
                 {
-                    try
-                    {
-                        _msrAccess.ApplyCoreVoltageOffset((int)offset.CoreMv);
-                        _msrAccess.ApplyCacheVoltageOffset((int)offset.CacheMv);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException($"Failed to apply voltage offset via {ActiveBackend}: {ex.Message}", ex);
-                    }
+                    throw new InvalidOperationException(
+                        "Cannot apply undervolt: No MSR access available.\n\n" +
+                        "Please ensure PawnIO is installed and running.\n" +
+                        "PawnIO is required for CPU voltage control and is included in the OmenCore installer.");
+                }
+                
+                try
+                {
+                    _msrAccess.ApplyCoreVoltageOffset((int)offset.CoreMv);
+                    _msrAccess.ApplyCacheVoltageOffset((int)offset.CacheMv);
+                    _lastApplied = offset.Clone();
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Failed to apply voltage offset via {ActiveBackend}: {ex.Message}", ex);
                 }
             }
             return Task.CompletedTask;
@@ -132,19 +136,22 @@ namespace OmenCore.Hardware
         {
             lock (_stateLock)
             {
-                _lastApplied = new UndervoltOffset();
-                
-                if (_msrAccess != null && _msrAccess.IsAvailable)
+                if (_msrAccess == null || !_msrAccess.IsAvailable)
                 {
-                    try
-                    {
-                        _msrAccess.ApplyCoreVoltageOffset(0);
-                        _msrAccess.ApplyCacheVoltageOffset(0);
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException($"Failed to reset voltage offset via {ActiveBackend}: {ex.Message}", ex);
-                    }
+                    throw new InvalidOperationException(
+                        "Cannot reset undervolt: No MSR access available.\n\n" +
+                        "Please ensure PawnIO is installed and running.");
+                }
+                
+                try
+                {
+                    _msrAccess.ApplyCoreVoltageOffset(0);
+                    _msrAccess.ApplyCacheVoltageOffset(0);
+                    _lastApplied = new UndervoltOffset();
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException($"Failed to reset voltage offset via {ActiveBackend}: {ex.Message}", ex);
                 }
             }
             return Task.CompletedTask;

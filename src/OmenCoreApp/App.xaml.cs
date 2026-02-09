@@ -292,11 +292,11 @@ namespace OmenCore
             _ = EnsureTrayIconVisibleAsync();
 
             var configService = _serviceProvider?.GetService<ConfigurationService>();
-            _trayIconService = new TrayIconService(_trayIcon, ShowMainWindow, () => Shutdown(), configService);
+            _trayIconService = new TrayIconService(_trayIcon, ForceShowMainWindow, () => Shutdown(), configService);
             TrayIcon = _trayIconService; // Expose for static access (e.g., SettingsViewModel)
             _trayIcon.TrayLeftMouseUp += (s, e) => _trayIconService?.ShowQuickPopup(); // Quick popup like G-Helper
             _trayIcon.TrayLeftMouseDown += (s, e) => { }; // Handle double-click below
-            _trayIcon.TrayMouseDoubleClick += (s, e) => ShowMainWindow(); // Full window on double-click
+            _trayIcon.TrayMouseDoubleClick += (s, e) => ForceShowMainWindow(); // Full window on double-click
 
             // Wire up to MainViewModel for monitoring updates and tray actions
             var mainViewModel = _serviceProvider?.GetRequiredService<MainViewModel>();
@@ -452,6 +452,20 @@ namespace OmenCore
                 return;
             }
             
+            ActivateMainWindow();
+        }
+        
+        /// <summary>
+        /// Force-show the main window, bypassing remote session suppression.
+        /// Used for explicit user actions (tray double-click, context menu "Open Dashboard").
+        /// </summary>
+        private void ForceShowMainWindow()
+        {
+            ActivateMainWindow();
+        }
+        
+        private void ActivateMainWindow()
+        {
             var mainWindow = MainWindow;
             if (mainWindow != null)
             {
@@ -467,6 +481,7 @@ namespace OmenCore
                     mainWindow.WindowState = WindowState.Normal;
                 }
                 mainWindow.Activate();
+                mainWindow.Focus();
             }
         }
         

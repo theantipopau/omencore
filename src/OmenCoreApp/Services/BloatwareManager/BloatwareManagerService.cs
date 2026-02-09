@@ -327,18 +327,42 @@ namespace OmenCore.Services.BloatwareManager
 
         private async Task<bool> RemoveAppxPackageAsync(BloatwareApp app)
         {
+            // Strategy: try current-user removal first, then -AllUsers, then provisioned package removal
+            // This handles both standard and pre-provisioned (OEM-installed) packages
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoProfile -Command \"Get-AppxPackage '{app.PackageId}' | Remove-AppxPackage\"",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"" +
+                    $"try {{ Get-AppxPackage '{app.PackageId}' | Remove-AppxPackage -ErrorAction Stop; exit 0 }} " +
+                    $"catch {{ " +
+                    $"  try {{ Get-AppxPackage -AllUsers '{app.PackageId}' | Remove-AppxPackage -AllUsers -ErrorAction Stop; exit 0 }} " +
+                    $"  catch {{ " +
+                    $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -like '{app.PackageId.Split('_')[0]}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop; exit 0 }} " +
+                    $"    catch {{ Write-Error $_.Exception.Message; exit 1 }} " +
+                    $"  }} " +
+                    $"}}\"",
                 UseShellExecute = false,
+                RedirectStandardError = true,
                 CreateNoWindow = true
             };
 
             using var process = Process.Start(psi);
             if (process == null) return false;
 
+            var stderr = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
+            
+            if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(stderr))
+            {
+                _logger.Warn($"AppX removal failed for {app.Name}: {stderr.Trim()}");
+                
+                if (stderr.Contains("Access is denied", StringComparison.OrdinalIgnoreCase) ||
+                    stderr.Contains("0x80070005", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.Warn($"  → Run OmenCore as Administrator to remove provisioned packages");
+                }
+            }
+            
             return process.ExitCode == 0;
         }
 

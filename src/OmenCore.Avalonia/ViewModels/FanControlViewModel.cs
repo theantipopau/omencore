@@ -129,7 +129,7 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            // TODO: Show error notification
+            StatusMessage = $"Failed to apply fan curve: {ex.Message}";
             System.Diagnostics.Debug.WriteLine($"Failed to apply fan curve: {ex.Message}");
         }
     }

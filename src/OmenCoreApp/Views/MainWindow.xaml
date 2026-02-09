@@ -557,7 +557,7 @@
                 </TabItem>
                 
                 <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
-                <TabItem Header="CPU/GPU Tuning">
+                <TabItem Header="Tuning">
                     <views:TuningView DataContext="{Binding}" />
                 </TabItem>
                 
@@ -582,13 +582,18 @@
                 </TabItem>
                 
                 <!-- Peripherals Tab with Lighting View -->
-                <TabItem Header="RGB &amp; Peripherals" Visibility="{Binding Lighting, Converter={StaticResource NullToVisibilityConverter}}">
+                <TabItem Header="RGB" Visibility="{Binding Lighting, Converter={StaticResource NullToVisibilityConverter}}">
                     <views:LightingView DataContext="{Binding Lighting}" />
                 </TabItem>
                 
                 <!-- Settings Tab -->
                 <TabItem Header="Settings">
                     <views:SettingsView DataContext="{Binding Settings}" />
+                </TabItem>
+                
+                <!-- Game Library Tab -->
+                <TabItem Header="Games">
+                    <views:GameLibraryView DataContext="{Binding GameLibrary}" />
                 </TabItem>
             </TabControl>
 

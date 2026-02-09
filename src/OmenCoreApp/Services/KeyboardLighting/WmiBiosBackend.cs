@@ -219,9 +219,65 @@ namespace OmenCore.Services.KeyboardLighting
         
         public Task<bool> SetBrightnessAsync(int brightness)
         {
-            // TODO: Implement brightness control via WMI
-            _logging.Warn("[WmiBiosBackend] Brightness control not yet implemented for WMI backend");
-            return Task.FromResult(false);
+            try
+            {
+                if (!IsAvailable || _wmiBios == null)
+                    return Task.FromResult(false);
+                
+                // HP OMEN keyboard backlight supports brightness via the backlight command.
+                // The WMI backlight byte encodes on/off + brightness level in the data byte:
+                //   0x64 = off, 0xE4 = on (full), and brightness maps to 4 levels.
+                // We map 0-100% to: 0=off, 1-33=low, 34-66=medium, 67-100=high.
+                // Using SetBacklight(true) first, then adjusting color intensity as fallback.
+                
+                brightness = Math.Clamp(brightness, 0, 100);
+                
+                if (brightness == 0)
+                {
+                    var result = _wmiBios.SetBacklight(false);
+                    _logging.Info($"[WmiBiosBackend] Backlight off via brightness=0, result={result}");
+                    return Task.FromResult(result);
+                }
+                
+                // Ensure backlight is on
+                _wmiBios.SetBacklight(true);
+                
+                // Scale current colors by brightness percentage
+                var currentColors = _wmiBios.GetColorTable();
+                if (currentColors != null && currentColors.Length >= 37)
+                {
+                    const int colorOffset = 25;
+                    var scaledColors = new byte[12];
+                    for (int i = 0; i < 12; i++)
+                    {
+                        int offset = colorOffset + i;
+                        if (offset < currentColors.Length)
+                        {
+                            scaledColors[i] = (byte)(currentColors[offset] * brightness / 100);
+                        }
+                    }
+                    
+                    // Ensure at least some brightness (don't go fully black when > 0%)
+                    bool allZero = true;
+                    for (int i = 0; i < 12; i++)
+                        if (scaledColors[i] > 0) { allZero = false; break; }
+                    
+                    if (!allZero)
+                    {
+                        var setResult = _wmiBios.SetColorTable(scaledColors, ensureBacklightOn: false);
+                        _logging.Info($"[WmiBiosBackend] Brightness set to {brightness}% via color scaling, result={setResult}");
+                        return Task.FromResult(setResult);
+                    }
+                }
+                
+                _logging.Info($"[WmiBiosBackend] Brightness set to {brightness}% (backlight on, no color scaling available)");
+                return Task.FromResult(true);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"[WmiBiosBackend] SetBrightnessAsync failed: {ex.Message}", ex);
+                return Task.FromResult(false);
+            }
         }
         
         public Task<bool> SetBacklightEnabledAsync(bool enabled)

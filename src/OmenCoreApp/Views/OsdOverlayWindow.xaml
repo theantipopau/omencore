@@ -29,7 +29,7 @@
             <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="10" ShadowDepth="2"/>
         </Border.Effect>
         
-        <StackPanel>
+        <StackPanel x:Name="MainPanel">
             <!-- Clock Time -->
             <TextBlock Text="{Binding ClockTime}" 
                        FontSize="13" 
@@ -95,6 +95,17 @@
                 </StackPanel>
             </Grid>
             
+            <!-- CPU Clock Speed -->
+            <Grid Margin="0,3" Visibility="{Binding ShowCpuClock, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="CPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding CpuClockSpeed}" FontSize="12" Foreground="#42A5F5" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+            </Grid>
+            
             <!-- GPU Stats -->
             <Grid Margin="0,3" Visibility="{Binding ShowGpuTemp, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
@@ -112,6 +123,17 @@
                     <TextBlock Text="{Binding GpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
+            </Grid>
+            
+            <!-- GPU Clock Speed -->
+            <Grid Margin="0,3" Visibility="{Binding ShowGpuClock, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="GPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding GpuClockSpeed}" FontSize="12" Foreground="#00D4FF" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- GPU Hotspot Temperature -->
@@ -167,6 +189,17 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="RAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+            </Grid>
+            
+            <!-- Battery -->
+            <Grid Margin="0,3" Visibility="{Binding ShowBattery, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="BAT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding BatteryPercent}" FontSize="12" Foreground="{Binding BatteryColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Separator -->

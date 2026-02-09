@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.1] - 2026-02-09 - Community Bug Fix Update 🐛
+
+### 🐛 Bug Fixes
+- **Fn+F2/F3 Opens OmenCore**: WMI event handler changed from fail-open to fail-closed — brightness keys no longer treated as OMEN key press when eventId/eventData extraction fails
+- **Auto Fan Mode Stuck**: `RestoreAutoControl()` no longer unconditionally calls `ResetFromMaxMode()` — fixes fans stuck at ~1000rpm on Victus models with MaxFanLevel=100
+- **Quiet Profile = Max Fans**: Added ThermalPolicy-aware mode mapping — V0/Legacy BIOS models (e.g., Transcend 14) now receive correct `LegacyCool (0x02)` instead of invalid V1 code `0x50`
+- **Phantom Fan RPM**: `GetFanRpmDirect()` (CMD 0x38) now gated behind ThermalPolicy ≥ V2 — fixes phantom 4200-4400 RPM readings on V0/V1 systems where the command returns garbage data
+- **Fan Level-to-Percent**: Fixed hardcoded `/55` to use auto-detected `_maxFanLevel` — correct percentage on MaxFanLevel=100 models
+- **Linux GUI Missing**: Avalonia GUI (`omencore-gui`) now built and bundled in Linux ZIP packages
+- **OSD Horizontal Layout**: Setting layout to "Horizontal" now correctly applies — `MainPanel.Orientation` is set from `settings.Layout` at render time
+- **OSD Network Values Stuck**: Upload/download stats timer now starts when any network metric is enabled, not just latency
+- **OSD FPS Shows GPU%**: When RTSS is unavailable the FPS field now shows "N/A" instead of falling back to GPU activity percentage
+- **Linux Diagnose Truncation**: Terminal output box widened from 61→90 chars with word-wrapping for notes/recommendations
+- **Linux Fan Speeds Stuck/Wrong**: Sysfs reads now use unbuffered `FileStream` to prevent stale cached data; added hwmon RPM-to-percent estimation fallback
+- **Linux Keyboard Zones**: Per-key RGB detection via DMI product name — known per-key models (16-wf0, 16-wf1, Transcend, etc.) now report correct keyboard type
+
+---
+
+## [2.8.0] - 2026-02-08 - Feature & Safety Update 🚀🔒
+
+### ✨ New Features
+- **AMD GPU Overclocking**: Full RDNA/RDNA2/RDNA3 GPU OC via ADL2/Overdrive8 API — core clock, memory clock, and power limit offsets with hardware-reported range clamping and reset-to-defaults
+- **Display Overdrive Toggle**: Panel overdrive control via HP WMI BIOS (CMD 0x35/0x36) with auto-detection and UI in Advanced view
+- **Game Library Tab**: New lazy-loaded Game Library tab integrating GameLibraryService
+- **OSD: Battery %**: Color-coded battery level with AC/battery icon indicator
+- **OSD: CPU Clock Speed**: Average core clock in GHz/MHz, auto-formatted  
+- **OSD: GPU Clock Speed**: Real-time GPU clock from monitoring sample
+- **Logitech HID++ 2.0 Effects**: Full breathing, spectrum, flash, and wave effects with speed control and HID++ 1.0 fallback
+- **Corsair HID Effects**: Full breathing, spectrum cycle, and wave effects via direct HID with retry logic
+- **Fan Curve Save/Load UX**: Delete presets, import/export fan curves as JSON files, saved presets filter, validation, and auto-apply on save
+- **Conflict Detection**: ConflictDetectionService now active at startup with 60s background monitoring
+
+### 🐛 Bug Fixes
+- **GPU OC Store-on-Failure**: NvapiService no longer stores offset values when hardware rejects the change — UI now accurately reflects actual applied state
+- **Undervolt Safety Clamping**: Intel MSR clamped to [-250, 0] mV; AMD CO clamped to [-30, +30] — prevents accidental extreme values
+- **Thermal Protection Debounce**: Added 5s activation / 15s release debounce to prevent fan speed yo-yo; raised thresholds to 90°C/95°C with 10°C hysteresis based on community feedback
+- **MaxFanLevel Auto-Detection**: Fixed fan speed mapping on models using 0-100 percentage range instead of 0-55 krpm — auto-detects at startup
+- **Game Library Scroll**: Fixed game library not scrolling smoothly — added pixel-based scrolling and proper scroll bar visibility
+
+### 🎨 UI Improvements
+- **Tab UI Overhaul**: Scrollable tab headers with animated accent underline, compact padding, and hover effects
+- **Corsair HID Brightness**: New brightness slider scaling all RGB values 0-100%
+
+### 🧹 Code Cleanup
+- Removed 4 dead-code files (~1,525 lines): SettingsRestorationService, WinRing0MsrAccess, HpCmslService, ConfigBackupService
+
+### 📋 Includes All v2.7.2 Fixes
+- Window not showing after reinstall, undervolt silent failure, fan curves reset, settings restoration, OSD FPS fix, Linux EC safety, MIT license, CI YAML fix
+
+### 📦 SHA256 Checksums
+```
+OmenCoreSetup-2.8.0.exe:      ADD02976B8AE5FF4151E169876D50A54DF60F74B02A8BA2D5FAA11BCB2213173
+OmenCore-2.8.0-win-x64.zip:   7DC97B96316FFF37444AB16D60170AF04DC7709D4BEA204CE3545289E70FAAC5
+OmenCore-2.8.0-linux-x64.zip: D45942DE957781B9C36C7659778465E597C6788AF0BC86A28331195A8C6A45E9
+```
+
+---
+
+## [2.7.2] - 2026-02-07 - Community Bug Fixes & Safety 🐛🔒
+
+### 🐛 Bug Fixes
+- **Window Not Showing After Reinstall**: Fixed main window never appearing when config with `StartMinimized=true` survived uninstall. Added `ForceShowMainWindow()` bypassing session suppression for tray actions. Installer now cleans `%APPDATA%\OmenCore` on uninstall.
+- **Undervolt Apply Does Nothing**: Fixed `ApplyOffsetAsync()` silently returning success without MSR access. Now throws clear error when PawnIO unavailable. `_lastApplied` only updated after confirmed write.
+- **Fan Curves Reset on AC/Battery**: Fixed `PowerAutomationService` discarding custom curves. New `LookupFanPreset()` preserves user curves from config, falls back to built-in definitions.
+- **Settings Not Restored on Startup**: GPU Power Boost, fan preset, TCC offset now restored on Windows startup via `RestoreSettingsOnStartupAsync()` with retry logic.
+- **OSD FPS Showing GPU Load**: Fixed "Est. FPS" displaying GPU load percentage instead of actual FPS. Integrated RTSS for real FPS data with automatic fallback.
+- **Linux EC Panic on OMEN Max**: Blocked EC writes on 2025 OMEN Max 16t/17t models. Added ACPI platform profile and hwmon PWM fan control as safe alternatives.
+- **MIT LICENSE 404**: Added MIT LICENSE file to repository.
+- **CI YAML Parse Error**: Fixed invisible whitespace in CI workflow file.
+
+---
+
 ## [2.7.1] - 2026-02-04 - Desktop Detection Hotfix 🔧
 
 ### 🐛 Bug Fixes

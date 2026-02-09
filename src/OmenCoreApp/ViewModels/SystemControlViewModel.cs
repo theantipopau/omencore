@@ -23,6 +23,7 @@ namespace OmenCore.ViewModels
         private readonly OghServiceProxy? _oghProxy;
         private readonly SystemInfoService? _systemInfoService;
         private readonly NvapiService? _nvapiService;
+        private readonly AmdGpuService? _amdGpuService;
         private readonly FanService? _fanService;
         private readonly HardwareMonitoringService? _hardwareMonitoringService;
         private IMsrAccess? _msrAccess;  // Changed from WinRing0MsrAccess to IMsrAccess
@@ -669,6 +670,31 @@ namespace OmenCore.ViewModels
             }
         }
 
+        // AMD GPU OC properties
+        private int _amdCoreClockOffset;
+        public int AmdCoreClockOffset
+        {
+            get => _amdCoreClockOffset;
+            set { if (_amdCoreClockOffset != value) { _amdCoreClockOffset = value; OnPropertyChanged(); } }
+        }
+
+        private int _amdMemoryClockOffset;
+        public int AmdMemoryClockOffset
+        {
+            get => _amdMemoryClockOffset;
+            set { if (_amdMemoryClockOffset != value) { _amdMemoryClockOffset = value; OnPropertyChanged(); } }
+        }
+
+        private int _amdPowerLimitPercent;
+        public int AmdPowerLimitPercent
+        {
+            get => _amdPowerLimitPercent;
+            set { if (_amdPowerLimitPercent != value) { _amdPowerLimitPercent = value; OnPropertyChanged(); } }
+        }
+
+        public ICommand ApplyAmdGpuOcCommand { get; private set; } = null!;
+        public ICommand ResetAmdGpuCommand { get; private set; } = null!;
+
         private string _gpuOcStatus = "Not available";
         public string GpuOcStatus
         {
@@ -900,6 +926,63 @@ namespace OmenCore.ViewModels
         public ICommand ApplyAggressiveUndervoltCommand { get; }
         public ICommand ApplyGpuPowerBoostCommand { get; }
 
+        // Display Overdrive
+        private bool _displayOverdriveEnabled;
+        public bool DisplayOverdriveEnabled
+        {
+            get => _displayOverdriveEnabled;
+            set
+            {
+                if (_displayOverdriveEnabled != value)
+                {
+                    _displayOverdriveEnabled = value;
+                    OnPropertyChanged(nameof(DisplayOverdriveEnabled));
+                    // Apply immediately when toggled
+                    _ = SetDisplayOverdriveAsync(value);
+                }
+            }
+        }
+
+        private bool _displayOverdriveSupported;
+        public bool DisplayOverdriveSupported
+        {
+            get => _displayOverdriveSupported;
+            private set
+            {
+                if (_displayOverdriveSupported != value)
+                {
+                    _displayOverdriveSupported = value;
+                    OnPropertyChanged(nameof(DisplayOverdriveSupported));
+                }
+            }
+        }
+
+        private async Task SetDisplayOverdriveAsync(bool enabled)
+        {
+            if (_wmiBios == null) return;
+            
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var success = _wmiBios.SetDisplayOverdrive(enabled);
+                    if (!success)
+                    {
+                        _logging.Warn($"Display overdrive toggle failed");
+                        // Revert UI
+                        _displayOverdriveEnabled = !enabled;
+                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() => OnPropertyChanged(nameof(DisplayOverdriveEnabled)));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Display overdrive error: {ex.Message}", ex);
+                    _displayOverdriveEnabled = !enabled;
+                    System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() => OnPropertyChanged(nameof(DisplayOverdriveEnabled)));
+                }
+            });
+        }
+
         public bool CleanupInProgress
         {
             get => _cleanupInProgress;
@@ -972,7 +1055,8 @@ namespace OmenCore.ViewModels
             NvapiService? nvapiService = null,
             FanService? fanService = null,
             HardwareMonitoringService? hardwareMonitoringService = null,
-            IEcAccess? ecAccess = null)
+            IEcAccess? ecAccess = null,
+            AmdGpuService? amdGpuService = null)
         {
             _undervoltService = undervoltService;
             _performanceModeService = performanceModeService;
@@ -988,6 +1072,7 @@ namespace OmenCore.ViewModels
             _fanService = fanService;
             _hardwareMonitoringService = hardwareMonitoringService;
             _ecAccess = ecAccess;
+            _amdGpuService = amdGpuService;
 
             if (_hardwareMonitoringService != null)
             {
@@ -1021,6 +1106,10 @@ namespace OmenCore.ViewModels
             ApplyGpuPowerBoostCommand = new RelayCommand(_ => ApplyGpuPowerBoost(), _ => GpuPowerBoostAvailable);
             ApplyGpuOcCommand = new RelayCommand(_ => ApplyGpuOc(), _ => GpuOcAvailable);
             ResetGpuOcCommand = new RelayCommand(_ => ResetGpuOc(), _ => GpuOcAvailable);
+            
+            // AMD GPU OC commands
+            ApplyAmdGpuOcCommand = new RelayCommand(_ => ApplyAmdGpuOc(), _ => _amdGpuService?.IsAvailable == true);
+            ResetAmdGpuCommand = new RelayCommand(_ => ResetAmdGpuOc(), _ => _amdGpuService?.IsAvailable == true);
             SaveGpuOcProfileCommand = new RelayCommand(_ => SaveGpuOcProfile(), _ => GpuOcAvailable && !string.IsNullOrWhiteSpace(NewGpuOcProfileName));
             DeleteGpuOcProfileCommand = new RelayCommand(_ => DeleteGpuOcProfile(), _ => SelectedGpuOcProfile != null);
             ApplyTccOffsetCommand = new RelayCommand(_ => ApplyTccOffset(), _ => TccStatus.IsSupported);
@@ -1107,6 +1196,9 @@ namespace OmenCore.ViewModels
             
             // Detect GPU Power Boost availability
             DetectGpuPowerBoost();
+            
+            // Detect display overdrive support
+            DetectDisplayOverdrive();
             
             // Initialize TCC offset (Intel CPU temperature limit)
             InitializeTccOffset();
@@ -1755,6 +1847,33 @@ namespace OmenCore.ViewModels
             }
         }
         
+        private void DetectDisplayOverdrive()
+        {
+            if (_wmiBios == null || !_wmiBios.IsAvailable) return;
+
+            try
+            {
+                var status = _wmiBios.GetDisplayOverdrive();
+                if (status.HasValue)
+                {
+                    DisplayOverdriveSupported = true;
+                    _displayOverdriveEnabled = status.Value;
+                    OnPropertyChanged(nameof(DisplayOverdriveEnabled));
+                    _logging.Info($"✓ Display overdrive supported. Current: {(status.Value ? "enabled" : "disabled")}");
+                }
+                else
+                {
+                    DisplayOverdriveSupported = false;
+                    _logging.Info("Display overdrive not supported on this model");
+                }
+            }
+            catch (Exception ex)
+            {
+                DisplayOverdriveSupported = false;
+                _logging.Warn($"Display overdrive detection failed: {ex.Message}");
+            }
+        }
+        
         private void ApplyGpuPowerBoost()
         {
             // Try WMI BIOS first (preferred)
@@ -2255,18 +2374,19 @@ namespace OmenCore.ViewModels
                 return;
             }
             
-            // AMD GPU detected but ADLX not yet implemented
+            // AMD GPU detected — check if ADL service is available
             GpuAmdAvailable = true;
-            GpuOcStatus = $"⚠ {GpuDisplayName} - AMD overclocking coming soon";
-            _logging.Info($"AMD GPU detected: {GpuDisplayName}, Driver: {GpuDriverVersion}. ADLX integration pending.");
             
-            // TODO: Implement ADLX (AMD Display Library) for GPU overclocking
-            // AMD's ADLX SDK provides access to:
-            // - GPU clock frequency control
-            // - Memory clock control  
-            // - Power limit control
-            // - Fan control
-            // Reference: https://github.com/GPUOpen-LibrariesAndSDKs/ADLX
+            if (_amdGpuService?.IsAvailable == true)
+            {
+                GpuOcStatus = $"✓ {GpuDisplayName} - AMD overclocking available via ADL2";
+                _logging.Info($"AMD GPU OC available: {GpuDisplayName} via ADL2");
+            }
+            else
+            {
+                GpuOcStatus = $"⚠ {GpuDisplayName} - Install AMD Adrenalin drivers for GPU tuning";
+                _logging.Info($"AMD GPU detected: {GpuDisplayName}. ADL2 not available (Adrenalin drivers required).");
+            }
         }
         
         /// <summary>
@@ -2360,6 +2480,57 @@ namespace OmenCore.ViewModels
             SaveGpuOcToConfig();
             _logging.Info("GPU OC reset to defaults");
         }
+
+        #region AMD GPU Overclocking
+
+        private void ApplyAmdGpuOc()
+        {
+            if (_amdGpuService == null || !_amdGpuService.IsAvailable)
+            {
+                _logging.Warn("AMD GPU OC: Service not available");
+                return;
+            }
+
+            try
+            {
+                bool coreSuccess = _amdGpuService.SetCoreClockOffset(AmdCoreClockOffset);
+                bool memSuccess = _amdGpuService.SetMemoryClockOffset(AmdMemoryClockOffset);
+                bool powerSuccess = _amdGpuService.SetPowerLimit(AmdPowerLimitPercent);
+
+                if (coreSuccess && memSuccess && powerSuccess)
+                {
+                    GpuOcStatus = $"AMD GPU OC Applied: Core {AmdCoreClockOffset:+#;-#;0} MHz, Mem {AmdMemoryClockOffset:+#;-#;0} MHz, Power {AmdPowerLimitPercent}%";
+                    _logging.Info($"✓ AMD GPU OC applied: Core={AmdCoreClockOffset}, Mem={AmdMemoryClockOffset}, Power={AmdPowerLimitPercent}%");
+                }
+                else
+                {
+                    GpuOcStatus = "AMD GPU OC: Some settings failed to apply";
+                    _logging.Warn($"AMD GPU OC partial failure: Core={coreSuccess}, Mem={memSuccess}, Power={powerSuccess}");
+                }
+            }
+            catch (Exception ex)
+            {
+                GpuOcStatus = $"AMD GPU OC Error: {ex.Message}";
+                _logging.Error($"AMD GPU OC failed: {ex.Message}", ex);
+            }
+        }
+
+        private void ResetAmdGpuOc()
+        {
+            AmdCoreClockOffset = 0;
+            AmdMemoryClockOffset = 0;
+            AmdPowerLimitPercent = 0;
+
+            if (_amdGpuService?.IsAvailable == true)
+            {
+                _amdGpuService.ResetToDefaults();
+            }
+
+            GpuOcStatus = "AMD GPU OC reset to defaults";
+            _logging.Info("AMD GPU OC reset to defaults");
+        }
+
+        #endregion
         
         /// <summary>
         /// Save GPU OC settings to config for persistence.

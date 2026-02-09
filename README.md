@@ -2,7 +2,7 @@
 
 **A modern, lightweight, and fully independent control center for HP OMEN & Victus gaming laptops.**
 
-> ⚠️ **LAPTOPS ONLY** - OmenCore is designed exclusively for HP OMEN and Victus **laptops**. It is **NOT compatible** with OMEN desktops (25L, 30L, 40L, 45L, Tower series). Desktop systems use different cooling hardware (liquid cooling pumps, tower fans) that require completely different control methods. Running OmenCore on an OMEN desktop may cause hardware damage or overheating. If you have a desktop, please use HP OMEN Gaming Hub instead.
+> 💻 **Laptops + Desktops** — OmenCore supports HP OMEN & Victus **laptops** and OMEN **desktops** (25L, 30L, 35L, 40L, 45L). Desktop fan control uses WMI commands with RPM readback and performance mode support. OMEN desktop RGB lighting is supported via USB HID.
 
 OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services required, no bloatware, no telemetry, no ads. Built with WPF on .NET 8, it provides professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
 
@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.7.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.7.1)
+[![Version](https://img.shields.io/badge/version-2.8.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.8.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -29,7 +29,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCoreSetup-2.7.1.exe from Releases
+1. Download OmenCoreSetup-2.8.1.exe from Releases
 2. Run as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from Start Menu
@@ -39,69 +39,81 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/OmenCore-linux-x64.zip
-unzip OmenCore-linux-x64.zip && cd OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v2.8.1/OmenCore-2.8.1-linux-x64.zip
+unzip OmenCore-2.8.1-linux-x64.zip
 
-# Make executable and run
-chmod +x OmenCore
-sudo ./OmenCore
+# CLI
+chmod +x omencore-cli && sudo ./omencore-cli status
+
+# GUI (Avalonia)
+chmod +x omencore-gui && sudo ./omencore-gui
 ```
 **[📖 Full Linux Installation Guide](INSTALL.md#-linux-installation)**
 
 ---
 
-## 🆕 What's New in v2.7.1
+## 🆕 What's New in v2.8.1
 
-### 🐛 Bug Fixes
-- **Desktop Detection Fix** - Non-HP desktops no longer blocked from launching
-- **Update Process Fix** - Fixed system slowdown during in-app updates ([#58](https://github.com/theantipopau/omencore/issues/58))
-- **PawnIO Installer Fix** - Fixed silent install parameter ([#59](https://github.com/theantipopau/omencore/issues/59))
+### 🐛 12 Community Bug Fixes
+- **Fn+F2/F3 Opens OmenCore** — WMI handler now fail-closed; brightness keys no longer trigger OMEN key
+- **Auto Fan Mode Stuck** — Fans no longer stuck at ~1000rpm on Victus models when restoring auto
+- **Quiet = Max Fans** — ThermalPolicy-aware mapping for V0/Legacy models (Transcend 14, etc.)
+- **Phantom RPM 4200-4400** — `GetFanRpmDirect` now V2-gated; no garbage data on V0/V1 systems
+- **Fan % Wrong** — Uses auto-detected `_maxFanLevel` instead of hardcoded `/55`
+- **OSD Horizontal Layout** — Layout orientation now applied from settings at render time
+- **OSD Net Values Stuck** — Network timer starts for any enabled metric, not just latency
+- **OSD FPS Shows GPU%** — Shows "N/A" when RTSS unavailable instead of GPU activity fallback
+- **Linux Diagnose Truncation** — Box widened 61→90 chars with word-wrapping
+- **Linux Fan Speeds Wrong** — Unbuffered sysfs reads + hwmon RPM-to-percent fallback
+- **Linux Keyboard Zones** — Per-key RGB models detected via DMI product name
+- **Linux GUI Missing** — Avalonia GUI now bundled in Linux ZIP
 
-### ✨ Enhancements
-- **GPU Vendor Branding** - Tuning tab now shows NVIDIA/AMD logos and driver version
-- **CPU Info in Sidebar** - Shows core/thread count (e.g., "24 Cores / 32 Threads")
-- **NvAPIWrapper Integration** - Improved RTX 40 series GPU overclocking compatibility
-
-Full changelog: [CHANGELOG_v2.7.1.md](docs/CHANGELOG_v2.7.1.md)
+Full changelog: [CHANGELOG_v2.8.1.md](docs/CHANGELOG_v2.8.1.md)
 
 ---
 
-## 🆕 What's New in v2.7.0
+## 🆕 What's New in v2.8.0
 
-### 🚀 Major Features
+### ✨ New Features
+- **AMD GPU Overclocking** — RDNA/RDNA2/RDNA3 via ADL2/Overdrive8: core clock, memory clock, power limit with range clamping
+- **Display Overdrive Toggle** — Panel overdrive via HP WMI BIOS with auto-detection
+- **OSD: Battery %, CPU Clock, GPU Clock** — Three new on-screen display metrics
+- **OMEN Desktop Support** — WMI fan control for OMEN 25L, 30L, 35L, 40L, 45L
+- **Game Library Tab** — New lazy-loaded game library view
+- **Logitech HID++ 2.0 Effects** — Breathing, spectrum, flash, wave with speed control
+- **Corsair HID Effects** — Breathing, spectrum, wave + brightness slider
+- **Fan Curve Save/Load UX** — Delete, import/export JSON, one-click re-apply
+- **Conflict Detection** — Active at startup with 60s background monitoring
+- **Tab UI Overhaul** — Scrollable headers with animated accent underline
+- **Linux ACPI Platform Profile** — Performance modes on OMEN Max models
+- **Linux hwmon PWM Fan Control** — Safe fan control via `hp-wmi` driver
 
-**📖 HP Model Database Integration**
-- Built-in database of HP OMEN/Victus models with known capabilities
-- Automatic feature detection based on your laptop's product ID
-- Shows verified working configurations from community testing
+### 🔧 Safety & Reliability
+- **Undervolt Clamping** — Intel MSR [-250, 0] mV; AMD CO [-30, +30]
+- **Thermal Debounce** — 5s activation / 15s release; 90°C threshold, 10°C hysteresis
+- **HardwareWorker Survival** — Worker survives app restart; seamless reconnection
+- **Bloatware Uninstaller** — 3-tier removal; 8 new HP targets
+- **Linux EC Safety** — Blocked EC writes on OMEN Max 2025 (16t-ah, 17t-ah)
 
-**🔬 Fan Diagnostics Guided Test**
-- New automated fan testing at 30% → 60% → 100%
-- Verifies fan responsiveness and RPM accuracy
-- Clear pass/fail results with recommendations
-
-**🛡️ Enhanced Thermal Protection**
-- Emergency fan max mode at 85°C (lowered from 88°C)
-- Smarter release logic with minimum 50% fan until truly cool
-- Prevents temperature yo-yo behavior
-
-**🛡️ PawnIO-Only MSR Backend**
-- Removed WinRing0 completely to eliminate antivirus false positives
-- Now exclusively uses PawnIO for MSR access (undervolt, TCC offset)
-- Secure Boot compatible with signed driver
-
-### 🐛 Bug Fixes
-
-- **Version Display Fix** - Settings → About now shows correct version (was stuck at 2.6.1)
-- **Sidebar Temperature Fix** - CPU/GPU temperatures in sidebar now display actual values (was showing "--")
-- **Quick Actions Disabled Styling** - Buttons now grey out at 40% opacity when unavailable
-- **Temperature Freeze Detection** - Auto-detects frozen sensors and falls back to WMI BIOS readings
-
-Full changelog: [CHANGELOG_v2.7.0.md](docs/CHANGELOG_v2.7.0.md)
+Full changelog: [CHANGELOG_v2.8.0.md](docs/CHANGELOG_v2.8.0.md)
 
 ---
 
 ## 📖 Previous Releases
+
+### v2.7.1 — Bug Fix & Enhancements
+- Desktop detection fix, update process fix, PawnIO installer fix
+- GPU vendor branding, CPU info in sidebar, NvAPIWrapper integration
+
+Full changelog: [CHANGELOG_v2.7.1.md](docs/CHANGELOG_v2.7.1.md)
+
+### v2.7.0 — Model Database, Fan Diagnostics, PawnIO-Only
+- HP model database with auto feature detection
+- Guided fan diagnostic test (30% → 60% → 100%)
+- PawnIO-only MSR backend (WinRing0 removed)
+- Enhanced thermal protection at 85°C
+
+Full changelog: [CHANGELOG_v2.7.0.md](docs/CHANGELOG_v2.7.0.md)
 
 ### v2.6.1 - Bug Fix & UX Improvements
 
@@ -638,7 +650,7 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ### Quick Start - Windows
 
-1. Download `OmenCoreSetup-2.7.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCoreSetup-2.8.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Run installer as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch OmenCore from Start Menu
@@ -646,16 +658,15 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 ### Quick Start - Linux
 
 ```bash
-# GUI (Avalonia)
-wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/OmenCore-linux-x64.zip
-unzip OmenCore-linux-x64.zip && cd OmenCore-linux-x64
-chmod +x OmenCore && sudo ./OmenCore
+# Download and extract
+wget https://github.com/theantipopau/omencore/releases/download/v2.8.1/OmenCore-2.8.1-linux-x64.zip
+unzip OmenCore-2.8.1-linux-x64.zip
 
-# CLI only
-wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/omencore-cli-linux-x64.tar.gz
-tar -xzf omencore-cli-linux-x64.tar.gz
-sudo cp omencore-cli /usr/local/bin/ && sudo chmod +x /usr/local/bin/omencore-cli
-sudo omencore-cli status
+# CLI
+chmod +x omencore-cli && sudo ./omencore-cli status
+
+# GUI (Avalonia)
+chmod +x omencore-gui && sudo ./omencore-gui
 ```
 
 > **Linux Notes:** Requires sudo for hardware access. See [INSTALL.md](INSTALL.md#-linux-installation) for kernel requirements and troubleshooting.

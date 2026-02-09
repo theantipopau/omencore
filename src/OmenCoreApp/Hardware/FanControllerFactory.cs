@@ -71,6 +71,7 @@ namespace OmenCore.Hardware
         private readonly IReadOnlyDictionary<string, int>? _registerMap;
         private readonly DeviceCapabilities? _capabilities;
         private OghServiceProxy? _oghProxy;
+        private readonly int _maxFanLevelOverride;
         
         /// <summary>
         /// The backend currently in use (for UI display).
@@ -82,7 +83,8 @@ namespace OmenCore.Hardware
             IEcAccess? ecAccess = null,
             IReadOnlyDictionary<string, int>? registerMap = null,
             LoggingService? logging = null,
-            DeviceCapabilities? capabilities = null)
+            DeviceCapabilities? capabilities = null,
+            int maxFanLevelOverride = 0)
         {
             _hwMonitor = hwMonitor;
             _libreHwMonitor = hwMonitor as LibreHardwareMonitorImpl; // May be null if using WmiBiosMonitor
@@ -91,6 +93,7 @@ namespace OmenCore.Hardware
             _registerMap = registerMap;
             _logging = logging;
             _capabilities = capabilities;
+            _maxFanLevelOverride = maxFanLevelOverride;
         }
         
         /// <summary>
@@ -343,7 +346,7 @@ namespace OmenCore.Hardware
         {
             try
             {
-                var controller = new WmiFanController(_libreHwMonitor!, _logging);
+                var controller = new WmiFanController(_libreHwMonitor!, _logging, _maxFanLevelOverride);
                 if (controller.IsAvailable)
                 {
                     return new WmiFanControllerWrapper(controller, _logging);

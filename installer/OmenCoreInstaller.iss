@@ -1,6 +1,6 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.7.2"
+  #define MyAppVersion "2.8.1"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
@@ -80,6 +80,8 @@ Filename: "schtasks"; Parameters: "/delete /tn ""OmenCore"" /f"; Flags: runhidde
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\\logs"
 Type: dirifempty; Name: "{app}"
+; Clean up user config to prevent stale settings (e.g., StartMinimized) after reinstall
+Type: filesandordirs; Name: "{userappdata}\\OmenCore"
 
 [Code]
 function PawnIOInstallerExists: Boolean;

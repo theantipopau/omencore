@@ -197,6 +197,9 @@
                          Background="Transparent"
                          BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.CanContentScroll="False"
+                         VirtualizingPanel.ScrollUnit="Pixel"
                          Visibility="{Binding IsScanning, Converter={StaticResource InverseBoolToVisibility}}">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>

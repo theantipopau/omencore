@@ -111,6 +111,8 @@ namespace OmenCore.Hardware
         private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight check - uses Keyboard cmd
         private const uint CMD_IDLE_SET = 0x31;       // SetIdle (OmenMon 0x31)
         private const uint CMD_BATTERY_CARE = 0x24;   // Battery care mode (charge limit)
+        private const uint CMD_OVERDRIVE_GET = 0x35;  // GetOverdrive - display overdrive status
+        private const uint CMD_OVERDRIVE_SET = 0x36;  // SetOverdrive - enable/disable display overdrive
 
         /// <summary>
         /// Fan performance mode enumeration.
@@ -174,6 +176,14 @@ namespace OmenCore.Hardware
         public string Status { get; private set; } = "Not initialized";
         public ThermalPolicyVersion ThermalPolicy { get; private set; } = ThermalPolicyVersion.V1;
         public int FanCount { get; private set; } = 2;
+        
+        /// <summary>
+        /// Maximum fan level value for this hardware.
+        /// Classic OMEN (V0/V1): 55 (krpm, 0-5500 RPM)
+        /// Newer OMEN (V2+): 100 (percentage)
+        /// Auto-detected during initialization.
+        /// </summary>
+        public int MaxFanLevel { get; private set; } = 55;
         public bool HeartbeatEnabled => _heartbeatEnabled;
         
         // Heartbeat health properties (v2.7.0)
@@ -251,6 +261,12 @@ namespace OmenCore.Hardware
                     else
                     {
                         StartHeartbeat();
+                    }
+                    
+                    // Auto-detect max fan level after system data is available
+                    if (_isAvailable)
+                    {
+                        DetectMaxFanLevel();
                     }
                 }
                 else
@@ -489,6 +505,54 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Auto-detect the maximum fan level for this hardware.
+        /// Some models use 0-55 (krpm, 5500 RPM), others use 0-100 (percentage).
+        /// Called automatically during initialization after system data is available.
+        /// </summary>
+        /// <param name="userOverride">User-configured override (0 = auto-detect)</param>
+        public void DetectMaxFanLevel(int userOverride = 0)
+        {
+            try
+            {
+                // User override takes priority (if set to a valid value > 0)
+                if (userOverride > 0 && userOverride <= 100)
+                {
+                    MaxFanLevel = userOverride;
+                    _logging?.Info($"Max fan level set to {MaxFanLevel} (user override)");
+                    return;
+                }
+                // Check current fan levels — if either exceeds 55, the range must be > 55
+                var currentLevel = GetFanLevel();
+                if (currentLevel.HasValue)
+                {
+                    if (currentLevel.Value.fan1 > 55 || currentLevel.Value.fan2 > 55)
+                    {
+                        MaxFanLevel = 100;
+                        _logging?.Info($"Max fan level auto-detected: {MaxFanLevel} (current level {currentLevel.Value.fan1}/{currentLevel.Value.fan2} exceeds 55)");
+                        return;
+                    }
+                }
+
+                // V2 thermal policy (OMEN Max 2025+) uses percentage range
+                if (ThermalPolicy >= ThermalPolicyVersion.V2)
+                {
+                    MaxFanLevel = 100;
+                    _logging?.Info($"Max fan level set to {MaxFanLevel} (ThermalPolicy V2+)");
+                    return;
+                }
+
+                // Default to classic 0-55 krpm range
+                MaxFanLevel = 55;
+                _logging?.Info($"Max fan level: {MaxFanLevel} (classic krpm range)");
+            }
+            catch (Exception ex)
+            {
+                MaxFanLevel = 55;
+                _logging?.Warn($"Failed to detect max fan level, using default {MaxFanLevel}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Set fan performance mode via WMI BIOS.
         /// Uses OmenMon's exact command format: Cmd.Default (0x20008), CommandType 0x1A, data {0xFF, mode, 0, 0}
         /// </summary>
@@ -583,12 +647,15 @@ namespace OmenCore.Hardware
                         return (v2Result[0], v2Result[1]);
                     }
                     
-                    // V2 command failed or returned zeros - try direct RPM command
+                    // V2 level command failed — try direct RPM command and convert.
+                    // Only do this on confirmed V2 systems to avoid circular phantom data.
                     var rpmResult = GetFanRpmDirect();
                     if (rpmResult.HasValue && (rpmResult.Value.fan1Rpm > 0 || rpmResult.Value.fan2Rpm > 0))
                     {
-                        // Convert validated RPM to krpm (divide by 100)
-                        return ((byte)(rpmResult.Value.fan1Rpm / 100), (byte)(rpmResult.Value.fan2Rpm / 100));
+                        // Convert validated RPM to level (divide by 100 for krpm-style value)
+                        byte f1 = (byte)Math.Clamp(rpmResult.Value.fan1Rpm / 100, 0, 255);
+                        byte f2 = (byte)Math.Clamp(rpmResult.Value.fan2Rpm / 100, 0, 255);
+                        return (f1, f2);
                     }
                     
                     // V2 commands not working - fall through to V1 commands
@@ -1235,6 +1302,77 @@ namespace OmenCore.Hardware
             }
             return false;
         }
+
+        #region Display Overdrive
+
+        /// <summary>
+        /// Get display overdrive status.
+        /// Returns true if overdrive is currently enabled, false if disabled.
+        /// Returns null if the command is not supported on this system.
+        /// </summary>
+        public bool? GetDisplayOverdrive()
+        {
+            if (!_isAvailable)
+                return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Default, CMD_OVERDRIVE_GET, null, 4);
+                if (result != null && result.Length >= 1)
+                {
+                    bool enabled = result[0] != 0;
+                    _logging?.Info($"Display overdrive status: {(enabled ? "enabled" : "disabled")}");
+                    return enabled;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Display overdrive query not supported: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Enable or disable display overdrive (panel response time optimization).
+        /// Supported on OMEN laptops with 165Hz+ displays.
+        /// </summary>
+        public bool SetDisplayOverdrive(bool enabled)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set display overdrive: WMI BIOS not available");
+                return false;
+            }
+
+            try
+            {
+                var data = new byte[4];
+                data[0] = (byte)(enabled ? 1 : 0);
+
+                var result = SendBiosCommand(BiosCmd.Default, CMD_OVERDRIVE_SET, data, 4);
+                if (result != null)
+                {
+                    _logging?.Info($"✓ Display overdrive: {(enabled ? "enabled" : "disabled")}");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"Failed to set display overdrive: {ex.Message}", ex);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Check if the current system supports display overdrive control.
+        /// </summary>
+        public bool SupportsDisplayOverdrive()
+        {
+            var result = GetDisplayOverdrive();
+            return result.HasValue;
+        }
+
+        #endregion
 
         /// <summary>
         /// Send a command to the BIOS via CIM/WMI using OmenMon's exact implementation.

@@ -14,10 +14,21 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     // HP OMEN specific paths
     private const string HP_WMI_PATH = "/sys/devices/platform/hp-wmi";
-    private const string OMEN_THERMAL_PATH = "/sys/devices/platform/hp-wmi/thermal_profile";
     private const string HWMON_BASE = "/sys/class/hwmon";
     private const string POWER_SUPPLY = "/sys/class/power_supply";
     private const string BACKLIGHT_PATH = "/sys/class/leds/hp::kbd_backlight";
+    
+    // Thermal profile sysfs paths — checked in order of preference
+    // The standard kernel platform_profile interface (kernel 5.18+) is most reliable.
+    // HP-specific hp-wmi thermal_profile is a fallback for older kernels.
+    private static readonly string[] ThermalProfilePaths = new[]
+    {
+        "/sys/firmware/acpi/platform_profile",               // Standard kernel interface (most reliable)
+        "/sys/devices/platform/hp-wmi/thermal_profile",      // HP-specific WMI sysfs
+        "/sys/devices/platform/thinkpad_acpi/thermal_profile" // Fallback for WMI alias
+    };
+    
+    private string? _resolvedThermalPath; // Cached resolved path
     
     public event EventHandler<HardwareStatus>? StatusChanged;
 
@@ -137,8 +148,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
             };
         }
 
-        // Check for HP OMEN WMI
-        _capabilities.SupportsFanControl = File.Exists(OMEN_THERMAL_PATH);
+        // Check for HP OMEN thermal profile (try multiple sysfs paths)
+        _resolvedThermalPath = ResolveThermalProfilePath();
+        _capabilities.SupportsFanControl = _resolvedThermalPath != null;
         
         // Check keyboard backlight
         _capabilities.HasKeyboardBacklight = Directory.Exists(BACKLIGHT_PATH);
@@ -161,6 +173,85 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         return _capabilities;
     }
 
+    /// <summary>
+    /// Find the first existing thermal profile sysfs path.
+    /// </summary>
+    private static string? ResolveThermalProfilePath()
+    {
+        foreach (var path in ThermalProfilePaths)
+        {
+            if (File.Exists(path))
+                return path;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Convert kernel platform_profile string to OmenCore PerformanceMode.
+    /// The kernel interface uses: "low-power", "cool", "quiet", "balanced", "balanced-performance", "performance".
+    /// </summary>
+    private static PerformanceMode ParsePlatformProfile(string profile)
+    {
+        return profile.Trim().ToLower() switch
+        {
+            "low-power" or "cool" or "quiet" => PerformanceMode.Quiet,
+            "balanced" or "balanced-performance" => PerformanceMode.Balanced,
+            "performance" => PerformanceMode.Performance,
+            _ => PerformanceMode.Balanced
+        };
+    }
+
+    /// <summary>
+    /// Convert OmenCore PerformanceMode to kernel platform_profile string.
+    /// Uses the standard kernel values from /sys/firmware/acpi/platform_profile_choices.
+    /// </summary>
+    private async Task<string> GetKernelProfileStringAsync(PerformanceMode mode)
+    {
+        // Read available choices from the kernel to use exact supported values
+        var choices = await ReadAvailableProfileChoicesAsync();
+        
+        return mode switch
+        {
+            PerformanceMode.Quiet => 
+                choices.Contains("low-power") ? "low-power" :
+                choices.Contains("quiet") ? "quiet" :
+                choices.Contains("cool") ? "cool" : "low-power",
+            PerformanceMode.Balanced => "balanced",
+            PerformanceMode.Performance => "performance",
+            _ => "balanced"
+        };
+    }
+
+    /// <summary>
+    /// Read available profile choices from the kernel.
+    /// </summary>
+    private async Task<HashSet<string>> ReadAvailableProfileChoicesAsync()
+    {
+        var choices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            // Try standard kernel interface first
+            var choicesPath = "/sys/firmware/acpi/platform_profile_choices";
+            if (File.Exists(choicesPath))
+            {
+                var content = await File.ReadAllTextAsync(choicesPath);
+                foreach (var choice in content.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    choices.Add(choice.Trim());
+            }
+        }
+        catch { }
+        
+        // Fallback defaults if we couldn't read choices
+        if (choices.Count == 0)
+        {
+            choices.Add("low-power");
+            choices.Add("balanced");
+            choices.Add("performance");
+        }
+        
+        return choices;
+    }
+
     public async Task<PerformanceMode> GetPerformanceModeAsync()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
@@ -168,16 +259,11 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         try
         {
-            if (File.Exists(OMEN_THERMAL_PATH))
+            var thermalPath = _resolvedThermalPath ?? ResolveThermalProfilePath();
+            if (thermalPath != null)
             {
-                var profile = await File.ReadAllTextAsync(OMEN_THERMAL_PATH);
-                return profile.Trim().ToLower() switch
-                {
-                    "quiet" => PerformanceMode.Quiet,
-                    "balanced" or "balanced-performance" => PerformanceMode.Balanced,
-                    "performance" => PerformanceMode.Performance,
-                    _ => PerformanceMode.Balanced
-                };
+                var profile = await File.ReadAllTextAsync(thermalPath);
+                return ParsePlatformProfile(profile);
             }
         }
         catch { }
@@ -190,23 +276,50 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        var profile = mode switch
-        {
-            PerformanceMode.Quiet => "quiet",
-            PerformanceMode.Balanced => "balanced",
-            PerformanceMode.Performance => "performance",
-            _ => "balanced"
-        };
+        var thermalPath = _resolvedThermalPath ?? ResolveThermalProfilePath();
+        if (thermalPath == null)
+            throw new InvalidOperationException(
+                "No thermal profile interface found. Ensure the hp-wmi kernel module is loaded (modprobe hp-wmi).");
 
+        var profile = await GetKernelProfileStringAsync(mode);
+
+        // Strategy 1: Direct sysfs write (works when running as root)
         try
         {
-            await File.WriteAllTextAsync(OMEN_THERMAL_PATH, profile);
+            // Use File.Open with FileMode.Open to avoid Create semantics that sysfs rejects
+            await using var fs = new FileStream(thermalPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(profile);
+            await fs.WriteAsync(bytes);
+            return; // Success
         }
         catch (UnauthorizedAccessException)
         {
-            // Need root permissions - could call pkexec
-            throw new InvalidOperationException("Root permissions required to change performance mode");
+            // Not running as root — try pkexec or tee fallback
         }
+        catch (IOException)
+        {
+            // sysfs write failed — try shell fallback
+        }
+
+        // Strategy 2: Use 'tee' via shell (handles sudo/pkexec elevation)
+        try
+        {
+            // Try direct shell write first (works if already root via sudo)
+            var result = await RunCommandWithExitCodeAsync("/bin/sh", $"-c \"echo {profile} | tee {thermalPath} > /dev/null\"");
+            if (result == 0) return;
+        }
+        catch { }
+
+        // Strategy 3: Use pkexec for GUI privilege escalation
+        try
+        {
+            var result = await RunCommandWithExitCodeAsync("pkexec", $"/bin/sh -c \"echo {profile} > {thermalPath}\"");
+            if (result == 0) return;
+        }
+        catch { }
+
+        throw new InvalidOperationException(
+            $"Could not write to {thermalPath}. Try running with: sudo omencore, or ensure your user is in the 'omencore' group.");
     }
 
     public async Task SetCpuFanSpeedAsync(int percentage)
@@ -725,6 +838,28 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         var output = await process.StandardOutput.ReadToEndAsync();
         await process.WaitForExitAsync();
         return output;
+    }
+
+    /// <summary>
+    /// Run a command and return its exit code (for checking success/failure).
+    /// </summary>
+    private static async Task<int> RunCommandWithExitCodeAsync(string command, string args)
+    {
+        using var process = new System.Diagnostics.Process();
+        process.StartInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = args,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        process.Start();
+        await process.StandardOutput.ReadToEndAsync();
+        await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return process.ExitCode;
     }
 
     #endregion

@@ -601,6 +601,7 @@ public class LinuxEcController
     
     /// <summary>
     /// Get fan RPM from hwmon fan_input (if available).
+    /// Uses unbuffered sysfs reads to get fresh values each call.
     /// </summary>
     public (int fan1, int fan2) GetHwmonFanSpeeds()
     {
@@ -610,7 +611,7 @@ public class LinuxEcController
         {
             try
             {
-                var text = File.ReadAllText(_hwmonFan1InputPath).Trim();
+                var text = ReadSysfsFile(_hwmonFan1InputPath);
                 if (int.TryParse(text, out var val)) fan1 = val;
             }
             catch { }
@@ -620,13 +621,26 @@ public class LinuxEcController
         {
             try
             {
-                var text = File.ReadAllText(_hwmonFan2InputPath).Trim();
+                var text = ReadSysfsFile(_hwmonFan2InputPath);
                 if (int.TryParse(text, out var val)) fan2 = val;
             }
             catch { }
         }
         
         return (fan1, fan2);
+    }
+    
+    /// <summary>
+    /// Read a sysfs file with no buffering to ensure fresh values.
+    /// Standard File.ReadAllText() may return stale page-cached content on some kernels.
+    /// </summary>
+    private static string ReadSysfsFile(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, 
+                                       FileShare.ReadWrite, bufferSize: 1, 
+                                       FileOptions.None);
+        using var sr = new StreamReader(fs);
+        return sr.ReadToEnd().Trim();
     }
     
     #endregion
@@ -657,9 +671,21 @@ public class LinuxEcController
     
     /// <summary>
     /// Get current fan speeds as percentage (0-100).
+    /// Supports both EC register and hwmon backends.
     /// </summary>
     public (int fan1, int fan2) GetFanSpeedPercent()
     {
+        // For hwmon-only models (no EC access), estimate percentage from RPM
+        if (HasHwmonFanAccess && !HasEcAccess)
+        {
+            var (rpm1, rpm2) = GetHwmonFanSpeeds();
+            const int estimatedMaxRpm = 5500;
+            return (
+                Math.Clamp(rpm1 * 100 / Math.Max(estimatedMaxRpm, 1), 0, 100),
+                Math.Clamp(rpm2 * 100 / Math.Max(estimatedMaxRpm, 1), 0, 100)
+            );
+        }
+        
         if (!HasEcAccess)
             return (0, 0);
 

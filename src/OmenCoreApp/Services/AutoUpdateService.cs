@@ -481,8 +481,15 @@ namespace OmenCore.Services
         /// </summary>
         public void SetAutoUpdateEnabled(bool enabled)
         {
-            // TODO: Store preference in config
             _logging.Info($"Auto-update {(enabled ? "enabled" : "disabled")}");
+            
+            if (_preferences != null)
+            {
+                _preferences.AutoCheckEnabled = enabled;
+                _preferences.CheckOnStartup = enabled;
+                // Re-apply the updated preferences to start/stop the timer
+                ConfigureBackgroundChecks(_preferences);
+            }
         }
         
         /// <summary>

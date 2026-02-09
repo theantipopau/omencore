@@ -1269,6 +1269,45 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public bool OsdShowBattery
+        {
+            get => _config.Osd?.ShowBattery ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowBattery = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowCpuClock
+        {
+            get => _config.Osd?.ShowCpuClock ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowCpuClock = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowGpuClock
+        {
+            get => _config.Osd?.ShowGpuClock ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowGpuClock = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
         /// <summary>
         /// OSD Layout: "Vertical" (default) or "Horizontal"
         /// </summary>
@@ -1469,21 +1508,58 @@ namespace OmenCore.ViewModels
         }
 
         /// <summary>
-        /// Thermal protection threshold in °C. Default 80°C, range 70-90°C.
+        /// Thermal protection threshold in °C. Default 90°C, range 70-95°C.
         /// Fans will ramp up when temps exceed this threshold.
+        /// v2.8.0: Raised max from 90 to 95 for high-power laptops that naturally run hot.
         /// </summary>
         public double ThermalProtectionThreshold
         {
-            get => _config.FanHysteresis?.ThermalProtectionThreshold ?? 80.0;
+            get => _config.FanHysteresis?.ThermalProtectionThreshold ?? 90.0;
             set
             {
                 if (_config.FanHysteresis == null) _config.FanHysteresis = new FanHysteresisSettings();
-                var clamped = Math.Max(70, Math.Min(90, value));
+                var clamped = Math.Max(70, Math.Min(95, value));
                 if (Math.Abs(_config.FanHysteresis.ThermalProtectionThreshold - clamped) > 0.1)
                 {
                     _config.FanHysteresis.ThermalProtectionThreshold = clamped;
                     OnPropertyChanged();
                     SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enable/disable thermal protection override.
+        /// When disabled, fans will NEVER be automatically overridden by thermal protection.
+        /// The user takes full responsibility for thermal management.
+        /// </summary>
+        public bool ThermalProtectionEnabled
+        {
+            get => _config.FanHysteresis?.ThermalProtectionEnabled ?? true;
+            set
+            {
+                if (_config.FanHysteresis == null) _config.FanHysteresis = new FanHysteresisSettings();
+                if (_config.FanHysteresis.ThermalProtectionEnabled != value)
+                {
+                    _config.FanHysteresis.ThermalProtectionEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+        
+        public int MaxFanLevelOverride
+        {
+            get => _config.MaxFanLevelOverride;
+            set
+            {
+                int clamped = Math.Max(0, Math.Min(100, value));
+                if (_config.MaxFanLevelOverride != clamped)
+                {
+                    _config.MaxFanLevelOverride = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    _logging.Info($"Max fan level override set to {clamped} (0 = auto-detect, requires restart)");
                 }
             }
         }
@@ -2853,7 +2929,7 @@ namespace OmenCore.ViewModels
             {
                 var bloatware = new System.Collections.Generic.List<string>();
                 
-                // Common HP bloatware package names
+                // Common HP bloatware package names — comprehensive list for Omen/Victus/HP systems
                 var bloatwarePackages = new[]
                 {
                     "AD2F1837.HPSystemEventUtility",
@@ -2872,17 +2948,29 @@ namespace OmenCore.ViewModels
                     "AD2F1837.HPSmart",
                     "AD2F1837.HPPCHardwareDiagnosticsWindows",
                     "AD2F1837.HPDesktopSupportUtilities",
-                    "AD2F1837.HPInc.EnergyStar"
+                    "AD2F1837.HPInc.EnergyStar",
+                    "AD2F1837.HPWorkWell",
+                    "AD2F1837.HPAccessoryCenter",
+                    "AD2F1837.HPSystemInformation",
+                    "AD2F1837.HPQuickTouch",
+                    "AD2F1837.HPPowerManager",
+                    "AD2F1837.OMENCommandCenter",
+                    "AD2F1837.OMENCommandCenterDev",
+                    "AD2F1837.OMENCommandCenter_Beta",
+                    "HPInc.HPGamingHub",
                 };
                 
                 await Task.Run(() =>
                 {
+                    // Scan for all HP AppX packages (AD2F1837.HP*, AD2F1837.OMEN*, HPInc.*)
+                    // Do NOT include Realtek - those are audio/network drivers, not bloatware
                     var psi = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
-                        Arguments = "-NoProfile -Command \"Get-AppxPackage | Where-Object { $_.Name -like 'AD2F1837.HP*' -or $_.Name -like 'RealtekSemiconductorCorp*' } | Select-Object -ExpandProperty Name\"",
+                        Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"Get-AppxPackage | Where-Object { $_.Name -like 'AD2F1837.HP*' -or $_.Name -like 'AD2F1837.OMEN*' -or $_.Name -like 'AD2F1837.myHP*' -or $_.Name -like 'HPInc.HP*' } | Select-Object -ExpandProperty Name\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         CreateNoWindow = true
                     };
                     
@@ -2890,7 +2978,13 @@ namespace OmenCore.ViewModels
                     if (process != null)
                     {
                         var output = process.StandardOutput.ReadToEnd();
-                        process.WaitForExit();
+                        var errors = process.StandardError.ReadToEnd();
+                        process.WaitForExit(30000);
+                        
+                        if (!string.IsNullOrWhiteSpace(errors))
+                        {
+                            _logging.Warn($"Bloatware scan stderr: {errors.Trim()}");
+                        }
                         
                         var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                         foreach (var line in lines)
@@ -2898,6 +2992,10 @@ namespace OmenCore.ViewModels
                             var trimmed = line.Trim();
                             if (!string.IsNullOrEmpty(trimmed) && !bloatware.Contains(trimmed))
                             {
+                                // Never include HP Support Assistant — it's useful
+                                if (trimmed.Contains("HPSupportAssistant", StringComparison.OrdinalIgnoreCase))
+                                    continue;
+                                    
                                 bloatware.Add(trimmed);
                             }
                         }
@@ -2913,7 +3011,7 @@ namespace OmenCore.ViewModels
                 else
                 {
                     BloatwareList = $"Found {bloatware.Count} HP bloatware package(s):\n\n" +
-                                  string.Join("\n", bloatware.Select(p => $"• {p.Replace("AD2F1837.", "")}"));
+                                  string.Join("\n", bloatware.Select(p => $"• {p.Replace("AD2F1837.", "").Replace("HPInc.", "")}"));
                 }
                 
                 _logging.Info($"Bloatware scan complete: {bloatware.Count} package(s) found");
@@ -2943,6 +3041,7 @@ namespace OmenCore.ViewModels
                 "• This action cannot be undone\n" +
                 "• Some HP features may stop working\n" +
                 "• HP Support Assistant will NOT be removed\n" +
+                "• Realtek audio/network drivers will NOT be touched\n" +
                 "• System restart may be required\n\n" +
                 "Continue with removal?",
                 "Remove HP Bloatware - Confirmation Required",
@@ -2960,18 +3059,20 @@ namespace OmenCore.ViewModels
             {
                 var removed = 0;
                 var failed = 0;
+                var failedNames = new System.Collections.Generic.List<string>();
                 var packageNames = new System.Collections.Generic.List<string>();
                 
-                // First get the list of packages to remove
+                // First get the list of packages to remove — matches scan filter exactly
                 BloatwareProgress = "[1/3] Getting package list...";
                 await Task.Run(() =>
                 {
                     var psi = new ProcessStartInfo
                     {
                         FileName = "powershell.exe",
-                        Arguments = "-NoProfile -Command \"Get-AppxPackage | Where-Object { $_.Name -like 'AD2F1837.HP*' -and $_.Name -notlike '*HPSupportAssistant*' } | Select-Object -ExpandProperty Name\"",
+                        Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"Get-AppxPackage | Where-Object { ($_.Name -like 'AD2F1837.HP*' -or $_.Name -like 'AD2F1837.OMEN*' -or $_.Name -like 'AD2F1837.myHP*' -or $_.Name -like 'HPInc.HP*') -and $_.Name -notlike '*HPSupportAssistant*' } | Select-Object -ExpandProperty Name\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         CreateNoWindow = true
                     };
                     
@@ -2979,7 +3080,7 @@ namespace OmenCore.ViewModels
                     if (process != null)
                     {
                         var output = process.StandardOutput.ReadToEnd();
-                        process.WaitForExit();
+                        process.WaitForExit(30000);
                         packageNames.AddRange(output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)));
                     }
                 });
@@ -2989,17 +3090,28 @@ namespace OmenCore.ViewModels
                 var current = 0;
                 
                 // Remove each package individually with progress
+                // Use -ErrorAction SilentlyContinue to handle provisioned packages gracefully
                 foreach (var packageName in packageNames)
                 {
                     current++;
-                    BloatwareProgress = $"[2/3] Removing {current}/{total}: {packageName.Replace("AD2F1837.", "")}...";
+                    var friendlyName = packageName.Replace("AD2F1837.", "").Replace("HPInc.", "");
+                    BloatwareProgress = $"[2/3] Removing {current}/{total}: {friendlyName}...";
                     
                     await Task.Run(() =>
                     {
+                        // Try normal removal first, then try with -AllUsers for provisioned packages
                         var psi = new ProcessStartInfo
                         {
                             FileName = "powershell.exe",
-                            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name '{packageName}' | Remove-AppxPackage -ErrorAction Stop\"",
+                            Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"" +
+                                $"try {{ Get-AppxPackage -Name '{packageName}' | Remove-AppxPackage -ErrorAction Stop }} " +
+                                $"catch {{ " +
+                                $"  try {{ Get-AppxPackage -AllUsers -Name '{packageName}' | Remove-AppxPackage -AllUsers -ErrorAction Stop }} " +
+                                $"  catch {{ " +
+                                $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -eq '{packageName}' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop }} " +
+                                $"    catch {{ throw $_ }} " +
+                                $"  }} " +
+                                $"}}\"",
                             UseShellExecute = false,
                             RedirectStandardOutput = true,
                             RedirectStandardError = true,
@@ -3009,16 +3121,31 @@ namespace OmenCore.ViewModels
                         using var process = Process.Start(psi);
                         if (process != null)
                         {
-                            process.WaitForExit();
-                            if (process.ExitCode == 0)
+                            var stdout = process.StandardOutput.ReadToEnd();
+                            var stderr = process.StandardError.ReadToEnd();
+                            process.WaitForExit(60000);
+                            
+                            if (process.ExitCode == 0 || string.IsNullOrWhiteSpace(stderr))
                             {
                                 removed++;
                                 _logging.Info($"Removed: {packageName}");
                             }
                             else
                             {
-                                failed++;
-                                _logging.Warn($"Failed to remove: {packageName}");
+                                // Check if it's an access denied error
+                                if (stderr.Contains("Access is denied", StringComparison.OrdinalIgnoreCase) ||
+                                    stderr.Contains("0x80070005", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    failed++;
+                                    failedNames.Add($"{friendlyName} (needs admin)");
+                                    _logging.Warn($"Access denied removing: {packageName} - needs elevation");
+                                }
+                                else
+                                {
+                                    failed++;
+                                    failedNames.Add(friendlyName);
+                                    _logging.Warn($"Failed to remove: {packageName} — {stderr.Trim()}");
+                                }
                             }
                         }
                     });
@@ -3026,19 +3153,38 @@ namespace OmenCore.ViewModels
                 
                 BloatwareProgress = "[3/3] Cleanup complete!";
                 
-                BloatwareList = $"✓ Bloatware removal complete!\n\n" +
+                var resultText = $"✓ Bloatware removal complete!\n\n" +
                               $"• Removed: {removed} package(s)\n" +
-                              $"• Failed: {failed} package(s)\n\n" +
-                              $"Run a new scan to verify.";
-                              
+                              $"• Failed: {failed} package(s)\n";
+                
+                if (failedNames.Count > 0)
+                {
+                    resultText += $"\nFailed packages:\n" + string.Join("\n", failedNames.Select(n => $"  ✗ {n}"));
+                    
+                    if (failedNames.Any(n => n.Contains("needs admin")))
+                    {
+                        resultText += "\n\n💡 Tip: Run OmenCore as Administrator to remove provisioned packages.";
+                    }
+                }
+                
+                resultText += "\n\nRun a new scan to verify.";
+                BloatwareList = resultText;
                 BloatwareCount = 0;
                 
                 _logging.Info($"Bloatware removal complete: {removed} removed, {failed} failed");
                 
-                MessageBox.Show(
-                    $"Removed {removed} bloatware package(s).\n\n" +
-                    (failed > 0 ? $"{failed} package(s) could not be removed.\n\n" : "") +
-                    "Some changes may require a system restart.",
+                var msgText = $"Removed {removed} bloatware package(s).";
+                if (failed > 0)
+                {
+                    msgText += $"\n\n{failed} package(s) could not be removed.";
+                    if (failedNames.Any(n => n.Contains("needs admin")))
+                    {
+                        msgText += "\n\nSome packages require administrator privileges.\nRight-click OmenCore → 'Run as administrator' and try again.";
+                    }
+                }
+                msgText += "\n\nSome changes may require a system restart.";
+                
+                MessageBox.Show(msgText,
                     "Bloatware Removal Complete",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

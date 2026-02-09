@@ -768,16 +768,12 @@ namespace OmenCore.Hardware
                     else
                     {
                         _logging.Warn($"NVAPI: SetPstates20 failed with code {result}");
-                        // Store value anyway for UI display
-                        CoreClockOffsetMHz = offsetMHz;
-                        return result == NVAPI_NO_IMPLEMENTATION; // Partial success if API exists but not supported
+                        return false;
                     }
                 }
                 else
                 {
-                    // Fallback: store value for display, log that hardware control unavailable
-                    CoreClockOffsetMHz = offsetMHz;
-                    _logging.Warn("NVAPI: SetPstates20 not available - offset stored but not applied to hardware");
+                    _logging.Warn("NVAPI: SetPstates20 not available - core clock offset cannot be applied");
                     return false;
                 }
             }
@@ -851,14 +847,12 @@ namespace OmenCore.Hardware
                     else
                     {
                         _logging.Warn($"NVAPI: SetPstates20 for memory failed with code {result}");
-                        MemoryClockOffsetMHz = offsetMHz;
-                        return result == NVAPI_NO_IMPLEMENTATION;
+                        return false;
                     }
                 }
                 else
                 {
-                    MemoryClockOffsetMHz = offsetMHz;
-                    _logging.Warn("NVAPI: SetPstates20 not available - offset stored but not applied");
+                    _logging.Warn("NVAPI: SetPstates20 not available - memory clock offset cannot be applied");
                     return false;
                 }
             }
@@ -914,14 +908,12 @@ namespace OmenCore.Hardware
                     else
                     {
                         _logging.Warn($"NVAPI: SetPstates20 for voltage failed with code {result}");
-                        VoltageOffsetMv = offsetMv;
-                        return result == NVAPI_NO_IMPLEMENTATION;
+                        return false;
                     }
                 }
                 else
                 {
-                    VoltageOffsetMv = offsetMv;
-                    _logging.Warn("NVAPI: SetPstates20 not available - voltage offset stored but not applied");
+                    _logging.Warn("NVAPI: SetPstates20 not available - voltage offset cannot be applied");
                     return false;
                 }
             }
