@@ -7,7 +7,7 @@
 
 ## Highlights
 
-v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8.0 testing. The major fixes target fan control reliability on Victus and Transcend models, phantom RPM readings on V0/V1 ThermalPolicy systems, an OMEN key detection bug that caused brightness keys (Fn+F2/F3) to toggle the OmenCore window, and a missing Avalonia GUI in Linux builds.
+v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8.0 testing. The major fixes target fan control reliability on Victus and Transcend models, phantom RPM readings on V0/V1 ThermalPolicy systems, an OMEN key detection bug that caused brightness keys (Fn+F2/F3) to toggle the OmenCore window, a missing Avalonia GUI in Linux builds, and EC timeout crashes on systems with dead/removed batteries.
 
 ---
 
@@ -72,6 +72,16 @@ v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8
 - **Fix**: Added DMI product name detection against a per-key model database; keyboard status now correctly shows "Per-Key RGB" for known models (16-wf0xxx, Transcend, Max, etc.) and notes that USB HID per-key control is not yet available on Linux
 - Reported by: Community — OMEN 16-wf0xxx / CachyOS (Discord)
 
+### Fix: EC Timeout / Crash on Systems with Dead Battery
+- **Root cause**: Multiple subsystems independently poll `Win32_Battery` WMI every 500ms (HardwareWorker, WmiBiosMonitor, PowerAutomationService). On dead/removed batteries, these queries traverse ACPI → EC → SMBus to the battery controller, which times out. Combined with HP WMI BIOS commands for fan/thermal control also hitting the EC bus, this causes cascading EC timeouts. Windows Power Management sees 0% charge and triggers "Critical Battery Action" (shutdown/hibernate), making OmenCore appear to crash the system
+- **Fix**: Multi-layer dead battery protection:
+  1. **Auto-detection** — all battery polling paths (HardwareWorker + WmiBiosMonitor) detect a dead battery after 3 consecutive 0% charge reads while on AC power and self-disable all further battery queries
+  2. **Manual config** — new `Battery.DisableMonitoring: true` option in config.json immediately disables all battery WMI/EC queries at startup
+  3. **Query cooldown** — WmiBiosMonitor battery queries throttled from 500ms to 10-second cooldown between calls
+  4. **EC-safe AC detection** — `IsOnAcPower()` now uses `SystemInformation.PowerStatus` (kernel API, no EC access) before falling back to WMI
+  5. **IPC coordination** — `DISABLE_BATTERY` command propagated to out-of-process HardwareWorker via named pipe IPC
+- Reported by: Community — OMEN 15 (i7-9750H, RTX 2060, 2019) with dead battery (Discord)
+
 ---
 
 ## 📝 Technical Details
@@ -87,17 +97,26 @@ v2.8.1 is a hotfix release addressing critical community-reported bugs from v2.8
 - `src/OmenCore.Linux/Hardware/LinuxEcController.cs` — Unbuffered sysfs reads, hwmon percent fallback
 - `src/OmenCore.Linux/Hardware/LinuxKeyboardController.cs` — Per-key RGB model detection
 - `build-installer.ps1` — Linux Avalonia GUI build step
+- `src/OmenCoreApp/Models/AppConfig.cs` — Added `Battery.DisableMonitoring` config option
+- `src/OmenCoreApp/Hardware/WmiBiosMonitor.cs` — Dead battery auto-detection, query cooldown, EC-safe AC detection
+- `src/OmenCore.HardwareWorker/Program.cs` — Dead battery auto-detection, DISABLE_BATTERY IPC command
+- `src/OmenCoreApp/Hardware/HardwareWorkerClient.cs` — SendDisableBatteryAsync() IPC method
+- `src/OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs` — Battery disable coordination with worker
+- `src/OmenCoreApp/ViewModels/MainViewModel.cs` — Config-driven battery disable wiring
 
 ### Affected Models
 - **Victus by HP Gaming Laptop 16-s0xxx** (Product ID 8BD5) — Auto mode, RPM readings
 - **HP OMEN Transcend 14 2025** — Quiet = max fans
 - **All models with Fn brightness keys** — Fn+F2/F3 window toggle
 - **All V0/Legacy ThermalPolicy models** — Fan mode mapping
+- **OMEN 15 (i7-9750H, 2019)** — Dead battery EC timeout / crash
+- **Any model with dead/removed battery** — Battery monitoring auto-disable
 
 ---
 
 ## SHA256 Checksums
 ```
-OmenCoreSetup-2.8.1.exe:    29BC8FA9676CF756421EC6857670CB3A1D4DC3162EB1BD810E0496452EABB437
-OmenCore-2.8.1-win-x64.zip: 3D19C7DFF077E97D650AEB69190F558E387961F979017B58C14C240B76545873
+OmenCoreSetup-2.8.1.exe:        02EB81C7E1FBC232EBC5A07462494270B5E56020FB30FB4F5E4ACE9ECD649E54
+OmenCore-2.8.1-win-x64.zip:     447925AE96940465FA9261D01FBB54E2056C8C5F501C2803C74D9BFBA3E96DC1
+OmenCore-2.8.1-linux-x64.zip:   4D0445F29D5ED0FA10B5EC55EE86026AA5B137C49FE771976181EC4925A1526E
 ```

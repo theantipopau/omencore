@@ -420,6 +420,13 @@ namespace OmenCore.Models
         
         /// <summary>Show battery health warnings</summary>
         public bool ShowHealthWarnings { get; set; } = true;
+        
+        /// <summary>
+        /// Disable all battery monitoring (Win32_Battery WMI queries, LibreHardwareMonitor battery sensors).
+        /// Enable this if your battery is dead/removed and OmenCore causes EC timeout errors or unexpected shutdowns.
+        /// When disabled, battery % will show as 100% (AC assumed) and no battery WMI queries will be made.
+        /// </summary>
+        public bool DisableMonitoring { get; set; } = false;
     }
     
     /// <summary>

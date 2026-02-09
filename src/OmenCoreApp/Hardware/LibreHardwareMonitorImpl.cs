@@ -36,6 +36,7 @@ namespace OmenCore.Hardware
         private HardwareWorkerClient? _workerClient;
         private bool _useWorker = false;
         private volatile bool _workerInitializing = false; // Track async initialization state (volatile for thread safety)
+        private bool _disableBatteryMonitoring = false; // Dead battery protection
 
         // Cache for performance
         private double _cachedCpuTemp = 0;
@@ -154,6 +155,27 @@ namespace OmenCore.Hardware
             }
         }
         
+        /// <summary>
+        /// Disable battery monitoring in both in-process LHM and out-of-process worker.
+        /// Call this for systems with dead/removed batteries to prevent EC timeout errors.
+        /// </summary>
+        public async Task DisableBatteryMonitoringAsync()
+        {
+            _disableBatteryMonitoring = true;
+            
+            // If in-process Computer is initialized, disable battery sensor
+            if (_computer != null)
+            {
+                _computer.IsBatteryEnabled = false;
+            }
+            
+            // If worker is connected, send disable command
+            if (_workerClient != null)
+            {
+                await _workerClient.SendDisableBatteryAsync();
+            }
+        }
+        
         private async Task InitializeWorkerAsync()
         {
             _workerInitializing = true;
@@ -166,6 +188,12 @@ namespace OmenCore.Hardware
                 {
                     _logger?.Invoke("[Monitor] Using out-of-process hardware worker (crash-isolated)");
                     _initialized = true;
+                    
+                    // If battery monitoring was requested to be disabled, send command to worker
+                    if (_disableBatteryMonitoring)
+                    {
+                        await _workerClient.SendDisableBatteryAsync();
+                    }
                 }
                 else
                 {

@@ -43,6 +43,11 @@ class Program
     private static bool _pawnIOFallbackActive = false;
     private static int _consecutiveNullCpuTemp = 0;
     private const int NullTempThresholdForFallback = 3; // Switch to PawnIO after 3 null readings
+    
+    // Dead battery protection: disable battery sensor polling to prevent EC timeouts
+    private static bool _batteryMonitoringDisabled = false;
+    private static int _consecutiveZeroBatteryReads = 0;
+    private const int MaxZeroBatteryReadsBeforeDisable = 3;
 
     static async Task Main(string[] args)
     {
@@ -224,7 +229,7 @@ class Program
             IsGpuEnabled = true,
             IsMemoryEnabled = true,
             IsStorageEnabled = true,
-            IsBatteryEnabled = true,
+            IsBatteryEnabled = !_batteryMonitoringDisabled,
             IsMotherboardEnabled = true
         };
         
@@ -772,12 +777,38 @@ class Program
                 break;
                 
             case HardwareType.Battery:
+                if (_batteryMonitoringDisabled)
+                {
+                    sample.BatteryCharge = 100;
+                    sample.BatteryDischargeRate = 0;
+                    sample.IsOnAc = true;
+                    break;
+                }
+                
                 var charge = GetSensorValueMulti(hardware, SensorType.Level, "Charge Level");
                 if (charge > 0) sample.BatteryCharge = charge;
                 
                 var discharge = GetSensorValueMulti(hardware, SensorType.Power, "Discharge Rate");
                 sample.BatteryDischargeRate = discharge;
                 sample.IsOnAc = discharge <= 0;
+                
+                // Dead battery auto-detection: if charge is 0% while on AC for 3+ consecutive reads, disable
+                if (charge <= 0 && discharge <= 0)
+                {
+                    _consecutiveZeroBatteryReads++;
+                    if (_consecutiveZeroBatteryReads >= MaxZeroBatteryReadsBeforeDisable)
+                    {
+                        _batteryMonitoringDisabled = true;
+                        sample.BatteryCharge = 100;
+                        sample.IsOnAc = true;
+                        Console.WriteLine("Dead battery detected (0% on AC for 3+ reads) — disabling battery polling to prevent EC timeouts");
+                        File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Dead battery auto-detected — battery monitoring disabled\n");
+                    }
+                }
+                else
+                {
+                    _consecutiveZeroBatteryReads = 0;
+                }
                 break;
         }
     }
@@ -967,6 +998,13 @@ class Program
                 {
                     response = "OK";
                     _running = false;
+                }
+                else if (request == "DISABLE_BATTERY")
+                {
+                    _batteryMonitoringDisabled = true;
+                    Console.WriteLine("Battery monitoring disabled by client (dead/removed battery).");
+                    File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Battery monitoring disabled by client command\n");
+                    response = "OK";
                 }
                 else
                 {

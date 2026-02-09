@@ -281,6 +281,30 @@ namespace OmenCore.Hardware
             }
         }
         
+        /// <summary>
+        /// Tell the worker to disable battery monitoring (dead/removed battery).
+        /// Prevents Win32_Battery WMI queries that cause EC timeout errors on systems with dead batteries.
+        /// </summary>
+        public async Task SendDisableBatteryAsync()
+        {
+            try
+            {
+                var response = await SendRequestAsync("DISABLE_BATTERY");
+                if (response == "OK")
+                {
+                    _logger?.Invoke("[Worker] Battery monitoring disabled in worker");
+                }
+                else
+                {
+                    _logger?.Invoke($"[Worker] DISABLE_BATTERY response: {response}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[Worker] Failed to disable battery monitoring: {ex.Message}");
+            }
+        }
+        
         private string? FindWorkerExecutable()
         {
             // Check same directory as main exe

@@ -36,6 +36,13 @@ namespace OmenCore.Hardware
         private double _cachedCpuLoad;
         private double _cachedGpuLoad = 0; // GPU load not available via WMI BIOS
         
+        // Dead battery detection — stop polling Win32_Battery if battery appears dead/absent
+        private bool _batteryMonitoringDisabled;
+        private int _consecutiveZeroBatteryReads;
+        private const int MaxZeroBatteryReadsBeforeDisable = 3;
+        private DateTime _lastBatteryQuery = DateTime.MinValue;
+        private readonly TimeSpan _batteryQueryCooldown = TimeSpan.FromSeconds(10);
+        
         public bool IsAvailable => _wmiBios.IsAvailable;
         
         public WmiBiosMonitor(LoggingService? logging = null)
@@ -204,26 +211,80 @@ namespace OmenCore.Hardware
             return 8; // Default assumption
         }
         
-        private static double GetBatteryCharge()
+        private double GetBatteryCharge()
         {
+            // If battery monitoring is disabled (dead/removed battery), skip WMI query entirely
+            if (_batteryMonitoringDisabled) return 100;
+            
+            // Cooldown: don't query Win32_Battery more than once every 10 seconds
+            if (DateTime.Now - _lastBatteryQuery < _batteryQueryCooldown) return 100;
+            _lastBatteryQuery = DateTime.Now;
+            
             try
             {
                 using var searcher = new System.Management.ManagementObjectSearcher(
                     "SELECT EstimatedChargeRemaining FROM Win32_Battery");
-                foreach (var obj in searcher.Get())
+                var results = searcher.Get();
+                bool foundBattery = false;
+                
+                foreach (var obj in results)
                 {
+                    foundBattery = true;
                     if (obj["EstimatedChargeRemaining"] is ushort charge)
                     {
+                        if (charge == 0 && IsOnAcPower())
+                        {
+                            _consecutiveZeroBatteryReads++;
+                            if (_consecutiveZeroBatteryReads >= MaxZeroBatteryReadsBeforeDisable)
+                            {
+                                _batteryMonitoringDisabled = true;
+                                _logging?.Warn("[WmiBiosMonitor] Dead battery detected (0% on AC for 3+ reads) — disabling battery WMI queries to prevent EC timeouts");
+                                return 100;
+                            }
+                        }
+                        else
+                        {
+                            _consecutiveZeroBatteryReads = 0;
+                        }
                         return charge;
                     }
                 }
+                
+                if (!foundBattery)
+                {
+                    // No battery found in WMI — likely removed or not present
+                    _batteryMonitoringDisabled = true;
+                    _logging?.Info("[WmiBiosMonitor] No battery detected in Win32_Battery — disabling battery queries");
+                    return 100;
+                }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // WMI query failed — could be EC timeout on dead battery
+                _consecutiveZeroBatteryReads++;
+                if (_consecutiveZeroBatteryReads >= MaxZeroBatteryReadsBeforeDisable)
+                {
+                    _batteryMonitoringDisabled = true;
+                    _logging?.Warn($"[WmiBiosMonitor] Battery WMI queries failing repeatedly ({ex.Message}) — disabling to prevent EC timeouts");
+                }
+                return 100;
+            }
             return 100;
         }
         
-        private static bool IsOnAcPower()
+        private bool IsOnAcPower()
         {
+            // If battery monitoring disabled, assume AC (dead battery = always plugged in)
+            if (_batteryMonitoringDisabled) return true;
+            
+            try
+            {
+                // Use SystemInformation first — doesn't go through EC
+                var powerStatus = System.Windows.Forms.SystemInformation.PowerStatus;
+                return powerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+            }
+            catch { }
+            
             try
             {
                 using var searcher = new System.Management.ManagementObjectSearcher(
@@ -239,6 +300,15 @@ namespace OmenCore.Hardware
             }
             catch { }
             return true; // Assume AC if we can't determine
+        }
+        
+        /// <summary>
+        /// Externally disable battery monitoring (e.g., from config setting).
+        /// </summary>
+        public void DisableBatteryMonitoring()
+        {
+            _batteryMonitoringDisabled = true;
+            _logging?.Info("[WmiBiosMonitor] Battery monitoring disabled by config");
         }
         
         public void Dispose()

@@ -1049,6 +1049,14 @@ namespace OmenCore.ViewModels
             // Try WmiBiosMonitor first - it's self-sufficient with no external dependencies
             var wmiBiosMonitor = new WmiBiosMonitor(_logging);
             
+            // If battery monitoring is disabled in config, prevent all battery WMI queries
+            // This prevents EC timeout errors on systems with dead/removed batteries
+            if (_config.Battery?.DisableMonitoring == true)
+            {
+                wmiBiosMonitor.DisableBatteryMonitoring();
+                _logging.Info("⚡ Battery monitoring disabled by config (Battery.DisableMonitoring=true)");
+            }
+            
             if (wmiBiosMonitor.IsAvailable)
             {
                 _logging.Info("✓ WMI BIOS monitoring available (self-sufficient mode)");
@@ -1061,6 +1069,12 @@ namespace OmenCore.ViewModels
                         useWorker: true);
                     _logging.Info("✓ LibreHardwareMonitor available for enhanced metrics");
                     monitorBridge = libreHwMonitor; // Use LibreHW if available (has more metrics)
+                    
+                    // Disable battery monitoring in worker if config says so
+                    if (_config.Battery?.DisableMonitoring == true)
+                    {
+                        _ = libreHwMonitor.DisableBatteryMonitoringAsync();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1079,6 +1093,11 @@ namespace OmenCore.ViewModels
                         msg => _logging.Info($"[Monitor] {msg}"),
                         useWorker: true);
                     monitorBridge = libreHwMonitor;
+                    
+                    if (_config.Battery?.DisableMonitoring == true)
+                    {
+                        _ = libreHwMonitor.DisableBatteryMonitoringAsync();
+                    }
                 }
                 catch (Exception ex)
                 {

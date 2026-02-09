@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Linux Diagnose Truncation**: Terminal output box widened from 61→90 chars with word-wrapping for notes/recommendations
 - **Linux Fan Speeds Stuck/Wrong**: Sysfs reads now use unbuffered `FileStream` to prevent stale cached data; added hwmon RPM-to-percent estimation fallback
 - **Linux Keyboard Zones**: Per-key RGB detection via DMI product name — known per-key models (16-wf0, 16-wf1, Transcend, etc.) now report correct keyboard type
+- **EC Timeout / Dead Battery Crash**: Dead battery auto-detection stops battery WMI/EC polling after 3 consecutive 0% reads on AC; battery query cooldown increased from 500ms to 10s; EC-safe `IsOnAcPower()` via `SystemInformation.PowerStatus`; new `Battery.DisableMonitoring` config option; IPC coordination with out-of-process HardwareWorker
 
 ---
 
