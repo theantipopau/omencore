@@ -15,6 +15,11 @@ namespace OmenCore.Hardware
         /// Called when consecutive timeouts indicate hardware monitoring is stuck.
         /// </summary>
         Task<bool> TryRestartAsync();
+
+        /// <summary>
+        /// Human-readable monitoring source label for UI display.
+        /// </summary>
+        string MonitoringSource { get; }
     }
 
     public class LibreHardwareMonitorBridge : IHardwareMonitorBridge
@@ -29,6 +34,8 @@ namespace OmenCore.Hardware
         private double _fanRpm = 1800;
         private double _ssdTemp = 42;
         private double _diskUsage = 15;
+
+        public string MonitoringSource => "Mock Sensors";
 
         public Task<MonitoringSample> ReadSampleAsync(CancellationToken token)
         {

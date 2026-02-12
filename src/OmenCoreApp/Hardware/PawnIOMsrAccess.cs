@@ -599,6 +599,78 @@ namespace OmenCore.Hardware
             }
         }
         
+        // ==========================================
+        // Intel RAPL — CPU Package Power Measurement
+        // ==========================================
+        
+        private const uint MSR_RAPL_POWER_UNIT = 0x606;
+        private const uint MSR_PKG_ENERGY_STATUS = 0x611;
+        
+        private double _raplEnergyUnit = 0;   // Joules per unit
+        private uint _lastEnergyReading = 0;
+        private DateTime _lastEnergyTimestamp = DateTime.MinValue;
+        private bool _raplInitialized = false;
+        
+        /// <summary>
+        /// Read CPU package power draw in watts via Intel RAPL MSR.
+        /// Uses energy delta between successive calls to compute average power.
+        /// Returns 0 on first call (needs two readings for delta).
+        /// </summary>
+        public double ReadCpuPackagePowerWatts()
+        {
+            if (!IsAvailable) return 0;
+            
+            try
+            {
+                // Initialize RAPL energy unit on first call
+                if (!_raplInitialized)
+                {
+                    ulong powerUnit = ReadMsr(MSR_RAPL_POWER_UNIT);
+                    // Bits [12:8] = Energy Status Units (ESU)
+                    int esu = (int)((powerUnit >> 8) & 0x1F);
+                    _raplEnergyUnit = 1.0 / (1 << esu); // Joules per unit
+                    _raplInitialized = true;
+                }
+                
+                // Read current energy counter (32-bit, wraps around)
+                ulong energyStatus = ReadMsr(MSR_PKG_ENERGY_STATUS);
+                uint currentEnergy = (uint)(energyStatus & 0xFFFFFFFF);
+                DateTime now = DateTime.UtcNow;
+                
+                if (_lastEnergyTimestamp == DateTime.MinValue)
+                {
+                    // First reading — store and return 0
+                    _lastEnergyReading = currentEnergy;
+                    _lastEnergyTimestamp = now;
+                    return 0;
+                }
+                
+                double elapsed = (now - _lastEnergyTimestamp).TotalSeconds;
+                if (elapsed < 0.1) return 0; // Too soon for meaningful delta
+                
+                // Handle 32-bit counter overflow
+                uint delta;
+                if (currentEnergy >= _lastEnergyReading)
+                    delta = currentEnergy - _lastEnergyReading;
+                else
+                    delta = (uint.MaxValue - _lastEnergyReading) + currentEnergy + 1;
+                
+                double energyJoules = delta * _raplEnergyUnit;
+                double watts = energyJoules / elapsed;
+                
+                // Update for next call
+                _lastEnergyReading = currentEnergy;
+                _lastEnergyTimestamp = now;
+                
+                // Sanity check: i9-13900HX max PL2 is ~157W package
+                return watts > 500 ? 0 : Math.Round(watts, 1);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+        
         /// <summary>
         /// Read current package power limit time window in seconds.
         /// </summary>

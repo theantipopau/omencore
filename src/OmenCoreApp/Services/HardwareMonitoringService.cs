@@ -47,15 +47,17 @@ namespace OmenCore.Services
         private const int RestartTimeoutThreshold = 3;       // Attempt bridge restart after 3 consecutive timeouts
         private bool _restartInProgress = false;             // Prevent concurrent restart attempts
         
-        // Temperature freeze detection (v2.7.0 enhancement)
+        // Temperature freeze detection (v2.7.0 enhancement, improved v2.8.6)
         private double _lastCpuTempForFreezeCheck = 0;
         private double _lastGpuTempForFreezeCheck = 0;
         private int _consecutiveSameCpuTemp = 0;
         private int _consecutiveSameGpuTemp = 0;
-        private const int FreezeThresholdReadings = 30;      // 30 readings with same temp = freeze
+        private const int FreezeThresholdReadings = 30;      // 30 readings with same temp = potential freeze
+        private const int IdleGpuFreezeThreshold = 120;      // v2.8.6: Idle GPU (load <10%) needs 120 readings (~2min) before flagging
         private const double TempFreezeEpsilon = 0.1;        // Temperature must change by at least 0.1°C
         private HpWmiBios? _wmiBiosService;                  // Optional WMI fallback for temps
         private bool _usingWmiFallback = false;              // Track if we're in fallback mode
+        private bool _gpuFreezeWarningLogged = false;        // v2.8.6: Only log GPU freeze warning once per freeze event
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
@@ -89,6 +91,11 @@ namespace OmenCore.Services
         /// Current monitoring health status (Healthy, Degraded, or Stale).
         /// </summary>
         public MonitoringHealthStatus HealthStatus => _healthStatus;
+
+        /// <summary>
+        /// Human-readable monitoring source label.
+        /// </summary>
+        public string MonitoringSource => _bridge.MonitoringSource;
         
         /// <summary>
         /// Time since last successful sensor reading.
@@ -772,26 +779,31 @@ namespace OmenCore.Services
             }
             
             // Check GPU temperature for freeze
+            // v2.8.6: Use higher threshold when GPU is idle (load <10%) — idle GPUs legitimately maintain stable temps
+            var effectiveGpuFreezeThreshold = sample.GpuLoadPercent < 10 ? IdleGpuFreezeThreshold : FreezeThresholdReadings;
+            
             if (Math.Abs(sample.GpuTemperatureC - _lastGpuTempForFreezeCheck) < TempFreezeEpsilon)
             {
                 _consecutiveSameGpuTemp++;
-                if (_consecutiveSameGpuTemp >= FreezeThresholdReadings)
+                if (_consecutiveSameGpuTemp >= effectiveGpuFreezeThreshold)
                 {
                     gpuFrozen = true;
-                    if (_consecutiveSameGpuTemp == FreezeThresholdReadings)
+                    if (!_gpuFreezeWarningLogged)
                     {
-                        _logging.Warn($"🥶 GPU temperature appears frozen at {sample.GpuTemperatureC:F1}°C for {_consecutiveSameGpuTemp} readings");
+                        _logging.Warn($"🥶 GPU temperature appears frozen at {sample.GpuTemperatureC:F1}°C for {_consecutiveSameGpuTemp} readings (load={sample.GpuLoadPercent}%)");
+                        _gpuFreezeWarningLogged = true;
                     }
                 }
             }
             else
             {
-                if (_consecutiveSameGpuTemp >= FreezeThresholdReadings)
+                if (_gpuFreezeWarningLogged)
                 {
                     _logging.Info($"✅ GPU temperature unfroze: {_lastGpuTempForFreezeCheck:F1}°C → {sample.GpuTemperatureC:F1}°C");
                 }
                 _consecutiveSameGpuTemp = 0;
                 _lastGpuTempForFreezeCheck = sample.GpuTemperatureC;
+                _gpuFreezeWarningLogged = false;
             }
             
             // Try WMI BIOS fallback for frozen temps
@@ -818,17 +830,31 @@ namespace OmenCore.Services
                             _lastCpuTempForFreezeCheck = wmiCpu;
                         }
                         
-                        if (gpuFrozen && wmiGpu > 0 && wmiGpu < 150 && 
-                            Math.Abs(wmiGpu - sample.GpuTemperatureC) > 1)
+                        if (gpuFrozen && wmiGpu > 0 && wmiGpu < 150)
                         {
-                            if (!_usingWmiFallback)
+                            if (Math.Abs(wmiGpu - sample.GpuTemperatureC) > 1)
                             {
-                                _logging.Info($"🔄 Using WMI BIOS for GPU temp: {sample.GpuTemperatureC:F1}°C → {wmiGpu:F1}°C");
-                                _usingWmiFallback = true;
+                                // WMI returns a DIFFERENT value — use it as substitute
+                                if (!_usingWmiFallback)
+                                {
+                                    _logging.Info($"🔄 Using WMI BIOS for GPU temp: {sample.GpuTemperatureC:F1}°C → {wmiGpu:F1}°C");
+                                    _usingWmiFallback = true;
+                                }
+                                sample.GpuTemperatureC = wmiGpu;
+                                _consecutiveSameGpuTemp = 0;
+                                _lastGpuTempForFreezeCheck = wmiGpu;
+                                _gpuFreezeWarningLogged = false;
                             }
-                            sample.GpuTemperatureC = wmiGpu;
-                            _consecutiveSameGpuTemp = 0;
-                            _lastGpuTempForFreezeCheck = wmiGpu;
+                            else
+                            {
+                                // v2.8.6: WMI returns a SIMILAR value (within 1°C) — this CONFIRMS
+                                // the temperature is real, not frozen. The sensor is working correctly;
+                                // the GPU is genuinely at a stable temperature (e.g. idle).
+                                _logging.Info($"✅ WMI BIOS confirms GPU temp is valid: sensor={sample.GpuTemperatureC:F1}°C, WMI={wmiGpu:F1}°C — not frozen, GPU is idle/stable");
+                                _consecutiveSameGpuTemp = 0;
+                                _lastGpuTempForFreezeCheck = sample.GpuTemperatureC;
+                                _gpuFreezeWarningLogged = false;
+                            }
                         }
                     }
                 }

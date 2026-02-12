@@ -77,6 +77,7 @@ namespace OmenCore.ViewModels
         private OsdService? _osdService;
         private ConflictDetectionService? _conflictDetectionService;
         private HpWmiBios? _wmiBios;
+        private WmiBiosMonitor? _wmiBiosMonitor;
         private OghServiceProxy? _oghProxy;
         private HotkeyOsdWindow? _hotkeyOsd;
         
@@ -227,6 +228,8 @@ namespace OmenCore.ViewModels
                     _general = new GeneralViewModel(_fanService, _performanceModeService, _configService, _logging, _systemInfoService);
                     // Wire up the FanControlViewModel reference for preset sync
                     _general.SetFanControlViewModel(FanControl);
+                    // v2.8.6: Wire up SystemControlViewModel for OMEN tab sync on quick profile switch
+                    _general.SetSystemControlViewModel(SystemControl);
                     OnPropertyChanged(nameof(General));
                 }
                 return _general;
@@ -244,6 +247,20 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged(nameof(SystemOptimizer));
                 }
                 return _systemOptimizer;
+            }
+        }
+
+        private MemoryOptimizerViewModel? _memoryOptimizer;
+        public MemoryOptimizerViewModel? MemoryOptimizer
+        {
+            get
+            {
+                if (_memoryOptimizer == null)
+                {
+                    _memoryOptimizer = new MemoryOptimizerViewModel(_logging);
+                    OnPropertyChanged(nameof(MemoryOptimizer));
+                }
+                return _memoryOptimizer;
             }
         }
         
@@ -1041,16 +1058,64 @@ namespace OmenCore.ViewModels
         {
             _config = _configService.Load();
             
-            // Initialize hardware monitor bridge
-            // Priority: WmiBiosMonitor (no dependencies) -> LibreHardwareMonitor (if available for enhanced metrics)
-            IHardwareMonitorBridge monitorBridge;
-            LibreHardwareMonitorImpl? libreHwMonitor = null;
+            // ═══════════════════════════════════════════════════════════════════
+            // SELF-SUSTAINING MONITORING ARCHITECTURE (v2.8.6+)
+            // 
+            // OmenCore is SELF-SUSTAINING — no LHM/WinRing0/NVML dependencies.
+            // Primary: WMI BIOS (temps, fans) + NVAPI (GPU metrics)
+            // Optional: PawnIO MSR (CPU throttling detection only)
+            //
+            // This is the same approach as OmenMon — rock-solid, no dropouts.
+            // ═══════════════════════════════════════════════════════════════════
             
-            // Try WmiBiosMonitor first - it's self-sufficient with no external dependencies
-            var wmiBiosMonitor = new WmiBiosMonitor(_logging);
+            IHardwareMonitorBridge monitorBridge;
+            
+            // 1. Initialize NVAPI early (for GPU load, clocks, VRAM, power)
+            NvapiService? nvapiForMonitoring = null;
+            try
+            {
+                _nvapiService = new NvapiService(_logging);
+                if (_nvapiService.Initialize())
+                {
+                    nvapiForMonitoring = _nvapiService;
+                    _logging.Info($"✓ NVAPI initialized for monitoring: {_nvapiService.GpuName}");
+                }
+                else
+                {
+                    _logging.Info("NVAPI initialization returned false — GPU metrics will be limited");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"NVAPI initialization failed: {ex.Message}");
+                _nvapiService = null;
+            }
+            
+            // 2. Try PawnIO MSR for CPU throttling detection (optional, non-critical)
+            PawnIOMsrAccess? msrForMonitoring = null;
+            try
+            {
+                var msrAccess = new PawnIOMsrAccess();
+                if (msrAccess.IsAvailable)
+                {
+                    msrForMonitoring = msrAccess;
+                    _logging.Info("✓ PawnIO MSR available for throttling detection");
+                }
+                else
+                {
+                    msrAccess.Dispose();
+                    _logging.Info("PawnIO MSR not available — throttling detection disabled");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"PawnIO MSR init: {ex.Message}");
+            }
+            
+            // 3. Create self-sustaining WmiBiosMonitor as PRIMARY monitoring bridge
+            var wmiBiosMonitor = new WmiBiosMonitor(_logging, nvapiForMonitoring, msrForMonitoring);
             
             // If battery monitoring is disabled in config, prevent all battery WMI queries
-            // This prevents EC timeout errors on systems with dead/removed batteries
             if (_config.Battery?.DisableMonitoring == true)
             {
                 wmiBiosMonitor.DisableBatteryMonitoring();
@@ -1059,53 +1124,16 @@ namespace OmenCore.ViewModels
             
             if (wmiBiosMonitor.IsAvailable)
             {
-                _logging.Info("✓ WMI BIOS monitoring available (self-sufficient mode)");
-                
-                // Optionally try LibreHardwareMonitor for enhanced metrics (GPU clocks, power, VRAM, etc.)
-                try
-                {
-                    libreHwMonitor = new LibreHardwareMonitorImpl(
-                        msg => _logging.Debug($"[LibreHW] {msg}"),
-                        useWorker: true);
-                    _logging.Info("✓ LibreHardwareMonitor available for enhanced metrics");
-                    monitorBridge = libreHwMonitor; // Use LibreHW if available (has more metrics)
-                    
-                    // Disable battery monitoring in worker if config says so
-                    if (_config.Battery?.DisableMonitoring == true)
-                    {
-                        _ = libreHwMonitor.DisableBatteryMonitoringAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logging.Info($"LibreHardwareMonitor unavailable ({ex.Message}) - using WMI BIOS only");
-                    monitorBridge = wmiBiosMonitor;
-                }
+                _logging.Info($"✓ Self-sustaining monitoring active: {wmiBiosMonitor.MonitoringSource}");
             }
             else
             {
-                _logging.Warn("WMI BIOS monitoring not available - trying LibreHardwareMonitor");
-                
-                // Fall back to LibreHardwareMonitor
-                try
-                {
-                    libreHwMonitor = new LibreHardwareMonitorImpl(
-                        msg => _logging.Info($"[Monitor] {msg}"),
-                        useWorker: true);
-                    monitorBridge = libreHwMonitor;
-                    
-                    if (_config.Battery?.DisableMonitoring == true)
-                    {
-                        _ = libreHwMonitor.DisableBatteryMonitoringAsync();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logging.Error($"No monitoring available: {ex.Message}");
-                    // Use WmiBiosMonitor even if not fully available - it will return zeros
-                    monitorBridge = wmiBiosMonitor;
-                }
+                _logging.Warn("WMI BIOS not available — monitoring will return zeros for some metrics");
             }
+            
+            // WmiBiosMonitor is ALWAYS the primary bridge — no LHM fallback needed
+            monitorBridge = wmiBiosMonitor;
+            _wmiBiosMonitor = wmiBiosMonitor;
             
             // Run capability detection to identify available backends
             var capabilityService = new CapabilityDetectionService(_logging);
@@ -1185,9 +1213,6 @@ namespace OmenCore.ViewModels
             // Fan verification service (closed-loop verification)
             _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
             FanDiagnostics = new FanDiagnosticsViewModel(_fanVerificationService, _fanService, _logging);
-
-            // Keyboard diagnostics
-            KeyboardDiagnostics = new KeyboardDiagnosticsViewModel(_corsairDeviceService, _logitechDeviceService, _keyboardLightingService, _razerService, _logging);
             
             // Power limit controller (EC-based CPU/GPU power control)
             PowerLimitController? powerLimitController = null;
@@ -1220,16 +1245,11 @@ namespace OmenCore.ViewModels
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
             
-            // Initialize NVAPI for GPU overclocking/tuning
-            try
-            {
-                _nvapiService = new NvapiService(_logging);
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"NVAPI service initialization failed: {ex.Message}");
-                _nvapiService = null;
-            }
+            // Keyboard diagnostics (must be after _keyboardLightingService is created)
+            KeyboardDiagnostics = new KeyboardDiagnosticsViewModel(_corsairDeviceService, _logitechDeviceService, _keyboardLightingService, _razerService, _logging);
+            
+            // NVAPI already initialized earlier for self-sustaining monitoring
+            // _nvapiService is ready for GPU OC use by SystemControlViewModel
             
             // Initialize AMD GPU service (ADL2) for AMD GPU overclocking
             try
@@ -1299,6 +1319,14 @@ namespace OmenCore.ViewModels
             
             // Initialize conflict detection service for detecting conflicting software
             _conflictDetectionService = new ConflictDetectionService(_logging);
+            
+            // Wire up Afterburner coexistence — WmiBiosMonitor reads GPU data from
+            // Afterburner shared memory instead of polling NVAPI (eliminates contention)
+            if (_wmiBiosMonitor != null)
+            {
+                _wmiBiosMonitor.SetAfterburnerCoexistence(_conflictDetectionService);
+            }
+            
             _conflictDetectionService.OnConflictsDetected += (conflicts) =>
             {
                 if (conflicts.Count > 0)
@@ -3222,6 +3250,9 @@ namespace OmenCore.ViewModels
             // Dispose device services
             _corsairDeviceService?.Dispose();
             _logitechDeviceService?.Dispose();
+
+            // Dispose memory optimizer
+            _memoryOptimizer?.Dispose();
         }
     }
 }

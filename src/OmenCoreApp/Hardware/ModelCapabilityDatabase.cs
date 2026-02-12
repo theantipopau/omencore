@@ -49,6 +49,11 @@ namespace OmenCore.Hardware
         
         /// <summary>Maximum fan speed percentage supported.</summary>
         public int MaxFanSpeedPercent { get; set; } = 100;
+
+        /// <summary>
+        /// Optional model-specific max fan level override (0-100). Null means auto-detect.
+        /// </summary>
+        public int? MaxFanLevel { get; set; }
         
         /// <summary>Minimum fan speed percentage (some models don't allow 0%).</summary>
         public int MinFanSpeedPercent { get; set; } = 0;
@@ -313,6 +318,27 @@ namespace OmenCore.Hardware
                 Notes = "2024 model - may have WMI quirks on older BIOS versions"
             });
             
+            // OMEN 16 (2024) - xd series (AMD)
+            // Community report: Product ID 8BCD, RTX 4050 + AMD Radeon iGPU
+            // V1 ThermalPolicy, MaxFanLevel=55, 2 fans, WMI fan control works
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BCD",
+                ModelName = "OMEN 16 (2024) xd0xxx AMD",
+                ModelNamePattern = "16-xd0", // For model name matching "OMEN 16-xd0xxx"
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                Notes = "2024 AMD model - V1 fan control, MaxFanLevel=55"
+            });
+            
             // ═══════════════════════════════════════════════════════════════════════════════════
             // OMEN MAX Series (2025+ flagship models)
             // ═══════════════════════════════════════════════════════════════════════════════════
@@ -334,6 +360,7 @@ namespace OmenCore.Hardware
                 SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = true,
                 FanZoneCount = 2,
+                MaxFanLevel = 100,
                 SupportsPerformanceModes = true,
                 PerformanceModes = new[] { "Default", "Performance", "Cool" },
                 HasMuxSwitch = true, // Advanced Optimus / MUX switch available
@@ -367,6 +394,7 @@ namespace OmenCore.Hardware
                 SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = true,
                 FanZoneCount = 2,
+                MaxFanLevel = 100,
                 SupportsPerformanceModes = true,
                 PerformanceModes = new[] { "Default", "Performance", "Cool" },
                 HasMuxSwitch = true,

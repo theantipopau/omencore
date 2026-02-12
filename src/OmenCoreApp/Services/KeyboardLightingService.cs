@@ -37,6 +37,11 @@ namespace OmenCore.Services
         private int _totalAttempts = 0;
         private readonly object _telemetryLock = new();
 
+        // Throttle experimental EC keyboard writes to avoid EC overload
+        private readonly object _ecKeyboardWriteLock = new();
+        private DateTime _lastEcKeyboardWriteTime = DateTime.MinValue;
+        private const int EcKeyboardWriteMinIntervalMs = 200;
+
         // HP OMEN WMI namespace and class identifiers (legacy)
         private const string OmenWmiNamespace = @"root\hp\InstrumentedBIOS";
         private const byte EC_KB_ZONE1_R = 0xB1;
@@ -97,6 +102,20 @@ namespace OmenCore.Services
         /// Check if experimental EC keyboard writes are enabled and allowed.
         /// </summary>
         private bool IsExperimentalEcEnabled => _configService?.Config?.ExperimentalEcKeyboardEnabled ?? false;
+
+        private bool IsEcKeyboardWriteAllowed()
+        {
+            lock (_ecKeyboardWriteLock)
+            {
+                var now = DateTime.UtcNow;
+                if ((now - _lastEcKeyboardWriteTime).TotalMilliseconds < EcKeyboardWriteMinIntervalMs)
+                {
+                    return false;
+                }
+                _lastEcKeyboardWriteTime = now;
+                return true;
+            }
+        }
 
         public KeyboardLightingService(LoggingService logging, IEcAccess? ecAccess = null, HpWmiBios? wmiBios = null, ConfigurationService? configService = null)
         {
@@ -339,6 +358,11 @@ namespace OmenCore.Services
                 if ((backend == "EC" || forceEcAccess) && _ecAvailable && _ecAccess != null && IsExperimentalEcEnabled)
                 {
                     _logging.Warn("⚠️ Using EXPERIMENTAL EC keyboard writes - crash risk!");
+                    if (!IsEcKeyboardWriteAllowed())
+                    {
+                        _logging.Debug("EC keyboard writes throttled");
+                        return;
+                    }
                     for (int i = 0; i < 4; i++)
                     {
                         SetZoneColorViaEc((KeyboardZone)i, orderedColors[i]);
@@ -459,6 +483,7 @@ namespace OmenCore.Services
         private void SetZoneColorViaEc(KeyboardZone zone, Color color)
         {
             if (_ecAccess == null || !_ecAvailable) return;
+            if (!IsEcKeyboardWriteAllowed()) return;
 
             byte baseReg = zone switch
             {

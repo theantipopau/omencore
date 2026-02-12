@@ -10,7 +10,8 @@ namespace OmenCore.Hardware
     {
         private readonly IEcAccess _ecAccess;
         private readonly IReadOnlyDictionary<string, int> _registerMap;
-        private readonly LibreHardwareMonitorImpl _bridge;
+        private readonly LibreHardwareMonitorImpl? _bridge;
+        private readonly HpWmiBios? _wmiBios;
         private readonly LoggingService? _logging;
         
         // EC registers for reading actual fan RPM (from omen-fan project)
@@ -20,13 +21,26 @@ namespace OmenCore.Hardware
         // Track last set fan percentage for fallback estimation only
         private int _lastSetFanPercent = -1;
 
-        public FanController(IEcAccess ecAccess, IReadOnlyDictionary<string, int> registerMap, LibreHardwareMonitorImpl bridge, LoggingService? logging = null)
+        // Throttle EC RPM reads when LHM is present but returns no fan sensors
+        private DateTime _lastEcRpmReadTime = DateTime.MinValue;
+        private const double EcRpmReadMinIntervalSeconds = 10.0;
+        
+        // EC write deduplication — prevent hammering EC with identical commands
+        // When thermal protection fires every poll cycle at the same percent,
+        // this prevents redundant EC writes that overwhelm the controller
+        // and cause ACPI Event 13 (EC timeout) → false battery critical → system shutdown
+        private int _lastWrittenDutyPercent = -1;
+        private DateTime _lastDutyWriteTime = DateTime.MinValue;
+        private const double DutyDeduplicationSeconds = 15.0; // Skip identical writes within this window
+
+        public FanController(IEcAccess ecAccess, IReadOnlyDictionary<string, int> registerMap, LibreHardwareMonitorImpl? bridge, LoggingService? logging = null, HpWmiBios? wmiBios = null)
         {
             _ecAccess = ecAccess;
             _registerMap = registerMap;
             _bridge = bridge;
+            _wmiBios = wmiBios;
             _logging = logging;
-            _logging?.Debug("FanController initialized (EC access ready: " + _ecAccess.IsAvailable + ")");
+            _logging?.Debug($"FanController initialized (EC access ready: {_ecAccess.IsAvailable}, bridge: {(bridge != null ? "LHM" : "none (FanService provides temps)")}, wmiBios: {(wmiBios != null ? "available" : "none")}");
         }
 
         public bool IsEcReady => _ecAccess.IsAvailable;
@@ -43,8 +57,7 @@ namespace OmenCore.Hardware
             }
             
             // Get current temperature and evaluate curve
-            var cpuTemp = _bridge.GetCpuTemperature();
-            var gpuTemp = _bridge.GetGpuTemperature();
+            var (cpuTemp, gpuTemp) = GetBridgeTemperatures();
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             
             // Evaluate curve at current temperature
@@ -64,8 +77,7 @@ namespace OmenCore.Hardware
             }
             
             // Get current temperature and evaluate curve
-            var cpuTemp = _bridge.GetCpuTemperature();
-            var gpuTemp = _bridge.GetGpuTemperature();
+            var (cpuTemp, gpuTemp) = GetBridgeTemperatures();
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             
             // Evaluate curve at current temperature
@@ -113,18 +125,40 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Get temperatures from bridge if available, otherwise return 0.
+        /// Note: FanService has its own ThermalSensorProvider for continuous curve evaluation,
+        /// so these temps are only used for one-shot preset/curve applies and telemetry.
+        /// </summary>
+        private (double cpu, double gpu) GetBridgeTemperatures()
+        {
+            if (_bridge != null)
+            {
+                try
+                {
+                    return (_bridge.GetCpuTemperature(), _bridge.GetGpuTemperature());
+                }
+                catch { /* fall through */ }
+            }
+            return (0, 0);
+        }
+
+        /// <summary>
         /// Read actual fan RPM from EC registers, with fallback to estimation.
         /// HP OMEN laptops store fan speed in 0x34/0x35 as units of 100 RPM.
+        /// 
+        /// SAFETY NOTE: When running without LHM bridge (_bridge is null), we skip
+        /// direct EC register reads for RPM. Aggressive EC register polling can overwhelm
+        /// the embedded controller, causing ACPI EC timeout errors and system crashes.
+        /// WmiBiosMonitor already provides RPM via safe WMI BIOS command 0x38 for the dashboard.
         /// </summary>
         public IEnumerable<FanTelemetry> ReadFanSpeeds()
         {
             var fans = new List<FanTelemetry>();
-            var cpuTemp = _bridge.GetCpuTemperature();
-            var gpuTemp = _bridge.GetGpuTemperature();
+            var (cpuTemp, gpuTemp) = GetBridgeTemperatures();
 
             // Try to get fan speeds from LibreHardwareMonitor first (some models expose via SuperIO)
-            var fanSpeeds = _bridge.GetFanSpeeds();
-            if (fanSpeeds.Any())
+            var fanSpeeds = _bridge?.GetFanSpeeds();
+            if (fanSpeeds != null && fanSpeeds.Any())
             {
                 int index = 0;
                 foreach (var (name, rpm) in fanSpeeds)
@@ -142,7 +176,24 @@ namespace OmenCore.Hardware
                 return fans;
             }
 
+            // When bridge is null (self-sustaining mode without LHM), do NOT read EC registers
+            // for RPM. Direct EC register reads can overwhelm the EC and cause ACPI timeout crashes.
+            // Instead, use WMI BIOS GetFanLevel (command 0x2D) which is safe and returns real fan levels.
+            if (_bridge == null)
+            {
+                return ReadWmiBiosFanSpeeds(cpuTemp, gpuTemp);
+            }
+
+            // Bridge exists but did not provide fan sensors. Throttle EC reads to reduce EC load.
+            var now = DateTime.UtcNow;
+            if ((now - _lastEcRpmReadTime).TotalSeconds < EcRpmReadMinIntervalSeconds)
+            {
+                return GetEstimatedFanSpeeds(cpuTemp, gpuTemp);
+            }
+            _lastEcRpmReadTime = now;
+
             // Try to read actual RPM from EC registers (HP OMEN specific)
+            // Only safe when LHM bridge is available (reduces total EC access frequency)
             var (fan1Rpm, fan2Rpm) = ReadActualFanRpm();
             
             if (fan1Rpm > 0 || fan2Rpm > 0)
@@ -169,7 +220,70 @@ namespace OmenCore.Hardware
             }
 
             // Fallback: estimate based on last set percentage or temperature
-            System.Diagnostics.Debug.WriteLine($"[FanController.ReadFanSpeeds] EC read failed, using fallback estimation. _lastSetFanPercent={_lastSetFanPercent}");
+            return GetEstimatedFanSpeeds(cpuTemp, gpuTemp);
+        }
+
+        /// <summary>
+        /// Read fan speeds via WMI BIOS GetFanLevel (command 0x2D).
+        /// Safe alternative to EC register reads — uses WMI not direct EC access.
+        /// Returns actual hardware fan levels (krpm units × 100 = RPM).
+        /// Falls back to estimated speeds if WMI BIOS is unavailable.
+        /// </summary>
+        private List<FanTelemetry> ReadWmiBiosFanSpeeds(double cpuTemp, double gpuTemp)
+        {
+            if (_wmiBios?.IsAvailable == true)
+            {
+                try
+                {
+                    var levels = _wmiBios.GetFanLevel();
+                    if (levels.HasValue)
+                    {
+                        var (fan1Level, fan2Level) = levels.Value;
+                        // Fan levels are in krpm units (e.g., 44 = 4400 RPM)
+                        int fan1Rpm = fan1Level * 100;
+                        int fan2Rpm = fan2Level * 100;
+                        
+                        if (fan1Rpm > 0 || fan2Rpm > 0)
+                        {
+                            _logging?.Info($"WMI BIOS fan levels: Fan1={fan1Level} ({fan1Rpm} RPM), Fan2={fan2Level} ({fan2Rpm} RPM)");
+                            return new List<FanTelemetry>
+                            {
+                                new FanTelemetry
+                                {
+                                    Name = "CPU Fan",
+                                    SpeedRpm = fan1Rpm,
+                                    DutyCyclePercent = CalculateDutyFromRpm(fan1Rpm, 0),
+                                    Temperature = cpuTemp,
+                                    RpmSource = RpmSource.WmiBios
+                                },
+                                new FanTelemetry
+                                {
+                                    Name = "GPU Fan",
+                                    SpeedRpm = fan2Rpm,
+                                    DutyCyclePercent = CalculateDutyFromRpm(fan2Rpm, 1),
+                                    Temperature = gpuTemp,
+                                    RpmSource = RpmSource.WmiBios
+                                }
+                            };
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging?.Debug($"WMI BIOS fan level read failed: {ex.Message}");
+                }
+            }
+            
+            // Fallback to estimates if WMI BIOS unavailable or returned no data
+            return GetEstimatedFanSpeeds(cpuTemp, gpuTemp);
+        }
+
+        /// <summary>
+        /// Get estimated fan speeds when all hardware sources are unavailable.
+        /// Last resort fallback — pure calculation from last-set percent or temperature.
+        /// </summary>
+        private List<FanTelemetry> GetEstimatedFanSpeeds(double cpuTemp, double gpuTemp)
+        {
             int fanPercent;
             int fanRpm;
             
@@ -193,24 +307,25 @@ namespace OmenCore.Hardware
                 }
             }
             
-            fans.Add(new FanTelemetry 
-            { 
-                Name = "CPU Fan (est.)", 
-                SpeedRpm = fanRpm, 
-                DutyCyclePercent = fanPercent, 
-                Temperature = cpuTemp,
-                RpmSource = RpmSource.Estimated
-            });
-            fans.Add(new FanTelemetry 
-            { 
-                Name = "GPU Fan (est.)", 
-                SpeedRpm = fanRpm, 
-                DutyCyclePercent = fanPercent, 
-                Temperature = gpuTemp,
-                RpmSource = RpmSource.Estimated
-            });
-
-            return fans;
+            return new List<FanTelemetry>
+            {
+                new FanTelemetry 
+                { 
+                    Name = "CPU Fan (est.)", 
+                    SpeedRpm = fanRpm, 
+                    DutyCyclePercent = fanPercent, 
+                    Temperature = cpuTemp,
+                    RpmSource = RpmSource.Estimated
+                },
+                new FanTelemetry 
+                { 
+                    Name = "GPU Fan (est.)", 
+                    SpeedRpm = fanRpm, 
+                    DutyCyclePercent = fanPercent, 
+                    Temperature = gpuTemp,
+                    RpmSource = RpmSource.Estimated
+                }
+            };
         }
         
         /// <summary>
@@ -223,89 +338,45 @@ namespace OmenCore.Hardware
             if (!_ecAccess.IsAvailable)
                 return (0, 0);
 
-            // Retry/backoff strategy to mitigate inter-process EC contention.
-            // Some contention manifests as transient 0 RPM or thrown timeouts when other apps access EC.
-            const int attempts = 5;
-            var readings = new List<(int f1, int f2)>();
+            // SAFETY: Only use primary registers (0x34/0x35) which are known to work.
+            // Alt registers (0x4A-0x4D) return garbage on many OMEN models and waste EC bandwidth.
+            // Reduced to 2 attempts (from 5) to minimize EC contention risk.
+            // ACPI EC timeout (Event 13) can crash the system if EC is overwhelmed.
+            const int attempts = 2;
             for (int attempt = 1; attempt <= attempts; attempt++)
             {
                 try
                 {
-                    // Try alternative registers first (0x4A-0x4B for Fan1, 0x4C-0x4D for Fan2) - 16-bit RPM
-                    try
-                    {
-                        var fan1Low = _ecAccess.ReadByte(0x4A);
-                        var fan1High = _ecAccess.ReadByte(0x4B);
-                        var fan2Low = _ecAccess.ReadByte(0x4C);
-                        var fan2High = _ecAccess.ReadByte(0x4D);
-                        _logging?.Debug($"EC Read alt RPM regs (attempt {attempt}): 0x4A=0x{fan1Low:X2}, 0x4B=0x{fan1High:X2}, 0x4C=0x{fan2Low:X2}, 0x4D=0x{fan2High:X2}");
-
-                        var fan1Rpm = (fan1High << 8) | fan1Low;
-                        var fan2Rpm = (fan2High << 8) | fan2Low;
-
-                        // Validate RPM range (0-8000 is valid for laptop fans)
-                        // 0xFF or 0xFFFF values indicate "no data" or error states
-                        if ((HpWmiBios.IsValidRpm(fan1Rpm) && fan1Rpm > 0) || 
-                            (HpWmiBios.IsValidRpm(fan2Rpm) && fan2Rpm > 0))
-                        {
-                            // Only return valid readings
-                            var validF1 = HpWmiBios.IsValidRpm(fan1Rpm) ? fan1Rpm : 0;
-                            var validF2 = HpWmiBios.IsValidRpm(fan2Rpm) ? fan2Rpm : 0;
-                            readings.Add((validF1, validF2));
-                            _logging?.Info($"EC RPMs (alt regs, attempt {attempt}): Fan1={validF1} RPM, Fan2={validF2} RPM");
-                            // Good reading - return immediately
-                            return (validF1, validF2);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logging?.Debug($"EC alt register read failed (attempt {attempt}): {ex.Message}");
-                        if (ex is TimeoutException || ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
-                        {
-                            // Log contention event only once per session to avoid log spam
-                            if (!PawnIOEcAccess.EcContentionWarningLogged)
-                            {
-                                PawnIOEcAccess.EcContentionWarningLogged = true;
-                                _logging?.Warn($"EC contention detected: {ex.Message}. This warning will only appear once per session.");
-                            }
-                        }
-                    }
-
-                    // Try primary registers (0x34/0x35) - units of 100 RPM (write registers, may return set values)
+                    // Primary registers (0x34/0x35) - units of 100 RPM
                     const ushort REG_FAN1_RPM = 0x34;
                     const ushort REG_FAN2_RPM = 0x35;
 
                     var fan1Unit = _ecAccess.ReadByte(REG_FAN1_RPM);
                     var fan2Unit = _ecAccess.ReadByte(REG_FAN2_RPM);
-                    _logging?.Debug($"EC Read primary RPM regs (attempt {attempt}): 0x{REG_FAN1_RPM:X2}=0x{fan1Unit:X2}, 0x{REG_FAN2_RPM:X2}=0x{fan2Unit:X2}");
+                    _logging?.Debug($"EC Read RPM regs (attempt {attempt}): 0x{REG_FAN1_RPM:X2}=0x{fan1Unit:X2}, 0x{REG_FAN2_RPM:X2}=0x{fan2Unit:X2}");
 
                     // Skip 0xFF values (invalid/error indicator)
                     // Max valid unit is 80 (8000 RPM / 100)
                     if (fan1Unit > 0 && fan1Unit < 0xFF || fan2Unit > 0 && fan2Unit < 0xFF)
                     {
-                        // Only compute RPM for valid units (< 80 = 8000 RPM max)
                         var fan1Rpm = (fan1Unit > 0 && fan1Unit <= 80) ? fan1Unit * 100 : 0;
                         var fan2Rpm = (fan2Unit > 0 && fan2Unit <= 80) ? fan2Unit * 100 : 0;
                         
                         if (fan1Rpm > 0 || fan2Rpm > 0)
                         {
-                            readings.Add((fan1Rpm, fan2Rpm));
-                            _logging?.Info($"EC RPMs (primary, attempt {attempt}): Fan1={fan1Rpm} RPM, Fan2={fan2Rpm} RPM");
+                            _logging?.Info($"EC RPMs (attempt {attempt}): Fan1={fan1Rpm} RPM, Fan2={fan2Rpm} RPM");
                             return (fan1Rpm, fan2Rpm);
                         }
                     }
-
-                    // If we reach here, we got zeros - wait and retry
                 }
                 catch (Exception ex)
                 {
-                    // Only log EC read failures once per session if it's a mutex/contention issue
                     if (ex is TimeoutException || ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
                     {
                         if (!PawnIOEcAccess.EcContentionWarningLogged)
                         {
                             PawnIOEcAccess.EcContentionWarningLogged = true;
-                            _logging?.Warn($"EC Read failed due to contention: {ex.Message}. This warning will only appear once per session.");
+                            _logging?.Warn($"EC contention detected: {ex.Message}. This warning will only appear once per session.");
                         }
                     }
                     else
@@ -314,23 +385,13 @@ namespace OmenCore.Hardware
                     }
                 }
 
-                // Backoff with jitter
-                try
+                // Brief backoff between attempts
+                if (attempt < attempts)
                 {
-                    var delayMs = 50 * attempt + (new Random()).Next(20, 80);
-                    System.Threading.Thread.Sleep(delayMs);
+                    try { System.Threading.Thread.Sleep(100); } catch { }
                 }
-                catch { }
             }
 
-            // If we collected any non-zero readings, pick the most recent non-zero
-            for (int i = readings.Count - 1; i >= 0; i--)
-            {
-                var r = readings[i];
-                if (r.f1 > 0 || r.f2 > 0) return r;
-            }
-
-            // Nothing useful found
             _logging?.Debug("EC ReadActualFanRpm: no valid RPM readings after retries");
             return (0, 0);
         }
@@ -356,6 +417,20 @@ namespace OmenCore.Hardware
         {
             // Track last set percentage for RPM estimation fallback
             _lastSetFanPercent = Math.Clamp(percent, 0, 100);
+            
+            // EC WRITE DEDUPLICATION — Critical safety feature
+            // When thermal protection is active, it calls WriteDuty(100) every poll cycle (1-5s).
+            // Each WriteDuty = 7+ EC writes. Repeated identical writes overwhelm the Embedded Controller,
+            // causing ACPI Event 13 (EC timeout). The EC also handles battery monitoring — when overwhelmed,
+            // Windows loses battery status and triggers false "Critical Battery" emergency shutdown,
+            // even with the charger plugged in. Skip write if same value was set recently.
+            var now = DateTime.UtcNow;
+            if (percent == _lastWrittenDutyPercent && 
+                (now - _lastDutyWriteTime).TotalSeconds < DutyDeduplicationSeconds)
+            {
+                _logging?.Debug($"WriteDuty({percent}%) skipped — same value written {(now - _lastDutyWriteTime).TotalSeconds:F1}s ago");
+                return;
+            }
             
             // HP OMEN EC register constants for fan control
             // Based on omen-fan project and OmenMon research
@@ -403,33 +478,20 @@ namespace OmenCore.Hardware
                     _ecAccess.WriteByte(REG_FAN_BOOST, 0x00); // Disable boost
                 }
 
-                // Also write to user-configured registers if different (for compatibility)
-                var duty = (byte)Math.Clamp(percent * 255 / 100, 0, 255);
-                foreach (var register in _registerMap.Values)
-                {
-                    var regAddr = (ushort)register;
-                    // Skip if we already wrote to this register
-                    if (regAddr != REG_FAN1_SPEED_PCT && regAddr != REG_FAN2_SPEED_PCT &&
-                        regAddr != REG_FAN1_SPEED_SET && regAddr != REG_FAN2_SPEED_SET)
-                    {
-                        _logging?.Debug($"EC Write: 0x{regAddr:X2} <- 0x{duty:X2} (compat)");
-                        _ecAccess.WriteByte(regAddr, duty);
-                    }
-                }
+                // REMOVED: Compatibility register writes (_registerMap.Values loop)
+                // These wrote to unknown registers that may not exist on all models,
+                // adding unnecessary EC load. The above writes cover all known OMEN registers.
 
-                // Readback a few registers for verification/logging
-                try
-                {
-                    var rb_omcc = _ecAccess.ReadByte(REG_OMCC);
-                    var rb_xfcd = _ecAccess.ReadByte(REG_XFCD);
-                    var rb_pct1 = _ecAccess.ReadByte(REG_FAN1_SPEED_PCT);
-                    var rb_boost = _ecAccess.ReadByte(REG_FAN_BOOST);
-                    _logging?.Debug($"EC Readback: 0x{REG_OMCC:X2}=0x{rb_omcc:X2}, 0x{REG_XFCD:X2}=0x{rb_xfcd:X2}, 0x{REG_FAN1_SPEED_PCT:X2}=0x{rb_pct1:X2}, 0x{REG_FAN_BOOST:X2}=0x{rb_boost:X2}");
-                }
-                catch (Exception ex)
-                {
-                    _logging?.Warn($"EC readback failed after WriteDuty: {ex.Message}");
-                }
+                // REMOVED: Readback verification reads (4x EC ReadByte after writes)
+                // These caused "EC output buffer not full" errors and contributed to
+                // EC overwhelm → ACPI Event 13 → false battery critical → system shutdown.
+                // Readback was purely for diagnostic logging and not safety-critical.
+                
+                // Update deduplication tracking AFTER successful write
+                _lastWrittenDutyPercent = percent;
+                _lastDutyWriteTime = now;
+                
+                _logging?.Debug($"WriteDuty({percent}%) completed: 7 EC writes");
             }
             catch (Exception ex)
             {
@@ -459,6 +521,16 @@ namespace OmenCore.Hardware
             const ushort REG_FAN_BOOST = 0xEC;
             
             _lastSetFanPercent = 100;
+            
+            // Deduplication: skip if already at max and written recently
+            var now = DateTime.UtcNow;
+            if (_lastWrittenDutyPercent == 100 && 
+                (now - _lastDutyWriteTime).TotalSeconds < DutyDeduplicationSeconds)
+            {
+                _logging?.Debug("SetMaxSpeed skipped — already at 100%, written recently");
+                return;
+            }
+            
             try
             {
                 _logging?.Debug($"EC SetMaxSpeed: enabling manual control and max values");
@@ -478,18 +550,15 @@ namespace OmenCore.Hardware
                 // Enable fan boost
                 _ecAccess.WriteByte(REG_FAN_BOOST, 0x0C);
 
-                // Readback key registers
-                try
-                {
-                    var rb1 = _ecAccess.ReadByte(REG_FAN1_SPEED_PCT);
-                    var rb2 = _ecAccess.ReadByte(REG_FAN2_SPEED_PCT);
-                    var rbBoost = _ecAccess.ReadByte(REG_FAN_BOOST);
-                    _logging?.Info($"EC SetMaxSpeed readback: PCT1=0x{rb1:X2}, PCT2=0x{rb2:X2}, BOOST=0x{rbBoost:X2}");
-                }
-                catch (Exception ex)
-                {
-                    _logging?.Warn($"EC SetMaxSpeed readback failed: {ex.Message}");
-                }
+                // REMOVED: Readback verification reads (3x EC ReadByte)
+                // These caused EC contention and "EC output buffer not full" errors.
+                // Removed to prevent ACPI Event 13 → false battery critical → system shutdown.
+                
+                // Update deduplication tracking
+                _lastWrittenDutyPercent = 100;
+                _lastDutyWriteTime = now;
+                
+                _logging?.Info("EC SetMaxSpeed completed: 7 writes, no readback");
             }
             catch (Exception ex)
             {
@@ -544,17 +613,14 @@ namespace OmenCore.Hardware
                     _ecAccess.WriteByte(REG_FAN_BOOST, 0x00); // Disable boost
                 }
 
-                // Readback key registers for logging
-                try
-                {
-                    var rbCpu = _ecAccess.ReadByte(REG_FAN1_SPEED_PCT);
-                    var rbGpu = _ecAccess.ReadByte(REG_FAN2_SPEED_PCT);
-                    _logging?.Info($"EC SetFanSpeeds readback: CPU_PCT=0x{rbCpu:X2}, GPU_PCT=0x{rbGpu:X2}");
-                }
-                catch (Exception ex)
-                {
-                    _logging?.Warn($"EC SetFanSpeeds readback failed: {ex.Message}");
-                }
+                // REMOVED: Readback verification reads (2x EC ReadByte)
+                // These caused EC contention. Removed to prevent ACPI Event 13 → false battery critical.
+                
+                // Update deduplication tracking (use average for dedup)
+                _lastWrittenDutyPercent = (cpuPercent + gpuPercent) / 2;
+                _lastDutyWriteTime = DateTime.UtcNow;
+                
+                _logging?.Info($"EC SetFanSpeeds completed: CPU={cpuPercent}%, GPU={gpuPercent}%");
             }
             catch (Exception ex)
             {

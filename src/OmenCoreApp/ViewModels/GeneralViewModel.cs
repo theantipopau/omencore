@@ -20,6 +20,7 @@ namespace OmenCore.ViewModels
         private readonly SystemInfoService? _systemInfoService;
         private readonly DispatcherTimer _updateTimer;
         private FanControlViewModel? _fanControlViewModel;
+        private SystemControlViewModel? _systemControlViewModel;
 
         private string _currentPerformanceMode = "Default";
         private string _currentFanMode = "Auto";
@@ -75,6 +76,15 @@ namespace OmenCore.ViewModels
         public void SetFanControlViewModel(FanControlViewModel? fanControlViewModel)
         {
             _fanControlViewModel = fanControlViewModel;
+        }
+        
+        /// <summary>
+        /// Sets the SystemControlViewModel reference for syncing performance mode UI.
+        /// v2.8.6: Fixes quick profile switching not updating the OMEN tab display.
+        /// </summary>
+        public void SetSystemControlViewModel(SystemControlViewModel? systemControlViewModel)
+        {
+            _systemControlViewModel = systemControlViewModel;
         }
         
         /// <summary>
@@ -229,6 +239,9 @@ namespace OmenCore.ViewModels
                 
                 // Sync fan preset UI if available
                 _fanControlViewModel?.SelectPresetByNameNoApply("Max");
+                
+                // v2.8.6: Sync OMEN tab performance mode display
+                _systemControlViewModel?.SelectModeByNameNoApply("Performance");
 
                 SelectedProfile = "Performance";
                 CurrentPerformanceMode = "Performance";
@@ -259,6 +272,9 @@ namespace OmenCore.ViewModels
                 
                 // Sync fan preset UI if available
                 _fanControlViewModel?.SelectPresetByNameNoApply("Auto");
+                
+                // v2.8.6: Sync OMEN tab performance mode display
+                _systemControlViewModel?.SelectModeByNameNoApply("Balanced");
 
                 SelectedProfile = "Balanced";
                 CurrentPerformanceMode = "Default";
@@ -289,6 +305,9 @@ namespace OmenCore.ViewModels
                 
                 // Sync fan preset UI if available (use Auto as closest built-in)
                 _fanControlViewModel?.SelectPresetByNameNoApply("Auto");
+                
+                // v2.8.6: Sync OMEN tab performance mode display
+                _systemControlViewModel?.SelectModeByNameNoApply("Quiet");
 
                 SelectedProfile = "Quiet";
                 CurrentPerformanceMode = "Quiet";

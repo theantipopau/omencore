@@ -367,9 +367,9 @@ namespace OmenCore.Hardware
         {
             try
             {
-                if (_ecAccess != null && _ecAccess.IsAvailable && _registerMap != null && _libreHwMonitor != null)
+                if (_ecAccess != null && _ecAccess.IsAvailable && _registerMap != null)
                 {
-                    var controller = new FanController(_ecAccess, _registerMap, _libreHwMonitor, _logging);
+                    var controller = new FanController(_ecAccess, _registerMap, _libreHwMonitor, _logging, _wmiBios);
                     if (controller.IsEcReady)
                     {
                         return new EcFanControllerWrapper(controller, _libreHwMonitor, _logging);
@@ -383,125 +383,6 @@ namespace OmenCore.Hardware
             return null;
         }
 
-        /// <summary>
-        /// Read fan RPM directly from EC registers (fallback when other methods fail).
-        /// Based on FanController.ReadActualFanRpm logic.
-        /// </summary>
-        private (int fan1Rpm, int fan2Rpm) ReadFanRpmFromEc()
-        {
-            if (_ecAccess == null || !_ecAccess.IsAvailable)
-                return (0, 0);
-            // Retry/backoff strategy to mitigate inter-process EC contention.
-            // Some contention manifests as transient 0 RPM or thrown timeouts when other apps access EC.
-            const int attempts = 5;
-            var readings = new List<(int f1, int f2)>();
-            for (int attempt = 1; attempt <= attempts; attempt++)
-            {
-                try
-                {
-                    // Try alternative registers first (0x4A-0x4B for Fan1, 0x4C-0x4D for Fan2) - 16-bit RPM
-                    try
-                    {
-                        var fan1Low = _ecAccess.ReadByte(0x4A);
-                        var fan1High = _ecAccess.ReadByte(0x4B);
-                        var fan2Low = _ecAccess.ReadByte(0x4C);
-                        var fan2High = _ecAccess.ReadByte(0x4D);
-                        _logging?.Debug($"EC Read alt RPM regs (attempt {attempt}): 0x4A=0x{fan1Low:X2}, 0x4B=0x{fan1High:X2}, 0x4C=0x{fan2Low:X2}, 0x4D=0x{fan2High:X2}");
-
-                        var fan1Rpm = (fan1High << 8) | fan1Low;
-                        var fan2Rpm = (fan2High << 8) | fan2Low;
-
-                        // Validate RPM range (0-8000 is valid for laptop fans)
-                        // 0xFF or 0xFFFF values indicate "no data" or error states
-                        if ((HpWmiBios.IsValidRpm(fan1Rpm) && fan1Rpm > 0) || 
-                            (HpWmiBios.IsValidRpm(fan2Rpm) && fan2Rpm > 0))
-                        {
-                            // Only return valid readings
-                            var validF1 = HpWmiBios.IsValidRpm(fan1Rpm) ? fan1Rpm : 0;
-                            var validF2 = HpWmiBios.IsValidRpm(fan2Rpm) ? fan2Rpm : 0;
-                            readings.Add((validF1, validF2));
-                            _logging?.Info($"EC RPMs (alt regs, attempt {attempt}): Fan1={validF1} RPM, Fan2={validF2} RPM");
-                            // Good reading - return immediately
-                            return (validF1, validF2);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logging?.Debug($"EC alt register read failed (attempt {attempt}): {ex.Message}");
-                        if (ex is TimeoutException || ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
-                        {
-                            // Log contention event only once per session to avoid log spam
-                            if (!PawnIOEcAccess.EcContentionWarningLogged)
-                            {
-                                PawnIOEcAccess.EcContentionWarningLogged = true;
-                                _logging?.Warn($"EC contention detected: {ex.Message}. This warning will only appear once per session.");
-                            }
-                        }
-                    }
-
-                    // Try primary registers (0x34/0x35) - units of 100 RPM
-                    const ushort REG_FAN1_RPM = 0x34;
-                    const ushort REG_FAN2_RPM = 0x35;
-
-                    var fan1Unit = _ecAccess.ReadByte(REG_FAN1_RPM);
-                    var fan2Unit = _ecAccess.ReadByte(REG_FAN2_RPM);
-                    _logging?.Debug($"EC Read primary RPM regs (attempt {attempt}): 0x{REG_FAN1_RPM:X2}=0x{fan1Unit:X2}, 0x{REG_FAN2_RPM:X2}=0x{fan2Unit:X2}");
-
-                    // Skip 0xFF values (invalid/error indicator)
-                    // Max valid unit is 80 (8000 RPM / 100)
-                    if (fan1Unit > 0 && fan1Unit < 0xFF || fan2Unit > 0 && fan2Unit < 0xFF)
-                    {
-                        // Only compute RPM for valid units (< 80 = 8000 RPM max)
-                        var fan1Rpm = (fan1Unit > 0 && fan1Unit <= 80) ? fan1Unit * 100 : 0;
-                        var fan2Rpm = (fan2Unit > 0 && fan2Unit <= 80) ? fan2Unit * 100 : 0;
-                        
-                        if (fan1Rpm > 0 || fan2Rpm > 0)
-                        {
-                            readings.Add((fan1Rpm, fan2Rpm));
-                            _logging?.Info($"EC RPMs (primary, attempt {attempt}): Fan1={fan1Rpm} RPM, Fan2={fan2Rpm} RPM");
-                            return (fan1Rpm, fan2Rpm);
-                        }
-                    }
-
-                    // If we reach here, we got zeros - wait and retry
-                }
-                catch (Exception ex)
-                {
-                    // Only log EC read failures once per session if it's a mutex/contention issue
-                    if (ex is TimeoutException || ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (!PawnIOEcAccess.EcContentionWarningLogged)
-                        {
-                            PawnIOEcAccess.EcContentionWarningLogged = true;
-                            _logging?.Warn($"EC Read failed due to contention: {ex.Message}. This warning will only appear once per session.");
-                        }
-                    }
-                    else
-                    {
-                        _logging?.Warn($"EC Read attempt {attempt} failed: {ex.Message}");
-                    }
-                }
-
-                // Backoff with jitter
-                try
-                {
-                    var delayMs = 50 * attempt + (new Random()).Next(20, 80);
-                    System.Threading.Thread.Sleep(delayMs);
-                }
-                catch { }
-            }
-
-            // If we collected any non-zero readings, pick the most recent non-zero
-            for (int i = readings.Count - 1; i >= 0; i--)
-            {
-                var r = readings[i];
-                if (r.f1 > 0 || r.f2 > 0) return r;
-            }
-
-            // Nothing useful found
-            _logging?.Debug("EC ReadFanRpmFromEc: no valid RPM readings after retries");
-            return (0, 0);
-        }
     }
 
     /// <summary>
@@ -850,7 +731,7 @@ namespace OmenCore.Hardware
 
         public bool IsAvailable => _controller.IsEcReady;
         public string Status => _controller.IsEcReady ? "EC access available" : "EC access unavailable";
-        public string Backend => "EC (WinRing0)";
+        public string Backend => $"EC ({EcAccessFactory.ActiveBackend})";
 
         public bool ApplyPreset(FanPreset preset)
         {
@@ -923,45 +804,27 @@ namespace OmenCore.Hardware
                     return false;
                 }
 
-                // Retry loop with verification
-                const int maxAttempts = 3;
-                int attempt = 0;
-                for (attempt = 1; attempt <= maxAttempts; attempt++)
+                // Apply max fan speed — single attempt to minimize EC register access.
+                // Aggressive EC polling can cause ACPI EC timeout (Event 13) and system crashes.
+                _logging?.Info("EC: Applying Max fan speed");
+                _controller.SetMaxSpeed();
+
+                // Wait for fans to ramp, then do ONE verification read
+                System.Threading.Thread.Sleep(300);
+                var (fan1, fan2) = _controller.ReadActualFanRpmPublic();
+                _logging?.Info($"EC Max verify: Fan1={fan1} RPM, Fan2={fan2} RPM");
+
+                if (fan1 > 1000 || fan2 > 1000)
                 {
-                    _logging?.Info($"EC: Applying Max fan (attempt {attempt}/{maxAttempts})");
-
-                    // Primary method: SetMaxSpeed (writes boost + max registers)
-                    _controller.SetMaxSpeed();
-
-                    // Wait briefly to allow fans to ramp
-                    System.Threading.Thread.Sleep(150 * attempt);
-
-                    // Verify via EC RPM registers
-                    var (fan1, fan2) = _controller.ReadActualFanRpmPublic();
-                    _logging?.Info($"EC Verify attempt {attempt}: RPMs read - Fan1={fan1}, Fan2={fan2}");
-
-                    if (fan1 > 1000 || fan2 > 1000)
-                    {
-                        _logging?.Info($"EC: Max fan verified on attempt {attempt} (Fan1={fan1},Fan2={fan2})");
-                        return true;
-                    }
-
-                    // Fallback attempt: Set explicit percent then boost
-                    _logging?.Warn($"EC: Max apply not confirmed (attempt {attempt}), trying alternative sequence");
-                    _controller.SetImmediatePercent(100); // uses explicit EC duty write as fallback
-                    _controller.SetMaxSpeed();
-                    System.Threading.Thread.Sleep(150);
-                    var (fan1b, fan2b) = _controller.ReadActualFanRpmPublic();
-                    _logging?.Info($"EC Verify alt attempt {attempt}: RPMs read - Fan1={fan1b}, Fan2={fan2b}");
-                    if (fan1b > 1000 || fan2b > 1000)
-                    {
-                        _logging?.Info($"EC: Max fan verified after alt sequence on attempt {attempt}");
-                        return true;
-                    }
+                    _logging?.Info($"EC: Max fan verified (Fan1={fan1}, Fan2={fan2})");
+                    return true;
                 }
 
-                _logging?.Warn($"EC: Failed to verify Max fan after {maxAttempts} attempts");
-                return false;
+                // If RPM read didn't confirm, try one more with explicit percent + boost
+                _controller.SetImmediatePercent(100);
+                _controller.SetMaxSpeed();
+                _logging?.Info("EC: Max fan applied (verification inconclusive, assumed success)");
+                return true;
             }
             catch (Exception ex)
             {

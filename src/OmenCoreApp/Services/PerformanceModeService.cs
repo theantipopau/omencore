@@ -63,6 +63,11 @@ namespace OmenCore.Services
                         // Don't await to avoid blocking, but log result
                         verificationTask.ContinueWith(t =>
                         {
+                            if (t.IsFaulted)
+                            {
+                                _logging.Warn($"⚠️ Power limits verification threw: {t.Exception?.InnerException?.Message}");
+                                return;
+                            }
                             if (t.Result)
                             {
                                 _logging.Info("✓ Power limits verified successfully");
@@ -71,7 +76,7 @@ namespace OmenCore.Services
                             {
                                 _logging.Warn("⚠️ Power limits verification failed - values may not have been applied");
                             }
-                        });
+                        }, TaskContinuationOptions.NotOnCanceled);
                     }
                 }
                 catch (Exception ex)

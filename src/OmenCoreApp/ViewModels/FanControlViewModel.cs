@@ -1033,30 +1033,30 @@ namespace OmenCore.ViewModels
         
         private static List<FanCurvePoint> GetGamingCurve()
         {
-            // Gaming mode: aggressive fan ramp starting at 60°C for sustained loads
+            // Gaming mode: aggressive ramp, maxes out at 75°C
+            // Similar to OGH Performance mode but with 75°C ceiling
             // Recommended for gaming sessions where cooling is priority over noise
             return new List<FanCurvePoint>
             {
-                new() { TemperatureC = 45, FanPercent = 30 },
-                new() { TemperatureC = 55, FanPercent = 45 },
-                new() { TemperatureC = 65, FanPercent = 65 },
-                new() { TemperatureC = 75, FanPercent = 85 },
-                new() { TemperatureC = 80, FanPercent = 100 }
+                new() { TemperatureC = 40, FanPercent = 35 },
+                new() { TemperatureC = 50, FanPercent = 50 },
+                new() { TemperatureC = 60, FanPercent = 70 },
+                new() { TemperatureC = 70, FanPercent = 90 },
+                new() { TemperatureC = 75, FanPercent = 100 }
             };
         }
         
         private static List<FanCurvePoint> GetExtremeCurve()
         {
-            // Extreme mode: maximum cooling for high-power systems (13900HX + 4090 class)
-            // Starts aggressive early to prevent thermal spikes, prioritizes temps over noise
+            // Extreme mode: maximum cooling, maxes out at 70°C (like OGH Performance)
+            // Starts aggressive early, fans at 100% by 70°C to keep temps pinned low
             // Recommended for: sustained gaming, benchmarks, thermal throttling prevention
             return new List<FanCurvePoint>
             {
-                new() { TemperatureC = 40, FanPercent = 40 },
-                new() { TemperatureC = 50, FanPercent = 55 },
-                new() { TemperatureC = 60, FanPercent = 75 },
-                new() { TemperatureC = 70, FanPercent = 90 },
-                new() { TemperatureC = 75, FanPercent = 100 }
+                new() { TemperatureC = 40, FanPercent = 45 },
+                new() { TemperatureC = 50, FanPercent = 60 },
+                new() { TemperatureC = 60, FanPercent = 80 },
+                new() { TemperatureC = 70, FanPercent = 100 }
             };
         }
         

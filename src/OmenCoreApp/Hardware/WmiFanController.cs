@@ -48,6 +48,14 @@ namespace OmenCore.Hardware
         private const int CountdownExtensionInitialDelayMs = 1000; // 1 second initial delay — first tick must fire before BIOS reverts
         private bool _countdownExtensionEnabled = false;
         
+        // RPM debounce tracking — filters transient phantom readings during profile transitions.
+        // When fans are transitioning (e.g., profile switch), BIOS may return stale/target fan levels
+        // that get misinterpreted as actual RPM. Track previous readings and filter sudden spikes.
+        private int _lastCpuRpm = 0;
+        private int _lastGpuRpm = 0;
+        private DateTime _lastProfileSwitch = DateTime.MinValue;
+        private const int ProfileTransitionDebounceMs = 3000; // Ignore phantom RPM for 3s after profile switch
+        
         // Command verification tracking
         private int _commandVerifyFailCount = 0;
         private int? _lastCommandRpmBefore = null;
@@ -170,6 +178,9 @@ namespace OmenCore.Hardware
                 _logging?.Warn("Cannot apply preset: WMI BIOS not available");
                 return false;
             }
+            
+            // Mark profile transition for RPM debounce
+            _lastProfileSwitch = DateTime.Now;
 
             try
             {
@@ -629,6 +640,9 @@ namespace OmenCore.Hardware
             {
                 return false;
             }
+            
+            // Mark profile transition for RPM debounce
+            _lastProfileSwitch = DateTime.Now;
 
             try
             {
@@ -696,19 +710,31 @@ namespace OmenCore.Hardware
                 
                 System.Threading.Thread.Sleep(25);
                 
-                // Step 3: Set fan levels to minimum (20 krpm = ~2000 RPM)
-                // This gives BIOS a "hint" to reduce speed
-                if (_wmiBios.SetFanLevel(20, 20))
+                // V2 systems (MaxFanLevel=100) use percentage scale where SetFanLevel(0,0) means
+                // "0% duty cycle", which puts the EC into manual-0% mode and prevents BIOS auto 
+                // control from working. On V2, we skip SetFanLevel entirely and rely on
+                // SetFanMode(Default) to restore BIOS control.
+                // V1 systems (MaxFanLevel=55) use krpm scale where 0 means "BIOS takes over".
+                if (_maxFanLevel < 100)
                 {
-                    _logging?.Info("  Step 3: SetFanLevel(20, 20) succeeded");
+                    // V1: Use krpm hint to help BIOS transition
+                    // Step 3: Set fan levels to minimum (20 krpm = ~2000 RPM) as a transition hint
+                    if (_wmiBios.SetFanLevel(20, 20))
+                    {
+                        _logging?.Info("  Step 3: SetFanLevel(20, 20) succeeded (V1 krpm hint)");
+                    }
+                    
+                    System.Threading.Thread.Sleep(50);
+                    
+                    // Step 4: Set fan levels to 0 to let BIOS take over
+                    if (_wmiBios.SetFanLevel(0, 0))
+                    {
+                        _logging?.Info("  Step 4: SetFanLevel(0, 0) succeeded (V1 release to BIOS)");
+                    }
                 }
-                
-                System.Threading.Thread.Sleep(50);
-                
-                // Step 4: Set fan levels to 0 to let BIOS take over
-                if (_wmiBios.SetFanLevel(0, 0))
+                else
                 {
-                    _logging?.Info("  Step 4: SetFanLevel(0, 0) succeeded");
+                    _logging?.Info("  Steps 3-4: Skipped SetFanLevel on V2 system (percentage scale — would override BIOS auto control)");
                 }
                 
                 // Final delay to let BIOS process (reduced from 100ms to 50ms)
@@ -841,7 +867,23 @@ namespace OmenCore.Hardware
             foreach (var (name, rpm) in fanSpeeds)
             {
                 // v2.6.0: Validate RPM from LibreHardwareMonitor
+                // v2.8.1: Add profile transition debounce — during profile switches,
+                // BIOS may return stale/target fan levels that aren't actual RPM.
                 int validatedRpm = (rpm > 0 && rpm <= 8000) ? (int)rpm : 0;
+                
+                // Debounce: during profile transition window, filter sudden large jumps
+                bool inTransition = (DateTime.Now - _lastProfileSwitch).TotalMilliseconds < ProfileTransitionDebounceMs;
+                if (inTransition && validatedRpm > 0)
+                {
+                    int prevRpm = index == 0 ? _lastCpuRpm : _lastGpuRpm;
+                    // If previous reading was 0 and now we suddenly see a high value,
+                    // it's likely a phantom reading during transition
+                    if (prevRpm == 0 && validatedRpm > 1000)
+                    {
+                        _logging?.Debug($"[FanRPM] Debounce: Filtering phantom {validatedRpm} RPM during profile transition (previous was 0)");
+                        validatedRpm = 0;
+                    }
+                }
                 
                 var fanLevel = _wmiBios.GetFanLevel();
                 int levelPercent = 0;
@@ -867,6 +909,11 @@ namespace OmenCore.Hardware
                     DutyCyclePercent = Math.Clamp(levelPercent, 0, 100),
                     Temperature = index == 0 ? GetCpuTemperature() : GetGpuTemperature()
                 });
+                
+                // Track last RPM for debounce
+                if (index == 0) _lastCpuRpm = validatedRpm;
+                else _lastGpuRpm = validatedRpm;
+                
                 index++;
             }
 
@@ -895,6 +942,8 @@ namespace OmenCore.Hardware
                 // Try direct RPM reading first — BUT only on V2+ systems.
                 // CMD 0x38 (GetFanRpmDirect) is a V2-only command; on V1 systems it returns
                 // garbage data (e.g., fan level values misinterpreted as RPM).
+                bool inTransition = (DateTime.Now - _lastProfileSwitch).TotalMilliseconds < ProfileTransitionDebounceMs;
+                
                 if (_wmiBios.ThermalPolicy >= HpWmiBios.ThermalPolicyVersion.V2)
                 {
                     var directRpm = _wmiBios.GetFanRpmDirect();
@@ -902,6 +951,22 @@ namespace OmenCore.Hardware
                     {
                         fan1Rpm = directRpm.Value.fan1Rpm;
                         fan2Rpm = directRpm.Value.fan2Rpm;
+                        
+                        // Debounce: during profile transitions, filter sudden phantom readings
+                        if (inTransition)
+                        {
+                            if (_lastCpuRpm == 0 && fan1Rpm > 1000)
+                            {
+                                _logging?.Debug($"[FanRPM] Debounce: Filtering phantom CPU {fan1Rpm} RPM during transition");
+                                fan1Rpm = 0;
+                            }
+                            if (_lastGpuRpm == 0 && fan2Rpm > 1000)
+                            {
+                                _logging?.Debug($"[FanRPM] Debounce: Filtering phantom GPU {fan2Rpm} RPM during transition");
+                                fan2Rpm = 0;
+                            }
+                        }
+                        
                         fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
                         fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
                         gotValidData = true;
@@ -923,6 +988,22 @@ namespace OmenCore.Hardware
                         // Convert krpm to RPM: multiply by 100
                         fan1Rpm = fanLevel.Value.fan1 * 100;
                         fan2Rpm = fanLevel.Value.fan2 * 100;
+                        
+                        // Debounce: during profile transitions, BIOS may still report
+                        // old target levels even though fans are physically stopped
+                        if (inTransition)
+                        {
+                            if (_lastCpuRpm == 0 && fan1Rpm > 1000)
+                            {
+                                _logging?.Debug($"[FanRPM] Debounce: Filtering phantom CPU level {fanLevel.Value.fan1} ({fan1Rpm} RPM) during transition");
+                                fan1Rpm = 0;
+                            }
+                            if (_lastGpuRpm == 0 && fan2Rpm > 1000)
+                            {
+                                _logging?.Debug($"[FanRPM] Debounce: Filtering phantom GPU level {fanLevel.Value.fan2} ({fan2Rpm} RPM) during transition");
+                                fan2Rpm = 0;
+                            }
+                        }
                         
                         // Sanity check the calculated RPM
                         if (fan1Rpm > 8000 || fan2Rpm > 8000)
@@ -1011,6 +1092,10 @@ namespace OmenCore.Hardware
                     DutyCyclePercent = fan2Percent, 
                     Temperature = gpuTemp
                 });
+
+                // Track last known RPM for phantom RPM debounce
+                _lastCpuRpm = fan1Rpm;
+                _lastGpuRpm = fan2Rpm;
             }
 
             return fans;

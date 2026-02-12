@@ -108,6 +108,12 @@ namespace OmenCore.ViewModels
                     _selectedGame = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasSelectedGame));
+                    
+                    // v2.8.6: Re-evaluate button CanExecute when selection changes
+                    // Without this, Launch/Create/Edit buttons stay disabled after selecting a game
+                    (LaunchGameCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (CreateProfileCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (EditProfileCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }

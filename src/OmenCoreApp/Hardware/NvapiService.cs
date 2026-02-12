@@ -1154,6 +1154,271 @@ namespace OmenCore.Hardware
             }
         }
 
+        #region GPU Monitoring (Self-Sustaining Mode)
+
+        /// <summary>
+        /// Get current GPU utilization percentage via NvAPIWrapper.
+        /// Returns -1 if unavailable.
+        /// </summary>
+        public int GetGpuLoad()
+        {
+            if (!_initialized || _primaryGpu == null) return -1;
+
+            try
+            {
+                var gpuUsage = _primaryGpu.UsageInformation.GPU;
+                return gpuUsage?.Percentage ?? -1;
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetGpuLoad failed: {ex.Message}");
+                return -1;
+            }
+        }
+
+        /// <summary>
+        /// Get current GPU temperature via NvAPIWrapper thermal sensors.
+        /// Returns 0 if unavailable.
+        /// </summary>
+        public double GetGpuTemperature()
+        {
+            if (!_initialized || _primaryGpu == null) return 0;
+
+            try
+            {
+                var sensors = _primaryGpu.ThermalInformation.ThermalSensors;
+                foreach (var sensor in sensors)
+                {
+                    if (sensor.Target == NvAPIWrapper.Native.GPU.ThermalSettingsTarget.GPU)
+                    {
+                        return sensor.CurrentTemperature;
+                    }
+                }
+                // Fallback: return first sensor if no GPU-targeted sensor found
+                foreach (var sensor in _primaryGpu.ThermalInformation.ThermalSensors)
+                {
+                    return sensor.CurrentTemperature;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetGpuTemperature failed: {ex.Message}");
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Get GPU VRAM usage (used MB, total MB) via NvAPIWrapper.
+        /// </summary>
+        public (double UsedMb, double TotalMb) GetGpuVramUsage()
+        {
+            if (!_initialized || _primaryGpu == null) return (0, 0);
+
+            try
+            {
+                var memInfo = _primaryGpu.MemoryInformation;
+                double totalKb = memInfo.AvailableDedicatedVideoMemoryInkB;
+                double availableKb = memInfo.CurrentAvailableDedicatedVideoMemoryInkB;
+                double totalMb = totalKb / 1024.0;
+                double usedMb = (totalKb - availableKb) / 1024.0;
+                return (Math.Max(0, usedMb), totalMb);
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetGpuVramUsage failed: {ex.Message}");
+                return (0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Get GPU power usage as percentage of TDP via NvAPIWrapper PowerTopology.
+        /// Returns estimated watts = (percentage / 100) * DefaultPowerLimitWatts.
+        /// </summary>
+        public double GetGpuPowerWatts()
+        {
+            if (!_initialized || _primaryGpu == null) return 0;
+
+            try
+            {
+                var entries = _primaryGpu.PowerTopologyInformation.PowerTopologyEntries;
+                foreach (var entry in entries)
+                {
+                    // PowerUsageInPercent is relative to default TDP
+                    double percent = entry.PowerUsageInPercent;
+                    int effectiveTdp = DefaultPowerLimitWatts > 0 
+                        ? DefaultPowerLimitWatts 
+                        : EstimateFallbackTdp(GpuName);
+                    
+                    if (effectiveTdp > 0)
+                    {
+                        return Math.Round((percent / 100.0) * effectiveTdp, 1);
+                    }
+                    return percent; // Return percentage if we don't know TDP
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetGpuPowerWatts failed: {ex.Message}");
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Lightweight GPU monitoring — only load + VRAM (skips temp/clocks/power).
+        /// Used when Afterburner is providing those metrics via shared memory,
+        /// avoiding NVAPI polling contention on thermal/clock/power endpoints.
+        /// </summary>
+        public GpuMonitoringSample GetLoadAndVramOnly()
+        {
+            var sample = new GpuMonitoringSample { GpuName = GpuName };
+
+            if (!_initialized || _primaryGpu == null) return sample;
+
+            try
+            {
+                // GPU Load — lightweight call, minimal contention
+                try
+                {
+                    var gpuUsage = _primaryGpu.UsageInformation.GPU;
+                    sample.GpuLoadPercent = gpuUsage?.Percentage ?? 0;
+                }
+                catch { }
+
+                // VRAM — lightweight call, reads driver-cached memory counters
+                try
+                {
+                    var memInfo = _primaryGpu.MemoryInformation;
+                    double totalKb = memInfo.AvailableDedicatedVideoMemoryInkB;
+                    double availableKb = memInfo.CurrentAvailableDedicatedVideoMemoryInkB;
+                    sample.VramTotalMb = totalKb / 1024.0;
+                    sample.VramUsedMb = Math.Max(0, (totalKb - availableKb) / 1024.0);
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetLoadAndVramOnly failed: {ex.Message}");
+            }
+
+            return sample;
+        }
+
+        /// <summary>
+        /// Comprehensive GPU monitoring snapshot — all metrics in one call.
+        /// More efficient than calling individual methods as it handles exceptions once.
+        /// </summary>
+        public GpuMonitoringSample GetMonitoringSample()
+        {
+            var sample = new GpuMonitoringSample { GpuName = GpuName };
+
+            if (!_initialized || _primaryGpu == null) return sample;
+
+            try
+            {
+                // GPU Load
+                try
+                {
+                    var gpuUsage = _primaryGpu.UsageInformation.GPU;
+                    sample.GpuLoadPercent = gpuUsage?.Percentage ?? 0;
+                }
+                catch { }
+
+                // GPU Temperature
+                try
+                {
+                    foreach (var sensor in _primaryGpu.ThermalInformation.ThermalSensors)
+                    {
+                        if (sensor.Target == NvAPIWrapper.Native.GPU.ThermalSettingsTarget.GPU)
+                        {
+                            sample.GpuTemperatureC = sensor.CurrentTemperature;
+                            break;
+                        }
+                        // Use first sensor as fallback
+                        if (sample.GpuTemperatureC == 0)
+                            sample.GpuTemperatureC = sensor.CurrentTemperature;
+                    }
+                }
+                catch { }
+
+                // VRAM
+                try
+                {
+                    var memInfo = _primaryGpu.MemoryInformation;
+                    double totalKb = memInfo.AvailableDedicatedVideoMemoryInkB;
+                    double availableKb = memInfo.CurrentAvailableDedicatedVideoMemoryInkB;
+                    sample.VramTotalMb = totalKb / 1024.0;
+                    sample.VramUsedMb = Math.Max(0, (totalKb - availableKb) / 1024.0);
+                }
+                catch { }
+
+                // Power
+                try
+                {
+                    foreach (var entry in _primaryGpu.PowerTopologyInformation.PowerTopologyEntries)
+                    {
+                        double percent = entry.PowerUsageInPercent;
+                        int effectiveTdp = DefaultPowerLimitWatts > 0 
+                            ? DefaultPowerLimitWatts 
+                            : EstimateFallbackTdp(GpuName);
+                        
+                        sample.GpuPowerWatts = effectiveTdp > 0
+                            ? Math.Round((percent / 100.0) * effectiveTdp, 1)
+                            : percent;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"NVAPI: PowerTopology read failed: {ex.Message}");
+                    
+                    // Fallback: try standalone GetGpuPowerWatts() 
+                    try
+                    {
+                        sample.GpuPowerWatts = GetGpuPowerWatts();
+                    }
+                    catch { }
+                }
+
+                // Clocks
+                try
+                {
+                    var clocks = GetCurrentClocks();
+                    sample.CoreClockMhz = clocks.CoreClockMHz;
+                    sample.MemoryClockMhz = clocks.MemoryClockMHz;
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"NVAPI: GetMonitoringSample failed: {ex.Message}");
+            }
+
+            return sample;
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Fallback TDP estimation for known laptop GPUs when NVAPI power limit query fails.
+        /// Returns watts (default TDP, not max boost TDP).
+        /// </summary>
+        private static int EstimateFallbackTdp(string? gpuName)
+        {
+            if (string.IsNullOrEmpty(gpuName)) return 0;
+            
+            // Common NVIDIA laptop GPU TDPs (default power, not max boost)
+            if (gpuName.Contains("4090", StringComparison.OrdinalIgnoreCase)) return 150;
+            if (gpuName.Contains("4080", StringComparison.OrdinalIgnoreCase)) return 150;
+            if (gpuName.Contains("4070", StringComparison.OrdinalIgnoreCase)) return 140;
+            if (gpuName.Contains("4060", StringComparison.OrdinalIgnoreCase)) return 115;
+            if (gpuName.Contains("4050", StringComparison.OrdinalIgnoreCase)) return 115;
+            if (gpuName.Contains("3080", StringComparison.OrdinalIgnoreCase)) return 150;
+            if (gpuName.Contains("3070", StringComparison.OrdinalIgnoreCase)) return 125;
+            if (gpuName.Contains("3060", StringComparison.OrdinalIgnoreCase)) return 115;
+            
+            return 0; // Unknown GPU — return raw percentage
+        }
+
         /// <summary>
         /// Get current GPU clock frequencies.
         /// </summary>
@@ -1284,5 +1549,20 @@ namespace OmenCore.Hardware
         public int PowerLimitPercent { get; set; } = 100;
         public int? VoltageOffsetMv { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    /// <summary>
+    /// GPU monitoring snapshot from NVAPI — used by self-sustaining WmiBiosMonitor.
+    /// </summary>
+    public class GpuMonitoringSample
+    {
+        public string GpuName { get; set; } = "Unknown";
+        public double GpuTemperatureC { get; set; }
+        public double GpuLoadPercent { get; set; }
+        public double GpuPowerWatts { get; set; }
+        public double CoreClockMhz { get; set; }
+        public double MemoryClockMhz { get; set; }
+        public double VramUsedMb { get; set; }
+        public double VramTotalMb { get; set; }
     }
 }

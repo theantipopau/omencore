@@ -10,9 +10,9 @@
     <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
     <AssemblyName>OmenCore.Desktop</AssemblyName>
     <RootNamespace>OmenCore.Desktop</RootNamespace>
-    <Version>2.8.1</Version>
-    <AssemblyVersion>2.8.1</AssemblyVersion>
-    <FileVersion>2.8.1</FileVersion>
+    <Version>2.8.6</Version>
+    <AssemblyVersion>2.8.6</AssemblyVersion>
+    <FileVersion>2.8.6</FileVersion>
     <Description>OmenCore Desktop GUI - Cross-platform Avalonia UI</Description>
     <Company>TheAntipopAU</Company>
     <Product>OmenCore</Product>

@@ -379,6 +379,9 @@ namespace OmenCore.Services.KeyboardLighting
         
         /// <summary>
         /// Get configuration based on model name (fuzzy match).
+        /// Supports both full containment and keyword-based matching for model series.
+        /// For example, matches "OMEN by HP Gaming Laptop 16-xd0xxx" against "OMEN 16-xd0xxx (2024) AMD"
+        /// by extracting the model series identifier (e.g., "16-xd0xxx").
         /// </summary>
         public static KeyboardModelConfig? GetConfigByModelName(string modelName)
         {
@@ -387,10 +390,30 @@ namespace OmenCore.Services.KeyboardLighting
             
             var lowerName = modelName.ToLowerInvariant();
             
-            // Try to find a matching model
-            return _knownModels.Values.FirstOrDefault(c => 
+            // Try exact containment match first (original behavior)
+            var exactMatch = _knownModels.Values.FirstOrDefault(c => 
                 lowerName.Contains(c.ModelName.ToLowerInvariant()) ||
                 c.ModelName.ToLowerInvariant().Contains(lowerName));
+            
+            if (exactMatch != null)
+                return exactMatch;
+            
+            // Try keyword-based matching: extract the model series identifier
+            // HP WMI model names look like "OMEN by HP Gaming Laptop 16-xd0xxx"
+            // Our DB names look like "OMEN 16-xd0xxx (2024) AMD"
+            // The common part is the series identifier like "16-xd0xxx", "17-ck0xxx", etc.
+            // Match on the model series pattern (e.g., "16-xd0xxx", "15-ek0xxx", "17-cm0xxx")
+            var seriesPattern = System.Text.RegularExpressions.Regex.Match(lowerName, @"\d{2}-[a-z]{2}\d{1,4}[a-z]*");
+            if (seriesPattern.Success)
+            {
+                var series = seriesPattern.Value;
+                var seriesMatch = _knownModels.Values.FirstOrDefault(c => 
+                    c.ModelName.ToLowerInvariant().Contains(series));
+                if (seriesMatch != null)
+                    return seriesMatch;
+            }
+            
+            return null;
         }
         
         /// <summary>

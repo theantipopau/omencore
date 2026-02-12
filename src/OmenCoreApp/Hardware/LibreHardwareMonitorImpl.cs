@@ -129,6 +129,33 @@ namespace OmenCore.Hardware
             InitializePawnIO();
             InitializeComputer();
         }
+
+        public string MonitoringSource
+        {
+            get
+            {
+                if (_forceWmiBiosMode)
+                {
+                    return "WMI BIOS (Fallback)";
+                }
+
+                if (_useWorker)
+                {
+                    if (_workerInitializing)
+                    {
+                        return "LibreHardwareMonitor (Worker Init)";
+                    }
+
+                    return _workerClient?.IsConnected == true
+                        ? "LibreHardwareMonitor (Worker)"
+                        : "LibreHardwareMonitor (Worker - Disconnected)";
+                }
+
+                return _initialized
+                    ? "LibreHardwareMonitor (In-Process)"
+                    : "LibreHardwareMonitor (Fallback)";
+            }
+        }
         
         /// <summary>
         /// Create a hardware monitor with optional out-of-process worker.
@@ -443,6 +470,19 @@ namespace OmenCore.Hardware
             
             if (workerSample == null)
             {
+                // Worker unavailable - check if worker is permanently disabled (cooldown)
+                if (_workerClient != null && !_workerClient.IsEnabled)
+                {
+                    _logger?.Invoke("[Monitor] ⚠️ Worker is in cooldown/disabled state — falling back to in-process mode");
+                    _useWorker = false;
+                    Reinitialize();
+                    if (_initialized)
+                    {
+                        _logger?.Invoke("[Monitor] ✓ Successfully fell back to in-process monitoring");
+                        return await ReadSampleAsync(token);
+                    }
+                }
+                
                 // Worker unavailable - return cached values
                 _logger?.Invoke("[Monitor] Worker returned null sample - using cached values");
                 return BuildSampleFromCache();
@@ -554,6 +594,8 @@ namespace OmenCore.Hardware
         private int _nvmlFailures = 0;
         private const int MaxNvmlFailuresBeforeDisable = 3;
         private bool _nvmlDisabled = false;
+        private DateTime _nvmlDisabledAt = DateTime.MinValue;  // v2.8.6: Track when NVML was disabled
+        private const int NvmlRetryCooldownSeconds = 60;       // v2.8.6: Retry NVML after 60s cooldown
 
         /// <summary>
         /// Safely updates GPU hardware with timeout protection.
@@ -572,8 +614,17 @@ namespace OmenCore.Hardware
         {
             if (_nvmlDisabled)
             {
-                // NVML disabled due to repeated failures - skip GPU update
-                return false;
+                // v2.8.6: NVML disabled due to repeated failures—check if cooldown expired
+                if ((DateTime.Now - _nvmlDisabledAt).TotalSeconds >= NvmlRetryCooldownSeconds)
+                {
+                    _nvmlDisabled = false;
+                    _nvmlFailures = 0;
+                    _logger?.Invoke($"[GPU] NVML cooldown expired ({NvmlRetryCooldownSeconds}s)—retrying GPU hardware update");
+                }
+                else
+                {
+                    return false;
+                }
             }
             
             try
@@ -590,7 +641,8 @@ namespace OmenCore.Hardware
                 if (_nvmlFailures >= MaxNvmlFailuresBeforeDisable)
                 {
                     _nvmlDisabled = true;
-                    _logger?.Invoke("[GPU] GPU monitoring disabled due to repeated failures.");
+                    _nvmlDisabledAt = DateTime.Now;  // v2.8.6: Record disable time for cooldown retry
+                    _logger?.Invoke($"[GPU] GPU monitoring paused due to repeated failures. Will retry in {NvmlRetryCooldownSeconds}s.");
                 }
                 return false;
             }
@@ -634,7 +686,12 @@ namespace OmenCore.Hardware
                         {
                             if (!TryUpdateGpuHardware(hardware))
                             {
-                                // GPU update failed - continue to next hardware without processing this GPU
+                                // GPU update failed — if NVML is disabled, try WMI BIOS fallback for GPU temp
+                                // to prevent the cached value from going permanently stale (v2.8.6)
+                                if (_nvmlDisabled)
+                                {
+                                    UpdateViaWmiBiosFallback();
+                                }
                                 continue;
                             }
                         }
@@ -671,6 +728,7 @@ namespace OmenCore.Hardware
                             // Package/Core Max sensors provide better thermal load representation
                             var cpuTempSensor = GetSensorExact(hardware, SensorType.Temperature, "CPU Package")       // Intel Package (most stable)
                                 ?? GetSensor(hardware, SensorType.Temperature, "Package")                           // Intel Package (partial)
+                                ?? GetSensorExact(hardware, SensorType.Temperature, "CPU DTS")                      // Intel DTS (Arrow Lake / Core Ultra)
                                 ?? GetSensorExact(hardware, SensorType.Temperature, "Core (Tctl/Tdie)")             // AMD Ryzen primary (stable)
                                 ?? GetSensor(hardware, SensorType.Temperature, "Tctl/Tdie")                         // AMD Ryzen (partial)
                                 ?? GetSensor(hardware, SensorType.Temperature, "Core Max")                          // Max core temp (stable)
@@ -692,6 +750,22 @@ namespace OmenCore.Hardware
                                 ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Value > 0);
                             
                             var rawCpuTemp = cpuTempSensor?.Value ?? 0;
+                            
+                            // v2.8.6: Safety net for Intel Core Ultra / Arrow Lake CPUs
+                            // If primary sensor returns 0 but we previously had a valid reading,
+                            // sweep ALL temperature sensors for a plausible value
+                            if (rawCpuTemp <= 0 && _cachedCpuTemp > 5)
+                            {
+                                var allTempSensors = hardware.Sensors
+                                    .Where(s => s.SensorType == SensorType.Temperature && s.Value.HasValue && s.Value.Value > 5 && s.Value.Value < 120)
+                                    .OrderByDescending(s => s.Value!.Value)
+                                    .ToList();
+                                if (allTempSensors.Count > 0)
+                                {
+                                    rawCpuTemp = allTempSensors[0].Value!.Value;
+                                    _logger?.Invoke($"⚠️ CPU temp sensor returned 0 (prev={_cachedCpuTemp:F1}°C). Using fallback: {allTempSensors[0].Name}={rawCpuTemp:F1}°C");
+                                }
+                            }
                             
                             // BUG FIX #36: Validate temperature is not stuck at TjMax (96°C or 100°C)
                             // Some sensors report TjMax instead of current temperature

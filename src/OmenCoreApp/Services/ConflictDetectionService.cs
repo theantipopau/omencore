@@ -34,9 +34,9 @@ namespace OmenCore.Services
             {
                 Name = "MSI Afterburner",
                 ProcessNames = new[] { "MSIAfterburner" },
-                Impact = ConflictSeverity.Medium,
-                Description = "May cause UI freezes when both apps poll GPU sensors",
-                Mitigation = "Close MSI Afterburner, or disable its sensor polling"
+                Impact = ConflictSeverity.Low,
+                Description = "Coexistence active — OmenCore reads GPU data from Afterburner shared memory",
+                Mitigation = "No action needed — apps share GPU data automatically"
             },
             ["RTSS"] = new ConflictInfo
             {
@@ -49,7 +49,8 @@ namespace OmenCore.Services
             ["OmenHub"] = new ConflictInfo
             {
                 Name = "OMEN Gaming Hub",
-                ProcessNames = new[] { "OGHAgent", "HPOmenCommandCenter", "OMEN Gaming Hub" },
+                ProcessNames = new[] { "OGHAgent", "HPOmenCommandCenter", "OMEN Gaming Hub", 
+                    "OmenLightingService", "OmenLighting", "HP.OMEN.GameHub" },
                 Impact = ConflictSeverity.Medium,
                 Description = "Both apps may try to control fans simultaneously",
                 Mitigation = "Use OmenCore OR OMEN Gaming Hub, not both for fan control"
@@ -90,6 +91,12 @@ namespace OmenCore.Services
         
         public bool IsMsiAfterburnerRunning { get; private set; }
         public bool IsMsiAfterburnerSharedMemoryAvailable { get; private set; }
+        
+        /// <summary>
+        /// True when Afterburner shared memory is providing GPU data to WmiBiosMonitor,
+        /// eliminating NVAPI polling contention.
+        /// </summary>
+        public bool AfterburnerCoexistenceActive { get; set; }
         public List<DetectedConflict> DetectedConflicts { get; private set; } = new();
         
         public event Action<List<DetectedConflict>>? OnConflictsDetected;
@@ -240,6 +247,17 @@ namespace OmenCore.Services
                 int entryOffset = Marshal.SizeOf<MAHMSharedMemoryHeader>();
                 int entrySize = (int)header.dwEntrySize;
                 
+                // MAHM v2 entry layout:
+                //   szSrcName[MAX_PATH]       = offset 0    (260 bytes)
+                //   szSrcUnits[MAX_PATH]      = offset 260  (260 bytes)
+                //   szLocSrcName[MAX_PATH]    = offset 520  (260 bytes)
+                //   szLocSrcUnits[MAX_PATH]   = offset 780  (260 bytes)
+                //   dwSrcId                   = offset 1040 (4 bytes)
+                //   dwSrcFlags                = offset 1044 (4 bytes)
+                //   data (float)              = offset 1048 (4 bytes)
+                // For older v1 format (no localized names): data at offset 528
+                int dataOffset = entrySize >= 1072 ? 1048 : 528;
+                
                 for (int i = 0; i < header.dwNumEntries && i < 256; i++)
                 {
                     int offset = entryOffset + (i * entrySize);
@@ -249,12 +267,16 @@ namespace OmenCore.Services
                     _mabAccessor.ReadArray(offset, nameBytes, 0, 260);
                     string name = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
                     
-                    // Read value (at offset 260 in entry)
-                    float value = _mabAccessor.ReadSingle(offset + 260);
+                    // Read data value at the correct offset within the entry
+                    float value = _mabAccessor.ReadSingle(offset + dataOffset);
                     
-                    // Map known values
+                    // Map known values from MAHM shared memory entries
                     if (name.Contains("GPU temperature", StringComparison.OrdinalIgnoreCase))
                         result.GpuTemperature = value;
+                    else if (name.Contains("GPU usage", StringComparison.OrdinalIgnoreCase))
+                        result.GpuLoadPercent = value;
+                    else if (name.Contains("Memory usage", StringComparison.OrdinalIgnoreCase) && !name.Contains("GPU", StringComparison.OrdinalIgnoreCase))
+                        result.VramUsedPercent = value;
                     else if (name.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && name.Contains("RPM", StringComparison.OrdinalIgnoreCase))
                         result.FanSpeedRpm = (int)value;
                     else if (name.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && name.Contains("%", StringComparison.OrdinalIgnoreCase))
@@ -395,6 +417,8 @@ namespace OmenCore.Services
     {
         public DateTime Timestamp { get; set; }
         public float GpuTemperature { get; set; }
+        public float GpuLoadPercent { get; set; }
+        public float VramUsedPercent { get; set; }
         public int FanSpeedRpm { get; set; }
         public float FanSpeedPercent { get; set; }
         public float GpuPower { get; set; }

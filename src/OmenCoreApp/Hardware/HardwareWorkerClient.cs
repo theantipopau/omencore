@@ -42,7 +42,7 @@ namespace OmenCore.Hardware
         private bool _disposed;
         private bool _enabled = true;
         private DateTime _lastPermanentDisable = DateTime.MinValue;
-        private const int PermanentDisableCooldownMinutes = 30; // Allow re-enable after 30 minutes
+        private const int PermanentDisableCooldownMinutes = 5; // Allow re-enable after 5 minutes (was 30 — too aggressive, causes frozen temps)
 
         // Command queue for lifecycle protection
         private readonly Queue<string> _pendingCommands = new();
@@ -386,6 +386,7 @@ namespace OmenCore.Hardware
                 if (await TryConnectToExistingWorkerAsync())
                 {
                     _logger?.Invoke("[Worker] Reconnected to existing worker on demand");
+                    _restartAttempts = 0; // Reset on successful reconnect
                 }
                 else if (!await TryRestartWorkerAsync())
                 {

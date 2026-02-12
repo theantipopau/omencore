@@ -1,4 +1,4 @@
-# OmenCore v1.4.0 Roadmap
+﻿# OmenCore v1.4.0 Roadmap
 
 **Target Release:** Q1 2026  
 **Status:** Planning  
@@ -24,7 +24,7 @@ From v1.3.0-beta2 development, the following issues informed our priorities:
 
 ---
 
-## � Community Bug Reports (v1.3.0-beta2 Feedback)
+## ï¿½ Community Bug Reports (v1.3.0-beta2 Feedback)
 
 Critical bugs reported by community members that need addressing in v1.4:
 
@@ -58,9 +58,9 @@ Critical bugs reported by community members that need addressing in v1.4:
 
 ---
 
-### BUG-3: TCC Offset Resets to 100°C on Reboot
+### BUG-3: TCC Offset Resets to 100Â°C on Reboot
 **Reported by:** Multiple users (Omen Max 16, Omen 17-ck2xxx)  
-**Symptom:** CPU Temperature Limit returns to 100°C after PC restart  
+**Symptom:** CPU Temperature Limit returns to 100Â°C after PC restart  
 **File:** `App.xaml.cs`, `Services/FanService.cs`  
 **Root Cause:** TCC offset not persisted to config or not re-applied on startup  
 **Fix:**
@@ -98,7 +98,7 @@ Critical bugs reported by community members that need addressing in v1.4:
 
 ---
 
-### BUG-6: SSD Sensor Shows 0°C and 0% Usage
+### BUG-6: SSD Sensor Shows 0Â°C and 0% Usage
 **Reported by:** User with SAMSUNG MZVLB512HBJQ-000H1  
 **Symptom:** SSD temperature and usage always show 0  
 **File:** `Services/HardwareMonitorService.cs`  
@@ -213,7 +213,7 @@ Critical bugs reported by community members that need addressing in v1.4:
 
 ---
 
-## �🔴 High Priority (Must Have)
+## ï¿½ðŸ”´ High Priority (Must Have)
 
 ### Priority Rationale
 Based on beta2 feedback:
@@ -273,19 +273,19 @@ Replace basic record/playback with a full visual macro editor.
 
 **UI Concept:**
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Macro Editor: "Auto Reload"                             │
-├─────────────────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ [Key: R] → [Delay: 50ms] → [Key: R Release]        │ │
-│ │ [Delay: 2000ms] → [Loop: 5x]                       │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ [+ Key] [+ Delay] [+ Mouse] [+ Text] [+ Loop]          │
-│                                                         │
-│ Trigger: [ Button 4 (Mouse) ▼]  Game: [All Games ▼]    │
-│                                         [Save] [Test]  │
-└─────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Macro Editor: "Auto Reload"                             â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚ â”‚ [Key: R] â†’ [Delay: 50ms] â†’ [Key: R Release]        â”‚ â”‚
+â”‚ â”‚ [Delay: 2000ms] â†’ [Loop: 5x]                       â”‚ â”‚
+â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚                                                         â”‚
+â”‚ [+ Key] [+ Delay] [+ Mouse] [+ Text] [+ Loop]          â”‚
+â”‚                                                         â”‚
+â”‚ Trigger: [ Button 4 (Mouse) â–¼]  Game: [All Games â–¼]    â”‚
+â”‚                                         [Save] [Test]  â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ---
@@ -336,7 +336,7 @@ Full per-key RGB control for OMEN keyboards that support it.
 ```
 
 **Technical Requirements:**
-- Reverse-engineer per-key EC protocol (likely 4-zone × 32 keys)
+- Reverse-engineer per-key EC protocol (likely 4-zone Ã— 32 keys)
 - Animation table support for effects
 - Potentially requires OmenMon-style direct EC writes
 - **Community Testing:** Need volunteers with per-key OMEN keyboards
@@ -392,19 +392,19 @@ The HP OMEN Keyboard section in RGB & Peripherals tab shows 4 zone boxes but the
 
 **UI Mockup:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ HP OMEN Keyboard                                            │
-│ Your laptop's built-in 4-zone RGB keyboard                  │
-├─────────────────────────────────────────────────────────────┤
-│ KEYBOARD ZONES (click to change color)                      │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐        │
-│ │  Zone 1  │ │  Zone 2  │ │  Zone 3  │ │  Zone 4  │        │
-│ │   Left   │ │ Middle-L │ │ Middle-R │ │   Right  │        │
-│ │    🔴    │ │    🔵    │ │    🟣    │ │    🔵    │        │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘        │
-│                                                             │
-│ Preset: [Gaming ▼]  [Apply to Keyboard]  [All Same Color]  │
-└─────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ HP OMEN Keyboard                                            â”‚
+â”‚ Your laptop's built-in 4-zone RGB keyboard                  â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ KEYBOARD ZONES (click to change color)                      â”‚
+â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”        â”‚
+â”‚ â”‚  Zone 1  â”‚ â”‚  Zone 2  â”‚ â”‚  Zone 3  â”‚ â”‚  Zone 4  â”‚        â”‚
+â”‚ â”‚   Left   â”‚ â”‚ Middle-L â”‚ â”‚ Middle-R â”‚ â”‚   Right  â”‚        â”‚
+â”‚ â”‚    ðŸ”´    â”‚ â”‚    ðŸ”µ    â”‚ â”‚    ðŸŸ£    â”‚ â”‚    ðŸ”µ    â”‚        â”‚
+â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜        â”‚
+â”‚                                                             â”‚
+â”‚ Preset: [Gaming â–¼]  [Apply to Keyboard]  [All Same Color]  â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ---
@@ -527,18 +527,18 @@ Add real-time FPS counter to the in-game OSD overlay.
 
 **UI:**
 ```
-┌──────────────────┐
-│ CPU: 72°C  GPU: 68°C │
-│ CPU: 45%   GPU: 78%  │
-│ FAN: 4200 / 3800 RPM │
-│ FPS: 144 (avg: 138)  │  ← New
-│ RAM: 12.4 GB         │
-└──────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ CPU: 72Â°C  GPU: 68Â°C â”‚
+â”‚ CPU: 45%   GPU: 78%  â”‚
+â”‚ FAN: 4200 / 3800 RPM â”‚
+â”‚ FPS: 144 (avg: 138)  â”‚  â† New
+â”‚ RAM: 12.4 GB         â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ---
 
-## 🟡 Medium Priority
+## ðŸŸ¡ Medium Priority
 
 ### 6. Keyboard Effects Engine
 **Status:** WIP (wave, color cycle not implemented)  
@@ -796,7 +796,7 @@ Centralized notification/alert system.
 
 ---
 
-## 🟢 Low Priority / Future
+## ðŸŸ¢ Low Priority / Future
 
 ### 13. Display Calibration
 **Effort:** Medium  
@@ -894,7 +894,7 @@ Privacy controls for webcam and microphone.
 
 ---
 
-## 🐛 Technical Debt / Refactoring
+## ðŸ› Technical Debt / Refactoring
 
 ### Code Quality
 - [ ] Migrate more async void to proper async Task with error handling
@@ -929,7 +929,7 @@ Privacy controls for webcam and microphone.
 
 ---
 
-## 📅 Tentative Timeline
+## ðŸ“… Tentative Timeline
 
 | Phase | Features | Target |
 |-------|----------|--------|
@@ -950,28 +950,28 @@ Privacy controls for webcam and microphone.
 
 ---
 
-## 📊 Feature Priority Matrix
+## ðŸ“Š Feature Priority Matrix
 
 | Feature | Effort | Impact | Dependencies | Priority Score |
 |---------|--------|--------|--------------|----------------|
-| Macro Editor | High | High | None | 🔴 P1 |
-| Per-Key RGB | High | High | EC research | 🔴 P1 |
-| Startup Sequencer | Medium | High | None | 🔴 P1 |
-| OGH Cleanup Dialog | Medium | Medium | None | 🔴 P1 |
-| FPS Overlay | Medium | Medium | RTSS/research | 🟡 P2 |
-| Splash Screen | Low | Medium | Startup Sequencer | 🟡 P2 |
-| Notification Center | Low | Medium | None | 🟡 P2 |
-| Keyboard Effects | High | Medium | Per-Key RGB | 🟡 P2 |
-| Game Profiles | Medium | High | None | 🟡 P2 |
-| Hardware Health | Medium | Medium | LibreHW | 🟡 P2 |
-| Undervolt Profiles | Medium | Medium | Existing UV | 🟡 P2 |
-| Config Sync | Medium | Medium | None | 🟢 P3 |
-| Localization | Medium | Medium | String extraction | 🟢 P3 |
-| Plugin System | High | Medium | Architecture | 🟢 P3 |
+| Macro Editor | High | High | None | ðŸ”´ P1 |
+| Per-Key RGB | High | High | EC research | ðŸ”´ P1 |
+| Startup Sequencer | Medium | High | None | ðŸ”´ P1 |
+| OGH Cleanup Dialog | Medium | Medium | None | ðŸ”´ P1 |
+| FPS Overlay | Medium | Medium | RTSS/research | ðŸŸ¡ P2 |
+| Splash Screen | Low | Medium | Startup Sequencer | ðŸŸ¡ P2 |
+| Notification Center | Low | Medium | None | ðŸŸ¡ P2 |
+| Keyboard Effects | High | Medium | Per-Key RGB | ðŸŸ¡ P2 |
+| Game Profiles | Medium | High | None | ðŸŸ¡ P2 |
+| Hardware Health | Medium | Medium | LibreHW | ðŸŸ¡ P2 |
+| Undervolt Profiles | Medium | Medium | Existing UV | ðŸŸ¡ P2 |
+| Config Sync | Medium | Medium | None | ðŸŸ¢ P3 |
+| Localization | Medium | Medium | String extraction | ðŸŸ¢ P3 |
+| Plugin System | High | Medium | Architecture | ðŸŸ¢ P3 |
 
 ---
 
-## 🗳️ Community Input
+## ðŸ—³ï¸ Community Input
 
 Features will be prioritized based on:
 1. GitHub issue upvotes
@@ -981,12 +981,12 @@ Features will be prioritized based on:
 
 **Feedback Channels:**
 - [GitHub Issues](https://github.com/Jeyloh/OmenCore/issues)
-- [Discord Server](https://discord.gg/HSrSgmM4)
+- [Discord Server](https://discord.gg/Neh3DCH5)
 - [Reddit r/HPOmen](https://reddit.com/r/HPOmen)
 
 ---
 
-## 📚 References
+## ðŸ“š References
 
 - **OmenMon** - EC access patterns, fan curve implementation
 - **G-Helper** - UX patterns for gaming laptop utilities

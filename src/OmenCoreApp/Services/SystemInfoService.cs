@@ -207,29 +207,30 @@ namespace OmenCore.Services
             var check = new DependencyCheck
             {
                 Name = "LibreHardwareMonitor",
-                Description = "Hardware monitoring library (bundled)",
-                IsRequired = true,
-                IsOptional = false
+                Description = "Hardware monitoring library (no longer required — self-sustaining mode)",
+                IsRequired = false,
+                IsOptional = true
             };
             
             try
             {
-                // Check if LHM DLL exists
+                // Check if LHM DLL exists (optional enhancement, not required)
                 var lhmPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LibreHardwareMonitorLib.dll");
                 check.IsDetected = File.Exists(lhmPath);
-                check.Status = check.IsDetected ? "OK" : "Missing";
+                check.Status = check.IsDetected ? "OK" : "Not Needed";
                 check.Details = check.IsDetected
-                    ? "LibreHardwareMonitor library bundled"
-                    : "LibreHardwareMonitor library missing - monitoring disabled";
+                    ? "LibreHardwareMonitor library present (optional)"
+                    : "Not required — OmenCore uses self-sustaining monitoring (WMI BIOS + NVAPI)";
             }
             catch
             {
                 check.IsDetected = false;
-                check.Status = "Error";
-                check.Details = "Could not verify LibreHardwareMonitor";
+                check.Status = "Not Needed";
+                check.Details = "Not required — OmenCore uses self-sustaining monitoring";
             }
             
-            _logging.Info($"  [{(check.IsDetected ? "✓" : "✗")}] {check.Name}: {check.Status}");
+            var symbol = check.IsDetected ? "✓" : "○";
+            _logging.Info($"  [{symbol}] {check.Name}: {check.Status}");
             return check;
         }
         

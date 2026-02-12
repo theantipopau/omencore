@@ -44,6 +44,9 @@ class Program
     private static int _consecutiveNullCpuTemp = 0;
     private const int NullTempThresholdForFallback = 3; // Switch to PawnIO after 3 null readings
     
+    // v2.8.6: Fallback sensor logging for Intel Core Ultra / Arrow Lake
+    private static bool _cpuTempFallbackLogged = false;
+    
     // Dead battery protection: disable battery sensor polling to prevent EC timeouts
     private static bool _batteryMonitoringDisabled = false;
     private static int _consecutiveZeroBatteryReads = 0;
@@ -576,6 +579,7 @@ class Program
                 // CPU Temperature - prioritize stable sensors over individual cores
                 var cpuTemp = GetSensorValueMulti(hardware, SensorType.Temperature, 
                     "CPU Package", "Package",                                    // Intel Package (most stable)
+                    "CPU DTS",                                                   // Intel DTS (Arrow Lake / Core Ultra)
                     "Core (Tctl/Tdie)", "Tctl/Tdie",                          // AMD Ryzen primary
                     "Core Max", "Core Average",                               // Stable aggregates
                     "Core #1", "Core #0",                                    // Individual cores (fallback)
@@ -585,6 +589,31 @@ class Program
                     "CCD1", "CCD 1",                                        // AMD CCD fallback
                     "CCDs Max", "CCDs Average",                             // AMD multi-CCD
                     "CPU", "SoC", "Socket");                                // Generic fallbacks
+                
+                // v2.8.6: Safety net for Intel Core Ultra / Arrow Lake CPUs where the
+                // primary sensor returns 0 after initial readings.  When we had a valid
+                // previous temperature but the named search returns 0, sweep ALL temp
+                // sensors and pick the first one with a plausible value (> 5°C).
+                if (cpuTemp <= 0 && _lastSample.CpuTemperature > 5)
+                {
+                    var allTempSensors = hardware.Sensors
+                        .Where(s => s.SensorType == SensorType.Temperature && (s.Value ?? 0) > 5 && (s.Value ?? 0) < 120)
+                        .OrderByDescending(s => s.Value ?? 0)
+                        .ToList();
+                    if (allTempSensors.Count > 0)
+                    {
+                        cpuTemp = allTempSensors[0].Value ?? 0;
+                        // Log only once when fallback first activates
+                        if (!_cpuTempFallbackLogged)
+                        {
+                            _cpuTempFallbackLogged = true;
+                            File.AppendAllText(GetLogPath(),
+                                $"[{DateTime.Now:O}] ⚠️ CPU temp named-sensor returned 0 (prev={_lastSample.CpuTemperature:F1}°C). " +
+                                $"Using fallback sensor '{allTempSensors[0].Name}'={cpuTemp:F1}°C " +
+                                $"(available: {string.Join(", ", allTempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))})\n");
+                        }
+                    }
+                }
                 
                 // PawnIO fallback: If LibreHardwareMonitor returns 0 (WinRing0 blocked by Defender),
                 // try reading CPU temp via PawnIO MSR instead

@@ -124,7 +124,7 @@ namespace OmenCore.Services
         // Verification timing
         private const int FanResponseDelayMs = 2000;  // Reduced from 2500ms for faster response
         private const int RetryDelayMs = 1500;        // Reduced from 2000ms
-        private const double RpmTolerance = 0.15;     // Tighter tolerance (reduced from 0.18)
+        private const double RpmTolerance = 0.25;     // Base tolerance — adaptive scaling applied at low speeds
         
         // Auto-revert settings
         private const bool AutoRevertOnFailure = true;     // Enable auto-revert to previous state
@@ -584,8 +584,22 @@ namespace OmenCore.Services
                 return result.ActualRpmAfter < 1000;  // Should be nearly stopped
             }
             
-            // For non-zero, check within tolerance
-            var tolerance = result.ExpectedRpm * RpmTolerance;
+            // Adaptive tolerance: fans are highly non-linear at low speeds.
+            // At 30% target, many OMEN models report 2000-2200 RPM instead of ~1650
+            // because fans have a minimum RPM floor and spin up in discrete steps.
+            // Use wider tolerance at low percentages, tighter at high percentages.
+            var adaptiveTolerance = RpmTolerance;
+            if (result.RequestedPercent <= 40)
+            {
+                // At 30%: tolerance = 0.25 + (1 - 30/40) * 0.20 = 0.25 + 0.05 = 0.30 (45% effective)
+                // At 40%: tolerance = 0.25 + 0 = 0.25
+                adaptiveTolerance += (1.0 - result.RequestedPercent / 40.0) * 0.20;
+            }
+            
+            var tolerance = result.ExpectedRpm * adaptiveTolerance;
+            // Minimum absolute tolerance of 500 RPM (fans report in ~200rpm steps)
+            tolerance = Math.Max(tolerance, 500);
+            
             return Math.Abs(result.ActualRpmAfter - result.ExpectedRpm) <= tolerance;
         }
 

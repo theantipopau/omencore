@@ -1,10 +1,10 @@
-# OmenCore Installation Guide
+﻿# OmenCore Installation Guide
 
 Complete installation instructions for Windows and Linux.
 
 ---
 
-## 📋 Table of Contents
+## ðŸ“‹ Table of Contents
 
 - [Windows Installation](#-windows-installation)
   - [Option 1: Installer (Recommended)](#option-1-installer-recommended)
@@ -20,42 +20,42 @@ Complete installation instructions for Windows and Linux.
 
 ---
 
-## 🪟 Windows Installation
+## ðŸªŸ Windows Installation
 
 ### Option 1: Installer (Recommended)
 
-1. **Download** `OmenCoreSetup-2.7.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. **Download** `OmenCoreSetup-2.8.6.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 
 2. **Run** the installer as Administrator
 
 3. **Select options:**
-   - ✅ Install PawnIO driver (RECOMMENDED - enables MSR access, Secure Boot compatible)
-   - ✅ Create Start Menu shortcut
-   - ☐ Create Desktop shortcut (optional)
-   - ☐ Start with Windows (optional)
+   - âœ… Install PawnIO driver (RECOMMENDED - enables MSR access, Secure Boot compatible)
+   - âœ… Create Start Menu shortcut
+   - â˜ Create Desktop shortcut (optional)
+   - â˜ Start with Windows (optional)
 
 4. **Launch** OmenCore from Start Menu or Desktop
 
 ### Option 2: Portable ZIP
 
-1. **Download** `OmenCore-2.7.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. **Download** `OmenCore-2.8.6-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 
 2. **Extract** to `C:\OmenCore` (or your preferred location)
 
-3. **Run** `OmenCore.exe` as Administrator (right-click → Run as administrator)
+3. **Run** `OmenCore.exe` as Administrator (right-click â†’ Run as administrator)
 
-> 💡 **Tip:** For portable installations, you can install PawnIO separately from [pawnio.eu](https://pawnio.eu)
+> ðŸ’¡ **Tip:** For portable installations, you can install PawnIO separately from [pawnio.eu](https://pawnio.eu)
 
 ### Post-Installation (Windows)
 
 - **Config location:** `%APPDATA%\OmenCore\config.json`
 - **Logs location:** `%LOCALAPPDATA%\OmenCore\OmenCore_<timestamp>.log`
 - OmenCore auto-detects your laptop model and selects the best fan control method
-- Use **Settings → OGH Cleanup** to remove OMEN Gaming Hub if desired
+- Use **Settings â†’ OGH Cleanup** to remove OMEN Gaming Hub if desired
 
 ---
 
-## 🐧 Linux Installation
+## ðŸ§ Linux Installation
 
 ### Quick Start (GUI)
 
@@ -63,17 +63,17 @@ For the graphical interface (Avalonia-based):
 
 ```bash
 # 1. Download the Linux release
-wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/OmenCore-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
 
 # 2. Extract
-unzip OmenCore-linux-x64.zip
+unzip OmenCore-2.8.6-linux-x64.zip
 cd OmenCore-linux-x64
 
 # 3. Make executable
-chmod +x OmenCore
+chmod +x omencore-cli omencore-gui
 
 # 4. Run with sudo (required for hardware access)
-sudo ./OmenCore
+sudo ./omencore-gui
 ```
 
 > **CachyOS / Arch / Fedora users:** The same steps apply. The Linux build is self-contained and includes all dependencies.
@@ -83,11 +83,12 @@ sudo ./OmenCore
 For command-line only (no GUI):
 
 ```bash
-# 1. Download CLI release
-wget https://github.com/theantipopau/omencore/releases/download/v2.7.1/omencore-cli-linux-x64.tar.gz
+# 1. Download Linux release
+wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
 
 # 2. Extract
-tar -xzf omencore-cli-linux-x64.tar.gz
+unzip OmenCore-2.8.6-linux-x64.zip
+cd OmenCore-linux-x64
 
 # 3. Install to system path
 sudo cp omencore-cli /usr/local/bin/
@@ -124,7 +125,7 @@ sudo omencore-cli monitor --interval 1000
 
 | OMEN Model | Recommended Kernel | Access Method | Notes |
 |------------|-------------------|---------------|-------|
-| **2023+ (13th Gen+)** | **6.18+** | `hp-wmi` | ✅ Best support via HP-WMI driver |
+| **2023+ (13th Gen+)** | **6.18+** | `hp-wmi` | âœ… Best support via HP-WMI driver |
 | 2023+ (13th Gen+) | 6.5-6.17 | `hp-wmi` | Basic support, some features limited |
 | 2020-2022 | Any | `ec_sys` | `sudo modprobe ec_sys write_support=1` |
 | Pre-2020 | Any | `ec_sys` | Limited support, EC registers vary |
@@ -234,14 +235,14 @@ DISPLAY=:0 sudo ./OmenCore
 
 ---
 
-## 🗑️ Uninstallation
+## ðŸ—‘ï¸ Uninstallation
 
 ### Windows - Installer
 
-1. **Exit OmenCore** (right-click tray icon → Exit)
-2. **Uninstall:** Settings → Apps → Search "OmenCore" → Uninstall
+1. **Exit OmenCore** (right-click tray icon â†’ Exit)
+2. **Uninstall:** Settings â†’ Apps â†’ Search "OmenCore" â†’ Uninstall
 3. **Optional - Remove PawnIO:**
-   - Device Manager → System devices → PawnIO → Uninstall device
+   - Device Manager â†’ System devices â†’ PawnIO â†’ Uninstall device
 4. **Optional - Delete remaining files:**
    - `C:\Program Files\OmenCore\`
    - `%APPDATA%\OmenCore\`
@@ -269,9 +270,10 @@ rm -rf ~/OmenCore-linux-x64
 
 ---
 
-## 📚 Additional Resources
+## ðŸ“š Additional Resources
 
+- [LINUX_INSTALL_GUIDE.md](docs/LINUX_INSTALL_GUIDE.md) - Comprehensive Linux installation guide
 - [LINUX_TESTING.md](docs/LINUX_TESTING.md) - Detailed Linux testing guide
 - [QUICK_START.md](docs/QUICK_START.md) - Quick start for new users
 - [ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) - Antivirus false positive information
-- [Discord Server](https://discord.gg/AMwVGGyn) - Community support
+- [Discord Server](https://discord.gg/Neh3DCH5) - Community support

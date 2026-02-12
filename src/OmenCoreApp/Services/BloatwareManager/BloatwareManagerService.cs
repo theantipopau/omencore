@@ -329,15 +329,21 @@ namespace OmenCore.Services.BloatwareManager
         {
             // Strategy: try current-user removal first, then -AllUsers, then provisioned package removal
             // This handles both standard and pre-provisioned (OEM-installed) packages
+            //
+            // IMPORTANT: Get-AppxPackage positional parameter is -Name (e.g. "Microsoft.BingWeather"),
+            // NOT PackageFullName (e.g. "Microsoft.BingWeather_4.53.52220.0_x64__8wekyb3d8bbwe").
+            // Extract the Name portion from PackageFullName by splitting on '_'.
+            var appxName = app.PackageId.Contains('_') ? app.PackageId.Split('_')[0] : app.PackageId;
+            
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"" +
-                    $"try {{ Get-AppxPackage '{app.PackageId}' | Remove-AppxPackage -ErrorAction Stop; exit 0 }} " +
+                    $"try {{ Get-AppxPackage '{appxName}' | Remove-AppxPackage -ErrorAction Stop; exit 0 }} " +
                     $"catch {{ " +
-                    $"  try {{ Get-AppxPackage -AllUsers '{app.PackageId}' | Remove-AppxPackage -AllUsers -ErrorAction Stop; exit 0 }} " +
+                    $"  try {{ Get-AppxPackage -AllUsers '{appxName}' | Remove-AppxPackage -AllUsers -ErrorAction Stop; exit 0 }} " +
                     $"  catch {{ " +
-                    $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -like '{app.PackageId.Split('_')[0]}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop; exit 0 }} " +
+                    $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -like '{appxName}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop; exit 0 }} " +
                     $"    catch {{ Write-Error $_.Exception.Message; exit 1 }} " +
                     $"  }} " +
                     $"}}\"",

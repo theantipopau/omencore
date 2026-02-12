@@ -89,7 +89,8 @@
                                             <Run Text="{Binding DeviationPercent, StringFormat={}{0:F1}%, Mode=OneWay}" />
                                             <Run Text=")" />
                                         </TextBlock>
-                                        <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}">
+                                        <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}"
+                                                   TextWrapping="Wrap" MaxWidth="500">
                                             <Run Text="{Binding ErrorMessage, Mode=OneWay}" />
                                         </TextBlock>
                             </StackPanel>

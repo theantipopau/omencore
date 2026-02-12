@@ -1,20 +1,20 @@
-# OmenCore v1.3.0-beta2 Release Notes
+﻿# OmenCore v1.3.0-beta2 Release Notes
 
 **Release Date:** December 2025  
 **Type:** Beta Release - Critical Bug Fixes + Feature Enhancements
 
 ---
 
-## 🎯 Overview (Beta 2)
+## ðŸŽ¯ Overview (Beta 2)
 
 This beta2 release addresses critical issues reported in beta1, including the non-functional "Max Fan" tray option.
 
 ### Bug Fixes (Beta 2)
 
-#### 🟩 Start Minimized to Tray
+#### ðŸŸ© Start Minimized to Tray
 - Fixed: when enabled, the app now starts minimized to tray reliably.
 
-#### 🌀 Max Fan Tray Option Fixed
+#### ðŸŒ€ Max Fan Tray Option Fixed
 **Problem:** Clicking "Max" in the system tray fan menu didn't actually enable max fan speed, although "Max Performance" mode did work.
 
 **Root Cause:** `FanService.ApplyPreset()` detected "Max" presets but only disabled the fan curve - it never called the BIOS `SetMaxFanSpeed(true)` command.
@@ -26,43 +26,43 @@ This beta2 release addresses critical issues reported in beta1, including the no
 
 ### Enhancements (Beta 2)
 
-#### 🧩 Configurable Quick Fan Presets + Persistence
+#### ðŸ§© Configurable Quick Fan Presets + Persistence
 - Tray and Quick Popup fan buttons are now 3-slot configurable (Auto / Max / Silent) via Settings
 - Last-applied fan preset is persisted and re-applied on next startup
 - Added a debounced resume hook to reapply last fan/performance/GPU boost after sleep/hibernate
 
 ### Known Issues (Beta 2)
 
-#### 🟥 Fan Presets Not Applying (Fans only respond in Max/Performance)
+#### ðŸŸ¥ Fan Presets Not Applying (Fans only respond in Max/Performance)
 - Some systems report that fan control does not respond to non-max presets.
 - Status: under investigation.
 
-#### 🟥 GPU Power Boost (TGP) Resets on Windows Startup
+#### ðŸŸ¥ GPU Power Boost (TGP) Resets on Windows Startup
 - Some systems report the GPU boost level still resets after reboot.
 - Status: under investigation.
 
-#### 🟥 OSD Overlay Not Working
+#### ðŸŸ¥ OSD Overlay Not Working
 - OSD may not appear even after changing hotkeys.
 - Status: under investigation.
 
-#### 🟥 OMEN Key Interception Not Working
+#### ðŸŸ¥ OMEN Key Interception Not Working
 - OMEN key interception may not trigger actions on some systems.
 - Status: under investigation.
 
-#### 🎮 OSD Shows Real CPU/GPU Load
+#### ðŸŽ® OSD Shows Real CPU/GPU Load
 - OSD overlay now displays actual CPU/GPU load from hardware monitoring service
 - Previously showed estimated values, now uses `HardwareMonitoringService.LatestSample`
 
-#### 🔋 Battery Status in Tray Tooltip  
+#### ðŸ”‹ Battery Status in Tray Tooltip  
 - Tray tooltip now shows battery percentage and charging state
-- Dynamic icons: 🔌 (AC), 🔋 (>20%), 🪫 (≤20%)
+- Dynamic icons: ðŸ”Œ (AC), ðŸ”‹ (>20%), ðŸª« (â‰¤20%)
 
-#### ⌨️ OmenMon-Style Keyboard RGB
+#### âŒ¨ï¸ OmenMon-Style Keyboard RGB
 - Implemented proper 128-byte color table format per OmenMon documentation
 - Added keyboard capability detection (`GetKeyboardType`, `HasBacklightSupport`)
 - Proper zone mapping for 4-zone and per-key keyboards
 
-#### 🌡️ Temperature Smoothing
+#### ðŸŒ¡ï¸ Temperature Smoothing
 - Added 3-sample exponential moving average for temperature readings
 - Reduces noise and provides more stable fan curve response
 
@@ -75,28 +75,28 @@ This beta2 release addresses critical issues reported in beta1, including the no
 
 ---
 
-## 🎯 Overview
+## ðŸŽ¯ Overview
 
 This beta release addresses critical fan control and DPC latency issues reported in v1.2.x, while adding powerful new features to make OmenCore a **complete standalone replacement** for HP OMEN Gaming Hub.
 
-**🚫 OmenCore is 100% OGH-Independent:**
+**ðŸš« OmenCore is 100% OGH-Independent:**
 - WMI BIOS is the **primary** fan control backend
 - No OGH services required for fan control, thermal management, or GPU settings
 - Works on fresh Windows installs without any HP software
 - OGH proxy is a last-resort fallback only for edge cases
 
 **Key highlights:**
-- ✅ Fan curves now actually work (OmenMon-style continuous monitoring)
-- ✅ MAX mode no longer stuck
-- ✅ Reduced DPC latency with adaptive polling
-- ✅ Quick Popup UI (middle-click tray icon)
-- ✅ Modular feature toggles to reduce background presence
-- ✅ OMEN key interception (experimental)
-- ✅ **Full OGH independence** - uninstall OGH entirely
+- âœ… Fan curves now actually work (OmenMon-style continuous monitoring)
+- âœ… MAX mode no longer stuck
+- âœ… Reduced DPC latency with adaptive polling
+- âœ… Quick Popup UI (middle-click tray icon)
+- âœ… Modular feature toggles to reduce background presence
+- âœ… OMEN key interception (experimental)
+- âœ… **Full OGH independence** - uninstall OGH entirely
 
 ---
 
-## 🔥 Critical Bug Fixes
+## ðŸ”¥ Critical Bug Fixes
 
 ### 1. Fan Curves Now Actually Work (GitHub Issue #7)
 
@@ -111,10 +111,10 @@ This beta release addresses critical fan control and DPC latency issues reported
 
 ```
 Before (v1.2.x):
-  User clicks curve → Applied once → BIOS takes over → Curve ignored
+  User clicks curve â†’ Applied once â†’ BIOS takes over â†’ Curve ignored
 
 After (v1.3.0):
-  User clicks curve → Applied immediately → Reapplied every 15s → Stays active
+  User clicks curve â†’ Applied immediately â†’ Reapplied every 15s â†’ Stays active
 ```
 
 ### 2. MAX Mode No Longer Stuck (GitHub Issue #7)
@@ -132,7 +132,7 @@ After (v1.3.0):
 
 ### 3. Reduced DPC Latency / CPU Usage (GitHub Issue #7)
 
-**Problem:** LatencyMon showed ACPI.sys DPC latency of **1265μs** (vs OGH's 300-400μs), causing audio dropouts and stutters.
+**Problem:** LatencyMon showed ACPI.sys DPC latency of **1265Î¼s** (vs OGH's 300-400Î¼s), causing audio dropouts and stutters.
 
 **Root Cause:** Excessive WMI polling at short intervals.
 
@@ -174,9 +174,9 @@ After (v1.3.0):
 
 ---
 
-## ✨ New Features
+## âœ¨ New Features
 
-### 🔋 Battery Care Mode (NEW)
+### ðŸ”‹ Battery Care Mode (NEW)
 
 Limit battery charge to 80% to extend battery lifespan:
 
@@ -185,7 +185,7 @@ Limit battery charge to 80% to extend battery lifespan:
 - Prevents overcharging when laptop is plugged in frequently
 - Same feature as OMEN Gaming Hub's Battery Care
 
-### 🎮 In-Game OSD Overlay (NEW)
+### ðŸŽ® In-Game OSD Overlay (NEW)
 
 Real-time stats overlay during gaming:
 
@@ -196,18 +196,18 @@ Real-time stats overlay during gaming:
 - **Master disable toggle** - When OFF, NO background process runs
 - **Throttling warning** - Shows alert when CPU/GPU is thermal throttling
 
-Settings in Settings tab → "In-Game OSD" section.
+Settings in Settings tab â†’ "In-Game OSD" section.
 
-### 🌡️ Fan Hysteresis (NEW)
+### ðŸŒ¡ï¸ Fan Hysteresis (NEW)
 
 Prevent fan speed oscillation when temps fluctuate near curve points:
 
-- **Dead-zone threshold:** 3°C default - temps must change by this much to trigger new fan speed
+- **Dead-zone threshold:** 3Â°C default - temps must change by this much to trigger new fan speed
 - **Ramp-up delay:** 0.5s - prevents instant speed increases
 - **Ramp-down delay:** 3s - prevents rapid speed decreases  
 - **Smooths fan behavior** - No more annoying fan ramping up/down constantly
 
-Settings in Settings tab → "Fan Hysteresis" section.
+Settings in Settings tab â†’ "Fan Hysteresis" section.
 
 ### Quick Popup UI (Middle-Click Tray)
 
@@ -258,12 +258,12 @@ Capture the physical OMEN key press to show OmenCore instead of HP Gaming Hub:
 
 - **Configurable actions:** Show Popup, Show Window, Toggle Fan Mode, Toggle Performance
 - Uses low-level keyboard hook
-- **Disabled by default** - enable in Settings → Feature Modules
-- ⚠️ OMEN key scan code varies by laptop model
+- **Disabled by default** - enable in Settings â†’ Feature Modules
+- âš ï¸ OMEN key scan code varies by laptop model
 
 ---
 
-## 🎨 UI/UX Polish
+## ðŸŽ¨ UI/UX Polish
 
 Based on community feedback, the following UI improvements were made:
 
@@ -296,7 +296,7 @@ Based on community feedback, the following UI improvements were made:
 
 ---
 
-## 🔧 Technical Changes
+## ðŸ”§ Technical Changes
 
 ### New Files
 - `Views/QuickPopupWindow.xaml(.cs)` - Compact popup near tray
@@ -327,27 +327,27 @@ Based on community feedback, the following UI improvements were made:
 
 ---
 
-## 📊 Performance Comparison
+## ðŸ“Š Performance Comparison
 
 | Metric | v1.2.1 | v1.3.0-beta |
 |--------|--------|-------------|
 | Fan curve update | Once (on click) | Every 15s |
-| Fan hysteresis | ❌ No | ✅ Dead-zone + delays |
+| Fan hysteresis | âŒ No | âœ… Dead-zone + delays |
 | Monitoring poll (stable) | 1.5s fixed | 5s adaptive |
 | Monitoring poll (changing) | 1.5s fixed | 1s adaptive |
-| DPC latency (typical) | ~1200μs | ~400-600μs |
-| GPU TGP persist on reboot | ❌ No | ✅ Yes |
-| Start minimized | ❌ Broken | ✅ Works |
-| Quick access popup | ❌ No | ✅ Middle-click |
-| In-game OSD | ❌ No | ✅ Click-through overlay |
-| Battery charge limit | ❌ No | ✅ 80% via BIOS |
-| Feature toggles | ❌ No | ✅ Yes |
-| Tray Quick Profiles | ❌ No | ✅ One-click switching |
-| OGH cleanup tool | ✅ Yes | ✅ Moved to Settings |
+| DPC latency (typical) | ~1200Î¼s | ~400-600Î¼s |
+| GPU TGP persist on reboot | âŒ No | âœ… Yes |
+| Start minimized | âŒ Broken | âœ… Works |
+| Quick access popup | âŒ No | âœ… Middle-click |
+| In-game OSD | âŒ No | âœ… Click-through overlay |
+| Battery charge limit | âŒ No | âœ… 80% via BIOS |
+| Feature toggles | âŒ No | âœ… Yes |
+| Tray Quick Profiles | âŒ No | âœ… One-click switching |
+| OGH cleanup tool | âœ… Yes | âœ… Moved to Settings |
 
 ---
 
-## 🔄 Latest Updates (Dec 15, 2025)
+## ðŸ”„ Latest Updates (Dec 15, 2025)
 
 ### UI Reorganization
 - **New General tab** - Combined Performance + Fan profiles with 4 quick profile cards
@@ -356,7 +356,7 @@ Based on community feedback, the following UI improvements were made:
 - **Tabs streamlined** - Removed redundant System Control tab, merged features
 
 ### System Tray Enhancements
-- **Quick Profiles menu** - Right-click tray → "🎮 Quick Profiles" submenu
+- **Quick Profiles menu** - Right-click tray â†’ "ðŸŽ® Quick Profiles" submenu
 - **One-click switching** - Performance, Balanced, Quiet profiles accessible from tray
 - **Applies both** - Each profile sets both performance mode and fan mode together
 
@@ -376,15 +376,15 @@ Based on community feedback, the following UI improvements were made:
 
 ---
 
-## ⚠️ Known Issues
+## âš ï¸ Known Issues
 
 ---
 
-## 🔧 Model Compatibility Improvements (December 15, 2025)
+## ðŸ”§ Model Compatibility Improvements (December 15, 2025)
 
 ### OMEN Transcend 14 / 2024+ Model Support
 
-**Problem Reported:** Users with OMEN Transcend 14 (Ultra 7 + RTX 4060) reported that fan modes would switch in the app but actual fan speeds never changed. CPU temperatures reaching 100°C due to fans not ramping up.
+**Problem Reported:** Users with OMEN Transcend 14 (Ultra 7 + RTX 4060) reported that fan modes would switch in the app but actual fan speeds never changed. CPU temperatures reaching 100Â°C due to fans not ramping up.
 
 **Root Cause:** Newer OMEN models (Transcend, 2024+ models) have WMI BIOS interfaces that **return success** for fan commands but don't actually change fan behavior. These models require the **OGH Proxy** backend instead.
 
@@ -419,19 +419,19 @@ Based on community feedback, the following UI improvements were made:
   - Better error messages for common failure codes
   
 - **Tray Icon Temperature Colors** - Adjusted thresholds for gaming laptops:
-  - Blue: < 50°C (was < 60°C)
-  - Green: 50-65°C (was 60-70°C)
-  - Yellow: 65-75°C (NEW band)
-  - Orange: 75-85°C
-  - Red: 85-95°C
-  - Magenta: > 95°C (critical)
+  - Blue: < 50Â°C (was < 60Â°C)
+  - Green: 50-65Â°C (was 60-70Â°C)
+  - Yellow: 65-75Â°C (NEW band)
+  - Orange: 75-85Â°C
+  - Red: 85-95Â°C
+  - Magenta: > 95Â°C (critical)
 
 - **OGH Cleanup Section** - Restored to Settings tab (was accidentally removed during UI reorganization)
   - Now only visible when OGH is installed
 
 ---
 
-## ⚠️ Known Limitations
+## âš ï¸ Known Limitations
 
 1. **Some HP Models Still Limited:** Custom fan curves may still not work on models where WMI `SetFanLevel` command returns success but has no effect. These models may need EC direct access via PawnIO.
 
@@ -445,7 +445,7 @@ Based on community feedback, the following UI improvements were made:
 
 ---
 
-## 🚀 Upgrade Notes
+## ðŸš€ Upgrade Notes
 
 1. **Settings preserved:** All your saved presets, curves, and settings carry over
 2. **No action needed:** The continuous fan curve is automatic - just apply your preset
@@ -455,7 +455,7 @@ Based on community feedback, the following UI improvements were made:
 
 ---
 
-## 📋 Feedback Requested
+## ðŸ“‹ Feedback Requested
 
 As this is a beta release, please report:
 - Does your custom fan curve now work correctly?
@@ -469,12 +469,12 @@ As this is a beta release, please report:
 - Does **Fan Hysteresis** reduce annoying fan oscillation?
 - Do **Tray Quick Profiles** work correctly for fast switching?
 
-**Discord:** https://discord.gg/HSrSgmM4  
+**Discord:** https://discord.gg/Neh3DCH5  
 **GitHub Issues:** https://github.com/theantipopau/omencore/issues
 
 ---
 
-## 💖 Support Development
+## ðŸ’– Support Development
 
 If OmenCore has helped you, consider supporting development:
 

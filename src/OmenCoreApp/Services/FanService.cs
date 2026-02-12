@@ -95,6 +95,14 @@ namespace OmenCore.Services
         private const double ThermalActivateDebounceSeconds = 5.0;  // Must stay above threshold for 5s to activate
         private const double ThermalReleaseDebounceSeconds = 15.0;  // Must stay below release for 15s to deactivate
         
+        // EC write rate-limiting for thermal protection
+        // When thermal protection is active, avoid re-issuing the same fan command every poll cycle.
+        // Each SetFanSpeed call generates 7+ EC writes. At 1s polling, that's 7+ EC ops/second which
+        // overwhelms the EC → ACPI Event 13 → EC stops responding to OS → false battery critical shutdown.
+        private DateTime _lastThermalFanWriteTime = DateTime.MinValue;
+        private int _lastThermalFanPercent = -1;
+        private const double ThermalWriteMinIntervalSeconds = 15.0;  // Re-apply thermal fan speed at most every 15s
+        
         // Diagnostic mode - suspends curve engine to allow manual fan testing
         private volatile bool _diagnosticModeActive = false;
         
@@ -133,6 +141,8 @@ namespace OmenCore.Services
         /// The backend being used for fan control (WMI BIOS, EC, or None).
         /// </summary>
         public string Backend => _fanController.Backend;
+
+        private bool IsEcBackend => Backend.Contains("EC", StringComparison.OrdinalIgnoreCase);
         
         /// <summary>
         /// Whether a custom fan curve is actively being applied.
@@ -191,6 +201,27 @@ namespace OmenCore.Services
         {
             _diagnosticModeActive = false;
             _logging.Info("✓ Exited fan diagnostic mode - curve engine resumed");
+        }
+
+        /// <summary>
+        /// Restore BIOS automatic fan control. Call this when no user preset was active
+        /// and the fan controller needs to be returned to default BIOS management.
+        /// </summary>
+        public void RestoreAutoControl()
+        {
+            try
+            {
+                DisableCurve();
+                _fanController.RestoreAutoControl();
+                _activePreset = null;
+                _currentFanMode = "Auto";
+                _logging.Info("✓ BIOS auto fan control restored");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to restore auto control", ex);
+                throw;
+            }
         }
 
         /// <summary>
@@ -811,10 +842,24 @@ namespace OmenCore.Services
                     
                     // Notify user of thermal protection activation
                     _notificationService?.ShowThermalProtectionActivated(maxTemp, "Emergency - Max Fans");
+                    
+                    // FIRST activation — always write immediately
+                    _fanController.SetFanSpeed(100);
+                    _lastThermalFanWriteTime = now;
+                    _lastThermalFanPercent = 100;
                 }
-                
-                // Force max fans immediately
-                _fanController.SetFanSpeed(100);
+                else
+                {
+                    // Already in emergency mode — only re-apply periodically as keepalive
+                    // Avoids hammering EC with 7+ writes every poll cycle (1-5s)
+                    // EC overwhelm causes ACPI Event 13 → false battery critical → system shutdown
+                    if ((now - _lastThermalFanWriteTime).TotalSeconds >= ThermalWriteMinIntervalSeconds)
+                    {
+                        _fanController.SetFanSpeed(100);
+                        _lastThermalFanWriteTime = now;
+                        _logging.Debug($"Thermal emergency keepalive: re-applied 100% fans (every {ThermalWriteMinIntervalSeconds}s)");
+                    }
+                }
                 return;
             }
             
@@ -866,7 +911,17 @@ namespace OmenCore.Services
                     return;
                 }
                 
+                // Rate-limit EC writes: only re-apply if target changed or enough time passed
+                // Avoids hammering EC with identical commands every poll cycle
+                if (thermalTargetPercent == _lastThermalFanPercent && 
+                    (now - _lastThermalFanWriteTime).TotalSeconds < ThermalWriteMinIntervalSeconds)
+                {
+                    return;
+                }
+                
                 _fanController.SetFanSpeed(thermalTargetPercent);
+                _lastThermalFanWriteTime = now;
+                _lastThermalFanPercent = thermalTargetPercent;
                 return;
             }
             
@@ -1003,12 +1058,6 @@ namespace OmenCore.Services
                 return ApplyIndependentCurvesAsync(cpuTemp, gpuTemp, immediate, forceRefresh, now);
             }
             
-            // Route to appropriate curve handler
-            if (hasIndependentCurves)
-            {
-                return ApplyIndependentCurvesAsync(cpuTemp, gpuTemp, immediate, forceRefresh, now);
-            }
-            
             lock (_curveLock)
             {
                 if (_activeCurve == null)
@@ -1083,22 +1132,14 @@ namespace OmenCore.Services
                     // Force refresh combats BIOS countdown timer that may have reset fan control
                     if (targetFanPercent != _lastAppliedFanPercent || forceRefresh)
                     {
+                        bool allowSmoothing = _smoothingEnabled && !IsEcBackend;
+
                         // If smoothing disabled or this is a force refresh or we have no previous applied value, just set directly
-                        if (!_smoothingEnabled || _lastAppliedFanPercent < 0 || forceRefresh)
+                        if (!allowSmoothing || _lastAppliedFanPercent < 0 || forceRefresh)
                         {
-                            // Add retry logic for fan control hardening
-                            const int maxRetries = 2;
-                            bool success = false;
-                            
-                            for (int retry = 0; retry <= maxRetries && !success; retry++)
-                            {
-                                success = _fanController.SetFanSpeed((int)targetFanPercent);
-                                if (!success && retry < maxRetries)
-                                {
-                                    _logging.Warn($"Fan speed command failed (attempt {retry + 1}/{maxRetries + 1}), retrying...");
-                                    System.Threading.Thread.Sleep(300); // Brief delay before retry
-                                }
-                            }
+                            // Single attempt — no retries to reduce EC load
+                            // WriteDuty already has deduplication; retrying just adds more EC writes
+                            bool success = _fanController.SetFanSpeed((int)targetFanPercent);
                             
                             if (success)
                             {
@@ -1118,7 +1159,7 @@ namespace OmenCore.Services
                             }
                             else
                             {
-                                _logging.Error($"Failed to set fan speed to {targetFanPercent}% after {maxRetries + 1} attempts");
+                                _logging.Warn($"Failed to set fan speed to {targetFanPercent}%");
                             }
                         }
                         else
@@ -1219,6 +1260,13 @@ namespace OmenCore.Services
 
         private async Task RampFanToPercentAsync(int targetPercent, CancellationToken cancellationToken)
         {
+            if (IsEcBackend)
+            {
+                _fanController.SetFanSpeed(targetPercent);
+                _lastAppliedFanPercent = targetPercent;
+                return;
+            }
+
             // Determine start point for ramp. If no previous value, start from 0% to provide a ramp-up
             int from = _lastAppliedFanPercent < 0 ? 0 : _lastAppliedFanPercent;
 

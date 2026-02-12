@@ -681,12 +681,31 @@ namespace OmenCore.Services
             }
             
             // Check scan code even if VK doesn't match (some models send odd VK codes)
+            // IMPORTANT: Only match scan codes that are in the extended range (0xE0xx)
+            // Non-extended scan codes like 0x0046 (Scroll Lock) can overlap with Fn+brightness keys
+            // on some HP keyboards, causing false positives (Fn+F2/F3 triggers OmenCore)
             foreach (var omenScan in OmenScanCodes)
             {
-                if (scanCode == omenScan)
+                if (scanCode == omenScan && (scanCode & 0xFF00) == 0xE000)
                 {
-                    _logging.Debug($"OMEN scan code 0x{scanCode:X4} matched (VK=0x{vkCode:X2}) - OMEN key");
+                    _logging.Debug($"OMEN extended scan code 0x{scanCode:X4} matched (VK=0x{vkCode:X2}) - OMEN key");
                     return true;
+                }
+            }
+            
+            // For non-extended OMEN scan codes (0x0046, 0x009D), require a known OMEN VK code
+            // to avoid false positives from Fn+brightness/volume keys
+            foreach (var omenScan in OmenScanCodes)
+            {
+                if (scanCode == omenScan && (scanCode & 0xFF00) != 0xE000)
+                {
+                    if (vkCode == VK_LAUNCH_APP2 || vkCode == VK_LAUNCH_APP1 || 
+                        vkCode == VK_OEM_OMEN || vkCode == VK_OMEN_157)
+                    {
+                        _logging.Debug($"OMEN scan code 0x{scanCode:X4} with OMEN VK 0x{vkCode:X2} - OMEN key confirmed");
+                        return true;
+                    }
+                    _logging.Debug($"OMEN scan code 0x{scanCode:X4} with non-OMEN VK 0x{vkCode:X2} - NOT treated as OMEN key (likely Fn+Fx)");
                 }
             }
 

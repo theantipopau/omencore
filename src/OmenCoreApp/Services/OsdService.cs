@@ -286,6 +286,16 @@ namespace OmenCore.Services
                     return;
                 }
                 
+                // v2.8.6: Prevent bare function keys from being registered as global hotkeys.
+                // A bare F-key (F1-F12) with no modifiers steals ALL keypresses of that key
+                // system-wide, including laptop Fn+F2/F3 brightness/volume shortcuts.
+                // Require at least one modifier (Ctrl, Alt, or Shift) for function keys.
+                if (modifiers == 0 && vk >= 0x70 && vk <= 0x87) // VK_F1 (0x70) through VK_F24 (0x87)
+                {
+                    _logging.Warn($"OSD: Hotkey '{hotkeyStr}' has no modifier — bare function keys steal system shortcuts (Fn+F2/F3 etc). Adding Ctrl+Shift.");
+                    modifiers = 0x0002 | 0x0004; // MOD_CONTROL | MOD_SHIFT
+                }
+                
                 // Try to get window handle - use dedicated hidden window if main window not ready
                 IntPtr hwnd = IntPtr.Zero;
                 try

@@ -82,26 +82,32 @@ namespace OmenCore
                 Logging.Info($"Command line arguments: {string.Join(" ", e.Args)}");
             }
 
-            // CRITICAL: Check for desktop systems and block startup
+            // Check for desktop systems and warn (experimental desktop support since v2.8.0)
             if (IsOmenDesktop())
             {
-                Logging.Error("CRITICAL: OMEN Desktop PC detected - OmenCore is NOT compatible with desktop systems");
-                MessageBox.Show(
-                    "⚠️ CRITICAL WARNING ⚠️\n\n" +
-                    "OMEN Desktop PC Detected!\n\n" +
-                    "OmenCore is designed for OMEN LAPTOPS ONLY and is NOT compatible with OMEN Desktop systems (25L, 30L, 35L, 40L, 45L).\n\n" +
-                    "Running OmenCore on a desktop PC can:\n" +
-                    "• Cause fans to stop spinning\n" +
-                    "• Corrupt BIOS fan controller settings\n" +
-                    "• Require CMOS reset to recover\n\n" +
-                    "Desktop thermal management uses completely different hardware interfaces than laptops.\n\n" +
-                    "For OMEN Desktop RGB control only, please contact the developer.\n\n" +
-                    "Application will now exit.",
-                    "OMEN Desktop Not Supported",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                Shutdown();
-                return;
+                Logging.Warn("OMEN Desktop PC detected - desktop support is experimental");
+                var result = MessageBox.Show(
+                    "⚠️ OMEN Desktop PC Detected ⚠️\n\n" +
+                    "OmenCore has experimental support for OMEN Desktop systems (25L, 30L, 35L, 40L, 45L).\n\n" +
+                    "Desktop fan control uses different hardware interfaces than laptops. " +
+                    "Some features may not work correctly:\n\n" +
+                    "• Fan speed control may be limited or unavailable\n" +
+                    "• Temperature monitoring should work normally\n" +
+                    "• RGB control is supported\n\n" +
+                    "If you experience any issues, please report them on GitHub or Discord.\n\n" +
+                    "Do you want to continue?",
+                    "OMEN Desktop - Experimental Support",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                
+                if (result != MessageBoxResult.Yes)
+                {
+                    Logging.Info("User chose not to continue on desktop system");
+                    Shutdown();
+                    return;
+                }
+                
+                Logging.Info("User chose to continue on desktop system - experimental mode");
             }
 
             // Check for WinRing0 driver availability
@@ -911,7 +917,8 @@ namespace OmenCore
             }
             
             // Show dialog for other serious errors
-            ShowFatalDialog(e.Exception, false);
+            if (e.Exception != null)
+                ShowFatalDialog(e.Exception, false);
         }
 
         private static void ShowFatalDialog(Exception ex, bool isNvmlCrash = false)

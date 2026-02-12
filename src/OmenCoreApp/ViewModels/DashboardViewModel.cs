@@ -324,6 +324,11 @@ namespace OmenCore.ViewModels
             MonitoringHealthStatus.Stale => "⛔ Stale",
             _ => "? Unknown"
         };
+
+        /// <summary>
+        /// Monitoring source label for UI display.
+        /// </summary>
+        public string MonitoringSourceText => _monitoringService.MonitoringSource;
         
         /// <summary>
         /// Color for health status indicator.
@@ -358,6 +363,7 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(MonitoringHealthStatus));
                 OnPropertyChanged(nameof(MonitoringHealthStatusText));
                 OnPropertyChanged(nameof(MonitoringHealthColor));
+                OnPropertyChanged(nameof(MonitoringSourceText));
             });
         }
 
@@ -408,6 +414,7 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(FanCurveSummary));
             OnPropertyChanged(nameof(HasHistoricalData));
             OnPropertyChanged(nameof(HasLiveData));
+            OnPropertyChanged(nameof(MonitoringSourceText));
         }
         
         private void UpdateFanCurvePoints(MonitoringSample sample)

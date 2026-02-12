@@ -576,6 +576,11 @@
                     <views:SystemOptimizerView DataContext="{Binding SystemOptimizer}" />
                 </TabItem>
                 
+                <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
+                <TabItem Header="Memory">
+                    <views:MemoryOptimizerView DataContext="{Binding MemoryOptimizer}" />
+                </TabItem>
+                
                 <!-- Bloatware Manager Tab -->
                 <TabItem Header="Bloatware">
                     <views:BloatwareManagerView DataContext="{Binding BloatwareManager}" />

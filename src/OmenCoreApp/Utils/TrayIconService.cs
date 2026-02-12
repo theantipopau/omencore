@@ -126,7 +126,7 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "2.7.1";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "2.8.6";
         }
 
         private void InitializeContextMenu()
@@ -495,7 +495,14 @@ namespace OmenCore.Utils
             showItem.Click += (s, e) => _showMainWindow();
             contextMenu.Items.Add(showItem);
             
-            _stayOnTopMenuItem = new MenuItem { Header = "📍 Stay on Top" };
+            var stayOnTopEnabled = App.Configuration.Config.StayOnTop;
+            _stayOnTopMenuItem = new MenuItem
+            {
+                Header = stayOnTopEnabled ? "📌 Stay on Top ✓" : "📍 Stay on Top",
+                ToolTip = stayOnTopEnabled
+                    ? "Keep OmenCore above other windows (On)"
+                    : "Keep OmenCore above other windows (Off)"
+            };
             _stayOnTopMenuItem.Click += (s, e) => ToggleStayOnTop();
             contextMenu.Items.Add(_stayOnTopMenuItem);
 
@@ -811,6 +818,9 @@ namespace OmenCore.Utils
             if (_stayOnTopMenuItem != null)
             {
                 _stayOnTopMenuItem.Header = newValue ? "📌 Stay on Top ✓" : "📍 Stay on Top";
+                _stayOnTopMenuItem.ToolTip = newValue
+                    ? "Keep OmenCore above other windows (On)"
+                    : "Keep OmenCore above other windows (Off)";
             }
             
             // Notify the main window to update

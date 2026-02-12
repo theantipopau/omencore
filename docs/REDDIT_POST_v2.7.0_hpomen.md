@@ -1,4 +1,4 @@
-# OmenCore 2.7.0 - A Complete OMEN Gaming Hub Replacement (No HP Software Required)
+﻿# OmenCore 2.7.0 - A Complete OMEN Gaming Hub Replacement (No HP Software Required)
 
 Hey everyone! Wanted to share **OmenCore**, a free, open-source control center I've been developing for HP OMEN and Victus laptops.
 
@@ -9,38 +9,38 @@ Hey everyone! Wanted to share **OmenCore**, a free, open-source control center I
 OmenCore is a **complete replacement for HP OMEN Gaming Hub**. It's a single ~70MB executable that gives you full control over your laptop without any HP bloatware, telemetry, or Microsoft account requirements.
 
 **Key differences from OMEN Gaming Hub:**
-- ✅ Works without OGH installed - uses native WMI BIOS commands
-- ✅ No ads, no telemetry, no sign-in
-- ✅ Runs on Windows AND Linux
-- ✅ Open source (MIT license)
+- âœ… Works without OGH installed - uses native WMI BIOS commands
+- âœ… No ads, no telemetry, no sign-in
+- âœ… Runs on Windows AND Linux
+- âœ… Open source (MIT license)
 
 ---
 
 ## Core Features
 
-🌀 **Fan Control**
+ðŸŒ€ **Fan Control**
 - Custom fan curves with visual editor
 - Independent CPU/GPU fan curves based on component temps
 - Preset profiles (Silent, Balanced, Performance, Max)
 - Real-time RPM monitoring
 
-⚡ **Performance Modes**
+âš¡ **Performance Modes**
 - Switch between Quiet, Balanced, Performance modes
 - GPU power level control (Min/Med/Max)
 - Undervolt support via PawnIO (Intel/AMD)
 - TCC offset for thermal throttling control
 
-🌈 **RGB Lighting**
+ðŸŒˆ **RGB Lighting**
 - Full keyboard backlight control
 - Per-zone color customization
 - Ambient mode (syncs to screen colors)
 - Multi-brand peripheral support (Corsair, Logitech, Razer)
 
-🔋 **Battery Management**
+ðŸ”‹ **Battery Management**
 - Custom charge threshold (60-100%)
 - Battery-aware fan profiles
 
-📊 **Monitoring**
+ðŸ“Š **Monitoring**
 - Real-time CPU/GPU temps, usage, power
 - Temperature history charts
 - On-screen display overlay
@@ -61,13 +61,13 @@ OmenCore is a **complete replacement for HP OMEN Gaming Hub**. It's a single ~70
 
 ## What's New in v2.7.0
 
-🛡️ **No More Antivirus False Positives** - Removed WinRing0 entirely, now uses PawnIO exclusively (signed driver)
+ðŸ›¡ï¸ **No More Antivirus False Positives** - Removed WinRing0 entirely, now uses PawnIO exclusively (signed driver)
 
-🔬 **Fan Diagnostics** - Guided test sequence to verify your fans respond correctly
+ðŸ”¬ **Fan Diagnostics** - Guided test sequence to verify your fans respond correctly
 
-📖 **HP Model Database** - Auto-detects your laptop and shows verified working features
+ðŸ“– **HP Model Database** - Auto-detects your laptop and shows verified working features
 
-🐛 **Bug Fixes** - Sidebar temps working, version display fixed, better disabled button styling
+ðŸ› **Bug Fixes** - Sidebar temps working, version display fixed, better disabled button styling
 
 ---
 
@@ -75,7 +75,7 @@ OmenCore is a **complete replacement for HP OMEN Gaming Hub**. It's a single ~70
 
 **Website:** [omencore.info](https://omencore.info)  
 **GitHub:** [github.com/theantipopau/omencore](https://github.com/theantipopau/omencore)  
-**Discord:** [discord.gg/AMwVGGyn](https://discord.gg/AMwVGGyn)
+**Discord:** [discord.gg/Neh3DCH5](https://discord.gg/Neh3DCH5)
 
 | File | Size |
 |------|------|

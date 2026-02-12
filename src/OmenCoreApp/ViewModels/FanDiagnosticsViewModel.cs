@@ -152,6 +152,20 @@ namespace OmenCore.ViewModels
                         _fanService.ApplyPreset(_preTestPreset);
                         _preTestPreset = null;
                     }
+                    else
+                    {
+                        // No preset was active (user was in auto/BIOS mode)
+                        // Must explicitly restore auto control or fans stay at last test speed
+                        _logging.Info("[FanDiagnostic] No preset was active — restoring BIOS auto control");
+                        try
+                        {
+                            _fanService.RestoreAutoControl();
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            _logging.Warn($"[FanDiagnostic] Auto restore failed: {restoreEx.Message}");
+                        }
+                    }
                     
                     IsDiagnosticActive = false;
                 }
@@ -311,6 +325,19 @@ namespace OmenCore.ViewModels
                     _logging.Info($"[GuidedDiagnostic] Restoring preset: {_preTestPreset.Name}");
                     _fanService.ApplyPreset(_preTestPreset);
                     _preTestPreset = null;
+                }
+                else
+                {
+                    // No preset was active — restore BIOS auto control
+                    _logging.Info("[GuidedDiagnostic] No preset was active — restoring BIOS auto control");
+                    try
+                    {
+                        _fanService.RestoreAutoControl();
+                    }
+                    catch (Exception restoreEx)
+                    {
+                        _logging.Warn($"[GuidedDiagnostic] Auto restore failed: {restoreEx.Message}");
+                    }
                 }
                 
                 IsGuidedTestRunning = false;

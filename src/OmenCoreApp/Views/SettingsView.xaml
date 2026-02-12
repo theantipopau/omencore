@@ -364,7 +364,15 @@
                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <TextBlock Text="General" FontSize="20" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Border Background="#1A00C8C8" CornerRadius="4" Padding="8,4" Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding StayOnTop, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="Topmost" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
+                            </Border>
                         </StackPanel>
+
+                        <TextBlock Text="Window Behavior" FontSize="12" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
 
                         <!-- Start with Windows -->
                         <Grid Margin="0,0,0,12">
@@ -416,6 +424,33 @@
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding MinimizeToTrayOnClose}"/>
                         </Grid>
+
+                        <!-- Stay on Top -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Stay on top" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Keep OmenCore above other windows" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Background="#1A00C8C8" CornerRadius="4" Padding="8,4" Margin="0,0,10,0"
+                                        Visibility="{Binding StayOnTop, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="✓ Active" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
+                                </Border>
+                                <ToggleButton Style="{StaticResource ModernToggleButton}"
+                                              IsChecked="{Binding StayOnTop}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="{StaticResource BorderBrush}" Opacity="0.6" Margin="0,4,0,16"/>
+
+                        <TextBlock Text="Tray &amp; UI" FontSize="12" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
 
                         <!-- Show Temperature on Tray Icon -->
                         <Grid Margin="0,0,0,12">

@@ -36,6 +36,7 @@ namespace OmenCore.ViewModels
         private bool _startWithWindows;
         private bool _startMinimized;
         private bool _minimizeToTrayOnClose = true;
+        private bool _stayOnTop;
         private int _pollingIntervalMs = 2000;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
@@ -198,6 +199,28 @@ namespace OmenCore.ViewModels
                     _minimizeToTrayOnClose = value;
                     OnPropertyChanged();
                     SaveSettings();
+                }
+            }
+        }
+
+        public bool StayOnTop
+        {
+            get => _stayOnTop;
+            set
+            {
+                if (_stayOnTop != value)
+                {
+                    _stayOnTop = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+
+                    Application.Current?.Dispatcher?.BeginInvoke(() =>
+                    {
+                        if (Application.Current?.MainWindow != null)
+                        {
+                            Application.Current.MainWindow.Topmost = value;
+                        }
+                    });
                 }
             }
         }
@@ -1027,13 +1050,25 @@ namespace OmenCore.ViewModels
 
         public string OsdHotkey
         {
-            get => _config.Osd?.ToggleHotkey ?? "F12";
+            get => _config.Osd?.ToggleHotkey ?? "Ctrl+Shift+F12";
             set
             {
                 if (_config.Osd == null) _config.Osd = new OsdSettings();
-                if (_config.Osd.ToggleHotkey != value)
+                
+                // v2.8.6: Validate that bare function keys aren't used — they steal system shortcuts
+                var trimmed = value?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(trimmed) && !trimmed.Contains('+') && 
+                    trimmed.StartsWith("F", StringComparison.OrdinalIgnoreCase) &&
+                    int.TryParse(trimmed.AsSpan(1), out _))
                 {
-                    _config.Osd.ToggleHotkey = value;
+                    // Bare function key like "F2" — auto-prefix with Ctrl+Shift
+                    trimmed = $"Ctrl+Shift+{trimmed}";
+                    _logging?.Warn($"OSD hotkey '{value}' is a bare function key — changed to '{trimmed}' to avoid stealing Fn+F-key shortcuts");
+                }
+                
+                if (_config.Osd.ToggleHotkey != trimmed)
+                {
+                    _config.Osd.ToggleHotkey = trimmed;
                     OnPropertyChanged();
                     SaveSettings();
                 }
@@ -1935,6 +1970,7 @@ namespace OmenCore.ViewModels
             // Load UI preferences
             _startMinimized = _config.Monitoring.StartMinimized;
             _minimizeToTrayOnClose = _config.Monitoring.MinimizeToTrayOnClose;
+            _stayOnTop = _config.StayOnTop;
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -1968,6 +2004,7 @@ namespace OmenCore.ViewModels
             // Save UI preferences
             _config.Monitoring.StartMinimized = _startMinimized;
             _config.Monitoring.MinimizeToTrayOnClose = _minimizeToTrayOnClose;
+            _config.StayOnTop = _stayOnTop;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -2001,7 +2038,7 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                var process = new Process
+                using var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -2073,7 +2110,7 @@ namespace OmenCore.ViewModels
                     // First, try to remove any existing task
                     try
                     {
-                        var deleteProcess = new Process
+                        using var deleteProcess = new Process
                         {
                             StartInfo = new ProcessStartInfo
                             {
@@ -2090,14 +2127,59 @@ namespace OmenCore.ViewModels
                     }
                     catch { /* Task may not exist, ignore */ }
                     
-                    // Create scheduled task with highest privileges (runs as admin on logon)
-                    // Use --minimized flag to start minimized to tray
-                    var createProcess = new Process
+                    // Create scheduled task via XML for reliable auto-start
+                    // Uses LogonTrigger with StartWhenAvailable=true to handle:
+                    //   - Normal restart (logon event fires)
+                    //   - Fast Startup shutdown+start (StartWhenAvailable recovers missed trigger)
+                    var xmlContent = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.4"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <RegistrationInfo>
+    <Description>Start OmenCore with Windows (elevated)</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT5S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=""Author"">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>""{exePath}""</Command>
+      <Arguments>--minimized</Arguments>
+    </Exec>
+  </Actions>
+</Task>";
+                    
+                    // Write XML to temp file and import via schtasks
+                    var xmlPath = Path.Combine(Path.GetTempPath(), "OmenCore_Task.xml");
+                    File.WriteAllText(xmlPath, xmlContent, System.Text.Encoding.Unicode);
+                    
+                    using var createProcess = new Process
                     {
                         StartInfo = new ProcessStartInfo
                         {
                             FileName = "schtasks",
-                            Arguments = $"/create /tn \"{taskName}\" /tr \"\\\"{exePath}\\\" --minimized\" /sc onlogon /rl highest /f",
+                            Arguments = $"/create /tn \"{taskName}\" /xml \"{xmlPath}\" /f",
                             UseShellExecute = false,
                             CreateNoWindow = true,
                             RedirectStandardOutput = true,
@@ -2108,6 +2190,9 @@ namespace OmenCore.ViewModels
                     var output = createProcess.StandardOutput.ReadToEnd();
                     var error = createProcess.StandardError.ReadToEnd();
                     createProcess.WaitForExit(5000);
+                    
+                    // Clean up temp file
+                    try { File.Delete(xmlPath); } catch { }
                     
                     if (createProcess.ExitCode == 0)
                     {
@@ -2161,7 +2246,7 @@ namespace OmenCore.ViewModels
                     // Remove scheduled task
                     try
                     {
-                        var deleteProcess = new Process
+                        using var deleteProcess = new Process
                         {
                             StartInfo = new ProcessStartInfo
                             {

@@ -7,21 +7,29 @@ using OmenCore.Services;
 namespace OmenCore.Hardware
 {
     /// <summary>
-    /// WMI BIOS-based hardware monitor that requires NO external dependencies.
-    /// Uses HP's built-in WMI BIOS interface for temperature and fan monitoring.
-    /// This is the self-sufficient fallback when LibreHardwareMonitor is unavailable.
+    /// Self-sustaining WMI BIOS + NVAPI hardware monitor — NO LHM/WinRing0 dependency.
     /// 
-    /// Capabilities:
-    /// - CPU Temperature (via WMI BIOS command 0x23)
-    /// - GPU Temperature (via WMI BIOS command 0x23 or fallback)
-    /// - Fan RPM (via WMI BIOS command 0x2D/0x38)
-    /// - No kernel driver required
-    /// - Works without admin rights for monitoring
+    /// This is OmenCore's PRIMARY monitoring bridge. It reads all sensor data using
+    /// native Windows APIs and NVIDIA's NVAPI — no external kernel drivers required.
+    /// 
+    /// Data Sources:
+    /// - CPU/GPU Temperature: HP WMI BIOS (command 0x23) — same as OmenMon
+    /// - Fan RPM: HP WMI BIOS (command 0x38) — hardware-accurate
+    /// - CPU Load: Windows PerformanceCounter
+    /// - GPU Load/Temp/Clocks/VRAM/Power: NVAPI (via NvAPIWrapper)
+    /// - CPU Throttling: PawnIO MSR 0x19C (if available)
+    /// - RAM: WMI Win32_OperatingSystem / Win32_ComputerSystem
+    /// - Battery: WMI Win32_Battery + SystemInformation.PowerStatus
+    /// - SSD Temperature: WMI MSStorageDriver (if available)
+    /// 
+    /// PawnIO is used ONLY for MSR-based throttling detection — NOT for core monitoring.
     /// </summary>
     public class WmiBiosMonitor : IHardwareMonitorBridge, IDisposable
     {
         private readonly LoggingService? _logging;
         private readonly HpWmiBios _wmiBios;
+        private readonly NvapiService? _nvapi;
+        private readonly PawnIOMsrAccess? _msrAccess;
         private bool _disposed;
         
         // Cached values for performance
@@ -32,32 +40,104 @@ namespace OmenCore.Hardware
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(500);
         
-        // CPU/GPU load - not available via WMI BIOS, use performance counters
+        // CPU/GPU load
         private double _cachedCpuLoad;
-        private double _cachedGpuLoad = 0; // GPU load not available via WMI BIOS
+        private double _cachedGpuLoad;
         
-        // Dead battery detection — stop polling Win32_Battery if battery appears dead/absent
+        // CPU clock from WMI
+        private double _cachedCpuClockMhz;
+        
+        // ACPI thermal zone for higher-precision CPU temp
+        private bool _acpiThermalAvailable = true; // Try ACPI first, disable on failure
+        private string? _cpuThermalZoneInstance;
+        
+        // GPU metrics from NVAPI
+        private double _cachedGpuPowerWatts;
+        private double _cachedGpuClockMhz;
+        private double _cachedGpuMemClockMhz;
+        private double _cachedGpuVramUsedMb;
+        private double _cachedGpuVramTotalMb;
+        private string _cachedGpuName = string.Empty;
+        
+        // CPU throttling & power from PawnIO MSR
+        private bool _cachedCpuThermalThrottling;
+        private bool _cachedCpuPowerThrottling;
+        private double _cachedCpuPowerWatts;
+        
+        // SSD temperature
+        private double _cachedSsdTemp;
+        private bool _ssdTempAvailable = true; // Optimistic, disable on first failure
+        
+        // Battery
+        private double _cachedBatteryDischargeRate;
         private bool _batteryMonitoringDisabled;
         private int _consecutiveZeroBatteryReads;
         private const int MaxZeroBatteryReadsBeforeDisable = 3;
         private DateTime _lastBatteryQuery = DateTime.MinValue;
         private readonly TimeSpan _batteryQueryCooldown = TimeSpan.FromSeconds(10);
         
-        public bool IsAvailable => _wmiBios.IsAvailable;
+        // NVAPI failure tracking — disable after repeated failures to avoid log spam
+        private int _nvapiConsecutiveFailures;
+        private bool _nvapiMonitoringDisabled;
+        private const int MaxNvapiFailuresBeforeDisable = 10;
         
-        public WmiBiosMonitor(LoggingService? logging = null)
+        // MSI Afterburner coexistence — read GPU metrics from shared memory instead of NVAPI polling
+        private ConflictDetectionService? _afterburnerService;
+        private bool _afterburnerCoexistenceActive;
+        
+        public bool IsAvailable => _wmiBios.IsAvailable;
+
+        public string MonitoringSource => _nvapi?.IsAvailable == true 
+            ? "WMI BIOS + NVAPI (Self-Sustaining)" 
+            : "WMI BIOS (Self-Sustaining)";
+        
+        /// <summary>
+        /// Creates a self-sustaining hardware monitor.
+        /// </summary>
+        /// <param name="logging">Logging service</param>
+        /// <param name="nvapi">Optional NVAPI service for GPU metrics (load, clocks, VRAM, power)</param>
+        /// <param name="msrAccess">Optional PawnIO MSR access for CPU throttling detection</param>
+        public WmiBiosMonitor(LoggingService? logging = null, NvapiService? nvapi = null, PawnIOMsrAccess? msrAccess = null)
         {
             _logging = logging;
             _wmiBios = new HpWmiBios(logging);
+            _nvapi = nvapi;
+            _msrAccess = msrAccess;
             
             if (_wmiBios.IsAvailable)
             {
-                _logging?.Info("[WmiBiosMonitor] Initialized successfully - using HP WMI BIOS for monitoring");
+                _logging?.Info("[WmiBiosMonitor] ✓ HP WMI BIOS available — primary temp/fan source");
             }
             else
             {
-                _logging?.Warn("[WmiBiosMonitor] WMI BIOS not available - monitoring will be limited");
+                _logging?.Warn("[WmiBiosMonitor] ✗ WMI BIOS not available — monitoring will be limited");
             }
+            
+            if (_nvapi?.IsAvailable == true)
+            {
+                _cachedGpuName = _nvapi.GpuName;
+                _logging?.Info($"[WmiBiosMonitor] ✓ NVAPI available — GPU metrics: {_cachedGpuName}");
+            }
+            else
+            {
+                _logging?.Info("[WmiBiosMonitor] NVAPI not available — GPU load/clocks/VRAM will be unavailable");
+            }
+            
+            if (_msrAccess != null)
+            {
+                _logging?.Info("[WmiBiosMonitor] ✓ PawnIO MSR available — CPU throttling detection enabled");
+            }
+        }
+        
+        /// <summary>
+        /// Enable Afterburner coexistence mode. When Afterburner shared memory is available,
+        /// GPU temp/clocks/power are read from it instead of NVAPI, eliminating polling contention.
+        /// NVAPI is reduced to load+VRAM only (lightweight calls with minimal contention).
+        /// </summary>
+        public void SetAfterburnerCoexistence(ConflictDetectionService conflictService)
+        {
+            _afterburnerService = conflictService;
+            _logging?.Info("[WmiBiosMonitor] Afterburner coexistence configured — will auto-activate when shared memory is available");
         }
         
         public async Task<MonitoringSample> ReadSampleAsync(CancellationToken token)
@@ -91,41 +171,157 @@ namespace OmenCore.Hardware
             
             try
             {
-                // Get temperatures from WMI BIOS
-                var temps = _wmiBios.GetBothTemperatures();
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 1: HP WMI BIOS — CPU/GPU temp + Fan RPM
+                // This is the same source OmenMon uses. Rock-solid, no dependencies.
+                // ═══════════════════════════════════════════════════════════════
                 
+                var temps = _wmiBios.GetBothTemperatures();
                 if (temps.HasValue)
                 {
                     var (cpuTemp, gpuTemp) = temps.Value;
-                    if (cpuTemp > 0)
-                    {
-                        _cachedCpuTemp = cpuTemp;
-                    }
-                    
-                    if (gpuTemp > 0)
-                    {
-                        _cachedGpuTemp = gpuTemp;
-                    }
+                    if (cpuTemp > 0) _cachedCpuTemp = cpuTemp;
+                    if (gpuTemp > 0) _cachedGpuTemp = gpuTemp;
                 }
                 
-                // Get fan RPMs from WMI BIOS
                 var rpms = _wmiBios.GetFanRpmDirect();
-                
                 if (rpms.HasValue)
                 {
                     var (cpuRpm, gpuRpm) = rpms.Value;
-                    if (HpWmiBios.IsValidRpm(cpuRpm))
+                    if (HpWmiBios.IsValidRpm(cpuRpm)) _cachedCpuFanRpm = cpuRpm;
+                    if (HpWmiBios.IsValidRpm(gpuRpm)) _cachedGpuFanRpm = gpuRpm;
+                }
+                else
+                {
+                    // V1 fallback: GetFanRpmDirect (0x38) not available, use GetFanLevel (0x2D)
+                    // Fan levels are in krpm units (e.g., level 44 = 4400 RPM)
+                    var levels = _wmiBios.GetFanLevel();
+                    if (levels.HasValue)
                     {
-                        _cachedCpuFanRpm = cpuRpm;
-                    }
-                    
-                    if (HpWmiBios.IsValidRpm(gpuRpm))
-                    {
-                        _cachedGpuFanRpm = gpuRpm;
+                        var (fan1Level, fan2Level) = levels.Value;
+                        int fan1Rpm = fan1Level * 100;
+                        int fan2Rpm = fan2Level * 100;
+                        if (HpWmiBios.IsValidRpm(fan1Rpm)) _cachedCpuFanRpm = fan1Rpm;
+                        if (HpWmiBios.IsValidRpm(fan2Rpm)) _cachedGpuFanRpm = fan2Rpm;
                     }
                 }
                 
-                // CPU load via performance counter (lightweight)
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 2: GPU metrics — Afterburner shared memory OR NVAPI
+                // When Afterburner is running, read temp/clocks/power from its
+                // shared memory (zero contention). NVAPI reduced to load+VRAM only.
+                // ═══════════════════════════════════════════════════════════════
+                
+                bool afterburnerProvidedData = false;
+                
+                // Try Afterburner shared memory first (eliminates NVAPI contention)
+                if (_afterburnerService?.IsMsiAfterburnerSharedMemoryAvailable == true)
+                {
+                    try
+                    {
+                        var abData = _afterburnerService.ReadAfterburnerGpuData();
+                        if (abData != null && abData.GpuTemperature > 0)
+                        {
+                            // GPU temp from Afterburner — same die sensor, no contention
+                            _cachedGpuTemp = abData.GpuTemperature;
+                            
+                            // Clocks & power from Afterburner
+                            if (abData.CoreClockMhz > 0) _cachedGpuClockMhz = abData.CoreClockMhz;
+                            if (abData.MemoryClockMhz > 0) _cachedGpuMemClockMhz = abData.MemoryClockMhz;
+                            if (abData.GpuPower > 0)
+                            {
+                                // Afterburner reports power as percentage
+                                _cachedGpuPowerWatts = _nvapi?.DefaultPowerLimitWatts > 0
+                                    ? (abData.GpuPower / 100.0) * _nvapi.DefaultPowerLimitWatts
+                                    : abData.GpuPower;
+                            }
+                            
+                            // GPU load from Afterburner if available
+                            if (abData.GpuLoadPercent > 0)
+                                _cachedGpuLoad = abData.GpuLoadPercent;
+                            
+                            afterburnerProvidedData = true;
+                            
+                            if (!_afterburnerCoexistenceActive)
+                            {
+                                _afterburnerCoexistenceActive = true;
+                                _afterburnerService.AfterburnerCoexistenceActive = true;
+                                _logging?.Info("[WmiBiosMonitor] ✓ Afterburner coexistence active — GPU temp/clocks/power from shared memory, NVAPI reduced to load+VRAM");
+                            }
+                            
+                            // Use lightweight NVAPI for load (if not from AB) + VRAM only
+                            if (_nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
+                            {
+                                try
+                                {
+                                    var lightSample = _nvapi.GetLoadAndVramOnly();
+                                    
+                                    // Only use NVAPI load if Afterburner didn't provide it
+                                    if (abData.GpuLoadPercent <= 0)
+                                        _cachedGpuLoad = lightSample.GpuLoadPercent;
+                                    
+                                    _cachedGpuVramUsedMb = lightSample.VramUsedMb;
+                                    _cachedGpuVramTotalMb = lightSample.VramTotalMb;
+                                    _nvapiConsecutiveFailures = 0;
+                                }
+                                catch { } // Non-critical — VRAM data is cosmetic
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging?.Debug($"[WmiBiosMonitor] Afterburner shared memory read failed: {ex.Message}");
+                    }
+                }
+                
+                // Detect Afterburner exit — fall back to full NVAPI
+                if (!afterburnerProvidedData && _afterburnerCoexistenceActive)
+                {
+                    _afterburnerCoexistenceActive = false;
+                    if (_afterburnerService != null)
+                        _afterburnerService.AfterburnerCoexistenceActive = false;
+                    _logging?.Info("[WmiBiosMonitor] Afterburner coexistence deactivated — returning to full NVAPI monitoring");
+                }
+                
+                // Full NVAPI monitoring when Afterburner is NOT providing data
+                if (!afterburnerProvidedData && _nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
+                {
+                    try
+                    {
+                        var gpuSample = _nvapi.GetMonitoringSample();
+                        
+                        _cachedGpuLoad = gpuSample.GpuLoadPercent;
+                        _cachedGpuPowerWatts = gpuSample.GpuPowerWatts;
+                        _cachedGpuClockMhz = gpuSample.CoreClockMhz;
+                        _cachedGpuMemClockMhz = gpuSample.MemoryClockMhz;
+                        _cachedGpuVramUsedMb = gpuSample.VramUsedMb;
+                        _cachedGpuVramTotalMb = gpuSample.VramTotalMb;
+                        
+                        // If NVAPI returns a GPU temp, prefer it over WMI BIOS
+                        // (NVAPI reads directly from the GPU die sensor, higher precision)
+                        if (gpuSample.GpuTemperatureC > 0)
+                        {
+                            _cachedGpuTemp = gpuSample.GpuTemperatureC;
+                        }
+                        
+                        _nvapiConsecutiveFailures = 0; // Reset on success
+                    }
+                    catch (Exception ex)
+                    {
+                        _nvapiConsecutiveFailures++;
+                        if (_nvapiConsecutiveFailures >= MaxNvapiFailuresBeforeDisable)
+                        {
+                            _nvapiMonitoringDisabled = true;
+                            _logging?.Warn($"[WmiBiosMonitor] NVAPI monitoring disabled after {MaxNvapiFailuresBeforeDisable} consecutive failures: {ex.Message}");
+                        }
+                    }
+                }
+                
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 3: Windows PerformanceCounter — CPU load
+                // Lightweight, no admin rights required.
+                // ═══════════════════════════════════════════════════════════════
+                
                 try
                 {
                     using var cpuCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total", true);
@@ -136,6 +332,91 @@ namespace OmenCore.Hardware
                 catch
                 {
                     // Performance counters may not be available
+                }
+                
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 3b: ACPI Thermal Zone — Higher-precision CPU temp
+                // WMI BIOS returns integer-only temps; ACPI gives 0.1°C precision.
+                // ═══════════════════════════════════════════════════════════════
+                
+                if (_acpiThermalAvailable)
+                {
+                    try
+                    {
+                        var acpiTemp = GetAcpiCpuTemperature();
+                        if (acpiTemp > 0 && acpiTemp < 110)
+                        {
+                            _cachedCpuTemp = acpiTemp;
+                        }
+                    }
+                    catch
+                    {
+                        _acpiThermalAvailable = false;
+                    }
+                }
+                
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 3c: WMI Win32_Processor — CPU clock speed
+                // Provides current CPU frequency in MHz.
+                // ═══════════════════════════════════════════════════════════════
+                
+                try
+                {
+                    var clockMhz = GetCpuCurrentClockMhz();
+                    if (clockMhz > 0) _cachedCpuClockMhz = clockMhz;
+                }
+                catch
+                {
+                    // WMI query may fail
+                }
+                
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 4: PawnIO MSR — CPU throttling detection
+                // Only if PawnIO is available. NOT required for core monitoring.
+                // ═══════════════════════════════════════════════════════════════
+                
+                if (_msrAccess != null)
+                {
+                    try
+                    {
+                        _cachedCpuThermalThrottling = _msrAccess.ReadThermalThrottlingStatus();
+                        _cachedCpuPowerThrottling = _msrAccess.ReadPowerThrottlingStatus();
+                        
+                        // CPU package power via Intel RAPL MSR
+                        double cpuPower = _msrAccess.ReadCpuPackagePowerWatts();
+                        if (cpuPower > 0)
+                            _cachedCpuPowerWatts = cpuPower;
+                    }
+                    catch
+                    {
+                        // MSR read failure is non-critical
+                    }
+                }
+                
+                // ═══════════════════════════════════════════════════════════════
+                // SOURCE 5: WMI — SSD Temperature + Battery Discharge Rate
+                // ═══════════════════════════════════════════════════════════════
+                
+                if (_ssdTempAvailable)
+                {
+                    try
+                    {
+                        _cachedSsdTemp = GetSsdTemperature();
+                    }
+                    catch
+                    {
+                        _ssdTempAvailable = false;
+                    }
+                }
+                
+                // Battery discharge rate (only when on battery)
+                if (!_batteryMonitoringDisabled && !IsOnAcPower())
+                {
+                    _cachedBatteryDischargeRate = GetBatteryDischargeRate();
+                }
+                else
+                {
+                    _cachedBatteryDischargeRate = 0;
                 }
             }
             catch (Exception ex)
@@ -149,19 +430,53 @@ namespace OmenCore.Hardware
             return new MonitoringSample
             {
                 Timestamp = DateTime.Now,
+                
+                // WMI BIOS — temps & fans
                 CpuTemperatureC = _cachedCpuTemp,
                 GpuTemperatureC = _cachedGpuTemp,
-                CpuLoadPercent = _cachedCpuLoad,
-                GpuLoadPercent = _cachedGpuLoad,
                 FanRpm = _cachedCpuFanRpm,
                 Fan1Rpm = _cachedCpuFanRpm,
                 Fan2Rpm = _cachedGpuFanRpm,
                 GpuFanPercent = EstimateFanPercent(_cachedGpuFanRpm),
-                // RAM usage via WMI
+                
+                // PerformanceCounter — CPU load
+                CpuLoadPercent = _cachedCpuLoad,
+                
+                // PawnIO MSR — CPU package power (Intel RAPL)
+                CpuPowerWatts = _cachedCpuPowerWatts,
+                
+                // WMI — CPU clock
+                CpuCoreClocksMhz = _cachedCpuClockMhz > 0 
+                    ? new System.Collections.Generic.List<double> { _cachedCpuClockMhz } 
+                    : new System.Collections.Generic.List<double>(),
+                
+                // NVAPI — GPU metrics
+                GpuLoadPercent = _cachedGpuLoad,
+                GpuPowerWatts = _cachedGpuPowerWatts,
+                GpuClockMhz = _cachedGpuClockMhz,
+                GpuMemoryClockMhz = _cachedGpuMemClockMhz,
+                GpuVramUsageMb = _cachedGpuVramUsedMb,
+                GpuVramTotalMb = _cachedGpuVramTotalMb,
+                GpuName = _cachedGpuName,
+                
+                // WMI — RAM
                 RamUsageGb = GetUsedMemoryGB(),
                 RamTotalGb = GetTotalPhysicalMemoryGB(),
+                
+                // WMI — Battery
                 BatteryChargePercent = GetBatteryCharge(),
                 IsOnAcPower = IsOnAcPower(),
+                BatteryDischargeRateW = _cachedBatteryDischargeRate,
+                
+                // PawnIO MSR — Throttling
+                IsCpuThermalThrottling = _cachedCpuThermalThrottling,
+                IsCpuPowerThrottling = _cachedCpuPowerThrottling,
+                
+                // GPU throttling estimation (based on temp thresholds)
+                IsGpuThermalThrottling = _cachedGpuTemp >= 87, // Typical laptop GPU throttle point
+                
+                // SSD
+                SsdTemperatureC = _cachedSsdTemp,
             };
         }
         
@@ -309,6 +624,143 @@ namespace OmenCore.Hardware
         {
             _batteryMonitoringDisabled = true;
             _logging?.Info("[WmiBiosMonitor] Battery monitoring disabled by config");
+        }
+        
+        /// <summary>
+        /// Get SSD/NVMe temperature via WMI storage driver.
+        /// </summary>
+        private double GetSsdTemperature()
+        {
+            try
+            {
+                // Try MSFT_PhysicalDisk first (Windows 10+)
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    @"root\Microsoft\Windows\Storage",
+                    "SELECT Temperature FROM MSFT_StorageReliabilityCounter");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["Temperature"] is uint temp && temp > 0 && temp < 100)
+                    {
+                        return temp;
+                    }
+                }
+            }
+            catch
+            {
+                // Storage WMI namespace may not be available
+            }
+            
+            _ssdTempAvailable = false;
+            return 0;
+        }
+        
+        /// <summary>
+        /// Get battery discharge rate in watts via WMI.
+        /// </summary>
+        private double GetBatteryDischargeRate()
+        {
+            if (_batteryMonitoringDisabled) return 0;
+            
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT DischargeRate FROM Win32_Battery");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["DischargeRate"] is uint rate && rate > 0 && rate < 500000)
+                    {
+                        // DischargeRate is in milliwatts
+                        return rate / 1000.0;
+                    }
+                }
+            }
+            catch { }
+            return 0;
+        }
+        
+        /// <summary>
+        /// Get CPU temperature from ACPI thermal zone via WMI.
+        /// Returns temperature in °C with ~0.1°C precision (vs WMI BIOS integer-only).
+        /// MSAcpi_ThermalZoneTemperature reports CurrentTemperature in tenths of Kelvin.
+        /// </summary>
+        private double GetAcpiCpuTemperature()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    @"root\wmi",
+                    "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemperature");
+                
+                double bestTemp = 0;
+                
+                foreach (System.Management.ManagementObject obj in searcher.Get())
+                {
+                    if (obj["CurrentTemperature"] is uint rawTemp && rawTemp > 0)
+                    {
+                        // Convert from tenths of Kelvin to Celsius
+                        // Round to 1 decimal to avoid IEEE 754 float noise (e.g. 97.05000000000001)
+                        double tempC = Math.Round((rawTemp / 10.0) - 273.15, 1);
+                        
+                        if (tempC > 0 && tempC < 110)
+                        {
+                            var instanceName = obj["InstanceName"]?.ToString() ?? "";
+                            
+                            // Prefer CPU-related thermal zones
+                            if (_cpuThermalZoneInstance == null)
+                            {
+                                // First valid zone — use it as default
+                                bestTemp = tempC;
+                                _cpuThermalZoneInstance = instanceName;
+                            }
+                            else if (instanceName == _cpuThermalZoneInstance)
+                            {
+                                // Same zone as before — consistent
+                                bestTemp = tempC;
+                            }
+                            else if (instanceName.Contains("CPU", StringComparison.OrdinalIgnoreCase) ||
+                                     instanceName.Contains("CPUZ", StringComparison.OrdinalIgnoreCase) ||
+                                     instanceName.Contains("TZ00", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // CPU-specific zone found — switch to it
+                                bestTemp = tempC;
+                                _cpuThermalZoneInstance = instanceName;
+                            }
+                            else if (bestTemp == 0)
+                            {
+                                bestTemp = tempC;
+                            }
+                        }
+                    }
+                }
+                
+                return bestTemp;
+            }
+            catch
+            {
+                _acpiThermalAvailable = false;
+                return 0;
+            }
+        }
+        
+        /// <summary>
+        /// Get CPU current clock speed in MHz via WMI Win32_Processor.
+        /// </summary>
+        private static double GetCpuCurrentClockMhz()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT CurrentClockSpeed FROM Win32_Processor");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["CurrentClockSpeed"] is uint clockMhz && clockMhz > 0)
+                    {
+                        return clockMhz;
+                    }
+                }
+            }
+            catch { }
+            return 0;
         }
         
         public void Dispose()

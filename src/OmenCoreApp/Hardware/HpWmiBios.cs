@@ -510,7 +510,8 @@ namespace OmenCore.Hardware
         /// Called automatically during initialization after system data is available.
         /// </summary>
         /// <param name="userOverride">User-configured override (0 = auto-detect)</param>
-        public void DetectMaxFanLevel(int userOverride = 0)
+        /// <param name="modelMaxFanLevel">Model database override (null = auto-detect)</param>
+        public void DetectMaxFanLevel(int userOverride = 0, int? modelMaxFanLevel = null)
         {
             try
             {
@@ -521,17 +522,21 @@ namespace OmenCore.Hardware
                     _logging?.Info($"Max fan level set to {MaxFanLevel} (user override)");
                     return;
                 }
-                // Check current fan levels — if either exceeds 55, the range must be > 55
-                var currentLevel = GetFanLevel();
-                if (currentLevel.HasValue)
+
+                // Model database override (only when explicitly defined)
+                if (modelMaxFanLevel.HasValue && modelMaxFanLevel.Value > 0 && modelMaxFanLevel.Value <= 100)
                 {
-                    if (currentLevel.Value.fan1 > 55 || currentLevel.Value.fan2 > 55)
-                    {
-                        MaxFanLevel = 100;
-                        _logging?.Info($"Max fan level auto-detected: {MaxFanLevel} (current level {currentLevel.Value.fan1}/{currentLevel.Value.fan2} exceeds 55)");
-                        return;
-                    }
+                    MaxFanLevel = modelMaxFanLevel.Value;
+                    _logging?.Info($"Max fan level set to {MaxFanLevel} (model database)");
+                    return;
                 }
+
+                // v2.8.6: Removed current-fan-level auto-detection.
+                // The previous heuristic (if current level > 55, assume MaxFanLevel=100)
+                // caused false positives when OMEN Gaming Hub or other software was
+                // running and had set fans to elevated levels at startup.
+                // This led to the "RPM glitch" where fans would show inflated RPM values
+                // and the slider would allow setting levels above the actual hardware max.
 
                 // V2 thermal policy (OMEN Max 2025+) uses percentage range
                 if (ThermalPolicy >= ThermalPolicyVersion.V2)
@@ -541,7 +546,7 @@ namespace OmenCore.Hardware
                     return;
                 }
 
-                // Default to classic 0-55 krpm range
+                // Default to classic 0-55 krpm range for V1 models
                 MaxFanLevel = 55;
                 _logging?.Info($"Max fan level: {MaxFanLevel} (classic krpm range)");
             }

@@ -96,6 +96,7 @@
                              </Ellipse.Fill>
                          </Ellipse>
                          <TextBlock Text="{Binding MonitoringHealthStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                         <TextBlock Text="{Binding MonitoringSourceText, StringFormat=' • Source: {0}'}" FontSize="11" Opacity="0.7" Foreground="{StaticResource TextSecondaryBrush}"/>
                          <TextBlock Text="{Binding LastSampleAge, StringFormat=' ({0})'}" FontSize="10" Opacity="0.5" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>

@@ -1,0 +1,574 @@
+<UserControl x:Class="OmenCore.Views.MemoryOptimizerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="1200"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <!-- Clean Button Style -->
+        <Style x:Key="CleanButton" TargetType="Button">
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Stat Card Style -->
+        <Style x:Key="StatCard" TargetType="Border">
+            <Setter Property="Background" Value="#1A1D2E"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+
+        <!-- Operation Button Style (smaller, for individual operations) -->
+        <Style x:Key="OperationButton" TargetType="Button">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="#252A40"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#353B55"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#454B65"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Toggle Switch Style (reused from SystemOptimizer) -->
+        <Style x:Key="MemoryToggle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Background" 
+                                    CornerRadius="12" 
+                                    Background="#3A3F5C"
+                                    BorderThickness="0"/>
+                            <Border x:Name="Thumb" 
+                                    Width="20" Height="20" 
+                                    CornerRadius="10" 
+                                    Background="#6B7280"
+                                    HorizontalAlignment="Left"
+                                    Margin="2"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Background" Property="Background" Value="#00C8C8"/>
+                                <Setter TargetName="Thumb" Property="Background" Value="White"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24">
+
+            <!-- Header -->
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="Memory Optimizer" 
+                               FontSize="28" 
+                               FontWeight="Bold" 
+                               Foreground="White"/>
+                    <TextBlock Text="Monitor and optimize system memory in real-time" 
+                               FontSize="14" 
+                               Foreground="#9CA3AF"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Status indicator -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="#00C8C8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCleaning}" Value="True">
+                                        <Setter Property="Fill" Value="#FFB800"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding StatusMessage}" 
+                               Foreground="#9CA3AF" 
+                               FontSize="12"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ====== MAIN MEMORY USAGE CARD ====== -->
+            <Border Background="#1A1D2E" CornerRadius="12" Padding="24" Margin="0,0,0,20">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Memory Usage Header Row -->
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="RAM Usage" 
+                                       FontSize="18" 
+                                       FontWeight="SemiBold" 
+                                       Foreground="White"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Margin="12,0,0,0" 
+                                       FontSize="18" 
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#00C8C8"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MemoryBarColor}" Value="#FFB800">
+                                                <Setter Property="Foreground" Value="#FFB800"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding MemoryBarColor}" Value="#FF005C">
+                                                <Setter Property="Foreground" Value="#FF005C"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <Run Text="{Binding MemoryLoadText, Mode=OneWay}"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <TextBlock Grid.Column="1" 
+                                   FontSize="14" 
+                                   Foreground="#9CA3AF"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding UsedPhysicalGB, Mode=OneWay}"/>
+                            <Run Text=" / "/>
+                            <Run Text="{Binding TotalPhysicalGB, Mode=OneWay}"/>
+                        </TextBlock>
+                    </Grid>
+
+                    <!-- Memory Bar -->
+                    <Grid Grid.Row="1" Height="12" Margin="0,0,0,16">
+                        <Border Background="#252A40" CornerRadius="6"/>
+                        <Border CornerRadius="6" HorizontalAlignment="Left"
+                                x:Name="MemoryBar">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#00C8C8"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MemoryBarColor}" Value="#FFB800">
+                                            <Setter Property="Background" Value="#FFB800"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding MemoryBarColor}" Value="#FF005C">
+                                            <Setter Property="Background" Value="#FF005C"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                    </Grid>
+
+                    <!-- Stats Row -->
+                    <Grid Grid.Row="2" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Available -->
+                        <Border Grid.Column="0" Style="{StaticResource StatCard}" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="Available" FontSize="11" Foreground="#6B7280"/>
+                                <TextBlock Text="{Binding AvailablePhysicalGB}" 
+                                           FontSize="16" FontWeight="Bold" Foreground="#00C8C8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Cache -->
+                        <Border Grid.Column="1" Style="{StaticResource StatCard}" Margin="4,0,4,0">
+                            <StackPanel>
+                                <TextBlock Text="System Cache" FontSize="11" Foreground="#6B7280"/>
+                                <TextBlock FontSize="16" FontWeight="Bold" Foreground="#A78BFA">
+                                    <Run Text="{Binding SystemCacheMB, Mode=OneWay}"/>
+                                    <Run Text=" MB"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Commit -->
+                        <Border Grid.Column="2" Style="{StaticResource StatCard}" Margin="4,0,4,0">
+                            <StackPanel>
+                                <TextBlock Text="Commit" FontSize="11" Foreground="#6B7280"/>
+                                <TextBlock Text="{Binding CommitText}" 
+                                           FontSize="16" FontWeight="Bold" Foreground="#F97316"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Page File -->
+                        <Border Grid.Column="3" Style="{StaticResource StatCard}" Margin="8,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Page File" FontSize="11" Foreground="#6B7280"/>
+                                <TextBlock Text="{Binding PageFileText}" 
+                                           FontSize="16" FontWeight="Bold" Foreground="#38BDF8"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Clean Buttons -->
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Last Clean Result -->
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding LastCleanResult}" 
+                                   FontSize="12" 
+                                   Foreground="#6B7280"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding HasLastCleanResult, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="🧹 Smart Clean" 
+                                    Background="#00C8C8" 
+                                    Foreground="#0F111C"
+                                    Style="{StaticResource CleanButton}"
+                                    Command="{Binding CleanSafeCommand}"
+                                    ToolTip="Safe clean: trims working sets, purges low-priority standby, combines pages"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="⚡ Deep Clean" 
+                                    Background="#A78BFA" 
+                                    Style="{StaticResource CleanButton}"
+                                    Command="{Binding CleanAllCommand}"
+                                    ToolTip="Aggressive clean: all operations including standby list purge and cache flush. May cause brief stutter."/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ====== TWO COLUMN: INDIVIDUAL OPS + SYSTEM INFO ====== -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Column: Individual Operations -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="🔬 Individual Operations" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Foreground="White" Margin="0,0,0,12"/>
+
+                    <!-- Working Sets -->
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Trim Working Sets" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock Text="Releases unused memory from all processes" 
+                                           FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                <Border CornerRadius="4" Padding="6,2" Margin="0,4,0,0"
+                                        Background="#1A00C8C8" HorizontalAlignment="Left">
+                                    <TextBlock Text="Safe" FontSize="10" Foreground="#00C8C8"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Clean" 
+                                    Style="{StaticResource OperationButton}"
+                                    Command="{Binding CleanWorkingSetsCommand}"
+                                    VerticalAlignment="Center" Margin="0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Standby List -->
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Purge Standby List" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock Text="Removes cached pages from standby memory" 
+                                           FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                <Border CornerRadius="4" Padding="6,2" Margin="0,4,0,0"
+                                        Background="#1AFFB800" HorizontalAlignment="Left">
+                                    <TextBlock Text="Medium — may cause brief stutter" FontSize="10" Foreground="#FFB800"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Clean" 
+                                    Style="{StaticResource OperationButton}"
+                                    Command="{Binding CleanStandbyCommand}"
+                                    VerticalAlignment="Center" Margin="0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- System File Cache -->
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Flush File Cache" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock Text="Flushes the system file cache" 
+                                           FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                <Border CornerRadius="4" Padding="6,2" Margin="0,4,0,0"
+                                        Background="#1AFFB800" HorizontalAlignment="Left">
+                                    <TextBlock Text="Medium — may slow file access temporarily" FontSize="10" Foreground="#FFB800"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Clean" 
+                                    Style="{StaticResource OperationButton}"
+                                    Command="{Binding CleanFileCacheCommand}"
+                                    VerticalAlignment="Center" Margin="0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Modified Pages -->
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Flush Modified Pages" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock Text="Writes modified pages to disk and frees memory" 
+                                           FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                <Border CornerRadius="4" Padding="6,2" Margin="0,4,0,0"
+                                        Background="#1AFFB800" HorizontalAlignment="Left">
+                                    <TextBlock Text="Medium — disk I/O burst" FontSize="10" Foreground="#FFB800"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Clean" 
+                                    Style="{StaticResource OperationButton}"
+                                    Command="{Binding CleanModifiedPagesCommand}"
+                                    VerticalAlignment="Center" Margin="0"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Combine Pages -->
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Combine Memory Pages" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                <TextBlock Text="Merges identical memory pages (Windows 10+)" 
+                                           FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                <Border CornerRadius="4" Padding="6,2" Margin="0,4,0,0"
+                                        Background="#1A00C8C8" HorizontalAlignment="Left">
+                                    <TextBlock Text="Safe" FontSize="10" Foreground="#00C8C8"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Clean" 
+                                    Style="{StaticResource OperationButton}"
+                                    Command="{Binding CleanCombinePagesCommand}"
+                                    VerticalAlignment="Center" Margin="0"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right Column: System Info + Auto Clean -->
+                <StackPanel Grid.Column="2">
+                    <!-- System Info -->
+                    <TextBlock Text="📊 System Information" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Foreground="White" Margin="0,0,0,12"/>
+
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Processes" 
+                                       FontSize="13" Foreground="#9CA3AF" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ProcessCount}" 
+                                       FontSize="13" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Threads" 
+                                       FontSize="13" Foreground="#9CA3AF" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ThreadCount}" 
+                                       FontSize="13" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Handles" 
+                                       FontSize="13" Foreground="#9CA3AF" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding HandleCount}" 
+                                       FontSize="13" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Kernel Non-Paged" 
+                                       FontSize="13" Foreground="#9CA3AF" Margin="0,0,0,8"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,8">
+                                <Run Text="{Binding KernelNonPagedMB, Mode=OneWay}"/>
+                                <Run Text=" MB"/>
+                            </TextBlock>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="System Cache" 
+                                       FontSize="13" Foreground="#9CA3AF"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="White">
+                                <Run Text="{Binding SystemCacheMB, Mode=OneWay}"/>
+                                <Run Text=" MB"/>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+
+                    <!-- Auto Clean Section -->
+                    <TextBlock Text="⚙️ Auto Clean" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Foreground="White" Margin="0,16,0,12"/>
+
+                    <Border Style="{StaticResource StatCard}" Margin="0,0,0,8">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Automatic Memory Cleaning" 
+                                               FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                    <TextBlock Text="Runs Smart Clean when RAM usage exceeds threshold" 
+                                               FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleButton Grid.Column="1" 
+                                              Style="{StaticResource MemoryToggle}"
+                                              IsChecked="{Binding AutoCleanEnabled, Mode=TwoWay}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Threshold Slider -->
+                            <StackPanel Visibility="{Binding AutoCleanEnabled, Converter={StaticResource BoolToVisibility}}">
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Usage Threshold" FontSize="12" Foreground="#9CA3AF"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding AutoCleanThresholdText}" 
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#00C8C8"/>
+                                </Grid>
+                                <Slider Minimum="50" Maximum="95" 
+                                        Value="{Binding AutoCleanThreshold, Mode=TwoWay}" 
+                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                        Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Info Box -->
+                    <TextBlock Text="ℹ️ How It Works" 
+                               FontSize="16" FontWeight="SemiBold" 
+                               Foreground="White" Margin="0,16,0,12"/>
+
+                    <Border Style="{StaticResource StatCard}">
+                        <StackPanel>
+                            <TextBlock Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" LineHeight="20">
+                                <Run FontWeight="SemiBold" Foreground="#00C8C8">Smart Clean</Run>
+                                <Run Text=" trims process working sets, purges low-priority standby pages, and combines identical memory pages. These operations are safe and won't cause application issues."/>
+                            </TextBlock>
+
+                            <TextBlock Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" LineHeight="20" Margin="0,8,0,0">
+                                <Run FontWeight="SemiBold" Foreground="#A78BFA">Deep Clean</Run>
+                                <Run Text=" additionally purges all standby pages, flushes the system file cache, and writes modified pages to disk. This may cause a brief stutter as data is re-cached."/>
+                            </TextBlock>
+
+                            <TextBlock Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,0">
+                                Memory is cleaned using Windows Native API (NtSetSystemInformation). 
+                                Requires administrator privileges. Stats refresh every 2 seconds.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

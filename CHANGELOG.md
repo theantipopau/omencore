@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.8.6] - 2026-02-11 - Community Bug Fix Patch 🐛
+
+### 🐛 Bug Fixes
+- **CPU Temperature 0°C (OMEN MAX 8D41)**: Intel Core Ultra / Arrow Lake CPUs now use fallback sensor sweep when primary sensor returns 0 — added "CPU DTS" to priority list + auto-tries all temperature sensors when named search fails after having valid prior readings
+- **Fn+F2/F3 Steals System Shortcuts**: Bare function key OSD hotkeys (e.g. `F2`) now automatically get Ctrl+Shift modifier added — prevents stealing of laptop Fn+F-key brightness/volume shortcuts
+- **RPM Glitch / False MaxFanLevel=100**: Removed unreliable current-fan-level auto-detection heuristic from `DetectMaxFanLevel()` — fan levels elevated by OMEN Hub at startup caused false positive detection, leading to inflated RPM display and fan slider allowing levels above actual hardware max
+- **Quick Profile UI Desync**: Switching quick profiles (Performance/Balanced/Quiet) now syncs the OMEN tab performance mode display via `SystemControlViewModel.SelectModeByNameNoApply()`
+- **Game Library Buttons Disabled**: Fixed Launch/Create Profile/Edit buttons staying disabled after selecting a game — `SelectedGame` setter now triggers `RaiseCanExecuteChanged()` on button commands
+- **GPU Temp Frozen at Idle**: Fixed false positive freeze detection for idle GPUs — idle-aware threshold (120 readings when GPU load <10%), WMI confirmation resets freeze counter instead of rejecting, NVML 60s auto-recovery cooldown instead of permanent disable
+- **EC Direct Fan Control System Crash**: Aggressive EC register polling for RPM (40+ reads every 1.5s) overwhelmed the embedded controller, triggering ACPI Event 13 ("EC did not respond within timeout") and crashing the system — `ReadFanSpeeds()` now skips all EC register reads in self-sustaining mode (no LHM), using WmiBiosMonitor's safe WMI BIOS command 0x38 for RPM instead
+- **Garbage RPM from Alt EC Registers**: Removed reads of EC registers 0x4A-0x4D which returned invalid values (144, 0, 256 RPM) on OMEN 17-ck2xxx — `ReadActualFanRpm()` now only uses primary registers 0x34/0x35 with retries reduced from 5 to 2
+- **Fan Curve Evaluating Wrong Temperature**: `ThermalSensorProvider` was creating a standalone `HpWmiBios` instance returning raw WMI 50°C instead of using `WmiBiosMonitor`'s ACPI-enhanced 97°C — now reads cached ACPI thermal zone temperatures from the shared `WmiBiosMonitor`
+- **EC Backend Not Activating Without LHM**: `TryCreateEcController()` was gated behind `_libreHwMonitor != null` check — EC direct fan control now works in self-sustaining mode without LibreHardwareMonitor
+- **ACPI Temperature Float Noise**: Raw ACPI thermal zone conversion produced values like 97.05000000000001°C — added `Math.Round(..., 1)` to `WmiBiosMonitor` temperature conversion
+- **Max Fan Verify EC Overload**: `SetMaxFanSpeed()` did up to 6 EC RPM reads across 3 retry attempts — simplified to single verification read to prevent EC contention
+- **EC Overwhelm → False Battery Critical Shutdown**: OmenCore's EC register operations (writes + readback reads) overwhelmed the Embedded Controller, causing ACPI Event 13 ("EC did not respond within timeout"). The EC also handles battery monitoring — when overwhelmed, Windows lost battery status and triggered false "Critical Battery Trigger Met" (Event 524) emergency shutdowns, even with charger plugged in. Multiple users reported this. Fixes:
+  - **Removed EC readback verification**: `WriteDuty()` did 4 EC reads after every write (REG_OMCC, REG_XFCD, REG_FAN1_SPEED_PCT, REG_FAN_BOOST) purely for logging — these caused "EC output buffer not full" errors. Removed from `WriteDuty()`, `SetMaxSpeed()` (3 reads), and `SetFanSpeeds()` (2 reads). Saves 9 EC reads per write operation.
+  - **Removed compatibility register writes**: `WriteDuty()` wrote to extra `_registerMap` registers of unknown validity — removed to reduce EC write count
+  - **Added EC write deduplication**: `WriteDuty()` now tracks last written percent + timestamp and skips identical writes within 15 seconds. Prevents thermal protection from hammering EC with 7+ writes every poll cycle when fans are already at target speed.
+  - **Rate-limited thermal protection EC writes**: `CheckThermalProtection()` called `SetFanSpeed(100)` every poll cycle (1-5s) when in emergency mode — now only re-applies as keepalive every 15 seconds after initial write
+  - **Removed fan curve retry loop**: Curve application retried failed `SetFanSpeed()` up to 3 times with 300ms delays (21+ EC writes) — now single attempt with deduplication
+
+### ✨ Enhancements
+- **Memory Optimizer Tab**: New dedicated "Memory" tab with real-time RAM monitoring and one-click memory cleaning via Windows Native API (`NtSetSystemInformation`). Features Smart Clean (safe: working sets + low-priority standby + page combining) and Deep Clean (aggressive: all operations including full standby purge, file cache flush, modified page flush). 5 individual operations with risk indicators. Auto-clean with configurable threshold (50-95%). Real-time dashboard with color-coded RAM usage bar, system cache, commit charge, page file, and process/thread/handle counts.
+- **Self-Sustaining Monitoring Architecture**: OmenCore no longer depends on LibreHardwareMonitor/WinRing0/NVML — monitoring uses WMI BIOS (temps, fans) + NVAPI (GPU load, clocks, VRAM, power) + PerformanceCounter (CPU load) + PawnIO MSR (throttling, optional) — same approach as OmenMon, no external kernel drivers
+- **Monitoring Source Indicator**: Dashboard now shows active monitoring source (WMI BIOS + NVAPI, etc.) next to health status
+- **Desktop Experimental Support**: OMEN desktops now show a warning dialog with option to continue instead of hard-blocking startup
+- **RPM Debounce**: 3-second debounce window filters phantom RPM readings during profile transitions
+- **V1/V2 Fan Restore**: `RestoreAutoControl()` now differentiates V1 (kRPM) and V2 (percentage) fan systems
+- **Worker Reliability**: Cooldown reduced 30→5min, reconnect resets retry counter, auto-fallback to in-process on worker disable
+- **Model Database**: Added `MaxFanLevel` property, OMEN 16 xd0xxx (2024) AMD entry, OMEN MAX models with MaxFanLevel=100
+
+### Files Changed
+| File | Change |
+|------|--------|
+| `OmenCore.HardwareWorker/Program.cs` | Added "CPU DTS" sensor name, fallback sweep for CPU temp 0°C |
+| `OmenCoreApp/Hardware/LibreHardwareMonitorImpl.cs` | Added "CPU DTS" sensor name, in-process temp fallback, `MonitoringSource` property, NVML 60s auto-recovery cooldown, WMI fallback on NVML disable |
+| `OmenCoreApp/Hardware/HpWmiBios.cs` | Removed current-fan-level MaxFanLevel auto-detection |
+| `OmenCoreApp/Hardware/HardwareMonitorBridge.cs` | `MonitoringSource` on `IHardwareMonitorBridge` interface |
+| `OmenCoreApp/Hardware/WmiFanController.cs` | RPM debounce, V1/V2 RestoreAutoControl |
+| `OmenCoreApp/Hardware/HardwareWorkerClient.cs` | Cooldown 30→5min, reconnect recovery |
+| `OmenCoreApp/Hardware/ModelCapabilityDatabase.cs` | MaxFanLevel, xd0xxx + MAX models |
+| `OmenCoreApp/Services/OsdService.cs` | Bare F-key hotkeys get Ctrl+Shift modifier |
+| `OmenCoreApp/Services/HardwareMonitoringService.cs` | MonitoringSource passthrough, idle-aware GPU freeze threshold, WMI confirmation logic, freeze warning dedup |
+| `OmenCoreApp/ViewModels/SettingsViewModel.cs` | OSD hotkey setter validates bare F-keys, default Ctrl+Shift+F12 |
+| `OmenCoreApp/ViewModels/GeneralViewModel.cs` | Quick profiles now sync SystemControlViewModel |
+| `OmenCoreApp/ViewModels/MainViewModel.cs` | Wires SystemControlViewModel into GeneralViewModel |
+| `OmenCoreApp/ViewModels/GameLibraryViewModel.cs` | SelectedGame setter triggers CanExecuteChanged |
+| `OmenCoreApp/ViewModels/DashboardViewModel.cs` | MonitoringSourceText + PropertyChanged |
+| `OmenCoreApp/Views/DashboardView.xaml` | Monitoring source in health status row |
+| `OmenCoreApp/Hardware/FanController.cs` | `ReadFanSpeeds()` EC safety guard when `_bridge==null`, nullable bridge, estimated RPM fallback; `ReadActualFanRpm()` removed alt regs 0x4A-0x4D, retries 5→2; `WriteDuty()` removed 4 readback reads + compatibility register writes + added deduplication; `SetMaxSpeed()` removed 3 readback reads + added deduplication; `SetFanSpeeds()` removed 2 readback reads |
+| `OmenCoreApp/Hardware/FanControllerFactory.cs` | Removed LHM guard from `TryCreateEcController()`, removed dead `ReadFanRpmFromEc()`, simplified `SetMaxFanSpeed()` to 1 verify read |
+| `OmenCoreApp/Hardware/ThermalSensorProvider.cs` | Uses `WmiBiosMonitor` ACPI-enhanced cached temps instead of standalone raw `HpWmiBios` |
+| `OmenCoreApp/Hardware/WmiBiosMonitor.cs` | `Math.Round` on ACPI thermal zone temp conversion |
+| `OmenCoreApp/Services/FanService.cs` | `CheckThermalProtection()` rate-limited EC writes (15s keepalive instead of every poll), removed curve retry loop (3 attempts → 1) |
+| `OmenCoreApp/Services/MemoryOptimizerService.cs` | **New** — Memory optimizer using `NtSetSystemInformation` P/Invoke: working set trim, standby purge, file cache flush, modified page flush, page combining, auto-clean |
+| `OmenCoreApp/ViewModels/MemoryOptimizerViewModel.cs` | **New** — Real-time memory stats (2s refresh), clean commands, auto-clean toggle |
+| `OmenCoreApp/Views/MemoryOptimizerView.xaml` | **New** — Memory tab UI with RAM bar, stats, operation buttons, auto-clean settings |
+| `OmenCoreApp/Views/MemoryOptimizerView.xaml.cs` | **New** — Code-behind for memory bar width |
+| `OmenCoreApp/Views/MainWindow.xaml` | Added Memory tab |
+| `App.xaml.cs` | Desktop experimental support dialog |
+
+---
+
+## [2.8.5] - 2026-02-10 - Community Bug Fix Update 🐛
+
+### 🐛 Bug Fixes
+- **Bloatware Removal Not Working**: Fixed AppX package name vs. PackageFullName mismatch — `Get-AppxPackage` was passed the full name instead of short name, so removal always found zero packages
+- **Fan Diagnostic 30% Fail**: Adaptive RPM tolerance scaling with minimum 500 RPM absolute tolerance for low-speed tests (was too tight at 15% tolerance)
+- **Fans Stuck at Max After Test**: `RestoreAutoControl()` now called when exiting diagnostics with no preset active (user was in auto/BIOS mode)
+- **Fan Test Text Truncated**: Added text wrapping and max width to diagnostic error message display
+- **Fn+F2/F3 Still Toggles Window**: Non-extended scan codes now require known OMEN VK code to prevent false positives from Fn+brightness keys
+- **Keyboard Not Detected (xd0xxx)**: Fixed keyboard diagnostics init order (was created before keyboard service) + added series-pattern regex fuzzy matching for model names
+- **OMEN Hub Not Detected**: Added OmenLightingService, OmenLighting, HP.OMEN.GameHub to conflict detection process names
+- **Startup on Shutdown+Start**: XML task with LogonTrigger + StartWhenAvailable=true for Windows Fast Startup compatibility
+- **Update Checker Stale**: Fixed hardcoded version in UpdateCheckService (was stuck at 2.7.1)
+
+---
+
 ## [2.8.1] - 2026-02-09 - Community Bug Fix Update 🐛
 
 ### 🐛 Bug Fixes
