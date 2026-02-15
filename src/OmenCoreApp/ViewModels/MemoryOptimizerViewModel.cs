@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
+using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Utils;
 
@@ -18,6 +19,7 @@ namespace OmenCore.ViewModels
     {
         private readonly LoggingService _logger;
         private readonly MemoryOptimizerService _memoryService;
+        private readonly ConfigurationService? _configService;
         private readonly DispatcherTimer _refreshTimer;
 
         // Memory info backing fields
@@ -41,12 +43,15 @@ namespace OmenCore.ViewModels
         private string _lastCleanResult = "";
         private bool _autoCleanEnabled;
         private int _autoCleanThreshold = 80;
+        private bool _intervalCleanEnabled;
+        private int _cleanEveryMinutes = 10;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public MemoryOptimizerViewModel(LoggingService logger)
+        public MemoryOptimizerViewModel(LoggingService logger, ConfigurationService? configService = null)
         {
             _logger = logger;
+            _configService = configService;
             _memoryService = new MemoryOptimizerService(logger);
 
             _memoryService.StatusChanged += status =>
@@ -97,6 +102,69 @@ namespace OmenCore.ViewModels
 
             // Initial refresh
             RefreshMemoryInfo();
+            
+            // Restore persisted memory optimizer settings
+            RestorePersistedSettings();
+        }
+        
+        /// <summary>
+        /// Load saved memory auto-clean settings from config file.
+        /// </summary>
+        private void RestorePersistedSettings()
+        {
+            var config = _configService?.Config;
+            if (config == null) return;
+            
+            try
+            {
+                if (config.MemoryAutoCleanEnabled)
+                {
+                    _autoCleanThreshold = Math.Clamp(config.MemoryAutoCleanThreshold, 50, 95);
+                    _autoCleanEnabled = true;
+                    _memoryService.SetAutoClean(true, _autoCleanThreshold);
+                    OnPropertyChanged(nameof(AutoCleanEnabled));
+                    OnPropertyChanged(nameof(AutoCleanThreshold));
+                    OnPropertyChanged(nameof(AutoCleanThresholdText));
+                    _logger.Info($"Restored memory auto-clean: threshold={_autoCleanThreshold}%");
+                }
+                
+                if (config.MemoryIntervalCleanEnabled)
+                {
+                    _cleanEveryMinutes = Math.Clamp(config.MemoryIntervalCleanMinutes, 1, 120);
+                    _intervalCleanEnabled = true;
+                    _memoryService.SetIntervalClean(true, _cleanEveryMinutes);
+                    OnPropertyChanged(nameof(IntervalCleanEnabled));
+                    OnPropertyChanged(nameof(CleanEveryMinutes));
+                    OnPropertyChanged(nameof(CleanEveryMinutesText));
+                    _logger.Info($"Restored memory interval clean: every {_cleanEveryMinutes} min");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to restore memory optimizer settings: {ex.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Persist current memory auto-clean settings to config file.
+        /// </summary>
+        private void PersistSettings()
+        {
+            var config = _configService?.Config;
+            if (config == null) return;
+            
+            try
+            {
+                config.MemoryAutoCleanEnabled = _autoCleanEnabled;
+                config.MemoryAutoCleanThreshold = _autoCleanThreshold;
+                config.MemoryIntervalCleanEnabled = _intervalCleanEnabled;
+                config.MemoryIntervalCleanMinutes = _cleanEveryMinutes;
+                _configService!.Save(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to persist memory optimizer settings: {ex.Message}");
+            }
         }
 
         // ========== MEMORY INFO PROPERTIES ==========
@@ -250,6 +318,7 @@ namespace OmenCore.ViewModels
                 _autoCleanEnabled = value;
                 _memoryService.SetAutoClean(value, AutoCleanThreshold);
                 OnPropertyChanged();
+                PersistSettings();
             }
         }
 
@@ -265,10 +334,41 @@ namespace OmenCore.ViewModels
                 {
                     _memoryService.SetAutoClean(true, _autoCleanThreshold);
                 }
+                PersistSettings();
             }
         }
 
         public string AutoCleanThresholdText => $"{AutoCleanThreshold}%";
+
+        public bool IntervalCleanEnabled
+        {
+            get => _intervalCleanEnabled;
+            set
+            {
+                _intervalCleanEnabled = value;
+                _memoryService.SetIntervalClean(value, CleanEveryMinutes);
+                OnPropertyChanged();
+                PersistSettings();
+            }
+        }
+
+        public int CleanEveryMinutes
+        {
+            get => _cleanEveryMinutes;
+            set
+            {
+                _cleanEveryMinutes = Math.Clamp(value, 1, 120);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CleanEveryMinutesText));
+                if (_intervalCleanEnabled)
+                {
+                    _memoryService.SetIntervalClean(true, _cleanEveryMinutes);
+                }
+                PersistSettings();
+            }
+        }
+
+        public string CleanEveryMinutesText => $"Every {CleanEveryMinutes} min";
 
         // ========== COMMANDS ==========
 

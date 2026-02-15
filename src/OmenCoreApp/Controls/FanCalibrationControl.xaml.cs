@@ -112,7 +112,7 @@ namespace OmenCore.Controls
             }
         }
 
-        private async void UpdateFanStatus()
+        private void UpdateFanStatus()
         {
             try
             {
@@ -208,7 +208,7 @@ namespace OmenCore.Controls
             }
         }
 
-        private async Task DisplayCalibrationResultsAsync(FanCalibrationResult result)
+        private Task DisplayCalibrationResultsAsync(FanCalibrationResult result)
         {
             ResultsGroup.Visibility = Visibility.Visible;
 
@@ -235,6 +235,8 @@ namespace OmenCore.Controls
             }).ToList();
 
             CalibrationResultsGrid.ItemsSource = displayItems;
+
+            return Task.CompletedTask;
         }
 
         private void StopCalibrationButton_Click(object sender, RoutedEventArgs e)
@@ -249,7 +251,7 @@ namespace OmenCore.Controls
             MessageBox.Show("Calibration data loaded and applied to fan control.", "Calibration Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        private async void SaveCalibrationButton_Click(object sender, RoutedEventArgs e)
+        private void SaveCalibrationButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {

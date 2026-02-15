@@ -224,54 +224,59 @@ namespace OmenCore.Services.KeyboardLighting
                 if (!IsAvailable || _wmiBios == null)
                     return Task.FromResult(false);
                 
-                // HP OMEN keyboard backlight supports brightness via the backlight command.
-                // The WMI backlight byte encodes on/off + brightness level in the data byte:
-                //   0x64 = off, 0xE4 = on (full), and brightness maps to 4 levels.
-                // We map 0-100% to: 0=off, 1-33=low, 34-66=medium, 67-100=high.
-                // Using SetBacklight(true) first, then adjusting color intensity as fallback.
-                
                 brightness = Math.Clamp(brightness, 0, 100);
                 
                 if (brightness == 0)
                 {
-                    var result = _wmiBios.SetBacklight(false);
-                    _logging.Info($"[WmiBiosBackend] Backlight off via brightness=0, result={result}");
+                    // Turn backlight completely off using native WMI command
+                    var result = _wmiBios.SetBrightnessLevel(0x64); // 0x64 (100) = OFF
+                    _logging.Info($"[WmiBiosBackend] Backlight off via native brightness command, result={result}");
                     return Task.FromResult(result);
                 }
                 
-                // Ensure backlight is on
-                _wmiBios.SetBacklight(true);
+                // Use native WMI brightness command (command type 5)
+                // Map 0-100% to WMI brightness range:
+                //   0x64 (100) = OFF/minimum, 0xE4 (228) = ON/maximum
+                //   Linear interpolation between 100 and 228
+                byte wmiBrightness = (byte)(100 + (brightness * 128 / 100)); // 100..228
                 
-                // Scale current colors by brightness percentage
-                var currentColors = _wmiBios.GetColorTable();
-                if (currentColors != null && currentColors.Length >= 37)
+                var setBright = _wmiBios.SetBrightnessLevel(wmiBrightness);
+                _logging.Info($"[WmiBiosBackend] Native brightness set to {brightness}% → WMI 0x{wmiBrightness:X2} ({wmiBrightness}), result={setBright}");
+                
+                // Fallback: if native brightness fails, try color-scaling approach
+                if (!setBright)
                 {
-                    const int colorOffset = 25;
-                    var scaledColors = new byte[12];
-                    for (int i = 0; i < 12; i++)
+                    _logging.Warn("[WmiBiosBackend] Native brightness failed, falling back to color scaling");
+                    _wmiBios.SetBacklight(true);
+                    
+                    var currentColors = _wmiBios.GetColorTable();
+                    if (currentColors != null && currentColors.Length >= 37)
                     {
-                        int offset = colorOffset + i;
-                        if (offset < currentColors.Length)
+                        const int colorOffset = 25;
+                        var scaledColors = new byte[12];
+                        for (int i = 0; i < 12; i++)
                         {
-                            scaledColors[i] = (byte)(currentColors[offset] * brightness / 100);
+                            int offset = colorOffset + i;
+                            if (offset < currentColors.Length)
+                            {
+                                scaledColors[i] = (byte)(currentColors[offset] * brightness / 100);
+                            }
                         }
-                    }
-                    
-                    // Ensure at least some brightness (don't go fully black when > 0%)
-                    bool allZero = true;
-                    for (int i = 0; i < 12; i++)
-                        if (scaledColors[i] > 0) { allZero = false; break; }
-                    
-                    if (!allZero)
-                    {
-                        var setResult = _wmiBios.SetColorTable(scaledColors, ensureBacklightOn: false);
-                        _logging.Info($"[WmiBiosBackend] Brightness set to {brightness}% via color scaling, result={setResult}");
-                        return Task.FromResult(setResult);
+                        
+                        bool allZero = true;
+                        for (int i = 0; i < 12; i++)
+                            if (scaledColors[i] > 0) { allZero = false; break; }
+                        
+                        if (!allZero)
+                        {
+                            var setResult = _wmiBios.SetColorTable(scaledColors, ensureBacklightOn: false);
+                            _logging.Info($"[WmiBiosBackend] Brightness fallback via color scaling: {brightness}%, result={setResult}");
+                            return Task.FromResult(setResult);
+                        }
                     }
                 }
                 
-                _logging.Info($"[WmiBiosBackend] Brightness set to {brightness}% (backlight on, no color scaling available)");
-                return Task.FromResult(true);
+                return Task.FromResult(setBright);
             }
             catch (Exception ex)
             {
@@ -287,15 +292,19 @@ namespace OmenCore.Services.KeyboardLighting
                 if (!IsAvailable || _wmiBios == null)
                     return Task.FromResult(false);
                 
-                // Use black color for all zones to effectively disable
-                if (!enabled)
+                // Use native WMI backlight command for proper on/off control
+                var result = _wmiBios.SetBacklight(enabled);
+                _logging.Info($"[WmiBiosBackend] Backlight {(enabled ? "ON" : "OFF")} via native SetBacklight, result={result}");
+                
+                // Fallback: if native command fails, use brightness level byte
+                if (!result)
                 {
-                    var blackColors = new byte[12]; // All zeros = black
-                    return Task.FromResult(_wmiBios.SetColorTable(blackColors));
+                    byte brightnessVal = enabled ? (byte)0xE4 : (byte)0x64; // 228=ON, 100=OFF
+                    result = _wmiBios.SetBrightnessLevel(brightnessVal);
+                    _logging.Info($"[WmiBiosBackend] Backlight fallback via SetBrightnessLevel(0x{brightnessVal:X2}), result={result}");
                 }
                 
-                // For enable, just return true - user should set actual colors
-                return Task.FromResult(true);
+                return Task.FromResult(result);
             }
             catch (Exception ex)
             {
@@ -306,8 +315,7 @@ namespace OmenCore.Services.KeyboardLighting
         
         public Task<RgbApplyResult> SetEffectAsync(KeyboardEffect effect, Color primaryColor, Color secondaryColor, int speed)
         {
-            // WMI BIOS ColorTable backend only supports static colors
-            // For effects, we'd need a different WMI method or EC access
+            // Static and Off effects use existing color table approach
             if (effect == KeyboardEffect.Static || effect == KeyboardEffect.Off)
             {
                 var color = effect == KeyboardEffect.Off ? Color.Black : primaryColor;
@@ -315,11 +323,112 @@ namespace OmenCore.Services.KeyboardLighting
                 return SetZoneColorsAsync(colors);
             }
             
-            return Task.FromResult(new RgbApplyResult
+            // LED animation effects via WMI BIOS command type 7 (SetLedAnimation)
+            // Data format (from OmenHubLighter WMILedAnimation enum):
+            //   Byte 0: Zone (0xFF = all zones)
+            //   Byte 1: ColorMode (1=breathing, 2=color cycle, 3=wave)
+            //   Byte 2-3: Time/speed (lower = faster, range ~1-11)
+            //   Byte 4: Brightness (0-100)
+            //   Byte 5: ColorCount
+            //   Byte 6+: RGB color data (3 bytes per color)
+            
+            if (_wmiBios == null)
             {
-                Method = Method,
-                FailureReason = $"Effect '{effect}' not supported by WMI BIOS backend (only Static supported)"
-            });
+                return Task.FromResult(new RgbApplyResult
+                {
+                    Method = Method,
+                    FailureReason = "WMI BIOS not available"
+                });
+            }
+            
+            try
+            {
+                byte colorMode;
+                byte colorCount;
+                
+                switch (effect)
+                {
+                    case KeyboardEffect.Breathing:
+                        colorMode = 1;
+                        colorCount = 1;
+                        break;
+                    case KeyboardEffect.ColorCycle:
+                        colorMode = 2;
+                        colorCount = 2;
+                        break;
+                    case KeyboardEffect.Wave:
+                        colorMode = 3;
+                        colorCount = 2;
+                        break;
+                    default:
+                        return Task.FromResult(new RgbApplyResult
+                        {
+                            Method = Method,
+                            FailureReason = $"Effect '{effect}' not supported by WMI BIOS backend"
+                        });
+                }
+                
+                // Map speed 0-100 to WMI animation time (11=slowest, 1=fastest)
+                int animSpeed = Math.Max(1, 11 - (speed * 10 / 100));
+                
+                // Build the animation data packet
+                var animData = new byte[128];
+                animData[0] = 0xFF;                 // Zone: all zones
+                animData[1] = colorMode;             // Effect type
+                animData[2] = (byte)(animSpeed & 0xFF);     // Time low byte
+                animData[3] = (byte)((animSpeed >> 8) & 0xFF); // Time high byte
+                animData[4] = 100;                   // Brightness: full
+                animData[5] = colorCount;            // Number of colors
+                
+                // Primary color at offset 6
+                animData[6] = primaryColor.R;
+                animData[7] = primaryColor.G;
+                animData[8] = primaryColor.B;
+                
+                // Secondary color at offset 9 (for ColorCycle/Wave)
+                if (colorCount >= 2)
+                {
+                    animData[9] = secondaryColor.R;
+                    animData[10] = secondaryColor.G;
+                    animData[11] = secondaryColor.B;
+                }
+                
+                _logging.Info($"[WmiBiosBackend] Setting effect {effect}: mode={colorMode}, speed={animSpeed}, " +
+                    $"colors=#{primaryColor.R:X2}{primaryColor.G:X2}{primaryColor.B:X2}" +
+                    (colorCount >= 2 ? $"/#{secondaryColor.R:X2}{secondaryColor.G:X2}{secondaryColor.B:X2}" : ""));
+                
+                var success = _wmiBios.SetLedAnimation(animData);
+                
+                var result = new RgbApplyResult
+                {
+                    Method = Method,
+                    BackendReportedSuccess = success,
+                    VerificationPassed = success, // Can't easily verify animations
+                    SupportsVerification = false
+                };
+                
+                if (!success)
+                {
+                    result.FailureReason = $"SetLedAnimation failed for effect '{effect}' — hardware may not support LED animations. " +
+                        "Try updating BIOS or check if your keyboard model supports effects.";
+                    _logging.Warn($"[WmiBiosBackend] LED animation failed for {effect} - hardware may not support this");
+                }
+                else
+                {
+                    _logging.Info($"[WmiBiosBackend] ✓ LED animation set: {effect}");
+                }
+                
+                return Task.FromResult(result);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"[WmiBiosBackend] SetEffectAsync failed: {ex.Message}", ex);
+                return Task.FromResult(new RgbApplyResult
+                {
+                    Method = Method,
+                    FailureReason = ex.Message
+                });
+            }
         }
         
         public void Dispose()

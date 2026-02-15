@@ -35,6 +35,8 @@ namespace OmenCore.Hardware
         // Out-of-process worker for crash isolation
         private HardwareWorkerClient? _workerClient;
         private bool _useWorker = false;
+        private bool _orphanTimeoutEnabled = true;
+        private int _orphanTimeoutMinutes = 5;
         private volatile bool _workerInitializing = false; // Track async initialization state (volatile for thread safety)
         private bool _disableBatteryMonitoring = false; // Dead battery protection
 
@@ -165,11 +167,15 @@ namespace OmenCore.Hardware
         /// <param name="logger">Logging callback</param>
         /// <param name="useWorker">Use out-of-process worker for crash isolation</param>
         /// <param name="msrAccess">Optional MSR access for enhanced throttling detection</param>
-        public LibreHardwareMonitorImpl(Action<string>? logger, bool useWorker, IMsrAccess? msrAccess = null)
+        /// <param name="orphanTimeoutEnabled">Whether worker should exit after parent dies with no reconnection</param>
+        /// <param name="orphanTimeoutMinutes">Timeout in minutes after parent dies before worker exits</param>
+        public LibreHardwareMonitorImpl(Action<string>? logger, bool useWorker, IMsrAccess? msrAccess = null, bool orphanTimeoutEnabled = true, int orphanTimeoutMinutes = 5)
         {
             _logger = logger;
             _msrAccess = msrAccess;
             _useWorker = useWorker;
+            _orphanTimeoutEnabled = orphanTimeoutEnabled;
+            _orphanTimeoutMinutes = orphanTimeoutMinutes;
             InitializePawnIO();
             
             if (_useWorker)
@@ -208,7 +214,7 @@ namespace OmenCore.Hardware
             _workerInitializing = true;
             try
             {
-                _workerClient = new HardwareWorkerClient(_logger);
+                _workerClient = new HardwareWorkerClient(_logger, _orphanTimeoutEnabled, _orphanTimeoutMinutes);
                 var started = await _workerClient.StartAsync();
                 
                 if (started)

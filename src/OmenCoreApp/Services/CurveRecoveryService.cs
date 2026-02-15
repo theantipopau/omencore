@@ -124,7 +124,7 @@ namespace OmenCore.Services
                     _logging.Error($"🚨 CURVE RECOVERY: Sustained overheating detected - reverting to last known good preset");
 
                     // Auto-revert to last known good curve
-                    Task.Run(async () =>
+                    Task.Run(() =>
                     {
                         try
                         {

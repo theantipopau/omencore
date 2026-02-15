@@ -133,9 +133,16 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🎮" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <TextBlock Text="Quick Access" FontSize="16" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"/>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🎮" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="Quick Access" FontSize="16" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock x:Name="HealthStatusText"
+                               Text="Monitoring: Unknown"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,2,0,0"/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="✕" FontSize="14" Width="28" Height="28" 
                         Style="{StaticResource QuickButtonStyle}" Click="CloseButton_Click"

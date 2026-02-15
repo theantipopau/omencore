@@ -96,4 +96,4 @@ This fixes the false "Critical Battery Trigger Met" system crashes (Windows Even
 
 Full changelog: https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v2.8.6.md
 GitHub: https://github.com/theantipopau/omencore
-Discord: https://discord.gg/Neh3DCH5
+Discord: https://discord.gg/9WhJdabGk8

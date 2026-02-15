@@ -118,9 +118,9 @@ namespace OmenCore.Services
         /// <summary>
         /// Start audio capture and RGB processing.
         /// </summary>
-        public async Task<bool> StartAsync()
+        public Task<bool> StartAsync()
         {
-            if (_isRunning) return true;
+            if (_isRunning) return Task.FromResult(true);
 
             try
             {
@@ -131,7 +131,7 @@ namespace OmenCore.Services
                 if (_audioCapture == null || !_audioCapture.Initialize())
                 {
                     _logging.Warn("AudioReactiveRGB: Failed to initialize audio capture");
-                    return false;
+                    return Task.FromResult(false);
                 }
 
                 _cts = new CancellationTokenSource();
@@ -145,12 +145,12 @@ namespace OmenCore.Services
                 _processingTask = Task.Run(() => ProcessingLoop(_cts.Token), _cts.Token);
 
                 _logging.Info("AudioReactiveRGB: Started successfully");
-                return true;
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 _logging.Error($"AudioReactiveRGB: Start failed: {ex.Message}", ex);
-                return false;
+                return Task.FromResult(false);
             }
         }
 

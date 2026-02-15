@@ -93,6 +93,10 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CpuTemperature));
                 OnPropertyChanged(nameof(GpuTemperature));
+                OnPropertyChanged(nameof(CpuTempDisplay));
+                OnPropertyChanged(nameof(GpuTempDisplay));
+                OnPropertyChanged(nameof(IsCpuTempAvailable));
+                OnPropertyChanged(nameof(IsGpuTempAvailable));
                 OnPropertyChanged(nameof(CpuSummary));
                 OnPropertyChanged(nameof(GpuSummary));
                 OnPropertyChanged(nameof(MemorySummary));
@@ -161,6 +165,26 @@ namespace OmenCore.ViewModels
         /// Returns 0 if no sample available (UI will show fallback).
         /// </summary>
         public double GpuTemperature => LatestMonitoringSample?.GpuTemperatureC ?? 0;
+        
+        /// <summary>
+        /// Formatted CPU temperature string. Shows "—°C" when sensor data is unavailable (0°C).
+        /// </summary>
+        public string CpuTempDisplay => CpuTemperature > 0 ? $"{CpuTemperature:F0}°C" : "—°C";
+        
+        /// <summary>
+        /// Formatted GPU temperature string. Shows "—°C" when sensor data is unavailable (0°C).
+        /// </summary>
+        public string GpuTempDisplay => GpuTemperature > 0 ? $"{GpuTemperature:F0}°C" : "—°C";
+        
+        /// <summary>
+        /// Whether CPU temperature sensor data is available (non-zero reading).
+        /// </summary>
+        public bool IsCpuTempAvailable => CpuTemperature > 0;
+        
+        /// <summary>
+        /// Whether GPU temperature sensor data is available (non-zero reading).
+        /// </summary>
+        public bool IsGpuTempAvailable => GpuTemperature > 0;
 
         public string CpuSummary => LatestMonitoringSample == null 
             ? "CPU telemetry unavailable" 

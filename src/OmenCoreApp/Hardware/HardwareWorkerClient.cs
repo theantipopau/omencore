@@ -34,6 +34,8 @@ namespace OmenCore.Hardware
         private Process? _workerProcess;
         private NamedPipeClientStream? _pipeClient;
         private readonly Action<string>? _logger;
+        private readonly bool _orphanTimeoutEnabled;
+        private readonly int _orphanTimeoutMinutes;
         
         private HardwareSample _cachedSample = new();
         private DateTime _lastSuccessfulRead = DateTime.MinValue;
@@ -64,9 +66,11 @@ namespace OmenCore.Hardware
         /// </summary>
         public TimeSpan SampleAge => DateTime.Now - _lastSuccessfulRead;
         
-        public HardwareWorkerClient(Action<string>? logger = null)
+        public HardwareWorkerClient(Action<string>? logger = null, bool orphanTimeoutEnabled = true, int orphanTimeoutMinutes = 5)
         {
             _logger = logger;
+            _orphanTimeoutEnabled = orphanTimeoutEnabled;
+            _orphanTimeoutMinutes = Math.Clamp(orphanTimeoutMinutes, 1, 60); // Clamp to reasonable range
         }
         
         /// <summary>
@@ -163,7 +167,7 @@ namespace OmenCore.Hardware
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = workerPath,
-                    Arguments = currentPid.ToString(),  // Pass parent PID
+                    Arguments = $"{currentPid} {_orphanTimeoutEnabled} {_orphanTimeoutMinutes}",  // Pass parent PID, orphan timeout enabled, timeout minutes
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = false,

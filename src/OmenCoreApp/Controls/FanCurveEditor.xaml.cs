@@ -80,6 +80,16 @@ namespace OmenCore.Controls
         private readonly List<Ellipse> _pointEllipses = new();
         private Line? _currentTempLine;
         private bool _suppressRender;  // Prevents re-render during programmatic updates
+        private long _lastDragRenderTicks;
+        private const int MinDragRenderIntervalMs = 33;
+        private const int DragTemperatureSnapStep = 2;
+        private const int DragFanPercentSnapStep = 2;
+        
+        // Drag instrumentation for performance profiling
+        private long _dragStartTicks;
+        private int _dragFrameCount;
+        private long _dragTotalRenderUs;
+        private long _dragMaxRenderUs;
         
         #endregion
 
@@ -129,6 +139,12 @@ namespace OmenCore.Controls
         
         private void ReleaseDrag()
         {
+            // Capture drag instrumentation before resetting state
+            long dragFrames = _dragFrameCount;
+            long dragTotalUs = _dragTotalRenderUs;
+            long dragMaxUs = _dragMaxRenderUs;
+            long dragStartTicks = _dragStartTicks;
+
             if (_draggedPoint != null)
             {
                 _draggedPoint.ReleaseMouseCapture();
@@ -157,6 +173,18 @@ namespace OmenCore.Controls
                     _suppressRender = false;
                 }
                 RenderCurve();
+                ValidateCurve();
+            }
+
+            // Log drag performance summary
+            if (dragFrames > 0)
+            {
+                double avgUs = (double)dragTotalUs / dragFrames;
+                double durationMs = (double)(System.Diagnostics.Stopwatch.GetTimestamp() - dragStartTicks)
+                                    / System.Diagnostics.Stopwatch.Frequency * 1000.0;
+                System.Diagnostics.Debug.WriteLine(
+                    $"[FanCurveEditor] Drag complete: {dragFrames} frames in {durationMs:F0}ms, " +
+                    $"render avg={avgUs:F0}µs max={dragMaxUs}µs");
             }
         }
         
@@ -636,6 +664,10 @@ namespace OmenCore.Controls
                 _isDragging = true;
                 _draggedPoint = ellipse;
                 _draggedPointIndex = index;
+                _dragStartTicks = DateTime.UtcNow.Ticks;
+                _dragFrameCount = 0;
+                _dragTotalRenderUs = 0;
+                _dragMaxRenderUs = 0;
                 
                 var mousePos = e.GetPosition(ChartCanvas);
                 var ellipsePos = new Point(Canvas.GetLeft(ellipse) + PointRadius, Canvas.GetTop(ellipse) + PointRadius);
@@ -685,10 +717,20 @@ namespace OmenCore.Controls
             }
             
             temp = Math.Clamp(temp, minTemp, maxTemp);
+
+            // Quantize drag updates to reduce high-frequency UI churn while still feeling smooth.
+            temp = (int)Math.Round(temp / (double)DragTemperatureSnapStep) * DragTemperatureSnapStep;
+            fan = (int)Math.Round(fan / (double)DragFanPercentSnapStep) * DragFanPercentSnapStep;
+
+            var currentPoint = CurvePoints[_draggedPointIndex];
+            if (currentPoint.TemperatureC == temp && currentPoint.FanPercent == fan)
+            {
+                return;
+            }
             
             // Update the point
-            CurvePoints[_draggedPointIndex].TemperatureC = temp;
-            CurvePoints[_draggedPointIndex].FanPercent = fan;
+            currentPoint.TemperatureC = temp;
+            currentPoint.FanPercent = fan;
             
             // Update visual position
             var newCanvasPoint = DataToCanvas(temp, fan);
@@ -697,8 +739,22 @@ namespace OmenCore.Controls
             
             UpdateTooltip(_draggedPoint, true);
             
-            // Re-render to update line (but preserve point references)
-            RenderCurve();
+            var nowTicks = DateTime.UtcNow.Ticks;
+            var elapsedMs = (nowTicks - _lastDragRenderTicks) / TimeSpan.TicksPerMillisecond;
+            if (elapsedMs >= MinDragRenderIntervalMs)
+            {
+                // Re-render throttled to avoid lag from full-canvas redraw on every mouse event.
+                var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
+                RenderCurve();
+                var renderEnd = System.Diagnostics.Stopwatch.GetTimestamp();
+                var renderUs = (renderEnd - renderStart) * 1_000_000 / System.Diagnostics.Stopwatch.Frequency;
+                
+                _dragFrameCount++;
+                _dragTotalRenderUs += renderUs;
+                if (renderUs > _dragMaxRenderUs) _dragMaxRenderUs = renderUs;
+                
+                _lastDragRenderTicks = nowTicks;
+            }
         }
         
         private void Point_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

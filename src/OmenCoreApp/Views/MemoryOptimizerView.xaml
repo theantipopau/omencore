@@ -540,6 +540,41 @@
                                         TickFrequency="5" IsSnapToTickEnabled="True"
                                         Margin="0,4,0,0"/>
                             </StackPanel>
+
+                            <Rectangle Height="1" Fill="#374151" Margin="0,14,0,12"/>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Periodic Memory Cleaning" 
+                                               FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                                    <TextBlock Text="Runs Smart Clean automatically every N minutes" 
+                                               FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleButton Grid.Column="1" 
+                                              Style="{StaticResource MemoryToggle}"
+                                              IsChecked="{Binding IntervalCleanEnabled, Mode=TwoWay}"
+                                              VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <StackPanel Visibility="{Binding IntervalCleanEnabled, Converter={StaticResource BoolToVisibility}}">
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Clean Interval" FontSize="12" Foreground="#9CA3AF"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding CleanEveryMinutesText}" 
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#00C8C8"/>
+                                </Grid>
+                                <Slider Minimum="1" Maximum="120" 
+                                        Value="{Binding CleanEveryMinutes, Mode=TwoWay}" 
+                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                        Margin="0,4,0,0"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

@@ -75,7 +75,7 @@ OmenCore is a **complete replacement for HP OMEN Gaming Hub**. It's a single ~70
 
 **Website:** [omencore.info](https://omencore.info)  
 **GitHub:** [github.com/theantipopau/omencore](https://github.com/theantipopau/omencore)  
-**Discord:** [discord.gg/Neh3DCH5](https://discord.gg/Neh3DCH5)
+**Discord:** [discord.gg/9WhJdabGk8](https://discord.gg/9WhJdabGk8)
 
 | File | Size |
 |------|------|

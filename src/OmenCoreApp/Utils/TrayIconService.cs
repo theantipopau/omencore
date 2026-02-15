@@ -35,9 +35,11 @@ namespace OmenCore.Utils
         private MenuItem? _performanceModeMenuItem;
         private MenuItem? _stayOnTopMenuItem;
         private MenuItem? _displayMenuItem;  // For updating refresh rate display
+        private MenuItem? _monitoringHealthMenuItem;
         private MonitoringSample? _latestSample;
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
+        private string _monitoringHealth = "Unknown";
         private bool _disposed;
         private readonly ConfigurationService? _configService;
         
@@ -204,6 +206,10 @@ namespace OmenCore.Utils
             _gpuTempMenuItem = new MenuItem { Header = "🎯 GPU: --°C · --%", IsEnabled = false };
             _gpuTempMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
             contextMenu.Items.Add(_gpuTempMenuItem);
+
+            _monitoringHealthMenuItem = new MenuItem { Header = "📈 Monitor: Unknown", IsEnabled = false };
+            _monitoringHealthMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            contextMenu.Items.Add(_monitoringHealthMenuItem);
 
             contextMenu.Items.Add(new Separator());
 
@@ -554,35 +560,53 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                // v2.6.1: Add fan RPM display
+                // v2.9.0: Show "—" for zero temps (sensor unavailable)
+                var cpuTempStr = cpuTemp > 0 ? $"{cpuTemp:F0}°C" : "—°C";
+                var gpuTempStr = gpuTemp > 0 ? $"{gpuTemp:F0}°C" : "—°C";
+                
+                // v2.9.0: Label fans separately as CPU Fan / GPU Fan
                 var fan1Rpm = _latestSample.Fan1Rpm;
                 var fan2Rpm = _latestSample.Fan2Rpm;
-                var fanRpmDisplay = fan2Rpm > 0 
-                    ? $"{fan1Rpm}/{fan2Rpm} RPM" 
-                    : (fan1Rpm > 0 ? $"{fan1Rpm} RPM" : "");
+                var fanLine = fan2Rpm > 0 
+                    ? $"🌀 CPU Fan: {fan1Rpm} · GPU Fan: {fan2Rpm} RPM" 
+                    : (fan1Rpm > 0 ? $"🌀 Fan: {fan1Rpm} RPM" : "🌀 Fan: —");
                     
                 // v2.6.1: Add GPU power display
                 var gpuPower = _latestSample.GpuPowerWatts;
                 var gpuPowerDisplay = gpuPower > 0 ? $" · {gpuPower:F0}W" : "";
                 
+                // v2.9.0: Battery/AC status line
+                var batteryPercent = _latestSample.BatteryChargePercent;
+                var isAc = _latestSample.IsOnAcPower;
+                var powerLine = batteryPercent > 0 || isAc
+                    ? $"🔋 {batteryPercent:F0}% · {(isAc ? "AC Power" : "Battery")}"
+                    : "";
+                
                 _trayIcon.ToolTipText = $"🎮 OmenCore v{_appVersion}\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
-                                       $"🔥 CPU: {cpuTemp:F0}°C @ {cpuLoad:F0}%\n" +
-                                       $"🎯 GPU: {gpuTemp:F0}°C @ {gpuLoad:F0}%{gpuPowerDisplay}\n" +
+                                       $"🔥 CPU: {cpuTempStr} @ {cpuLoad:F0}%\n" +
+                                       $"🎯 GPU: {gpuTempStr} @ {gpuLoad:F0}%{gpuPowerDisplay}\n" +
                                        $"💾 RAM: {memUsedGb:F1}/{memTotalGb:F1} GB ({memPercent:F0}%)\n" +
-                                       $"🌀 {_currentFanMode}{(fanRpmDisplay.Length > 0 ? $" · {fanRpmDisplay}" : "")} | ⚡ {_currentPerformanceMode}\n" +
+                                       $"{fanLine} | ⚡ {_currentPerformanceMode}\n" +
+                                       (powerLine.Length > 0 ? $"{powerLine}\n" : "") +
+                                       $"📈 Monitor: {_monitoringHealth}\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
                                        $"Left-click to open dashboard";
 
                 // Update context menu items using simple header updates
                 if (_cpuTempMenuItem != null)
                 {
-                    _cpuTempMenuItem.Header = $"🔥 CPU: {cpuTemp:F0}°C · {cpuLoad:F0}%";
+                    _cpuTempMenuItem.Header = $"🔥 CPU: {cpuTempStr} · {cpuLoad:F0}%";
                 }
 
                 if (_gpuTempMenuItem != null)
                 {
-                    _gpuTempMenuItem.Header = $"🎯 GPU: {gpuTemp:F0}°C · {gpuLoad:F0}%";
+                    _gpuTempMenuItem.Header = $"🎯 GPU: {gpuTempStr} · {gpuLoad:F0}%";
+                }
+
+                if (_monitoringHealthMenuItem != null)
+                {
+                    _monitoringHealthMenuItem.Header = $"📈 Monitor: {_monitoringHealth}";
                 }
 
                 // Update tray icon with max temperature badge (shows highest of CPU/GPU)
@@ -854,6 +878,30 @@ namespace OmenCore.Utils
             });
         }
 
+        public void UpdateMonitoringHealth(MonitoringHealthStatus healthStatus)
+        {
+            _monitoringHealth = healthStatus switch
+            {
+                MonitoringHealthStatus.Healthy => "Healthy",
+                MonitoringHealthStatus.Degraded => "Degraded",
+                MonitoringHealthStatus.Stale => "Stale",
+                _ => "Unknown"
+            };
+
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                if (_monitoringHealthMenuItem != null)
+                {
+                    _monitoringHealthMenuItem.Header = $"📈 Monitor: {_monitoringHealth}";
+                }
+
+                if (_quickPopup != null)
+                {
+                    _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
+                }
+            });
+        }
+
         /// <summary>
         /// Shows or hides the quick popup window near the tray.
         /// </summary>
@@ -878,6 +926,7 @@ namespace OmenCore.Utils
                     _quickPopup.PositionNearTray();
                     _quickPopup.UpdateFanMode(_currentFanMode);
                     _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
+                    _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
                     if (_latestSample != null)
                     {
                         _quickPopup.UpdateMonitoringSample(_latestSample);
@@ -906,6 +955,7 @@ namespace OmenCore.Utils
                 _quickPopup.PositionNearTray();
                 _quickPopup.UpdateFanMode(_currentFanMode);
                 _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
+                _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
                 if (_latestSample != null)
                 {
                     _quickPopup.UpdateMonitoringSample(_latestSample);

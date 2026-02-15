@@ -532,15 +532,6 @@ namespace OmenCore.Views
                             FpsDisplay = "N/A";
                             Frametime = 0;
                             FrametimeDisplay = "--";
-                            
-                            if (false) // GPU fallback disabled — caused user confusion
-                            {
-                                Fps = 0;
-                                FpsLabel = "FPS";
-                                FpsDisplay = "--";
-                                Frametime = 0;
-                                FrametimeDisplay = "0.0ms";
-                            }
                         }
                     }
                     

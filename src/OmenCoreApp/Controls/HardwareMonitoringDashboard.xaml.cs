@@ -162,7 +162,9 @@ namespace OmenCore.Controls
             }
         }
 
+#pragma warning disable CS1998 // Async method lacks 'await' - fire-and-forget InvokeAsync is intentional
         private async void HardwareMonitoringDashboard_Loaded(object sender, RoutedEventArgs e)
+#pragma warning restore CS1998
         {
             App.Logging.Info($"[Dashboard.Loaded] Control loaded, _isInitialized: {_isInitialized}, _mainViewModel: {(_mainViewModel != null ? "OK" : "NULL")}");
             

@@ -21,7 +21,7 @@ class Program
 {
     private const string PipeName = "OmenCore_HardwareWorker";
     private const int UpdateIntervalMs = 500;
-    private const int OrphanTimeoutMs = 5 * 60 * 1000; // 5 minutes with no client before self-exit
+    private const int DefaultOrphanTimeoutMs = 5 * 60 * 1000; // 5 minutes with no client before self-exit
     private const string MutexName = "Global\\OmenCore_HardwareWorker_Mutex";
     
     private static Computer? _computer;
@@ -32,6 +32,10 @@ class Program
     private static int _parentProcessId = -1;
     private static readonly Dictionary<string, DateTime> _lastErrorLog = new(); // Rate-limit error logging
     private static bool _hasInitialized = false; // Track if we've done at least one full hardware update cycle
+    
+    // Configurable orphan timeout
+    private static bool _orphanTimeoutEnabled = true;
+    private static int _orphanTimeoutMinutes = 5;
     
     // Resilience: worker survives parent exit and waits for new connections
     private static bool _parentAlive = false;
@@ -54,12 +58,27 @@ class Program
 
     static async Task Main(string[] args)
     {
-        // Parse parent process ID from command line (passed by main app)
+        // Parse command line arguments
+        // args[0]: parent process ID
+        // args[1]: orphan timeout enabled (bool)
+        // args[2]: orphan timeout minutes (int)
         if (args.Length > 0 && int.TryParse(args[0], out var ppid))
         {
             _parentProcessId = ppid;
             _parentAlive = true;
             Console.WriteLine($"Parent process ID: {_parentProcessId}");
+        }
+        
+        if (args.Length > 1 && bool.TryParse(args[1], out var orphanEnabled))
+        {
+            _orphanTimeoutEnabled = orphanEnabled;
+            Console.WriteLine($"Orphan timeout enabled: {_orphanTimeoutEnabled}");
+        }
+        
+        if (args.Length > 2 && int.TryParse(args[2], out var orphanMinutes))
+        {
+            _orphanTimeoutMinutes = Math.Clamp(orphanMinutes, 1, 60);
+            Console.WriteLine($"Orphan timeout minutes: {_orphanTimeoutMinutes}");
         }
         
         // Single-instance check: if another worker is already running, exit quietly
@@ -161,7 +180,7 @@ class Program
     }
 
     /// <summary>
-    /// Watchdog that exits the worker if no client connects for OrphanTimeoutMs after parent dies.
+    /// Watchdog that exits the worker if no client connects for configured timeout after parent dies.
     /// Prevents orphaned worker processes from running indefinitely.
     /// </summary>
     private static async Task OrphanWatchdog()
@@ -170,11 +189,15 @@ class Program
         {
             await Task.Delay(30_000); // Check every 30 seconds
             
+            // Skip timeout check if disabled
+            if (!_orphanTimeoutEnabled) continue;
+            
             // Only enforce timeout if parent is dead
             if (_parentAlive) continue;
             
             var timeSinceActivity = DateTime.Now - _lastClientActivity;
-            if (timeSinceActivity.TotalMilliseconds > OrphanTimeoutMs)
+            var timeoutMs = _orphanTimeoutMinutes * 60 * 1000;
+            if (timeSinceActivity.TotalMilliseconds > timeoutMs)
             {
                 Console.WriteLine($"No client activity for {timeSinceActivity.TotalMinutes:F1} minutes. Exiting orphaned worker.");
                 File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");

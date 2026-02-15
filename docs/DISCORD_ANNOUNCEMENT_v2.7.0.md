@@ -29,4 +29,4 @@ Full changelog: https://github.com/theantipopau/omencore/blob/main/docs/CHANGELO
 ---
 *Report issues on GitHub or in #bug-reports*
 
-**Discord:** https://discord.gg/Neh3DCH5
+**Discord:** https://discord.gg/9WhJdabGk8

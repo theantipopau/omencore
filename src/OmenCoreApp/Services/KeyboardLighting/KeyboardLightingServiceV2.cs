@@ -195,11 +195,32 @@ namespace OmenCore.Services.KeyboardLighting
                 // Try to get product ID from system info
                 var systemInfo = _systemInfoService?.GetSystemInfo();
                 
+                // ProductName comes from Win32_BaseBoard.Product (e.g., "8BAD") — this is the
+                // HP baseboard product ID that matches our keyboard model database entries.
+                // SystemSku comes from Win32_ComputerSystemProduct.SKUNumber which is often a
+                // serial-like value (e.g., "5CD349D9KV"), NOT the product ID.
+                var productId = systemInfo?.ProductName?.Trim();
+                _logging.Info($"[KeyboardLightingV2] Model detection: ProductName='{productId}', SystemSku='{systemInfo?.SystemSku}', Model='{systemInfo?.Model}'");
+                
+                if (!string.IsNullOrEmpty(productId))
+                {
+                    var config = KeyboardModelDatabase.GetConfig(productId);
+                    if (config != null)
+                    {
+                        _logging.Info($"[KeyboardLightingV2] Matched by product ID: {productId} → {config.ModelName}");
+                        return config;
+                    }
+                }
+                
+                // Fallback: try SystemSku in case it's a valid product ID on some systems
                 if (!string.IsNullOrEmpty(systemInfo?.SystemSku))
                 {
                     var config = KeyboardModelDatabase.GetConfig(systemInfo.SystemSku);
                     if (config != null)
+                    {
+                        _logging.Info($"[KeyboardLightingV2] Matched by SKU: {systemInfo.SystemSku} → {config.ModelName}");
                         return config;
+                    }
                 }
                 
                 // Try by model name
@@ -207,15 +228,20 @@ namespace OmenCore.Services.KeyboardLighting
                 {
                     var config = KeyboardModelDatabase.GetConfigByModelName(systemInfo.Model);
                     if (config != null)
+                    {
+                        _logging.Info($"[KeyboardLightingV2] Matched by model name: {systemInfo.Model} → {config.ModelName}");
                         return config;
+                    }
                 }
                 
                 // Return a default based on whether it's an OMEN
                 if (systemInfo?.IsHpOmen == true || systemInfo?.IsHpVictus == true)
                 {
+                    _logging.Info("[KeyboardLightingV2] No specific model match, using default OMEN config");
                     return KeyboardModelDatabase.GetDefaultConfig();
                 }
                 
+                _logging.Info("[KeyboardLightingV2] Not an HP OMEN/Victus system — no keyboard config");
                 return null;
             }
             catch (Exception ex)
@@ -239,17 +265,29 @@ namespace OmenCore.Services.KeyboardLighting
                         break;
                         
                     case KeyboardMethod.EcDirect:
-                        // Only try EC if experimental is enabled or model requires it
+                        // Allow EC if:
+                        // 1. User explicitly enabled experimental EC keyboard, OR
+                        // 2. Model config requires EC as preferred method, OR
+                        // 3. Model has verified EC register maps (safe to use without experimental flag)
                         var ecEnabled = _configService?.Config?.ExperimentalEcKeyboardEnabled ?? false;
                         var modelRequiresEc = _modelConfig?.PreferredMethod == KeyboardMethod.EcDirect;
+                        var modelHasVerifiedEcRegisters = _modelConfig?.EcColorRegisters != null && 
+                            _modelConfig.EcColorRegisters.Length >= 12;
                         
-                        if (ecEnabled || modelRequiresEc)
+                        if (ecEnabled || modelRequiresEc || modelHasVerifiedEcRegisters)
                         {
+                            // Auto-enable PawnIO keyboard writes for verified models
+                            if (modelHasVerifiedEcRegisters && !ecEnabled)
+                            {
+                                Hardware.PawnIOEcAccess.EnableExperimentalKeyboardWrites = true;
+                                _logging.Info($"[KeyboardLightingV2] Auto-enabled EC keyboard writes for verified model: {_modelConfig!.ModelName}");
+                            }
+                            
                             backend = new EcDirectBackend(_ecAccess, _logging, _modelConfig);
                         }
                         else
                         {
-                            _logging.Info("[KeyboardLightingV2] Skipping EC backend (not enabled in settings)");
+                            _logging.Info("[KeyboardLightingV2] Skipping EC backend (not enabled in settings and model EC registers not verified)");
                             return null;
                         }
                         break;

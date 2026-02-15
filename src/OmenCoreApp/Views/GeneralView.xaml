@@ -53,13 +53,25 @@
             </Setter>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="20"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#222228" Offset="0"/>
+                                <GradientStop Color="#1A1A1E" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
         </Style>
         
         <!-- Gauge Label Style -->
         <Style x:Key="GaugeLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#666"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         
@@ -141,7 +153,8 @@
                                 Margin="0,0,8,0" Padding="16,20"
                                 BorderBrush="{Binding SelectedProfileBorder_Performance}"
                                 BorderThickness="2"
-                                MouseLeftButtonUp="Profile_Performance_Click">
+                                MouseLeftButtonUp="Profile_Performance_Click"
+                                ToolTip="Maximum CPU/GPU power limits and aggressive fan curves for gaming and heavy workloads">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -191,7 +204,8 @@
                                 Margin="4,0,4,0" Padding="16,20"
                                 BorderBrush="{Binding SelectedProfileBorder_Balanced}"
                                 BorderThickness="2"
-                                MouseLeftButtonUp="Profile_Balanced_Click">
+                                MouseLeftButtonUp="Profile_Balanced_Click"
+                                ToolTip="Default HP profile — balanced power and thermals for everyday use">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -238,7 +252,8 @@
                                 Margin="4,0,4,0" Padding="16,20"
                                 BorderBrush="{Binding SelectedProfileBorder_Quiet}"
                                 BorderThickness="2"
-                                MouseLeftButtonUp="Profile_Quiet_Click">
+                                MouseLeftButtonUp="Profile_Quiet_Click"
+                                ToolTip="Reduced power limits and minimal fan speed for silent operation">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -285,7 +300,8 @@
                                 Margin="8,0,0,0" Padding="16,20"
                                 BorderBrush="{Binding SelectedProfileBorder_Custom}"
                                 BorderThickness="2"
-                                MouseLeftButtonUp="Profile_Custom_Click">
+                                MouseLeftButtonUp="Profile_Custom_Click"
+                                ToolTip="User-defined fan curves and power settings via the OMEN tab">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -360,8 +376,19 @@
                                 </StackPanel>
                                 <Border Grid.Column="2" Background="{Binding CpuTemp, Converter={StaticResource TemperatureToColorConverter}}" 
                                         CornerRadius="4" Padding="8,4" Opacity="0.9">
-                                    <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°C}" FontSize="12" FontWeight="Bold" 
-                                               Foreground="White" FontFamily="Consolas"/>
+                                    <TextBlock FontSize="12" FontWeight="Bold" 
+                                               Foreground="White" FontFamily="Consolas">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding CpuTemp, StringFormat={}{0:F0}°C}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CpuTemp}" Value="0">
+                                                        <Setter Property="Text" Value="—°C"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Border>
                             </Grid>
                         </Border>
@@ -406,7 +433,7 @@
                             </Grid>
                             
                             <!-- Power & Fan Row -->
-                            <Border BorderThickness="0,1,0,0" BorderBrush="#222" Padding="0,12,0,0">
+                            <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}" Padding="0,12,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -458,8 +485,19 @@
                                 </StackPanel>
                                 <Border Grid.Column="2" Background="{Binding GpuTemp, Converter={StaticResource TemperatureToColorConverter}}" 
                                         CornerRadius="4" Padding="8,4" Opacity="0.9">
-                                    <TextBlock Text="{Binding GpuTemp, StringFormat={}{0:F0}°C}" FontSize="12" FontWeight="Bold" 
-                                               Foreground="White" FontFamily="Consolas"/>
+                                    <TextBlock FontSize="12" FontWeight="Bold" 
+                                               Foreground="White" FontFamily="Consolas">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding GpuTemp, StringFormat={}{0:F0}°C}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding GpuTemp}" Value="0">
+                                                        <Setter Property="Text" Value="—°C"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Border>
                             </Grid>
                         </Border>
@@ -504,7 +542,7 @@
                             </Grid>
                             
                             <!-- Power & Fan Row -->
-                            <Border BorderThickness="0,1,0,0" BorderBrush="#222" Padding="0,12,0,0">
+                            <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}" Padding="0,12,0,0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -598,7 +636,7 @@
                             </Grid>
                             
                             <!-- Active Profile Display -->
-                            <Border BorderThickness="0,1,0,0" BorderBrush="#222" Padding="0,12,0,0">
+                            <Border BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}" Padding="0,12,0,0">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>

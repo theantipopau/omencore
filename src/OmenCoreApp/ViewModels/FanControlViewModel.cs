@@ -1089,14 +1089,14 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Re-apply the last saved fan preset from config. Useful as a manual "force reapply" button.
         /// </summary>
-        private async Task ReapplySavedPresetAsync()
+        private Task ReapplySavedPresetAsync()
         {
             var saved = _configService.Config.LastFanPresetName;
             if (string.IsNullOrEmpty(saved))
             {
                 System.Windows.MessageBox.Show("No saved fan preset found in configuration.", "Reapply Saved Preset",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
-                return;
+                return Task.CompletedTask;
             }
 
             // First, see if it's a custom preset
@@ -1107,7 +1107,7 @@ namespace OmenCore.ViewModels
                 SelectedPreset = FanPresets.FirstOrDefault(p => p.Name == preset.Name) ?? SelectedPreset;
                 SaveLastPresetToConfig(preset.Name);
                 _logging.Info($"Manually reapplied saved preset: {preset.Name}");
-                return;
+                return Task.CompletedTask;
             }
 
             // Handle built-in names
@@ -1116,27 +1116,28 @@ namespace OmenCore.ViewModels
             {
                 _fanService.ApplyMaxCooling();
                 _logging.Info($"Manually reapplied saved preset: {saved} (Max)");
-                return;
+                return Task.CompletedTask;
             }
 
             if (nameLower == "auto" || nameLower == "default")
             {
                 _fanService.ApplyAutoMode();
                 _logging.Info($"Manually reapplied saved preset: {saved} (Auto)");
-                return;
+                return Task.CompletedTask;
             }
 
             if (nameLower == "quiet" || nameLower == "silent")
             {
                 _fanService.ApplyQuietMode();
                 _logging.Info($"Manually reapplied saved preset: {saved} (Quiet)");
-                return;
+                return Task.CompletedTask;
             }
 
             // Fallback - attempt to apply by name
             var fallback = new FanPreset { Name = saved, Mode = FanMode.Performance };
             _fanService.ApplyPreset(fallback);
             _logging.Info($"Manually reapplied saved preset via fallback: {saved}");
+            return Task.CompletedTask;
         }
         
         private void ApplyQuietMode()

@@ -97,7 +97,7 @@ namespace OmenCore.Services
                     _logging.Error($"🚨 WATCHDOG: Temperature monitoring frozen for {timeSinceLastUpdate.TotalSeconds:F0}s - reverting to safe fan speeds");
 
                     // Emergency: Set fans to 100% to prevent thermal damage
-                    Task.Run(async () =>
+                    Task.Run(() =>
                     {
                         try
                         {

@@ -39,6 +39,7 @@ namespace OmenCore.Hardware
         private int _cachedGpuFanRpm;
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(500);
+        private readonly SemaphoreSlim _updateGate = new(1, 1);
         
         // CPU/GPU load
         private double _cachedCpuLoad;
@@ -53,6 +54,8 @@ namespace OmenCore.Hardware
         
         // GPU metrics from NVAPI
         private double _cachedGpuPowerWatts;
+        private double _lastValidGpuPowerWatts;
+        private int _consecutiveZeroGpuPowerReads;
         private double _cachedGpuClockMhz;
         private double _cachedGpuMemClockMhz;
         private double _cachedGpuVramUsedMb;
@@ -63,6 +66,13 @@ namespace OmenCore.Hardware
         private bool _cachedCpuThermalThrottling;
         private bool _cachedCpuPowerThrottling;
         private double _cachedCpuPowerWatts;
+        private double _lastValidCpuPowerWatts;
+        private int _consecutiveZeroCpuPowerReads;
+
+        // Power telemetry smoothing for transient sensor dropouts
+        private const int MaxTransientZeroPowerReads = 30;
+        private const double ActiveLoadThresholdPercent = 2.0;
+        private const double ActiveTempThresholdC = 38.0;
         
         // SSD temperature
         private double _cachedSsdTemp;
@@ -147,9 +157,23 @@ namespace OmenCore.Hardware
             {
                 return BuildSampleFromCache();
             }
-            
-            await Task.Run(() => UpdateReadings(), token);
-            _lastUpdate = DateTime.Now;
+
+            await _updateGate.WaitAsync(token);
+            try
+            {
+                // Re-check cache after waiting for in-flight update
+                if (DateTime.Now - _lastUpdate < _cacheLifetime)
+                {
+                    return BuildSampleFromCache();
+                }
+
+                await Task.Run(() => UpdateReadings(), token);
+                _lastUpdate = DateTime.Now;
+            }
+            finally
+            {
+                _updateGate.Release();
+            }
             
             return BuildSampleFromCache();
         }
@@ -167,42 +191,46 @@ namespace OmenCore.Hardware
         
         private void UpdateReadings()
         {
-            if (_disposed || !_wmiBios.IsAvailable) return;
+            if (_disposed) return;
             
             try
             {
                 // ═══════════════════════════════════════════════════════════════
                 // SOURCE 1: HP WMI BIOS — CPU/GPU temp + Fan RPM
                 // This is the same source OmenMon uses. Rock-solid, no dependencies.
+                // Only attempt when WMI BIOS is functional.
                 // ═══════════════════════════════════════════════════════════════
                 
-                var temps = _wmiBios.GetBothTemperatures();
-                if (temps.HasValue)
+                if (_wmiBios.IsAvailable)
                 {
-                    var (cpuTemp, gpuTemp) = temps.Value;
-                    if (cpuTemp > 0) _cachedCpuTemp = cpuTemp;
-                    if (gpuTemp > 0) _cachedGpuTemp = gpuTemp;
-                }
-                
-                var rpms = _wmiBios.GetFanRpmDirect();
-                if (rpms.HasValue)
-                {
-                    var (cpuRpm, gpuRpm) = rpms.Value;
-                    if (HpWmiBios.IsValidRpm(cpuRpm)) _cachedCpuFanRpm = cpuRpm;
-                    if (HpWmiBios.IsValidRpm(gpuRpm)) _cachedGpuFanRpm = gpuRpm;
-                }
-                else
-                {
-                    // V1 fallback: GetFanRpmDirect (0x38) not available, use GetFanLevel (0x2D)
-                    // Fan levels are in krpm units (e.g., level 44 = 4400 RPM)
-                    var levels = _wmiBios.GetFanLevel();
-                    if (levels.HasValue)
+                    var temps = _wmiBios.GetBothTemperatures();
+                    if (temps.HasValue)
                     {
-                        var (fan1Level, fan2Level) = levels.Value;
-                        int fan1Rpm = fan1Level * 100;
-                        int fan2Rpm = fan2Level * 100;
-                        if (HpWmiBios.IsValidRpm(fan1Rpm)) _cachedCpuFanRpm = fan1Rpm;
-                        if (HpWmiBios.IsValidRpm(fan2Rpm)) _cachedGpuFanRpm = fan2Rpm;
+                        var (cpuTemp, gpuTemp) = temps.Value;
+                        if (cpuTemp > 0) _cachedCpuTemp = cpuTemp;
+                        if (gpuTemp > 0) _cachedGpuTemp = gpuTemp;
+                    }
+                
+                    var rpms = _wmiBios.GetFanRpmDirect();
+                    if (rpms.HasValue)
+                    {
+                        var (cpuRpm, gpuRpm) = rpms.Value;
+                        if (HpWmiBios.IsValidRpm(cpuRpm)) _cachedCpuFanRpm = cpuRpm;
+                        if (HpWmiBios.IsValidRpm(gpuRpm)) _cachedGpuFanRpm = gpuRpm;
+                    }
+                    else
+                    {
+                        // V1 fallback: GetFanRpmDirect (0x38) not available, use GetFanLevel (0x2D)
+                        // Fan levels are in krpm units (e.g., level 44 = 4400 RPM)
+                        var levels = _wmiBios.GetFanLevel();
+                        if (levels.HasValue)
+                        {
+                            var (fan1Level, fan2Level) = levels.Value;
+                            int fan1Rpm = fan1Level * 100;
+                            int fan2Rpm = fan2Level * 100;
+                            if (HpWmiBios.IsValidRpm(fan1Rpm)) _cachedCpuFanRpm = fan1Rpm;
+                            if (HpWmiBios.IsValidRpm(fan2Rpm)) _cachedGpuFanRpm = fan2Rpm;
+                        }
                     }
                 }
                 
@@ -228,13 +256,18 @@ namespace OmenCore.Hardware
                             // Clocks & power from Afterburner
                             if (abData.CoreClockMhz > 0) _cachedGpuClockMhz = abData.CoreClockMhz;
                             if (abData.MemoryClockMhz > 0) _cachedGpuMemClockMhz = abData.MemoryClockMhz;
-                            if (abData.GpuPower > 0)
-                            {
-                                // Afterburner reports power as percentage
-                                _cachedGpuPowerWatts = _nvapi?.DefaultPowerLimitWatts > 0
+                            // Afterburner reports power as percentage
+                            var afterburnerGpuPower = abData.GpuPower > 0
+                                ? (_nvapi?.DefaultPowerLimitWatts > 0
                                     ? (abData.GpuPower / 100.0) * _nvapi.DefaultPowerLimitWatts
-                                    : abData.GpuPower;
-                            }
+                                    : abData.GpuPower)
+                                : 0;
+                            _cachedGpuPowerWatts = StabilizePowerReading(
+                                afterburnerGpuPower,
+                                ref _lastValidGpuPowerWatts,
+                                ref _consecutiveZeroGpuPowerReads,
+                                _cachedGpuLoad,
+                                _cachedGpuTemp);
                             
                             // GPU load from Afterburner if available
                             if (abData.GpuLoadPercent > 0)
@@ -291,7 +324,12 @@ namespace OmenCore.Hardware
                         var gpuSample = _nvapi.GetMonitoringSample();
                         
                         _cachedGpuLoad = gpuSample.GpuLoadPercent;
-                        _cachedGpuPowerWatts = gpuSample.GpuPowerWatts;
+                        _cachedGpuPowerWatts = StabilizePowerReading(
+                            gpuSample.GpuPowerWatts,
+                            ref _lastValidGpuPowerWatts,
+                            ref _consecutiveZeroGpuPowerReads,
+                            gpuSample.GpuLoadPercent,
+                            gpuSample.GpuTemperatureC > 0 ? gpuSample.GpuTemperatureC : _cachedGpuTemp);
                         _cachedGpuClockMhz = gpuSample.CoreClockMhz;
                         _cachedGpuMemClockMhz = gpuSample.MemoryClockMhz;
                         _cachedGpuVramUsedMb = gpuSample.VramUsedMb;
@@ -384,8 +422,12 @@ namespace OmenCore.Hardware
                         
                         // CPU package power via Intel RAPL MSR
                         double cpuPower = _msrAccess.ReadCpuPackagePowerWatts();
-                        if (cpuPower > 0)
-                            _cachedCpuPowerWatts = cpuPower;
+                        _cachedCpuPowerWatts = StabilizePowerReading(
+                            cpuPower,
+                            ref _lastValidCpuPowerWatts,
+                            ref _consecutiveZeroCpuPowerReads,
+                            _cachedCpuLoad,
+                            _cachedCpuTemp);
                     }
                     catch
                     {
@@ -423,6 +465,36 @@ namespace OmenCore.Hardware
             {
                 _logging?.Warn($"[WmiBiosMonitor] Update failed: {ex.Message}");
             }
+        }
+
+        private static double StabilizePowerReading(
+            double reading,
+            ref double lastValidReading,
+            ref int consecutiveZeroReads,
+            double loadPercent,
+            double temperatureC)
+        {
+            if (reading > 0)
+            {
+                lastValidReading = reading;
+                consecutiveZeroReads = 0;
+                return reading;
+            }
+
+            consecutiveZeroReads++;
+            bool systemLikelyActive = loadPercent >= ActiveLoadThresholdPercent || temperatureC >= ActiveTempThresholdC;
+
+            if (systemLikelyActive && lastValidReading > 0 && consecutiveZeroReads <= MaxTransientZeroPowerReads)
+            {
+                return lastValidReading;
+            }
+
+            if (consecutiveZeroReads > MaxTransientZeroPowerReads)
+            {
+                lastValidReading = 0;
+            }
+
+            return 0;
         }
         
         private MonitoringSample BuildSampleFromCache()
@@ -767,6 +839,7 @@ namespace OmenCore.Hardware
         {
             if (_disposed) return;
             _disposed = true;
+            _updateGate.Dispose();
             _wmiBios.Dispose();
         }
     }

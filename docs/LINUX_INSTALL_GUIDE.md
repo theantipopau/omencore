@@ -758,7 +758,7 @@ sudo rm -f /etc/modprobe.d/omencore.conf
 - [Main Documentation](../README.md) — Full feature overview
 - [LINUX_TESTING.md](LINUX_TESTING.md) — Detailed testing guide for distro-specific validation
 - [LINUX_QA_TESTING.md](LINUX_QA_TESTING.md) — QA testing checklist
-- [Discord Server](https://discord.gg/Neh3DCH5) — Community support
+- [Discord Server](https://discord.gg/9WhJdabGk8) — Community support
 - [GitHub Issues](https://github.com/theantipopau/omencore/issues) — Bug reports and feature requests
 
 ---

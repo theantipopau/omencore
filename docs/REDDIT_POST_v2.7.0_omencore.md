@@ -34,4 +34,4 @@
 | OmenCore-2.7.0-win-x64.zip | `E3334290C8F197E4577E5199970BFBB7C1F563FB6AC29AEF0877888AF9F35EB9` |
 | OmenCore-2.7.0-linux-x64.zip | `F6C7BB52920FAF6491DAAA7F943C2A587C8ED3830005AC872B53CAA76DC7BE29` |
 
-[Full Changelog](https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v2.7.0.md) | [Discord](https://discord.gg/Neh3DCH5)
+[Full Changelog](https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v2.7.0.md) | [Discord](https://discord.gg/9WhJdabGk8)

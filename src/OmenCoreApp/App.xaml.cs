@@ -121,28 +121,39 @@ namespace OmenCore
             // Initialize system tray
             InitializeTrayIcon();
 
-            // Create main window with DI
-            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-            
             // Check if we should start minimized to tray
             // Priority: command line flag > config setting
             bool hasMinimizedFlag = e.Args.Contains("--minimized") || e.Args.Contains("-m") || e.Args.Contains("/minimized");
-            bool startMinimized = hasMinimizedFlag || (Configuration.Config.Monitoring?.StartMinimized ?? false);
+            bool hasHeadlessFlag = e.Args.Contains("--headless") || e.Args.Contains("-h") || e.Args.Contains("/headless");
+            bool headlessMode = hasHeadlessFlag || Configuration.Config.HeadlessMode;
+            bool startMinimized = hasMinimizedFlag || headlessMode || (Configuration.Config.Monitoring?.StartMinimized ?? false);
             
-            if (startMinimized)
+            if (headlessMode)
             {
-                // Start minimized to tray - don't show window but initialize it
-                Logging.Info("Starting minimized to system tray");
-                mainWindow.WindowState = WindowState.Minimized;
-                mainWindow.ShowInTaskbar = false;
-                // Initialize the window (triggers Loaded event for hotkey registration) but keep it hidden
-                mainWindow.Show();
-                mainWindow.Hide();
+                // Headless mode - no main window, only tray icon and services
+                Logging.Info("Starting in headless mode (no main window)");
+                // Services are still initialized via DI, tray icon is active
             }
             else
             {
-                // Normal startup - show window
-                mainWindow.Show();
+                // Create main window with DI
+                var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+                
+                if (startMinimized)
+                {
+                    // Start minimized to tray - don't show window but initialize it
+                    Logging.Info("Starting minimized to system tray");
+                    mainWindow.WindowState = WindowState.Minimized;
+                    mainWindow.ShowInTaskbar = false;
+                    // Initialize the window (triggers Loaded event for hotkey registration) but keep it hidden
+                    mainWindow.Show();
+                    mainWindow.Hide();
+                }
+                else
+                {
+                    // Normal startup - show window
+                    mainWindow.Show();
+                }
             }
         }
 
@@ -385,6 +396,12 @@ namespace OmenCore
                 // Now sync to tray with actual values
                 _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
                 _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
+                _trayIconService?.UpdateMonitoringHealth(mainViewModel.HardwareMonitoringService.HealthStatus);
+
+                mainViewModel.HardwareMonitoringService.HealthStatusChanged += (s, health) =>
+                {
+                    _trayIconService?.UpdateMonitoringHealth(health);
+                };
             }
             
             // Wire up Stay on Top toggle

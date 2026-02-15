@@ -256,7 +256,7 @@ namespace OmenCore.Controls
             });
         }
 
-        private async Task<SystemInfoData> CollectSystemInfoAsync(CancellationToken ct)
+        private Task<SystemInfoData> CollectSystemInfoAsync(CancellationToken ct)
         {
             var systemInfo = new SystemInfoData();
 
@@ -307,7 +307,7 @@ namespace OmenCore.Controls
                 systemInfo.ErrorMessage = ex.Message;
             }
 
-            return systemInfo;
+            return Task.FromResult(systemInfo);
         }
 
         private async Task<HardwareData> CollectHardwareDataAsync(CancellationToken ct)
@@ -352,7 +352,7 @@ namespace OmenCore.Controls
             return hardwareData;
         }
 
-        private async Task<LogData> CollectLogsAsync(CancellationToken ct)
+        private Task<LogData> CollectLogsAsync(CancellationToken ct)
         {
             var logData = new LogData
             {
@@ -377,7 +377,7 @@ namespace OmenCore.Controls
                 logData.ErrorMessage = ex.Message;
             }
 
-            return logData;
+            return Task.FromResult(logData);
         }
 
         private SettingsData CollectSettings()

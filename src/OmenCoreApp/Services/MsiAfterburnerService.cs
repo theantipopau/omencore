@@ -286,7 +286,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Attempt to resolve conflicts automatically.
         /// </summary>
-        public async Task<ConflictResolutionResult> ResolveConflictsAsync()
+        public Task<ConflictResolutionResult> ResolveConflictsAsync()
         {
             var result = new ConflictResolutionResult
             {
@@ -303,7 +303,7 @@ namespace OmenCore.Services
                 {
                     result.Success = true;
                     result.Message = "No conflicts detected - no action needed";
-                    return result;
+                    return Task.FromResult(result);
                 }
 
                 // For now, we can only provide recommendations
@@ -320,7 +320,7 @@ namespace OmenCore.Services
                 result.Message = $"Error during resolution: {ex.Message}";
             }
 
-            return result;
+            return Task.FromResult(result);
         }
 
         private void MonitorAfterburner(object? state)

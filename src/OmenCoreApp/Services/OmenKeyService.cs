@@ -34,6 +34,8 @@ namespace OmenCore.Services
         private string _externalAppPath = string.Empty;
         private long _lastKeyPressTicks = 0; // Use ticks for thread-safe Interlocked operations
         private const int DebounceMs = 300;
+        private long _lastBrightnessKeyTicks = 0;
+        private const int BrightnessGuardWindowMs = 1200;
         
         // WMI event watcher for HP BIOS events
         private ManagementEventWatcher? _wmiEventWatcher;
@@ -277,10 +279,16 @@ namespace OmenCore.Services
             // DO NOT use broad queries like "SELECT * FROM hpqBEvnt" as this catches
             // ALL BIOS events (fan changes, thermal events, power state changes) and
             // causes focus-stealing behavior where OmenCore repeatedly comes to front.
+            
+            // If experimental firmware Fn+P is enabled, widen the query to also accept eventData=8614
+            bool fnPEnabled = _configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true;
+            var wmiQuery = fnPEnabled
+                ? "SELECT * FROM hpqBEvnt WHERE eventId = 29 AND (eventData = 8613 OR eventData = 8614)"
+                : "SELECT * FROM hpqBEvnt WHERE eventData = 8613 AND eventId = 29";
+
             var wmiSources = new[]
             {
-                // OmenMon's exact query for OMEN key - THIS IS THE ONLY SAFE OPTION
-                (@"root\wmi", "SELECT * FROM hpqBEvnt WHERE eventData = 8613 AND eventId = 29"),
+                (@"root\wmi", wmiQuery),
             };
             
             foreach (var (ns, queryStr) in wmiSources)
@@ -344,6 +352,17 @@ namespace OmenCore.Services
                 }
                 
                 _logging.Debug($"WMI event received: class={className}, eventId={eventId}, eventData={eventData}");
+
+                var brightnessTicks = Interlocked.Read(ref _lastBrightnessKeyTicks);
+                if (brightnessTicks > 0)
+                {
+                    var sinceBrightnessMs = (DateTime.UtcNow.Ticks - brightnessTicks) / TimeSpan.TicksPerMillisecond;
+                    if (sinceBrightnessMs >= 0 && sinceBrightnessMs <= BrightnessGuardWindowMs)
+                    {
+                        _logging.Debug($"WMI event filtered: recent brightness/F-key activity ({sinceBrightnessMs}ms ago)");
+                        return;
+                    }
+                }
                 
                 // Known brightness/hotkey event IDs to exclude (varies by model)
                 // eventId 17 = Brightness change events on some HP models
@@ -354,6 +373,24 @@ namespace OmenCore.Services
                 if (!eventId.HasValue || eventId.Value != 29)
                 {
                     _logging.Debug($"WMI event filtered: eventId={eventId} is not 29 (OMEN key)");
+                    return;
+                }
+
+                // Experimental firmware Fn+P path: some BIOS versions emit a dedicated hpqBEvnt
+                // code for profile-cycle hotkey. Keep this behind a config flag because event
+                // codes vary by model and may collide with unrelated firmware events.
+                if (_configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true &&
+                    eventData.HasValue && eventData.Value == 8614)
+                {
+                    _logging.Info("⌨️ Firmware Fn+P profile-cycle event detected (WMI eventData=8614)");
+
+                    var lastTicksFnP = Interlocked.Read(ref _lastKeyPressTicks);
+                    var sinceLastFnPMs = (DateTime.UtcNow.Ticks - lastTicksFnP) / TimeSpan.TicksPerMillisecond;
+                    if (sinceLastFnPMs >= DebounceMs)
+                    {
+                        Interlocked.Exchange(ref _lastKeyPressTicks, DateTime.UtcNow.Ticks);
+                        Task.Run(() => CyclePerformanceRequested?.Invoke(this, EventArgs.Empty));
+                    }
                     return;
                 }
                 
@@ -449,8 +486,13 @@ namespace OmenCore.Services
                     
                     if (isSpecialKey)
                     {
-                        // Use Info level temporarily to see all special key presses
-                        _logging.Info($"[KeyHook] VK=0x{hookStruct.vkCode:X2} ({hookStruct.vkCode}), Scan=0x{hookStruct.scanCode:X4}, Flags=0x{hookStruct.flags:X}");
+                        _logging.Debug($"[KeyHook] VK=0x{hookStruct.vkCode:X2} ({hookStruct.vkCode}), Scan=0x{hookStruct.scanCode:X4}, Flags=0x{hookStruct.flags:X}");
+                    }
+
+                    if (hookStruct.vkCode == VK_BRIGHTNESS_DOWN || hookStruct.vkCode == VK_BRIGHTNESS_UP ||
+                        hookStruct.vkCode == VK_F2 || hookStruct.vkCode == VK_F3)
+                    {
+                        Interlocked.Exchange(ref _lastBrightnessKeyTicks, DateTime.UtcNow.Ticks);
                     }
                 }
                 
@@ -607,7 +649,7 @@ namespace OmenCore.Services
             // User report: Fn+F3/F4 on Victus triggering app open
             if (vkCode == VK_BRIGHTNESS_DOWN || vkCode == VK_BRIGHTNESS_UP ||
                 vkCode == VK_F2 || vkCode == VK_F3 ||
-                (vkCode >= 0x70 && vkCode <= 0x87)) // All F1-F24 keys (VK_F1=0x70 through VK_F24=0x87)
+                (vkCode >= 0x70 && vkCode <= 0x86)) // F1-F23 (F24 handled explicitly for supported OMEN models)
             {
                 _logging.Debug($"Excluded F-key: VK=0x{vkCode:X2}, Scan=0x{scanCode:X4} - NOT OMEN key");
                 return false;

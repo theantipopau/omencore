@@ -108,7 +108,9 @@ namespace OmenCore.Hardware
         private const uint CMD_COLOR_GET = 0x02;      // GetColorTable - uses Keyboard cmd
         private const uint CMD_COLOR_SET = 0x03;      // SetColorTable - uses Keyboard cmd
         private const uint CMD_KBD_TYPE_GET = 0x01;   // GetKbdType - uses Keyboard cmd
-        private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight check - uses Keyboard cmd
+        private const uint CMD_BRIGHTNESS_GET = 0x04; // GetBrightness - uses Keyboard cmd (v2.9.0)
+        private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight / GetLedAnimation - uses Keyboard cmd
+        private const uint CMD_ANIMATION_SET = 0x07;  // SetLedAnimation - uses Keyboard cmd (v2.9.0)
         private const uint CMD_IDLE_SET = 0x31;       // SetIdle (OmenMon 0x31)
         private const uint CMD_BATTERY_CARE = 0x24;   // Battery care mode (charge limit)
         private const uint CMD_OVERDRIVE_GET = 0x35;  // GetOverdrive - display overdrive status
@@ -1113,6 +1115,136 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Error($"Failed to set backlight: {ex.Message}", ex);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Get current keyboard brightness level via WMI BIOS command type 4.
+        /// Returns the raw brightness byte from BIOS, or -1 on failure.
+        /// Known values: 0xE4 (228) = bright/on, 0x64 (100) = dim/off.
+        /// Reference: OmenHubLighter OmenHsaClient.GetKeyboardBrightness()
+        /// </summary>
+        public int GetBrightness()
+        {
+            if (!_isAvailable) return -1;
+            
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_BRIGHTNESS_GET, new byte[4], 4);
+                if (result != null && result.Length >= 1)
+                {
+                    var value = result[0];
+                    _logging?.Info($"Keyboard brightness raw value: 0x{value:X2} ({value})");
+                    return value;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to get keyboard brightness: {ex.Message}");
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Set keyboard brightness level via WMI BIOS command type 5.
+        /// This is a more fine-grained version of SetBacklight that sends the raw brightness byte.
+        /// Known values: 0xE4 (228) = bright/on, 0x64 (100) = off, 50 = dim.
+        /// Reference: OmenHubLighter OmenHsaClient.SetKeyboardBrightness()
+        /// </summary>
+        /// <param name="brightness">Raw brightness byte to send to BIOS</param>
+        public bool SetBrightnessLevel(byte brightness)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set brightness: WMI BIOS not available");
+                return false;
+            }
+
+            try
+            {
+                var data = new byte[4];
+                data[0] = brightness;
+
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_BACKLIGHT_SET, data, 0);
+                if (result != null)
+                {
+                    _logging?.Info($"✓ Keyboard brightness set to 0x{brightness:X2} ({brightness})");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"Failed to set brightness: {ex.Message}", ex);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Get current LED animation settings via WMI BIOS command type 6.
+        /// Returns the raw animation data array, or null on failure.
+        /// The animation data contains zone, color mode, timing, brightness, and color count info.
+        /// Reference: OmenHubLighter OmenHsaConsts.WMILedAnimation enum
+        /// </summary>
+        public byte[]? GetLedAnimation()
+        {
+            if (!_isAvailable) return null;
+            
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_HAS_BACKLIGHT, new byte[4], 128);
+                if (result != null && result.Length > 0)
+                {
+                    _logging?.Info($"LED animation data ({result.Length} bytes): " +
+                        $"[{string.Join(", ", result.Take(12).Select(b => $"0x{b:X2}"))}...]");
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to get LED animation: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Set LED animation via WMI BIOS command type 7.
+        /// Controls keyboard lighting effects (static, breathing, color cycle, wave).
+        /// 
+        /// Animation data structure (from OmenHubLighter WMILedAnimation enum):
+        ///   Byte 0: Zone (which zone(s) to apply to)
+        ///   Byte 1: ColorMode (effect type: 0=static, 1=breathing, 2=color cycle, etc.)
+        ///   Byte 2-3: Time/speed (effect speed, lower = faster)
+        ///   Byte 4: Brightness (0-100)
+        ///   Byte 5: ColorCount (number of colors in the animation)
+        ///   Bytes 6+: Color data (RGB values for animation colors)
+        /// 
+        /// Reference: OmenHubLighter OmenHsaConsts.WMI_CMD_TYPE_SET_LED_ANIMATION = 7
+        /// </summary>
+        /// <param name="animationData">Raw animation data to send to BIOS</param>
+        public bool SetLedAnimation(byte[] animationData)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set LED animation: WMI BIOS not available");
+                return false;
+            }
+
+            try
+            {
+                _logging?.Info($"Setting LED animation ({animationData.Length} bytes): " +
+                    $"[{string.Join(", ", animationData.Take(12).Select(b => $"0x{b:X2}"))}...]");
+                    
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_ANIMATION_SET, animationData, 0);
+                if (result != null)
+                {
+                    _logging?.Info("✓ LED animation applied successfully");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"Failed to set LED animation: {ex.Message}", ex);
             }
             return false;
         }

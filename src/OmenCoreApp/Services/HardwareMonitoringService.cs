@@ -53,10 +53,13 @@ namespace OmenCore.Services
         private int _consecutiveSameCpuTemp = 0;
         private int _consecutiveSameGpuTemp = 0;
         private const int FreezeThresholdReadings = 30;      // 30 readings with same temp = potential freeze
+        private const int IdleCpuFreezeThreshold = 120;      // Idle CPU can legitimately hold flat temps for longer
         private const int IdleGpuFreezeThreshold = 120;      // v2.8.6: Idle GPU (load <10%) needs 120 readings (~2min) before flagging
         private const double TempFreezeEpsilon = 0.1;        // Temperature must change by at least 0.1°C
         private HpWmiBios? _wmiBiosService;                  // Optional WMI fallback for temps
         private bool _usingWmiFallback = false;              // Track if we're in fallback mode
+        private int _consecutiveZeroTempReadings = 0;        // Track sustained zero-temp data quality failures
+        private const int ZeroTempDegradedThreshold = 10;    // Mark degraded after 10 consecutive 0°C readings (~10s)
         private bool _gpuFreezeWarningLogged = false;        // v2.8.6: Only log GPU freeze warning once per freeze event
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
@@ -246,7 +249,29 @@ namespace OmenCore.Services
                         sample = await _bridge.ReadSampleAsync(readCts.Token);
                         _consecutiveTimeouts = 0; // Reset on successful read
                         _lastSuccessfulSampleTime = DateTime.Now;
-                        UpdateHealthStatus(MonitoringHealthStatus.Healthy);
+                        
+                        // Validate data quality: sustained zero temps indicate broken sensor path
+                        if (sample.CpuTemperatureC <= 0 && sample.GpuTemperatureC <= 0)
+                        {
+                            _consecutiveZeroTempReadings++;
+                            if (_consecutiveZeroTempReadings >= ZeroTempDegradedThreshold)
+                            {
+                                UpdateHealthStatus(MonitoringHealthStatus.Degraded);
+                                if (_consecutiveZeroTempReadings == ZeroTempDegradedThreshold)
+                                {
+                                    _logging.Warn($"[MonitorLoop] ⚠ Sustained zero temperatures ({_consecutiveZeroTempReadings} consecutive readings) — sensor data path may be broken");
+                                }
+                            }
+                            else
+                            {
+                                UpdateHealthStatus(MonitoringHealthStatus.Healthy);
+                            }
+                        }
+                        else
+                        {
+                            _consecutiveZeroTempReadings = 0;
+                            UpdateHealthStatus(MonitoringHealthStatus.Healthy);
+                        }
                     }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
@@ -399,30 +424,30 @@ namespace OmenCore.Services
         }
 
         // IHardwareMonitoringService implementation
-        public async Task<HardwareMetrics> GetCurrentMetricsAsync()
+        public Task<HardwareMetrics> GetCurrentMetricsAsync()
         {
             lock (_dashboardLock)
             {
                 if (_lastMetrics == null)
                 {
                     _logging.Info("GetCurrentMetricsAsync: _lastMetrics is null, returning default");
-                    return new HardwareMetrics { Timestamp = DateTime.Now };
+                    return Task.FromResult(new HardwareMetrics { Timestamp = DateTime.Now });
                 }
                 
                 _logging.Info($"GetCurrentMetricsAsync: Returning metrics - CPU: {_lastMetrics.CpuTemperature}°C, GPU: {_lastMetrics.GpuTemperature}°C, Power: {_lastMetrics.PowerConsumption}W");
-                return _lastMetrics;
+                return Task.FromResult(_lastMetrics);
             }
         }
 
-        public async Task<IEnumerable<SystemAlert>> GetActiveAlertsAsync()
+        public Task<IEnumerable<SystemAlert>> GetActiveAlertsAsync()
         {
             lock (_dashboardLock)
             {
-                return _activeAlerts.ToList();
+                return Task.FromResult<IEnumerable<SystemAlert>>(_activeAlerts.ToList());
             }
         }
 
-        public async Task<IEnumerable<HistoricalDataPoint>> GetHistoricalDataAsync(ChartType chartType, TimeSpan timeRange)
+        public Task<IEnumerable<HistoricalDataPoint>> GetHistoricalDataAsync(ChartType chartType, TimeSpan timeRange)
         {
             var cutoffTime = DateTime.Now - timeRange;
 
@@ -440,7 +465,7 @@ namespace OmenCore.Services
 
                 // v2.7.0: Return empty list instead of synthetic data to show proper empty state
                 // Synthetic data can mask telemetry failures and confuse users
-                return realData;
+                return Task.FromResult<IEnumerable<HistoricalDataPoint>>(realData);
             }
         }
 
@@ -540,7 +565,7 @@ namespace OmenCore.Services
             return Task.FromResult<IEnumerable<HardwareSensorReading>>(readings);
         }
 
-        public async Task<string> ExportMonitoringDataAsync()
+        public Task<string> ExportMonitoringDataAsync()
         {
             var exportData = new
             {
@@ -550,21 +575,23 @@ namespace OmenCore.Services
                 ActiveAlerts = _activeAlerts
             };
 
-            return System.Text.Json.JsonSerializer.Serialize(exportData, new System.Text.Json.JsonSerializerOptions
+            return Task.FromResult(System.Text.Json.JsonSerializer.Serialize(exportData, new System.Text.Json.JsonSerializerOptions
             {
                 WriteIndented = true
-            });
+            }));
         }
 
-        public async Task StartMonitoringAsync()
+        public Task StartMonitoringAsync()
         {
-            if (_cts != null) return;
+            if (_cts != null) return Task.CompletedTask;
             Start();
+            return Task.CompletedTask;
         }
 
-        public async Task StopMonitoringAsync()
+        public Task StopMonitoringAsync()
         {
             Stop();
+            return Task.CompletedTask;
         }
 
         public bool IsMonitoring => _cts != null;
@@ -753,23 +780,26 @@ namespace OmenCore.Services
         {
             bool cpuFrozen = false;
             bool gpuFrozen = false;
+            var effectiveCpuFreezeThreshold = (sample.CpuLoadPercent < 10 && sample.CpuPowerWatts <= 5)
+                ? IdleCpuFreezeThreshold
+                : FreezeThresholdReadings;
             
             // Check CPU temperature for freeze
             if (Math.Abs(sample.CpuTemperatureC - _lastCpuTempForFreezeCheck) < TempFreezeEpsilon)
             {
                 _consecutiveSameCpuTemp++;
-                if (_consecutiveSameCpuTemp >= FreezeThresholdReadings)
+                if (_consecutiveSameCpuTemp >= effectiveCpuFreezeThreshold)
                 {
                     cpuFrozen = true;
-                    if (_consecutiveSameCpuTemp == FreezeThresholdReadings)
+                    if (_consecutiveSameCpuTemp == effectiveCpuFreezeThreshold)
                     {
-                        _logging.Warn($"🥶 CPU temperature appears frozen at {sample.CpuTemperatureC:F1}°C for {_consecutiveSameCpuTemp} readings");
+                        _logging.Warn($"🥶 CPU temperature appears frozen at {sample.CpuTemperatureC:F1}°C for {_consecutiveSameCpuTemp} readings (load={sample.CpuLoadPercent:F0}%, power={sample.CpuPowerWatts:F1}W)");
                     }
                 }
             }
             else
             {
-                if (_consecutiveSameCpuTemp >= FreezeThresholdReadings)
+                if (_consecutiveSameCpuTemp >= effectiveCpuFreezeThreshold)
                 {
                     _logging.Info($"✅ CPU temperature unfroze: {_lastCpuTempForFreezeCheck:F1}°C → {sample.CpuTemperatureC:F1}°C");
                     _usingWmiFallback = false;
@@ -829,6 +859,12 @@ namespace OmenCore.Services
                             _consecutiveSameCpuTemp = 0;
                             _lastCpuTempForFreezeCheck = wmiCpu;
                         }
+                        else if (cpuFrozen && wmiCpu > 0 && wmiCpu < 150)
+                        {
+                            _logging.Info($"✅ WMI BIOS confirms CPU temp is valid: sensor={sample.CpuTemperatureC:F1}°C, WMI={wmiCpu:F1}°C — not frozen, stable reading");
+                            _consecutiveSameCpuTemp = 0;
+                            _lastCpuTempForFreezeCheck = sample.CpuTemperatureC;
+                        }
                         
                         if (gpuFrozen && wmiGpu > 0 && wmiGpu < 150)
                         {
@@ -866,7 +902,7 @@ namespace OmenCore.Services
             
             // Try to restart the bridge if both temps are frozen for too long
             if (cpuFrozen && gpuFrozen && 
-                _consecutiveSameCpuTemp >= FreezeThresholdReadings * 2 && 
+                _consecutiveSameCpuTemp >= effectiveCpuFreezeThreshold * 2 && 
                 !_restartInProgress)
             {
                 _logging.Warn("🔄 Both CPU and GPU temps frozen for extended period - attempting bridge restart...");

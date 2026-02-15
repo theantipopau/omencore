@@ -19,8 +19,11 @@ namespace OmenCore.Services
     {
         private readonly LoggingService _logger;
         private Timer? _autoCleanTimer;
+        private Timer? _intervalCleanTimer;
         private bool _autoCleanEnabled;
         private int _autoCleanThresholdPercent = 80;
+        private bool _intervalCleanEnabled;
+        private int _intervalCleanMinutes = 10;
         private readonly object _cleanLock = new();
         private bool _isCleaning;
 
@@ -83,19 +86,19 @@ namespace OmenCore.Services
         /// </summary>
         public async Task<MemoryCleanResult> CleanMemoryAsync(MemoryCleanFlags flags = MemoryCleanFlags.AllSafe)
         {
-            if (_isCleaning)
-            {
-                return new MemoryCleanResult
-                {
-                    Success = false,
-                    ErrorMessage = "A memory clean operation is already in progress"
-                };
-            }
-
             return await Task.Run(() =>
             {
                 lock (_cleanLock)
                 {
+                    if (_isCleaning)
+                    {
+                        return new MemoryCleanResult
+                        {
+                            Success = false,
+                            ErrorMessage = "A memory clean operation is already in progress"
+                        };
+                    }
+
                     _isCleaning = true;
                     try
                     {
@@ -449,16 +452,38 @@ namespace OmenCore.Services
             }
         }
 
+        /// <summary>
+        /// Enables periodic automatic memory cleaning every N minutes.
+        /// </summary>
+        public void SetIntervalClean(bool enabled, int intervalMinutes = 10)
+        {
+            _intervalCleanEnabled = enabled;
+            _intervalCleanMinutes = Math.Clamp(intervalMinutes, 1, 120);
+
+            if (enabled)
+            {
+                _intervalCleanTimer?.Dispose();
+                var interval = TimeSpan.FromMinutes(_intervalCleanMinutes);
+                _intervalCleanTimer = new Timer(IntervalCleanCallback, null, interval, interval);
+                _logger.Info($"Interval clean enabled every {_intervalCleanMinutes} minute(s)");
+            }
+            else
+            {
+                _intervalCleanTimer?.Dispose();
+                _intervalCleanTimer = null;
+                _logger.Info("Interval clean disabled");
+            }
+        }
+
         private void AutoCleanCallback(object? state)
         {
             try
             {
                 var info = GetMemoryInfo();
-                if (info.MemoryLoadPercent >= _autoCleanThresholdPercent && !_isCleaning)
+                if (info.MemoryLoadPercent >= _autoCleanThresholdPercent)
                 {
                     _logger.Info($"Auto-clean triggered: memory at {info.MemoryLoadPercent}% (threshold: {_autoCleanThresholdPercent}%)");
-                    StatusChanged?.Invoke($"Auto-clean: memory at {info.MemoryLoadPercent}%...");
-                    CleanMemoryInternal(MemoryCleanFlags.AllSafe);
+                    TryRunScheduledClean($"Auto-clean: memory at {info.MemoryLoadPercent}%...");
                 }
             }
             catch (Exception ex)
@@ -467,14 +492,51 @@ namespace OmenCore.Services
             }
         }
 
+        private void IntervalCleanCallback(object? state)
+        {
+            try
+            {
+                _logger.Info($"Interval clean triggered (every {_intervalCleanMinutes} minute(s))");
+                TryRunScheduledClean($"Auto-clean: scheduled every {_intervalCleanMinutes} minute(s)...");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Interval clean failed: {ex.Message}");
+            }
+        }
+
+        private void TryRunScheduledClean(string statusMessage)
+        {
+            lock (_cleanLock)
+            {
+                if (_isCleaning)
+                    return;
+
+                _isCleaning = true;
+                try
+                {
+                    StatusChanged?.Invoke(statusMessage);
+                    CleanMemoryInternal(MemoryCleanFlags.AllSafe);
+                }
+                finally
+                {
+                    _isCleaning = false;
+                }
+            }
+        }
+
         public bool AutoCleanEnabled => _autoCleanEnabled;
         public int AutoCleanThreshold => _autoCleanThresholdPercent;
+        public bool IntervalCleanEnabled => _intervalCleanEnabled;
+        public int IntervalCleanMinutes => _intervalCleanMinutes;
         public bool IsCleaning => _isCleaning;
 
         public void Dispose()
         {
             _autoCleanTimer?.Dispose();
             _autoCleanTimer = null;
+            _intervalCleanTimer?.Dispose();
+            _intervalCleanTimer = null;
         }
 
         // ========== P/INVOKE DECLARATIONS ==========

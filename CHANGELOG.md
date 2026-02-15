@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.9.0] - 2026-02-13 - Stability & Telemetry Recovery Update 🛠️
+
+### 🐛 Bug Fixes
+- **App Freezes After Tray Profile/Fan Changes**: Tray quick actions are now serialized and run non-blocking to prevent UI thread lockups when fan/performance backends take longer to respond.
+- **Quick Menu Can "Break" Until Reboot**: Added tray action gating with timeout + recovery path so overlapping quick menu actions no longer stack into a stuck state.
+- **Fn+F2/F3 Brightness Opens OmenCore**: Added a brightness-event guard window so HP WMI OMEN-key events immediately following brightness key activity are ignored.
+- **OMEN Key Detection Noise**: Reduced key-hook logging verbosity and tightened F-key exclusion logic while preserving explicit F24 OMEN-key support.
+- **CPU/GPU Temp Freeze False Positives**: CPU freeze detection now uses idle-aware thresholds and WMI confirmation reset logic, reducing false "stuck" detection when temps are legitimately stable.
+- **CPU/GPU Power Stuck at 0W**: Improved transient-zero power smoothing (longer hold of last valid readings with lower activity thresholds) to avoid rapid drop-to-zero glitches.
+- **Telemetry Update Contention**: WMI BIOS monitor reads are now serialized with an async gate to prevent overlapping hardware update calls that could produce stale/jittery samples.
+- **Fan Curve Editor Drag Lag**: Curve redraw during point drag is now frame-throttled to improve responsiveness and reduce stutter when moving nodes.
+
+### 📁 Key Files Updated
+- `src/OmenCoreApp/ViewModels/MainViewModel.cs`
+- `src/OmenCoreApp/Services/OmenKeyService.cs`
+- `src/OmenCoreApp/Services/HardwareMonitoringService.cs`
+- `src/OmenCoreApp/Hardware/WmiBiosMonitor.cs`
+- `src/OmenCoreApp/Controls/FanCurveEditor.xaml.cs`
+
 ## [2.8.6] - 2026-02-11 - Community Bug Fix Patch 🐛
 
 ### 🐛 Bug Fixes

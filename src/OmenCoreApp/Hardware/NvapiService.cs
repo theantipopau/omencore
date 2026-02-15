@@ -941,12 +941,11 @@ namespace OmenCore.Hardware
             // Total per pstate: 8 + (8×48) + (4×24) = 8 + 384 + 96 = 488 bytes
             
             const int HEADER_SIZE = 20;
+#pragma warning disable CS0219 // Assigned for documentation of structure layout
             const int CLOCK_ENTRY_SIZE = 48;  // Actual size with padding
-            const int VOLTAGE_ENTRY_SIZE = 24;
             const int MAX_CLOCKS = 8;
-            const int MAX_VOLTAGES = 4;
+#pragma warning restore CS0219
             const int PSTATE_HEADER_SIZE = 8; // StateId + Flags
-            const int PSTATE_SIZE = PSTATE_HEADER_SIZE + (MAX_CLOCKS * CLOCK_ENTRY_SIZE) + (MAX_VOLTAGES * VOLTAGE_ENTRY_SIZE);
 
             int bufferSize = 0x10000;
             var buffer = Marshal.AllocHGlobal(bufferSize);
@@ -1030,9 +1029,7 @@ namespace OmenCore.Hardware
             // Structure layout - see SetClockOffset for details
             const int HEADER_SIZE = 20;
             const int CLOCK_ENTRY_SIZE = 48;
-            const int VOLTAGE_ENTRY_SIZE = 24;
             const int MAX_CLOCKS = 8;
-            const int MAX_VOLTAGES = 4;
             const int PSTATE_HEADER_SIZE = 8;
 
             int bufferSize = 0x10000;

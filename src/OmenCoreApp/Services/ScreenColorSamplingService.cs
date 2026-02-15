@@ -168,9 +168,9 @@ namespace OmenCore.Services
         /// <summary>
         /// Start screen capture and color sampling.
         /// </summary>
-        public async Task<bool> StartAsync()
+        public Task<bool> StartAsync()
         {
-            if (_isRunning) return true;
+            if (_isRunning) return Task.FromResult(true);
 
             try
             {
@@ -197,12 +197,12 @@ namespace OmenCore.Services
                 _captureTask = Task.Run(() => CaptureLoop(_cts.Token), _cts.Token);
 
                 _logging.Info($"ScreenColorSampling: Started - {_zones.Count} zones, {_sampleWidth}x{_sampleHeight} sample size");
-                return true;
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 _logging.Error($"ScreenColorSampling: Start failed: {ex.Message}", ex);
-                return false;
+                return Task.FromResult(false);
             }
         }
 

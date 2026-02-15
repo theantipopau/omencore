@@ -5,6 +5,7 @@ using System.Management;
 using System.Runtime.InteropServices;
 using OmenCore.Hardware;
 using OmenCore.Models;
+using OmenCore.Services.KeyboardLighting;
 
 namespace OmenCore.Services
 {
@@ -22,6 +23,8 @@ namespace OmenCore.Services
         private readonly HpWmiBios? _wmiBios;
         private readonly ConfigurationService? _configService;
         private readonly OghServiceProxy? _oghProxy;
+        private readonly KeyboardLightingServiceV2? _v2Service;
+        private bool _useV2Backend;
         private bool _wmiAvailable;
         private bool _wmiBiosAvailable;
         private bool _ecAvailable;
@@ -63,7 +66,7 @@ namespace OmenCore.Services
             Off = 0xFF
         }
 
-        public bool IsAvailable => _wmiBiosAvailable || _wmiAvailable || _ecAvailable || (_oghProxy != null && _oghProxy.IsAvailable);
+        public bool IsAvailable => _useV2Backend || _wmiBiosAvailable || _wmiAvailable || _ecAvailable || (_oghProxy != null && _oghProxy.IsAvailable);
         
         /// <summary>
         /// Returns the currently active backend based on user preference and availability.
@@ -89,6 +92,9 @@ namespace OmenCore.Services
                 {
                     return "EC";
                 }
+                
+                // V2 backend (model-aware auto-probe with PawnIO/EC fallback)
+                if (_useV2Backend && _v2Service != null) return $"V2:{_v2Service.BackendName}";
                 
                 // Standard auto: WMI BIOS > WMI > EC (if enabled) > None
                 if (_wmiBiosAvailable) return "WMI BIOS";
@@ -117,13 +123,35 @@ namespace OmenCore.Services
             }
         }
 
-        public KeyboardLightingService(LoggingService logging, IEcAccess? ecAccess = null, HpWmiBios? wmiBios = null, ConfigurationService? configService = null)
+        public KeyboardLightingService(LoggingService logging, IEcAccess? ecAccess = null, HpWmiBios? wmiBios = null, ConfigurationService? configService = null, SystemInfoService? systemInfoService = null)
         {
             _logging = logging;
             _ecAccess = ecAccess;
             _wmiBios = wmiBios;
             _configService = configService;
             _oghProxy = new OghServiceProxy(_logging);
+
+            // Initialize V2 service for model-aware backend with PawnIO/EC fallback
+            try
+            {
+                _v2Service = new KeyboardLightingServiceV2(logging, wmiBios, ecAccess, configService, systemInfoService);
+                var probeResult = _v2Service.InitializeAsync().GetAwaiter().GetResult();
+                if (probeResult.Success)
+                {
+                    _useV2Backend = true;
+                    _logging.Info($"✓ V2 keyboard engine active: {_v2Service.BackendName} " +
+                        $"(method: {_v2Service.ActiveMethod}, model: {_v2Service.ModelConfig?.ModelName ?? "auto-detected"})");
+                    _logging.Info($"  Tried: {string.Join(" → ", probeResult.TriedMethods)}");
+                }
+                else
+                {
+                    _logging.Info($"V2 keyboard engine probe found no working backend. Tried: {string.Join(", ", probeResult.TriedMethods)}. Falling back to V1 logic.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"V2 keyboard engine init failed: {ex.Message}. Falling back to V1 logic.");
+            }
 
             InitializeBackends();
         }
@@ -210,6 +238,18 @@ namespace OmenCore.Services
 
             try
             {
+                // Delegate to V2 engine if active
+                if (_useV2Backend && _v2Service != null)
+                {
+                    var result = _v2Service.ApplyProfileAsync(profile).GetAwaiter().GetResult();
+                    if (result.Success)
+                    {
+                        _logging.Info($"✓ Profile applied via V2 engine ({_v2Service.BackendName})");
+                        return;
+                    }
+                    _logging.Warn($"V2 engine profile apply failed: {result.FailureReason}. Falling back to V1.");
+                }
+
                 var primaryColor = ParseHexColor(profile.PrimaryColorHex);
                 var secondaryColor = ParseHexColor(profile.SecondaryColorHex);
                 var effect = MapEffect(profile.Effect);
@@ -335,16 +375,35 @@ namespace OmenCore.Services
 
             try
             {
+                // Delegate to V2 engine if active (handles model-aware EC fallback, zone inversion, etc.)
+                if (_useV2Backend && _v2Service != null && !forceEcAccess)
+                {
+                    // Apply zone inversion before delegating to V2
+                    var orderedColors = zoneColors;
+                    if (_configService?.Config?.InvertRgbZoneOrder ?? false)
+                    {
+                        orderedColors = new Color[] { zoneColors[3], zoneColors[2], zoneColors[1], zoneColors[0] };
+                    }
+                    
+                    var result = _v2Service.SetZoneColorsAsync(orderedColors).GetAwaiter().GetResult();
+                    if (result.Success)
+                    {
+                        _logging.Info($"✓ Zone colors set via V2 engine ({_v2Service.BackendName})");
+                        return;
+                    }
+                    _logging.Warn($"V2 engine SetZoneColors failed: {result.FailureReason}. Falling back to V1.");
+                }
+
                 var backend = BackendType;
                 _logging.Info($"SetAllZoneColors using backend: {backend}");
                 
                 // BUG FIX: Apply zone inversion for OMEN Max 16 light bar
                 // The light bar has zones in reverse order (right-to-left)
-                var orderedColors = zoneColors;
+                var v1OrderedColors = zoneColors;
                 if (_configService?.Config?.InvertRgbZoneOrder ?? false)
                 {
                     _logging.Info("Applying inverted zone order (right-to-left for light bar)");
-                    orderedColors = new Color[] { zoneColors[3], zoneColors[2], zoneColors[1], zoneColors[0] };
+                    v1OrderedColors = new Color[] { zoneColors[3], zoneColors[2], zoneColors[1], zoneColors[0] };
                 }
                 
                 // Check if experimental EC writes are allowed
@@ -365,11 +424,11 @@ namespace OmenCore.Services
                     }
                     for (int i = 0; i < 4; i++)
                     {
-                        SetZoneColorViaEc((KeyboardZone)i, orderedColors[i]);
+                        SetZoneColorViaEc((KeyboardZone)i, v1OrderedColors[i]);
                     }
                     TrackEcResult(true);
                     _logging.Info("✓ All zone colors set via EC (EXPERIMENTAL)");
-                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
+                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{v1OrderedColors[0].R:X2}{v1OrderedColors[0].G:X2}{v1OrderedColors[0].B:X2}, Z2=#{v1OrderedColors[1].R:X2}{v1OrderedColors[1].G:X2}{v1OrderedColors[1].B:X2}, Z3=#{v1OrderedColors[2].R:X2}{v1OrderedColors[2].G:X2}{v1OrderedColors[2].B:X2}, Z4=#{v1OrderedColors[3].R:X2}{v1OrderedColors[3].G:X2}{v1OrderedColors[3].B:X2}");
                     return;
                 }
                 
@@ -380,9 +439,9 @@ namespace OmenCore.Services
                     var colorTable = new byte[12];
                     for (int i = 0; i < 4; i++)
                     {
-                        colorTable[i * 3] = orderedColors[i].R;
-                        colorTable[i * 3 + 1] = orderedColors[i].G;
-                        colorTable[i * 3 + 2] = orderedColors[i].B;
+                        colorTable[i * 3] = v1OrderedColors[i].R;
+                        colorTable[i * 3 + 1] = v1OrderedColors[i].G;
+                        colorTable[i * 3 + 2] = v1OrderedColors[i].B;
                     }
                     
                     bool wmiSuccess = _wmiBios.SetColorTable(colorTable);
@@ -391,7 +450,7 @@ namespace OmenCore.Services
                     if (wmiSuccess)
                     {
                         _logging.Info($"✓ Keyboard color table set via WMI BIOS ({colorTable.Length} bytes)");
-                        _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
+                        _logging.Info($"✓ Applied keyboard zone colors: Z1=#{v1OrderedColors[0].R:X2}{v1OrderedColors[0].G:X2}{v1OrderedColors[0].B:X2}, Z2=#{v1OrderedColors[1].R:X2}{v1OrderedColors[1].G:X2}{v1OrderedColors[1].B:X2}, Z3=#{v1OrderedColors[2].R:X2}{v1OrderedColors[2].G:X2}{v1OrderedColors[2].B:X2}, Z4=#{v1OrderedColors[3].R:X2}{v1OrderedColors[3].G:X2}{v1OrderedColors[3].B:X2}");
                         
                         // Tip for users if WMI doesn't visually work
                         if (!IsExperimentalEcEnabled)
@@ -407,7 +466,7 @@ namespace OmenCore.Services
                 bool wmiIndividualSuccess = true;
                 for (int i = 0; i < 4; i++)
                 {
-                    if (!SetZoneColorInternal((KeyboardZone)i, orderedColors[i]))
+                    if (!SetZoneColorInternal((KeyboardZone)i, v1OrderedColors[i]))
                     {
                         wmiIndividualSuccess = false;
                         break;
@@ -431,12 +490,12 @@ namespace OmenCore.Services
                         data[0] = 4;
                         const int COLOR_TABLE_PAD = 24;
                         int colorOffset = 1 + COLOR_TABLE_PAD; // Byte 25
-                        int colorsToCopy = Math.Min(12, orderedColors.Length * 3);
+                        int colorsToCopy = Math.Min(12, v1OrderedColors.Length * 3);
                         for (int i = 0; i < 4; i++)
                         {
-                            data[colorOffset + i * 3] = orderedColors[i].R;
-                            data[colorOffset + i * 3 + 1] = orderedColors[i].G;
-                            data[colorOffset + i * 3 + 2] = orderedColors[i].B;
+                            data[colorOffset + i * 3] = v1OrderedColors[i].R;
+                            data[colorOffset + i * 3 + 1] = v1OrderedColors[i].G;
+                            data[colorOffset + i * 3 + 2] = v1OrderedColors[i].B;
                         }
 
                         bool oghOk = TryOghSetColorTable(data);
@@ -444,7 +503,7 @@ namespace OmenCore.Services
                         if (oghOk)
                         {
                             _logging.Info("✓ Keyboard colors set via OGH proxy fallback");
-                            _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
+                            _logging.Info($"✓ Applied keyboard zone colors: Z1=#{v1OrderedColors[0].R:X2}{v1OrderedColors[0].G:X2}{v1OrderedColors[0].B:X2}, Z2=#{v1OrderedColors[1].R:X2}{v1OrderedColors[1].G:X2}{v1OrderedColors[1].B:X2}, Z3=#{v1OrderedColors[2].R:X2}{v1OrderedColors[2].G:X2}{v1OrderedColors[2].B:X2}, Z4=#{v1OrderedColors[3].R:X2}{v1OrderedColors[3].G:X2}{v1OrderedColors[3].B:X2}");
                             return;
                         }
                         _logging.Warn("OGH proxy fallback failed or commands unsupported on this model");
@@ -461,11 +520,11 @@ namespace OmenCore.Services
                     _logging.Warn("⚠️ WMI failed, falling back to EXPERIMENTAL EC keyboard writes - crash risk!");
                     for (int i = 0; i < 4; i++)
                     {
-                        SetZoneColorViaEc((KeyboardZone)i, orderedColors[i]);
+                        SetZoneColorViaEc((KeyboardZone)i, v1OrderedColors[i]);
                     }
                     TrackEcResult(true);
                     _logging.Info("✓ All zone colors set via EC fallback (EXPERIMENTAL)");
-                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{orderedColors[0].R:X2}{orderedColors[0].G:X2}{orderedColors[0].B:X2}, Z2=#{orderedColors[1].R:X2}{orderedColors[1].G:X2}{orderedColors[1].B:X2}, Z3=#{orderedColors[2].R:X2}{orderedColors[2].G:X2}{orderedColors[2].B:X2}, Z4=#{orderedColors[3].R:X2}{orderedColors[3].G:X2}{orderedColors[3].B:X2}");
+                    _logging.Info($"✓ Applied keyboard zone colors: Z1=#{v1OrderedColors[0].R:X2}{v1OrderedColors[0].G:X2}{v1OrderedColors[0].B:X2}, Z2=#{v1OrderedColors[1].R:X2}{v1OrderedColors[1].G:X2}{v1OrderedColors[1].B:X2}, Z3=#{v1OrderedColors[2].R:X2}{v1OrderedColors[2].G:X2}{v1OrderedColors[2].B:X2}, Z4=#{v1OrderedColors[3].R:X2}{v1OrderedColors[3].G:X2}{v1OrderedColors[3].B:X2}");
                     return;
                 }
                 
@@ -531,7 +590,19 @@ namespace OmenCore.Services
             
             try
             {
-                // Use WMI for brightness - EC writes to keyboard registers are not safe on all models
+                // Delegate to V2 engine if active (uses native WMI brightness or EC register)
+                if (_useV2Backend && _v2Service != null)
+                {
+                    var result = _v2Service.SetBrightnessAsync(brightness).GetAwaiter().GetResult();
+                    if (result)
+                    {
+                        _logging.Info($"✓ Brightness {brightness}% set via V2 engine ({_v2Service.BackendName})");
+                        return;
+                    }
+                    _logging.Warn("V2 engine brightness failed, falling back to V1.");
+                }
+
+                // V1 fallback: Use WMI for brightness
                 if (_wmiAvailable)
                 {
                     SetBrightnessViaWmi(brightness);
@@ -555,17 +626,32 @@ namespace OmenCore.Services
             
             try
             {
+                // Delegate to V2 engine if active
+                if (_useV2Backend && _v2Service != null)
+                {
+                    var white = Color.FromArgb(255, 255, 255);
+                    var colors = new Color[] { white, white, white, white };
+                    var result = _v2Service.SetZoneColorsAsync(colors).GetAwaiter().GetResult();
+                    _ = _v2Service.SetBrightnessAsync(80);
+                    if (result.Success)
+                    {
+                        _logging.Info($"✓ Defaults restored via V2 engine ({_v2Service.BackendName})");
+                        return;
+                    }
+                    _logging.Warn($"V2 engine defaults failed: {result.FailureReason}. Falling back to V1.");
+                }
+                
                 // Default: White static at 80% brightness
-                var white = Color.FromArgb(255, 255, 255);
+                var defaultWhite = Color.FromArgb(255, 255, 255);
                 
                 // Use WMI only - EC keyboard writes are dangerous on some models
                 if (_wmiAvailable)
                 {
-                    ApplyViaWmi(KeyboardEffect.Static, white, white, 0.5, 80);
+                    ApplyViaWmi(KeyboardEffect.Static, defaultWhite, defaultWhite, 0.5, 80);
                 }
                 else if (_wmiBiosAvailable)
                 {
-                    SetZoneColor(KeyboardZone.All, white);
+                    SetZoneColor(KeyboardZone.All, defaultWhite);
                 }
                 else
                 {
@@ -674,6 +760,7 @@ namespace OmenCore.Services
             {
                 // Log telemetry summary before disposing
                 LogTelemetrySummary();
+                _v2Service?.Dispose();
                 _disposed = true;
             }
         }

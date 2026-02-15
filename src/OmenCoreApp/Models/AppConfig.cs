@@ -214,7 +214,47 @@ namespace OmenCore.Models
         /// Saved keyboard zone colors (4 zones). Applied on startup.
         /// </summary>
         public KeyboardLightingSettings KeyboardLighting { get; set; } = new();
-    }
+        
+        /// <summary>
+        /// Memory optimizer: whether periodic/interval auto-clean is enabled.
+        /// Persisted so it survives app restarts.
+        /// </summary>
+        public bool MemoryIntervalCleanEnabled { get; set; } = false;
+        
+        /// <summary>
+        /// Memory optimizer: interval in minutes for periodic auto-clean.
+        /// Persisted so it survives app restarts. Range: 1-120, default: 10.
+        /// </summary>
+        public int MemoryIntervalCleanMinutes { get; set; } = 10;
+        
+        /// <summary>
+        /// Memory optimizer: whether threshold-based auto-clean is enabled.
+        /// Persisted so it survives app restarts.
+        /// </summary>
+        public bool MemoryAutoCleanEnabled { get; set; } = false;
+        
+        /// <summary>
+        /// Memory optimizer: memory usage % threshold that triggers auto-clean.
+        /// Persisted so it survives app restarts. Range: 50-95, default: 80.
+        /// </summary>
+        public int MemoryAutoCleanThreshold { get; set; } = 80;
+        
+        /// <summary>
+        /// Hardware worker: whether orphan timeout is enabled (worker exits after parent dies with no reconnection).
+        /// Default: true. Set to false for headless/server scenarios where worker should persist indefinitely.
+        /// </summary>
+        public bool HardwareWorkerOrphanTimeoutEnabled { get; set; } = true;
+        
+        /// <summary>
+        /// Hardware worker: timeout in minutes after parent dies before worker exits if no client reconnects.
+        /// Only applies if HardwareWorkerOrphanTimeoutEnabled is true. Range: 1-60, default: 5.
+        /// </summary>
+        public int HardwareWorkerOrphanTimeoutMinutes { get; set; } = 5;        
+        /// <summary>
+        /// Application: run in headless mode (no main window, only tray icon and background services).
+        /// Useful for servers or when only fan/performance control is needed. Default: false.
+        /// </summary>
+        public bool HeadlessMode { get; set; } = false;    }
     
     /// <summary>
     /// Settings for HP OMEN keyboard 4-zone RGB lighting.

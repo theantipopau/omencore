@@ -14,6 +14,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -80,6 +81,14 @@ namespace OmenCore.ViewModels
         private WmiBiosMonitor? _wmiBiosMonitor;
         private OghServiceProxy? _oghProxy;
         private HotkeyOsdWindow? _hotkeyOsd;
+        private readonly object _trayActionQueueLock = new();
+        private Func<Task>? _pendingTrayAction;
+        private string _pendingTrayActionName = string.Empty;
+        private bool _trayActionWorkerRunning;
+        private readonly CancellationTokenSource _trayWorkerCts = new();
+        private readonly DateTime _monitoringStartupUtc = DateTime.UtcNow;
+        private volatile bool _safeModeActive;
+        private System.Threading.Timer? _safeModeResetTimer;
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
         private FanControlViewModel? _fanControl;
@@ -257,7 +266,7 @@ namespace OmenCore.ViewModels
             {
                 if (_memoryOptimizer == null)
                 {
-                    _memoryOptimizer = new MemoryOptimizerViewModel(_logging);
+                    _memoryOptimizer = new MemoryOptimizerViewModel(_logging, _configService);
                     OnPropertyChanged(nameof(MemoryOptimizer));
                 }
                 return _memoryOptimizer;
@@ -1241,7 +1250,7 @@ namespace OmenCore.ViewModels
             }
             
             _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging);
-            _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService);
+            _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService);
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
             
@@ -1293,6 +1302,7 @@ namespace OmenCore.ViewModels
             _hardwareMonitoringService = new HardwareMonitoringService(monitorBridge, _logging, _config.Monitoring ?? new MonitoringPreferences());
             MonitoringSamples = _hardwareMonitoringService.Samples;
             _hardwareMonitoringService.SampleUpdated += HardwareMonitoringServiceOnSampleUpdated;
+            _hardwareMonitoringService.HealthStatusChanged += HardwareMonitoringServiceOnHealthStatusChanged;
             _monitoringLowOverhead = _config.Monitoring?.LowOverheadMode ?? false;
             _hardwareMonitoringService.SetLowOverheadMode(_monitoringLowOverhead);
             
@@ -1655,7 +1665,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async Task ApplyGameProfileAsync(GameProfile profile)
+        private Task ApplyGameProfileAsync(GameProfile profile)
         {
             // Apply fan preset
             if (!string.IsNullOrEmpty(profile.FanPresetName) && FanControl != null)
@@ -1725,9 +1735,11 @@ namespace OmenCore.ViewModels
             }
 
             _logging.Info($"✓ Profile '{profile.Name}' applied successfully");
+
+            return Task.CompletedTask;
         }
 
-        private async Task RestoreDefaultSettingsAsync()
+        private Task RestoreDefaultSettingsAsync()
         {
             // Restore to balanced defaults
             if (FanControl != null)
@@ -1749,6 +1761,8 @@ namespace OmenCore.ViewModels
             }
 
             _logging.Info("✓ Restored default settings");
+
+            return Task.CompletedTask;
         }
 
         private void OpenGameProfileManager()
@@ -2643,74 +2657,205 @@ namespace OmenCore.ViewModels
 
         #region Tray Quick Actions
 
+        private void EnqueueTrayActionLatest(string actionName, Func<Task> action, bool skipWhenSafeMode = true)
+        {
+            lock (_trayActionQueueLock)
+            {
+                _pendingTrayActionName = actionName;
+                _pendingTrayAction = async () =>
+                {
+                    if (skipWhenSafeMode && _safeModeActive)
+                    {
+                        _logging.Warn($"Tray action '{actionName}' blocked: Startup Safe Mode active");
+                        Application.Current?.Dispatcher?.BeginInvoke(() => PushEvent($"🛡 Safe Mode blocked tray write: {actionName}"));
+                        return;
+                    }
+
+                    await action();
+                };
+
+                if (_trayActionWorkerRunning)
+                {
+                    _logging.Debug($"Tray action '{actionName}' queued as latest (last-write-wins)");
+                    return;
+                }
+
+                _trayActionWorkerRunning = true;
+            }
+
+            _ = Task.Run(ProcessTrayActionQueueAsync);
+        }
+
+        private async Task ProcessTrayActionQueueAsync()
+        {
+            var ct = _trayWorkerCts.Token;
+            while (!ct.IsCancellationRequested)
+            {
+                Func<Task>? nextAction;
+                string nextName;
+
+                lock (_trayActionQueueLock)
+                {
+                    nextAction = _pendingTrayAction;
+                    nextName = _pendingTrayActionName;
+                    _pendingTrayAction = null;
+                    _pendingTrayActionName = string.Empty;
+
+                    if (nextAction == null)
+                    {
+                        _trayActionWorkerRunning = false;
+                        return;
+                    }
+                }
+
+                try
+                {
+                    await nextAction();
+                }
+                catch (OperationCanceledException)
+                {
+                    _logging.Info("Tray action worker cancelled during shutdown");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Tray action '{nextName}' failed: {ex.Message}");
+                }
+            }
+
+            lock (_trayActionQueueLock)
+            {
+                _trayActionWorkerRunning = false;
+            }
+        }
+
+        private void HardwareMonitoringServiceOnHealthStatusChanged(object? sender, MonitoringHealthStatus status)
+        {
+            var features = _configService.Config.Features;
+
+            // Reset safe mode when monitoring recovers to Healthy
+            if (_safeModeActive && status == MonitoringHealthStatus.Healthy)
+            {
+                _safeModeActive = false;
+                _safeModeResetTimer?.Dispose();
+                _safeModeResetTimer = null;
+                _logging.Info("🛡 Startup Safe Mode deactivated — monitoring recovered to Healthy");
+                Application.Current?.Dispatcher?.BeginInvoke(() => PushEvent("🛡 Safe Mode lifted — monitoring healthy"));
+                return;
+            }
+
+            if (_safeModeActive)
+            {
+                return;
+            }
+
+            if (features?.StartupSafeModeGuardEnabled != true)
+            {
+                return;
+            }
+
+            var elapsed = DateTime.UtcNow - _monitoringStartupUtc;
+            var windowSeconds = Math.Max(30, features.StartupSafeModeWindowSeconds);
+            var withinWindow = elapsed.TotalSeconds <= windowSeconds;
+            if (!withinWindow)
+            {
+                return;
+            }
+
+            var threshold = Math.Max(1, features.StartupSafeModeTimeoutThreshold);
+            if ((status == MonitoringHealthStatus.Degraded || status == MonitoringHealthStatus.Stale) &&
+                _hardwareMonitoringService.ConsecutiveTimeouts >= threshold)
+            {
+                _safeModeActive = true;
+                _logging.Warn($"🛡 Startup Safe Mode activated (status={status}, timeouts={_hardwareMonitoringService.ConsecutiveTimeouts})");
+                Application.Current?.Dispatcher?.BeginInvoke(() => PushEvent("🛡 Startup Safe Mode active — hardware write actions are temporarily restricted"));
+
+                // Schedule automatic reset after the remaining startup window elapses
+                var remainingMs = Math.Max(5000, (windowSeconds - elapsed.TotalSeconds) * 1000);
+                _safeModeResetTimer = new System.Threading.Timer(_ =>
+                {
+                    if (_safeModeActive)
+                    {
+                        _safeModeActive = false;
+                        _logging.Info($"🛡 Startup Safe Mode auto-expired after startup window ({windowSeconds}s)");
+                        Application.Current?.Dispatcher?.BeginInvoke(() => PushEvent("🛡 Safe Mode expired — startup window complete"));
+                    }
+                }, null, (int)remainingMs, System.Threading.Timeout.Infinite);
+            }
+        }
+
         public void SetFanModeFromTray(string mode)
         {
             _logging.Info($"Fan mode change requested from tray: {mode}");
-            try
+            EnqueueTrayActionLatest($"Fan:{mode}", async () =>
             {
-                // BUG FIX v2.6.1: Prioritize exact match for "Max" to avoid picking "Performance" first
-                FanPreset? targetPreset = mode switch
+                var dispatcher = Application.Current?.Dispatcher;
+                FanPreset? targetPreset = null;
+                if (dispatcher != null)
                 {
-                    "Max" => FanPresets.FirstOrDefault(p => p.Name.Equals("Max", StringComparison.OrdinalIgnoreCase)) 
-                             ?? FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase)),
-                    "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
-                    _ => FanPresets.FirstOrDefault(p => p.Name.Contains("Auto", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Balanced", StringComparison.OrdinalIgnoreCase))
-                };
+                    await dispatcher.InvokeAsync(() =>
+                    {
+                        targetPreset = mode switch
+                        {
+                            "Max" => FanPresets.FirstOrDefault(p => p.Name.Equals("Max", StringComparison.OrdinalIgnoreCase))
+                                     ?? FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase)),
+                            "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
+                            _ => FanPresets.FirstOrDefault(p => p.Name.Contains("Auto", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Balanced", StringComparison.OrdinalIgnoreCase))
+                        };
+                    });
+                }
 
                 if (targetPreset != null)
                 {
-                    SelectedPreset = targetPreset;
-                    // BUG FIX v2.6.1: Use immediate=true so max fan is applied right away
-                    _fanService.ApplyPreset(targetPreset, immediate: true);
-                    CurrentFanMode = mode;
-                    PushEvent($"🌀 Fan mode: {mode}");
-                    
-                    // v2.6.1: Show notification for fan mode changes from tray
-                    _notificationService.ShowFanModeChanged(mode, "Quick Access");
+                    await Task.Run(() => _fanService.ApplyPreset(targetPreset, immediate: true));
+                    if (dispatcher != null)
+                    {
+                        await dispatcher.InvokeAsync(() =>
+                        {
+                            SelectedPreset = targetPreset;
+                            CurrentFanMode = mode;
+                            PushEvent($"🌀 Fan mode: {mode}");
+                            _notificationService.ShowFanModeChanged(mode, "Quick Access");
+                        });
+                    }
                 }
                 else
                 {
-                    // No matching preset found, just update state
-                    CurrentFanMode = mode;
-                    PushEvent($"🌀 Fan mode: {mode} (preset not found)");
+                    if (dispatcher != null)
+                    {
+                        await dispatcher.InvokeAsync(() =>
+                        {
+                            CurrentFanMode = mode;
+                            PushEvent($"🌀 Fan mode: {mode} (preset not found)");
+                        });
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"Failed to set fan mode from tray: {ex.Message}");
-            }
+            });
         }
 
         public void SetPerformanceModeFromTray(string mode)
         {
             _logging.Info($"Performance mode change requested from tray: {mode}");
-            try
+            EnqueueTrayActionLatest($"Performance:{mode}", async () =>
             {
-                if (SystemControl != null)
-                {
-                    var targetMode = SystemControl.PerformanceModes.FirstOrDefault(m => 
-                        m.Name.Equals(mode, StringComparison.OrdinalIgnoreCase));
+                var dispatcher = Application.Current?.Dispatcher;
+                var targetServiceMode = mode.Equals("Balanced", StringComparison.OrdinalIgnoreCase) ? "Default" : mode;
+                await Task.Run(() => _performanceModeService.SetPerformanceMode(targetServiceMode));
 
-                    if (targetMode != null)
+                if (dispatcher != null)
+                {
+                    await dispatcher.InvokeAsync(() =>
                     {
-                        SystemControl.SelectedPerformanceMode = targetMode;
-                        SystemControl.ApplyPerformanceModeCommand?.Execute(null);
+                        if (SystemControl != null)
+                        {
+                            SystemControl.SelectModeByNameNoApply(mode);
+                        }
+
                         CurrentPerformanceMode = mode;
                         PushEvent($"⚡ Performance: {mode}");
-                    }
+                    });
                 }
-                else
-                {
-                    // Direct service call as fallback
-                    _performanceModeService.Apply(new PerformanceMode { Name = mode });
-                    CurrentPerformanceMode = mode;
-                    PushEvent($"⚡ Performance: {mode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"Failed to set performance mode from tray: {ex.Message}");
-            }
+            });
         }
         
         /// <summary>
@@ -2719,60 +2864,63 @@ namespace OmenCore.ViewModels
         public void ApplyQuickProfileFromTray(string profile)
         {
             _logging.Info($"Quick profile change requested from tray: {profile}");
-            try
+            EnqueueTrayActionLatest($"QuickProfile:{profile}", async () =>
             {
-                // Use GeneralViewModel if available for proper syncing
-                if (General != null)
+                var dispatcher = Application.Current?.Dispatcher;
+                string performanceMode;
+                string fanMode;
+
+                switch (profile.ToLowerInvariant())
                 {
-                    switch (profile.ToLower())
-                    {
-                        case "performance":
-                            General.ApplyPerformanceProfile();
-                            break;
-                        case "balanced":
-                            General.ApplyBalancedProfile();
-                            break;
-                        case "quiet":
-                            General.ApplyQuietProfile();
-                            break;
-                        default:
-                            _logging.Warn($"Unknown profile: {profile}");
-                            return;
-                    }
-                }
-                else
-                {
-                    // Fallback: apply both modes separately
-                    switch (profile.ToLower())
-                    {
-                        case "performance":
+                    case "performance":
+                        await Task.Run(() =>
+                        {
                             _performanceModeService.SetPerformanceMode("Performance");
                             _fanService.ApplyMaxCooling();
-                            CurrentPerformanceMode = "Performance";
-                            CurrentFanMode = "Max";
-                            break;
-                        case "balanced":
+                        });
+                        performanceMode = "Performance";
+                        fanMode = "Max";
+                        break;
+
+                    case "balanced":
+                        await Task.Run(() =>
+                        {
                             _performanceModeService.SetPerformanceMode("Default");
                             _fanService.ApplyAutoMode();
-                            CurrentPerformanceMode = "Balanced";
-                            CurrentFanMode = "Auto";
-                            break;
-                        case "quiet":
+                        });
+                        performanceMode = "Balanced";
+                        fanMode = "Auto";
+                        break;
+
+                    case "quiet":
+                        await Task.Run(() =>
+                        {
                             _performanceModeService.SetPerformanceMode("Quiet");
                             _fanService.ApplyQuietMode();
-                            CurrentPerformanceMode = "Quiet";
-                            CurrentFanMode = "Quiet";
-                            break;
-                    }
+                        });
+                        performanceMode = "Quiet";
+                        fanMode = "Quiet";
+                        break;
+
+                    default:
+                        _logging.Warn($"Unknown profile: {profile}");
+                        return;
                 }
-                
-                ShowHotkeyOsd("Profile", profile, "Tray");
-                PushEvent($"🎮 Profile: {profile}");
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"Failed to apply quick profile from tray: {ex.Message}");
-            }
+
+                if (dispatcher != null)
+                {
+                    await dispatcher.InvokeAsync(() =>
+                    {
+                        CurrentPerformanceMode = performanceMode;
+                        CurrentFanMode = fanMode;
+                        General?.SetSystemControlViewModel(SystemControl);
+                        SystemControl?.SelectModeByNameNoApply(performanceMode);
+                        FanControl?.SelectPresetByNameNoApply(fanMode);
+                        ShowHotkeyOsd("Profile", profile, "Tray");
+                        PushEvent($"🎮 Profile: {profile}");
+                    });
+                }
+            });
         }
         
         /// <summary>
@@ -2781,21 +2929,24 @@ namespace OmenCore.ViewModels
         public void SetGpuPowerFromTray(string level)
         {
             _logging.Info($"GPU power level change requested from tray: {level}");
-            try
+            EnqueueTrayActionLatest($"GpuPower:{level}", async () =>
             {
-                if (SystemControl != null)
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null)
                 {
-                    SystemControl.GpuPowerBoostLevel = level;
-                    SystemControl.ApplyGpuPowerBoostCommand?.Execute(null);
-                    CurrentGpuPowerLevel = level;
-                    PushEvent($"⚡ GPU Power: {level}");
-                    _notificationService.ShowInfo("GPU Power", $"Set to {level}");
+                    await dispatcher.InvokeAsync(() =>
+                    {
+                        if (SystemControl != null)
+                        {
+                            SystemControl.GpuPowerBoostLevel = level;
+                            SystemControl.ApplyGpuPowerBoostCommand?.Execute(null);
+                            CurrentGpuPowerLevel = level;
+                            PushEvent($"⚡ GPU Power: {level}");
+                            _notificationService.ShowInfo("GPU Power", $"Set to {level}");
+                        }
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"Failed to set GPU power from tray: {ex.Message}");
-            }
+            });
         }
         
         /// <summary>
@@ -2804,28 +2955,30 @@ namespace OmenCore.ViewModels
         public void SetKeyboardBacklightFromTray(int level)
         {
             _logging.Info($"Keyboard backlight change requested from tray: level {level}");
-            try
+            EnqueueTrayActionLatest($"Backlight:{level}", async () =>
             {
-                if (_keyboardLightingService?.IsAvailable == true)
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null)
                 {
-                    // Convert level 0-3 to brightness byte (0, 85, 170, 255)
-                    int brightness = level switch
+                    await dispatcher.InvokeAsync(() =>
                     {
-                        0 => 0,
-                        1 => 85,
-                        2 => 170,
-                        _ => 255
-                    };
-                    _keyboardLightingService.SetBrightness(brightness);
-                    CurrentKeyboardBrightness = level;
-                    string levelName = level switch { 0 => "Off", 1 => "Low", 2 => "Medium", _ => "High" };
-                    PushEvent($"💡 Keyboard: {levelName}");
+                        if (_keyboardLightingService?.IsAvailable == true)
+                        {
+                            int brightness = level switch
+                            {
+                                0 => 0,
+                                1 => 85,
+                                2 => 170,
+                                _ => 255
+                            };
+                            _keyboardLightingService.SetBrightness(brightness);
+                            CurrentKeyboardBrightness = level;
+                            string levelName = level switch { 0 => "Off", 1 => "Low", 2 => "Medium", _ => "High" };
+                            PushEvent($"💡 Keyboard: {levelName}");
+                        }
+                    });
                 }
-            }
-            catch (Exception ex)
-            {
-                _logging.Warn($"Failed to set keyboard backlight from tray: {ex.Message}");
-            }
+            });
         }
         
         /// <summary>
@@ -3035,7 +3188,7 @@ namespace OmenCore.ViewModels
         
         private void OnOmenKeyToggleMaxCooling(object? sender, EventArgs e)
         {
-            Application.Current?.Dispatcher?.BeginInvoke(async () =>
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 try
                 {
@@ -3195,10 +3348,17 @@ namespace OmenCore.ViewModels
 
         public void Dispose()
         {
+            // Cancel any pending tray worker actions for clean shutdown
+            _trayWorkerCts.Cancel();
+            _trayWorkerCts.Dispose();
+            
+            _safeModeResetTimer?.Dispose();
+            _safeModeResetTimer = null;
             _fanService.Dispose();
             _undervoltService.StatusChanged -= UndervoltServiceOnStatusChanged;
             _undervoltService.Dispose();
             _hardwareMonitoringService.SampleUpdated -= HardwareMonitoringServiceOnSampleUpdated;
+            _hardwareMonitoringService.HealthStatusChanged -= HardwareMonitoringServiceOnHealthStatusChanged;
             _hardwareMonitoringService.Dispose();
             if (_macroBufferNotifier != null)
             {

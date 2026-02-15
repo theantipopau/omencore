@@ -149,16 +149,40 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
                                                 <TextBlock Text="CPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
-                                                <TextBlock Text="{Binding Dashboard.CpuTemperature, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
-                                                           FontSize="16" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center"
-                                                           FontFamily="{StaticResource MonospaceFontFamily}"/>
+                                                <TextBlock Text="{Binding Dashboard.CpuTempDisplay, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Dashboard.IsCpuTempAvailable}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="ToolTip" Value="CPU temperature sensor unavailable"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                             <Rectangle Grid.Column="1" Width="1" Fill="{StaticResource BorderBrush}" Margin="8,2"/>
                                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                                                 <TextBlock Text="GPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
-                                                <TextBlock Text="{Binding Dashboard.GpuTemperature, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
-                                                           FontSize="16" FontWeight="Bold" Foreground="{StaticResource AccentBlueBrush}" HorizontalAlignment="Center"
-                                                           FontFamily="{StaticResource MonospaceFontFamily}"/>
+                                                <TextBlock Text="{Binding Dashboard.GpuTempDisplay, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Dashboard.IsGpuTempAvailable}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="ToolTip" Value="GPU temperature sensor unavailable"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Grid>
                                     </Border>

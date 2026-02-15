@@ -276,4 +276,4 @@ rm -rf ~/OmenCore-linux-x64
 - [LINUX_TESTING.md](docs/LINUX_TESTING.md) - Detailed Linux testing guide
 - [QUICK_START.md](docs/QUICK_START.md) - Quick start for new users
 - [ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) - Antivirus false positive information
-- [Discord Server](https://discord.gg/Neh3DCH5) - Community support
+- [Discord Server](https://discord.gg/9WhJdabGk8) - Community support

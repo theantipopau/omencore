@@ -20,6 +20,7 @@ namespace OmenCore.Views
         
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
+        private string _monitoringHealth = "Unknown";
         
         /// <summary>
         /// Raised when user requests a fan mode change.
@@ -67,6 +68,10 @@ namespace OmenCore.Views
             // Position in bottom-right corner, above taskbar
             Left = workArea.Right - Width - 12;
             Top = workArea.Bottom - Height - 12;
+
+            // Resume timer when showing
+            if (!_updateTimer.IsEnabled)
+                _updateTimer.Start();
         }
 
         /// <summary>
@@ -95,6 +100,19 @@ namespace OmenCore.Views
             UpdatePerformanceModeButtons();
         }
 
+        public void UpdateMonitoringHealth(string health)
+        {
+            _monitoringHealth = string.IsNullOrWhiteSpace(health) ? "Unknown" : health;
+            HealthStatusText.Text = $"Monitoring: {_monitoringHealth}";
+            HealthStatusText.Foreground = _monitoringHealth switch
+            {
+                "Healthy" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x00, 0xC8, 0xC8)),  // Teal
+                "Degraded" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xB8, 0x00)), // Amber
+                "Stale" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0x00, 0x5C)),    // Red
+                _ => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF))           // Grey
+            };
+        }
+
         private void UpdateDisplay(object? sender, EventArgs e)
         {
             if (_latestSample == null) return;
@@ -104,6 +122,7 @@ namespace OmenCore.Views
             GpuTempText.Text = _latestSample.GpuTemperatureC.ToString("0");
             CpuLoadText.Text = $"{_latestSample.CpuLoadPercent:0}%";
             GpuLoadText.Text = $"{_latestSample.GpuLoadPercent:0}%";
+            HealthStatusText.Text = $"Monitoring: {_monitoringHealth}";
         }
 
         private void UpdateFanModeButtons()
@@ -200,12 +219,14 @@ namespace OmenCore.Views
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            _updateTimer.Stop();
             Hide();
         }
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
             // Auto-hide when clicking outside
+            _updateTimer.Stop();
             Hide();
         }
 

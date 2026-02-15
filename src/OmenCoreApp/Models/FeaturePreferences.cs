@@ -114,5 +114,29 @@ namespace OmenCore.Models
         /// Default: false (auto-detect available backends).
         /// </summary>
         public bool PawnIOOnlyMode { get; set; } = false;
+
+        /// <summary>
+        /// Enable startup safe-mode guardrails.
+        /// If monitoring becomes degraded/stale shortly after startup, OmenCore temporarily blocks
+        /// hardware write actions (fan/performance tray writes) to avoid lockups while telemetry stabilizes.
+        /// </summary>
+        public bool StartupSafeModeGuardEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Startup guard window in seconds.
+        /// Safe mode can only auto-activate within this startup period.
+        /// </summary>
+        public int StartupSafeModeWindowSeconds { get; set; } = 180;
+
+        /// <summary>
+        /// Consecutive monitoring timeout threshold before startup safe mode activates.
+        /// </summary>
+        public int StartupSafeModeTimeoutThreshold { get; set; } = 2;
+
+        /// <summary>
+        /// Experimental: cycle performance profile when firmware emits Fn+P-like WMI event.
+        /// Disabled by default because event IDs vary across models/BIOS versions.
+        /// </summary>
+        public bool EnableFirmwareFnPProfileCycle { get; set; } = false;
     }
 }

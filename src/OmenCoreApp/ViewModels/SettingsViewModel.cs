@@ -37,6 +37,7 @@ namespace OmenCore.ViewModels
         private bool _startMinimized;
         private bool _minimizeToTrayOnClose = true;
         private bool _stayOnTop;
+        private bool _headlessMode;
         private int _pollingIntervalMs = 2000;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
@@ -189,6 +190,20 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public bool HeadlessMode
+        {
+            get => _headlessMode;
+            set
+            {
+                if (_headlessMode != value)
+                {
+                    _headlessMode = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
         public bool MinimizeToTrayOnClose
         {
             get => _minimizeToTrayOnClose;
@@ -283,6 +298,41 @@ namespace OmenCore.ViewModels
         /// Event raised when low overhead mode changes, so MainViewModel can update UI
         /// </summary>
         public event EventHandler<bool>? LowOverheadModeChanged;
+
+        #endregion
+
+        #region Hardware Worker Settings
+
+        private bool _hardwareWorkerOrphanTimeoutEnabled = true;
+        private int _hardwareWorkerOrphanTimeoutMinutes = 5;
+
+        public bool HardwareWorkerOrphanTimeoutEnabled
+        {
+            get => _hardwareWorkerOrphanTimeoutEnabled;
+            set
+            {
+                if (_hardwareWorkerOrphanTimeoutEnabled != value)
+                {
+                    _hardwareWorkerOrphanTimeoutEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public int HardwareWorkerOrphanTimeoutMinutes
+        {
+            get => _hardwareWorkerOrphanTimeoutMinutes;
+            set
+            {
+                if (_hardwareWorkerOrphanTimeoutMinutes != value)
+                {
+                    _hardwareWorkerOrphanTimeoutMinutes = Math.Clamp(value, 1, 60);
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
 
         #endregion
 
@@ -484,6 +534,83 @@ namespace OmenCore.ViewModels
                     _hotkeysEnabled = value;
                     OnPropertyChanged();
                     SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enables startup safe-mode guardrails that temporarily block risky hardware writes
+        /// if monitoring is unstable shortly after launch.
+        /// </summary>
+        public bool StartupSafeModeGuardEnabled
+        {
+            get => _config.Features?.StartupSafeModeGuardEnabled ?? true;
+            set
+            {
+                if (_config.Features == null) _config.Features = new FeaturePreferences();
+                if (_config.Features.StartupSafeModeGuardEnabled != value)
+                {
+                    _config.Features.StartupSafeModeGuardEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Startup window (seconds) during which safe mode may auto-activate.
+        /// </summary>
+        public int StartupSafeModeWindowSeconds
+        {
+            get => _config.Features?.StartupSafeModeWindowSeconds ?? 180;
+            set
+            {
+                if (_config.Features == null) _config.Features = new FeaturePreferences();
+                var clamped = Math.Clamp(value, 30, 600);
+                if (_config.Features.StartupSafeModeWindowSeconds != clamped)
+                {
+                    _config.Features.StartupSafeModeWindowSeconds = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Number of consecutive monitoring timeouts required before startup safe mode activates.
+        /// </summary>
+        public int StartupSafeModeTimeoutThreshold
+        {
+            get => _config.Features?.StartupSafeModeTimeoutThreshold ?? 2;
+            set
+            {
+                if (_config.Features == null) _config.Features = new FeaturePreferences();
+                var clamped = Math.Clamp(value, 1, 10);
+                if (_config.Features.StartupSafeModeTimeoutThreshold != clamped)
+                {
+                    _config.Features.StartupSafeModeTimeoutThreshold = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Experimental: allow firmware Fn+P profile cycle event mapping when available.
+        /// Disabled by default because WMI event IDs vary by model.
+        /// </summary>
+        public bool EnableFirmwareFnPProfileCycle
+        {
+            get => _config.Features?.EnableFirmwareFnPProfileCycle ?? false;
+            set
+            {
+                if (_config.Features == null) _config.Features = new FeaturePreferences();
+                if (_config.Features.EnableFirmwareFnPProfileCycle != value)
+                {
+                    _config.Features.EnableFirmwareFnPProfileCycle = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    _logging.Info($"Experimental firmware Fn+P profile cycle {(value ? "enabled" : "disabled")}");
                 }
             }
         }
@@ -1971,6 +2098,7 @@ namespace OmenCore.ViewModels
             _startMinimized = _config.Monitoring.StartMinimized;
             _minimizeToTrayOnClose = _config.Monitoring.MinimizeToTrayOnClose;
             _stayOnTop = _config.StayOnTop;
+            _headlessMode = _config.HeadlessMode;
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -1978,6 +2106,10 @@ namespace OmenCore.ViewModels
             _acPerformanceMode = _config.PowerAutomation?.AcPerformanceMode ?? "Balanced";
             _batteryFanPreset = _config.PowerAutomation?.BatteryFanPreset ?? "Quiet";
             _batteryPerformanceMode = _config.PowerAutomation?.BatteryPerformanceMode ?? "Silent";
+
+            // Load hardware worker settings
+            _hardwareWorkerOrphanTimeoutEnabled = _config.HardwareWorkerOrphanTimeoutEnabled;
+            _hardwareWorkerOrphanTimeoutMinutes = _config.HardwareWorkerOrphanTimeoutMinutes;
 
             // Check startup status - first check Task Scheduler, then fall back to registry
             _startWithWindows = CheckStartupTaskExists() || CheckStartupRegistryExists();
@@ -2005,6 +2137,7 @@ namespace OmenCore.ViewModels
             _config.Monitoring.StartMinimized = _startMinimized;
             _config.Monitoring.MinimizeToTrayOnClose = _minimizeToTrayOnClose;
             _config.StayOnTop = _stayOnTop;
+            _config.HeadlessMode = _headlessMode;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -2013,6 +2146,10 @@ namespace OmenCore.ViewModels
             _config.PowerAutomation.AcPerformanceMode = _acPerformanceMode;
             _config.PowerAutomation.BatteryFanPreset = _batteryFanPreset;
             _config.PowerAutomation.BatteryPerformanceMode = _batteryPerformanceMode;
+            
+            // Save hardware worker settings
+            _config.HardwareWorkerOrphanTimeoutEnabled = _hardwareWorkerOrphanTimeoutEnabled;
+            _config.HardwareWorkerOrphanTimeoutMinutes = _hardwareWorkerOrphanTimeoutMinutes;
             
             if (_config.Updates == null)
                 _config.Updates = new UpdatePreferences();
@@ -2465,6 +2602,10 @@ namespace OmenCore.ViewModels
                 GameNotificationsEnabled = true;
                 ModeChangeNotificationsEnabled = true;
                 TemperatureWarningsEnabled = true;
+                StartupSafeModeGuardEnabled = true;
+                StartupSafeModeWindowSeconds = 180;
+                StartupSafeModeTimeoutThreshold = 2;
+                EnableFirmwareFnPProfileCycle = false;
 
                 SaveSettings();
                 

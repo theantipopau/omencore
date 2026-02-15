@@ -91,7 +91,7 @@ namespace OmenCore.Services.KeyboardLighting
             AddModel(new KeyboardModelConfig
             {
                 ProductId = "8BAD",
-                ModelName = "OMEN 15 (2021) Intel",
+                ModelName = "OMEN 15/17 (2021-2023) Intel",
                 KeyboardType = KeyboardType.FourZoneTkl,
                 PreferredMethod = KeyboardMethod.ColorTable2020,
                 FallbackMethods = new[] { KeyboardMethod.EcDirect },
@@ -111,8 +111,21 @@ namespace OmenCore.Services.KeyboardLighting
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════
-            // OMEN 16 Series (16.1" laptops, replaced 15" in 2021+)
+            // OMEN 17 Series
             // ═══════════════════════════════════════════════════════════════════════════════════
+
+            // OMEN 17-ck2xxx (2023 Intel, 13th Gen) — verified by user (Product ID 8BAD shared with OMEN 15)
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "17CK2",  // Virtual ID — matched via model name pattern, not product ID
+                ModelName = "OMEN 17-ck2xxx (2023)",
+                KeyboardType = KeyboardType.FourZoneTkl,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.EcDirect },
+                EcColorRegisters = new byte[] { 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xBB, 0xBC },
+                EcBrightnessRegister = 0xBD,
+                ModelYear = 2023
+            });
             
             AddModel(new KeyboardModelConfig
             {
