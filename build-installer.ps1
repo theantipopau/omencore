@@ -108,7 +108,8 @@ if (-not $iscc) {
     $defaultPaths = @(
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
         "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
-        "${env:LOCALAPPDATA}\Programs\Inno Setup 6\ISCC.exe"
+        "${env:LOCALAPPDATA}\Programs\Inno Setup 6\ISCC.exe",
+        "C:\InnoSetup\ISCC.exe"
     )
     foreach ($candidate in $defaultPaths) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }

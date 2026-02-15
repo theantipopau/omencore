@@ -294,12 +294,14 @@
 
 | File | Size |
 |------|------|
+| `OmenCoreSetup-2.9.0.exe` | Windows installer (recommended) |
 | `OmenCore-2.9.0-win-x64.zip` | Windows portable |
 | `OmenCore-2.9.0-linux-x64.zip` | Linux portable (CLI + Avalonia GUI) |
 
 ## SHA256 Checksums
 
 ```
+2458B63FBAE23221C9D1F4F7AE75B762879EB2F2319B388A1E4C39A786E89AF1  OmenCoreSetup-2.9.0.exe
 37265CEF301576D6492E153BE413B1B686DF9162A01A07F8D53F15F0EB0E1B48  OmenCore-2.9.0-win-x64.zip
 EB59465DEC2F28EE2E11D686D0FDCECCA6BF89A9FF7D3125B6EE6E5E531588C7  OmenCore-2.9.0-linux-x64.zip
 
