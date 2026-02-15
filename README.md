@@ -14,11 +14,11 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - âœ… **No Sign-In Required** - Full offline operation
 - ðŸ§ **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.8.6-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.8.6)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.9.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/Neh3DCH5)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
 [![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C.svg?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
 
 ![OmenCore Screenshot](docs/screenshots/main-window.png)
@@ -29,18 +29,18 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCoreSetup-2.8.6.exe from Releases
-2. Run as Administrator
+1. Download OmenCore-2.9.0-win-x64.zip from Releases
+2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
-4. Launch from Start Menu
+4. Launch from extracted folder
 ```
 **[ðŸ“– Full Windows Installation Guide](INSTALL.md#-windows-installation)**
 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.8.6/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v2.9.0/OmenCore-2.9.0-linux-x64.zip
+unzip OmenCore-2.9.0-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
@@ -52,7 +52,7 @@ chmod +x omencore-gui && sudo ./omencore-gui
 
 ---
 
-## 🆕 What's New in v2.8.6
+## 🆕 What's New in v2.9.0
 
 ### 🐛 Bug Fixes (9 Community Reports)
 - **CPU Temperature 0°C** — Intel Core Ultra / Arrow Lake CPUs now use fallback sensor sweep when primary sensor returns 0
@@ -70,8 +70,10 @@ chmod +x omencore-gui && sudo ./omencore-gui
 - **🧹 Memory Optimizer Tab** — Real-time RAM monitoring with Smart/Deep clean using Windows native API
 - **MSI Afterburner Coexistence** — Reads GPU data from Afterburner's shared memory (zero driver contention)
 - **EC Safety Hardening** — Reduced EC writes from 15-33 ops/sec to ~0.5 ops/sec, preventing false battery shutdowns
+- **Headless Mode** — Run without GUI using `--headless` flag for server operation
+- **Hardware Worker Orphan Timeout** — Configurable timeout (1-60 min) for worker process persistence
 
-Full changelog: [CHANGELOG_v2.8.6.md](docs/CHANGELOG_v2.8.6.md)
+Full changelog: [CHANGELOG_v2.9.0.md](docs/CHANGELOG_v2.9.0.md)
 
 ---
 
@@ -653,17 +655,17 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ### Quick Start - Windows
 
-1. Download `OmenCoreSetup-2.8.6.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
-2. Run installer as Administrator
+1. Download `OmenCore-2.9.0-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
-4. Launch OmenCore from Start Menu
+4. Launch OmenCore from extracted folder
 
 ### Quick Start - Linux
 
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.8.6/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v2.9.0/OmenCore-2.9.0-linux-x64.zip
+unzip OmenCore-2.9.0-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
@@ -1170,7 +1172,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 - **Latest Release**: https://github.com/theantipopau/omencore/releases/latest
 - **Issue Tracker**: https://github.com/theantipopau/omencore/issues
 - **Discussions**: https://github.com/theantipopau/omencore/discussions
-- **Discord Server**: https://discord.gg/Neh3DCH5
+- **Discord Server**: https://discord.gg/9WhJdabGk8
 - **Subreddit**: https://reddit.com/r/omencore
 - **Donate (PayPal)**: https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD
 
