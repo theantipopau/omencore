@@ -2,17 +2,17 @@
 
 **A modern, lightweight, and fully independent control center for HP OMEN & Victus gaming laptops.**
 
-> ðŸ’» **Laptops + Desktops** â€” OmenCore supports HP OMEN & Victus **laptops** and OMEN **desktops** (25L, 30L, 35L, 40L, 45L). Desktop fan control uses WMI commands with RPM readback and performance mode support. OMEN desktop RGB lighting is supported via USB HID.
+> 💻 **Laptops + Desktops** — OmenCore supports HP OMEN & Victus **laptops** and OMEN **desktops** (25L, 30L, 35L, 40L, 45L). Desktop fan control uses WMI commands with RPM readback and performance mode support. OMEN desktop RGB lighting is supported via USB HID.
 
 OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services required, no bloatware, no telemetry, no ads. Built with WPF on .NET 8, it provides professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
 
-**ðŸŽ¯ Key Differentiators:**
-- âœ… **100% OGH-Independent** - Works without OMEN Gaming Hub installed
-- âœ… **No Bloatware** - Single 70MB self-contained executable
-- âœ… **No Telemetry** - Your data stays on your machine
-- âœ… **No Ads** - Clean, focused interface
-- âœ… **No Sign-In Required** - Full offline operation
-- ðŸ§ **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
+**🎯 Key Differentiators:**
+- ✅ **100% OGH-Independent** - Works without OMEN Gaming Hub installed
+- ✅ **No Bloatware** - Single 70MB self-contained executable
+- ✅ **No Telemetry** - Your data stays on your machine
+- ✅ **No Ads** - Clean, focused interface
+- ✅ **No Sign-In Required** - Full offline operation
+- 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
 [![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.9.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -25,7 +25,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ---
 
-## ðŸš€ Quick Installation
+## 🚀 Quick Installation
 
 ### Windows
 ```
@@ -34,7 +34,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from extracted folder
 ```
-**[ðŸ“– Full Windows Installation Guide](INSTALL.md#-windows-installation)**
+**[📖 Full Windows Installation Guide](INSTALL.md#-windows-installation)**
 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
@@ -77,72 +77,72 @@ Full changelog: [CHANGELOG_v2.9.0.md](docs/CHANGELOG_v2.9.0.md)
 
 ---
 
-## ðŸ†• What's New in v2.8.0
+## 🗂️ What's New in v2.8.0
 
-### âœ¨ New Features
-- **AMD GPU Overclocking** â€” RDNA/RDNA2/RDNA3 via ADL2/Overdrive8: core clock, memory clock, power limit with range clamping
-- **Display Overdrive Toggle** â€” Panel overdrive via HP WMI BIOS with auto-detection
-- **OSD: Battery %, CPU Clock, GPU Clock** â€” Three new on-screen display metrics
-- **OMEN Desktop Support** â€” WMI fan control for OMEN 25L, 30L, 35L, 40L, 45L
-- **Game Library Tab** â€” New lazy-loaded game library view
-- **Logitech HID++ 2.0 Effects** â€” Breathing, spectrum, flash, wave with speed control
-- **Corsair HID Effects** â€” Breathing, spectrum, wave + brightness slider
-- **Fan Curve Save/Load UX** â€” Delete, import/export JSON, one-click re-apply
-- **Conflict Detection** â€” Active at startup with 60s background monitoring
-- **Tab UI Overhaul** â€” Scrollable headers with animated accent underline
-- **Linux ACPI Platform Profile** â€” Performance modes on OMEN Max models
-- **Linux hwmon PWM Fan Control** â€” Safe fan control via `hp-wmi` driver
+### ✨ New Features
+- **AMD GPU Overclocking** — RDNA/RDNA2/RDNA3 via ADL2/Overdrive8: core clock, memory clock, power limit with range clamping
+- **Display Overdrive Toggle** — Panel overdrive via HP WMI BIOS with auto-detection
+- **OSD: Battery %, CPU Clock, GPU Clock** — Three new on-screen display metrics
+- **OMEN Desktop Support** — WMI fan control for OMEN 25L, 30L, 35L, 40L, 45L
+- **Game Library Tab** — New lazy-loaded game library view
+- **Logitech HID++ 2.0 Effects** — Breathing, spectrum, flash, wave with speed control
+- **Corsair HID Effects** — Breathing, spectrum, wave + brightness slider
+- **Fan Curve Save/Load UX** — Delete, import/export JSON, one-click re-apply
+- **Conflict Detection** — Active at startup with 60s background monitoring
+- **Tab UI Overhaul** — Scrollable headers with animated accent underline
+- **Linux ACPI Platform Profile** — Performance modes on OMEN Max models
+- **Linux hwmon PWM Fan Control** — Safe fan control via `hp-wmi` driver
 
-### ðŸ”§ Safety & Reliability
-- **Undervolt Clamping** â€” Intel MSR [-250, 0] mV; AMD CO [-30, +30]
-- **Thermal Debounce** â€” 5s activation / 15s release; 90Â°C threshold, 10Â°C hysteresis
-- **HardwareWorker Survival** â€” Worker survives app restart; seamless reconnection
-- **Bloatware Uninstaller** â€” 3-tier removal; 8 new HP targets
-- **Linux EC Safety** â€” Blocked EC writes on OMEN Max 2025 (16t-ah, 17t-ah)
+### 🔧 Safety & Reliability
+- **Undervolt Clamping** — Intel MSR [-250, 0] mV; AMD CO [-30, +30]
+- **Thermal Debounce** — 5s activation / 15s release; 90°C threshold, 10°C hysteresis
+- **HardwareWorker Survival** — Worker survives app restart; seamless reconnection
+- **Bloatware Uninstaller** — 3-tier removal; 8 new HP targets
+- **Linux EC Safety** — Blocked EC writes on OMEN Max 2025 (16t-ah, 17t-ah)
 
 Full changelog: [CHANGELOG_v2.8.0.md](docs/CHANGELOG_v2.8.0.md)
 
 ---
 
-## ðŸ“– Previous Releases
+## 📖 Previous Releases
 
-### v2.7.1 â€” Bug Fix & Enhancements
+### v2.7.1 — Bug Fix & Enhancements
 - Desktop detection fix, update process fix, PawnIO installer fix
 - GPU vendor branding, CPU info in sidebar, NvAPIWrapper integration
 
 Full changelog: [CHANGELOG_v2.7.1.md](docs/CHANGELOG_v2.7.1.md)
 
-### v2.7.0 â€” Model Database, Fan Diagnostics, PawnIO-Only
+### v2.7.0 — Model Database, Fan Diagnostics, PawnIO-Only
 - HP model database with auto feature detection
-- Guided fan diagnostic test (30% â†’ 60% â†’ 100%)
+- Guided fan diagnostic test (30% → 60% → 100%)
 - PawnIO-only MSR backend (WinRing0 removed)
-- Enhanced thermal protection at 85Â°C
+- Enhanced thermal protection at 85°C
 
 Full changelog: [CHANGELOG_v2.7.0.md](docs/CHANGELOG_v2.7.0.md)
 
 ### v2.6.1 - Bug Fix & UX Improvements
 
-- ðŸ›¡ï¸ **Desktop Safety Protection** - OmenCore now detects OMEN desktops and blocks fan control to prevent hardware damage (monitoring-only mode available)
-- ðŸ§ **Linux GUI Crash Fixed** - Resolved Avalonia startup crash on Linux (`StaticResource 'DarkBackgroundBrush' not found`)
-- ðŸ”§ **OMEN 17/Max Fan Presets** - Improved V2â†’V1 command fallback for models where BIOS returns error code 6
-- ðŸ“Š **OSD Mode Updates** - Performance and fan mode changes now immediately refresh the on-screen display
-- ðŸªŸ **Window Rounded Corners** - Fixed missing rounded corners on Windows with DWM composition
-- ðŸ“ **Smaller Minimum Window** - Reduced from 900Ã—600 to 800Ã—500 for smaller displays
+- 🛡️ **Desktop Safety Protection** - OmenCore now detects OMEN desktops and blocks fan control to prevent hardware damage (monitoring-only mode available)
+- 🐧 **Linux GUI Crash Fixed** - Resolved Avalonia startup crash on Linux (`StaticResource 'DarkBackgroundBrush' not found`)
+- 🔧 **OMEN 17/Max Fan Presets** - Improved V2→V1 command fallback for models where BIOS returns error code 6
+- 📺 **OSD Mode Updates** - Performance and fan mode changes now immediately refresh the on-screen display
+- 🪟 **Window Rounded Corners** - Fixed missing rounded corners on Windows with DWM composition
+- 📐 **Smaller Minimum Window** - Reduced from 900×600 to 800×500 for smaller displays
 
 Full changelog: [CHANGELOG_v2.6.1.md](docs/CHANGELOG_v2.6.1.md)
 
 ### v2.3.1 - Critical Bug Fix
 
-- ðŸ”¥ **Critical Fix**: Battlefield 6 thermal shutdown when storage drives sleep - SafeFileHandle crash prevented fans from responding to RTX 4090 @ 87Â°C
-- ðŸ“Š **OSD Network Speeds**: Upload/download monitoring in Mbps with auto-detection of active interface
-- ðŸŽ¯ **FAQ**: Clarified polling interval doesn't affect fan response speed (common misconception)
+- 🔥 **Critical Fix**: Battlefield 6 thermal shutdown when storage drives sleep - SafeFileHandle crash prevented fans from responding to RTX 4090 @ 87°C
+- 📺 **OSD Network Speeds**: Upload/download monitoring in Mbps with auto-detection of active interface
+- 🎯 **FAQ**: Clarified polling interval doesn't affect fan response speed (common misconception)
 
 Full changelog: [CHANGELOG_v2.3.1.md](docs/CHANGELOG_v2.3.1.md)
 
-- ðŸ›¡ï¸ **Fan Curve Safety System** - Real-time validation, hardware watchdog, and automatic curve recovery
-- ðŸ“¦ **Profile Import/Export** - Share complete configurations (fan curves, RGB, settings) as `.omencore` files
-- ðŸ”‹ **Custom Battery Thresholds** - Adjustable charge limit slider (60-100%, previously fixed at 80%)
-- ðŸ”„ **Auto-Update Check** - Privacy-respecting GitHub Releases API integration
+- 🛡️ **Fan Curve Safety System** - Real-time validation, hardware watchdog, and automatic curve recovery
+- 📦 **Profile Import/Export** - Share complete configurations (fan curves, RGB, settings) as `.omencore` files
+- 🔋 **Custom Battery Thresholds** - Adjustable charge limit slider (60-100%, previously fixed at 80%)
+- 📥 **Auto-Update Check** - Privacy-respecting GitHub Releases API integration
 - ðŸ“Š **Diagnostics Export** - One-click ZIP bundle with logs, config, and system info
 - ðŸ§ **Enhanced Linux Support** - HP-WMI thermal profiles for 2023+ OMEN, `--report` flag for issue templates
 - ðŸ› **Critical Fix** - Fans dropping to 0% when temperature exceeds curve (now uses highest fan speed as safety)
@@ -152,17 +152,17 @@ Full changelog: [CHANGELOG_v2.3.0.md](docs/CHANGELOG_v2.3.0.md)
 
 ---
 
-## ðŸ†• What's New in v2.2.2
+## 🗂️ What's New in v2.2.2
 
-### âœ¨ New Features
-- **EC Reset to Defaults** - New button in Settings â†’ Hardware to restore BIOS fan displays to normal values
+### ✨ New Features
+- **EC Reset to Defaults** - New button in Settings → Hardware to restore BIOS fan displays to normal values
 
-### ðŸ› Bug Fixes
+### 🐛 Bug Fixes
 - **Thermal Protection Logic (#32)** - Fixed thermal protection reducing fan speed instead of boosting
 - **Tray Menu Max/Auto (#33)** - Fixed system tray fan mode buttons not working correctly
 - **OMEN Max 16 Light Bar Zones** - Added "Invert RGB Zone Order" setting for inverted light bars
-- **CPU Temp Stuck at 0Â°C (#35)** - Improved temperature sensor fallback
-- **CPU Temp Always 96Â°C (#36)** - Fixed TjMax being displayed instead of current temp
+- **CPU Temp Stuck at 0°C (#35)** - Improved temperature sensor fallback
+- **CPU Temp Always 96°C (#36)** - Fixed TjMax being displayed instead of current temp
 - **Temperature Freeze on Drive Sleep** - Fixed temps freezing when storage drives go to sleep
 
 Full changelog: [CHANGELOG_v2.2.1.md](docs/CHANGELOG_v2.2.1.md)
@@ -171,18 +171,18 @@ Full changelog: [CHANGELOG_v2.2.1.md](docs/CHANGELOG_v2.2.1.md)
 
 ## ðŸ†• What's New in v2.2.0
 
-### âœ¨ New Features
+### ✨ New Features
 - **GPU OC Profiles** - Save and load named GPU overclock configurations
 - **Fan Profile Persistence** - Custom fan curves now save automatically and restore on startup
 - **Dashboard UI Enhancements** - Quick Status Bar with real-time fan RPMs, performance mode, fan mode, and power status
 - **Session Tracking** - Uptime counter and peak temperature tracking on the Monitoring dashboard
 
-### ðŸ› Bug Fixes
+### 🐛 Bug Fixes
 - **Fan Always On Fix** - Auto mode now properly lets BIOS control fans (fixes OMEN 17 13700HX fans always running)
 - **Fan Curve Editor Crash** - Fixed crash when dragging points beyond chart bounds
 - **OMEN Key False Trigger** - Fixed window opening when launching Remote Desktop or media apps
 
-### âš¡ Performance
+### ⚡ Performance
 - **Lazy-Load Peripheral SDKs** - Corsair, Logitech, and Razer SDKs only load when explicitly enabled (faster startup)
 
 Full changelog: [CHANGELOG_v2.2.0.md](docs/CHANGELOG_v2.2.0.md)
@@ -212,7 +212,7 @@ Full changelog: [CHANGELOG_v2.1.2.md](docs/CHANGELOG_v2.1.2.md)
 - Dashboard, fan control, system control, and settings views
 - Dark OMEN theme matching Windows UI
 
-### âš¡ GPU Overclocking (NVAPI)
+### ⚡ GPU Overclocking (NVAPI)
 - Core clock offset: -500 to +300 MHz
 - Memory clock offset: -500 to +1500 MHz
 - Power limit: 50-125%
@@ -282,7 +282,7 @@ omencore-cli daemon --start
 #### Linux Hardware Access Methods
 | OMEN Model | Kernel | Access Method | Notes |
 |------------|--------|---------------|-------|
-| 2023+ (13th Gen+) | 6.18+ | `hp-wmi` | âœ… **Recommended** - Best support via HP-WMI driver |
+| 2023+ (13th Gen+) | 6.18+ | `hp-wmi` | ✅ **Recommended** - Best support via HP-WMI driver |
 | 2023+ (13th Gen+) | 6.5-6.17 | `hp-wmi` | Basic support, some features limited |
 | 2020-2022 | Any | `ec_sys` | `sudo modprobe ec_sys write_support=1` |
 | Pre-2020 | Any | `ec_sys` | Limited support, EC registers vary |
@@ -303,7 +303,7 @@ omencore-cli daemon --start
 - Most gaming distros (Arch, Nobara, CachyOS) already ship 6.18+ kernels
 - Ubuntu LTS users can use [Ubuntu Mainline Kernel](https://github.com/bkw777/mainline) to upgrade
 
-**âš ï¸ Very New Models (2025+):**
+**⚠️ Very New Models (2025+):**
 - Brand-new models like **OMEN MAX 16z-ak000** (Ryzen AI 9 HX) may not yet be in the hp-wmi driver
 - Fan presets/performance profiles may have no effect until kernel patches are merged
 - Check `dmesg | grep -i wmi` to see if your model is recognized
@@ -388,7 +388,7 @@ See [CHANGELOG_v2.0.0.md](docs/CHANGELOG_v2.0.0.md) for full details.
 
 ## ðŸ†• What's New in v1.5.0 (Beta)
 
-### âš¡ Major Features (v1.5.0-beta1)
+### ⚡ Major Features (v1.5.0-beta1)
 
 #### ðŸ–¥ï¸ OSD Performance Overlay
 - **In-game overlay** showing CPU/GPU temps, usage, FPS, and fan speeds
@@ -396,7 +396,7 @@ See [CHANGELOG_v2.0.0.md](docs/CHANGELOG_v2.0.0.md) for full details.
 - **Toggle via hotkey** or system tray
 - Works alongside other overlays (MSI Afterburner, etc.)
 
-#### âŒ¨ï¸ OMEN Key Interception
+#### ⌨️ OMEN Key Interception
 - **Custom actions** when pressing the OMEN key
 - Options: Open OmenCore, Toggle OSD, Show System Info, or Custom Command
 - No more accidentally launching OMEN Gaming Hub
@@ -411,7 +411,7 @@ See [CHANGELOG_v2.0.0.md](docs/CHANGELOG_v2.0.0.md) for full details.
 - Automatic retry if BIOS rejected the command
 - Visual indicator shows verification status
 
-#### âœ¨ HP Spectre Dynamic Branding
+#### ✨ HP Spectre Dynamic Branding
 - App detects HP Spectre laptops and adjusts branding
 - "OMEN" references become "HP Spectre" where appropriate
 - Spectre-specific feature availability messaging
@@ -439,7 +439,7 @@ See [CHANGELOG_v2.0.0.md](docs/CHANGELOG_v2.0.0.md) for full details.
 - **What works on Spectre**: Fan control, monitoring, power plans, presets
 - **What doesn't**: Direct CPU/GPU power limits (EC registers differ from OMEN)
 
-### âœ¨ Tester Feedback
+### ✨ Tester Feedback
 > "Fan hysteresis seems to be improved, it is much more smoother than 1.4"
 
 See [CHANGELOG_v1.5.0-beta.md](docs/CHANGELOG_v1.5.0-beta.md) and [CHANGELOG_v1.5.0-beta2.md](docs/CHANGELOG_v1.5.0-beta2.md) for full details.
@@ -452,9 +452,9 @@ See [CHANGELOG_v1.5.0-beta.md](docs/CHANGELOG_v1.5.0-beta.md) and [CHANGELOG_v1.
 - **One-click scanner** detects HP pre-installed bloatware (AD2F1837.HP* packages)
 - **Safe removal** with confirmation dialog and warnings
 - **Preserves HP Support Assistant** for driver updates
-- Located in Settings tab â†’ HP Bloatware Removal
+- Located in Settings tab → HP Bloatware Removal
 
-### âš¡ Performance Optimizations
+### ⚡ Performance Optimizations
 - **WMI query caching** - 80% reduction in WMI calls, faster startup
 - **Adaptive process polling** - 2s when gaming, 10s when idle (saves battery)
 - **Fan curve fix** - Auto mode now properly applies software fan curves
@@ -493,16 +493,16 @@ See [CHANGELOG_v1.4.0.md](docs/CHANGELOG_v1.4.0.md) for full details.
 
 ### ðŸŒ¡ï¸ Dynamic Tray Icon
 - **Temperature display** with color-coded background
-- ðŸŸ¢ Green (<60Â°C) | ðŸŸ¡ Yellow (60-75Â°C) | ðŸ”´ Red (>75Â°C)
+- 🟢 Green (<60°C) | 🟡 Yellow (60-75°C) | 🔴 Red (>75°C)
 - See thermal state at a glance without opening app
 
-### âš ï¸ Throttling Detection
+### ⚠️ Throttling Detection
 - **Real-time throttling indicator** in dashboard header
 - Detects CPU/GPU thermal and power throttling
 - Warning badge shows specific throttling reasons
 
 ### ðŸ–¥ï¸ Display Control
-- **Quick refresh rate toggle** from tray menu (165Hz â†” 60Hz)
+- **Quick refresh rate toggle** from tray menu (165Hz ↔ 60Hz)
 - **Turn Off Display** - screen off while system runs (for downloads, music)
 
 ### ðŸ“Œ Quality of Life
@@ -528,7 +528,7 @@ See [CHANGELOG_v1.2.0.md](docs/CHANGELOG_v1.2.0.md) and [CHANGELOG_v1.2.1.md](do
 ## ðŸ”§ Core Features
 
 ### ðŸŒ¡ï¸ **Thermal & Fan Management**
-- **Custom fan curves** with temperature breakpoints (e.g., 40Â°Câ†’30%, 60Â°Câ†’55%, 80Â°Câ†’85%)
+- **Custom fan curves** with temperature breakpoints (e.g., 40°C→30%, 60°C→55%, 80°C→85%)
 - **WMI BIOS control** - No driver required! Works on AMD and Intel laptops
 - **EC-backed presets** (Max, Auto, Manual) for instant fan control
 - **Real-time monitoring** with live CPU/GPU temperature charts
@@ -536,7 +536,7 @@ See [CHANGELOG_v1.2.0.md](docs/CHANGELOG_v1.2.0.md) and [CHANGELOG_v1.2.1.md](do
 - **System tray badge** overlays live CPU temperature on the notification icon
 - **CPU Temperature Limit** - Set max CPU temp via TCC offset (Intel only)
 
-### âš¡ **Performance Control**
+### ⚡ **Performance Control**
 - **CPU undervolting** via Intel MSR with separate core/cache offset sliders (typical: -100mV to -150mV)
 - **Performance modes** (Balanced, Performance, Turbo) manage CPU/GPU wattage envelopes
 - **GPU Power Boost** - +15W Dynamic Boost control like Omen Gaming Hub
@@ -561,7 +561,7 @@ See [CHANGELOG_v1.2.0.md](docs/CHANGELOG_v1.2.0.md) and [CHANGELOG_v1.2.1.md](do
 
 ### ðŸ“Š **Hardware Monitoring**
 - **Real-time telemetry** - CPU/GPU temp, load, clock speeds, RAM, SSD temp
-- **History charts** with 60-sample rolling window and smart change detection (0.5Â° threshold reduces UI updates)
+- **History charts** with 60-sample rolling window and smart change detection (0.5° threshold reduces UI updates)
 - **Low overhead mode** disables charts to reduce CPU usage from ~2% to <0.5%
 - **Detailed metrics** - per-core clocks, VRAM usage, disk activity
 
@@ -588,21 +588,21 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 | HP Gaming Hub Feature | OmenCore Status | Notes |
 |----------------------|----------------|-------|
-| **Fan Control** | âœ… Full support | Custom curves + WMI BIOS presets (no OGH needed) |
-| **Performance Modes** | âœ… Full support | CPU/GPU power limits via WMI |
-| **CPU Undervolting** | âœ… Full support | Intel MSR access with safety |
-| **GPU Power Boost** | âœ… Full support | +15W Dynamic Boost (PPAB) |
-| **Keyboard RGB** | âœ… Profiles | Per-zone control with effects |
-| **Hardware Monitoring** | âœ… Full support | LibreHardwareMonitor integration |
-| **Gaming Mode** | âœ… Service toggles | One-click optimization |
-| **Battery Care** | âœ… Full support | 80% charge limit |
-| **Peripheral Control** | âš ï¸ Beta (stub) | Hardware detection ready |
-| **Hub Cleanup** | âœ… Exclusive | Safe Gaming Hub removal |
-| **Per-Game Profiles** | âœ… Full support | Auto-switch on game detect |
-| **In-Game Overlay** | âœ… Full support | Click-through OSD |
-| **Network Booster** | âŒ Out of scope | Use router/Windows QoS |
-| **Game Library** | âŒ Out of scope | Use Steam/Epic/Xbox app |
-| **Omen Oasis** | âŒ Out of scope | Cloud gaming elsewhere |
+| **Fan Control** | ✅ Full support | Custom curves + WMI BIOS presets (no OGH needed) |
+| **Performance Modes** | ✅ Full support | CPU/GPU power limits via WMI |
+| **CPU Undervolting** | ✅ Full support | Intel MSR access with safety |
+| **GPU Power Boost** | ✅ Full support | +15W Dynamic Boost (PPAB) |
+| **Keyboard RGB** | ✅ Profiles | Per-zone control with effects |
+| **Hardware Monitoring** | ✅ Full support | LibreHardwareMonitor integration |
+| **Gaming Mode** | ✅ Service toggles | One-click optimization |
+| **Battery Care** | ✅ Full support | 80% charge limit |
+| **Peripheral Control** | ⚠️ Beta (stub) | Hardware detection ready |
+| **Hub Cleanup** | ✅ Exclusive | Safe Gaming Hub removal |
+| **Per-Game Profiles** | ✅ Full support | Auto-switch on game detect |
+| **In-Game Overlay** | ✅ Full support | Click-through OSD |
+| **Network Booster** | ❌ Out of scope | Use router/Windows QoS |
+| **Game Library** | ❌ Out of scope | Use Steam/Epic/Xbox app |
+| **Omen Oasis** | ❌ Out of scope | Cloud gaming elsewhere |
 
 **Verdict**: OmenCore covers **100% of essential Gaming Hub features** with better performance, no telemetry, no ads, and complete offline operation.
 
@@ -615,17 +615,17 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 - **Runtime**: Self-contained (.NET 8 embedded) - no separate installation needed
 - **Privileges**: Administrator for WMI BIOS/EC/MSR operations
 - **Disk**: 100 MB for app + 50 MB for logs/config
-- **OGH**: âŒ **NOT REQUIRED** - OmenCore works without OMEN Gaming Hub
+- **OGH**: ❌ **NOT REQUIRED** - OmenCore works without OMEN Gaming Hub
 
 ### Hardware
 - **CPU**: Intel 6th-gen+ (Skylake or newer) for undervolting/TCC offset; AMD Ryzen supported for monitoring/fan control
 - **Laptop**: HP OMEN 15/16/17 series and HP Victus (2019-2025 models)
-  - âœ… Tested: OMEN 15-dh, 16-b, 16-k, 17-ck (2023/2024), Victus 15/16
-  - âœ… **OMEN Max 16 (2025)**: Per-key RGB, RTX 50-series, full support
-  - âœ… **OMEN Transcend 14/16**: Supported via WMI BIOS
-  - âœ… **2023+ models**: Full WMI BIOS support, no OGH needed
+  - ✅ Tested: OMEN 15-dh, 16-b, 16-k, 17-ck (2023/2024), Victus 15/16
+  - ✅ **OMEN Max 16 (2025)**: Per-key RGB, RTX 50-series, full support
+  - ✅ **OMEN Transcend 14/16**: Supported via WMI BIOS
+  - ✅ **2023+ models**: Full WMI BIOS support, no OGH needed
 - **Desktop**: HP OMEN 25L/30L/40L/45L (limited support)
-  - âš ï¸ Desktop PCs use different EC registers - fan control may not work
+  - ⚠️ Desktop PCs use different EC registers - fan control may not work
   - Monitoring, game profiles, and OGH cleanup still functional
   - Auto-detected via chassis type with warning message
 
@@ -639,7 +639,7 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 - **PawnIO** (recommended for advanced features) - Secure Boot compatible EC access
 - **WinRing0 v1.2** - Legacy kernel driver for EC/MSR access (may be blocked by Secure Boot)
 
-**âš ï¸ Windows Defender False Positive**: WinRing0 is flagged as `HackTool:Win64/WinRing0` by antivirus. This is a **known false positive** for kernel hardware drivers. Add exclusion for `C:\Windows\System32\drivers\WinRing0x64.sys` and verify signature. See [WINRING0_SETUP.md](docs/WINRING0_SETUP.md).
+**⚠️ Windows Defender False Positive**: WinRing0 is flagged as `HackTool:Win64/WinRing0` by antivirus. This is a **known false positive** for kernel hardware drivers. Add exclusion for `C:\Windows\System32\drivers\WinRing0x64.sys` and verify signature. See [WINRING0_SETUP.md](docs/WINRING0_SETUP.md).
 
 **Compatibility Notes**:
 - **HP Spectre laptops**: Partial support - fan control and monitoring work, but CPU/GPU power limits unavailable (different EC layout). Use Intel XTU or ThrottleStop for power control.
@@ -730,7 +730,7 @@ rm -rf ~/.config/omencore/
 
 > **ðŸ’¡ Tip:** If you're uninstalling to troubleshoot, try a clean reinstall first. Delete the config folder (`%APPDATA%\OmenCore`) before reinstalling to reset all settings.
 
-### âš ï¸ Antivirus False Positives
+### ⚠️ Antivirus False Positives
 
 Windows Defender and other antivirus software may flag OmenCore as suspicious. This is a **false positive** caused by:
 - **Kernel drivers** (PawnIO, WinRing0) required for hardware access
@@ -738,8 +738,8 @@ Windows Defender and other antivirus software may flag OmenCore as suspicious. T
 
 **OmenCore is safe and fully open-source.** To whitelist:
 
-1. **Windows Defender:** Settings â†’ Virus & threat protection â†’ Exclusions â†’ Add `C:\Program Files\OmenCore`
-2. **Windows SmartScreen:** Click "More info" â†’ "Run anyway" (installer is not EV code-signed)
+1. **Windows Defender:** Settings → Virus & threat protection → Exclusions → Add `C:\Program Files\OmenCore`
+2. **Windows SmartScreen:** Click "More info" → "Run anyway" (installer is not EV code-signed)
 
 See [ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) for detailed instructions for all antivirus programs.
 
