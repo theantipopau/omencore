@@ -226,7 +226,7 @@ namespace OmenCore.Services
             }
         }
 
-        public void ApplyProfile(LightingProfile profile)
+        public async Task ApplyProfile(LightingProfile profile)
         {
             if (!IsAvailable)
             {
@@ -241,7 +241,7 @@ namespace OmenCore.Services
                 // Delegate to V2 engine if active
                 if (_useV2Backend && _v2Service != null)
                 {
-                    var result = _v2Service.ApplyProfileAsync(profile).GetAwaiter().GetResult();
+                    var result = await _v2Service.ApplyProfileAsync(profile);
                     if (result.Success)
                     {
                         _logging.Info($"✓ Profile applied via V2 engine ({_v2Service.BackendName})");
@@ -365,7 +365,7 @@ namespace OmenCore.Services
         /// Respects PreferredKeyboardBackend setting.
         /// NOTE: forceEcAccess requires ExperimentalEcKeyboardEnabled=true in settings (dangerous).
         /// </summary>
-        public void SetAllZoneColors(Color[] zoneColors, bool forceEcAccess = false)
+        public async Task SetAllZoneColors(Color[] zoneColors, bool forceEcAccess = false)
         {
             if (zoneColors.Length < 4)
             {
@@ -385,7 +385,7 @@ namespace OmenCore.Services
                         orderedColors = new Color[] { zoneColors[3], zoneColors[2], zoneColors[1], zoneColors[0] };
                     }
                     
-                    var result = _v2Service.SetZoneColorsAsync(orderedColors).GetAwaiter().GetResult();
+                    var result = await _v2Service.SetZoneColorsAsync(orderedColors);
                     if (result.Success)
                     {
                         _logging.Info($"✓ Zone colors set via V2 engine ({_v2Service.BackendName})");
@@ -584,7 +584,7 @@ namespace OmenCore.Services
             return false;
         }
 
-        public void SetBrightness(int brightness)
+        public async Task SetBrightness(int brightness)
         {
             brightness = Math.Clamp(brightness, 0, 100);
             
@@ -593,7 +593,7 @@ namespace OmenCore.Services
                 // Delegate to V2 engine if active (uses native WMI brightness or EC register)
                 if (_useV2Backend && _v2Service != null)
                 {
-                    var result = _v2Service.SetBrightnessAsync(brightness).GetAwaiter().GetResult();
+                    var result = await _v2Service.SetBrightnessAsync(brightness);
                     if (result)
                     {
                         _logging.Info($"✓ Brightness {brightness}% set via V2 engine ({_v2Service.BackendName})");
@@ -632,7 +632,7 @@ namespace OmenCore.Services
                     var white = Color.FromArgb(255, 255, 255);
                     var colors = new Color[] { white, white, white, white };
                     var result = _v2Service.SetZoneColorsAsync(colors).GetAwaiter().GetResult();
-                    _ = _v2Service.SetBrightnessAsync(80);
+                    _v2Service.SetBrightnessAsync(80).GetAwaiter().GetResult();
                     if (result.Success)
                     {
                         _logging.Info($"✓ Defaults restored via V2 engine ({_v2Service.BackendName})");

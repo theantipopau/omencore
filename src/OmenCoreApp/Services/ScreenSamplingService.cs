@@ -270,7 +270,7 @@ namespace OmenCore.Services
                     if (_keyboardLightingService?.IsAvailable == true)
                     {
                         var colors = new[] { color, color, color, color };
-                        _keyboardLightingService.SetAllZoneColors(colors);
+                        await _keyboardLightingService.SetAllZoneColors(colors);
                     }
                 }
                 catch

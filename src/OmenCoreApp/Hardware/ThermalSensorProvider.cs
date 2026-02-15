@@ -58,13 +58,38 @@ namespace OmenCore.Hardware
             {
                 try
                 {
-                    var sample = _wmiBiosMonitor.ReadSampleAsync(CancellationToken.None).GetAwaiter().GetResult();
-                    cpuTemp = sample.CpuTemperatureC;
-                    gpuTemp = sample.GpuTemperatureC;
+                    // Read sample asynchronously but avoid blocking the UI thread indefinitely.
+                    // Some callers (OSD, UI controls) may call this on the UI thread — block at most 250ms there.
+                    var readTask = _wmiBiosMonitor.ReadSampleAsync(CancellationToken.None);
+
+                    bool onUiThread = System.Windows.Application.Current?.Dispatcher?.CheckAccess() == true;
+                    if (onUiThread)
+                    {
+                        // Bound the wait on UI thread to keep UI responsive
+                        if (readTask.Wait(250))
+                        {
+                            var sample = readTask.Result;
+                            cpuTemp = sample.CpuTemperatureC;
+                            gpuTemp = sample.GpuTemperatureC;
+                        }
+                        else
+                        {
+                            // Timed out on UI thread — return cached/empty values to avoid freeze and log for diagnostics
+                            try { App.Logging?.Warn("[ThermalSensorProvider] UI-thread ReadSampleAsync timed out (250ms)"); } catch { }
+                        }
+                    }
+                    else
+                    {
+                        // Non-UI callers (background threads) may block until the sample is ready
+                        var sample = readTask.GetAwaiter().GetResult();
+                        cpuTemp = sample.CpuTemperatureC;
+                        gpuTemp = sample.GpuTemperatureC;
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // If ReadSampleAsync fails, temps stay at 0
+                    // If ReadSampleAsync fails, temps stay at 0 — log for diagnostics
+                    try { App.Logging?.Debug($"[ThermalSensorProvider] ReadSampleAsync failed: {ex.Message}"); } catch { }
                 }
             }
             // Last resort: raw WMI BIOS (integer-only, no ACPI overlay)

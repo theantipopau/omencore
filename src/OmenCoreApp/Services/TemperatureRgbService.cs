@@ -85,13 +85,13 @@ namespace OmenCore.Services
         /// Apply temperature-based color immediately for given temps.
         /// Useful for testing or manual triggering.
         /// </summary>
-        public void ApplyForTemperature(double cpuTemp, double gpuTemp)
+        public async Task ApplyForTemperature(double cpuTemp, double gpuTemp)
         {
             var settings = _settingsService.GetSettings();
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             var color = CalculateTemperatureColor(maxTemp, settings);
             
-            ApplyColorToKeyboard(color);
+            await ApplyColorToKeyboard(color);
             _lastCpuTemp = cpuTemp;
             _lastGpuTemp = gpuTemp;
             _lastAppliedColor = color;
@@ -131,7 +131,7 @@ namespace OmenCore.Services
                     // Check if we should update
                     if (ShouldUpdateColor(cpuTemp, gpuTemp))
                     {
-                        ApplyForTemperature(cpuTemp, gpuTemp);
+                        await ApplyForTemperature(cpuTemp, gpuTemp);
                     }
                     
                     // Poll every 2 seconds
@@ -218,7 +218,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Apply a color to the keyboard (all zones).
         /// </summary>
-        private void ApplyColorToKeyboard(Color color)
+        private async Task ApplyColorToKeyboard(Color color)
         {
             _lastColorUpdate = DateTime.Now;
             
@@ -246,7 +246,7 @@ namespace OmenCore.Services
             if (_keyboardService?.IsAvailable == true)
             {
                 var colors = new Color[] { color, color, color, color };
-                _keyboardService.SetAllZoneColors(colors);
+                await _keyboardService.SetAllZoneColors(colors);
                 _logging.Info($"Temperature RGB applied via KLS: #{color.R:X2}{color.G:X2}{color.B:X2}");
             }
         }

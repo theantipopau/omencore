@@ -348,7 +348,7 @@ namespace OmenCore.Services
             
             try
             {
-                return await Task.Run(() =>
+                return await Task.Run(async () =>
                 {
                     if (scene.Effect == RgbSceneEffect.Off)
                     {
@@ -382,13 +382,13 @@ namespace OmenCore.Services
                                 colors[i] = ColorTranslator.FromHtml(scene.PrimaryColor);
                             }
                         }
-                        _keyboardLightingService.SetAllZoneColors(colors);
+                        await _keyboardLightingService.SetAllZoneColors(colors);
                     }
                     else
                     {
                         // Single color to all zones
                         var color = ColorTranslator.FromHtml(scene.PrimaryColor);
-                        _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+                        await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
                     }
                     
                     return true;

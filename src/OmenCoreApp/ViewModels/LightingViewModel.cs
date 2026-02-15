@@ -1271,11 +1271,11 @@ namespace OmenCore.ViewModels
                 {
                     try
                     {
-                        await Task.Run(() =>
+                        await Task.Run(async () =>
                         {
                             var color = System.Drawing.ColorTranslator.FromHtml(syncColor);
                             var colors = new[] { color, color, color, color };
-                            _keyboardLightingService.SetAllZoneColors(colors);
+                            await _keyboardLightingService.SetAllZoneColors(colors);
                         });
                         successCount++;
                         _logging.Info($"Synced color {syncColor} to OMEN keyboard");
@@ -1630,7 +1630,7 @@ namespace OmenCore.ViewModels
                     ParseDrawingColor(_zone1ColorHex)  // WMI Z3 (WASD) = UI Zone1
                 };
                 
-                _keyboardLightingService.SetAllZoneColors(colors);
+                await _keyboardLightingService.SetAllZoneColors(colors);
                 
                 // Save colors to config for persistence
                 SaveKeyboardColorsToConfig();
@@ -1794,7 +1794,7 @@ namespace OmenCore.ViewModels
         /// Applies saved keyboard colors on app startup.
         /// Call this after the keyboard lighting service is ready.
         /// </summary>
-        public Task ApplySavedKeyboardColorsAsync()
+        public async Task ApplySavedKeyboardColorsAsync()
         {
             try
             {
@@ -1802,20 +1802,20 @@ namespace OmenCore.ViewModels
                 if (config == null || !config.ApplyOnStartup)
                 {
                     _logging.Info("Keyboard color restore disabled or no saved colors");
-                    return Task.CompletedTask;
+                    return;
                 }
                 
                 if (_keyboardLightingService == null || !_keyboardLightingService.IsAvailable)
                 {
                     _logging.Warn("Keyboard lighting not available for color restore");
-                    return Task.CompletedTask;
+                    return;
                 }
                 
                 // Check if user had backlight OFF - don't turn it on!
                 if (!config.BacklightWasEnabled)
                 {
                     _logging.Info("Keyboard backlight was OFF - respecting user preference, not restoring colors");
-                    return Task.CompletedTask;
+                    return;
                 }
                 
                 // Apply the saved colors
@@ -1827,7 +1827,7 @@ namespace OmenCore.ViewModels
                     ParseDrawingColor(_zone4ColorHex)
                 };
                 
-                _keyboardLightingService.SetAllZoneColors(colors);
+                await _keyboardLightingService.SetAllZoneColors(colors);
                 _logging.Info($"✓ Restored keyboard colors on startup: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
             }
             catch (Exception ex)
@@ -1835,7 +1835,7 @@ namespace OmenCore.ViewModels
                 _logging.Warn($"Failed to restore keyboard colors: {ex.Message}");
             }
 
-            return Task.CompletedTask;
+            return;
         }
 
         private void ApplyKeyboardPresetColors(KeyboardPreset preset)
@@ -1983,7 +1983,7 @@ namespace OmenCore.ViewModels
                 if (_keyboardLightingService?.IsAvailable == true)
                 {
                     var color = ParseDrawingColor(colorHex);
-                    _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
                 }
                 
                 // Apply to system RGB
@@ -2030,7 +2030,7 @@ namespace OmenCore.ViewModels
                 // Apply to keyboard lighting with pulsing effect
                 if (_keyboardLightingService?.IsAvailable == true)
                 {
-                    _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
                 }
                 
                 // Apply to system RGB with pulsing
@@ -2097,7 +2097,7 @@ namespace OmenCore.ViewModels
                 // Apply to keyboard lighting
                 if (_keyboardLightingService?.IsAvailable == true)
                 {
-                    _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
                 }
                 
                 // Apply to system RGB

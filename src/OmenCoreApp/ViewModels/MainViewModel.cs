@@ -2102,7 +2102,7 @@ namespace OmenCore.ViewModels
             {
                 return;
             }
-            _keyboardLightingService.ApplyProfile(SelectedLightingProfile);
+            await _keyboardLightingService.ApplyProfile(SelectedLightingProfile);
             if (_corsairDeviceService != null)
             {
                 await _corsairDeviceService.SyncWithThemeAsync(SelectedLightingProfile);
@@ -2960,7 +2960,7 @@ namespace OmenCore.ViewModels
                 var dispatcher = Application.Current?.Dispatcher;
                 if (dispatcher != null)
                 {
-                    await dispatcher.InvokeAsync(() =>
+                    await dispatcher.InvokeAsync(async () =>
                     {
                         if (_keyboardLightingService?.IsAvailable == true)
                         {
@@ -2971,7 +2971,7 @@ namespace OmenCore.ViewModels
                                 2 => 170,
                                 _ => 255
                             };
-                            _keyboardLightingService.SetBrightness(brightness);
+                            await _keyboardLightingService.SetBrightness(brightness);
                             CurrentKeyboardBrightness = level;
                             string levelName = level switch { 0 => "Off", 1 => "Low", 2 => "Medium", _ => "High" };
                             PushEvent($"💡 Keyboard: {levelName}");

@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.9.0)
+[![Version](https://img.shields.io/badge/version-2.9.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v2.9.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -29,7 +29,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCore-2.9.0-win-x64.zip from Releases
+1. Download OmenCore-2.9.1-win-x64.zip from Releases
 2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from extracted folder
@@ -39,8 +39,8 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.9.0/OmenCore-2.9.0-linux-x64.zip
-unzip OmenCore-2.9.0-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v2.9.1/OmenCore-2.9.1-linux-x64.zip
+unzip OmenCore-2.9.1-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
@@ -52,7 +52,7 @@ chmod +x omencore-gui && sudo ./omencore-gui
 
 ---
 
-## 🆕 What's New in v2.9.0
+## 🆕 What's New in v2.9.1
 
 ### 🐛 Bug Fixes (9 Community Reports)
 - **CPU Temperature 0°C** — Intel Core Ultra / Arrow Lake CPUs now use fallback sensor sweep when primary sensor returns 0
@@ -73,7 +73,7 @@ chmod +x omencore-gui && sudo ./omencore-gui
 - **Headless Mode** — Run without GUI using `--headless` flag for server operation
 - **Hardware Worker Orphan Timeout** — Configurable timeout (1-60 min) for worker process persistence
 
-Full changelog: [CHANGELOG_v2.9.0.md](docs/CHANGELOG_v2.9.0.md)
+Full changelog: [CHANGELOG_v2.9.1.md](docs/CHANGELOG_v2.9.1.md)
 
 ---
 
@@ -655,7 +655,7 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ### Quick Start - Windows
 
-1. Download `OmenCore-2.9.0-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
+1. Download `OmenCore-2.9.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/latest)
 2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch OmenCore from extracted folder
@@ -664,8 +664,8 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub. You can safely u
 
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v2.9.0/OmenCore-2.9.0-linux-x64.zip
-unzip OmenCore-2.9.0-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v2.9.1/OmenCore-2.9.1-linux-x64.zip
+unzip OmenCore-2.9.1-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
