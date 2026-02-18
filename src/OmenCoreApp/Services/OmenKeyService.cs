@@ -270,6 +270,14 @@ namespace OmenCore.Services
         /// </summary>
         private void StartWmiEventWatcher()
         {
+            // If the low-level keyboard hook is active, prefer it over WMI events to avoid
+            // duplicate/false-positive triggers (brightness keys, Fn combos, etc.).
+            if (IsHookActive)
+            {
+                _logging.Info("Keyboard hook active - skipping WMI OMEN event watcher to avoid duplicate/false triggers");
+                return;
+            }
+
             _logging.Debug("Attempting to start WMI BIOS event watchers...");
             
             // HP OMEN key fires via hpqBEvnt WMI event class
@@ -320,6 +328,14 @@ namespace OmenCore.Services
         {
             try
             {
+                // If a low-level keyboard hook is active prefer it and IGNORE WMI OMEN events.
+                // This prevents duplicate/false triggers (brightness Fn keys) when both paths are present.
+                if (IsHookActive)
+                {
+                    _logging.Debug("WMI OMEN event ignored because low-level keyboard hook is active");
+                    return;
+                }
+
                 // Check if we should suppress OMEN key during RDP sessions
                 if (ShouldSuppressForRdp())
                 {
@@ -332,6 +348,18 @@ namespace OmenCore.Services
                 // We need to verify the actual event data to filter out false positives.
                 var wmiEvent = e.NewEvent;
                 var className = wmiEvent.ClassPath?.ClassName ?? "Unknown";
+
+                // Dump all event properties at debug level to help field triage
+                try
+                {
+                    var props = new System.Collections.Generic.List<string>();
+                    foreach (System.Management.PropertyData pd in wmiEvent.Properties)
+                    {
+                        props.Add($"{pd.Name}={pd.Value ?? "(null)"}");
+                    }
+                    _logging.Debug($"WMI event properties: {string.Join(", ", props)}");
+                }
+                catch { }
                 
                 // Try to extract eventId and eventData from the WMI event
                 int? eventId = null;

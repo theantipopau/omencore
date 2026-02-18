@@ -75,7 +75,12 @@ namespace OmenCore.Services
         
         // Fan telemetry change detection - reduce UI churn by only updating on meaningful change
         private List<int> _lastFanSpeeds = new();
+        private List<int> _fanChangeConfirmCounters = new();
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
+        // Require two consecutive reads to accept a large non-zero RPM change to avoid
+        // showing spurious transient readings (single-sample noise). Zero RPM is
+        // accepted immediately so stopped-fan state is visible to users.
+        private const int FanChangeConfirmRequiredCycles = 2;
         
         // Thermal protection - override Auto mode when temps get too high
         // v2.8.0: Raised thresholds — 80°C/85°C was too aggressive for gaming laptops
@@ -313,15 +318,23 @@ namespace OmenCore.Services
             try
             {
                 var fanSpeeds = _fanController.ReadFanSpeeds().ToList();
-                App.Current?.Dispatcher?.Invoke(() =>
+
+                // Populate internal state (required for headless/unit-test scenarios).
+                _lastFanSpeeds = fanSpeeds.Select(f => f.Rpm).ToList();
+                _fanChangeConfirmCounters = Enumerable.Repeat(0, _lastFanSpeeds.Count).ToList();
+
+                // Update UI-bound collection only when a WPF dispatcher is available.
+                if (App.Current?.Dispatcher != null)
                 {
-                    _fanTelemetry.Clear();
-                    foreach (var fan in fanSpeeds)
+                    App.Current.Dispatcher.Invoke(() =>
                     {
-                        _fanTelemetry.Add(fan);
-                    }
-                    _lastFanSpeeds = fanSpeeds.Select(f => f.Rpm).ToList();
-                });
+                        _fanTelemetry.Clear();
+                        foreach (var fan in fanSpeeds)
+                        {
+                            _fanTelemetry.Add(fan);
+                        }
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -352,14 +365,125 @@ namespace OmenCore.Services
                 _logging.Warn($"Fan preset '{preset.Name}' skipped; fan control unavailable ({_fanController.Status})");
                 return;
             }
+
+            // Do not allow external preset changes while in diagnostic mode — this prevents
+            // the UI or other code from overriding a manual diagnostics test (user-reported bug).
+            if (_diagnosticModeActive)
+            {
+                _logging.Warn($"Skipping preset '{preset.Name}' while in diagnostic mode");
+                return;
+            }
             
             // Apply the preset's thermal policy first
             if (_fanController.ApplyPreset(preset))
             {
-                _logging.Info($"Fan preset '{preset.Name}' applied via {Backend}");
-                
-                // Update current fan mode based on preset
+                _logging.Info($"Fan preset '{preset.Name}' applied via {Backend} (controller returned success) - verifying state...");
+
+                // Record previous state so we can rollback if verification fails
+                var previousPreset = _activePreset;
+                var previousCurveEnabled = _curveEnabled;
+                var previousActiveCurve = _activeCurve != null ? new List<FanCurvePoint>(_activeCurve) : null;
+                var previousFanMode = _currentFanMode;
+
+                // Optimistic mode mapping (used for UI/state if verification succeeds)
                 var nameLower = preset.Name.ToLowerInvariant();
+                bool isMaxPreset = nameLower.Contains("max") && !nameLower.Contains("auto");
+
+                // Verification helper
+                bool VerificationPasses()
+                {
+                    try
+                    {
+                        // 1) Max preset: verify via controller-specific verification (if available)
+                        if (isMaxPreset)
+                        {
+                            var (ok, details) = VerifyMaxApplied();
+                            if (ok) return true;
+
+                            _logging.Warn($"VerifyMaxApplied failed: {details}");
+                            return false;
+                        }
+
+                        // 2) For curve-based presets or other performance presets: ensure fan telemetry reflects a change
+                        // Read fan speeds a few times allowing the controller to settle
+                        var baseline = _fanController.ReadFanSpeeds().Select(f => f.Rpm).ToList();
+
+                        for (int attempt = 0; attempt < 4; attempt++)
+                        {
+                            Thread.Sleep(200); // short wait for controller to apply
+                            var sample = _fanController.ReadFanSpeeds().Select(f => f.Rpm).ToList();
+
+                            // If any fan RPM changed by a non-trivial amount, consider verification successful
+                            for (int i = 0; i < Math.Min(baseline.Count, sample.Count); i++)
+                            {
+                                if (Math.Abs(sample[i] - baseline[i]) >= 50) // 50 RPM tolerance
+                                    return true;
+                            }
+                        }
+
+                        // 3) For Auto/default presets, we accept controller.RestoreAutoControl above and treat as success
+                        if (nameLower.Contains("auto") || nameLower.Contains("default") || nameLower.Contains("balanced"))
+                            return true;
+
+                        return false;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"Preset verification threw: {ex.Message}");
+                        return false;
+                    }
+                }
+
+                // If preset involves immediate fan changes (Max or performance curve), verify the device state.
+                var verified = VerificationPasses();
+
+                if (!verified)
+                {
+                    // Attempt rollback to previous state
+                    _logging.Error($"Preset '{preset.Name}' verification failed — attempting rollback to previous preset: {(previousPreset?.Name ?? "<none>")}");
+                    try
+                    {
+                        if (previousPreset != null)
+                        {
+                            // Reapply previous preset on controller
+                            _fanController.ApplyPreset(previousPreset);
+
+                            // Restore previous curve state as necessary
+                            if (previousCurveEnabled && previousActiveCurve != null)
+                            {
+                                EnableCurve(previousActiveCurve, previousPreset);
+                            }
+                            else
+                            {
+                                DisableCurve();
+                            }
+
+                            _activePreset = previousPreset;
+                            _currentFanMode = previousFanMode;
+                            _logging.Info($"Rollback to preset '{previousPreset.Name}' completed");
+                        }
+                        else
+                        {
+                            // No previous preset — restore BIOS auto control
+                            DisableCurve();
+                            _fanController.RestoreAutoControl();
+                            _activePreset = null;
+                            _currentFanMode = "Auto";
+                            _logging.Info("Rollback: restored BIOS auto control");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Error($"Rollback failed: {ex.Message}", ex);
+                    }
+
+                    // Do not raise PresetApplied on verification failure
+                    return;
+                }
+
+                // Verification succeeded — update UI-visible state and enable curve/mode as before
+                _logging.Info($"Preset '{preset.Name}' verified successfully");
+
                 if (nameLower.Contains("max") && !nameLower.Contains("extreme"))
                     _currentFanMode = "Max";
                 else if (nameLower.Contains("extreme"))
@@ -370,52 +494,40 @@ namespace OmenCore.Services
                     _currentFanMode = "Quiet";
                 else
                     _currentFanMode = preset.Name; // Use preset name for custom presets
-                
-                bool isMaxPreset = nameLower.Contains("max") && !nameLower.Contains("auto");
-                
+
                 if (isMaxPreset)
                 {
-                    // Max preset: Apply max cooling mode
                     ApplyMaxCooling();
                     _activePreset = preset;
                 }
                 else if (nameLower.Contains("auto") || nameLower.Contains("default"))
                 {
-                    // Auto/Default mode: Let BIOS control fans completely
-                    // Don't apply any curve - this allows fans to stop at idle temps
                     DisableCurve();
                     _activePreset = preset;
-                    
-                    // Restore BIOS auto control - this resets fan levels to 0 and 
-                    // sets FanMode.Default so BIOS can stop fans at idle temperatures
+
                     _fanController.RestoreAutoControl();
-                    
                     _logging.Info($"✓ Preset '{preset.Name}' using BIOS auto control (fans can stop at idle)");
                 }
                 else if (preset.Curve != null && preset.Curve.Any())
                 {
-                    // Enable continuous curve application for custom/performance presets
                     EnableCurve(preset.Curve.ToList(), preset);
                     _logging.Info($"✓ Preset '{preset.Name}' curve enabled with {preset.Curve.Count} points");
 
                     if (immediate)
                     {
-                        // Perform an immediate curve application based on current temps
                         var temps = _thermalProvider.ReadTemperatures().ToList();
                         var cpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius ?? temps.FirstOrDefault()?.Celsius ?? 0;
                         var gpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("GPU"))?.Celsius ?? temps.Skip(1).FirstOrDefault()?.Celsius ?? 0;
-                        // Fire-and-forget: force apply now without blocking caller
                         _ = ForceApplyCurveNowAsync(cpuTemp, gpuTemp, immediate: true);
                     }
                 }
                 else
                 {
-                    // No curve defined - use BIOS defaults
                     DisableCurve();
                     _activePreset = preset;
                     _logging.Info($"Preset '{preset.Name}' using BIOS control (no curve defined)");
                 }
-                
+
                 // Raise event for UI synchronization (sidebar, tray, etc.)
                 PresetApplied?.Invoke(this, preset.Name);
             }
@@ -734,20 +846,73 @@ namespace OmenCore.Services
                     
                     // Read fan speeds (less frequently to reduce ACPI overhead)
                     var fanSpeeds = _fanController.ReadFanSpeeds().ToList();
-                    
-                    // Check if fan speeds changed meaningfully (reduce UI churn)
-                    bool fanSpeedsChanged = fanSpeeds.Count != _lastFanSpeeds.Count;
-                    if (!fanSpeedsChanged)
+
+                    // Prepare a stable "display" RPM list using confirmation counters to
+                    // ignore single-sample spikes. Zero RPM is accepted immediately.
+                    var newRpms = fanSpeeds.Select(f => f.Rpm).ToList();
+
+                    // Resize/initialize confirmation counters when fan count changes
+                    if (_fanChangeConfirmCounters == null || _fanChangeConfirmCounters.Count != newRpms.Count)
                     {
-                        for (int i = 0; i < fanSpeeds.Count; i++)
+                        _fanChangeConfirmCounters = Enumerable.Repeat(0, newRpms.Count).ToList();
+                    }
+
+                    var displayRpms = new List<int>(newRpms.Count);
+                    for (int i = 0; i < newRpms.Count; i++)
+                    {
+                        var newRpm = newRpms[i];
+                        var lastRpm = (i < _lastFanSpeeds.Count) ? _lastFanSpeeds[i] : 0;
+
+                        // Accept zero immediately **only** when duty cycle also indicates stopped fans.
+                        // If RPM==0 but duty-cycle > 0 we treat it as a readback glitch and DO NOT
+                        // accept the zero (hold the previous value until duty indicates stopped).
+                        var duty = (i < fanSpeeds.Count) ? fanSpeeds[i].DutyCyclePercent : 0;
+
+                        if (newRpm == 0)
                         {
-                            if (Math.Abs(fanSpeeds[i].Rpm - _lastFanSpeeds[i]) > FanSpeedChangeThreshold)
+                            if (duty == 0)
                             {
-                                fanSpeedsChanged = true;
-                                break;
+                                displayRpms.Add(0);
+                                _fanChangeConfirmCounters[i] = 0;
+                                continue;
                             }
+
+                            // Inconsistent zero (rpm==0 but duty>0) — treat as transient noise and
+                            // hold previous value (do not accept even after confirmation cycles).
+                            _fanChangeConfirmCounters[i] = Math.Min(_fanChangeConfirmCounters[i] + 1, FanChangeConfirmRequiredCycles);
+                            displayRpms.Add(lastRpm);
+                            continue;
+                        }
+
+                        // Small differences are accepted immediately
+                        if (Math.Abs(newRpm - lastRpm) <= FanSpeedChangeThreshold)
+                        {
+                            displayRpms.Add(newRpm);
+                            _fanChangeConfirmCounters[i] = 0;
+                            continue;
+                        }
+
+                        // Large differences require multiple consecutive confirmations
+                        _fanChangeConfirmCounters[i] = Math.Min(_fanChangeConfirmCounters[i] + 1, FanChangeConfirmRequiredCycles);
+                        if (_fanChangeConfirmCounters[i] >= FanChangeConfirmRequiredCycles)
+                        {
+                            displayRpms.Add(newRpm);
+                            _fanChangeConfirmCounters[i] = 0;
+                        }
+                        else
+                        {
+                            // Hold previous value until change is confirmed
+                            displayRpms.Add(lastRpm);
                         }
                     }
+
+                    // Determine whether the displayed RPMs differ from the last UI values
+                    bool fanSpeedsChanged = _lastFanSpeeds.Count != displayRpms.Count ||
+                                             displayRpms.Where((rpm, idx) => idx < _lastFanSpeeds.Count && rpm != _lastFanSpeeds[idx]).Any();
+
+                    // Update internal last-seen RPMs even when there's no UI dispatcher
+                    // (keeps headless/unit-test scenarios deterministic)
+                    _lastFanSpeeds = displayRpms.ToList();
 
                     // Use BeginInvoke to avoid potential deadlocks
                     App.Current?.Dispatcher?.BeginInvoke(() =>
@@ -760,15 +925,19 @@ namespace OmenCore.Services
                         }
 
                         // Only update fan telemetry if values changed meaningfully
-                        // This reduces GC pressure and UI update churn
                         if (fanSpeedsChanged)
                         {
                             _fanTelemetry.Clear();
-                            foreach (var fan in fanSpeeds)
+                            for (int i = 0; i < fanSpeeds.Count; i++)
                             {
+                                var fan = fanSpeeds[i];
+                                // Show the stabilized RPM value instead of raw sensor noise
+                                fan.SpeedRpm = (i < displayRpms.Count) ? displayRpms[i] : fan.SpeedRpm;
                                 _fanTelemetry.Add(fan);
                             }
-                            _lastFanSpeeds = fanSpeeds.Select(f => f.Rpm).ToList();
+
+                            // Commit displayed RPMs as the last-seen UI state (already set above)
+                            //_lastFanSpeeds = displayRpms.ToList();
                         }
                     });
                 }

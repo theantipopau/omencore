@@ -1055,6 +1055,9 @@ namespace OmenCore.ViewModels
         public ICommand ExportConfigurationCommand { get; }
         public ICommand ImportConfigurationCommand { get; }
 
+        // Diagnostics / reporting
+        public ICommand ReportModelCommand { get; }
+
         // Expose Fan Diagnostics VM
         public FanDiagnosticsViewModel FanDiagnostics { get; private set; }
 
@@ -1459,6 +1462,9 @@ namespace OmenCore.ViewModels
             OpenGameProfileManagerCommand = _openGameProfileManagerCommand;
             ExportConfigurationCommand = new AsyncRelayCommand(_ => ExportConfigurationAsync());
             ImportConfigurationCommand = new AsyncRelayCommand(_ => ImportConfigurationAsync());
+
+            // Diagnostics / reporting
+            ReportModelCommand = new AsyncRelayCommand(async _ => await ReportModelAsync());
 
             _logging.LogEmitted += HandleLogLine;
 
@@ -2652,6 +2658,53 @@ namespace OmenCore.ViewModels
                     PushEvent($"✗ Import failed: {ex.Message}");
                 }
             }
+            await Task.CompletedTask;
+        }
+
+        private async Task ReportModelAsync()
+        {
+            try
+            {
+                var exportedPath = await ModelReportService.CreateModelDiagnosticBundleAsync(_systemInfoService, new DiagnosticsExportService(_logging, _configService), _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
+
+                if (!string.IsNullOrEmpty(exportedPath) && File.Exists(exportedPath))
+                {
+                    var sysInfo = _systemInfoService.GetSystemInfo();
+                    var model = !string.IsNullOrEmpty(sysInfo.Model) ? sysInfo.Model : (sysInfo.ProductName ?? "Unknown");
+                    var productName = sysInfo.ProductName ?? string.Empty;
+                    var sku = sysInfo.SystemSku ?? string.Empty;
+
+                    var clipboardText = $"Model: {model}\nProductName: {productName}\nSystemSku: {sku}\nDiagnostics: {exportedPath}";
+                    try { Clipboard.SetText(clipboardText); } catch { _logging.Warn("Clipboard unavailable for ReportModel"); }
+
+                    _logging.Info($"ReportModel: diagnostics exported to {exportedPath} and model info copied to clipboard (Model={model})");
+                    PushEvent("✓ Diagnostics bundle created and model info copied to clipboard");
+
+                    if (Application.Current != null)
+                    {
+                        MessageBox.Show(
+                            $"Diagnostics bundle created and model info copied to clipboard.\n\nModel: {model}\nPath: {exportedPath}",
+                            "Report Model",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    _logging.Warn("ReportModel: diagnostics export returned no path");
+                    PushEvent("✗ Report model failed: export error");
+                    if (Application.Current != null)
+                        MessageBox.Show("Failed to create diagnostics bundle.", "Report Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("ReportModel failed", ex);
+                PushEvent($"✗ Report model failed: {ex.Message}");
+                if (Application.Current != null)
+                    MessageBox.Show($"Failed to create diagnostics bundle: {ex.Message}", "Report Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
             await Task.CompletedTask;
         }
 

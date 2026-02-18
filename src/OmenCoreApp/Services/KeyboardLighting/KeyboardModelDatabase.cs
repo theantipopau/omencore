@@ -336,6 +336,20 @@ namespace OmenCore.Services.KeyboardLighting
                 Notes = "Single-color backlight only"
             });
 
+            // Reported by users: Victus model where keyboard zones were not applied (PN: 8BD5)
+            // Previously fell back to generic Victus defaults which caused only the lightbar to update.
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8BD5",
+                ModelName = "HP Victus 16 (2023) - 8BD5",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.EcDirect },
+                ModelYear = 2023,
+                UserVerified = false,
+                Notes = "Added from user report — ensures keyboard zones are applied instead of falling back to Victus defaults"
+            });
+
             // ═══════════════════════════════════════════════════════════════════════════════════
             // Older OMEN Models (2018-2019) - Backlight only
             // ═══════════════════════════════════════════════════════════════════════════════════

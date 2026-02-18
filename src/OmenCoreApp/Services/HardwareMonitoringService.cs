@@ -27,6 +27,7 @@ namespace OmenCore.Services
         private MonitoringSample? _lastSample;
         private readonly double _changeThreshold = 0.5; // Minimum change to trigger UI update (degrees/percent)
         private readonly double _lowOverheadChangeThreshold = 3.0; // Higher threshold in low overhead mode
+        private readonly double _powerChangeThresholdWatts = 1.0; // Force UI update on significant power change (Watts)
         private volatile bool _isPaused; // For S0 Modern Standby support (volatile for thread-safety)
         private readonly object _pauseLock = new();
         private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
@@ -417,10 +418,16 @@ namespace OmenCore.Services
             var cpuLoadChange = Math.Abs(newSample.CpuLoadPercent - _lastSample.CpuLoadPercent);
             var gpuLoadChange = Math.Abs(newSample.GpuLoadPercent - _lastSample.GpuLoadPercent);
 
+            // Also update UI when power readings change significantly (fixes intermittent 0W display)
+            var cpuPowerChange = Math.Abs(newSample.CpuPowerWatts - _lastSample.CpuPowerWatts);
+            var gpuPowerChange = Math.Abs(newSample.GpuPowerWatts - _lastSample.GpuPowerWatts);
+
             return cpuTempChange >= threshold ||
                    gpuTempChange >= threshold ||
                    cpuLoadChange >= threshold ||
-                   gpuLoadChange >= threshold;
+                   gpuLoadChange >= threshold ||
+                   cpuPowerChange >= _powerChangeThresholdWatts ||
+                   gpuPowerChange >= _powerChangeThresholdWatts;
         }
 
         // IHardwareMonitoringService implementation

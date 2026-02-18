@@ -64,7 +64,7 @@ Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: 
 
 [Run]
 ; Install PawnIO driver if bundled (note: PawnIO uses -silent not /SILENT)
-Filename: "{tmp}\PawnIO_setup.exe"; Parameters: "-silent"; StatusMsg: "Installing PawnIO driver (Secure Boot compatible)..."; Flags: waituntilterminated; Tasks: installpawnio; Check: PawnIOInstallerExists
+Filename: "{tmp}\PawnIO_setup.exe"; Parameters: "-silent"; StatusMsg: "Installing PawnIO driver (Secure Boot compatible)..."; Flags: waituntilterminated; Tasks: installpawnio; Check: PawnIOInstallerExists and not IsPawnIOInstalled
 ; Create scheduled task for autostart if user selected it (runs with elevated privileges)
 Filename: "schtasks"; Parameters: "/create /tn ""OmenCore"" /tr ""\""{app}\\{#MyAppExeName}\"" --minimized"" /sc onlogon /rl highest /f"; Flags: runhidden; Tasks: autostart
 ; Launch OmenCore with elevation (shellexec verb=runas)

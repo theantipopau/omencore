@@ -128,7 +128,7 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "2.9.1";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.0";
         }
 
         private void InitializeContextMenu()

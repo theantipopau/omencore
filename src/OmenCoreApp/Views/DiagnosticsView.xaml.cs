@@ -12,5 +12,15 @@ namespace OmenCore.Views
         {
             InitializeComponent();
         }
+
+        private void OpenDiagnosticsFolder_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var temp = System.IO.Path.GetTempPath();
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = temp,
+                UseShellExecute = true
+            });
+        }
     }
 }
