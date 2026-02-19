@@ -76,6 +76,16 @@ The following regressions have been implemented in the working branch and are co
 - Integration (CI): quick‑profile switch stress test (ADDED) — verifies no transient 0 RPM or single‑sample spikes during rapid preset switching; remaining: simulated RAPL power telemetry simulation, keyboard model detection matrix.
 - Hardware QA: checklist for Victus/OMEN variants (Fn keys, per‑key RGB, fan quick profiles, thermal protection release behavior).
 
+## Work in progress (active TODOs)
+- [in‑progress] **EC write watchdog & rate‑limit** — prevent EC hammering / ACPI Event 13; add IEcAccess mocks + CI stress tests. (Files: `FanController.cs`, `FanService.cs`, `PawnIOEcAccess.cs`)
+- [not-started] **WMI V2 verification & `ak0003nr` support** — parse V2 fan commands and verify readbacks (Files: `HpWmiBios.cs`, `WmiFanController.cs`, `ModelCapabilityDatabase.cs`).
+- [not-started] **Fix Fan RPM parsing (krpm → RPM)** — add unit tests for byte‑order/parsing edge cases (Files: `HpWmiBios.cs`).
+- [not-started] **Harden WMI "success but ineffective" fallback + rollback** — ensure preset verification cannot be bypassed by estimated readbacks (Files: `WmiFanController.cs`, `FanService.cs`).
+- [not-started] **Global hotkey conflicts** — remove/adjust `Ctrl+S` global registration; window‑focused hotkeys (Files: `HotkeyService.cs`).
+- [not-started] **Diagnostics export E2E + clipboard CI test** — end‑to‑end validation for `Report model` flow (Files: `ModelReportService.cs`, `MainViewModel.cs`).
+
+> Changelog will be updated to mark items as **completed** as each task and its tests are merged.
+
 ## Next steps (pick one)
 - Prepare a private alpha (3.0.0-alpha) non‑installer test build for hardware QA (Victus/OMEN reproducer machines). **Do NOT build or publish a 3.0.0 installer yet.**
   - Acceptance criteria: all unit tests green; CI quick‑profile & diagnostics export tests passing; model DB additions included; hardware QA checklist items verified on at least one device per family.
