@@ -16,9 +16,13 @@ The following regressions have been implemented in the working branch and are co
   - Files: `FanService.cs`, `WmiFanController.cs`, `FanControllerFactory.cs`.
   - Tests: `FanSmoothingTests`, `FanPresetVerificationTests` (unit).
 
-- Keyboard lighting model DB — added ProductId `8BD5` (HP Victus 16, 2023) and improved model-probing fallbacks so per-key zones apply correctly. Files: `KeyboardModelDatabase.cs`, `KeyboardLightingServiceV2.cs`. Tests: `KeyboardModelDatabaseTests`.
+- Model capability database — added `OMEN MAX 16 (ak0003nr)` entry with ThermalPolicy V2 handling; recommend WMI‑only fan control for this series (avoid legacy EC writes). Files: `ModelCapabilityDatabase.cs`, `HpWmiBios.cs`.
+  - Tests: `ModelCapabilityDatabaseTests` (unit)
 
-- Diagnostics & reporting UX — added Monitoring Diagnostics panel and `Report model` flow (creates diagnostics ZIP and copies model info to clipboard). Implemented `ModelReportService` and added unit + view-binding checks. Files: `DiagnosticsView.xaml`, `MainViewModel.cs`, `Services/ModelReportService.cs`. Tests: `ModelReportServiceTests` + diagnostics view-binding assertion.
+- Keyboard lighting model DB — added ProductId `8BD5` (HP Victus 16, 2023) and `8A26` (HP Victus 16, 2024) to ensure per‑zone ColorTable is applied instead of generic Victus fallback. Files: `KeyboardModelDatabase.cs`, `KeyboardLightingServiceV2.cs`.
+  - Tests: `KeyboardModelDatabaseTests` (updated)
+
+- Diagnostics & reporting UX — added Monitoring Diagnostics panel and `Report model` flow (creates diagnostics ZIP and copies model info to clipboard). Implemented `ModelReportService` and added unit + view-binding checks. Files: `DiagnosticsView.xaml`, `MainViewModel.cs`, `Services/ModelReportService.cs`. Tests: `ModelReportServiceTests` + diagnostics view‑binding assertion.
 
 ---
 
@@ -73,8 +77,9 @@ The following regressions have been implemented in the working branch and are co
 - Hardware QA: checklist for Victus/OMEN variants (Fn keys, per‑key RGB, fan quick profiles, thermal protection release behavior).
 
 ## Next steps (pick one)
-- Open a draft PR bundling all regression fixes + new unit/integration tests for v3.0.0.
-- Prepare a non‑installer test build for hardware verification on affected models (Victus/OMEN reproducer machines).
+- Prepare a private alpha (3.0.0-alpha) non‑installer test build for hardware QA (Victus/OMEN reproducer machines). **Do NOT build or publish a 3.0.0 installer yet.**
+  - Acceptance criteria: all unit tests green; CI quick‑profile & diagnostics export tests passing; model DB additions included; hardware QA checklist items verified on at least one device per family.
+- Open a draft PR bundling all regression fixes + new unit/integration tests for v3.0.0 (after alpha verification).
 - Expand `KeyboardModelDatabase` with additional community‑sourced model entries and add a "report your model" button in Diagnostics.
 
-Please tell me which next step you want me to take (recommended: `create PR (draft)`).
+Recommended next action: prepare the 3.0.0-alpha non‑installer build and run hardware QA (private testers).

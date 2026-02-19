@@ -409,6 +409,34 @@ namespace OmenCore.Hardware
                        "EC register layout incompatible with legacy addresses. Use ACPI platform_profile " +
                        "(low-power/balanced/performance) and hp-wmi hwmon pwm_enable (0=full,2=auto) for fan control."
             });
+
+            // OMEN MAX 16 (ak0003nr) - reported by user (AMD HX 375 + RTX 5080)
+            // Newer MAX models use WMI ThermalPolicy V2 and incompatible EC register layout.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "AK0003NR",
+                ModelName = "OMEN MAX 16 (ak0003nr) AMD",
+                ModelNamePattern = "max 16 ak0",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN2024Plus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false, // EC register layout incompatible — prefer WMI V2/ACPI platform_profile
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 100,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool", "L5P" },
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                SupportsAdvancedOptimus = true,
+                HasKeyboardBacklight = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false, // AMD Ryzen — Intel-style undervolt unsupported
+                UserVerified = false,
+                Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers."
+            });
             
             // ═══════════════════════════════════════════════════════════════════════════════════
             // OMEN 17 Series (17.3" laptops)

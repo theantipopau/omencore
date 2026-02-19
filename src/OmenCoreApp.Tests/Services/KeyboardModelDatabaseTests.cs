@@ -15,5 +15,15 @@ namespace OmenCoreApp.Tests.Services
             cfg.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
             cfg.KeyboardType.Should().Be(KeyboardType.FourZone);
         }
+
+        [Fact]
+        public void GetConfig_ReturnsConfig_For_ProductId_8A26()
+        {
+            var cfg = KeyboardModelDatabase.GetConfig("8A26");
+            cfg.Should().NotBeNull();
+            cfg!.ModelName.Should().Contain("Victus");
+            cfg.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
+            cfg.KeyboardType.Should().Be(KeyboardType.FourZone);
+        }
     }
 }
