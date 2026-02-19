@@ -78,7 +78,8 @@ The following regressions have been implemented in the working branch and are co
 
 ## Work in progress (active TODOs)
 - [in‑progress] **EC write watchdog & rate‑limit** — prevent EC hammering / ACPI Event 13; add IEcAccess mocks + CI stress tests. (Files: `FanController.cs`, `FanService.cs`, `PawnIOEcAccess.cs`)
-- [not-started] **WMI V2 verification & `ak0003nr` support** — parse V2 fan commands and verify readbacks (Files: `HpWmiBios.cs`, `WmiFanController.cs`, `ModelCapabilityDatabase.cs`).
+- [in-progress] **WMI V2 verification & `ak0003nr` support** — parse V2 fan commands and verify readbacks (Files: `HpWmiBios.cs`, `WmiFanController.cs`, `ModelCapabilityDatabase.cs`).  
+  - Tests: added unit tests for `GetFanRpmDirect`/V2 verification and injected WMI BIOS fakes.
 - [not-started] **Fix Fan RPM parsing (krpm → RPM)** — add unit tests for byte‑order/parsing edge cases (Files: `HpWmiBios.cs`).
 - [not-started] **Harden WMI "success but ineffective" fallback + rollback** — ensure preset verification cannot be bypassed by estimated readbacks (Files: `WmiFanController.cs`, `FanService.cs`).
 - [not-started] **Global hotkey conflicts** — remove/adjust `Ctrl+S` global registration; window‑focused hotkeys (Files: `HotkeyService.cs`).

@@ -21,7 +21,7 @@ namespace OmenCore.Hardware
     /// </summary>
     public class WmiFanController : IDisposable
     {
-        private readonly HpWmiBios _wmiBios;
+        private readonly IHpWmiBios _wmiBios;
         private readonly LibreHardwareMonitorImpl? _hwMonitor;
         private readonly LoggingService? _logging;
         private bool _disposed;
@@ -92,16 +92,17 @@ namespace OmenCore.Hardware
         /// </summary>
         public int VerifyFailCount => _commandVerifyFailCount;
 
-        public WmiFanController(LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null, int maxFanLevelOverride = 0)
+        public WmiFanController(LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null, int maxFanLevelOverride = 0, IHpWmiBios? injectedWmiBios = null)
         {
             _hwMonitor = hwMonitor;
             _logging = logging;
-            _wmiBios = new HpWmiBios(logging);
+            _wmiBios = injectedWmiBios ?? new HpWmiBios(logging);
             
             // Apply user override if set, then read the (possibly overridden) max level
-            if (maxFanLevelOverride > 0)
+            if (maxFanLevelOverride > 0 && _wmiBios is HpWmiBios concrete)
             {
-                _wmiBios.DetectMaxFanLevel(maxFanLevelOverride);
+                // Only call DetectMaxFanLevel on the real implementation (not on fakes)
+                concrete.DetectMaxFanLevel(maxFanLevelOverride);
             }
             _maxFanLevel = _wmiBios.MaxFanLevel;
             _logging?.Info($"WmiFanController: Max fan level = {_maxFanLevel}{(maxFanLevelOverride > 0 ? $" (user override: {maxFanLevelOverride})" : " (auto-detected)")}");

@@ -20,7 +20,7 @@ namespace OmenCore.Hardware
     /// 
     /// This class uses a singleton pattern to avoid multiple heartbeat timers.
     /// </summary>
-    public class HpWmiBios : IDisposable
+    public class HpWmiBios : IHpWmiBios, IDisposable
     {
         private readonly LoggingService? _logging;
         private bool _isAvailable;
