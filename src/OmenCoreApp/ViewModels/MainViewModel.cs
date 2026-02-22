@@ -66,6 +66,7 @@ namespace OmenCore.ViewModels
         private readonly SystemInfoService _systemInfoService;
         private readonly AutoUpdateService _autoUpdateService;
         private readonly ProcessMonitoringService _processMonitoringService;
+        private readonly ITelemetryService _telemetryService;
         private readonly GameProfileService _gameProfileService;
         private readonly FanCleaningService _fanCleaningService;
         private readonly HotkeyService _hotkeyService;
@@ -1057,6 +1058,7 @@ namespace OmenCore.ViewModels
 
         // Diagnostics / reporting
         public ICommand ReportModelCommand { get; }
+        public ICommand ExportTelemetryCommand { get; }
 
         // Expose Fan Diagnostics VM
         public FanDiagnosticsViewModel FanDiagnostics { get; private set; }
@@ -1318,6 +1320,7 @@ namespace OmenCore.ViewModels
             SystemInfo = _systemInfoService.GetSystemInfo();
             _autoUpdateService = new AutoUpdateService(_logging);
             _processMonitoringService = new ProcessMonitoringService(_logging);
+            _telemetryService = new TelemetryService(_logging, _configService);
             _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
             _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService, _wmiBios, _oghProxy);
             _biosUpdateService = new BiosUpdateService(_logging);
@@ -1465,6 +1468,7 @@ namespace OmenCore.ViewModels
 
             // Diagnostics / reporting
             ReportModelCommand = new AsyncRelayCommand(async _ => await ReportModelAsync());
+            ExportTelemetryCommand = new AsyncRelayCommand(async _ => await ExportTelemetryAsync());
 
             _logging.LogEmitted += HandleLogLine;
 
@@ -2708,6 +2712,23 @@ namespace OmenCore.ViewModels
             await Task.CompletedTask;
         }
 
+        private async Task ExportTelemetryAsync()
+        {
+            var path = _telemetryService.ExportTelemetry();
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                try { Clipboard.SetText(path); } catch { _logging.Warn("Clipboard unavailable for telemetry export"); }
+                _logging.Info($"Telemetry exported to: {path}");
+                PushEvent("✓ Telemetry exported");
+            }
+            else
+            {
+                _logging.Warn("Telemetry export failed");
+                PushEvent("✗ Telemetry export failed");
+            }
+            await Task.CompletedTask;
+        }
+
         #region Tray Quick Actions
 
         private void EnqueueTrayActionLatest(string actionName, Func<Task> action, bool skipWhenSafeMode = true)
@@ -3327,14 +3348,45 @@ namespace OmenCore.ViewModels
             {
                 // Only register hotkeys if enabled in settings
                 var hotkeysEnabled = _config.Monitoring?.HotkeysEnabled ?? true;
+                var windowFocused = _config.Monitoring?.WindowFocusedHotkeys ?? true;
                 
                 _hotkeyService.Initialize(windowHandle);
                 
                 if (hotkeysEnabled)
                 {
-                    _hotkeyService.RegisterDefaultHotkeys();
-                    _logging.Info("Global hotkeys registered");
-                    PushEvent("⌨️ Global hotkeys enabled");
+                    if (windowFocused)
+                    {
+                        // Attach to main window activation events so that hotkeys are only
+                        // active when the app has focus. This avoids conflicts with other
+                        // applications using the same shortcuts (e.g. games, editors).
+                        var wnd = Application.Current?.MainWindow;
+                        if (wnd != null)
+                        {
+                            wnd.Activated += OnMainWindowActivated;
+                            wnd.Deactivated += OnMainWindowDeactivated;
+                            _logging.Info("Window-focused hotkey behaviour enabled");
+                            // If window already active, register immediately
+                            if (wnd.IsActive)
+                            {
+                                _hotkeyService.RegisterDefaultHotkeys();
+                                _logging.Info("Hotkeys registered (window already active)");
+                                PushEvent("⌨️ Hotkeys active (window focus)");
+                            }
+                        }
+                        else
+                        {
+                            // Fallback: no window handle, just register normally
+                            _hotkeyService.RegisterDefaultHotkeys();
+                            _logging.Info("Global hotkeys registered (no window handle)");
+                            PushEvent("⌨️ Global hotkeys enabled");
+                        }
+                    }
+                    else
+                    {
+                        _hotkeyService.RegisterDefaultHotkeys();
+                        _logging.Info("Global hotkeys registered");
+                        PushEvent("⌨️ Global hotkeys enabled");
+                    }
                 }
                 else
                 {
@@ -3397,6 +3449,37 @@ namespace OmenCore.ViewModels
             }
         }
 
+        #region Hotkey focus handlers
+
+        private void OnMainWindowActivated(object? sender, EventArgs e)
+        {
+            try
+            {
+                _hotkeyService.RegisterDefaultHotkeys();
+                _logging.Info("Hotkeys registered (window activated)");
+                PushEvent("⌨️ Hotkeys active (window focused)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to register hotkeys on activate: {ex.Message}");
+            }
+        }
+
+        private void OnMainWindowDeactivated(object? sender, EventArgs e)
+        {
+            try
+            {
+                _hotkeyService.UnregisterAllHotkeys();
+                _logging.Info("Hotkeys unregistered (window deactivated)");
+                PushEvent("⌨️ Hotkeys inactive (window lost focus)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to unregister hotkeys on deactivate: {ex.Message}");
+            }
+        }
+        #endregion
+
         #endregion
 
         public void Dispose()
@@ -3440,6 +3523,13 @@ namespace OmenCore.ViewModels
                 _hotkeyService.ToggleBoostModeRequested -= OnHotkeyToggleBoostMode;
                 _hotkeyService.ToggleQuietModeRequested -= OnHotkeyToggleQuietMode;
                 _hotkeyService.ToggleWindowRequested -= OnHotkeyToggleWindow;
+            }
+            // Unsubscribe window focus handlers if attached
+            var wnd = Application.Current?.MainWindow;
+            if (wnd != null)
+            {
+                wnd.Activated -= OnMainWindowActivated;
+                wnd.Deactivated -= OnMainWindowDeactivated;
             }
 
             // Dispose process monitoring and game profile services

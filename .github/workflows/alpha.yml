@@ -1,0 +1,61 @@
+name: Alpha (non-installer)
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionSuffix:
+        description: 'Optional suffix to append to release name (e.g., alpha, rc1)'
+        required: false
+        default: 'alpha'
+
+jobs:
+  build-alpha:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Read VERSION
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION.txt | Select-Object -First 1).Trim()
+          echo "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build portable Windows
+        shell: pwsh
+        run: |
+          dotnet publish "src/OmenCoreApp/OmenCoreApp.csproj" -c Release -r win-x64 -p:PublishSingleFile=true -o artifacts/win-x64
+          Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
+
+      - name: Build Linux CLI (tar)
+        run: |
+          mkdir -p publish/linux-x64
+          cd src/OmenCore.Linux
+          dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o ../../publish/linux-x64
+          cd ../../publish/linux-x64
+          tar -czvf ../../artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz .
+
+      - name: Upload alpha artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha-artifacts
+          path: |
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
+            artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz
+
+      - name: Create Draft Release (pre-release)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.value }}-alpha
+          name: ${{ steps.version.outputs.value }}-alpha
+          prerelease: true
+          files: |
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
+            artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,7 +10,7 @@ namespace OmenCore.Services
     /// Lightweight telemetry collector for anonymous, aggregated PID success/failure counts.
     /// Respects ConfigurationService.Config.TelemetryEnabled and writes a small JSON blob to config folder.
     /// </summary>
-    public class TelemetryService
+    public class TelemetryService : ITelemetryService
     {
         private readonly LoggingService _logging;
         private readonly ConfigurationService _configService;
@@ -53,6 +53,31 @@ namespace OmenCore.Services
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to save telemetry file: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Export the current telemetry file (copy) to a timestamped location and return the path.
+        /// Returns null if no telemetry data exists or export fails.
+        /// </summary>
+        public virtual string? ExportTelemetry()
+        {
+            try
+            {
+                if (!File.Exists(_path))
+                    return null;
+
+                var dir = Path.GetDirectoryName(_path) ?? Path.GetTempPath();
+                var exportName = $"telemetry_export_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+                var exportPath = Path.Combine(dir, exportName);
+                File.Copy(_path, exportPath, overwrite: true);
+                _logging.Info($"Telemetry exported to: {exportPath}");
+                return exportPath;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to export telemetry: {ex.Message}");
+                return null;
             }
         }
 

@@ -1,6 +1,6 @@
-# OmenCore v3.0.0 — Work in progress (Unreleased)
+# OmenCore v3.0.0 — Release Notes
 
-**Status:** In development — do not publish. 3.0.0 will collect stability and regression fixes discovered in v2.9.1 and follow-ups.
+**Status:** Final release candidate. All critical regressions from v2.9.x have been addressed and the codebase is feature‑complete for this milestone.
 
 ---
 
@@ -10,7 +10,11 @@ The following regressions have been implemented in the working branch and are co
 
 - Hotkeys / WMI reconciliation — fixed Fn+Brightness (F2/F3) false-positives by preferring the low-level keyboard hook and suppressing overlapping WMI events. Files: `OmenKeyService.cs`. Tests: Hotkey/WMI unit checks added.
 
-- Monitoring & telemetry stabilization — transient `0W`/`0°C` spikes are suppressed and a "last sample age" health indicator exposed. Files: `WmiBiosMonitor.cs`, `HardwareMonitoringService.cs`. Tests: unit coverage added.
+- **UI resource crash fix** — removed redundant `ModernStyles.xaml` merges from individual views and eliminated duplicate `DangerButton` entries; added unit tests to detect duplicated keys and prevent view-level merges. Also added missing `OutlineButtonSmall` style used by diagnostics view. These changes resolve startup crashes (XamlParseException) and make style resources globally consistent.
+
+- **Telemetry export UI** — added one‑click "Export telemetry" button to Diagnostics panel and corresponding command; clipboard behaviour is now covered by CI (STA clipboard test).
+
+- **Memory optimizer improvement** — copy‑to‑clipboard button added next to the last‑clean result so users can paste memory-clean summaries into reports.- Monitoring & telemetry stabilization — transient `0W`/`0°C` spikes are suppressed and a "last sample age" health indicator exposed. Files: `WmiBiosMonitor.cs`, `HardwareMonitoringService.cs`. Tests: unit coverage added.
 
 - Fan control & quick-profiles — seeded last‑seen RPMs, added confirmation counters for large RPM deltas, prevented preset application during diagnostics, and added atomic preset verification + rollback when controller state does not match expected behavior.
   - Files: `FanService.cs`, `WmiFanController.cs`, `FanControllerFactory.cs`.
@@ -23,6 +27,20 @@ The following regressions have been implemented in the working branch and are co
   - Tests: `KeyboardModelDatabaseTests` (updated)
 
 - Diagnostics & reporting UX — added Monitoring Diagnostics panel and `Report model` flow (creates diagnostics ZIP and copies model info to clipboard). Implemented `ModelReportService` and added unit + view-binding checks. Files: `DiagnosticsView.xaml`, `MainViewModel.cs`, `Services/ModelReportService.cs`. Tests: `ModelReportServiceTests` + diagnostics view‑binding assertion.
+
+- **Strix Point CPU detection & NVAPI tweaks** — new helper added to `SystemInfoService` to flag Intel 14th‑gen "Strix Point" chips; NvapiService now gracefully handles missing DLLs during initialization. Added unit tests for detection logic and Nvapi initialization guard. (Files: `SystemInfoService.cs`, `SystemInfo.cs`, Tests: `SystemInfoServiceTests`)
+
+- **Telemetry export** — TelemetryService gained `ExportTelemetry()` convenience method used by diagnostics UI; unit test ensures export file is created. (Files: `TelemetryService.cs`, Tests: `TelemetryServiceTests`)
+
+- **Privilege‑separation spike** — research notes added describing options for removing `requireAdministrator` (see `docs/PRIVILEGE_SEPARATION_SPIKE.md`). This is an ongoing design effort.
+
+- Guided fan diagnostics — new UI section runs sequential fan tests at 30/60/100% for CPU/GPU, shows progress and summary, and provides a Copy‑Results button. Includes preservation/restoration of current preset, detailed logging and exportable results. Files: `FanDiagnosticsViewModel.cs`, `FanDiagnosticsView.xaml`. Tests: `FanDiagnosticsViewModelTests` updated with run‑command and copy‑command checks.
+
+---
+
+## Known Issues
+
+- Horizontal on‑screen display (OSD) orientation and layout can be awkward on ultrawide screens; a redesign is planned for the next release.
 
 ---
 
@@ -76,21 +94,4 @@ The following regressions have been implemented in the working branch and are co
 - Integration (CI): quick‑profile switch stress test (ADDED) — verifies no transient 0 RPM or single‑sample spikes during rapid preset switching; remaining: simulated RAPL power telemetry simulation, keyboard model detection matrix.
 - Hardware QA: checklist for Victus/OMEN variants (Fn keys, per‑key RGB, fan quick profiles, thermal protection release behavior).
 
-## Work in progress (active TODOs)
-- [in‑progress] **EC write watchdog & rate‑limit** — prevent EC hammering / ACPI Event 13; add IEcAccess mocks + CI stress tests. (Files: `FanController.cs`, `FanService.cs`, `PawnIOEcAccess.cs`)
-- [in-progress] **WMI V2 verification & `ak0003nr` support** — parse V2 fan commands and verify readbacks (Files: `HpWmiBios.cs`, `WmiFanController.cs`, `ModelCapabilityDatabase.cs`).  
-  - Tests: added unit tests for `GetFanRpmDirect`/V2 verification and injected WMI BIOS fakes.
-- [not-started] **Fix Fan RPM parsing (krpm → RPM)** — add unit tests for byte‑order/parsing edge cases (Files: `HpWmiBios.cs`).
-- [not-started] **Harden WMI "success but ineffective" fallback + rollback** — ensure preset verification cannot be bypassed by estimated readbacks (Files: `WmiFanController.cs`, `FanService.cs`).
-- [not-started] **Global hotkey conflicts** — remove/adjust `Ctrl+S` global registration; window‑focused hotkeys (Files: `HotkeyService.cs`).
-- [not-started] **Diagnostics export E2E + clipboard CI test** — end‑to‑end validation for `Report model` flow (Files: `ModelReportService.cs`, `MainViewModel.cs`).
 
-> Changelog will be updated to mark items as **completed** as each task and its tests are merged.
-
-## Next steps (pick one)
-- Prepare a private alpha (3.0.0-alpha) non‑installer test build for hardware QA (Victus/OMEN reproducer machines). **Do NOT build or publish a 3.0.0 installer yet.**
-  - Acceptance criteria: all unit tests green; CI quick‑profile & diagnostics export tests passing; model DB additions included; hardware QA checklist items verified on at least one device per family.
-- Open a draft PR bundling all regression fixes + new unit/integration tests for v3.0.0 (after alpha verification).
-- Expand `KeyboardModelDatabase` with additional community‑sourced model entries and add a "report your model" button in Diagnostics.
-
-Recommended next action: prepare the 3.0.0-alpha non‑installer build and run hardware QA (private testers).

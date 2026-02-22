@@ -45,6 +45,7 @@ namespace OmenCore.ViewModels
         private int _updateCheckIntervalIndex = 2; // Daily
         private bool _includePreReleases;
         private bool _hotkeysEnabled = true;
+        private bool _hotkeysWindowFocused = true; // default to window-focused behaviour
         private bool _notificationsEnabled = true;
         private bool _gameNotificationsEnabled = true;
         private bool _modeChangeNotificationsEnabled = true;
@@ -532,6 +533,25 @@ namespace OmenCore.ViewModels
                 if (_hotkeysEnabled != value)
                 {
                     _hotkeysEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Only register hotkeys while the OmenCore window is focused. Prevents global
+        /// shortcuts from interfering with other applications (e.g. Ctrl+Shift+F in games).
+        /// This setting is enabled by default.
+        /// </summary>
+        public bool HotkeysWindowFocused
+        {
+            get => _hotkeysWindowFocused;
+            set
+            {
+                if (_hotkeysWindowFocused != value)
+                {
+                    _hotkeysWindowFocused = value;
                     OnPropertyChanged();
                     SaveSettings();
                 }
@@ -2089,6 +2109,7 @@ namespace OmenCore.ViewModels
             
             // Load hotkey and notification settings
             _hotkeysEnabled = _config.Monitoring.HotkeysEnabled;
+            _hotkeysWindowFocused = _config.Monitoring.WindowFocusedHotkeys;
             _notificationsEnabled = _config.Monitoring.NotificationsEnabled;
             _gameNotificationsEnabled = _config.Monitoring.GameNotificationsEnabled;
             _modeChangeNotificationsEnabled = _config.Monitoring.ModeChangeNotificationsEnabled;
@@ -2128,6 +2149,7 @@ namespace OmenCore.ViewModels
             
             // Save hotkey and notification settings
             _config.Monitoring.HotkeysEnabled = _hotkeysEnabled;
+            _config.Monitoring.WindowFocusedHotkeys = _hotkeysWindowFocused;
             _config.Monitoring.NotificationsEnabled = _notificationsEnabled;
             _config.Monitoring.GameNotificationsEnabled = _gameNotificationsEnabled;
             _config.Monitoring.ModeChangeNotificationsEnabled = _modeChangeNotificationsEnabled;

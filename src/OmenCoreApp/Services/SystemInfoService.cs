@@ -369,6 +369,9 @@ private DependencyCheck CheckPawnIODriver()
                             _cachedInfo.CpuVendor = "AMD";
                         else
                             _cachedInfo.CpuVendor = "Unknown";
+
+                        // detect Strix Point (14th Gen Intel) by name pattern
+                        _cachedInfo.IsStrixPointCpu = IsStrixPointCpu(cpuName);
                     }
                 }
                 
@@ -590,6 +593,17 @@ private DependencyCheck CheckPawnIODriver()
         public void ClearCache()
         {
             _cachedInfo = null;
+        }
+
+        /// <summary>
+        /// Determines if a CPU name string corresponds to Intel Strix Point (14th Gen mobile).
+        /// Exposed as static helper for unit tests.
+        /// </summary>
+        public static bool IsStrixPointCpu(string cpuName)
+        {
+            if (string.IsNullOrWhiteSpace(cpuName)) return false;
+            var lower = cpuName.ToLowerInvariant();
+            return lower.Contains("strix point") || lower.Contains("14th gen");
         }
     }
 }

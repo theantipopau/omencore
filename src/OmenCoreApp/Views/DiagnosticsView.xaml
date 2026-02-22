@@ -7,13 +7,6 @@
              xmlns:utils="clr-namespace:OmenCore.Utils"
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1200">
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/Styles/ModernStyles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
     <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
                   Padding="0,0,12,0">
         <StackPanel Margin="20,20,20,40">
@@ -67,6 +60,7 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                             <Button Content="Export diagnostics" Command="{Binding Settings.ExportDiagnosticsCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" />
+                            <Button Content="Export telemetry" Command="{Binding ExportTelemetryCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" ToolTip="Create a copy of the telemetry JSON for upload" />
                             <Button Content="Report model" Command="{Binding ReportModelCommand}" Style="{StaticResource OutlineButtonSmall}" ToolTip="Create diagnostics bundle and copy model info to clipboard" />
                         </StackPanel>
                     </StackPanel>

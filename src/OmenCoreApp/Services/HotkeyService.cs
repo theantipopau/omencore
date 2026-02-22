@@ -158,6 +158,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Register default hotkeys
         /// v2.6.0: Removed Ctrl+S which conflicted with save in other applications (Issue #53)
+        /// v3.0.0: optional window-focused hotkey registration handled by MainViewModel
         /// </summary>
         public void RegisterDefaultHotkeys()
         {

@@ -97,6 +97,12 @@ namespace OmenCore.Models
         /// True if this is any HP Gaming laptop (OMEN or Victus)
         /// </summary>
         public bool IsHpGaming => IsHpOmen || IsHpVictus;
+
+        /// <summary>
+        /// True if the CPU string indicates Intel Strix Point (14th‑gen mobile) hardware.
+        /// This helps apply special graphics workarounds when present.
+        /// </summary>
+        public bool IsStrixPointCpu { get; set; }
         
         // HP-specific properties for BIOS/driver updates (v1.1)
         public string BiosVersion { get; set; } = string.Empty;

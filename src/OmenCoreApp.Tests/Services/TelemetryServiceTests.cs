@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using FluentAssertions;
 using OmenCore.Services;
 using Xunit;
@@ -30,9 +31,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void IncrementPidStats_RespectsOptIn()
         {
-            var log = new LoggingService();
             var cfg = new ConfigurationService();
-            var telemetry = new TelemetryService(log, cfg);
+            var logging = new LoggingService();
+            logging.Initialize();
+            var telemetry = new TelemetryService(logging, cfg);
 
             // By default telemetry disabled
             cfg.Config.TelemetryEnabled.Should().BeFalse();
@@ -50,6 +52,24 @@ namespace OmenCoreApp.Tests.Services
             telemetry.IncrementPidFailure(0x1B2E);
             stats = telemetry.GetStats();
             stats["6958"].Failure.Should().BeGreaterThan(0);
+        }
+
+        [Fact]
+        public void ExportTelemetry_CreatesCopyOfFile()
+        {
+            var cfg = new ConfigurationService();
+            cfg.Config.TelemetryEnabled = true;
+            var logging = new LoggingService();
+            logging.Initialize();
+            var telemetry = new TelemetryService(logging, cfg);
+
+            telemetry.IncrementPidSuccess(123);
+            var exportPath = telemetry.ExportTelemetry();
+            exportPath.Should().NotBeNullOrEmpty();
+            File.Exists(exportPath).Should().BeTrue();
+
+            // exported file should be different from original location
+            File.ReadAllText(exportPath).Should().Contain("123");
         }
     }
 }

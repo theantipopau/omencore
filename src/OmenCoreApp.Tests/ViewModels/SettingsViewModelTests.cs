@@ -60,5 +60,34 @@ namespace OmenCoreApp.Tests.ViewModels
             var cfgReload2 = new ConfigurationService();
             cfgReload2.Config.CorsairDisableIcueFallback.Should().BeFalse();
         }
+
+        [Fact]
+        public void HotkeysWindowFocused_DefaultTrueAndPersists()
+        {
+            var logging = new OmenCore.Services.LoggingService();
+            var cfgService = new ConfigurationService();
+            
+            // default should be true (window-focused behaviour enabled)
+            cfgService.Config.Monitoring.WindowFocusedHotkeys.Should().BeTrue();
+            
+            var sysInfo = new OmenCore.Services.SystemInfoService(logging);
+            var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
+            var bios = new OmenCore.Services.BiosUpdateService(logging);
+            var profileExport = new OmenCore.Services.ProfileExportService(logging, cfgService);
+            var diagnosticsExport = new OmenCore.Services.DiagnosticsExportService(logging, cfgService);
+
+            var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios, profileExport, diagnosticsExport)
+            {
+                HotkeysWindowFocused = false
+            };
+
+            var cfgReload = new ConfigurationService();
+            cfgReload.Config.Monitoring.WindowFocusedHotkeys.Should().BeFalse();
+
+            // flip back to true and verify persistence again
+            vm.HotkeysWindowFocused = true;
+            var cfgReload2 = new ConfigurationService();
+            cfgReload2.Config.Monitoring.WindowFocusedHotkeys.Should().BeTrue();
+        }
     }
 }

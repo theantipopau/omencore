@@ -42,6 +42,7 @@ namespace OmenCore.ViewModels
         private string _statusMessage = "Ready";
         private string _lastCleanResult = "";
         private bool _autoCleanEnabled;
+        public ICommand CopyLastCleanCommand { get; }
         private int _autoCleanThreshold = 80;
         private bool _intervalCleanEnabled;
         private int _cleanEveryMinutes = 10;
@@ -91,6 +92,13 @@ namespace OmenCore.ViewModels
                 _ => !IsCleaning);
             CleanCombinePagesCommand = new RelayCommand(_ => _ = CleanMemoryAsync(MemoryCleanFlags.CombinePages),
                 _ => !IsCleaning);
+
+            CopyLastCleanCommand = new RelayCommand(_ =>
+            {
+                try { Clipboard.SetText(LastCleanResult); }
+                catch { _logger.Warn("Clipboard unavailable for CopyLastCleanResult"); }
+            },
+            _ => !string.IsNullOrEmpty(LastCleanResult));
 
             // Refresh timer - update memory stats every 2 seconds
             _refreshTimer = new DispatcherTimer

@@ -258,6 +258,19 @@ namespace OmenCore.Hardware
                         _logging?.Warn($"Fan level set to {MaxFanLevelCeiling} but verification failed");
                     }
 
+                    // Rollback: if SetFanMax was accepted by BIOS but verification failed, make sure to clear the hardware override
+                    try
+                    {
+                        // Reset FanMax flag on BIOS to avoid leaving hardware stuck in Max mode
+                        _wmiBios.SetFanMax(false);
+                        _commandVerifyFailCount++; // track a failed verification attempt
+                        _logging?.Warn("SetFanMax verification failed — rolled back hardware override and incremented failure counter");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging?.Warn($"Failed to rollback SetFanMax after verification failure: {ex.Message}");
+                    }
+
                     _logging?.Error("Failed to enable Max fan speed: verification failed");
                     // Ensure we don't leave UI thinking Max is active
                     IsManualControlActive = false;

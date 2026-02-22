@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using OmenCore.Models;
 using OmenCore.Services;
@@ -221,6 +222,25 @@ namespace OmenCore.ViewModels
         }
         
         public ICommand RunGuidedDiagnosticCommand => new AsyncRelayCommand(_ => RunGuidedDiagnosticAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive && !IsGuidedTestRunning);
+
+
+        /// <summary>
+        /// Copy the guided diagnostic result summary to the clipboard.
+        /// </summary>
+        public ICommand CopyGuidedResultCommand => new RelayCommand(_ => CopyGuidedResult(), _ => !string.IsNullOrEmpty(GuidedTestResult) && !IsGuidedTestRunning);
+
+        private void CopyGuidedResult()
+        {
+            try
+            {
+                Clipboard.SetText(GuidedTestResult);
+                _logging.Info("Fan diagnostic results copied to clipboard");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Clipboard unavailable for guided diagnostics: {ex.Message}");
+            }
+        }
         
         /// <summary>
         /// Run a guided fan diagnostic sequence: 30% → 60% → 100%

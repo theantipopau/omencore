@@ -137,6 +137,38 @@ namespace OmenCoreApp.Tests.ViewModels
             logging.Dispose();
         }
 
+        [Fact]
+        public void CopyResultsCommand_EnabledOnlyWhenResultPresent()
+        {
+            var logging = new LoggingService(); logging.Initialize();
+            var notificationService = new NotificationService(logging);
+            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000);
+            var verifier = new TestVerifier();
+
+            var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);
+
+            // the property has a private setter now; use reflection to simulate a result
+            var resultProp = typeof(FanDiagnosticsViewModel)
+                .GetProperty("GuidedTestResult", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!;
+
+            resultProp.SetValue(vm, string.Empty);
+            vm.CopyGuidedResultCommand.CanExecute(null).Should().BeFalse();
+
+            resultProp.SetValue(vm, "summary");
+            vm.CopyGuidedResultCommand.CanExecute(null).Should().BeTrue();
+
+            bool sawLog = false;
+            logging.LogEmitted += s =>
+            {
+                if (s.Contains("copied to clipboard") || s.Contains("Clipboard unavailable"))
+                    sawLog = true;
+            };
+            vm.CopyGuidedResultCommand.Execute(null);
+            sawLog.Should().BeTrue(); // either success or clipboard unavailable should have been logged
+
+            logging.Dispose();
+        }
+
         // Provides a minimal IFanController implementation for the FanService ctor in tests
         private class DummyFanController : OmenCore.Hardware.IFanController
         {

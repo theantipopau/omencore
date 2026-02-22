@@ -684,6 +684,29 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
+        /// Parse a 4-byte RPM buffer returned by the BIOS and return validated RPMs.
+        /// Accepts either little-endian or big-endian 16-bit words and performs sanity checks.
+        /// </summary>
+        public static (int fan1Rpm, int fan2Rpm)? ParseFanRpmBuffer(byte[] rpmResult)
+        {
+            if (rpmResult == null || rpmResult.Length < 4) return null;
+
+            // Try little-endian first (most common)
+            int fan1Rpm = rpmResult[0] | (rpmResult[1] << 8);
+            int fan2Rpm = rpmResult[2] | (rpmResult[3] << 8);
+            bool le_valid = IsValidRpm(fan1Rpm) && IsValidRpm(fan2Rpm);
+            if (le_valid) return (fan1Rpm, fan2Rpm);
+
+            // Try big-endian (some BIOS versions)
+            int fan1Rpm_be = (rpmResult[0] << 8) | rpmResult[1];
+            int fan2Rpm_be = (rpmResult[2] << 8) | rpmResult[3];
+            bool be_valid = IsValidRpm(fan1Rpm_be) && IsValidRpm(fan2Rpm_be);
+            if (be_valid) return (fan1Rpm_be, fan2Rpm_be);
+
+            return null;
+        }
+
+        /// <summary>
         /// Get raw fan RPM directly from BIOS (V2 command 0x38).
         /// Returns validated RPM values with sanity checks.
         /// v2.6.0: Added endianness detection and sanity validation.
@@ -691,7 +714,7 @@ namespace OmenCore.Hardware
         public (int fan1Rpm, int fan2Rpm)? GetFanRpmDirect()
         {
             if (!_isAvailable) return null;
-            
+
             try
             {
                 var rpmResult = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_RPM, new byte[4], 128);
@@ -700,36 +723,18 @@ namespace OmenCore.Hardware
                     _logging?.Debug("GetFanRpmDirect: No data from BIOS");
                     return null;
                 }
-                
+
                 // Log raw bytes for debugging
                 _logging?.Debug($"GetFanRpmDirect raw: [{rpmResult[0]:X2} {rpmResult[1]:X2} {rpmResult[2]:X2} {rpmResult[3]:X2}]");
-                
-                // Try little-endian first (most common)
-                int fan1Rpm = rpmResult[0] | (rpmResult[1] << 8);
-                int fan2Rpm = rpmResult[2] | (rpmResult[3] << 8);
-                
-                // Sanity check: valid RPM range is 0-8000
-                bool le_valid = IsValidRpm(fan1Rpm) && IsValidRpm(fan2Rpm);
-                
-                if (le_valid)
+
+                var parsed = ParseFanRpmBuffer(rpmResult);
+                if (parsed.HasValue)
                 {
-                    _logging?.Debug($"GetFanRpmDirect (LE): Fan1={fan1Rpm} RPM, Fan2={fan2Rpm} RPM");
-                    return (fan1Rpm, fan2Rpm);
+                    _logging?.Debug($"GetFanRpmDirect: Parsed RPMs - CPU={parsed.Value.fan1Rpm}, GPU={parsed.Value.fan2Rpm}");
+                    return parsed.Value;
                 }
-                
-                // Try big-endian (some newer BIOS versions)
-                int fan1Rpm_be = (rpmResult[0] << 8) | rpmResult[1];
-                int fan2Rpm_be = (rpmResult[2] << 8) | rpmResult[3];
-                bool be_valid = IsValidRpm(fan1Rpm_be) && IsValidRpm(fan2Rpm_be);
-                
-                if (be_valid)
-                {
-                    _logging?.Debug($"GetFanRpmDirect (BE): Fan1={fan1Rpm_be} RPM, Fan2={fan2Rpm_be} RPM");
-                    return (fan1Rpm_be, fan2Rpm_be);
-                }
-                
-                // Both interpretations invalid - log warning
-                _logging?.Warn($"GetFanRpmDirect: Invalid RPM values - LE:({fan1Rpm},{fan2Rpm}) BE:({fan1Rpm_be},{fan2Rpm_be})");
+
+                _logging?.Warn($"GetFanRpmDirect: Invalid RPM buffer returned by BIOS");
                 return null;
             }
             catch (Exception ex)
@@ -809,7 +814,7 @@ namespace OmenCore.Hardware
         /// Get BIOS temperature sensor reading (CPU).
         /// OmenMon: Cmd.Default, 0x23, {0x01, 0, 0, 0}
         /// </summary>
-        public int? GetTemperature()
+        public double? GetTemperature()
         {
             if (!_isAvailable) return null;
 
@@ -818,7 +823,7 @@ namespace OmenCore.Hardware
                 var result = SendBiosCommand(BiosCmd.Default, CMD_TEMP_GET, new byte[4] { 0x01, 0x00, 0x00, 0x00 }, 4);
                 if (result != null && result.Length >= 1 && result[0] > 0 && result[0] < 110)
                 {
-                    return result[0];
+                    return (double)result[0];
                 }
             }
             catch (Exception ex)
@@ -833,7 +838,7 @@ namespace OmenCore.Hardware
         /// OmenMon: Cmd.Default, 0x23, {0x02, 0, 0, 0}
         /// v2.6.0: Added GPU temperature support.
         /// </summary>
-        public int? GetGpuTemperature()
+        public double? GetGpuTemperature()
         {
             if (!_isAvailable) return null;
 
@@ -842,7 +847,7 @@ namespace OmenCore.Hardware
                 var result = SendBiosCommand(BiosCmd.Default, CMD_TEMP_GET, new byte[4] { 0x02, 0x00, 0x00, 0x00 }, 4);
                 if (result != null && result.Length >= 1 && result[0] > 0 && result[0] < 110)
                 {
-                    return result[0];
+                    return (double)result[0];
                 }
             }
             catch (Exception ex)
@@ -856,14 +861,14 @@ namespace OmenCore.Hardware
         /// Get both CPU and GPU temperatures from BIOS.
         /// v2.6.0: Provides reliable temperature source independent of LibreHardwareMonitor.
         /// </summary>
-        public (int cpuTemp, int gpuTemp)? GetBothTemperatures()
+        public (double cpuTemp, double gpuTemp)? GetBothTemperatures()
         {
             var cpu = GetTemperature();
             var gpu = GetGpuTemperature();
             
             if (cpu.HasValue || gpu.HasValue)
             {
-                return (cpu ?? 0, gpu ?? 0);
+                return (cpu ?? 0.0, gpu ?? 0.0);
             }
             return null;
         }
@@ -1757,10 +1762,9 @@ namespace OmenCore.Hardware
         /// 
         /// Uses WMI BIOS idle command to reset the countdown.
         /// </summary>
-        /// <returns>True if successful</returns>
-        public bool ExtendFanCountdown()
+        public void ExtendFanCountdown()
         {
-            if (!_isAvailable) return false;
+            if (!_isAvailable) return;
             
             try
             {
@@ -1781,17 +1785,21 @@ namespace OmenCore.Hardware
                     var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_SET_LEVEL, data, 0);
                     if (result != null)
                     {
-                        return true;
+                        _logging?.Debug("Extended fan countdown via SetFanLevel");
+                        return;
                     }
                 }
                 
                 // Method 2: If that fails, try SetIdle(false) which can also reset the timer
-                return SetIdleMode(false);
+                var idleResult = SetIdleMode(false);
+                if (idleResult)
+                {
+                    _logging?.Debug("Extended fan countdown via SetIdleMode(false)");
+                }
             }
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to extend fan countdown: {ex.Message}");
-                return false;
             }
         }
 
