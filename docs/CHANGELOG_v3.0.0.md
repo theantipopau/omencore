@@ -456,10 +456,47 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
     fails, e.g. directory already exists).
   - Added `/var/tmp/omencore` to `ReadWritePaths` so `ProtectSystem=strict` doesn't block
     writes to the extraction directory.
+  - **Runtime self-heal (v3.0.0 final):** `daemon --run` now checks whether
+    `DOTNET_BUNDLE_EXTRACT_BASE_DIR` is set in the current process environment. If absent,
+    it is set programmatically to `/var/tmp/omencore` and that directory is created. A yellow
+    warning is printed directing the user to re-run `daemon --install` for a permanent fix.
+    This prevents existing installs with old service files from crashing entirely.
 - **Workaround for existing installs:** `sudo systemctl edit omencore.service` and add
   `Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/tmp/omencore` under `[Service]`, then
   `sudo systemctl daemon-reload && sudo systemctl restart omencore`.
 - **Files:** `OmenCore.Linux/Commands/DaemonCommand.cs`
+
+### Linux Daemon: Performance Mode Thermal Throttle Watchdog
+- **Reported By:** Community report — CachyOS, kernel 7.0rc1, Transcend 14-fb0014no (oliver, Discord)
+- **Symptom:** With `performance` set in the daemon config, the laptop ran at Performance
+  thermal profile until the CPU hit ~100°C (PROCHOT / package temperature limit). The
+  hp-wmi kernel module then silently reset `thermal_profile` to `balanced` to protect the
+  hardware. OmenCore never noticed the reset — the configured profile was gone with no
+  recovery until the daemon was restarted. The kernel logs showed throttle events
+  (`CPU clock is throttled / normal`) cycling repeatedly, and the user wanted to stay on
+  Performance and let fans manage the load.
+- **Root Cause:** `OmenCoreDaemon` applied the configured performance mode once at startup
+  via `ApplyStartupConfigAsync()` and never re-checked it. There was no mechanism to detect
+  that the BIOS/kernel had silently downgraded the active thermal profile.
+- **Fix:** Added `CheckAndRestorePerformanceMode(cpuTemp)` watchdog called on every main
+  loop iteration (when not running a custom fan curve):
+  - Detects when `cpuTemp >= thermal.throttle_temp_c` (default 95°C) and records a throttle
+    event.
+  - When `cpuTemp` drops back to `<= thermal.restore_temp_c` (default 80°C), re-calls
+    `_ec.SetPerformanceMode()` with the configured mode and logs the restoration.
+  - Opt-in via new `[thermal]` config section — disabled by default so existing users
+    are unaffected.
+- **New `[thermal]` config section:**
+  ```toml
+  [thermal]
+  restore_performance_after_throttle = true   # set to true to enable
+  throttle_temp_c = 95
+  restore_temp_c = 80
+  ```
+- **Note:** This does not prevent the BIOS from throttling the CPU (that is the correct
+  hardware protection behaviour). It only re-applies the chosen thermal profile after
+  cooling so the fan curve / power limits return to the intended level.
+- **Files:** `OmenCore.Linux/Daemon/OmenCoreDaemon.cs`, `OmenCore.Linux/Config/OmenCoreConfig.cs`
 
 ### OSD RAM/VRAM Display Correctness
 - OSD RAM display no longer uses `Microsoft.VisualBasic.Devices.ComputerInfo` (a separate
@@ -542,6 +579,8 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
 | RC-2: OMEN 16-wf1xxx 8BAB model DB | ✅ Implemented, build clean |
 | RC-3: RestoreAutoControl unconditional reset | ✅ Implemented, build clean |
 | RC-4: Linux SetPerformanceMode hp-wmi routing | ✅ Implemented, build clean |
+| Linux DOTNET_BUNDLE runtime self-heal | ✅ Implemented, build clean |
+| Linux thermal throttle watchdog | ✅ Implemented, build clean |
 | RC-5: SecureBoot gated on PawnIO | ✅ Implemented, build clean |
 | RC-6: Degraded threshold raised to ≥3 | ✅ Implemented, build clean |
 | RC-7: MonitorLoop restart on errors | ✅ Implemented, build clean |
@@ -733,6 +772,9 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
 - Periodic memory clean interval snaps to 5-minute increments (1, 5, 10 ... 120) for slider UX.
 - `EstimatedBatteryLifeYears` remains at 3.0 static estimate — `Win32_Battery` does not
   expose battery cycle count. Expandable via HP WMI in a future revision.
+- Linux thermal watchdog (`restore_performance_after_throttle`) is opt-in and disabled by
+  default. It re-applies the performance mode after cooldown — it does not suppress CPU
+  package temperature protection, which remains a hardware/kernel responsibility.
 
 ---
 
@@ -747,5 +789,7 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
 ## SHA256 Checksums
 
 ```
-(Generated at release build time)
+8DEB146D12DE8A44EA32095D62E63D51248568F0C22F11F009059265AEB60C53  OmenCoreSetup-3.0.0.exe
+5ABEA9CCD9AEAAFBBAA824AA9FA5628149E787293E8D3BF5DD8A59CB930435A0  OmenCore-3.0.0-win-x64.zip
+605335229F5C403D915E99184CC20C1A047EB709B6F33817464DF88DAA5858D4  OmenCore-3.0.0-linux-x64.zip
 ```
