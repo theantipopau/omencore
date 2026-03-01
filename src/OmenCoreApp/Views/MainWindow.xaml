@@ -108,6 +108,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -184,6 +185,61 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Monitoring Source + EC Backend -->
+                                    <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0"
+                                            Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="10,7">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Monitoring health dot + source label -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                                        ToolTip="{Binding Dashboard.MonitoringHealthStatusText}">
+                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"
+                                                         Fill="{Binding Dashboard.MonitoringHealthColor, Converter={StaticResource HexToBrushConverter}, FallbackValue=#95A5A6}"/>
+                                                <TextBlock Text="{Binding Dashboard.MonitoringSourceText, FallbackValue=No source}"
+                                                           FontSize="9" Foreground="{StaticResource TextMutedBrush}"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <!-- EC backend badge -->
+                                            <Border Grid.Column="1" CornerRadius="3" Padding="6,2" VerticalAlignment="Center"
+                                                    ToolTip="{Binding EcBackend, StringFormat='EC backend: {0}'}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#1A2E1A"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding EcBackend}" Value="None">
+                                                                <Setter Property="Background" Value="#2A1A1A"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding EcBackend}" Value="Error">
+                                                                <Setter Property="Background" Value="#2A1A1A"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="9" FontWeight="Bold" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                            <Setter Property="Text" Value="{Binding EcBackend}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding EcBackend}" Value="None">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                                    <Setter Property="Text" Value="No EC"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding EcBackend}" Value="Error">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                                    <Setter Property="Text" Value="EC Err"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
                                         </Grid>
                                     </Border>
                                 </Grid>
