@@ -33,6 +33,12 @@ public class OmenCoreDaemon : IDisposable
     private bool _lowOverheadMode;
     private FileSystemWatcher? _configWatcher;
     
+    // Thermal watchdog: tracks whether the CPU has been at throttle temp so we can
+    // re-apply the configured performance mode once it cools down (some OMEN models
+    // silently reset the thermal profile to Balanced when PROCHOT fires).
+    private bool _thermalThrottleDetected;
+    private DateTime _thermalThrottleSince = DateTime.MinValue;
+    
     public OmenCoreDaemon(OmenCoreConfig config)
     {
         _config = config;
@@ -178,6 +184,12 @@ public class OmenCoreDaemon : IDisposable
                     var gpuTemp = _ec.GetGpuTemperature() ?? _hwmon.GetGpuTemperature() ?? 0;
                     var (fan1, fan2) = _ec.GetFanSpeeds();
                     
+                    // Thermal watchdog: re-apply performance mode if BIOS reset it after throttle
+                    if (_config.Thermal.RestorePerformanceAfterThrottle)
+                    {
+                        CheckAndRestorePerformanceMode(cpuTemp);
+                    }
+                    
                     // Log periodically (less often in low-overhead mode)
                     logCounter++;
                     var logInterval = _lowOverheadMode ? 60 : 30;
@@ -204,6 +216,53 @@ public class OmenCoreDaemon : IDisposable
             {
                 Log($"Error in main loop: {ex.Message}");
             }
+        }
+    }
+    
+    /// <summary>
+    /// Detects CPU thermal throttle events and re-applies the configured performance mode
+    /// once the CPU cools back down.
+    ///
+    /// Background: several HP OMEN models (confirmed: Transcend 14-fb0014no with kernel hp-wmi)
+    /// silently reset the sysfs thermal_profile / ACPI platform_profile to "balanced" when the
+    /// CPU package temperature hits its PROCHOT threshold (~100 °C). This causes OmenCore's
+    /// Performance setting to be discarded mid-session without any user action.
+    /// </summary>
+    private void CheckAndRestorePerformanceMode(int cpuTemp)
+    {
+        var throttleThreshold = _config.Thermal.ThrottleTempC;
+        var restoreThreshold  = _config.Thermal.RestoreTempC;
+        
+        if (cpuTemp >= throttleThreshold)
+        {
+            if (!_thermalThrottleDetected)
+            {
+                _thermalThrottleDetected = true;
+                _thermalThrottleSince = DateTime.UtcNow;
+                Log($"[thermal] CPU {cpuTemp}°C ≥ {throttleThreshold}°C — throttle event recorded; " +
+                    $"will restore '{_config.Performance.Mode}' mode on cooldown");
+            }
+        }
+        else if (_thermalThrottleDetected && cpuTemp <= restoreThreshold)
+        {
+            var elapsed = (DateTime.UtcNow - _thermalThrottleSince).TotalSeconds;
+            Log($"[thermal] CPU cooled to {cpuTemp}°C (throttled for {elapsed:F0}s) — " +
+                $"re-applying performance mode: {_config.Performance.Mode}");
+            
+            var perfMode = _config.Performance.Mode.ToLower() switch
+            {
+                "performance" => PerformanceMode.Performance,
+                "cool"        => PerformanceMode.Cool,
+                _             => PerformanceMode.Default
+            };
+            
+            if (_ec.SetPerformanceMode(perfMode))
+                Log($"[thermal] ✓ Performance mode restored to: {_config.Performance.Mode}");
+            else
+                Log($"[thermal] ⚠ Failed to restore performance mode to: {_config.Performance.Mode}");
+            
+            _thermalThrottleDetected = false;
+            _thermalThrottleSince = DateTime.MinValue;
         }
     }
     

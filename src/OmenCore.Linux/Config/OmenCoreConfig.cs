@@ -45,6 +45,7 @@ public class OmenCoreConfig
     public GeneralConfig General { get; set; } = new();
     public FanConfig Fan { get; set; } = new();
     public PerformanceConfig Performance { get; set; } = new();
+    public ThermalConfig Thermal { get; set; } = new();
     public KeyboardConfig Keyboard { get; set; } = new();
     public StartupConfig Startup { get; set; } = new();
     
@@ -170,6 +171,18 @@ public class OmenCoreConfig
             # Performance mode: default, balanced, performance, cool
             mode = "balanced"
             
+            [thermal]
+            # Re-apply configured performance mode after CPU thermal cooldown.
+            # Some HP OMEN models (e.g. Transcend 14) reset the thermal profile to Balanced
+            # when the CPU hits its package temperature limit (~100°C / PROCHOT). Enable this
+            # so OmenCore restores your chosen mode (e.g. Performance) once temps normalise.
+            restore_performance_after_throttle = false
+            # CPU temperature (°C) above which throttling is considered active.
+            throttle_temp_c = 95
+            # CPU temperature (°C) below which the system is considered cooled-down.
+            # Performance mode is re-applied when CPU drops below this threshold.
+            restore_temp_c = 80
+            
             [keyboard]
             # Enable keyboard lighting control
             enabled = true
@@ -275,4 +288,24 @@ public class StartupConfig
 {
     public bool ApplyOnBoot { get; set; } = true;
     public bool RestoreOnExit { get; set; } = true;
+}
+
+public class ThermalConfig
+{
+    /// <summary>
+    /// Re-apply configured performance mode after the CPU cools down from a thermal throttle event.
+    /// Some HP OMEN models reset the thermal profile to Balanced when the CPU hits its package
+    /// temperature limit (PROCHOT / ~100°C).  Enable this to restore your chosen mode
+    /// (e.g. Performance) automatically once temps fall back below <see cref="RestoreTempC"/>.
+    /// </summary>
+    public bool RestorePerformanceAfterThrottle { get; set; } = false;
+
+    /// <summary>CPU °C above which the system is considered thermally throttling. Default 95.</summary>
+    public int ThrottleTempC { get; set; } = 95;
+
+    /// <summary>
+    /// CPU °C below which the system is considered cooled-down and the performance mode will
+    /// be re-applied.  Must be lower than <see cref="ThrottleTempC"/>. Default 80.
+    /// </summary>
+    public int RestoreTempC { get; set; } = 80;
 }

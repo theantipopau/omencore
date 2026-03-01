@@ -154,6 +154,23 @@ public static class DaemonCommand
             return;
         }
         
+        // Self-heal: ensure DOTNET_BUNDLE_EXTRACT_BASE_DIR is set.
+        // Older service file installations (pre-v3.0.0) may be missing this env var,
+        // causing the .NET single-file runtime to fail to extract itself.
+        // Setting it here helps child processes started by the daemon. For the service
+        // itself to start cleanly, the user should re-run: sudo omencore-cli daemon --install
+        var extractDir = Environment.GetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR");
+        if (string.IsNullOrEmpty(extractDir))
+        {
+            extractDir = "/var/tmp/omencore";
+            Environment.SetEnvironmentVariable("DOTNET_BUNDLE_EXTRACT_BASE_DIR", extractDir);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"⚠  DOTNET_BUNDLE_EXTRACT_BASE_DIR not set — using {extractDir}");
+            Console.WriteLine("   To fix permanently: sudo omencore-cli daemon --install");
+            Console.ResetColor();
+        }
+        try { Directory.CreateDirectory(extractDir); } catch { }
+        
         // Load configuration
         var config = OmenCoreConfig.Load(configPath);
         
@@ -173,17 +190,19 @@ After=network.target
 
 [Service]
 Type=simple
+ExecStartPre=-/usr/bin/mkdir -p /var/tmp/omencore
 ExecStart={exePath} daemon --run
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 User=root
 Environment=HOME=/root
+Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/tmp/omencore
 
 # Security hardening
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/run /var/log /sys/kernel/debug/ec
+ReadWritePaths=/var/run /var/log /sys/kernel/debug/ec /var/tmp/omencore
 NoNewPrivileges=false
 PrivateTmp=true
 
@@ -212,17 +231,19 @@ After=network.target
 
 [Service]
 Type=simple
+ExecStartPre=-/usr/bin/mkdir -p /var/tmp/omencore
 ExecStart={exePath} daemon --run
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 User=root
 Environment=HOME=/root
+Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/tmp/omencore
 
 # Security hardening
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/run /var/log /sys/kernel/debug/ec
+ReadWritePaths=/var/run /var/log /sys/kernel/debug/ec /var/tmp/omencore
 NoNewPrivileges=false
 PrivateTmp=true
 
