@@ -54,7 +54,9 @@ namespace OmenCore.Hardware
         private int _lastCpuRpm = 0;
         private int _lastGpuRpm = 0;
         private DateTime _lastProfileSwitch = DateTime.MinValue;
+        private DateTime _lastAutoResetUtc = DateTime.MinValue;
         private const int ProfileTransitionDebounceMs = 3000; // Ignore phantom RPM for 3s after profile switch
+        private const int AutoResetCooldownSeconds = 5;
         
         // Command verification tracking
         private int _commandVerifyFailCount = 0;
@@ -654,24 +656,37 @@ namespace OmenCore.Hardware
             {
                 return false;
             }
-            
-            // Mark profile transition for RPM debounce
-            _lastProfileSwitch = DateTime.Now;
 
             try
             {
-                // Only run the full reset sequence if we were actually in max mode.
-                // The reset sequence sends SetFanLevel(0,0) which on some models (Victus, etc.)
-                // puts the EC into manual-0% mode, overriding BIOS auto control entirely.
-                // This causes fans to stay at minimum (~1000rpm) until thermal emergency kicks in.
-                if (_isMaxModeActive || IsManualControlActive)
+                // Only run full reset when we were actually in a manual/max state,
+                // and throttle repeated resets to avoid hammering firmware with writes.
+                var shouldRunReset = _isMaxModeActive || IsManualControlActive;
+                if (shouldRunReset)
                 {
-                    ResetFromMaxMode();
+                    var nowUtc = DateTime.UtcNow;
+                    if ((nowUtc - _lastAutoResetUtc).TotalSeconds >= AutoResetCooldownSeconds)
+                    {
+                        ResetFromMaxMode();
+                        _lastAutoResetUtc = nowUtc;
+                    }
+                    else
+                    {
+                        _logging?.Debug($"Skipping reset sequence (cooldown active: {AutoResetCooldownSeconds}s)");
+                    }
                 }
-                
+                else
+                {
+                    _logging?.Debug("Skipping reset sequence (already in automatic mode)");
+                }
+
                 // Stop countdown extension so we don't keep re-applying fan settings
                 StopCountdownExtension();
-                
+
+                // Clear debounce window — we do NOT want to filter RPM reads during this
+                // transition; the reset sequence already ensures a clean state.
+                _lastProfileSwitch = DateTime.MinValue;
+
                 // Set default mode to restore automatic control
                 if (_wmiBios.SetFanMode(HpWmiBios.FanMode.Default))
                 {
