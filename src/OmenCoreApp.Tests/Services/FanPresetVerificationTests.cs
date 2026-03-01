@@ -46,7 +46,7 @@ namespace OmenCoreApp.Tests.Services
             public bool ResetEcToDefaults() => true;
             public bool ApplyThrottlingMitigation() => true;
             public void Dispose() { }
-            public bool VerifyMaxApplied(out string details) { details = "not supported"; return false; }
+            public virtual bool VerifyMaxApplied(out string details) { details = "not supported"; return false; }
         }
 
         private class ReactiveController : NoEffectController
@@ -58,6 +58,14 @@ namespace OmenCoreApp.Tests.Services
                 if (_stage++ == 0)
                     return new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 1000, DutyCyclePercent = 40 } };
                 return new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 3500, DutyCyclePercent = 85 } };
+            }
+
+            // When preset.Mode == FanMode.Max, FanService routes through VerifyMaxApplied.
+            // The base NoEffectController returns false; override here to simulate success.
+            public override bool VerifyMaxApplied(out string details)
+            {
+                details = "ReactiveController: simulated max verification ok";
+                return true;
             }
         }
 

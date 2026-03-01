@@ -24,7 +24,7 @@ namespace OmenCore.Services
         private readonly ThermalSensorProvider _thermalProvider;
         private readonly LoggingService _logging;
         private readonly NotificationService _notificationService;
-        private readonly TimeSpan _monitorPollPeriod;
+        private TimeSpan _monitorPollPeriod;
         private readonly ObservableCollection<ThermalSample> _thermalSamples = new();
         private readonly ObservableCollection<FanTelemetry> _fanTelemetry = new();
         private CancellationTokenSource? _cts;
@@ -72,10 +72,16 @@ namespace OmenCore.Services
         private int _stableReadings = 0;
         private const int StableThreshold = 3; // Number of stable readings before slowing down
         private const double TempChangeThreshold = 3.0; // °C change to trigger faster polling
+        // When set (tests only), the monitor loop uses this fixed delay instead of the adaptive one.
+        private int _fixedPollOverrideMs = 0;
         
         // Fan telemetry change detection - reduce UI churn by only updating on meaningful change
         private List<int> _lastFanSpeeds = new();
         private List<int> _fanChangeConfirmCounters = new();
+        // Tracks which RPM value each fan's confirmation counter is currently counting toward.
+        // When the candidate value changes (e.g. from 0-w-duty to a real RPM spike) the counter
+        // must be reset so that we don't accidentally carry over counts from a different value.
+        private List<int> _fanChangePendingRpms = new();
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
         // Require two consecutive reads to accept a large non-zero RPM change to avoid
         // showing spurious transient readings (single-sample noise). Zero RPM is
@@ -322,6 +328,7 @@ namespace OmenCore.Services
                 // Populate internal state (required for headless/unit-test scenarios).
                 _lastFanSpeeds = fanSpeeds.Select(f => f.Rpm).ToList();
                 _fanChangeConfirmCounters = Enumerable.Repeat(0, _lastFanSpeeds.Count).ToList();
+                _fanChangePendingRpms = new List<int>(_lastFanSpeeds);
 
                 // Update UI-bound collection only when a WPF dispatcher is available.
                 if (App.Current?.Dispatcher != null)
@@ -387,7 +394,11 @@ namespace OmenCore.Services
 
                 // Optimistic mode mapping (used for UI/state if verification succeeds)
                 var nameLower = preset.Name.ToLowerInvariant();
-                bool isMaxPreset = nameLower.Contains("max") && !nameLower.Contains("auto");
+                // A preset should use VerifyMaxApplied if the name includes "max" OR if the
+                // explicit Mode is FanMode.Max.  This avoids routing names like "Turbo" through
+                // the RPM-delta verification path when they're clearly max-mode presets.
+                bool isMaxPreset = (nameLower.Contains("max") || preset.Mode == FanMode.Max)
+                                   && !nameLower.Contains("auto");
 
                 // Verification helper
                 bool VerificationPasses()
@@ -801,6 +812,16 @@ namespace OmenCore.Services
         }
         public bool FanWritesAvailable => _fanController.IsAvailable;
 
+        /// <summary>
+        /// Forces a specific poll interval, bypassing the 1-second minimum floor and adaptive
+        /// slowdown.  Intended for unit tests only — do not call in production code.
+        /// </summary>
+        public void ForceFixedPollInterval(int ms)
+        {
+            _monitorPollPeriod = TimeSpan.FromMilliseconds(Math.Max(1, ms));
+            _fixedPollOverrideMs = Math.Max(1, ms);
+        }
+
         private async Task MonitorLoop(CancellationToken token)
         {
             _logging.Info("Fan monitor loop started (with continuous curve support)");
@@ -855,6 +876,7 @@ namespace OmenCore.Services
                     if (_fanChangeConfirmCounters == null || _fanChangeConfirmCounters.Count != newRpms.Count)
                     {
                         _fanChangeConfirmCounters = Enumerable.Repeat(0, newRpms.Count).ToList();
+                        _fanChangePendingRpms = Enumerable.Repeat(0, newRpms.Count).ToList();
                     }
 
                     var displayRpms = new List<int>(newRpms.Count);
@@ -874,11 +896,19 @@ namespace OmenCore.Services
                             {
                                 displayRpms.Add(0);
                                 _fanChangeConfirmCounters[i] = 0;
+                                if (i < _fanChangePendingRpms.Count) _fanChangePendingRpms[i] = 0;
                                 continue;
                             }
 
                             // Inconsistent zero (rpm==0 but duty>0) — treat as transient noise and
                             // hold previous value (do not accept even after confirmation cycles).
+                            // Reset counter if we were previously tracking a different pending value
+                            // (e.g. switching from a large-RPM confirmation run to a zero-run).
+                            if (i < _fanChangePendingRpms.Count && _fanChangePendingRpms[i] != 0)
+                            {
+                                _fanChangePendingRpms[i] = 0;
+                                _fanChangeConfirmCounters[i] = 0;
+                            }
                             _fanChangeConfirmCounters[i] = Math.Min(_fanChangeConfirmCounters[i] + 1, FanChangeConfirmRequiredCycles);
                             displayRpms.Add(lastRpm);
                             continue;
@@ -889,10 +919,18 @@ namespace OmenCore.Services
                         {
                             displayRpms.Add(newRpm);
                             _fanChangeConfirmCounters[i] = 0;
+                            if (i < _fanChangePendingRpms.Count) _fanChangePendingRpms[i] = newRpm;
                             continue;
                         }
 
-                        // Large differences require multiple consecutive confirmations
+                        // Large differences require multiple consecutive confirmations.
+                        // Reset counter when the candidate value itself changes (e.g. after an
+                        // inconsistent-zero run, which counts towards 0, not towards this rpm).
+                        if (i < _fanChangePendingRpms.Count && _fanChangePendingRpms[i] != newRpm)
+                        {
+                            _fanChangePendingRpms[i] = newRpm;
+                            _fanChangeConfirmCounters[i] = 0;
+                        }
                         _fanChangeConfirmCounters[i] = Math.Min(_fanChangeConfirmCounters[i] + 1, FanChangeConfirmRequiredCycles);
                         if (_fanChangeConfirmCounters[i] >= FanChangeConfirmRequiredCycles)
                         {
@@ -955,10 +993,14 @@ namespace OmenCore.Services
                     _logging.Error("Fan monitor loop error", ex);
                 }
 
-                // Adaptive polling delay - slower when temps stable to reduce DPC latency
-                var pollDelay = _stableReadings >= StableThreshold 
-                    ? MonitorMaxIntervalMs 
-                    : (int)_monitorPollPeriod.TotalMilliseconds;
+                // Adaptive polling delay - slower when temps stable to reduce DPC latency.
+                // _fixedPollOverrideMs, when set, bypasses both the minimum floor and the
+                // adaptive slowdown (used by unit tests to keep timing predictable).
+                var pollDelay = _fixedPollOverrideMs > 0
+                    ? _fixedPollOverrideMs
+                    : (_stableReadings >= StableThreshold
+                        ? MonitorMaxIntervalMs
+                        : (int)_monitorPollPeriod.TotalMilliseconds);
                     
                 try
                 {

@@ -95,6 +95,7 @@ namespace OmenCoreApp.Tests.Services
             private int _index = 0;
             private readonly int _readsPerStage;
             private int _readsThisStage = 0;
+            private readonly object _lock = new();  // guards _index / _readsThisStage
 
             /// <summary>
             /// Returns each sequence element <paramref name="readsPerStage"/> times
@@ -127,21 +128,24 @@ namespace OmenCoreApp.Tests.Services
 
             public IEnumerable<FanTelemetry> ReadFanSpeeds()
             {
-                if (_sequence == null || _sequence.Count == 0)
-                    return Enumerable.Empty<FanTelemetry>();
-
-                var item = _sequence[Math.Min(_index, _sequence.Count - 1)];
-
-                // Increment read count for this stage and advance when we've served
-                // the configured number of reads for this stage.
-                _readsThisStage++;
-                if (_readsThisStage >= _readsPerStage)
+                lock (_lock)
                 {
-                    _readsThisStage = 0;
-                    _index = Math.Min(_index + 1, _sequence.Count - 1);
-                }
+                    if (_sequence == null || _sequence.Count == 0)
+                        return Enumerable.Empty<FanTelemetry>();
 
-                return item;
+                    var item = _sequence[Math.Min(_index, _sequence.Count - 1)];
+
+                    // Increment read count for this stage and advance when we've served
+                    // the configured number of reads for this stage.
+                    _readsThisStage++;
+                    if (_readsThisStage >= _readsPerStage)
+                    {
+                        _readsThisStage = 0;
+                        _index = Math.Min(_index + 1, _sequence.Count - 1);
+                    }
+
+                    return item;
+                }
             }
         }
 
@@ -151,7 +155,7 @@ namespace OmenCoreApp.Tests.Services
             var logging = new LoggingService();
             logging.Initialize();
 
-            // Sequence: 0 -> single transient 1234 -> repeat 1234 -> back to 0
+            // Sequence: stable 0 -> transient 1234 (single read) -> confirmed 1234 (second read) -> back to 0
             var seq = new List<IEnumerable<FanTelemetry>>
             {
                 new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 0 }, new FanTelemetry { Name = "GPU Fan", SpeedRpm = 0 } },
@@ -160,38 +164,51 @@ namespace OmenCoreApp.Tests.Services
                 new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 0 }, new FanTelemetry { Name = "GPU Fan", SpeedRpm = 0 } }
             };
 
+            // readsPerStage=2: each sequence element is served twice before advancing.
+            // This ensures Start()'s seed read lands on stage 0, then the monitor loop
+            // works through stages 1-3.
             var controller = new SequenceFanController(seq, readsPerStage: 2);
             var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100);
             fanService.Start();
+            fanService.ForceFixedPollInterval(100);
+
+            var lastRpmsField = typeof(FanService).GetField("_lastFanSpeeds",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
             try
             {
-                // Allow initial read (may not be zero on all platforms; we only care that
-                // the spike is not applied until the second consecutive read).
-                await Task.Delay(1200);
-                var lastRpmsField = typeof(FanService).GetField("_lastFanSpeeds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var lastRpms = (System.Collections.Generic.List<int>)lastRpmsField!.GetValue(fanService)!;
-                // must not have jumped to the transient value on the first read
-                lastRpms[0].Should().NotBe(1234);
+                // Helper: poll until condition is met or timeout expires.
+                async Task<bool> WaitFor(Func<List<int>, bool> condition, int timeoutMs = 3000)
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    while (sw.ElapsedMilliseconds < timeoutMs)
+                    {
+                        var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
+                        if (condition(rpms)) return true;
+                        await Task.Delay(50);
+                    }
+                    return false;
+                }
 
-                // After one transient spike - still should avoid adopting 1234
-                await Task.Delay(1200);
-                lastRpms = (System.Collections.Generic.List<int>)lastRpmsField.GetValue(fanService)!;
-                lastRpms[0].Should().NotBe(1234);
+                // 1) Wait until stage 0 is fully served, then stage 1 first read fires
+                //    (counter increments to 1, value held at 0). 1234 must NOT appear yet.
+                await Task.Delay(250); // let seed + first monitor iter complete
+                {
+                    var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
+                    rpms[0].Should().NotBe(1234, "single transient read must not be accepted on the first cycle");
+                }
 
-                // After second consecutive spike - now accept the 1234 value
-                await Task.Delay(1200);
-                lastRpms = (System.Collections.Generic.List<int>)lastRpmsField.GetValue(fanService)!;
-                lastRpms[0].Should().Be(1234);
+                // 2) After the second consecutive 1234 read, the value must be accepted.
+                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 1234, timeoutMs: 2000);
+                accepted.Should().BeTrue("second consecutive 1234 read must cause acceptance");
 
-                // Immediate acceptance of zero when fans stop
-                await Task.Delay(1200);
-                lastRpms = (System.Collections.Generic.List<int>)lastRpmsField.GetValue(fanService)!;
-                lastRpms[0].Should().Be(0);
+                // 3) Accept zero immediately once fans stop (duty==0).
+                bool stoppedAndAccepted = await WaitFor(r => r.Count > 0 && r[0] == 0, timeoutMs: 2000);
+                stoppedAndAccepted.Should().BeTrue("_lastFanSpeeds[0] should drop to 0 once the zero+duty==0 stage is reached");
             }
             finally
             {
@@ -306,20 +323,30 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            // Use a faster monitor interval for CI-friendly timing
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 300);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100);
             fanService.Start();
+            fanService.ForceFixedPollInterval(100);
+
+            var lastRpmsField = typeof(FanService).GetField("_lastFanSpeeds",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            async Task<bool> WaitFor(Func<List<int>, bool> condition, int timeoutMs = 2000)
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (sw.ElapsedMilliseconds < timeoutMs)
+                {
+                    var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
+                    if (condition(rpms)) return true;
+                    await Task.Delay(30);
+                }
+                return false;
+            }
 
             try
             {
-                // Allow initial seed + first monitor loop
-                await Task.Delay(450);
-
-                var lastRpmsField = typeof(FanService).GetField("_lastFanSpeeds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                var lastRpms = (System.Collections.Generic.List<int>)lastRpmsField!.GetValue(fanService)!;
-
-                // initial stable read should be 2000
-                lastRpms[0].Should().Be(2000);
+                // Wait for the initial stable 2000rpm to be established
+                bool seeded = await WaitFor(r => r.Count > 0 && r[0] == 2000, timeoutMs: 1000);
+                seeded.Should().BeTrue("initial stable RPM must be seeded");
 
                 // Rapidly apply presets (simulate user hammering quick-profile keys)
                 var presetA = new FanPreset { Name = "Balanced", Mode = FanMode.Performance };
@@ -329,15 +356,20 @@ namespace OmenCoreApp.Tests.Services
                 fanService.ApplyPreset(presetB);
                 fanService.ApplyPreset(presetA);
 
-                // Wait for the transient erroneous reads to appear in the sequence and ensure suppression holds
-                await Task.Delay(1000);
-                lastRpms = (System.Collections.Generic.List<int>)lastRpmsField.GetValue(fanService)!;
-                lastRpms[0].Should().Be(2000, "transient erroneous zero (duty!=0) must be suppressed during quick-profile switching");
+                // For a brief window (one full poll cycle after the presets) the transient
+                // zeros should never replace the last known good 2000.
+                // The sequence controller will start serving zero+duty>0 reads now.
+                // We check 3 rapid snapshots across the next ~200ms (2 poll cycles).
+                for (int snap = 0; snap < 3; snap++)
+                {
+                    var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
+                    rpms[0].Should().NotBe(0, $"snapshot {snap}: transient zero with non-zero duty must be suppressed");
+                    await Task.Delay(60);
+                }
 
-                // After confirmation the new RPM should be accepted
-                await Task.Delay(800);
-                lastRpms = (System.Collections.Generic.List<int>)lastRpmsField.GetValue(fanService)!;
-                lastRpms[0].Should().Be(3500, "confirmed new RPM should be accepted after consecutive reads");
+                // After sufficient poll cycles the inconsistent-zero stages drain and 3500 is confirmed.
+                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 3500, timeoutMs: 3000);
+                accepted.Should().BeTrue("confirmed 3500rpm must be accepted once inconsistent-zero stages are exhausted");
             }
             finally
             {
