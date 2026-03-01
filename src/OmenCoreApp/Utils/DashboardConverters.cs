@@ -118,4 +118,25 @@ namespace OmenCore.Utils
             return Binding.DoNothing;
         }
     }
+
+    /// <summary>
+    /// Converts a double value of 0 (or negative) to a placeholder dash string.
+    /// Used for sensor values that are unavailable (CPU/GPU temp, power watts).
+    /// ConverterParameter: optional suffix e.g. "°" or "W" — defaults to "°C"
+    /// </summary>
+    public class ZeroDoubleToPlaceholderConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var suffix = parameter as string ?? "°C";
+            if (value is double d && d > 0)
+                return $"{d:F0}{suffix}";
+            if (value is float f && f > 0)
+                return $"{f:F0}{suffix}";
+            return $"—{suffix}";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
 }

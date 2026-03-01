@@ -207,7 +207,7 @@
                                             <Ellipse Stroke="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, FallbackValue=#45C7FF}" 
                                                      StrokeThickness="4" Fill="Transparent" Opacity="0.8"
                                                      StrokeDashArray="3.14 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, StringFormat={}{0:F0}°}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=°}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -223,7 +223,7 @@
                                             <Ellipse Stroke="#1A1A2E" StrokeThickness="4" Fill="Transparent"/>
                                             <Ellipse Stroke="#FF9800" StrokeThickness="4" Fill="Transparent" Opacity="0.6"
                                                      StrokeDashArray="2.5 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuPowerWatts, StringFormat={}{0:F0}W}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuPowerWatts, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=W}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -694,7 +694,7 @@
                                                      StrokeThickness="4" Fill="Transparent" Opacity="0.8"
                                                      StrokeDashArray="3.14 10"/>
                                             <!-- Temperature value -->
-                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, StringFormat={}{0:F0}°}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=°}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -710,7 +710,7 @@
                                             <Ellipse Stroke="#1A1A2E" StrokeThickness="4" Fill="Transparent"/>
                                             <Ellipse Stroke="#FF9800" StrokeThickness="4" Fill="Transparent" Opacity="0.6"
                                                      StrokeDashArray="2.5 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuPowerWatts, StringFormat={}{0:F0}W}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuPowerWatts, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=W}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"

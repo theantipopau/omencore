@@ -62,12 +62,17 @@ namespace OmenCore.Services
                 audit.StatusColor = "#FF6B6B"; // Red
                 audit.Summary = $"Missing {requiredMissing.Count} required component(s): {string.Join(", ", requiredMissing.Select(c => c.Name))}";
             }
-            else if (optionalMissing.Count >= 2)
+            // P1-2 fix: threshold raised from >= 2 to >= 3, and LHM is no longer counted
+            // as optional (it's explicitly not needed). This prevents clean standalone installs
+            // (no OGH + no HP-SEU, but PawnIO present) from showing "Degraded".
+            // Degraded now requires 3+ optional components absent, meaning at minimum:
+            // OGH + HP-SEU + PawnIO are all absent (i.e. no EC driver AND no HP support apps).
+            else if (optionalMissing.Count >= 3)
             {
                 audit.Status = StandaloneStatus.Degraded;
                 audit.StatusText = "Degraded";
                 audit.StatusColor = "#FFD93D"; // Yellow
-                audit.Summary = $"Fully standalone, but {optionalMissing.Count} optional component(s) unavailable";
+                audit.Summary = $"Fully standalone, but {optionalMissing.Count} optional component(s) unavailable (OGH and HP-SEU are not required for core operation)";
             }
             else
             {
@@ -209,7 +214,7 @@ namespace OmenCore.Services
                 Name = "LibreHardwareMonitor",
                 Description = "Hardware monitoring library (no longer required — self-sustaining mode)",
                 IsRequired = false,
-                IsOptional = true
+                IsOptional = false  // Explicitly not needed; absence should never degrade status
             };
             
             try

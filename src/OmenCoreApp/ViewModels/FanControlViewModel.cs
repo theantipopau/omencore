@@ -21,7 +21,10 @@ namespace OmenCore.ViewModels
         private FanPreset? _selectedPreset;
         private string _customPresetName = "Custom";
         private double _currentTemperature;
+        private double _currentCpuTemperature;
+        private double _currentGpuTemperature;
         private bool _suppressApplyOnSelection;
+        private IEnumerable<FanCurvePoint>? _hoveredPresetCurve;
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
@@ -345,6 +348,29 @@ namespace OmenCore.ViewModels
         /// Filtered view of FanPresets showing only user-saved (non-built-in) presets.
         /// </summary>
         public IEnumerable<FanPreset> SavedCustomPresets => FanPresets.Where(p => !p.IsBuiltIn);
+
+        /// <summary>
+        /// Ghost curve shown on the FanCurveEditor when a preset card is hovered.
+        /// Bound to FanCurveEditor.GhostCurvePoints to preview without applying.
+        /// </summary>
+        public IEnumerable<FanCurvePoint>? HoveredPresetCurve
+        {
+            get => _hoveredPresetCurve;
+            private set
+            {
+                if (_hoveredPresetCurve != value)
+                {
+                    _hoveredPresetCurve = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>Show the given preset as a ghost curve on the editor.</summary>
+        public void SetHoveredPreset(FanPreset? preset) => HoveredPresetCurve = preset?.Curve;
+
+        /// <summary>Clear the ghost overlay.</summary>
+        public void ClearHoveredPreset() => HoveredPresetCurve = null;
         
         /// <summary>
         /// Whether there are any saved custom presets to show.
@@ -447,11 +473,19 @@ namespace OmenCore.ViewModels
         public ObservableCollection<FanCurvePoint> GpuFanCurve { get; } = new();
         
         /// <summary>Current CPU temperature for the CPU-specific curve editor.</summary>
-        public double CurrentCpuTemperature => CurrentTemperature; // Use unified temp for now
-        
+        public double CurrentCpuTemperature
+        {
+            get => _currentCpuTemperature > 0 ? _currentCpuTemperature : CurrentTemperature;
+            private set { _currentCpuTemperature = value; OnPropertyChanged(); }
+        }
+
         /// <summary>Current GPU temperature for the GPU-specific curve editor.</summary>
-        public double CurrentGpuTemperature => CurrentTemperature; // Use unified temp for now
-        
+        public double CurrentGpuTemperature
+        {
+            get => _currentGpuTemperature > 0 ? _currentGpuTemperature : CurrentTemperature;
+            private set { _currentGpuTemperature = value; OnPropertyChanged(); }
+        }
+
         /// <summary>Whether thermal protection is currently active.</summary>
         public bool ThermalProtectionActive => _fanService.IsThermalProtectionActive;
         
@@ -552,7 +586,24 @@ namespace OmenCore.ViewModels
             
             // Load custom presets from config file
             LoadPresetsFromConfig();
-            
+
+            // Initialise GPU curve from config, or defaults if not yet saved
+            var savedGpuCurve = _configService.Config.GpuFanCurve;
+            if (savedGpuCurve != null && savedGpuCurve.Count >= 2)
+            {
+                foreach (var point in savedGpuCurve)
+                    GpuFanCurve.Add(new FanCurvePoint { TemperatureC = point.TemperatureC, FanPercent = point.FanPercent });
+                _logging.Info($"📂 Loaded GPU fan curve from config ({savedGpuCurve.Count} points)");
+            }
+            else
+            {
+                foreach (var point in GetDefaultAutoCurve())
+                    GpuFanCurve.Add(point);
+            }
+
+            // Persist GPU curve changes automatically
+            GpuFanCurve.CollectionChanged += (s, e) => SaveGpuCurveToConfig();
+
             // Default to Auto without applying/saving to config
             _suppressApplyOnSelection = true;
             SelectedPreset = FanPresets.FirstOrDefault(p => p.Name == "Auto") ?? FanPresets[2]; // Default to Auto
@@ -565,6 +616,9 @@ namespace OmenCore.ViewModels
             {
                 var latest = _fanService.ThermalSamples[^1];
                 CurrentTemperature = Math.Max(latest.CpuCelsius, latest.GpuCelsius);
+                // Update dedicated per-sensor properties for independent curve editor
+                if (latest.CpuCelsius > 0) CurrentCpuTemperature = latest.CpuCelsius;
+                if (latest.GpuCelsius > 0) CurrentGpuTemperature = latest.GpuCelsius;
             }
         }
         
@@ -966,6 +1020,23 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Error("Failed to save fan presets to config", ex);
+            }
+        }
+
+        private void SaveGpuCurveToConfig()
+        {
+            try
+            {
+                var config = _configService.Load();
+                config.GpuFanCurve = GpuFanCurve
+                    .Select(p => new FanCurvePoint { TemperatureC = p.TemperatureC, FanPercent = p.FanPercent })
+                    .ToList();
+                _configService.Save(config);
+                _logging.Info($"💾 GPU fan curve saved to config ({config.GpuFanCurve.Count} points)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("Failed to save GPU fan curve to config", ex);
             }
         }
         

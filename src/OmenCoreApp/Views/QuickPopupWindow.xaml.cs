@@ -117,9 +117,9 @@ namespace OmenCore.Views
         {
             if (_latestSample == null) return;
             
-            // Update temperature displays
-            CpuTempText.Text = _latestSample.CpuTemperatureC.ToString("0");
-            GpuTempText.Text = _latestSample.GpuTemperatureC.ToString("0");
+            // Update temperature displays (show — when sensor data unavailable)
+            CpuTempText.Text = _latestSample.CpuTemperatureC > 0 ? _latestSample.CpuTemperatureC.ToString("0") : "—";
+            GpuTempText.Text = _latestSample.GpuTemperatureC > 0 ? _latestSample.GpuTemperatureC.ToString("0") : "—";
             CpuLoadText.Text = $"{_latestSample.CpuLoadPercent:0}%";
             GpuLoadText.Text = $"{_latestSample.GpuLoadPercent:0}%";
             HealthStatusText.Text = $"Monitoring: {_monitoringHealth}";

@@ -110,6 +110,9 @@
                                  IsChecked="{Binding IsMaxSelected}"
                                  Command="{Binding ApplyMaxCoolingCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Max"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Forces all fans to maximum RPM. Use for heavy gaming or stress tests."
                                  Margin="0,0,6,0">
                         <Grid>
@@ -145,6 +148,9 @@
                                  IsChecked="{Binding IsExtremeSelected}"
                                  Command="{Binding ApplyExtremeModeCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Extreme"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Maximum cooling for high-power systems (13900HX + 4090). Hits 100% at 75°C."
                                  Margin="3,0,3,0">
                         <Grid>
@@ -180,6 +186,9 @@
                                  IsChecked="{Binding IsGamingSelected}"
                                  Command="{Binding ApplyGamingModeCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Gaming"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Aggressive fan curve that ramps up quickly. Good for gaming sessions."
                                  Margin="3,0,3,0">
                         <Grid>
@@ -215,6 +224,9 @@
                                  IsChecked="{Binding IsAutoSelected}"
                                  Command="{Binding ApplyAutoModeCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Auto"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="BIOS-controlled balanced curve. Recommended for everyday use."
                                  Margin="3,0,3,0">
                         <Grid>
@@ -250,6 +262,9 @@
                                  IsChecked="{Binding IsSilentSelected}"
                                  Command="{Binding ApplyQuietModeCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Silent"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Prioritizes quiet operation. Fans stay low until temps rise significantly."
                                  Margin="3,0,3,0">
                         <Grid>
@@ -285,6 +300,9 @@
                                  IsChecked="{Binding IsCustomSelected}"
                                  Command="{Binding ApplyCustomCurveCommand}"
                                  Style="{StaticResource FanPresetCard}"
+                                 Tag="Custom"
+                                 MouseEnter="PresetCard_MouseEnter"
+                                 MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Apply your custom fan curve defined in the editor below."
                                  Margin="6,0,0,0">
                         <Grid>
@@ -493,6 +511,7 @@
                         <controls:FanCurveEditor Grid.Row="1"
                                                  CurvePoints="{Binding CustomFanCurve}"
                                                  CurrentTemperature="{Binding CurrentTemperature}"
+                                                 GhostCurvePoints="{Binding HoveredPresetCurve}"
                                                  MinHeight="280"/>
                         
                         <!-- Curve Preview & Validation (v2.7.0) -->

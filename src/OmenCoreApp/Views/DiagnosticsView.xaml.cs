@@ -15,10 +15,11 @@ namespace OmenCore.Views
 
         private void OpenDiagnosticsFolder_Click(object sender, System.Windows.RoutedEventArgs e)
         {
-            var temp = System.IO.Path.GetTempPath();
+            var logDir = App.Logging.LogDirectory;
+            var target = System.IO.Directory.Exists(logDir) ? logDir : System.IO.Path.GetTempPath();
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
-                FileName = temp,
+                FileName = target,
                 UseShellExecute = true
             });
         }

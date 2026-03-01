@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using FluentAssertions;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Services
@@ -16,7 +17,7 @@ namespace OmenCoreApp.Tests.Services
             var logging = new LoggingService();
             var cfg = new ConfigurationService();
             var sysInfo = new SystemInfoService(logging);
-            var diagnosticsExport = new DiagnosticsExportService(logging, cfg);
+            var diagnosticsExport = new DiagnosticExportService(logging, Path.GetTempPath());
 
             var path = await ModelReportService.CreateModelDiagnosticBundleAsync(sysInfo, diagnosticsExport, "test-version");
 
@@ -27,7 +28,7 @@ namespace OmenCoreApp.Tests.Services
             Path.GetExtension(path).Should().Be(".zip");
 
             // Call the exporter directly to ensure it succeeds again and returns a path
-            var path2 = await diagnosticsExport.ExportDiagnosticsAsync();
+            var path2 = await diagnosticsExport.CollectAndExportAsync();
             if (path2 != null)
             {
                 File.Exists(path2).Should().BeTrue();

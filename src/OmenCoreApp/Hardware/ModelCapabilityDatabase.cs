@@ -301,6 +301,26 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 UserVerified = true
             });
+
+            // OMEN 16 (2024) - wf1 series (Intel) — Issue #68: ProductId 8BAB, Board 8C78, BIOS F.29
+            // Same WMI fan control path as wf0xxx (8BCA). V2 percentage-based fan levels.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BAB",
+                ModelName = "OMEN 16 (2024) wf1xxx Intel",
+                ModelNamePattern = "16-wf1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 100,          // V2 percentage-based (same generation as wf0xxx)
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "OMEN 16-wf1xxx (2024 Intel) — Board 8C78. Added for Issue #68. Set UserVerified=true after community confirmation."
+            });
             
             // OMEN 16 (2024) - xf series
             AddModel(new ModelCapabilities

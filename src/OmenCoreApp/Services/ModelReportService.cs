@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -9,22 +10,13 @@ namespace OmenCore.Services
     /// </summary>
     public static class ModelReportService
     {
-        public static async Task<string?> CreateModelDiagnosticBundleAsync(SystemInfoService systemInfoService, DiagnosticsExportService diagnosticsExportService, string omencoreVersion)
+        public static async Task<string?> CreateModelDiagnosticBundleAsync(SystemInfoService systemInfoService, DiagnosticExportService diagnosticExportService, string omencoreVersion)
         {
             var sysInfo = systemInfoService.GetSystemInfo();
             var model = !string.IsNullOrEmpty(sysInfo.Model) ? sysInfo.Model : (sysInfo.ProductName ?? "Unknown");
-            var productName = sysInfo.ProductName ?? string.Empty;
-            var sku = sysInfo.SystemSku ?? string.Empty;
 
-            var additional = new Dictionary<string, string>
-            {
-                { "Model", model },
-                { "ProductName", productName },
-                { "SystemSku", sku },
-                { "OmenCoreVersion", omencoreVersion ?? "unknown" }
-            };
-
-            return await diagnosticsExportService.ExportDiagnosticsAsync(additional);
+            // Collect using the canonical DiagnosticExportService, no additional args required
+            return await diagnosticExportService.CollectAndExportAsync();
         }
     }
 }

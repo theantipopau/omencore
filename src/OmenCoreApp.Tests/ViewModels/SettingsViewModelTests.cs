@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using FluentAssertions;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.ViewModels;
 using Xunit;
 
@@ -42,7 +43,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
             var bios = new OmenCore.Services.BiosUpdateService(logging);
             var profileExport = new OmenCore.Services.ProfileExportService(logging, cfgService);
-            var diagnosticsExport = new OmenCore.Services.DiagnosticsExportService(logging, cfgService);
+            var diagnosticsExport = new DiagnosticExportService(logging, System.IO.Path.GetTempPath());
 
             var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios, profileExport, diagnosticsExport)
             {
@@ -74,7 +75,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var fanCleaning = new OmenCore.Services.FanCleaningService(logging, null, sysInfo);
             var bios = new OmenCore.Services.BiosUpdateService(logging);
             var profileExport = new OmenCore.Services.ProfileExportService(logging, cfgService);
-            var diagnosticsExport = new OmenCore.Services.DiagnosticsExportService(logging, cfgService);
+            var diagnosticsExport = new DiagnosticExportService(logging, System.IO.Path.GetTempPath());
 
             var vm = new SettingsViewModel(logging, cfgService, sysInfo, fanCleaning, bios, profileExport, diagnosticsExport)
             {

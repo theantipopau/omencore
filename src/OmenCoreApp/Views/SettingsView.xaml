@@ -10,23 +10,78 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Settings" 
-                       FontSize="28" FontWeight="Bold" 
-                       Foreground="{StaticResource TextPrimaryBrush}"/>
-            <TextBlock Text="Configure application behavior, startup options, and driver settings" 
-                       FontSize="12" 
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       Opacity="0.9"
-                       Margin="0,4,0,0"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="260"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Settings" 
+                           FontSize="28" FontWeight="Bold" 
+                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Configure application behavior, startup options, and driver settings" 
+                           FontSize="12" 
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Opacity="0.9"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+            <!-- Search box -->
+            <Border Grid.Column="1" Background="{StaticResource SurfaceDarkBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" VerticalAlignment="Bottom">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Grid.Column="0" Data="{StaticResource IconSearch}" Width="14" Height="14" Fill="{StaticResource TextTertiaryBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding SettingsSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}"
+                             FontSize="12" VerticalAlignment="Center"
+                             CaretBrush="{StaticResource TextPrimaryBrush}">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="0"/>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Search results panel -->
+        <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8"
+                Visibility="{Binding SettingsSearchVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Search Results" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8"/>
+                <ItemsControl ItemsSource="{Binding SettingsSearchResults}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="4,6" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="{StaticResource AccentBlueBrush}" CornerRadius="3" Padding="4,2" HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding TabName}" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
 
         <!-- Sub-tabs for easier navigation (GitHub #48 - kg290) -->
-        <TabControl Grid.Row="1" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" Margin="0,8,0,0">
+        <TabControl Grid.Row="2" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" Margin="0,8,0,0">
             <!-- Status Tab -->
             <TabItem Header="Status">
                 <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
@@ -2642,9 +2697,88 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- Scheduler Tab -->
+            <TabItem Header="Scheduler">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" IsDeferredScrollingEnabled="True" Padding="0,0,12,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Path Data="{StaticResource IconSchedule}" Fill="{StaticResource AccentBrush}" Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Profile Scheduler" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
+                                <TextBlock Text="Automatically apply fan presets and performance modes at scheduled times each day." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,20"/>
+
+                                <!-- Rules list -->
+                                <ItemsControl ItemsSource="{Binding ScheduleRules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Enable toggle -->
+                                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                                                    <!-- Rule name + time -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBox Text="{Binding RuleName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                 Style="{StaticResource ModernTextBox}" FontSize="13" FontWeight="SemiBold" Padding="4,2"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                            <TextBlock Text="Time:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                            <TextBox Text="{Binding TriggerTime, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     Style="{StaticResource ModernTextBox}" FontSize="11" Width="50" Padding="4,2"/>
+                                                            <TextBlock Text="Fan:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                                                            <ComboBox SelectedValue="{Binding FanPreset, Mode=TwoWay}" Width="90" FontSize="11"
+                                                                      Style="{StaticResource ModernComboBox}">
+                                                                <ComboBoxItem Content="Auto"/>
+                                                                <ComboBoxItem Content="Silent"/>
+                                                                <ComboBoxItem Content="Gaming"/>
+                                                                <ComboBoxItem Content="Extreme"/>
+                                                                <ComboBoxItem Content="Max"/>
+                                                            </ComboBox>
+                                                            <TextBlock Text="Mode:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                                                            <ComboBox SelectedValue="{Binding PerformanceMode, Mode=TwoWay}" Width="100" FontSize="11"
+                                                                      Style="{StaticResource ModernComboBox}">
+                                                                <ComboBoxItem Content=""/>
+                                                                <ComboBoxItem Content="Balanced"/>
+                                                                <ComboBoxItem Content="Performance"/>
+                                                                <ComboBoxItem Content="Silent"/>
+                                                            </ComboBox>
+                                                        </StackPanel>
+                                                    </StackPanel>
+
+                                                    <!-- Remove button -->
+                                                    <Button Grid.Column="4" Content="✕" Style="{StaticResource DangerButton}"
+                                                            Command="{Binding DataContext.RemoveScheduleRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Width="32" Height="32" Padding="0" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Add rule button -->
+                                <Button Content="+ Add Rule" Command="{Binding AddScheduleRuleCommand}"
+                                        Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
+                                        Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
         
         <!-- Loading Overlay -->
-        <controls:LoadingOverlay Grid.RowSpan="2" Panel.ZIndex="1000" />
+        <controls:LoadingOverlay Grid.RowSpan="3" Panel.ZIndex="1000" />
     </Grid>
 </UserControl>

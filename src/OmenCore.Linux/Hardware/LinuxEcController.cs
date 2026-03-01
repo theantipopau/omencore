@@ -1009,16 +1009,52 @@ public class LinuxEcController
     
     /// <summary>
     /// Get current performance mode.
+    /// Reads hp-wmi thermal_profile first when available (same priority as SetPerformanceMode),
+    /// falling back to the EC register so the reported mode always reflects the active backend.
     /// </summary>
     public PerformanceMode GetPerformanceMode()
     {
+        // Priority 1: hp-wmi — read the current thermal_profile string
+        if (HasHpWmiAccess && File.Exists(HP_WMI_THERMAL))
+        {
+            try
+            {
+                var profile = File.ReadAllText(HP_WMI_THERMAL).Trim().ToLowerInvariant();
+                return profile switch
+                {
+                    "performance" => PerformanceMode.Performance,
+                    "quiet"       => PerformanceMode.Cool,
+                    "balanced"    => PerformanceMode.Default,
+                    _             => PerformanceMode.Default
+                };
+            }
+            catch { /* fall through */ }
+        }
+
+        // Priority 2: ACPI platform_profile
+        if (HasAcpiProfileAccess)
+        {
+            var profile = GetAcpiProfile()?.ToLowerInvariant();
+            if (profile != null)
+            {
+                return profile switch
+                {
+                    "performance" => PerformanceMode.Performance,
+                    "low-power"   => PerformanceMode.Cool,
+                    "balanced"    => PerformanceMode.Default,
+                    _             => PerformanceMode.Default
+                };
+            }
+        }
+
+        // Priority 3: EC register
         var value = ReadByte(REG_PERF_MODE);
         return value switch
         {
-            PERF_MODE_DEFAULT => PerformanceMode.Default,
+            PERF_MODE_DEFAULT     => PerformanceMode.Default,
             PERF_MODE_PERFORMANCE => PerformanceMode.Performance,
-            PERF_MODE_COOL => PerformanceMode.Cool,
-            _ => PerformanceMode.Balanced
+            PERF_MODE_COOL        => PerformanceMode.Cool,
+            _                     => PerformanceMode.Balanced
         };
     }
     
@@ -1027,16 +1063,52 @@ public class LinuxEcController
     /// </summary>
     public bool SetPerformanceMode(PerformanceMode mode)
     {
-        var value = mode switch
+        // RC-4 fix: route through the appropriate backend in priority order.
+        // Previously this only called WriteByte() which requires HasEcAccess,
+        // silently returning false on hp-wmi-only systems (e.g. OMEN 16-wf1xxx / Board 8C78).
+
+        // Priority 1: hp-wmi thermal_profile (Secure Boot safe, most compatible)
+        if (HasHpWmiAccess)
         {
-            PerformanceMode.Default => PERF_MODE_DEFAULT,
-            PerformanceMode.Performance => PERF_MODE_PERFORMANCE,
-            PerformanceMode.Cool => PERF_MODE_COOL,
-            PerformanceMode.Balanced => PERF_MODE_DEFAULT,
-            _ => PERF_MODE_DEFAULT
-        };
-        
-        return WriteByte(REG_PERF_MODE, value);
+            var wmiProfile = mode switch
+            {
+                PerformanceMode.Performance => "performance",
+                PerformanceMode.Cool        => "quiet",
+                _                           => "balanced"
+            };
+            if (SetHpWmiThermalProfile(wmiProfile))
+                return true;
+            // Fall through to next backend on failure
+        }
+
+        // Priority 2: ACPI platform_profile
+        if (HasAcpiProfileAccess)
+        {
+            var acpiProfile = mode switch
+            {
+                PerformanceMode.Performance => "performance",
+                PerformanceMode.Cool        => "low-power",
+                _                           => "balanced"
+            };
+            if (SetAcpiProfile(acpiProfile))
+                return true;
+        }
+
+        // Priority 3: Direct EC register (requires ec_sys / HasEcAccess)
+        if (HasEcAccess)
+        {
+            var value = mode switch
+            {
+                PerformanceMode.Default     => PERF_MODE_DEFAULT,
+                PerformanceMode.Performance => PERF_MODE_PERFORMANCE,
+                PerformanceMode.Cool        => PERF_MODE_COOL,
+                PerformanceMode.Balanced    => PERF_MODE_DEFAULT,
+                _                           => PERF_MODE_DEFAULT
+            };
+            return WriteByte(REG_PERF_MODE, value);
+        }
+
+        return false;
     }
     
     /// <summary>

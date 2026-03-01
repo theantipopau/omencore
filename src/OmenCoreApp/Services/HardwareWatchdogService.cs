@@ -56,13 +56,11 @@ namespace OmenCore.Services
         /// </summary>
         public void UpdateTemperature(double cpuTemp, double gpuTemp)
         {
-            // Only update if temps changed significantly (avoids false frozen detection from stable temps)
-            if (Math.Abs(cpuTemp - _lastCpuTemp) > 1 || Math.Abs(gpuTemp - _lastGpuTemp) > 1)
-            {
-                _lastTempUpdate = DateTime.Now;
-                _lastCpuTemp = cpuTemp;
-                _lastGpuTemp = gpuTemp;
-            }
+            // Receiving ANY call means the monitoring pipeline is alive — update the heartbeat
+            // unconditionally. Stable idle temps are normal and must not trigger a false alarm.
+            _lastTempUpdate = DateTime.Now;
+            _lastCpuTemp = cpuTemp;
+            _lastGpuTemp = gpuTemp;
         }
 
         /// <summary>
@@ -106,20 +104,8 @@ namespace OmenCore.Services
                             _logging.Warn("Fans set to 100% due to frozen temperature monitoring");
 
                             // Notify user
-                            System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
-                            {
-                                System.Windows.MessageBox.Show(
-                                    "Hardware monitoring has frozen!\n\n" +
-                                    "Fans have been set to 100% as a safety measure.\n" +
-                                    "Please restart OmenCore.\n\n" +
-                                    "If this issue persists, check:\n" +
-                                    "• LibreHardwareMonitor installation\n" +
-                                    "• System stability (overheating, crashes)\n" +
-                                    "• Windows updates",
-                                    "OmenCore Watchdog",
-                                    System.Windows.MessageBoxButton.OK,
-                                    System.Windows.MessageBoxImage.Warning);
-                            });
+                            _logging.Warn("🚨 WATCHDOG: Hardware monitoring frozen — fans set to 100%. Please restart OmenCore.");
+                            _logging.Warn("If this issue persists, check: WMI BIOS availability, system stability, or Windows updates.");
 
                             // Stop watchdog to prevent spam
                             Stop();

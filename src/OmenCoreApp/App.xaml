@@ -30,6 +30,7 @@
             <local:PowerToTotalConverter x:Key="PowerToTotalConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
             <local:FanSpeedConverter x:Key="FanSpeedConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
             <local:LatestFanSpeedConverter x:Key="LatestFanSpeedConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
+            <local:ZeroDoubleToPlaceholderConverter x:Key="ZeroDoubleToPlaceholderConverter" xmlns:local="clr-namespace:OmenCore.Utils" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

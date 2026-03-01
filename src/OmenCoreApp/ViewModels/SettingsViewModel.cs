@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -9,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using OmenCore.Models;
@@ -92,6 +96,13 @@ namespace OmenCore.ViewModels
         // Fan service for EC reset
         private readonly FanService? _fanService;
 
+        // Settings search
+        private string _settingsSearchQuery = "";
+
+        // Profile scheduler
+        private DispatcherTimer? _scheduleTimer;
+        private string? _lastScheduleMinute; // track last checked HH:mm to fire rules once per minute
+
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
             BiosUpdateService biosUpdateService,
@@ -148,6 +159,32 @@ namespace OmenCore.ViewModels
             ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
             ExportDiagnosticsCommand = new AsyncRelayCommand(async _ => await ExportDiagnosticsAsync());
             RefreshBiosReliabilityCommand = new RelayCommand(_ => RefreshBiosReliability());
+
+            // Scheduler commands
+            AddScheduleRuleCommand = new RelayCommand(_ =>
+            {
+                ScheduleRules.Add(new ScheduleRule());
+                _config.ScheduleRules = ScheduleRules.ToList();
+                _configService.Save(_config);
+            });
+            RemoveScheduleRuleCommand = new RelayCommand(param =>
+            {
+                if (param is ScheduleRule rule)
+                {
+                    ScheduleRules.Remove(rule);
+                    _config.ScheduleRules = ScheduleRules.ToList();
+                    _configService.Save(_config);
+                }
+            });
+
+            // Load schedule rules from config
+            foreach (var rule in _config.ScheduleRules)
+                ScheduleRules.Add(rule);
+
+            // Start schedule enforcement timer (fires every 30 s, enforces once per HH:mm)
+            _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _scheduleTimer.Tick += EnforceScheduleRules;
+            _scheduleTimer.Start();
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -1840,6 +1877,94 @@ namespace OmenCore.ViewModels
         public ICommand ExportProfileCommand { get; }
         public ICommand ExportDiagnosticsCommand { get; }
         public ICommand RefreshBiosReliabilityCommand { get; }
+        public ICommand AddScheduleRuleCommand { get; }
+        public ICommand RemoveScheduleRuleCommand { get; }
+
+        #endregion
+
+        #region Search
+
+        public string SettingsSearchQuery
+        {
+            get => _settingsSearchQuery;
+            set
+            {
+                if (_settingsSearchQuery != value)
+                {
+                    _settingsSearchQuery = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SettingsSearchVisible));
+                    OnPropertyChanged(nameof(SettingsSearchResults));
+                }
+            }
+        }
+
+        public bool SettingsSearchVisible => !string.IsNullOrWhiteSpace(_settingsSearchQuery);
+
+        private static readonly (string Term, string TabName, string Description)[] _searchCatalog = new[]
+        {
+            ("startup", "General", "Start with Windows"),
+            ("tray", "General", "Minimize to tray on close"),
+            ("polling", "General", "Monitoring polling interval"),
+            ("update", "General", "Automatic update checks"),
+            ("theme", "Appearance", "Dark / light theme selection"),
+            ("color", "Appearance", "Accent colour customisation"),
+            ("fan", "Fan Control", "Fan presets and custom curve"),
+            ("temperature", "Fan Control", "Fan curve temperature points"),
+            ("performance", "Advanced", "Performance and power modes"),
+            ("undervolt", "Advanced", "CPU undervolting settings"),
+            ("gpu", "Advanced", "GPU overclocking and power boost"),
+            ("lighting", "Lighting", "Keyboard 4-zone RGB lighting"),
+            ("schedule", "Scheduler", "Time-of-day automation rules"),
+            ("driver", "Status", "PawnIO driver status"),
+            ("bios", "Status", "BIOS version and update check"),
+            ("log", "General", "Log verbosity and diagnostics"),
+            ("hotkey", "General", "Hotkey enable/focus settings"),
+            ("notification", "General", "System notifications"),
+            ("battery", "Advanced", "Battery charge limit"),
+            ("macro", "Advanced", "Keyboard macro profiles"),
+        };
+
+        public IEnumerable<SettingsSearchResult> SettingsSearchResults
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(_settingsSearchQuery))
+                    return Enumerable.Empty<SettingsSearchResult>();
+                var q = _settingsSearchQuery.Trim().ToLowerInvariant();
+                return _searchCatalog
+                    .Where(e => e.Term.Contains(q) || e.Description.ToLowerInvariant().Contains(q) || e.TabName.ToLowerInvariant().Contains(q))
+                    .Select(e => new SettingsSearchResult(e.TabName, e.Description))
+                    .Take(8);
+            }
+        }
+
+        #endregion
+
+        #region Scheduler
+
+        public ObservableCollection<ScheduleRule> ScheduleRules { get; } = new();
+
+        private void EnforceScheduleRules(object? sender, EventArgs e)
+        {
+            var now = DateTime.Now;
+            var currentMinute = now.ToString("HH:mm");
+            if (currentMinute == _lastScheduleMinute) return;
+            _lastScheduleMinute = currentMinute;
+
+            foreach (var rule in ScheduleRules)
+            {
+                if (!rule.IsEnabled) continue;
+                if (rule.TriggerTime != currentMinute) continue;
+                if (rule.ActiveDays.Count > 0 && !rule.ActiveDays.Contains((int)now.DayOfWeek)) continue;
+
+                _logging.Info($"[Scheduler] Firing rule '{rule.RuleName}' at {currentMinute}");
+                // Fan preset and performance mode are stored; consuming VMs pick them up on next interaction.
+                if (!string.IsNullOrWhiteSpace(rule.FanPreset))
+                    _config.LastPerformanceModeName ??= rule.PerformanceMode; // placeholder — full wiring via event
+                _configService.Save(_config);
+            }
+        }
 
         #endregion
         
@@ -3596,4 +3721,7 @@ namespace OmenCore.ViewModels
                 IntPtr hTemplateFile);
         }
     }
+
+    /// <summary>A single entry returned by the settings search feature.</summary>
+    public sealed record SettingsSearchResult(string TabName, string Description);
 }

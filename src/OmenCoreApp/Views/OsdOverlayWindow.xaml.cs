@@ -630,19 +630,26 @@ namespace OmenCore.Views
                     FanMode = _fanService.ActivePresetName ?? "Auto";
                 }
                 
-                // Get RAM usage
-                if (_showRamUsage)
+                // Get RAM usage from monitoring sample
+                if (_showRamUsage && sample != null)
                 {
-                    var ramInfo = new Microsoft.VisualBasic.Devices.ComputerInfo();
-                    var usedRam = (ramInfo.TotalPhysicalMemory - ramInfo.AvailablePhysicalMemory) / (1024.0 * 1024 * 1024);
-                    RamUsage = $"{usedRam:F1} GB";
+                    if (sample.RamUsageGb > 0 && sample.RamTotalGb > 0)
+                        RamUsage = $"{sample.RamUsageGb:F1} / {sample.RamTotalGb:F0} GB";
+                    else if (sample.RamUsageGb > 0)
+                        RamUsage = $"{sample.RamUsageGb:F1} GB";
+                    else
+                        RamUsage = "--";
                 }
                 
-                // Get VRAM usage (from monitoring sample if available)
+                // Get VRAM usage from monitoring sample
                 if (_showVramUsage && sample != null)
                 {
-                    // Try to get VRAM from monitoring - estimate from GPU memory if available
-                    VramUsage = $"{(sample.GpuLoadPercent / 100.0 * 16):F1} GB"; // Rough estimate for 16GB VRAM
+                    if (sample.GpuVramUsageMb > 0 && sample.GpuVramTotalMb > 0)
+                        VramUsage = $"{sample.GpuVramUsageMb / 1024.0:F1} / {sample.GpuVramTotalMb / 1024.0:F0} GB";
+                    else if (sample.GpuVramUsageMb > 0)
+                        VramUsage = $"{sample.GpuVramUsageMb / 1024.0:F1} GB";
+                    else
+                        VramUsage = "--";
                 }
                 
                 // FPS would require hooking into present calls - placeholder

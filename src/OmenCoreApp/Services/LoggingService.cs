@@ -31,6 +31,11 @@ namespace OmenCore.Services
         /// </summary>
         public LogLevel Level { get; set; } = LogLevel.Info;
 
+        /// <summary>
+        /// Directory where log files are written. Used by diagnostics export.
+        /// </summary>
+        public string LogDirectory => _logDirectory;
+
         public event Action<string>? LogEmitted;
 
         public LoggingService()

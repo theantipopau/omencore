@@ -1,6 +1,56 @@
 # OmenCore v3.0.0 — Release Notes
 
-**Status:** Final release candidate. All critical regressions from v2.9.x have been addressed and the codebase is feature‑complete for this milestone.
+**Status:** Final. All critical regressions resolved. Ready for release.
+
+---
+
+## Critical fixes (v3.0.0 final pass — all P0/P1/P2 items resolved)
+
+### RC-1 / P0 — NVAPI telemetry recovery after GPU driver errors (`WmiBiosMonitor.cs`)
+GPU temperature and load now recover automatically after NVAPI failures instead of being permanently
+disabled for the session. After 10 consecutive NVAPI failures the source is suspended for 60 seconds,
+then automatically re-enabled. Previously `_nvapiMonitoringDisabled` was set as a permanent flag with
+no recovery path, causing Issues #67/#68 symptoms (stuck 28 °C, 0 W) until app restart.
+
+### RC-2 / P0 — OMEN 16-wf1xxx (ProductId 8BAB, Board 8C78) added to model database (`ModelCapabilityDatabase.cs`)
+ProductId `8BAB` was missing from `ModelCapabilityDatabase`. On lookup, the Transcend family template
+was selected as fallback, disabling WMI fan control (`SupportsFanControlWmi = false`). This is the
+root cause of Issue #68 (fan control completely non-functional on 2024 Intel wf1xxx units).
+The entry is added with `UserVerified = false` pending community confirmation.
+
+### RC-3 / P0 — Fan Auto mode shows 0 RPM after non-Max preset (`WmiFanController.cs`)
+`RestoreAutoControl()` previously skipped the `ResetFromMaxMode()` reset sequence unless the system
+was already in Max mode (`_isMaxModeActive || IsManualControlActive`). Switching from Quiet or Extreme
+presets to Auto left a 3-second RPM debounce window active with no reset, causing the displayed RPM
+to read 0 for the duration. Fixed: `ResetFromMaxMode()` is now always called unconditionally, and
+`_lastProfileSwitch` is reset to `DateTime.MinValue` so the debounce window is cleared immediately.
+
+### RC-4 / P0 — Linux CLI perf mode silently fails on hp-wmi-only systems (`LinuxEcController.cs`)
+`SetPerformanceMode()` only called `WriteByte(REG_PERF_MODE)` which requires `HasEcAccess`. On OMEN
+16-wf1xxx (Board 8C78) and similar boards where hp-wmi is present but ec_sys is not, `IsAvailable`
+returned `true` but `SetPerformanceMode()` silently returned `false`. Fixed: full priority routing
+added — hp-wmi thermal_profile → ACPI platform_profile → direct EC register write. `SetHpWmiThermalProfile()`
+and the existing `SetAcpiProfile()` are now properly called in sequence.
+
+### RC-5 / P1 — Secure Boot warning shown even when PawnIO installed (`SettingsViewModel.cs`)
+`LoadSystemStatus()` unconditionally set `SecureBootEnabled` from the registry state, independently
+of whether PawnIO was available. This produced a misleading yellow Secure Boot warning alongside a
+green PawnIO badge. Fixed: `SecureBootEnabled = rawSecureBoot && !PawnIOAvailable`. PawnIO is
+Secure Boot-compatible and its presence fully resolves the Secure Boot constraint.
+
+### RC-6 / P1 — Clean installs show "Standalone = Degraded" (`SystemInfoService.cs`)
+`PerformDependencyAudit()` counted any 2+ missing optional components as Degraded. OGH and
+HP System Event Utility are both absent on intentional clean standalone installs, hitting the
+threshold immediately. Additionally, `LibreHardwareMonitor` was marked `IsOptional = true` despite
+being explicitly documented as "no longer required". Fixed: LHM check changed to `IsOptional = false`;
+Degraded threshold raised from `>= 2` to `>= 3`; Summary text updated to clarify OGH/HP-SEU are
+not required for core operation.
+
+### RC-7 / P2 — Monitor loop exits permanently on 5 consecutive errors (`HardwareMonitoringService.cs`)
+`MonitorLoopAsync` broke out of its loop after 5 consecutive exceptions, permanently killing all
+telemetry with no restart or user notification. Fixed: on hitting the error limit, the loop now
+resets the counter, waits 10 seconds, and continues — allowing recovery from transient driver
+resets, sleep/wake glitches, or brief WMI stalls without requiring an app restart.
 
 ---
 

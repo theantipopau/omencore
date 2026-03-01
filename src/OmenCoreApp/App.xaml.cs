@@ -151,6 +151,14 @@ namespace OmenCore
                 }
                 else
                 {
+                    // Show onboarding wizard on first run (before main window)
+                    if (!Configuration.Config.FirstRunCompleted)
+                    {
+                        var configService = _serviceProvider.GetRequiredService<ConfigurationService>();
+                        var onboarding = new OmenCore.Views.OnboardingWindow(Configuration.Config, configService);
+                        onboarding.ShowDialog();
+                    }
+
                     // Normal startup - show window
                     mainWindow.Show();
                 }

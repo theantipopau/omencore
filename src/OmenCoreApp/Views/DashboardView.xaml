@@ -193,7 +193,7 @@
                                 Background="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=cpu}"
                                 CornerRadius="8" Padding="8,3"
                                 ToolTip="Temperature status">
-                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, StringFormat={}{0:F0}°C, FallbackValue=--°C}"
+                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}}"
                                        Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
                         </Border>
                     </Grid>
@@ -409,7 +409,18 @@
         </Grid>
 
         <!-- Charts (only visible when not in low overhead mode) -->
-        <Grid Grid.Row="4" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Grid.Row="4" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+            <!-- Time range selector -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
+                <TextBlock Text="History:" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <RadioButton Content="1m"  IsChecked="{Binding IsTimeRange1m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
+                <RadioButton Content="5m"  IsChecked="{Binding IsTimeRange5m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
+                <RadioButton Content="15m" IsChecked="{Binding IsTimeRange15m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
+                <RadioButton Content="30m" IsChecked="{Binding IsTimeRange30m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}"/>
+            </StackPanel>
+
+            <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" MinHeight="250"/>
                 <RowDefinition Height="*" MinHeight="250"/>
@@ -429,12 +440,12 @@
                                   Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
                             <TextBlock Text="CPU TEMPERATURE" Style="{StaticResource Label}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
+                        <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}}" 
                                    Style="{StaticResource MonospaceValueLarge}"
                                    Foreground="{StaticResource AccentBrush}"
                                    HorizontalAlignment="Right"/>
                     </Grid>
-                    <controls:ThermalChart Samples="{Binding ThermalSamples}" 
+                    <controls:ThermalChart Samples="{Binding FilteredThermalSamples}" 
                                            Height="200"/>
                 </StackPanel>
             </Border>
@@ -448,12 +459,12 @@
                                   Fill="#45C7FF" Stretch="Uniform" Margin="0,0,8,0"/>
                             <TextBlock Text="GPU TEMPERATURE" Style="{StaticResource Label}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, StringFormat={}{0:F0}°C, FallbackValue=--°C}" 
+                        <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}}" 
                                    Style="{StaticResource MonospaceValueLarge}"
                                    Foreground="#45C7FF" 
                                    HorizontalAlignment="Right"/>
                     </Grid>
-                    <controls:ThermalChart Samples="{Binding ThermalSamples}" 
+                    <controls:ThermalChart Samples="{Binding FilteredThermalSamples}" 
                                            Height="200"/>
                 </StackPanel>
             </Border>
@@ -589,7 +600,8 @@
                                              Height="200"/>
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </DockPanel>
 
         <!-- Low Overhead Message -->
         <Border Grid.Row="4" 

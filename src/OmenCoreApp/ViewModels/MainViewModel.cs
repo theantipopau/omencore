@@ -3,6 +3,7 @@ using OmenCore.Hardware;
 using OmenCore.Logitech;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Utils;
 using OmenCore.Views;
 using System;
@@ -81,6 +82,8 @@ namespace OmenCore.ViewModels
         private HpWmiBios? _wmiBios;
         private WmiBiosMonitor? _wmiBiosMonitor;
         private OghServiceProxy? _oghProxy;
+        private ThermalMonitoringService? _thermalMonitoringService;
+        private HardwareWatchdogService? _watchdogService;
         private HotkeyOsdWindow? _hotkeyOsd;
         private readonly object _trayActionQueueLock = new();
         private Func<Task>? _pendingTrayAction;
@@ -187,7 +190,7 @@ namespace OmenCore.ViewModels
                 {
                     // Create services required for SettingsViewModel
                     var profileExportService = new ProfileExportService(_logging, _configService);
-                    var diagnosticsExportService = new DiagnosticsExportService(_logging, _configService);
+                    var diagnosticsExportService = new DiagnosticExportService(_logging, _logging.LogDirectory);
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
@@ -583,10 +586,10 @@ namespace OmenCore.ViewModels
             }
         }
         public bool MonitoringGraphsVisible => !MonitoringLowOverheadMode;
-        public string CpuSummary => LatestMonitoringSample == null ? "CPU telemetry unavailable" : $"{LatestMonitoringSample.CpuTemperatureC:F0}°C • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
-        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{LatestMonitoringSample.GpuTemperatureC:F0}°C • {LatestMonitoringSample.GpuLoadPercent:F0}% load • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM";
+        public string CpuSummary => LatestMonitoringSample == null ? "CPU telemetry unavailable" : $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
+        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
         public string MemorySummary => LatestMonitoringSample == null ? "Memory telemetry unavailable" : $"{LatestMonitoringSample.RamUsageGb:F1} / {LatestMonitoringSample.RamTotalGb:F0} GB";
-        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {LatestMonitoringSample.SsdTemperatureC:F0}°C • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
+        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {(LatestMonitoringSample.SsdTemperatureC > 0 ? $"{LatestMonitoringSample.SsdTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
         public string CpuClockSummary => LatestMonitoringSample == null || LatestMonitoringSample.CpuCoreClocksMhz.Count == 0
             ? "Per-core clocks unavailable"
             : string.Join(", ", LatestMonitoringSample.CpuCoreClocksMhz.Select((c, i) => $"C{i + 1}:{c:F0}MHz"));
@@ -1215,6 +1218,16 @@ namespace OmenCore.ViewModels
             // Create notification service early (before FanService which needs it)
             _notificationService = new NotificationService(_logging);
             
+            // Thermal alert service — fires Windows toast notifications on CPU/GPU/SSD overtemperature
+            _thermalMonitoringService = new ThermalMonitoringService(_logging, _notificationService);
+            var ta = _config.ThermalAlerts;
+            _thermalMonitoringService.IsEnabled = ta.IsEnabled;
+            _thermalMonitoringService.CpuWarningThreshold = ta.CpuWarningC;
+            _thermalMonitoringService.CpuCriticalThreshold = ta.CpuCriticalC;
+            _thermalMonitoringService.GpuWarningThreshold = ta.GpuWarningC;
+            _thermalMonitoringService.GpuCriticalThreshold = ta.GpuCriticalC;
+            _thermalMonitoringService.SsdWarningThreshold = ta.SsdWarningC;
+            
             _fanService = new FanService(fanController, new ThermalSensorProvider(monitorBridge), _logging, _notificationService, _config.MonitoringIntervalMs);
             _fanService.SetHysteresis(_config.FanHysteresis);
             _fanService.ThermalProtectionEnabled = _config.FanHysteresis?.ThermalProtectionEnabled ?? true;
@@ -1223,6 +1236,9 @@ namespace OmenCore.ViewModels
             ThermalSamples = _fanService.ThermalSamples;
             FanTelemetry = _fanService.FanTelemetry;
             var powerPlanService = new PowerPlanService(_logging);
+            
+            // Hardware watchdog — emergency fan-to-100% if temperature monitoring freezes
+            _watchdogService = new HardwareWatchdogService(_logging, _fanService);
 
             // Fan verification service (closed-loop verification)
             _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
@@ -1477,6 +1493,7 @@ namespace OmenCore.ViewModels
             _undervoltService.Start();
             _ = _undervoltService.RefreshAsync();
             _hardwareMonitoringService.Start();
+            _watchdogService.Start();
             OnPropertyChanged(nameof(MonitoringLowOverheadMode));
             OnPropertyChanged(nameof(MonitoringGraphsVisible));
             _monitoringInitialized = true;
@@ -2411,6 +2428,10 @@ namespace OmenCore.ViewModels
 
         private void HardwareMonitoringServiceOnSampleUpdated(object? sender, MonitoringSample sample)
         {
+            // Feed sample to thermal alert service and hardware watchdog (background — no UI dispatch needed)
+            _thermalMonitoringService?.ProcessSample(sample);
+            _watchdogService?.UpdateTemperature(sample.CpuTemperatureC, sample.GpuTemperatureC);
+            
             Application.Current?.Dispatcher?.BeginInvoke(() => LatestMonitoringSample = sample);
         }
 
@@ -2669,7 +2690,7 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                var exportedPath = await ModelReportService.CreateModelDiagnosticBundleAsync(_systemInfoService, new DiagnosticsExportService(_logging, _configService), _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
+                var exportedPath = await ModelReportService.CreateModelDiagnosticBundleAsync(_systemInfoService, new DiagnosticExportService(_logging, _logging.LogDirectory), _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
 
                 if (!string.IsNullOrEmpty(exportedPath) && File.Exists(exportedPath))
                 {
@@ -3554,6 +3575,10 @@ namespace OmenCore.ViewModels
             _corsairDeviceService?.Dispose();
             _logitechDeviceService?.Dispose();
 
+            // Dispose thermal monitoring and hardware watchdog
+            _thermalMonitoringService = null;
+            _watchdogService?.Dispose();
+            
             // Dispose memory optimizer
             _memoryOptimizer?.Dispose();
         }
