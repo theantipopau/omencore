@@ -161,46 +161,23 @@ namespace OmenCore
         {
             try
             {
-                // Try multiple device paths for different WinRing0 builds
-                var devicePaths = new[] { "\\\\.\\WinRing0_1_2_0", "\\\\.\\WinRing0_1_2", "\\\\.\\WinRing0" };
-                var winRing0Detected = false;
+                var pawnIoDetected = IsPawnIOAvailable();
 
-                foreach (var devicePath in devicePaths)
-                {
-                    var handle = NativeMethods.CreateFile(
-                        devicePath,
-                        NativeMethods.GENERIC_READ,
-                        NativeMethods.FILE_SHARE_READ | NativeMethods.FILE_SHARE_WRITE,
-                        IntPtr.Zero,
-                        NativeMethods.OPEN_EXISTING,
-                        0,
-                        IntPtr.Zero);
-
-                    if (!handle.IsInvalid && !handle.IsClosed)
-                    {
-                        winRing0Detected = true;
-                        handle.Close();
-                        break;
-                    }
-
-                    handle.Close();
-                }
-
-                if (!winRing0Detected)
+                if (!pawnIoDetected)
                 {
                     var secureBootEnabled = IsSecureBootEnabled();
                     var memoryIntegrityEnabled = IsMemoryIntegrityEnabled();
 
-                    Logging.Warn("⚠️ WinRing0 driver not detected - some features may be unavailable");
-                    Logging.Info("💡 Fan control may still work via WMI/OGH without WinRing0; MSR-based undervolting/TCC and direct EC access require a driver backend.");
+                    Logging.Warn("⚠️ PawnIO driver not detected - some hardware-control features may be unavailable");
+                    Logging.Info("💡 Fan control may still work via WMI/OGH without a driver backend; MSR-based undervolting/TCC and direct EC access require PawnIO.");
 
                     if (secureBootEnabled || memoryIntegrityEnabled)
                     {
-                        Logging.Info("💡 Windows security features may block WinRing0. Consider PawnIO (Secure Boot compatible) from https://pawnio.eu/");
+                        Logging.Info("💡 Windows security features may block legacy drivers. Install PawnIO (Secure Boot compatible) from https://pawnio.eu/");
                     }
                     else
                     {
-                        Logging.Info("💡 To use WinRing0-dependent features: install/run LibreHardwareMonitor as Administrator or see docs/WINRING0_SETUP.md");
+                        Logging.Info("💡 Install PawnIO for full EC/MSR feature support.");
                     }
 
                     // Prompt user only on first startup if driver missing
@@ -211,12 +188,37 @@ namespace OmenCore
                 }
                 else
                 {
-                    Logging.Info("✓ WinRing0 driver detected - WinRing0-dependent features available");
+                    Logging.Info("✓ PawnIO driver detected - EC/MSR driver-backed features available");
                 }
             }
             catch (Exception ex)
             {
                 Logging.Warn($"Driver check failed: {ex.Message}");
+            }
+        }
+
+        private static bool IsPawnIOAvailable()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
+                if (key != null)
+                    return true;
+
+                var defaultPath = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                    "PawnIO", "PawnIOLib.dll");
+                if (System.IO.File.Exists(defaultPath))
+                    return true;
+
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT * FROM Win32_SystemDriver WHERE Name LIKE '%PawnIO%'");
+                return searcher.Get().Count > 0;
+            }
+            catch
+            {
+                return false;
             }
         }
 

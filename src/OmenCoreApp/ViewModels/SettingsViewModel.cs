@@ -13,6 +13,7 @@ using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Utils;
 
 namespace OmenCore.ViewModels
@@ -31,7 +32,7 @@ namespace OmenCore.ViewModels
         private readonly Hardware.HpWmiBios? _wmiBios;
         private readonly PowerAutomationService? _powerAutomationService;
         private readonly ProfileExportService _profileExportService;
-        private readonly DiagnosticsExportService _diagnosticsExportService;
+        private readonly DiagnosticExportService _diagnosticsExportService;
         
         private bool _startWithWindows;
         private bool _startMinimized;
@@ -95,7 +96,7 @@ namespace OmenCore.ViewModels
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
             BiosUpdateService biosUpdateService,
             ProfileExportService profileExportService,
-            DiagnosticsExportService diagnosticsExportService,
+            DiagnosticExportService diagnosticsExportService,
             Hardware.HpWmiBios? wmiBios = null,
             OmenKeyService? omenKeyService = null,
             OsdService? osdService = null,
@@ -2652,32 +2653,17 @@ namespace OmenCore.ViewModels
 
                 var pawnIoAvailable = IsPawnIOAvailable();
 
-                // Check WinRing0 driver - try multiple device paths
-                var devicePaths = new[] { @"\\.\WinRing0_1_2_0", @"\\.\WinRing0_1_2", @"\\.\WinRing0" };
+                // Legacy WinRing0 check (non-invasive): avoid opening device handles,
+                // which can trigger Defender/anti-cheat alerts on some systems.
                 bool winRing0Available = false;
-                
-                foreach (var devicePath in devicePaths)
+                try
                 {
-                    try
-                    {
-                        var handle = NativeMethods.CreateFile(
-                            devicePath,
-                            NativeMethods.GENERIC_READ | NativeMethods.GENERIC_WRITE,
-                            NativeMethods.FILE_SHARE_READ | NativeMethods.FILE_SHARE_WRITE,
-                            IntPtr.Zero,
-                            3, // OPEN_EXISTING
-                            0,
-                            IntPtr.Zero);
-
-                        if (!handle.IsInvalid && !handle.IsClosed)
-                        {
-                            winRing0Available = true;
-                            handle.Close();
-                            break;
-                        }
-                    }
-                    catch { }
+                    using var wrService = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                        @"SYSTEM\CurrentControlSet\Services\WinRing0_1_2_0");
+                    if (wrService != null)
+                        winRing0Available = true;
                 }
+                catch { }
                 
                 // Check for XTU service conflict (check SERVICES not processes)
                 bool xtuRunning = false;
@@ -2942,18 +2928,15 @@ namespace OmenCore.ViewModels
             try
             {
                 // Check Secure Boot
-                SecureBootEnabled = IsSecureBootEnabled();
-                
-                // Check PawnIO availability
-                try
-                {
-                    using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PawnIO");
-                    PawnIOAvailable = key != null;
-                }
-                catch
-                {
-                    PawnIOAvailable = false;
-                }
+                var rawSecureBoot = IsSecureBootEnabled();
+
+                // Check PawnIO availability (use the same comprehensive check as CheckDriverStatus)
+                PawnIOAvailable = IsPawnIOAvailable();
+
+                // P1-1 fix: Only surface Secure Boot as a warning when PawnIO is NOT installed.
+                // PawnIO is explicitly designed for Secure Boot environments, so its presence
+                // resolves the warning entirely.
+                SecureBootEnabled = rawSecureBoot && !PawnIOAvailable;
                 
                 // Check OGH installation - use ServiceController to check if services are actually running
                 try
@@ -3566,7 +3549,7 @@ namespace OmenCore.ViewModels
                 if (dialog.ShowDialog() != true)
                     return;
                 
-                var exportedPath = await _diagnosticsExportService.ExportDiagnosticsAsync();
+                var exportedPath = await _diagnosticsExportService.CollectAndExportAsync();
                 
                 // Copy to user-selected location if export succeeded
                 if (exportedPath != null && File.Exists(exportedPath))
