@@ -34,7 +34,9 @@ namespace OmenCore.Services.Diagnostics
         {
             try
             {
-                var exportPath = Path.Combine(Path.GetTempPath(), $"OmenCore-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}");
+                var exportPath = Path.Combine(
+                    Path.GetTempPath(),
+                    $"OmenCore-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}");
                 Directory.CreateDirectory(exportPath);
 
                 _logging.Info($"Collecting diagnostics to {exportPath}");
@@ -336,6 +338,12 @@ namespace OmenCore.Services.Diagnostics
             try
             {
                 var zipPath = Path.ChangeExtension(exportPath, ".zip");
+                if (File.Exists(zipPath))
+                {
+                    var baseName = Path.GetFileNameWithoutExtension(zipPath);
+                    var dir = Path.GetDirectoryName(zipPath) ?? Path.GetTempPath();
+                    zipPath = Path.Combine(dir, $"{baseName}-{Guid.NewGuid():N}.zip");
+                }
                 
                 // Use .NET built-in ZipFile
                 if (Directory.Exists(exportPath))
