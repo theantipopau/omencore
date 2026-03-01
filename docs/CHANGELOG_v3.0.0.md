@@ -690,6 +690,38 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
   - ZIP output path gains a GUID suffix if a same-name archive already exists.
 - **File:** `OmenCoreApp/Services/Diagnostics/DiagnosticExportService.cs`
 
+### QA Pass: Fan RPM Confirmation Counter Carry-Over + Preset Verification Routing
+*Found and fixed in QA review following hardening commits.*
+
+- **RPM confirmation counter carry-over (production bug):**
+  - **Issue:** `_fanChangeConfirmCounters` accumulated counts from an "inconsistent zero" read
+    sequence (rpm = 0, duty > 0) and then immediately accepted the next large-RPM value without
+    the required two fresh consecutive confirmations. Result: a brief zero-with-duty transient
+    followed by a real RPM spike could bypass the anti-spike filter in one cycle instead of two.
+  - **Fix:** Added `_fanChangePendingRpms[]` parallel tracking list. Counter now resets to 0
+    whenever the candidate RPM changes, ensuring confirmation cycles are always tied to a single
+    consistent value.
+  - **File:** `OmenCoreApp/Services/FanService.cs`
+
+- **`FanMode.Max` preset not routed through `VerifyMaxApplied` (production bug):**
+  - **Issue:** `isMaxPreset` was keyed solely on the preset name containing the word "max".
+    A preset such as `{ Name = "Turbo", Mode = FanMode.Max }` fell through to the RPM-delta
+    verification path, which could incorrectly roll back valid max-mode activations.
+  - **Fix:** `isMaxPreset` now also gates on `preset.Mode == FanMode.Max`, ensuring any
+    explicitly max-mode preset uses the controller-specific `VerifyMaxApplied()` path.
+  - **File:** `OmenCoreApp/Services/FanService.cs`
+
+- **Test infrastructure hardening:**
+  - `FanService.ForceFixedPollInterval()` test hook added to bypass the 1 s production minimum
+    floor and adaptive 5 s slowdown — prevents timing-sensitive tests from flapping on slower CI.
+  - `SequenceFanController` in tests made thread-safe with an internal lock.
+  - Two `FanSmoothingTests` rewritten from fixed `Task.Delay` windows to `WaitFor(condition)`
+    polling loops; robust across scheduler jitter on all machines.
+  - `FanPresetVerificationTests.ReactiveController.VerifyMaxApplied` overridden to return `true`,
+    matching the new `FanMode.Max` routing fix.
+- **Files:** `OmenCoreApp.Tests/Services/FanSmoothingTests.cs`,
+  `OmenCoreApp.Tests/Services/FanPresetVerificationTests.cs`
+
 ---
 
 ## Known Notes
