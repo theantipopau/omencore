@@ -1,6 +1,6 @@
 # OmenCore v3.0.0 — Architecture Overhaul & Stability Release
 
-**Release Date:** 2026-03-01
+**Release Date:** 2026-03-02
 **Type:** Major Release — Architecture, Stability, Bug Fixes & New Features
 **Reported By:** Discord community, GitHub issues (#42, #46, #64, #67, #68, and others), internal architecture review
 
@@ -15,7 +15,8 @@ for monitoring). Seven critical regressions that affected real users post-2.8.x 
 resolved. Four additional reliability improvements were made to the hardware monitoring
 layer. A broad set of new features was added: guided fan diagnostics, a full memory
 optimizer tab, keyboard lighting effects and brightness control, V2 keyboard engine,
-diagnostics reporting, Linux CLI performance mode improvements, and headless mode support.
+diagnostics reporting, Linux CLI performance mode improvements, headless mode support,
+and a comprehensive set of GUI improvements across every major view.
 
 ---
 
@@ -377,7 +378,90 @@ diagnostics reporting, Linux CLI performance mode improvements, and headless mod
 
 ---
 
-## QoL & Visual Polish
+## GUI Improvements
+
+### Fan Curve Ghost Overlay (Preset Preview on Hover)
+- Hovering any of the six preset cards (Max / Extreme / Gaming / Auto / Silent / Custom)
+  now renders the preset's fan curve as a **dashed blue ghost overlay** on the curve editor
+  beneath the active custom curve —  letting users compare before committing.
+- Ghost renders below the active curve at α=39% with a dashed stroke (6/3 dash pattern)
+  and a "preview" label at the right edge.
+- `GhostCurvePoints` dependency property added to `FanCurveEditor`; `DrawGhostCurve()` runs
+  before `DrawCurveLine()` so the active curve always sits on top.
+- `Tag="Max/Extreme/Gaming/Auto/Silent/Custom"` attributes added to all six RadioButtons;
+  `MouseEnter` / `MouseLeave` event handlers in the view's code-behind call
+  `SetHoveredPreset()` / `ClearHoveredPreset()` on `FanControlViewModel`.
+- **Files:** `OmenCoreApp/Controls/FanCurveEditor.xaml.cs`,
+  `OmenCoreApp/ViewModels/FanControlViewModel.cs`,
+  `OmenCoreApp/Views/FanControlView.xaml`, `OmenCoreApp/Views/FanControlView.xaml.cs`
+
+### Temperature Chart Time-Range Selector
+- A compact **1m / 5m / 15m / 30m** toggle strip now appears above the monitoring charts.
+- `MaxThermalSampleHistory` increased from 60 → **1800** (30 minutes at 1 s polling).
+- `FilteredThermalSamples` (new `ObservableCollection`) is rebuilt on every poll tick and
+  on range change; charts bind to this instead of the raw sliding window.
+- `IsTimeRange1m` / `IsTimeRange5m` / `IsTimeRange15m` / `IsTimeRange30m` bool helpers
+  work as two-way `RadioButton.IsChecked` targets.
+- `TimeRangeButton` style added to `ModernStyles.xaml` — compact pill button with
+  highlighted-when-checked state.
+- **Files:** `OmenCoreApp/ViewModels/DashboardViewModel.cs`,
+  `OmenCoreApp/Views/DashboardView.xaml`, `OmenCoreApp/Styles/ModernStyles.xaml`
+
+### Settings Search Bar
+- A search `TextBox` in the top-right of the Settings header filters across all tabs
+  instantly as you type.
+- Results panel appears below the header with a **tab-badge** (coloured pill showing the
+  target tab name) and a description for each match — up to 8 results from a 20-entry
+  catalog covering every major setting area.
+- `SettingsSearchQuery`, `SettingsSearchVisible`, `SettingsSearchResults`
+  (`IEnumerable<SettingsSearchResult>`) properties on `SettingsViewModel`.
+- `IconSearch` (already present in styles) wired as the search field prefix icon.
+- **Files:** `OmenCoreApp/ViewModels/SettingsViewModel.cs`,
+  `OmenCoreApp/Views/SettingsView.xaml`
+
+### Profile Scheduler Tab
+- New **Scheduler** tab added to Settings with a rule list for time-of-day automation.
+- Each rule has: enable toggle, rule name, trigger time (HH:mm), fan preset selector,
+  and performance mode selector.
+- Rules are persisted to `AppConfig.ScheduleRules` (`List<ScheduleRule>`) and survive
+  restarts.
+- `ScheduleRule` model: `IsEnabled`, `RuleName`, `TriggerTime`, `FanPreset`,
+  `PerformanceMode`, `ActiveDays` (day-of-week mask for future extension).
+- Enforcement runs on a 30 s `DispatcherTimer`; fires each rule once per `HH:mm` minute
+  via `_lastScheduleMinute` tracking.
+- `AddScheduleRuleCommand` / `RemoveScheduleRuleCommand` with full config persistence.
+- `IconSchedule` (clock) geometry added to `ModernStyles.xaml`.
+- **Files:** `OmenCoreApp/Models/AppConfig.cs`,
+  `OmenCoreApp/ViewModels/SettingsViewModel.cs`,
+  `OmenCoreApp/Views/SettingsView.xaml`, `OmenCoreApp/Styles/ModernStyles.xaml`
+
+### Keyboard Zone Visual Schematic
+- The old four equal-width "Zone 1–4" label boxes are replaced by a **proportional laptop
+  keyboard diagram** — proportional zone widths (3★ / 2.5★ / 2.5★ / 2★) reflect actual
+  hardware key counts.
+- Each zone shows representative key labels (e.g. "ESC F1-F4 / ~ 1 2 3 4 5 / TAB Q W E R T …"),
+  a live-coloured background rectangle (opacity 18%), and a coloured zone-name label.
+- A decorative function-key row and spacebar row flank the main zone grid for visual
+  context; all rendered inside a dark `#0D0D0D` laptop-bezel `Border`.
+- Zone hex `TextBox` inputs are retained below the schematic.
+- **Files:** `OmenCoreApp/Views/LightingView.xaml`
+
+### Onboarding Wizard (First-Run Welcome)
+- A three-step modal wizard (`OnboardingWindow`) is shown **once**, before the main window,
+  when `AppConfig.FirstRunCompleted` is `false`.
+- **Step 1 — Welcome:** brief feature overview (fan control, lighting, performance, monitoring).
+- **Step 2 — Hardware:** live detection readout of fan control backend, monitoring source,
+  and PawnIO driver status.
+- **Step 3 — Quick Start:** three actionable tips (apply a preset, customise lighting,
+  configure Settings).
+- Step-dot progress indicator; Back / Next / Get Started navigation; window drag via title
+  bar; `FirstRunCompleted` set to `true` and config saved on Finish.
+- **Files:** `OmenCoreApp/Views/OnboardingWindow.xaml`,
+  `OmenCoreApp/Views/OnboardingWindow.xaml.cs`, `OmenCoreApp/App.xaml.cs`
+
+---
+
+
 
 ### Zero-Temperature Warning Indicator ("—°C")
 - Sidebar temperature display, GeneralView stat card badges, and Dashboard now show **"—°C"**
