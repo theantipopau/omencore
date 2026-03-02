@@ -54,7 +54,42 @@ chmod +x omencore-gui && sudo ./omencore-gui
 
 ## 🆕 What's New in v3.0.0
 
-### 🐛 Bug Fixes (9 Community Reports)
+### 🏗️ Architecture Overhaul
+- **Self-Sustaining Monitoring** — Complete independence from LibreHardwareMonitor, WinRing0, NVML. Uses WMI BIOS + NVAPI natively
+- **Zero Silent Failures** — Early-exit guards removed; all sensor sources (NVAPI, PerformanceCounter, ACPI, PawnIO, SSD/battery) work independently
+
+### 🐛 Critical Bug Fixes (7 Regressions)
+- **GPU Telemetry Lockup** — NVAPI errors cause 60s auto-recovery instead of permanent telemetry loss
+- **OMEN 16-wf1xxx Fan Control** — ProductId 8BAB now has proper ModelCapabilityDatabase entry; WMI path fixed
+- **Fan Auto Mode 0 RPM** — Debounce window properly resets after profile switches
+- **Monitor Loop Hangs** — Permanent exit on consecutive errors replaced with 10s backoff + restart
+- **Startup Freeze** — WinRing0 check (~17s WMI scan) → instant registry lookup (<1ms); PerformanceCounter moved to background thread
+- **All Sensors 0°C** — Individual sources now work when WMI BIOS is unavailable
+
+### ✨ Major Features
+- **Fan Diagnostics** — Guided sequential test at 30% → 60% → 100% with PASS/FAIL results per fan level
+- **Memory Optimizer Tab** — Real-time RAM monitoring + Smart/Deep clean + configurable auto-clean intervals
+- **Keyboard Lighting Enhancements** — Native WMI brightness control (0–100%) + LED animation effects (Breathing, ColorCycle, Wave)
+- **V2 Keyboard Engine** — PawnIO EC-direct backend; auto-promotes verified models (8A14, 8A15, 8BAD) without config flags
+- **Headless Mode** — `--headless` flag for server/HTPC operation; all features work without GUI
+- **Profile Scheduler** — Time-of-day automation rules for fan presets and performance modes
+
+### 🎨 GUI Improvements
+- **Temperature Chart Time Ranges** — New 1m / 5m / 15m / 30m selector above monitoring charts
+- **Settings Search Bar** — Instant search across all tabs with formatted results
+- **Onboarding Wizard** — Three-step welcome for first-time users with hardware status readout
+- **Fan Curve Ghost Overlay** — Presets render as dashed blue overlay when hovering for instant comparison
+- **System Optimizer Overhaul** — Emoji icons → Path icons; hardcoded hex colors → theme brushes
+- **Bloatware Manager Polish** — Risk level filter (All/Low/Med/High), bulk remove progress bar, fixed status badges, BETA removed
+- **Zero-Temp Display** — Shows "—°C" instead of "0°C" when sensors are unavailable
+
+Full changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md)
+
+---
+
+## 🗂️ What's New in v2.9.0
+
+### Bug Fixes (9 Community Reports)
 - **CPU Temperature 0°C** — Intel Core Ultra / Arrow Lake CPUs now use fallback sensor sweep when primary sensor returns 0
 - **Fn+F2/F3 Steals Shortcuts** — Bare function key OSD hotkeys now require Ctrl+Shift modifier to prevent stealing system shortcuts
 - **RPM Glitch / Fan Boost** — Removed unreliable current-fan-level auto-detection that caused false MaxFanLevel=100 when OMEN Hub is running
@@ -66,14 +101,13 @@ chmod +x omencore-gui && sudo ./omencore-gui
 - **Afterburner Coexistence Broken** — Fixed MAHM v2 shared memory data offset bug (offset 260→1048)
 
 ### ✨ Key Enhancements
-- **🏗️ Self-Sustaining Monitoring** — No LHM/WinRing0/NVML needed. Uses WMI BIOS + NVAPI natively
-- **🧹 Memory Optimizer Tab** — Real-time RAM monitoring with Smart/Deep clean using Windows native API
+- **Memory Optimizer Tab** — Real-time RAM monitoring with Smart/Deep clean using Windows native API
 - **MSI Afterburner Coexistence** — Reads GPU data from Afterburner's shared memory (zero driver contention)
 - **EC Safety Hardening** — Reduced EC writes from 15-33 ops/sec to ~0.5 ops/sec, preventing false battery shutdowns
 - **Headless Mode** — Run without GUI using `--headless` flag for server operation
 - **Hardware Worker Orphan Timeout** — Configurable timeout (1-60 min) for worker process persistence
 
-Full changelog: [CHANGELOG_v2.9.1.md](docs/CHANGELOG_v2.9.1.md)
+Full changelog: [CHANGELOG_v2.9.0.md](docs/CHANGELOG_v2.9.0.md)
 
 ---
 
