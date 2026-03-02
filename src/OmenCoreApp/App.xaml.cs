@@ -154,8 +154,7 @@ namespace OmenCore
                     // Show onboarding wizard on first run (before main window)
                     if (!Configuration.Config.FirstRunCompleted)
                     {
-                        var configService = _serviceProvider.GetRequiredService<ConfigurationService>();
-                        var onboarding = new OmenCore.Views.OnboardingWindow(Configuration.Config, configService);
+                        var onboarding = new OmenCore.Views.OnboardingWindow(Configuration.Config, Configuration);
                         onboarding.ShowDialog();
                     }
 
@@ -318,8 +317,7 @@ namespace OmenCore
             // Retry tray icon visibility after boot (Windows sometimes fails to show icons during login)
             _ = EnsureTrayIconVisibleAsync();
 
-            var configService = _serviceProvider?.GetService<ConfigurationService>();
-            _trayIconService = new TrayIconService(_trayIcon, ForceShowMainWindow, () => Shutdown(), configService);
+            _trayIconService = new TrayIconService(_trayIcon, ForceShowMainWindow, () => Shutdown(), Configuration);
             TrayIcon = _trayIconService; // Expose for static access (e.g., SettingsViewModel)
             _trayIcon.TrayLeftMouseUp += (s, e) => _trayIconService?.ShowQuickPopup(); // Quick popup like G-Helper
             _trayIcon.TrayLeftMouseDown += (s, e) => { }; // Handle double-click below
