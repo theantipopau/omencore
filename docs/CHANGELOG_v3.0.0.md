@@ -4,6 +4,8 @@
 **Type:** Major Release — Architecture, Stability, Bug Fixes & New Features
 **Reported By:** Discord community, GitHub issues (#42, #46, #64, #67, #68, and others), internal architecture review
 
+> **hotfix1 (2026-03-03):** Fixes a startup error dialog shown to all first-time users due to `ConfigurationService` not being registered in the DI container. See [CHANGELOG_v3.0.0-hotfix1.md](CHANGELOG_v3.0.0-hotfix1.md). Installers and checksums below reflect the hotfix1 build.
+
 ---
 
 ## Summary
@@ -942,7 +944,7 @@ and a comprehensive set of GUI improvements across every major view.
 ## SHA256 Checksums
 
 ```
-8D65569532D887AC96AEC084A5A73E467844CE57F51B975A6A2811171C9A078D  OmenCoreSetup-3.0.0.exe
-DC8C95688FFDBB4A1BB7232B2E0DFA1D2BEF5A88C0BB8A18CDED1ADA375ED3C1  OmenCore-3.0.0-win-x64.zip
+29053D5C60A79C71FB2B892F9835AE066E3CB211316F21C5D0C578B961FF29DB  OmenCoreSetup-3.0.0.exe
+5AE6FC781ADB5D0E5DA86C82550179DFBD176191A29EF0DF5C0CCE5134CB5E2B  OmenCore-3.0.0-win-x64.zip
 605335229F5C403D915E99184CC20C1A047EB709B6F33817464DF88DAA5858D4  OmenCore-3.0.0-linux-x64.zip
 ```
