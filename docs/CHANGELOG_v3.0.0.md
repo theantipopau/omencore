@@ -274,7 +274,25 @@ and a comprehensive set of GUI improvements across every major view.
 - Update timer now paused while quick popup is hidden and resumed on show — eliminates
   wasted dispatch cycles while the popup is invisible.
 - **Files:** `OmenCoreApp/Views/QuickPopupWindow.xaml.cs`
-
+### Startup Performance — WinRing0 Check & PerformanceCounter Init (~25s Saved)
+- **Problem 1:** `CapabilityDetectionService.CheckWinRing0Available()` used
+  `ManagementObjectSearcher("Win32_SystemDriver")` to scan all system drivers, which blocked
+  the startup thread for ~17 seconds on systems where WMI driver enumeration is slow.
+- **Fix 1:** Replaced WMI scan with a direct registry lookup under
+  `HKLM\SYSTEM\CurrentControlSet\Services` for keys `WinRing0_1_2_0` and `WinRing0x64`.
+  Check now completes in <1 ms. Result confirmed in production log: timestamp gap reduced
+  from ~17 s to <1 ms at the WinRing0 check callsite.
+- **Problem 2:** `WmiBiosMonitor` initialized `PerformanceCounter` synchronously on the
+  startup thread, including a warm-up `NextValue()` call, blocking for ~8–9 seconds before
+  monitoring could begin.
+- **Fix 2:** `PerformanceCounter` initialization moved to `Task.Run` — runs fully in the
+  background. The counter is guarded by `_cpuPerfCounterAvailable` which is set only after
+  successful warm-up. Startup thread is no longer blocked; first CPU load reading appears
+  within 2–3 poll cycles after the background init completes.
+- **Combined result:** Startup time reduced from ~39 s → ~16 s (remaining time is inherent
+  WMI BIOS + NVAPI hardware enumeration, not addressable in the init path).
+- **Files:** `OmenCoreApp/Hardware/CapabilityDetectionService.cs`,
+  `OmenCoreApp/Hardware/WmiBiosMonitor.cs`
 ---
 
 ## New Features & Enhancements
@@ -506,6 +524,53 @@ and a comprehensive set of GUI improvements across every major view.
   and peak render µs (via `Debug.WriteLine`). Used to tune future render budget.
 - **Files:** `OmenCoreApp/Controls/FanCurveEditor.xaml.cs`
 
+### System Optimizer Tab — Visual Overhaul & Theme Consistency
+- **Motivation:** Optimizer tab used emoji characters as section/button icons (⚡🔧🌐🎯🖼️💾🎮
+  ⚖️↩️), a spinning `⟳` TextBlock for loading state, and hardcoded hex colors throughout
+  (`#1A1D2E`, `#9CA3AF`, `#FFB800`). All rendered inconsistently with the rest of the app.
+- **Loading overlay:** Spinning `⟳` TextBlock + Storyboard replaced with
+  `ProgressBar IsIndeterminate` using `AccentBlueBrush` — matches loading patterns elsewhere.
+- **Header:** Raw FontSize=28 TextBlocks replaced with `CardBorder` + `Headline`/`Caption`
+  styles and `IconSettings` Path icon — consistent with all other tab headers.
+- **Section headers (6):** All six emoji headers replaced with `StackPanel` containing a
+  themed `Path` icon + `TextBlock`: Power (`IconPerformance`), Services (`IconSettings`),
+  Network (`IconNetwork`), Input (`IconMouse`), Visual Effects (`IconEye`),
+  Storage (`IconStorage`).
+- **Preset buttons:** `🎮 Gaming Max` / `⚖️ Balanced` / `↩️ Revert All` strings replaced
+  with `Path` icon + label `StackPanel`s using `IconGamepad`, `IconPerformance`,
+  `IconRestore` geometries.
+- **Refresh button:** `↻` string → `IconRefresh` Path + `SecondaryButton` style.
+- **Footer info row:** `ℹ️` → `IconAbout` Path; `Foreground="#FFB800"` → `WarningBrush`.
+- **Hardcoded colors eliminated:** `OptimizationCard` background `#1A1D2E` →
+  `SurfaceDarkBrush`; description text `#9CA3AF` → `TextSecondaryBrush`;
+  warning text `#FFB800` → `WarningBrush`; summary card bg `#1A1D2E` → `SurfaceDarkBrush`.
+- **New icons added to ModernStyles.xaml:** `IconNetwork` (WiFi signal), `IconStorage`
+  (server/HDD), `IconEye` (visibility).
+- **Files:** `OmenCoreApp/Views/SystemOptimizerView.xaml`,
+  `OmenCoreApp/Styles/ModernStyles.xaml`
+
+### Bloatware Manager Tab — Risk Filter, Bulk Progress & Badge Cleanup
+- **BETA badge removed:** The BETA label was removed from the tab header — feature is
+  production-ready.
+- **ACTIVE → INSTALLED badge fix:** Status column badge was bright green (`#4CAF50`) with
+  text "ACTIVE" — green implies health/OK, confusing for items that are present and
+  recommended for removal. Now uses `SurfaceLightBrush` / `SurfaceMediumBrush` with text
+  "INSTALLED" / "REMOVED" for neutral, accurate labelling.
+- **Search placeholder fix:** Fragile `VisualBrush` hack for the search field placeholder
+  replaced with a standard `Grid` overlay `TextBlock` (hidden via `DataTrigger` when
+  `FilterText` is non-empty). Accessible, theme-safe, no rendering edge cases.
+- **Risk filter bar:** New compact radio-button strip (All / Low / Med / High) using the
+  existing `TimeRangeButton` style, with colored indicator dots (`SuccessBrush` /
+  `WarningBrush` / `AccentBrush`). `RiskFilter` property + `IsRiskAll/Low/Medium/High`
+  bool helpers added to `BloatwareManagerViewModel`; `ApplyFilter()` now applies risk level
+  in addition to category and text filters.
+- **Bulk remove progress:** 4 px `ProgressBar` (`SuccessBrush` foreground) appears below
+  the toolbar only while bulk removal is running. Bound to `IsBulkRemoving`,
+  `BulkRemoveProgress`, `BulkRemoveTotal` properties on the ViewModel.
+  `RemoveAllLowRiskAsync()` increments progress per item and resets on completion.
+- **Files:** `OmenCoreApp/Views/BloatwareManagerView.xaml`,
+  `OmenCoreApp/ViewModels/BloatwareManagerViewModel.cs`
+
 ---
 
 ## CI & Testing
@@ -681,6 +746,10 @@ and a comprehensive set of GUI improvements across every major view.
 | Memory optimizer tab + persistence | ✅ Implemented, build clean |
 | Headless mode | ✅ Implemented, build clean |
 | Tray worker CancellationToken | ✅ Implemented, build clean |
+| Startup perf: registry WinRing0 check | ✅ Implemented, build clean |
+| Startup perf: background PerformanceCounter | ✅ Implemented, build clean |
+| System Optimizer visual overhaul | ✅ Implemented, build clean |
+| Bloatware Manager: BETA removed, risk filter, bulk progress | ✅ Implemented, build clean |
 
 ### Needs Hardware Confirmation (Field Validation Pending)
 - **OMEN 16-wf1xxx 8BAB** — `UserVerified = false`. Fan control path verified by RC analysis.
