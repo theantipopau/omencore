@@ -26,6 +26,10 @@ namespace OmenCore.ViewModels
         private string _filterText = "";
         private BloatwareCategory? _selectedCategory;
         private BloatwareApp? _selectedApp;
+        private string _riskFilter = "All";
+        private int _bulkRemoveProgress;
+        private int _bulkRemoveTotal;
+        private bool _isBulkRemoving;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -82,6 +86,44 @@ namespace OmenCore.ViewModels
         public int TotalCount => AllApps.Count;
         public int RemovedCount => AllApps.Count(a => a.IsRemoved);
         public int LowRiskCount => AllApps.Count(a => a.RemovalRisk == RemovalRisk.Low && !a.IsRemoved);
+
+        public string RiskFilter
+        {
+            get => _riskFilter;
+            set
+            {
+                _riskFilter = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsRiskAll));
+                OnPropertyChanged(nameof(IsRiskLow));
+                OnPropertyChanged(nameof(IsRiskMedium));
+                OnPropertyChanged(nameof(IsRiskHigh));
+                ApplyFilter();
+            }
+        }
+
+        public bool IsRiskAll    { get => _riskFilter == "All";    set { if (value) RiskFilter = "All"; } }
+        public bool IsRiskLow    { get => _riskFilter == "Low";    set { if (value) RiskFilter = "Low"; } }
+        public bool IsRiskMedium { get => _riskFilter == "Medium"; set { if (value) RiskFilter = "Medium"; } }
+        public bool IsRiskHigh   { get => _riskFilter == "High";   set { if (value) RiskFilter = "High"; } }
+
+        public bool IsBulkRemoving
+        {
+            get => _isBulkRemoving;
+            set { _isBulkRemoving = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRemoveProgress
+        {
+            get => _bulkRemoveProgress;
+            set { _bulkRemoveProgress = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRemoveTotal
+        {
+            get => _bulkRemoveTotal;
+            set { _bulkRemoveTotal = value; OnPropertyChanged(); }
+        }
 
         public BloatwareManagerViewModel(LoggingService logger)
         {
@@ -186,13 +228,16 @@ namespace OmenCore.ViewModels
             try
             {
                 IsProcessing = true;
+                IsBulkRemoving = true;
+                BulkRemoveTotal = lowRiskApps.Count;
+                BulkRemoveProgress = 0;
                 var count = 0;
-                var total = lowRiskApps.Count;
 
                 foreach (var app in lowRiskApps)
                 {
                     count++;
-                    StatusMessage = $"Removing {count}/{total}: {app.Name}...";
+                    BulkRemoveProgress = count;
+                    StatusMessage = $"Removing {count}/{lowRiskApps.Count}: {app.Name}...";
                     await _service.RemoveAppAsync(app);
                 }
 
@@ -202,6 +247,8 @@ namespace OmenCore.ViewModels
             finally
             {
                 IsProcessing = false;
+                IsBulkRemoving = false;
+                BulkRemoveProgress = 0;
             }
         }
 
@@ -233,6 +280,18 @@ namespace OmenCore.ViewModels
             if (SelectedCategory.HasValue)
             {
                 filtered = filtered.Where(a => a.Category == SelectedCategory.Value);
+            }
+
+            // Filter by risk level
+            if (_riskFilter != "All")
+            {
+                filtered = _riskFilter switch
+                {
+                    "Low"    => filtered.Where(a => a.RemovalRisk == RemovalRisk.Low),
+                    "Medium" => filtered.Where(a => a.RemovalRisk == RemovalRisk.Medium),
+                    "High"   => filtered.Where(a => a.RemovalRisk == RemovalRisk.High),
+                    _        => filtered
+                };
             }
 
             // Filter by text

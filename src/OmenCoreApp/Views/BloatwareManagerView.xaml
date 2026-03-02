@@ -43,9 +43,6 @@
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                         <Path Data="{StaticResource IconTrash}" Width="20" Height="20" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center"/>
                         <TextBlock Text="Bloatware Manager" Style="{StaticResource Headline}" VerticalAlignment="Center"/>
-                        <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="4" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="BETA" FontSize="9" FontWeight="Bold" Foreground="{StaticResource WarningBrush}"/>
-                        </Border>
                     </StackPanel>
                     <TextBlock Text="Remove pre-installed bloatware to improve system performance and reduce clutter. Low-risk items are safe to remove." 
                                Style="{StaticResource Caption}" 
@@ -79,7 +76,8 @@
         </Border>
 
         <!-- Toolbar -->
-        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,16" Padding="12">
+        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,4" Padding="12,10">
+            <StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -113,40 +111,65 @@
                 </StackPanel>
 
                 <!-- Filter/Search -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="8,0">
-                    <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" 
-                             MinWidth="150"
-                             MaxWidth="250"
-                             Margin="0,0,8,0">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="  Search..." Foreground="{StaticResource TextTertiaryBrush}" FontSize="12"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                    <ComboBox ItemsSource="{Binding Categories}" 
-                              SelectedItem="{Binding SelectedCategory}"
-                              Style="{StaticResource ModernComboBox}"
-                              Width="120"
-                              DisplayMemberPath="">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                <StackPanel Grid.Column="1" Margin="8,0">
+                    <!-- Text search + category row -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <Grid MinWidth="160" MaxWidth="260" Margin="0,0,8,0">
+                            <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource ModernTextBox}"
+                                     Padding="8,5"/>
+                            <TextBlock Text="Search apps, publishers..."
+                                       IsHitTestVisible="False"
+                                       VerticalAlignment="Center"
+                                       Margin="10,0,0,0"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       FontSize="11">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FilterText}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                        <ComboBox ItemsSource="{Binding Categories}"
+                                  SelectedItem="{Binding SelectedCategory}"
+                                  Style="{StaticResource ModernComboBox}"
+                                  Width="120">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <!-- Risk Level Filter -->
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Risk:" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <RadioButton Content="All"    IsChecked="{Binding IsRiskAll,    Mode=TwoWay}" GroupName="RiskFilter" Style="{StaticResource TimeRangeButton}" Margin="0,0,4,0"/>
+                        <RadioButton IsChecked="{Binding IsRiskLow,    Mode=TwoWay}" GroupName="RiskFilter" Style="{StaticResource TimeRangeButton}" Margin="0,0,4,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBlock Text="Low"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton IsChecked="{Binding IsRiskMedium, Mode=TwoWay}" GroupName="RiskFilter" Style="{StaticResource TimeRangeButton}" Margin="0,0,4,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBlock Text="Med"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton IsChecked="{Binding IsRiskHigh,   Mode=TwoWay}" GroupName="RiskFilter" Style="{StaticResource TimeRangeButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBlock Text="High"/>
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Selected Item Actions -->
@@ -173,6 +196,26 @@
                     </Button>
                 </StackPanel>
             </Grid>
+            <!-- Bulk Remove Progress -->
+            <Grid Margin="0,8,0,0"
+                  Visibility="{Binding IsBulkRemoving, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ProgressBar Grid.Column="0" Value="{Binding BulkRemoveProgress}" Maximum="{Binding BulkRemoveTotal}"
+                             Height="4"
+                             Background="{StaticResource SurfaceMediumBrush}"
+                             Foreground="{StaticResource SuccessBrush}"
+                             BorderThickness="0"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding BulkRemoveProgress, StringFormat={}{0} done}"
+                           FontSize="10"
+                           Foreground="{StaticResource TextTertiaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"/>
+            </Grid>
+            </StackPanel>
         </Border>
 
         <!-- App List -->
@@ -229,21 +272,23 @@
                                         <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Center">
                                             <Border.Style>
                                                 <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#4CAF50"/>
+                                                    <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRemoved}" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource TextTertiaryBrush}"/>
+                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <TextBlock FontSize="9" FontWeight="Bold" Foreground="White">
+                                            <TextBlock FontSize="9" FontWeight="Bold">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="ACTIVE"/>
+                                                        <Setter Property="Text" Value="INSTALLED"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsRemoved}" Value="True">
                                                                 <Setter Property="Text" Value="REMOVED"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
