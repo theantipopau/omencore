@@ -517,12 +517,16 @@ namespace OmenCore.Hardware
 
         private bool CheckWinRing0Available()
         {
+            // Use registry check — Win32_SystemDriver WMI scan takes 15-20s on some machines.
+            // HKLM\SYSTEM\CurrentControlSet\Services is always available without elevated permissions.
             try
             {
-                // Check if WinRing0 service exists
-                using var searcher = new ManagementObjectSearcher(
-                    "SELECT * FROM Win32_SystemDriver WHERE Name = 'WinRing0_1_2_0' OR Name = 'WinRing0x64'");
-                return searcher.Get().Count > 0;
+                using var k1 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\WinRing0_1_2_0");
+                if (k1 != null) return true;
+                using var k2 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\WinRing0x64");
+                return k2 != null;
             }
             catch
             {

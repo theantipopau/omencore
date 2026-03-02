@@ -144,20 +144,25 @@ namespace OmenCore.Hardware
                 _logging?.Info("[WmiBiosMonitor] ✓ PawnIO MSR available — CPU throttling detection enabled");
             }
 
-            // Initialise a persistent CPU PerformanceCounter so UpdateReadings() never needs to
-            // create a new one (avoids the 100ms Thread.Sleep + GC pressure on every poll cycle).
-            // The first NextValue() call is always 0 and is used as the warm-up/baseline read.
-            try
+            // Initialise the CPU PerformanceCounter on a background thread — the constructor +
+            // first NextValue() call can block the calling thread for 8-10 seconds on some machines.
+            // The read path already guards with (_cpuPerfCounterAvailable && _cpuPerfCounter != null)
+            // so missing the first few poll cycles is harmless.
+            _ = System.Threading.Tasks.Task.Run(() =>
             {
-                _cpuPerfCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total", true);
-                _cpuPerfCounter.NextValue(); // baseline — must be called before first real read
-                _logging?.Info("[WmiBiosMonitor] ✓ CPU PerformanceCounter initialised (persistent)");
-            }
-            catch (Exception ex)
-            {
-                _cpuPerfCounterAvailable = false;
-                _logging?.Warn($"[WmiBiosMonitor] CPU PerformanceCounter not available: {ex.Message}");
-            }
+                try
+                {
+                    var pc = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total", true);
+                    pc.NextValue(); // baseline — must be called before first real read
+                    _cpuPerfCounter = pc; // assign after warm-up so read path never sees a cold counter
+                    _logging?.Info("[WmiBiosMonitor] ✓ CPU PerformanceCounter initialised (persistent, background)");
+                }
+                catch (Exception ex)
+                {
+                    _cpuPerfCounterAvailable = false;
+                    _logging?.Warn($"[WmiBiosMonitor] CPU PerformanceCounter not available: {ex.Message}");
+                }
+            });
         }
         
         /// <summary>
