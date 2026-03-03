@@ -184,6 +184,7 @@ namespace OmenCore.Hardware
                 return BuildSampleFromCache();
             }
 
+            if (_disposed) return BuildSampleFromCache();
             await _updateGate.WaitAsync(token);
             try
             {
@@ -198,7 +199,10 @@ namespace OmenCore.Hardware
             }
             finally
             {
-                _updateGate.Release();
+                // Guard against ObjectDisposedException if WmiBiosMonitor is disposed
+                // while a monitoring iteration is in flight (shutdown race condition).
+                try { _updateGate.Release(); }
+                catch (ObjectDisposedException) { }
             }
             
             return BuildSampleFromCache();

@@ -1271,6 +1271,12 @@ namespace OmenCore.ViewModels
             }
             
             _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging);
+            
+            // Initialize SystemInfoService before KeyboardLightingService so the KB service
+            // receives a non-null reference and its DetectModelConfig() gets populated data.
+            _systemInfoService = new SystemInfoService(_logging);
+            SystemInfo = _systemInfoService.GetSystemInfo();
+
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService);
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
@@ -1332,8 +1338,6 @@ namespace OmenCore.ViewModels
             
             _systemRestoreService = new SystemRestoreService(_logging);
             _hubCleanupService = new OmenGamingHubCleanupService(_logging);
-            _systemInfoService = new SystemInfoService(_logging);
-            SystemInfo = _systemInfoService.GetSystemInfo();
             _autoUpdateService = new AutoUpdateService(_logging);
             _processMonitoringService = new ProcessMonitoringService(_logging);
             _telemetryService = new TelemetryService(_logging, _configService);

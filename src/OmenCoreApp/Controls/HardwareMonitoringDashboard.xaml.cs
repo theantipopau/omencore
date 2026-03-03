@@ -237,7 +237,7 @@ namespace OmenCore.Controls
             {
                 var sample = _dashboardViewModel?.LatestMonitoringSample ?? _mainViewModel?.LatestMonitoringSample;
 
-                App.Logging.Info($"[Dashboard.UpdateMetrics] Called! LatestMonitoringSample={( sample == null ? "NULL" : $"CPU={sample.CpuTemperatureC}°C" )}");
+                App.Logging.Debug($"[Dashboard.UpdateMetrics] Called! LatestMonitoringSample={( sample == null ? "NULL" : $"CPU={sample.CpuTemperatureC}°C" )}");
 
                 if (sample == null)
                 {
