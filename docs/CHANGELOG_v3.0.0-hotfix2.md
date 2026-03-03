@@ -206,6 +206,117 @@ private volatile AmdGpuService? _amdGpuService;
 
 ---
 
+### Fix H — Three Runtime Bugs Found During Test Run (Log Analysis)
+
+**Severity:** Medium / Low — identified from `OmenCore_20260303_204256.log` on OMEN 17-ck2xxx (i9-13900HX, RTX 4090, PawnIO installed, Secure Boot enabled)
+
+---
+
+#### H1 — `CpuClock=1 cores` Log Noise
+
+**Symptom:** Every UI refresh cycle emitted an `[INFO]` log line reading `CpuClock=1 cores`, suggesting a single-core system or broken clock detection.
+
+**Root Cause:** `HardwareMonitoringDashboard.xaml.cs` logged `sample.CpuCoreClocksMhz?.Count ?? 0` (the *count* of per-core entries, which is 1 on this machine's readings) rather than the actual average MHz value. The display code was correct; only the log was wrong.
+
+**Fix:** Changed to log the actual average clock and core count:
+```
+// Before
+CpuClock=1 cores
+
+// After (example)
+CpuClock=3800 MHz (24 cores)
+```
+Also downgraded from `Info` → `Debug` since the line fires on every refresh tick.
+
+---
+
+#### H2 — `KeyboardLightingServiceV2` Gets Empty `ProductName` / `SystemSku` / `Model`
+
+**Symptom:** Log showed:
+```
+ProductName=, SystemSku=, Model= — Not an HP OMEN/Victus system — no keyboard config
+```
+This caused `DetectModelConfig()` to bypass all model-specific keyboard configs and fall back to the generic path, even though the system is clearly an HP OMEN.
+
+**Root Cause:** `SystemInfoService.GetSystemInfo()` was not thread-safe:
+```csharp
+public SystemInfo GetSystemInfo()
+{
+    if (_cachedInfo != null) return _cachedInfo;  // ← concurrent callers exit here
+    _cachedInfo = new SystemInfo();               // ← assigned immediately, before any WMI
+    // ... ~3 seconds of WMI queries populate fields ...
+}
+```
+Two concurrent callers hit this at startup. The first (capability detection) set `_cachedInfo = new SystemInfo()` and began WMI queries. The second (keyboard lighting service, ~20:42:57) hit `if (_cachedInfo != null)` and returned the still-empty object — `ProductName`, `SystemSku`, `Model`, and `IsHpOmen` were all unpopulated. The full WMI init completed ~3 seconds later (`20:43:00`) but the keyboard service had already made its decision.
+
+**Fix:** Double-checked locking with a local variable. `_cachedInfo` is only published once all WMI queries complete:
+```csharp
+private volatile SystemInfo? _cachedInfo;
+private readonly object _systemInfoLock = new();
+
+public SystemInfo GetSystemInfo()
+{
+    if (_cachedInfo != null) return _cachedInfo;
+    lock (_systemInfoLock)
+    {
+        if (_cachedInfo != null) return _cachedInfo;
+        var info = new SystemInfo();
+        // ... all WMI queries populate info ...
+        _cachedInfo = info;  // only assigned once fully built
+        return _cachedInfo;
+    }
+}
+```
+Marked `_cachedInfo` `volatile` for correct memory visibility on x86/x64.
+
+---
+
+#### H3 — PawnIO in Registry but EC/MSR Unavailable at Runtime
+
+**Symptom:** Log showed:
+```
+Phase 6: → Using PawnIO for EC access (OGH-independent, Secure Boot compatible)
+Pre-detected backend unavailable, trying auto-detection...
+→ ✓ Using WMI-based fan controller
+EC access not available; will try WMI BIOS for fan control
+No MSR access available. Install PawnIO for undervolt/TCC features.
+```
+Capability detection selected `EcDirect` based on PawnIO's registry presence, but the runtime EC and MSR probes both failed, causing a noisy fallback to WMI every startup.
+
+**Root Cause:** `CapabilityDetectionService.CheckPawnIOAvailable()` only checked the Uninstall registry key. It returned `true` even when the PawnIO driver service was not actually running (e.g., the driver requires a reboot to activate after a fresh install, or the LpcACPIEC module couldn't be loaded). The capability matrix then advertised `FanControl = EcDirect`, which `FanControllerFactory` tried first and immediately fell back from.
+
+**Fix — `CapabilityDetectionService`:** After the registry/path check, now probes the driver by calling `EcAccessFactory.GetEcAccess()`. Only returns `true` if the driver actually initializes:
+```csharp
+// Registry check — PawnIO installed?
+bool installed = /* registry / path checks */;
+if (!installed) return false;
+
+// Probe the driver — is it actually working?
+var ecAccess = EcAccessFactory.GetEcAccess();
+if (ecAccess != null && ecAccess.IsAvailable)
+{
+    _logging?.Info("  PawnIO: Probed successfully — EC access confirmed");
+    return true;
+}
+_logging?.Warn("  PawnIO: Found in registry but driver initialization failed");
+_logging?.Warn("    → Possible causes: driver awaiting reboot, service not started");
+return false;
+```
+
+**Fix — `MsrAccessFactory` / `EcAccessFactory`:** Status messages now distinguish between "not installed" and "installed but broken":
+```
+// Before (always)
+"No MSR access available. Install PawnIO for undervolt/TCC features."
+
+// After — when installed but init failed
+"PawnIO installed but MSR initialization failed — driver may need a reboot to activate"
+
+// After — when genuinely not installed
+"No MSR access available. Install PawnIO for undervolt/TCC features."
+```
+
+---
+
 ## ✅ Validation
 
 | Scenario | Result |
@@ -225,6 +336,12 @@ private volatile AmdGpuService? _amdGpuService;
 | Hover over any SettingsView action button previously missing tooltip | ✅ Descriptive tooltip shown |
 | Non-HP warning banner — uses `WarningBrush` + `TextPrimaryBrush` | ✅ No hardcoded colors |
 | Gaming Mode sidebar button with `IsEnabled=False` — dims correctly | ✅ Matches other quick-action buttons |
+| Dashboard log — `CpuClock=3800 MHz (24 cores)` format on 24-core CPU | ✅ Correct avg MHz shown |
+| Dashboard log — downgraded to DEBUG (not in INFO stream) | ✅ No per-tick INFO noise |
+| `KeyboardLightingServiceV2` startup — `ProductName`/`SystemSku` populated correctly | ✅ Model config applied |
+| Second concurrent `GetSystemInfo()` caller — does not see empty object | ✅ Blocks until WMI complete |
+| PawnIO installed but driver not loaded → capability detection | ✅ Falls back to WMI, no false `EcDirect` selection |
+| PawnIO installed but driver not loaded → status message | ✅ "installed but init failed" message, not "install PawnIO" |
 | Build (0 errors / 0 warnings) | ✅ Clean |
 
 ---
