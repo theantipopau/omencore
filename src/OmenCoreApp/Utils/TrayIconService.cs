@@ -59,6 +59,11 @@ namespace OmenCore.Utils
         private MenuItem? _keyboardBacklightMenuItem;
         private string _currentGpuPowerLevel = "Medium";
         private int _currentKeyboardBrightness = 3;
+
+        // v3.0.1: Additional live status menu items
+        private MenuItem? _ramMenuItem;
+        private MenuItem? _fanStatusMenuItem;
+        private MenuItem? _batteryMenuItem;
         
         // Throttling to prevent flicker during system events (brightness keys, etc.)
         // Use Interlocked for thread-safe access from timer callback
@@ -72,6 +77,7 @@ namespace OmenCore.Utils
         public event Action<string>? GpuPowerChangeRequested;
         public event Action<int>? KeyboardBacklightChangeRequested;
         public event Action? KeyboardBacklightToggleRequested;
+        public event Action? CheckForUpdatesRequested;
         
         /// <summary>
         /// Forces immediate refresh of the tray icon (e.g., when temp display setting changes).
@@ -128,7 +134,7 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.0";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.1";
         }
 
         private void InitializeContextMenu()
@@ -159,6 +165,8 @@ namespace OmenCore.Utils
             contextMenu.Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 245));
             contextMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(255, 0, 92)); // OMEN Red accent
             contextMenu.BorderThickness = new Thickness(1);
+            contextMenu.MinWidth = 320;
+            contextMenu.Padding = new Thickness(0, 4, 0, 4);
             
             // Create dark MenuItem style
             var menuItemStyle = new Style(typeof(MenuItem));
@@ -175,6 +183,12 @@ namespace OmenCore.Utils
             hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 0, 92)))); // OMEN red
             hoverTrigger.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(255, 255, 255))));
             menuItemStyle.Triggers.Add(hoverTrigger);
+
+            // Disabled items stay readable on the dark background (CPU/GPU temp rows etc.)
+            var disabledTrigger = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+            disabledTrigger.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(155, 160, 182))));
+            disabledTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
+            menuItemStyle.Triggers.Add(disabledTrigger);
             
             darkResources.Add(typeof(MenuItem), menuItemStyle);
             
@@ -194,7 +208,7 @@ namespace OmenCore.Utils
             contextMenu.Resources.MergedDictionaries.Add(darkResources);
 
             // ═══ HEADER ═══
-            var headerItem = new MenuItem { Header = "🎮 OmenCore", IsEnabled = false, FontWeight = FontWeights.SemiBold };
+            var headerItem = new MenuItem { Header = $"🎮  OmenCore  v{_appVersion}", IsEnabled = false, FontWeight = FontWeights.Bold, FontSize = 13 };
             contextMenu.Items.Add(headerItem);
             contextMenu.Items.Add(new Separator());
 
@@ -210,6 +224,19 @@ namespace OmenCore.Utils
             _monitoringHealthMenuItem = new MenuItem { Header = "📈 Monitor: Unknown", IsEnabled = false };
             _monitoringHealthMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
             contextMenu.Items.Add(_monitoringHealthMenuItem);
+
+            _ramMenuItem = new MenuItem { Header = "💾 RAM: —/— GB", IsEnabled = false };
+            _ramMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            contextMenu.Items.Add(_ramMenuItem);
+
+            _fanStatusMenuItem = new MenuItem { Header = "🌀 Fan: Auto · —", IsEnabled = false };
+            _fanStatusMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            contextMenu.Items.Add(_fanStatusMenuItem);
+
+            _batteryMenuItem = new MenuItem { Header = "🔋 Battery: —", IsEnabled = false };
+            _batteryMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _batteryMenuItem.Visibility = Visibility.Collapsed;
+            contextMenu.Items.Add(_batteryMenuItem);
 
             contextMenu.Items.Add(new Separator());
 
@@ -512,7 +539,13 @@ namespace OmenCore.Utils
             _stayOnTopMenuItem.Click += (s, e) => ToggleStayOnTop();
             contextMenu.Items.Add(_stayOnTopMenuItem);
 
-            var exitItem = new MenuItem { Header = "❌ Exit" };
+            contextMenu.Items.Add(new Separator());
+
+            var checkUpdateItem = new MenuItem { Header = "🔄 Check for Updates" };
+            checkUpdateItem.Click += (s, e) => CheckForUpdatesRequested?.Invoke();
+            contextMenu.Items.Add(checkUpdateItem);
+
+            var exitItem = new MenuItem { Header = "⏻  Exit OmenCore" };
             exitItem.Click += (s, e) => _shutdownApp();
             contextMenu.Items.Add(exitItem);
 
@@ -607,6 +640,32 @@ namespace OmenCore.Utils
                 if (_monitoringHealthMenuItem != null)
                 {
                     _monitoringHealthMenuItem.Header = $"📈 Monitor: {_monitoringHealth}";
+                }
+
+                if (_ramMenuItem != null)
+                {
+                    _ramMenuItem.Header = $"💾 RAM: {memUsedGb:F1}/{memTotalGb:F1} GB ({memPercent:F0}%)";
+                }
+
+                var fanRpmStr = fan2Rpm > 0
+                    ? $"CPU {fan1Rpm} · GPU {fan2Rpm} RPM"
+                    : (fan1Rpm > 0 ? $"{fan1Rpm} RPM" : "—");
+                if (_fanStatusMenuItem != null)
+                {
+                    _fanStatusMenuItem.Header = $"🌀 Fan: {_currentFanMode} · {fanRpmStr}";
+                }
+
+                if (_batteryMenuItem != null)
+                {
+                    if (batteryPercent > 0 || isAc)
+                    {
+                        _batteryMenuItem.Header = $"🔋 {batteryPercent:F0}% · {(isAc ? "⚡ Charging" : "On Battery")}";
+                        _batteryMenuItem.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        _batteryMenuItem.Visibility = Visibility.Collapsed;
+                    }
                 }
 
                 // Update tray icon with max temperature badge (shows highest of CPU/GPU)
