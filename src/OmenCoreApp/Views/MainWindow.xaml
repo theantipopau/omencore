@@ -401,10 +401,26 @@
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
                                                             <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
                                                         </Style>
                                                     </Button.Style>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Border Background="{StaticResource AccentBrush}" CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
                                                             <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                         </Border>
                                                         <TextBlock Text="Gaming Mode" FontSize="12" VerticalAlignment="Center"/>
@@ -412,7 +428,7 @@
                                                 </Button>
                                             </StackPanel>
                                         </Border>
-                                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,8,0,0" HorizontalContentAlignment="Center" Height="32">
+                                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,8,0,0" HorizontalContentAlignment="Center" Height="32" ToolTip="Reset fan curves, lighting, and performance mode to their defaults">
                                             <StackPanel Orientation="Horizontal">
                                                 <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
                                                 <TextBlock Text="Restore Defaults" FontSize="11" VerticalAlignment="Center"/>
@@ -542,7 +558,7 @@
 
                     <!-- Update Banner + Non-HP Warning -->
                     <StackPanel Grid.Row="0">
-                        <Border Background="#221FC3FF"
+                        <Border Background="{StaticResource InfoBackgroundBrush}"
                                 BorderBrush="{StaticResource AccentBlueBrush}"
                                 BorderThickness="1"
                                 CornerRadius="8"
@@ -602,22 +618,22 @@
                             </Grid>
                         </Border>
                         <Border Background="#44FF9800" 
-                                BorderBrush="#FF9800" 
+                                BorderBrush="{StaticResource WarningBrush}" 
                                 BorderThickness="2" 
                                 CornerRadius="8" 
                                 Padding="14,10" 
                                 Margin="24,12,24,12"
                                 Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource InverseBoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="#FF9800" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
                                 <StackPanel>
                                     <TextBlock Text="Warning: Non-HP Gaming System Detected" 
                                                FontWeight="Bold" 
-                                               Foreground="#FFFFFF" 
+                                               Foreground="{StaticResource TextPrimaryBrush}" 
                                                FontSize="14" />
                                     <TextBlock Text="This application is designed for HP OMEN and Victus gaming laptops. Some features may not work correctly on your system." 
                                                TextWrapping="Wrap" 
-                                               Foreground="#FFFFFF" 
+                                               Foreground="{StaticResource TextPrimaryBrush}" 
                                                FontSize="12" 
                                                Margin="0,3,0,0" />
                                 </StackPanel>

@@ -355,7 +355,7 @@
                             <GridViewColumn Header="Publisher" Width="150">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Publisher}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                        <TextBlock Text="{Binding Publisher}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextTertiaryBrush}" ToolTip="{Binding Publisher}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>

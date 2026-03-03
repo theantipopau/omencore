@@ -161,6 +161,51 @@ private volatile AmdGpuService? _amdGpuService;
 
 ---
 
+### Fix G — GUI Polish: Tooltip Coverage, Hardcoded Colors, Disabled-State Feedback
+
+**Severity:** Low — clarity and consistency improvements; no functional impact
+
+**Changes:**
+
+**Tooltip gaps filled:**
+
+| Control | View | Tooltip Added |
+|---|---|---|
+| Publisher text (truncated) | `BloatwareManagerView.xaml` | `{Binding Publisher}` — reveals full publisher name on hover |
+| 🔄 Refresh Charts button | `HardwareMonitoringDashboard.xaml` | "Refresh all hardware monitoring charts" |
+| 💾 Export Data button | `HardwareMonitoringDashboard.xaml` | "Export sensor history to a CSV file" |
+| 📥 Get PawnIO button | `SettingsView.xaml` | Describes Secure Boot compatible EC/MSR access |
+| 🔄 Refresh Status button | `SettingsView.xaml` | "Re-check driver and EC backend status" |
+| 🔍 Check for Updates (BIOS) | `SettingsView.xaml` | "Check HP for available BIOS firmware updates" |
+| ⬇️ Download Update (BIOS) | `SettingsView.xaml` | "Download and launch the BIOS update installer" |
+| 💨 Start Fan Boost | `SettingsView.xaml` | Describes max-speed dust clearing |
+| 🔍 Scan for Bloatware | `SettingsView.xaml` | "Scan for HP pre-installed apps that can be safely removed" |
+| 🗑️ Remove Bloatware | `SettingsView.xaml` | "Permanently remove the detected HP bloatware packages (cannot be undone)" |
+| Create Manual Restore Point | `SettingsView.xaml` | "Create a Windows System Restore snapshot before running cleanup" |
+| 🗑️ Run Cleanup | `SettingsView.xaml` | "Execute the selected Windows system cleanup tasks" |
+| 📂 Open Config Folder | `SettingsView.xaml` | Shows `%LOCALAPPDATA%\OmenCore` path hint |
+| 📋 Open Log Folder | `SettingsView.xaml` | "Open the folder containing OmenCore diagnostic log files" |
+| 🌐 GitHub | `SettingsView.xaml` | "Open the OmenCore GitHub repository in your browser" |
+| 📝 Release Notes | `SettingsView.xaml` | "View the full changelog for this release" |
+| 🐛 Report Issue | `SettingsView.xaml` | "Open the GitHub issue tracker to report a bug or request a feature" |
+| Restore Defaults (sidebar) | `MainWindow.xaml` | Describes what gets reset |
+
+**Hardcoded colors replaced with theme resources:**
+
+| Location | Before | After |
+|---|---|---|
+| Update banner `Background` | `#221FC3FF` (hardcoded semi-transparent blue) | `{StaticResource InfoBackgroundBrush}` |
+| Non-HP warning `BorderBrush` | `#FF9800` | `{StaticResource WarningBrush}` |
+| Non-HP warning icon `Fill` | `#FF9800` | `{StaticResource WarningBrush}` |
+| Non-HP warning text `Foreground` (×2) | `#FFFFFF` | `{StaticResource TextPrimaryBrush}` |
+| 🗑️ Run Cleanup button `Background` | `OrangeRed` (WPF named color) | `{StaticResource ErrorBrush}` |
+
+**Disabled-state feedback:**
+
+- `GamingModeCommand` quick-action button in the sidebar now fades to 40% opacity and dims its icon background to `SurfaceMediumBrush` when `IsEnabled=False` — matching the visual feedback pattern already used by `Apply Fan Preset`, `Performance Mode`, and `Apply Lighting` buttons.
+
+---
+
 ## ✅ Validation
 
 | Scenario | Result |
@@ -176,6 +221,10 @@ private volatile AmdGpuService? _amdGpuService;
 | PawnIO installed + Secure Boot + no OGH → `CapabilityWarning` | ✅ No false banner shown |
 | No PawnIO + Secure Boot + no OGH → `CapabilityWarning` | ✅ Correct PawnIO guidance shown |
 | `MainViewModel.Dispose()` — all event handlers unsubscribed | ✅ No delegate retention |
+| Hover over truncated Publisher in Bloatware tab — tooltip shows full name | ✅ |
+| Hover over any SettingsView action button previously missing tooltip | ✅ Descriptive tooltip shown |
+| Non-HP warning banner — uses `WarningBrush` + `TextPrimaryBrush` | ✅ No hardcoded colors |
+| Gaming Mode sidebar button with `IsEnabled=False` — dims correctly | ✅ Matches other quick-action buttons |
 | Build (0 errors / 0 warnings) | ✅ Clean |
 
 ---
