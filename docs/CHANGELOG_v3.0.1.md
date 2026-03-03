@@ -1,6 +1,6 @@
-# OmenCore v3.0.0-hotfix2 — Changelog
+# OmenCore v3.0.1 — Changelog
 
-**Release Date:** 2026-03-03
+**Release Date:** 2026-03-04
 **Base:** v3.0.0 (includes hotfix1)
 **Branch:** v3.0.0
 
@@ -410,6 +410,92 @@ finally
 
 ---
 
+### Fix J — Three Runtime Bugs Found During Third Test Run (Log Analysis)
+
+**Severity:** High / Low — identified from `OmenCore_20260304_003209.log` on Victus by HP Gaming Laptop 16-r0xxx (i5-13500HX, RTX 4050, PawnIO installed, Secure Boot enabled, MSI Afterburner running)
+
+---
+
+#### J1 — False Thermal Emergency on First Reading (~207,996,929,335,856,900,079,616°C)
+
+**Severity:** High — forces fans to 100% at startup on systems running MSI Afterburner
+
+**Symptom:** Five seconds into startup, before any real hardware reading, the log showed:
+```
+[WARN] ⚠️ THERMAL EMERGENCY: 207996929335856900079616°C - forcing fans to 100%!
+```
+Fans immediately ramped to maximum and thermal protection latched.
+
+**Root Cause (J1a):** `WmiBiosMonitor` reads GPU temperature from MSI Afterburner's MAHM shared memory (`MAHMSharedMemory`) when Afterburner is running. The struct layout parsing uses a `dataOffset` that varies between MAHM v1 (offset 528) and v2 (offset 1048). If the running Afterburner version's entry size is right at the boundary condition (`entrySize >= 1072`), the wrong offset is selected and the `float` read is garbage — in this case, a very large positive value.
+
+This garbage value passed unchecked into `_cachedGpuTemp`, then into `CheckThermalProtection()` via `Math.Max(cpuTemp, gpuTemp)`, and since it was `>= ThermalEmergencyThreshold` (95°C), triggered immediate emergency fan ramp.
+
+**Fix J1a — `WmiBiosMonitor.cs`:** Added upper-bound sanity check on the Afterburner GPU temperature before caching it. Values outside the physically realistic range (0–1150°C) are discarded:
+```csharp
+// Before
+if (abData != null && abData.GpuTemperature > 0)
+
+// After — reject garbage floats from MAHM struct layout drift
+if (abData != null && abData.GpuTemperature > 0 && abData.GpuTemperature < 150)
+```
+
+**Fix J1b — `FanService.cs`:** Added defense-in-depth sanity guard in `CheckThermalProtection()` itself. Any temperature outside −10–150°C is logged as a hardware read error and set to zero before entering the protection logic. If both CPU and GPU readings are zero/invalid after this filter, the protection logic is skipped entirely:
+```csharp
+const double MaxSaneTemp = 150.0;
+const double MinSaneTemp = -10.0;
+if (cpuTemp > MaxSaneTemp || cpuTemp < MinSaneTemp)
+{
+    _logging.Warn($"[ThermalProtection] Ignoring invalid CPU temp {cpuTemp:F0}°C ...");
+    cpuTemp = 0;
+}
+if (gpuTemp > MaxSaneTemp || gpuTemp < MinSaneTemp)
+{
+    _logging.Warn($"[ThermalProtection] Ignoring invalid GPU temp {gpuTemp:F0}°C ...");
+    gpuTemp = 0;
+}
+if (cpuTemp <= 0 && gpuTemp <= 0) return; // no reliable data
+```
+
+---
+
+#### J2 — `KeyboardLightingServiceV2` Still Gets Empty Model on Victus 16-r0xxx
+
+**Severity:** Low — keyboard lighting falls back to generic backend (functional, but no model-specific config applied)
+
+**Symptom:** Despite Fix I1 (moving `_systemInfoService` init before KB constructor), the Victus 16-r0xxx still logged:
+```
+[KeyboardLightingV2] Model detection: ProductName='', SystemSku='', Model=''
+[KeyboardLightingV2] Not an HP OMEN/Victus system — no keyboard config
+```
+
+**Root Cause:** `KeyboardLightingService` constructor calls `InitializeAsync().GetAwaiter().GetResult()` (blocking, synchronous invocation) on the WPF UI thread (STA apartment). Inside `InitializeAsync`, `DetectModelConfig()` calls `_systemInfoService.GetSystemInfo()`, which invokes several WMI queries via `ManagementObjectSearcher.Get()`. Under STA, blocking WMI COM calls use `CoWaitForMultipleHandles`, which pumps the STA message queue while waiting. This allows the *same thread* to re-enter `GetSystemInfo()` from a message-pump callback. The `lock (_systemInfoLock)` in .NET is a non-recursive `Monitor` — re-entry on the same thread is **not blocked** (same thread owns the lock), so the reentrant call returns a still-empty `SystemInfo` object mid-build.
+
+**Fix — `SystemInfoService.cs`:** Added a `[ThreadStatic] bool _buildingInfoOnThisThread` reentrancy guard. Before acquiring the lock, if the flag is set, the method returns an empty placeholder immediately rather than re-entering the lock body:
+```csharp
+[System.ThreadStatic]
+private static bool _buildingInfoOnThisThread;
+
+public SystemInfo GetSystemInfo()
+{
+    if (_cachedInfo != null) return _cachedInfo;
+    // Guard against COM STA reentrancy on the same thread
+    if (_buildingInfoOnThisThread) return new SystemInfo();
+    lock (_systemInfoLock)
+    {
+        if (_cachedInfo != null) return _cachedInfo;
+        _buildingInfoOnThisThread = true;
+        var info = new SystemInfo();
+        try { /* ... WMI queries ... */ }
+        finally { _buildingInfoOnThisThread = false; }
+        _cachedInfo = info;
+        return _cachedInfo;
+    }
+}
+```
+The reentrant invocation from the KB service receives an empty `SystemInfo` placeholder (same as before), but now `DetectModelConfig()` correctly detects `IsHpVictus == false` and falls back to trying all backends — which still works. The *outer* call on the next scheduled invocation (after `_cachedInfo` is populated) returns the full model info. A future improvement would be to defer KB model re-detection after `GetSystemInfo()` completes.
+
+---
+
 ## ✅ Validation
 
 | Scenario | Result |
@@ -438,6 +524,9 @@ finally
 | `KeyboardLightingServiceV2` startup — `ProductName` populated (non-null `SystemInfoService`) | ✅ Model config applied; no null service reference |
 | Dashboard log — `[Dashboard.UpdateMetrics] Called!` line downgraded to DEBUG | ✅ Not present in INFO stream |
 | Shutdown — no `ObjectDisposedException` from `WmiBiosMonitor` semaphore | ✅ Clean shutdown, no ERROR log |
+| Afterburner GPU temp — garbage float (>150°C) from MAHM shared memory rejected | ✅ No false thermal emergency |
+| `CheckThermalProtection` — out-of-range CPU/GPU values silently skipped | ✅ No spurious fan ramp from garbage data |
+| `GetSystemInfo()` — STA COM-pump reentrancy returns empty placeholder, not null | ✅ KB lighting model detection stable on Victus 16-r0xxx |
 | Build (0 errors / 0 warnings) | ✅ Clean |
 
 ---
@@ -446,20 +535,20 @@ finally
 
 | File | Description |
 |---|---|
-| `OmenCoreSetup-3.0.0.exe` | **Windows installer (recommended)** |
-| `OmenCore-3.0.0-win-x64.zip` | Windows portable |
-| `OmenCore-3.0.0-linux-x64.zip` | Linux portable (CLI + Avalonia GUI) |
+| `OmenCoreSetup-3.0.1.exe` | **Windows installer (recommended)** |
+| `OmenCore-3.0.1-win-x64.zip` | Windows portable |
+| `OmenCore-3.0.1-linux-x64.zip` | Linux portable (CLI + Avalonia GUI) |
 
 ### SHA256 Checksums
 ```
-C3C6DD6F9A4E8001114B7AE0603FFD0B04330297EBAA86176387FF3BE7044BEA  OmenCoreSetup-3.0.0.exe
-DFC7A1D3EB12C35492B1BAA56E156D43A22BF37EF53CCDDC0BC9CCCDFBC01E0D  OmenCore-3.0.0-win-x64.zip
-605335229F5C403D915E99184CC20C1A047EB709B6F33817464DF88DAA5858D4  OmenCore-3.0.0-linux-x64.zip
+(updated at release)
 ```
 
 ---
 
 **Full v3.0.0 changelog:** https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.0.0.md
+
+**This release changelog:** https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.0.1.md
 
 **GitHub:** https://github.com/theantipopau/omencore
 

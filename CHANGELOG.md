@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.1] - 2026-03-04 - Stability & Compatibility Patch 🔧
+
+Cumulative stability release incorporating all hotfix1 and hotfix2 work plus additional
+fixes (H–J) identified through community testing on OMEN 17-ck2xxx and Victus 16-r0xxx.
+Ten fix series (A–J) resolving 22+ individual issues.
+
+### 🐛 Bug Fixes (Fixes A–J)
+- **(A)** XAML `StaticResourceExtension` startup crash — five undefined resource keys resolved
+- **(B)** Secure Boot status displayed inverted when PawnIO is available
+- **(C)** Ctrl+Shift+O global hotkey dead after window deactivation (issue #70)
+- **(D)** `CapabilityWarning` false positive for PawnIO users
+- **(E)** Five missing event unsubscriptions in `MainViewModel.Dispose()`
+- **(F)** `_amdGpuService` field race condition (`volatile` fix)
+- **(G)** GUI polish — 18 tooltips, 5 hardcoded colors, Gaming Mode disabled state
+- **(H)** CpuClock log format error, `GetSystemInfo()` thread safety, PawnIO probe
+- **(I)** Keyboard lighting null `SystemInfoService`, Dashboard INFO spam, `WmiBiosMonitor` dispose exception
+- **(J)** MSI Afterburner garbage temperature false thermal emergency, thermal protection sanity guard, COM STA reentrancy in `GetSystemInfo()`
+
+See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details.
+
+---
+
 ## [3.0.0] - 2026-03-01 - Major Architecture Overhaul 🏗️
 
 v3.0.0 is the most substantial release since v2.0.0. The core monitoring pipeline was
