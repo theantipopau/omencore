@@ -154,6 +154,7 @@ namespace OmenCore.ViewModels
             DownloadBiosUpdateCommand = new RelayCommand(_ => DownloadBiosUpdate(), _ => BiosUpdateAvailable && !string.IsNullOrEmpty(BiosDownloadUrl));
             ScanBloatwareCommand = new AsyncRelayCommand(async _ => await ScanBloatwareAsync(), _ => !IsScanningBloatware);
             RemoveBloatwareCommand = new AsyncRelayCommand(async _ => await RemoveBloatwareAsync(), _ => !IsScanningBloatware && BloatwareCount > 0);
+            NavigateToBloatwareCommand = new RelayCommand(_ => NavigateToBloatwareRequested?.Invoke());
             ResetEcToDefaultsCommand = new RelayCommand(_ => ResetEcToDefaults(), _ => _fanService != null);
             ImportProfileCommand = new AsyncRelayCommand(async _ => await ImportProfileAsync());
             ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
@@ -3269,8 +3270,10 @@ namespace OmenCore.ViewModels
             set { _bloatwareProgress = value; OnPropertyChanged(); }
         }
         
+        public event Action? NavigateToBloatwareRequested;
         public ICommand ScanBloatwareCommand { get; }
         public ICommand RemoveBloatwareCommand { get; }
+        public ICommand NavigateToBloatwareCommand { get; }
         
         private async Task ScanBloatwareAsync()
         {

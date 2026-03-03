@@ -1488,91 +1488,36 @@
                     </StackPanel>
                 </Border>
 
-                <!-- HP Bloatware Removal -->
+                <!-- HP Bloatware Removal — redirects to dedicated tab -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <Path Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z" 
-                                  Fill="#EF5350" 
-                                  Width="24" Height="24" Stretch="Uniform" 
+                            <Path Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"
+                                  Fill="#EF5350"
+                                  Width="24" Height="24" Stretch="Uniform"
                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <StackPanel>
-                                <TextBlock Text="HP Bloatware Removal" FontSize="20" FontWeight="SemiBold" 
+                                <TextBlock Text="HP Bloatware Removal" FontSize="20" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Remove unnecessary HP pre-installed apps" FontSize="12" 
+                                <TextBlock Text="Remove unnecessary HP pre-installed apps" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <TextBlock TextWrapping="Wrap" FontSize="13" 
-                                   Foreground="{StaticResource TextSecondaryBrush}" 
-                                   Margin="0,0,0,12">
-                            Scan for and remove HP bloatware apps that may slow down your system. HP Support Assistant is excluded and will be preserved.
+                        <TextBlock TextWrapping="Wrap" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,16">
+                            Bloatware removal has moved to its own dedicated tab with per-app risk ratings,
+                            selective removal, restore capability, and a full item list.
                         </TextBlock>
-                        
-                        <!-- Warning disclaimer -->
-                        <Border Background="#33EF5350" CornerRadius="6" Padding="12" Margin="0,0,0,16">
-                            <TextBlock TextWrapping="Wrap" FontSize="12" 
-                                       Foreground="{StaticResource TextPrimaryBrush}">
-                                <Run Foreground="#EF5350" FontWeight="Bold">⚠️ Warning:</Run>
-                                This action cannot be undone! Apps can only be reinstalled from the Microsoft Store or HP Support.
-                                <LineBreak/><LineBreak/>
-                                A system restart is recommended after removal to ensure all components are fully unloaded.
-                            </TextBlock>
-                        </Border>
 
-                        <!-- Scan Status -->
-                        <Border Background="{StaticResource SurfaceDarkBrush}" 
-                                CornerRadius="8" Padding="12" Margin="0,0,0,16"
-                                Visibility="{Binding BloatwareList, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           Margin="0,0,0,8">
-                                    <Run Text="Found "/>
-                                    <Run Text="{Binding BloatwareCount, Mode=OneWay}" Foreground="#EF5350" FontWeight="Bold"/>
-                                    <Run Text=" HP bloatware packages:"/>
-                                </TextBlock>
-                                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
-                                    <TextBlock Text="{Binding BloatwareList}" 
-                                               FontSize="12" FontFamily="Consolas"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               TextWrapping="Wrap"/>
-                                </ScrollViewer>
-                            </StackPanel>
-                        </Border>
-
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="🔍 Scan for Bloatware" 
-                                    Style="{StaticResource ModernButton}"
-                                    Background="#42A5F5"
-                                    Command="{Binding ScanBloatwareCommand}"
-                                    IsEnabled="{Binding IsScanningBloatware, Converter={StaticResource InverseBooleanConverter}}"
-                                    HorizontalAlignment="Left"
-                                    Padding="20,10"
-                                    Margin="0,0,12,0"
-                                    ToolTip="Scan for HP pre-installed apps that can be safely removed"/>
-                            <Button Content="🗑️ Remove Bloatware" 
-                                    Style="{StaticResource ModernButton}"
-                                    Background="#EF5350"
-                                    Command="{Binding RemoveBloatwareCommand}"
-                                    Visibility="{Binding BloatwareCount, Converter={StaticResource IntGreaterThanZeroToVisibilityConverter}}"
-                                    IsEnabled="{Binding IsScanningBloatware, Converter={StaticResource InverseBooleanConverter}}"
-                                    HorizontalAlignment="Left"
-                                    Padding="20,10"
-                                    ToolTip="Permanently remove the detected HP bloatware packages (cannot be undone)"/>
-                        </StackPanel>
-
-                        <!-- Scanning Progress -->
-                        <StackPanel Visibility="{Binding IsScanningBloatware, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    Margin="0,16,0,0">
-                            <TextBlock Text="{Binding BloatwareProgress}" 
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="#42A5F5"
-                                       Margin="0,0,0,8"/>
-                            <ProgressBar IsIndeterminate="True" Height="8"
-                                         Foreground="#42A5F5"/>
-                        </StackPanel>
+                        <Button Content="🗑️  Open Bloatware Manager →"
+                                Style="{StaticResource ModernButton}"
+                                Background="#EF5350"
+                                Command="{Binding NavigateToBloatwareCommand}"
+                                HorizontalAlignment="Left"
+                                Padding="20,10"
+                                ToolTip="Switch to the Bloatware Manager tab"/>
                     </StackPanel>
                 </Border>
 

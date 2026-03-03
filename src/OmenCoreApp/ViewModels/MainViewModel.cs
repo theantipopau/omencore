@@ -181,6 +181,13 @@ namespace OmenCore.ViewModels
             }
         }
 
+        private int _selectedTabIndex = 0;
+        public int SelectedTabIndex
+        {
+            get => _selectedTabIndex;
+            set { if (_selectedTabIndex != value) { _selectedTabIndex = value; OnPropertyChanged(nameof(SelectedTabIndex)); } }
+        }
+
         private SettingsViewModel? _settings;
         public SettingsViewModel? Settings
         {
@@ -196,6 +203,9 @@ namespace OmenCore.ViewModels
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
                         _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, 
                         _powerAutomationService, _fanService);
+
+                    // Navigate to Bloatware Manager tab when requested from Settings
+                    _settings.NavigateToBloatwareRequested += () => SelectedTabIndex = 7;
                     
                     // Subscribe to low overhead mode changes from Settings
                     _settings.LowOverheadModeChanged += (s, enabled) =>

@@ -641,7 +641,7 @@
                         </Border>
                     </StackPanel>
 
-                    <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" x:Name="TabControlMain">
+                    <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 <!-- General Tab: Performance + Fan Profiles (Paired) -->
                 <TabItem Header="General">
                     <views:GeneralView DataContext="{Binding General}" />
