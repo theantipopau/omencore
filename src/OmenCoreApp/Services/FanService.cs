@@ -1031,7 +1031,26 @@ namespace OmenCore.Services
         {
             if (!_thermalProtectionEnabled || !FanWritesAvailable)
                 return;
-                
+
+            // Sanity check: reject readings that are clearly hardware errors or garbage values
+            // (e.g. uninitialized Afterburner shared-memory floats, WMI unit mis-conversion).
+            // Real CPU/GPU temps are physically bounded to -10 °C … 150 °C.
+            const double MaxSaneTemp = 150.0;
+            const double MinSaneTemp = -10.0;
+            if (cpuTemp > MaxSaneTemp || cpuTemp < MinSaneTemp)
+            {
+                _logging.Warn($"[ThermalProtection] Ignoring invalid CPU temp {cpuTemp:F0}°C (hardware read error — outside {MinSaneTemp}–{MaxSaneTemp}°C range)");
+                cpuTemp = 0;
+            }
+            if (gpuTemp > MaxSaneTemp || gpuTemp < MinSaneTemp)
+            {
+                _logging.Warn($"[ThermalProtection] Ignoring invalid GPU temp {gpuTemp:F0}°C (hardware read error — outside {MinSaneTemp}–{MaxSaneTemp}°C range)");
+                gpuTemp = 0;
+            }
+            // If both readings are invalid/zero, no reliable data — skip protection logic
+            if (cpuTemp <= 0 && gpuTemp <= 0)
+                return;
+
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             var now = DateTime.UtcNow;
             

@@ -289,7 +289,9 @@ namespace OmenCore.Hardware
                     try
                     {
                         var abData = _afterburnerService.ReadAfterburnerGpuData();
-                        if (abData != null && abData.GpuTemperature > 0)
+                        // Sanity bound: Afterburner shared-memory float may contain garbage if the
+                        // MAHM struct layout has changed; reject anything outside realistic GPU range.
+                        if (abData != null && abData.GpuTemperature > 0 && abData.GpuTemperature < 150)
                         {
                             // GPU temp from Afterburner — same die sensor, no contention
                             _cachedGpuTemp = abData.GpuTemperature;

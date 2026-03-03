@@ -15,6 +15,11 @@ namespace OmenCore.Services
         private volatile SystemInfo? _cachedInfo;
         private DependencyAudit? _cachedAudit;
         private readonly object _systemInfoLock = new();
+        // ThreadStatic flag prevents STA COM-pump reentrancy: if the WMI queries are
+        // already running on this thread (COM yielded to another message), a reentrant
+        // caller will receive an empty placeholder rather than seeing partial / null data.
+        [System.ThreadStatic]
+        private static bool _buildingInfoOnThisThread;
         
         public SystemInfoService(LoggingService logging)
         {
@@ -353,11 +358,19 @@ private DependencyCheck CheckPawnIODriver()
             if (_cachedInfo != null)
                 return _cachedInfo;
 
+            // Guard against COM STA reentrancy: if the UI thread is already inside this
+            // method building SystemInfo (WMI COM calls may pump the STA message queue and
+            // allow another reentrant call), return an empty placeholder so the caller
+            // gets null-safe values rather than corrupting the build-in-progress.
+            if (_buildingInfoOnThisThread)
+                return new SystemInfo();
+
             lock (_systemInfoLock)
             {
                 if (_cachedInfo != null)
                     return _cachedInfo;
 
+                _buildingInfoOnThisThread = true;
                 var info = new SystemInfo();
 
                 try
@@ -548,6 +561,11 @@ private DependencyCheck CheckPawnIODriver()
                 catch (Exception ex)
                 {
                     _logging.Error($"Failed to retrieve system information: {ex.Message}");
+                }
+                finally
+                {
+                    // Always clear the reentrancy guard regardless of success or failure.
+                    _buildingInfoOnThisThread = false;
                 }
                 
                 // Only publish the fully-populated object — prevents concurrent callers from
