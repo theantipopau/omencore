@@ -76,7 +76,7 @@ namespace OmenCore.ViewModels
         private readonly PowerAutomationService _powerAutomationService;
         private readonly OmenKeyService _omenKeyService;
         private readonly NvapiService? _nvapiService;
-        private AmdGpuService? _amdGpuService;
+        private volatile AmdGpuService? _amdGpuService;
         private OsdService? _osdService;
         private ConflictDetectionService? _conflictDetectionService;
         private HpWmiBios? _wmiBios;
@@ -1163,9 +1163,9 @@ namespace OmenCore.ViewModels
                 CapabilityWarning = $"Desktop PC detected ({capabilities.Chassis}). Fan control uses WMI — EC-based curves are not available on desktops.";
                 _logging.Info("Desktop OMEN PC — WMI fan control active. Desktop RGB available via USB HID.");
             }
-            else if (capabilities.SecureBootEnabled && !capabilities.OghRunning)
+            else if (capabilities.SecureBootEnabled && !capabilities.PawnIOAvailable && !capabilities.OghRunning)
             {
-                CapabilityWarning = "Secure Boot enabled - some features may be limited. Install OMEN Gaming Hub for full control.";
+                CapabilityWarning = "Secure Boot enabled — WinRing0 is blocked. PawnIO provides compatible driver access for EC/MSR features.";
             }
             else if (capabilities.FanControl == Hardware.FanControlMethod.MonitoringOnly)
             {
@@ -3520,6 +3520,9 @@ namespace OmenCore.ViewModels
             
             _safeModeResetTimer?.Dispose();
             _safeModeResetTimer = null;
+            // Unsubscribe fan/performance service events before disposing
+            _fanService.PresetApplied -= OnFanPresetApplied;
+            _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
             _fanService.Dispose();
             _undervoltService.StatusChanged -= UndervoltServiceOnStatusChanged;
             _undervoltService.Dispose();
@@ -3570,6 +3573,14 @@ namespace OmenCore.ViewModels
             _hotkeyService?.Dispose();
             _notificationService?.Dispose();
             
+            // Unsubscribe OMEN key events before disposing the service
+            if (_omenKeyService != null)
+            {
+                _omenKeyService.ToggleOmenCoreRequested -= OnOmenKeyToggleWindow;
+                _omenKeyService.CyclePerformanceRequested -= OnHotkeyTogglePerformanceMode;
+                _omenKeyService.CycleFanModeRequested -= OnHotkeyToggleFanMode;
+                _omenKeyService.ToggleMaxCoolingRequested -= OnOmenKeyToggleMaxCooling;
+            }
             // Dispose OMEN key service
             _omenKeyService?.Dispose();
             

@@ -6,7 +6,7 @@
 
 > **hotfix1 (2026-03-03):** Fixes a startup error dialog shown to all first-time users due to `ConfigurationService` not being registered in the DI container. See [CHANGELOG_v3.0.0-hotfix1.md](CHANGELOG_v3.0.0-hotfix1.md).
 >
-> **hotfix2 (2026-03-03):** Fixes three issues: (A) XAML `StaticResourceExtension` crash on startup — five undefined resource keys resolved across TuningView, OnboardingWindow, SystemControlView, and ModernStyles; (B) Secure Boot status displayed inverted in Settings when PawnIO is available; (C) Ctrl+Shift+O global hotkey dead after window deactivation — ToggleWindow is now preserved across deactivation in WindowFocusedHotkeys mode (GitHub issue #70). See [CHANGELOG_v3.0.0-hotfix2.md](CHANGELOG_v3.0.0-hotfix2.md). Installers and checksums below reflect the hotfix2 build.
+> **hotfix2 (2026-03-03):** Six fixes: (A) XAML `StaticResourceExtension` crash on startup — five undefined resource keys resolved; (B) Secure Boot status displayed inverted in Settings when PawnIO is available; (C) Ctrl+Shift+O global hotkey dead after window deactivation — ToggleWindow preserved in WindowFocusedHotkeys mode (issue #70); (D) `CapabilityWarning` false positive shown to PawnIO users advising OGH install; (E) five missing event unsubscriptions in `MainViewModel.Dispose()`; (F) `_amdGpuService` field marked `volatile` to close startup thread race. See [CHANGELOG_v3.0.0-hotfix2.md](CHANGELOG_v3.0.0-hotfix2.md). Installers and checksums below reflect the hotfix2 build.
 
 ---
 

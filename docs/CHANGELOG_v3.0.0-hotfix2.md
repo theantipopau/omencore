@@ -103,6 +103,64 @@ The description text in `SettingsView.xaml` was also updated to reflect that Paw
 
 ---
 
+### Fix D — `CapabilityWarning` False Positive for PawnIO Users
+
+**Severity:** Low — misleading banner; does not affect functionality
+
+**Symptom:** On systems with Secure Boot enabled but **PawnIO already installed**, the status banner showed: `"Secure Boot enabled - some features may be limited. Install OMEN Gaming Hub for full control."` — despite PawnIO being the exact driver designed for Secure Boot environments. The message recommended installing OGH, which is contrary to OmenCore's purpose.
+
+**Root Cause:** `MainViewModel` capability warning evaluation did not check `PawnIOAvailable`:
+
+```csharp
+// Before — fires for every SB-enabled user without OGH, even with PawnIO
+else if (capabilities.SecureBootEnabled && !capabilities.OghRunning)
+    CapabilityWarning = "Secure Boot enabled - some features may be limited. Install OMEN Gaming Hub for full control.";
+```
+
+**Fix:** Added `!capabilities.PawnIOAvailable` guard; updated message text to be accurate:
+
+```csharp
+// After — only shown when there is genuinely no driver available
+else if (capabilities.SecureBootEnabled && !capabilities.PawnIOAvailable && !capabilities.OghRunning)
+    CapabilityWarning = "Secure Boot enabled — WinRing0 is blocked. PawnIO provides compatible driver access for EC/MSR features.";
+```
+
+---
+
+### Fix E — Missing Event Unsubscriptions in `MainViewModel.Dispose()`
+
+**Severity:** Low — potential delegate retention until GC; no functional impact
+
+**Problem:** Five event subscriptions established in the constructor had no corresponding `-=` in `Dispose()`:
+
+- `_fanService.PresetApplied += OnFanPresetApplied` — no unsubscription before `_fanService.Dispose()`
+- `_performanceModeService.ModeApplied += OnPerformanceModeApplied` — never unsubscribed
+- `_omenKeyService.ToggleOmenCoreRequested += OnOmenKeyToggleWindow` — four OmenKey event handlers unsubscribed only when their *service* was disposed; `OmenKeyService.Dispose()` does not clear its events, so `MainViewModel` method references were retained
+
+**Fix:** Added explicit `-=` for all five handlers in `Dispose()`:
+- `_fanService.PresetApplied -= OnFanPresetApplied` and `_performanceModeService.ModeApplied -= OnPerformanceModeApplied` added immediately before `_fanService.Dispose()`
+- Four OmenKey handlers unsubscribed in a null-guarded block immediately before `_omenKeyService?.Dispose()`
+
+---
+
+### Fix F — `_amdGpuService` Field Race Condition
+
+**Severity:** Very low — theoretical data race; would require millisecond-precise thread interleaving at startup
+
+**Problem:** `_amdGpuService` was assigned `null` from a fire-and-forget background `Task.Run` (AMD GPU async init failure path) while the UI thread could simultaneously read the field when lazily constructing `SystemControlViewModel`. Without a memory barrier, the UI thread could observe a stale reference.
+
+**Fix:** Marked the field `volatile`, ensuring all reads and writes go through the memory barrier:
+
+```csharp
+// Before
+private AmdGpuService? _amdGpuService;
+
+// After
+private volatile AmdGpuService? _amdGpuService;
+```
+
+---
+
 ## ✅ Validation
 
 | Scenario | Result |
@@ -115,6 +173,9 @@ The description text in `SettingsView.xaml` was also updated to reflect that Paw
 | Ctrl+Shift+O while window is hidden/tray | ✅ Restores window to foreground |
 | Ctrl+Shift+O while in-game / another app | ✅ Works globally (ToggleWindow preserved) |
 | Other hotkeys (Ctrl+Shift+F, P, B, Q) while unfocused | ✅ Not registered (no game conflicts) |
+| PawnIO installed + Secure Boot + no OGH → `CapabilityWarning` | ✅ No false banner shown |
+| No PawnIO + Secure Boot + no OGH → `CapabilityWarning` | ✅ Correct PawnIO guidance shown |
+| `MainViewModel.Dispose()` — all event handlers unsubscribed | ✅ No delegate retention |
 | Build (0 errors / 0 warnings) | ✅ Clean |
 
 ---
