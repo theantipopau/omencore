@@ -317,6 +317,99 @@ return false;
 
 ---
 
+### Fix I — Three Runtime Bugs Found During Second Test Run (Log Analysis)
+
+**Severity:** Medium / Low — identified from `OmenCore_20260303_210835.log` on OMEN 17-ck2xxx (i9-13900HX, RTX 4090, PawnIO installed, Secure Boot enabled)
+
+---
+
+#### I1 — `KeyboardLightingServiceV2` Gets Empty `ProductName` / `SystemSku` / `Model` (Actual Root Cause)
+
+**Symptom:** Despite Fix H2 (thread-safety in `SystemInfoService`), the second test log still showed:
+```
+ProductName=, SystemSku=, Model= — Not an HP OMEN/Victus system — no keyboard config
+```
+
+**Root Cause:** Fix H2 correctly addressed the race condition inside `GetSystemInfo()`, but missed the actual cause of the empty values on this system: `_systemInfoService` was `null` when passed to the `KeyboardLightingService` constructor. In `MainViewModel.cs`, the construction order was:
+
+```csharp
+// Line ~1274 — KB service constructed HERE, _systemInfoService not yet assigned
+_keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService);
+
+// ... 61 lines later ...
+// Line ~1335 — _systemInfoService assigned HERE (too late)
+_systemInfoService = new SystemInfoService(_logging);
+SystemInfo = _systemInfoService.GetSystemInfo();
+```
+
+Since `_systemInfoService` was `null` at construction time, the `?.` null-conditional inside `KeyboardLightingService` (`_systemInfoService?.GetSystemInfo()`) returned `null`, and all model identification fields were empty strings — bypass all model configs, fall back to generic path.
+
+**Fix:** Moved `_systemInfoService` initialization and `SystemInfo = GetSystemInfo()` to immediately before the `KeyboardLightingService` constructor call. Removed the duplicate assignment at the old location:
+
+```csharp
+// SystemInfoService MUST be initialized here so KB service receives a non-null reference
+_systemInfoService = new SystemInfoService(_logging);
+SystemInfo = _systemInfoService.GetSystemInfo();
+
+_keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService);
+```
+
+---
+
+#### I2 — `[Dashboard.UpdateMetrics] Called!` INFO Log Spam (~2×/sec)
+
+**Symptom:** The INFO log stream was flooded with lines like:
+```
+[INFO] [Dashboard.UpdateMetrics] Called! LatestMonitoringSample=CPU=61.1°C, ...
+```
+at approximately 2 entries per second throughout the entire session, making the log difficult to read.
+
+**Root Cause:** A diagnostic `App.Logging.Info(...)` call at `HardwareMonitoringDashboard.xaml.cs` line 240 was left at `Info` level from a debugging session. Fix H1 downgraded a similar per-tick log at line 331 but missed this earlier one at line 240.
+
+**Fix:** `App.Logging.Info` → `App.Logging.Debug` at line 240. The line still fires on every tick but only appears in debug-level log captures.
+
+---
+
+#### I3 — `ObjectDisposedException` from `WmiBiosMonitor` Semaphore on Shutdown
+
+**Symptom:** Every shutdown produced an ERROR log entry:
+```
+[ERROR] ObjectDisposedException: Cannot access a disposed object.
+Object name: 'System.Threading.SemaphoreSlim'.
+   at System.Threading.SemaphoreSlim.Release(Int32 releaseCount)
+   at OmenCoreApp.Hardware.WmiBiosMonitor.ReadSampleAsync(...)
+```
+
+**Root Cause:** `WmiBiosMonitor.ReadSampleAsync()` used a `SemaphoreSlim _updateGate` (initialized once) to prevent concurrent hardware polls. The monitoring loop ran in a background task. On shutdown, `Dispose()` called `_updateGate.Dispose()` (line 895) while the background task was still in its `finally { _updateGate.Release(); }` block — a classic check-then-act race:
+
+```csharp
+// In ReadSampleAsync — no guard before WaitAsync
+await _updateGate.WaitAsync(token);
+try { /* poll hardware */ }
+finally
+{
+    _updateGate.Release();  // ← throws ObjectDisposedException if Dispose() ran first
+}
+```
+
+**Fix:** Added `_disposed` check before `WaitAsync`; wrapped `Release()` in a `try-catch ObjectDisposedException` in the `finally` block:
+
+```csharp
+// Guard — if already disposed, return cached values immediately
+if (_disposed) return BuildSampleFromCache();
+
+await _updateGate.WaitAsync(token);
+try { /* poll hardware */ }
+finally
+{
+    // Guard against shutdown race — semaphore may already be disposed
+    try { _updateGate.Release(); }
+    catch (ObjectDisposedException) { }
+}
+```
+
+---
+
 ## ✅ Validation
 
 | Scenario | Result |
@@ -342,6 +435,9 @@ return false;
 | Second concurrent `GetSystemInfo()` caller — does not see empty object | ✅ Blocks until WMI complete |
 | PawnIO installed but driver not loaded → capability detection | ✅ Falls back to WMI, no false `EcDirect` selection |
 | PawnIO installed but driver not loaded → status message | ✅ "installed but init failed" message, not "install PawnIO" |
+| `KeyboardLightingServiceV2` startup — `ProductName` populated (non-null `SystemInfoService`) | ✅ Model config applied; no null service reference |
+| Dashboard log — `[Dashboard.UpdateMetrics] Called!` line downgraded to DEBUG | ✅ Not present in INFO stream |
+| Shutdown — no `ObjectDisposedException` from `WmiBiosMonitor` semaphore | ✅ Clean shutdown, no ERROR log |
 | Build (0 errors / 0 warnings) | ✅ Clean |
 
 ---
