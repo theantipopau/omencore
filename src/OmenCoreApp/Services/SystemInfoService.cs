@@ -12,8 +12,9 @@ namespace OmenCore.Services
     public class SystemInfoService
     {
         private readonly LoggingService _logging;
-        private SystemInfo? _cachedInfo;
+        private volatile SystemInfo? _cachedInfo;
         private DependencyAudit? _cachedAudit;
+        private readonly object _systemInfoLock = new();
         
         public SystemInfoService(LoggingService logging)
         {
@@ -351,200 +352,209 @@ private DependencyCheck CheckPawnIODriver()
         {
             if (_cachedInfo != null)
                 return _cachedInfo;
-                
-            _cachedInfo = new SystemInfo();
-            
-            try
+
+            lock (_systemInfoLock)
             {
-                // CPU Information
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
-                {
-                    var cpu = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (cpu != null)
-                    {
-                        _cachedInfo.CpuName = cpu["Name"]?.ToString()?.Trim() ?? "Unknown CPU";
-                        _cachedInfo.CpuCores = Convert.ToInt32(cpu["NumberOfCores"] ?? 0);
-                        _cachedInfo.CpuThreads = Convert.ToInt32(cpu["NumberOfLogicalProcessors"] ?? 0);
-                        
-                        // Detect CPU vendor
-                        var cpuName = _cachedInfo.CpuName.ToLowerInvariant();
-                        if (cpuName.Contains("intel"))
-                            _cachedInfo.CpuVendor = "Intel";
-                        else if (cpuName.Contains("amd"))
-                            _cachedInfo.CpuVendor = "AMD";
-                        else
-                            _cachedInfo.CpuVendor = "Unknown";
+                if (_cachedInfo != null)
+                    return _cachedInfo;
 
-                        // detect Strix Point (14th Gen Intel) by name pattern
-                        _cachedInfo.IsStrixPointCpu = IsStrixPointCpu(cpuName);
-                    }
-                }
-                
-                // RAM Information
-                long totalRamBytes = 0;
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
-                {
-                    foreach (var ram in searcher.Get().Cast<ManagementObject>())
-                    {
-                        totalRamBytes += Convert.ToInt64(ram["Capacity"] ?? 0);
-                    }
-                }
-                _cachedInfo.RamSizeBytes = totalRamBytes;
-                _cachedInfo.RamSizeFormatted = FormatBytes(totalRamBytes);
-                
-                // GPU Information - collect all GPUs
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
-                {
-                    foreach (var gpu in searcher.Get().Cast<ManagementObject>())
-                    {
-                        var gpuInfo = new GpuInfo
-                        {
-                            Name = gpu["Name"]?.ToString()?.Trim() ?? "Unknown GPU"
-                        };
+                var info = new SystemInfo();
 
-                        var adapterRam = gpu["AdapterRAM"];
-                        if (adapterRam != null)
+                try
+                {
+                    // CPU Information
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Processor"))
+                    {
+                        var cpu = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (cpu != null)
                         {
-                            var vramBytes = Convert.ToInt64(adapterRam);
-                            gpuInfo.MemoryFormatted = FormatBytes(vramBytes);
-                        }
-                        
-                        // Detect GPU vendor
-                        var gpuName = gpuInfo.Name.ToLowerInvariant();
-                        if (gpuName.Contains("nvidia") || gpuName.Contains("geforce") || gpuName.Contains("rtx") || gpuName.Contains("gtx"))
-                            gpuInfo.Vendor = "NVIDIA";
-                        else if (gpuName.Contains("amd") || gpuName.Contains("radeon"))
-                            gpuInfo.Vendor = "AMD";
-                        else if (gpuName.Contains("intel") || gpuName.Contains("arc") || gpuName.Contains("uhd") || gpuName.Contains("iris"))
-                            gpuInfo.Vendor = "Intel";
-                        else
-                            gpuInfo.Vendor = "Unknown";
-                        
-                        // Get driver version from WMI
-                        var driverVersion = gpu["DriverVersion"]?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(driverVersion))
-                        {
-                            // For NVIDIA, format the driver version (e.g., "32.0.15.6614" -> "566.14")
-                            if (gpuInfo.Vendor == "NVIDIA" && driverVersion.Contains("."))
-                            {
-                                gpuInfo.DriverVersion = FormatNvidiaDriverVersion(driverVersion);
-                            }
-                            else
-                            {
-                                gpuInfo.DriverVersion = driverVersion;
-                            }
-                        }
+                            info.CpuName = cpu["Name"]?.ToString()?.Trim() ?? "Unknown CPU";
+                            info.CpuCores = Convert.ToInt32(cpu["NumberOfCores"] ?? 0);
+                            info.CpuThreads = Convert.ToInt32(cpu["NumberOfLogicalProcessors"] ?? 0);
                             
-                        _cachedInfo.Gpus.Add(gpuInfo);
-                    }
-                }
-                
-                // Log GPU collection results
-                if (_cachedInfo.Gpus.Count > 0)
-                {
-                    _logging.Info($"Collected {_cachedInfo.Gpus.Count} GPU(s) from WMI:");
-                    foreach (var g in _cachedInfo.Gpus)
-                    {
-                        _logging.Info($"  → {g.Name} (Vendor: {g.Vendor}, Driver: {g.DriverVersion})");
-                    }
-                }
-                
-                // Computer System Information
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
-                {
-                    var system = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (system != null)
-                    {
-                        _cachedInfo.Manufacturer = system["Manufacturer"]?.ToString()?.Trim() ?? "Unknown";
-                        _cachedInfo.Model = system["Model"]?.ToString()?.Trim() ?? "Unknown";
-                        _cachedInfo.SystemFamily = system["SystemFamily"]?.ToString()?.Trim() ?? "";
-                        
-                        // Detect HP Gaming laptops (OMEN and Victus) and HP Spectre
-                        var manufacturer = _cachedInfo.Manufacturer.ToLowerInvariant();
-                        var model = _cachedInfo.Model.ToLowerInvariant();
-                        var isHp = manufacturer.Contains("hp") || manufacturer.Contains("hewlett");
-                        
-                        // Also check for generic HP motherboard names (replacement cases)
-                        // "Thetiger" is an HP internal codename used on some replaced motherboards
-                        bool hasOmenCodename = model.Contains("thetiger") || model.Contains("dragonfire") || 
-                                               model.Contains("shadowcat") || model.Contains("victusdragon");
-                        
-                        _cachedInfo.IsHpOmen = isHp && (model.Contains("omen") || hasOmenCodename);
-                        _cachedInfo.IsHpVictus = isHp && model.Contains("victus");
-                        _cachedInfo.IsHpSpectre = isHp && model.Contains("spectre");
-                        
-                        if (_cachedInfo.IsHpOmen)
-                        {
-                            if (hasOmenCodename && !model.Contains("omen"))
-                                _logging.Info($"HP OMEN system detected (via codename): {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                            // Detect CPU vendor
+                            var cpuName = info.CpuName.ToLowerInvariant();
+                            if (cpuName.Contains("intel"))
+                                info.CpuVendor = "Intel";
+                            else if (cpuName.Contains("amd"))
+                                info.CpuVendor = "AMD";
                             else
-                                _logging.Info($"HP OMEN system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
+                                info.CpuVendor = "Unknown";
+
+                            // detect Strix Point (14th Gen Intel) by name pattern
+                            info.IsStrixPointCpu = IsStrixPointCpu(cpuName);
                         }
-                        else if (_cachedInfo.IsHpVictus)
-                            _logging.Info($"HP Victus system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
-                        else if (_cachedInfo.IsHpSpectre)
-                            _logging.Info($"HP Spectre system detected: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
-                        else if (isHp)
-                            _logging.Warn($"Non-gaming HP system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
-                        else
-                            _logging.Warn($"Non-HP system: {_cachedInfo.Manufacturer} {_cachedInfo.Model}");
                     }
-                }
-                
-                // BIOS Information (for HP BIOS update checking)
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
-                {
-                    var bios = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (bios != null)
+                    
+                    // RAM Information
+                    long totalRamBytes = 0;
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PhysicalMemory"))
                     {
-                        _cachedInfo.BiosVersion = bios["SMBIOSBIOSVersion"]?.ToString()?.Trim() ?? "";
-                        _cachedInfo.BiosDate = bios["ReleaseDate"]?.ToString()?.Trim() ?? "";
-                        _cachedInfo.SerialNumber = bios["SerialNumber"]?.ToString()?.Trim() ?? "";
-                        _logging.Info($"BIOS: {_cachedInfo.BiosVersion} (Released: {_cachedInfo.BiosDate})");
+                        foreach (var ram in searcher.Get().Cast<ManagementObject>())
+                        {
+                            totalRamBytes += Convert.ToInt64(ram["Capacity"] ?? 0);
+                        }
                     }
-                }
-                
-                // Baseboard Information (for HP System SKU)
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
-                {
-                    var baseboard = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (baseboard != null)
+                    info.RamSizeBytes = totalRamBytes;
+                    info.RamSizeFormatted = FormatBytes(totalRamBytes);
+                    
+                    // GPU Information - collect all GPUs
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
                     {
-                        _cachedInfo.ProductName = baseboard["Product"]?.ToString()?.Trim() ?? "";
+                        foreach (var gpu in searcher.Get().Cast<ManagementObject>())
+                        {
+                            var gpuInfo = new GpuInfo
+                            {
+                                Name = gpu["Name"]?.ToString()?.Trim() ?? "Unknown GPU"
+                            };
+
+                            var adapterRam = gpu["AdapterRAM"];
+                            if (adapterRam != null)
+                            {
+                                var vramBytes = Convert.ToInt64(adapterRam);
+                                gpuInfo.MemoryFormatted = FormatBytes(vramBytes);
+                            }
+                            
+                            // Detect GPU vendor
+                            var gpuName = gpuInfo.Name.ToLowerInvariant();
+                            if (gpuName.Contains("nvidia") || gpuName.Contains("geforce") || gpuName.Contains("rtx") || gpuName.Contains("gtx"))
+                                gpuInfo.Vendor = "NVIDIA";
+                            else if (gpuName.Contains("amd") || gpuName.Contains("radeon"))
+                                gpuInfo.Vendor = "AMD";
+                            else if (gpuName.Contains("intel") || gpuName.Contains("arc") || gpuName.Contains("uhd") || gpuName.Contains("iris"))
+                                gpuInfo.Vendor = "Intel";
+                            else
+                                gpuInfo.Vendor = "Unknown";
+                            
+                            // Get driver version from WMI
+                            var driverVersion = gpu["DriverVersion"]?.ToString() ?? "";
+                            if (!string.IsNullOrEmpty(driverVersion))
+                            {
+                                // For NVIDIA, format the driver version (e.g., "32.0.15.6614" -> "566.14")
+                                if (gpuInfo.Vendor == "NVIDIA" && driverVersion.Contains("."))
+                                {
+                                    gpuInfo.DriverVersion = FormatNvidiaDriverVersion(driverVersion);
+                                }
+                                else
+                                {
+                                    gpuInfo.DriverVersion = driverVersion;
+                                }
+                            }
+                                
+                            info.Gpus.Add(gpuInfo);
+                        }
                     }
-                }
-                
-                // Additional product info from ComputerSystemProduct
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystemProduct"))
-                {
-                    var product = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (product != null)
+                    
+                    // Log GPU collection results
+                    if (info.Gpus.Count > 0)
                     {
-                        _cachedInfo.SystemSku = product["SKUNumber"]?.ToString()?.Trim() ?? "";
-                        if (string.IsNullOrEmpty(_cachedInfo.SystemSku))
-                            _cachedInfo.SystemSku = product["IdentifyingNumber"]?.ToString()?.Trim() ?? "";
-                        _logging.Info($"System SKU: {_cachedInfo.SystemSku}");
+                        _logging.Info($"Collected {info.Gpus.Count} GPU(s) from WMI:");
+                        foreach (var g in info.Gpus)
+                        {
+                            _logging.Info($"  → {g.Name} (Vendor: {g.Vendor}, Driver: {g.DriverVersion})");
+                        }
                     }
-                }
-                
-                // OS Information
-                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
-                {
-                    var os = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
-                    if (os != null)
+                    
+                    // Computer System Information
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
                     {
-                        _cachedInfo.OsVersion = os["Caption"]?.ToString()?.Trim() ?? "Unknown OS";
+                        var system = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (system != null)
+                        {
+                            info.Manufacturer = system["Manufacturer"]?.ToString()?.Trim() ?? "Unknown";
+                            info.Model = system["Model"]?.ToString()?.Trim() ?? "Unknown";
+                            info.SystemFamily = system["SystemFamily"]?.ToString()?.Trim() ?? "";
+                            
+                            // Detect HP Gaming laptops (OMEN and Victus) and HP Spectre
+                            var manufacturer = info.Manufacturer.ToLowerInvariant();
+                            var model = info.Model.ToLowerInvariant();
+                            var isHp = manufacturer.Contains("hp") || manufacturer.Contains("hewlett");
+                            
+                            // Also check for generic HP motherboard names (replacement cases)
+                            // "Thetiger" is an HP internal codename used on some replaced motherboards
+                            bool hasOmenCodename = model.Contains("thetiger") || model.Contains("dragonfire") || 
+                                                   model.Contains("shadowcat") || model.Contains("victusdragon");
+                            
+                            info.IsHpOmen = isHp && (model.Contains("omen") || hasOmenCodename);
+                            info.IsHpVictus = isHp && model.Contains("victus");
+                            info.IsHpSpectre = isHp && model.Contains("spectre");
+                            
+                            if (info.IsHpOmen)
+                            {
+                                if (hasOmenCodename && !model.Contains("omen"))
+                                    _logging.Info($"HP OMEN system detected (via codename): {info.Manufacturer} {info.Model}");
+                                else
+                                    _logging.Info($"HP OMEN system detected: {info.Manufacturer} {info.Model}");
+                            }
+                            else if (info.IsHpVictus)
+                                _logging.Info($"HP Victus system detected: {info.Manufacturer} {info.Model}");
+                            else if (info.IsHpSpectre)
+                                _logging.Info($"HP Spectre system detected: {info.Manufacturer} {info.Model}");
+                            else if (isHp)
+                                _logging.Warn($"Non-gaming HP system: {info.Manufacturer} {info.Model}");
+                            else
+                                _logging.Warn($"Non-HP system: {info.Manufacturer} {info.Model}");
+                        }
                     }
+                    
+                    // BIOS Information (for HP BIOS update checking)
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS"))
+                    {
+                        var bios = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (bios != null)
+                        {
+                            info.BiosVersion = bios["SMBIOSBIOSVersion"]?.ToString()?.Trim() ?? "";
+                            info.BiosDate = bios["ReleaseDate"]?.ToString()?.Trim() ?? "";
+                            info.SerialNumber = bios["SerialNumber"]?.ToString()?.Trim() ?? "";
+                            _logging.Info($"BIOS: {info.BiosVersion} (Released: {info.BiosDate})");
+                        }
+                    }
+                    
+                    // Baseboard Information (for HP System SKU)
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
+                    {
+                        var baseboard = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (baseboard != null)
+                        {
+                            info.ProductName = baseboard["Product"]?.ToString()?.Trim() ?? "";
+                        }
+                    }
+                    
+                    // Additional product info from ComputerSystemProduct
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystemProduct"))
+                    {
+                        var product = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (product != null)
+                        {
+                            info.SystemSku = product["SKUNumber"]?.ToString()?.Trim() ?? "";
+                            if (string.IsNullOrEmpty(info.SystemSku))
+                                info.SystemSku = product["IdentifyingNumber"]?.ToString()?.Trim() ?? "";
+                            _logging.Info($"System SKU: {info.SystemSku}");
+                        }
+                    }
+                    
+                    // OS Information
+                    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem"))
+                    {
+                        var os = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
+                        if (os != null)
+                        {
+                            info.OsVersion = os["Caption"]?.ToString()?.Trim() ?? "Unknown OS";
+                        }
+                    }
+                    
+                    _logging.Info($"System Info: {info.CpuName}, {info.CpuCores} cores / {info.CpuThreads} threads, {info.RamSizeFormatted}, {info.Gpus.Count} GPU(s)");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to retrieve system information: {ex.Message}");
                 }
                 
-                _logging.Info($"System Info: {_cachedInfo.CpuName}, {_cachedInfo.CpuCores} cores / {_cachedInfo.CpuThreads} threads, {_cachedInfo.RamSizeFormatted}, {_cachedInfo.Gpus.Count} GPU(s)");
+                // Only publish the fully-populated object — prevents concurrent callers from
+                // seeing a partially-built SystemInfo during the ~3-second WMI population window.
+                _cachedInfo = info;
+                return _cachedInfo;
             }
-            catch (Exception ex)
-            {
-                _logging.Error($"Failed to retrieve system information: {ex.Message}");
-            }
-            
-            return _cachedInfo;
         }
         
         private string FormatBytes(long bytes)

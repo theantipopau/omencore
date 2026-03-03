@@ -169,8 +169,28 @@ namespace OmenCore.Hardware
             {
                 EcBackend.PawnIO => "EC access via PawnIO (Secure Boot compatible)",
                 EcBackend.WinRing0 => "EC access via WinRing0 (Secure Boot may need to be disabled)",
-                _ => "No EC access available - install PawnIO from pawnio.eu (WinRing0 fallback is opt-in via OMENCORE_ENABLE_WINRING0=1)"
+                _ => IsPawnIOInstalled()
+                    ? "PawnIO installed but EC initialization failed — driver may need a reboot to activate"
+                    : "No EC access available - install PawnIO from pawnio.eu (WinRing0 fallback is opt-in via OMENCORE_ENABLE_WINRING0=1)"
             };
+        }
+        
+        /// <summary>
+        /// Checks if PawnIO is installed on this system (registry presence only, no driver probe).
+        /// </summary>
+        private static bool IsPawnIOInstalled()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
+                if (key != null) return true;
+                string defaultDll = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                    "PawnIO", "PawnIOLib.dll");
+                return System.IO.File.Exists(defaultDll);
+            }
+            catch { return false; }
         }
 
         /// <summary>
