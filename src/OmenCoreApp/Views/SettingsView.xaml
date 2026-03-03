@@ -134,10 +134,10 @@
                                 <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="Secure Boot is disabled - legacy drivers available"/>
+                                            <Setter Property="Text" Value="Secure Boot is disabled — legacy unsigned drivers available"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
-                                                    <Setter Property="Text" Value="Secure Boot blocks unsigned drivers. Use PawnIO or WMI BIOS."/>
+                                                    <Setter Property="Text" Value="Secure Boot enabled — unsigned drivers blocked. PawnIO or WMI BIOS provides compatible access."/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

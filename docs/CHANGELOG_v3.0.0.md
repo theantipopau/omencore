@@ -4,7 +4,9 @@
 **Type:** Major Release — Architecture, Stability, Bug Fixes & New Features
 **Reported By:** Discord community, GitHub issues (#42, #46, #64, #67, #68, and others), internal architecture review
 
-> **hotfix1 (2026-03-03):** Fixes a startup error dialog shown to all first-time users due to `ConfigurationService` not being registered in the DI container. See [CHANGELOG_v3.0.0-hotfix1.md](CHANGELOG_v3.0.0-hotfix1.md). Installers and checksums below reflect the hotfix1 build.
+> **hotfix1 (2026-03-03):** Fixes a startup error dialog shown to all first-time users due to `ConfigurationService` not being registered in the DI container. See [CHANGELOG_v3.0.0-hotfix1.md](CHANGELOG_v3.0.0-hotfix1.md).
+>
+> **hotfix2 (2026-03-03):** Fixes three issues: (A) XAML `StaticResourceExtension` crash on startup — five undefined resource keys resolved across TuningView, OnboardingWindow, SystemControlView, and ModernStyles; (B) Secure Boot status displayed inverted in Settings when PawnIO is available; (C) Ctrl+Shift+O global hotkey dead after window deactivation — ToggleWindow is now preserved across deactivation in WindowFocusedHotkeys mode (GitHub issue #70). See [CHANGELOG_v3.0.0-hotfix2.md](CHANGELOG_v3.0.0-hotfix2.md). Installers and checksums below reflect the hotfix2 build.
 
 ---
 
@@ -944,7 +946,7 @@ and a comprehensive set of GUI improvements across every major view.
 ## SHA256 Checksums
 
 ```
-29053D5C60A79C71FB2B892F9835AE066E3CB211316F21C5D0C578B961FF29DB  OmenCoreSetup-3.0.0.exe
-5AE6FC781ADB5D0E5DA86C82550179DFBD176191A29EF0DF5C0CCE5134CB5E2B  OmenCore-3.0.0-win-x64.zip
+C3C6DD6F9A4E8001114B7AE0603FFD0B04330297EBAA86176387FF3BE7044BEA  OmenCoreSetup-3.0.0.exe
+DFC7A1D3EB12C35492B1BAA56E156D43A22BF37EF53CCDDC0BC9CCCDFBC01E0D  OmenCore-3.0.0-win-x64.zip
 605335229F5C403D915E99184CC20C1A047EB709B6F33817464DF88DAA5858D4  OmenCore-3.0.0-linux-x64.zip
 ```

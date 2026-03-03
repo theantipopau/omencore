@@ -3058,10 +3058,10 @@ namespace OmenCore.ViewModels
                 // Check PawnIO availability (use the same comprehensive check as CheckDriverStatus)
                 PawnIOAvailable = IsPawnIOAvailable();
 
-                // P1-1 fix: Only surface Secure Boot as a warning when PawnIO is NOT installed.
-                // PawnIO is explicitly designed for Secure Boot environments, so its presence
-                // resolves the warning entirely.
-                SecureBootEnabled = rawSecureBoot && !PawnIOAvailable;
+                // Always reflect the hardware truth so the UI shows the actual Secure Boot state.
+                // PawnIO availability is surfaced separately — the user can see both facts:
+                // "Secure Boot: Enabled" + "PawnIO: Available" rather than a misleading "Disabled".
+                SecureBootEnabled = rawSecureBoot;
                 
                 // Check OGH installation - use ServiceController to check if services are actually running
                 try

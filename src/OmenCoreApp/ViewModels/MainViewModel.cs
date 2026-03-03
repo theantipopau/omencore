@@ -3377,9 +3377,15 @@ namespace OmenCore.ViewModels
                 {
                     if (windowFocused)
                     {
-                        // Attach to main window activation events so that hotkeys are only
-                        // active when the app has focus. This avoids conflicts with other
-                        // applications using the same shortcuts (e.g. games, editors).
+                        // ToggleWindow (Ctrl+Shift+O) must ALWAYS be registered globally.
+                        // Its entire purpose is to bring the window back from tray — it must
+                        // fire even when the window is hidden/deactivated.
+                        _hotkeyService.RegisterHotkey(HotkeyAction.ToggleWindow, ModifierKeys.Control | ModifierKeys.Shift, Key.O);
+                        _logging.Info("ToggleWindow hotkey registered globally (window-focus mode)");
+
+                        // Attach to main window activation events so that the remaining hotkeys
+                        // are only active when the app has focus. This avoids conflicts with
+                        // other applications using the same shortcuts (e.g. games, editors).
                         var wnd = Application.Current?.MainWindow;
                         if (wnd != null)
                         {
@@ -3490,8 +3496,11 @@ namespace OmenCore.ViewModels
         {
             try
             {
-                _hotkeyService.UnregisterAllHotkeys();
-                _logging.Info("Hotkeys unregistered (window deactivated)");
+                // Unregister all window-focused hotkeys EXCEPT ToggleWindow (Ctrl+Shift+O).
+                // ToggleWindow must stay registered so the app can be brought back from tray
+                // even when the window is hidden/deactivated.
+                _hotkeyService.UnregisterAllExcept(HotkeyAction.ToggleWindow);
+                _logging.Info("Hotkeys unregistered (window deactivated; ToggleWindow preserved)");
                 PushEvent("⌨️ Hotkeys inactive (window lost focus)");
             }
             catch (Exception ex)

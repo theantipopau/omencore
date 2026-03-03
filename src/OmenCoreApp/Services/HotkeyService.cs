@@ -192,6 +192,17 @@ namespace OmenCore.Services
         /// </summary>
         public bool RegisterHotkey(HotkeyAction action, ModifierKeys modifiers, Key key)
         {
+            // Skip if this action is already registered (e.g. ToggleWindow registered globally
+            // before window-focused hotkeys are layered on top via OnMainWindowActivated).
+            foreach (var existing in _registeredHotkeys.Values)
+            {
+                if (existing.Action == action)
+                {
+                    _logging.Debug($"Hotkey {action} already registered — skipping duplicate");
+                    return true;
+                }
+            }
+
             if (_windowHandle == IntPtr.Zero)
             {
                 // Queue for later registration
@@ -264,6 +275,27 @@ namespace OmenCore.Services
             }
             _registeredHotkeys.Clear();
             _logging.Info("Unregistered all hotkeys");
+        }
+
+        /// <summary>
+        /// Unregister all hotkeys except the specified action.
+        /// Used by window-focus mode to preserve always-on hotkeys like ToggleWindow
+        /// even when the window loses focus or is hidden to tray.
+        /// </summary>
+        public void UnregisterAllExcept(HotkeyAction preserveAction)
+        {
+            var toRemove = new List<int>();
+            foreach (var kvp in _registeredHotkeys)
+            {
+                if (kvp.Value.Action != preserveAction)
+                {
+                    UnregisterHotKey(_windowHandle, kvp.Key);
+                    toRemove.Add(kvp.Key);
+                }
+            }
+            foreach (var id in toRemove)
+                _registeredHotkeys.Remove(id);
+            _logging.Info($"Unregistered all hotkeys except {preserveAction}");
         }
 
         /// <summary>

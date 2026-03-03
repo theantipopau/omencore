@@ -5,14 +5,14 @@
         Height="540" Width="680"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Background="{StaticResource BackgroundBrush}"
+        Background="{StaticResource BackgroundDarkBrush}"
         WindowStyle="None"
         AllowsTransparency="True">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
-    <Border Background="{StaticResource BackgroundBrush}" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -21,7 +21,7 @@
             </Grid.RowDefinitions>
 
             <!-- Title bar -->
-            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" CornerRadius="12,12,0,0" Padding="20,14" MouseDown="TitleBar_MouseDown">
+            <Border Grid.Row="0" Background="{StaticResource SurfaceMediumBrush}" CornerRadius="12,12,0,0" Padding="20,14" MouseDown="TitleBar_MouseDown">
                 <Grid>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Path Data="{StaticResource IconLighting}" Width="20" Height="20" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0"/>

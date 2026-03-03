@@ -437,7 +437,7 @@
                                     TickPlacement="BottomRight"
                                     Value="{Binding CpuPl1Watts, Mode=TwoWay}"
                                     IsSnapToTickEnabled="True"
-                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InvertBool}}"/>
+                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
                             
                             <TextBlock Text="Long-term sustained TDP. Default: 45W for most mobile CPUs." 
                                        FontSize="11" 
@@ -475,7 +475,7 @@
                                     TickPlacement="BottomRight"
                                     Value="{Binding CpuPl2Watts, Mode=TwoWay}"
                                     IsSnapToTickEnabled="True"
-                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InvertBool}}"/>
+                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
                             
                             <TextBlock Text="Short-term turbo power. Should be ≥ PL1. Default: 65-115W." 
                                        FontSize="11" 
@@ -511,14 +511,14 @@
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ApplyCpuPowerLimitsCommand}"
                                     Padding="16,8" Margin="0,0,8,0"
-                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InvertBool}}"/>
+                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
                             
                             <Button Grid.Column="2" 
                                     Content="Reset to Defaults" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ResetCpuPowerLimitsCommand}"
                                     Padding="16,8"
-                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InvertBool}}"/>
+                                    IsEnabled="{Binding CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
                         </Grid>
                     </StackPanel>
                 </Border>
