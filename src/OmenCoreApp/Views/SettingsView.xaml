@@ -1511,7 +1511,7 @@
                             selective removal, restore capability, and a full item list.
                         </TextBlock>
 
-                        <Button Content="🗑️  Open Bloatware Manager →"
+                        <Button Content="🗑️ Open Bloatware Manager →"
                                 Style="{StaticResource ModernButton}"
                                 Background="#EF5350"
                                 Command="{Binding NavigateToBloatwareCommand}"

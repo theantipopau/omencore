@@ -205,7 +205,7 @@ namespace OmenCore.ViewModels
                         _powerAutomationService, _fanService);
 
                     // Navigate to Bloatware Manager tab when requested from Settings
-                    _settings.NavigateToBloatwareRequested += () => SelectedTabIndex = 7;
+                    _settings.NavigateToBloatwareRequested += OnBloatwareNavigationRequested;
                     
                     // Subscribe to low overhead mode changes from Settings
                     _settings.LowOverheadModeChanged += (s, enabled) =>
@@ -3324,6 +3324,14 @@ namespace OmenCore.ViewModels
         }
 
         /// <summary>
+        /// Navigate to the Bloatware Manager tab when requested from Settings view.
+        /// </summary>
+        private void OnBloatwareNavigationRequested()
+        {
+            SelectedTabIndex = 7; // Bloatware tab index
+        }
+
+        /// <summary>
         /// Handle fan preset changes from FanService (e.g., power automation).
         /// Updates all UI indicators: sidebar, tray, dashboard.
         /// </summary>
@@ -3534,6 +3542,13 @@ namespace OmenCore.ViewModels
             
             _safeModeResetTimer?.Dispose();
             _safeModeResetTimer = null;
+            
+            // Unsubscribe from Settings events before disposing
+            if (_settings != null)
+            {
+                _settings.NavigateToBloatwareRequested -= OnBloatwareNavigationRequested;
+            }
+            
             // Unsubscribe fan/performance service events before disposing
             _fanService.PresetApplied -= OnFanPresetApplied;
             _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
