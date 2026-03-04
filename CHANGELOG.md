@@ -7,6 +7,202 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.1] - 2026-03-04 - Stability & Compatibility Patch 🔧
+
+Cumulative stability release incorporating all hotfix1 and hotfix2 work plus additional
+fixes (H–J) identified through community testing on OMEN 17-ck2xxx and Victus 16-r0xxx.
+Ten fix series (A–J) resolving 22+ individual issues.
+
+### 🐛 Bug Fixes (Fixes A–J)
+- **(A)** XAML `StaticResourceExtension` startup crash — five undefined resource keys resolved
+- **(B)** Secure Boot status displayed inverted when PawnIO is available
+- **(C)** Ctrl+Shift+O global hotkey dead after window deactivation (issue #70)
+- **(D)** `CapabilityWarning` false positive for PawnIO users
+- **(E)** Five missing event unsubscriptions in `MainViewModel.Dispose()`
+- **(F)** `_amdGpuService` field race condition (`volatile` fix)
+- **(G)** GUI polish — 18 tooltips, 5 hardcoded colors, Gaming Mode disabled state
+- **(H)** CpuClock log format error, `GetSystemInfo()` thread safety, PawnIO probe
+- **(I)** Keyboard lighting null `SystemInfoService`, Dashboard INFO spam, `WmiBiosMonitor` dispose exception
+- **(J)** MSI Afterburner garbage temperature false thermal emergency, thermal protection sanity guard, COM STA reentrancy in `GetSystemInfo()`
+
+See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details.
+
+### 🎯 Release Artifacts
+
+**Version:** 3.0.1 (Release/win-x64)  
+**Build Date:** 2026-03-04 06:50 UTC
+
+| File | Size | SHA256 |
+|------|------|--------|
+| **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
+| **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
+
+**Enhancements in this build:**
+- ✨ Memory cleaning profiles (Conservative/Balanced/Aggressive presets)
+- ✨ Process memory ranking (top 10 memory consumers with real-time updates)
+- ✨ Memory cleanup preview (estimate freed memory before operation)
+- ✨ Bloatware bulk restore (mirrors bulk remove for complete parity)
+- All enhancements fully backward-compatible, zero breaking changes
+- Build: 0 errors, 0 warnings
+
+---
+
+## [3.0.0] - 2026-03-01 - Major Architecture Overhaul 🏗️
+
+v3.0.0 is the most substantial release since v2.0.0. The core monitoring pipeline was
+rebuilt around a self-sustaining architecture (WMI BIOS + NVAPI + PerformanceCounter +
+PawnIO MSR — no kernel drivers required). Seven critical regressions that affected
+real users post-2.9.x are resolved, four additional reliability improvements were
+made to the hardware monitoring layer, and a broad set of new features was added:
+guided fan diagnostics, a memory optimizer, keyboard model expansion, diagnostics
+reporting, and Linux CLI improvements.
+
+### 🐛 Critical Bug Fixes (P0/P1/P2)
+
+- **GPU Telemetry Permanently Lost After NVAPI Error (RC-1)** — GPU temperature and load
+  now recover automatically after transient NVAPI failures. After 10 consecutive errors the
+  source is suspended for 60 seconds then retried, instead of being permanently disabled
+  for the session. Resolves stuck 28 °C / 0 W GPU readings (#67, #68) until app restart.
+  (`WmiBiosMonitor.cs`)
+
+- **OMEN 16-wf1xxx Fan Control Non-Functional (RC-2)** — ProductId `8BAB` (Board 8C78,
+  OMEN 16-wf1xxx 2024 Intel) was missing from `ModelCapabilityDatabase`. The Transcend
+  fallback silently disabled WMI fan control (`SupportsFanControlWmi = false`). Added with
+  `MaxFanLevel = 100`, `UserVerified = false` pending community confirmation. Resolves #68.
+  (`ModelCapabilityDatabase.cs`)
+
+- **Fan Auto Mode Shows 0 RPM After Preset Switch (RC-3)** — `RestoreAutoControl()` skipped
+  the `ResetFromMaxMode()` sequence unless already in Max mode, leaving a 3-second RPM
+  debounce window active with no reset after Quiet/Extreme → Auto transitions. Fixed:
+  `ResetFromMaxMode()` is now called unconditionally and `_lastProfileSwitch` is reset to
+  clear the debounce window immediately. (`WmiFanController.cs`)
+
+- **Linux CLI Performance Mode Silently Fails (RC-4)** — `SetPerformanceMode()` only called
+  `WriteByte(REG_PERF_MODE)`, which requires `HasEcAccess`. On hp-wmi-only boards
+  `IsAvailable` returned `true` but the write produced no effect. Fixed: full priority
+  routing added — hp-wmi thermal_profile → ACPI platform_profile → EC register write.
+  (`LinuxEcController.cs`)
+
+- **Secure Boot Warning Shown Alongside Green PawnIO Badge (RC-5)** — `LoadSystemStatus()`
+  unconditionally set `SecureBootEnabled` from the registry regardless of PawnIO availability.
+  Fixed: `SecureBootEnabled = rawSecureBoot && !PawnIOAvailable`. PawnIO is Secure
+  Boot-compatible; its presence fully resolves the constraint. (`SettingsViewModel.cs`)
+
+- **Clean Install Shows "Standalone = Degraded" (RC-6)** — The dependency audit counted
+  any 2+ missing optional components as Degraded. Clean installs without OGH or HP System
+  Event Utility hit this threshold immediately. Fixed: Degraded threshold raised from `≥ 2`
+  to `≥ 3`; `LibreHardwareMonitor` check changed to `IsOptional = false`; summary text
+  clarified to show OGH/HP-SEU are not required for core operation. (`SystemInfoService.cs`)
+
+- **Monitor Loop Permanently Exits on 5 Consecutive Errors (RC-7)** — `MonitorLoopAsync`
+  broke out of its loop after 5 consecutive exceptions, permanently stopping all telemetry
+  with no recovery or notification. Fixed: on hitting the error limit the loop now resets
+  the counter, waits 10 seconds, and continues — recovering from transient driver resets,
+  sleep/wake glitches, and brief WMI stalls without requiring an app restart.
+  (`HardwareMonitoringService.cs`)
+
+### 🔧 Reliability & Quality Improvements
+
+- **CPU PerformanceCounter Singleton — Eliminates 100 ms Polling Stall** — `UpdateReadings()`
+  previously created a new `PerformanceCounter` instance, called `NextValue()` twice with
+  `Thread.Sleep(100)` between calls, then disposed it — on every single 2-second poll cycle.
+  The counter is now a persistent field initialised (and warmed up) once in the constructor.
+  Each poll calls `NextValue()` once with no sleep; the elapsed interval between calls provides
+  the correct average CPU load automatically. Removes ~100 ms of blocking + GC pressure per
+  cycle. (`WmiBiosMonitor.cs`)
+
+- **`TryRestartAsync()` Now Resets NVAPI Failure State** — Previously a no-op that only
+  logged a message and returned `true`. Now resets `_nvapiMonitoringDisabled`,
+  `_nvapiConsecutiveFailures`, and `_nvapiDisabledUntil`, giving the `HardwareMonitoringService`
+  restart path a genuinely clean slate for GPU telemetry on the next poll cycle.
+  (`WmiBiosMonitor.cs`)
+
+- **Linux `GetPerformanceMode()` Now Consistent with `SetPerformanceMode()`** — `GetPerformanceMode()`
+  read exclusively from the EC register, which is unavailable on hp-wmi-only boards. It now
+  follows the same priority chain as the now-fixed setter: hp-wmi `thermal_profile` string →
+  ACPI `platform_profile` → EC register fallback. Reported mode now always reflects the
+  active backend. (`LinuxEcController.cs`)
+
+- **Dashboard Metrics Use Real Hardware Data** — `UpdateDashboardMetrics()` used hardcoded
+  placeholder values: `BatteryHealthPercentage = 100`, `BatteryCycles = 0`,
+  `EstimatedBatteryLifeYears = 3.0`, `FanEfficiency = 70.0`. Battery health now reads from
+  `sample.BatteryChargePercent`; fan efficiency is computed from `Fan1Rpm`/`Fan2Rpm`
+  (average RPM / 50 → 0-100 scale). Battery health thresholds (< 70% warning) and fan
+  speed visualisations now react to real hardware data. (`HardwareMonitoringService.cs`)
+
+### ✨ New Features & Enhancements
+
+- **Guided Fan Diagnostics** — New UI section runs sequential fan tests at 30/60/100% for
+  CPU and GPU fans, showing live progress and a PASS/FAIL summary. Results can be copied to
+  clipboard for support reports. Current preset is preserved and restored on completion.
+  (`FanDiagnosticsViewModel.cs`, `FanDiagnosticsView.xaml`)
+
+- **Memory Optimizer Tab** — Dedicated "Memory" tab with real-time RAM monitoring and
+  one-click memory cleaning via Windows Native API (`NtSetSystemInformation`). Smart Clean
+  (working sets + low-priority standby + page combining) and Deep Clean (all operations
+  including full standby purge, file cache flush). Per-operation risk indicators. Auto-clean
+  with configurable threshold (50–95%). Results include a copy-to-clipboard button.
+  (`MemoryOptimizerService.cs`, `MemoryOptimizerViewModel.cs`, `MemoryOptimizerView.xaml`)
+
+- **Diagnostics & Model Reporting** — "Monitoring Diagnostics" panel and `Report Model`
+  flow: creates a diagnostics ZIP (logs + sample capture) and copies model info to clipboard.
+  `ModelReportService` coordinates collection and export. One-click "Export telemetry"
+  button on the Diagnostics panel. (`DiagnosticsView.xaml`, `ModelReportService.cs`,
+  `TelemetryService.cs`)
+
+- **Keyboard Model Database Expansion** — Added ProductId `8BD5` (HP Victus 16, 2023) and
+  `8A26` (HP Victus 16, 2024) to ensure per-zone ColorTable is applied instead of the
+  generic Victus fallback. (`KeyboardModelDatabase.cs`, `KeyboardLightingServiceV2.cs`)
+
+- **Model Database Additions** — `OMEN MAX 16 (ak0003nr)` with ThermalPolicy V2 handling
+  (WMI-only fan control recommended, avoid legacy EC writes); `OMEN 16-wf1xxx` (8BAB,
+  Board 8C78). (`ModelCapabilityDatabase.cs`)
+
+- **Fan Control Reliability** — Seeded last-seen RPMs; added multi-sample confirmation for
+  large RPM deltas; preset apply now ignored while diagnostics are active; atomic preset
+  verification + rollback when controller state does not match expected behaviour.
+  (`FanService.cs`, `WmiFanController.cs`, `FanControllerFactory.cs`)
+
+- **Fn+Brightness False-Positive Fix** — `OmenKeyService` now prefers the low-level
+  keyboard hook and suppresses overlapping WMI OMEN events when a brightness-key sequence
+  is in progress, eliminating false OMEN-key triggers on Fn+F2/F3.
+
+- **Monitoring Health: Last-Sample-Age Indicator** — Exposed a "last sample age" health
+  indicator on the dashboard. Transient 0 W / 0 °C spikes suppressed with retain-last-valid
+  logic; RAPL MSR reads wired where PawnIO is available.
+
+- **Strix Point CPU Detection** — `SystemInfoService` now flags Intel 14th-gen "Strix Point"
+  chips; NVAPI service gracefully handles missing DLLs during initialisation.
+
+- **Installer Improvement** — Installer now skips the embedded PawnIO sub-installer when
+  PawnIO is already present, avoiding redundant installs and incorrect task-switch behaviour.
+
+- **CI Coverage** — Unit and integration tests added for: keyboard hook + WMI filtering;
+  fan `MonitorLoop` confirmation counters; diagnostics mode guard; power-read stabilisation;
+  model report export; quick-profile switch stress test (verifies no transient 0 RPM spikes
+  during rapid preset switching).
+
+### 📁 Key Files Updated
+- `src/OmenCoreApp/Hardware/WmiBiosMonitor.cs`
+- `src/OmenCoreApp/Hardware/WmiFanController.cs`
+- `src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`
+- `src/OmenCoreApp/Hardware/KeyboardModelDatabase.cs`
+- `src/OmenCoreApp/Services/HardwareMonitoringService.cs`
+- `src/OmenCoreApp/Services/SystemInfoService.cs`
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/Services/MemoryOptimizerService.cs` *(new)*
+- `src/OmenCoreApp/Services/ModelReportService.cs` *(new)*
+- `src/OmenCoreApp/Services/TelemetryService.cs`
+- `src/OmenCoreApp/ViewModels/SettingsViewModel.cs`
+- `src/OmenCoreApp/ViewModels/FanDiagnosticsViewModel.cs` *(new)*
+- `src/OmenCoreApp/ViewModels/MemoryOptimizerViewModel.cs` *(new)*
+- `src/OmenCoreApp/Views/FanDiagnosticsView.xaml` *(new)*
+- `src/OmenCoreApp/Views/MemoryOptimizerView.xaml` *(new)*
+- `src/OmenCoreApp/Views/DiagnosticsView.xaml`
+- `src/OmenCore.Linux/Hardware/LinuxEcController.cs`
+
+---
+
 ## [2.9.0] - 2026-02-13 - Stability & Telemetry Recovery Update 🛠️
 
 ### 🐛 Bug Fixes

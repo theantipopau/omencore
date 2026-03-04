@@ -9,12 +9,17 @@ namespace OmenCore.ViewModels
 {
     public class DashboardViewModel : ViewModelBase, IDisposable
     {
-        /// <summary>Maximum number of thermal samples to keep (1 minute at 1 sample/second).</summary>
-        private const int MaxThermalSampleHistory = 60;
+        /// <summary>Maximum number of thermal samples to keep (30 minutes at 1 sample/second).</summary>
+        private const int MaxThermalSampleHistory = 1800;
+
+        /// <summary>Time range options in minutes for the graph time-range selector.</summary>
+        public static readonly int[] TimeRangeOptions = { 1, 5, 15, 30 };
         
         private readonly HardwareMonitoringService _monitoringService;
         private readonly FanService? _fanService;
         private readonly ObservableCollection<ThermalSample> _thermalSamples = new();
+        private readonly ObservableCollection<ThermalSample> _filteredThermalSamples = new();
+        private int _timeRangeMinutes = 5;
         private MonitoringSample? _latestMonitoringSample;
         private bool _monitoringLowOverhead;
         private string _currentPerformanceMode = "Auto";
@@ -30,6 +35,44 @@ namespace OmenCore.ViewModels
 
         public ReadOnlyObservableCollection<MonitoringSample> MonitoringSamples => _monitoringService.Samples;
         public ObservableCollection<ThermalSample> ThermalSamples => _thermalSamples;
+
+        /// <summary>Filtered subset of ThermalSamples matching the selected time range.</summary>
+        public ObservableCollection<ThermalSample> FilteredThermalSamples => _filteredThermalSamples;
+
+        /// <summary>Current time-range window in minutes (1, 5, 15 or 30).</summary>
+        public int TimeRangeMinutes
+        {
+            get => _timeRangeMinutes;
+            set
+            {
+                if (_timeRangeMinutes != value)
+                {
+                    _timeRangeMinutes = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsTimeRange1m));
+                    OnPropertyChanged(nameof(IsTimeRange5m));
+                    OnPropertyChanged(nameof(IsTimeRange15m));
+                    OnPropertyChanged(nameof(IsTimeRange30m));
+                    RebuildFilteredSamples();
+                }
+            }
+        }
+
+        public bool IsTimeRange1m  { get => _timeRangeMinutes == 1;  set { if (value) TimeRangeMinutes = 1;  } }
+        public bool IsTimeRange5m  { get => _timeRangeMinutes == 5;  set { if (value) TimeRangeMinutes = 5;  } }
+        public bool IsTimeRange15m { get => _timeRangeMinutes == 15; set { if (value) TimeRangeMinutes = 15; } }
+        public bool IsTimeRange30m { get => _timeRangeMinutes == 30; set { if (value) TimeRangeMinutes = 30; } }
+
+        private void RebuildFilteredSamples()
+        {
+            _filteredThermalSamples.Clear();
+            var cutoff = DateTime.Now - TimeSpan.FromMinutes(_timeRangeMinutes);
+            foreach (var s in _thermalSamples)
+            {
+                if (s.Timestamp >= cutoff)
+                    _filteredThermalSamples.Add(s);
+            }
+        }
         
         /// <summary>
         /// Whether there is historical chart data available.
@@ -189,11 +232,16 @@ namespace OmenCore.ViewModels
         public string CpuSummary => LatestMonitoringSample == null 
             ? "CPU telemetry unavailable" 
             : LatestMonitoringSample.CpuPowerWatts > 0 
-                ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C • {LatestMonitoringSample.CpuLoadPercent:F0}% • {LatestMonitoringSample.CpuPowerWatts:F0}W"
-                : $"{LatestMonitoringSample.CpuTemperatureC:F0}°C • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
-        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{LatestMonitoringSample.GpuTemperatureC:F0}°C • {LatestMonitoringSample.GpuLoadPercent:F0}% load • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM";
+                ? $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% • {LatestMonitoringSample.CpuPowerWatts:F0}W"
+                : $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
+        public string GpuSummary => LatestMonitoringSample == null 
+            ? "GPU telemetry unavailable" 
+            : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
         public string MemorySummary => LatestMonitoringSample == null ? "Memory telemetry unavailable" : $"{LatestMonitoringSample.RamUsageGb:F1} / {LatestMonitoringSample.RamTotalGb:F0} GB";
-        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {LatestMonitoringSample.SsdTemperatureC:F0}°C • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
+        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" 
+            : LatestMonitoringSample.SsdTemperatureC > 0 
+                ? $"SSD {LatestMonitoringSample.SsdTemperatureC:F0}°C • {LatestMonitoringSample.DiskUsagePercent:F0}% active"
+                : $"SSD —°C • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
         public string BatterySummary => LatestMonitoringSample == null ? "Battery unavailable" 
             : LatestMonitoringSample.IsOnAcPower 
                 ? $"{LatestMonitoringSample.BatteryChargePercent:F0}% • AC Power" 
@@ -417,6 +465,7 @@ namespace OmenCore.ViewModels
                     {
                         _thermalSamples.RemoveAt(0);
                     }
+                    RebuildFilteredSamples();
                     
                     // Update fan curve points for visualization
                     UpdateFanCurvePoints(sample);

@@ -8,77 +8,6 @@
              d:DesignHeight="1200" d:DesignWidth="1000">
     
     <UserControl.Resources>
-        <!-- MSI Afterburner-inspired Slider Style -->
-        <Style x:Key="TuningSlider" TargetType="Slider">
-            <Setter Property="Background" Value="#1A1A2E"/>
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid>
-                            <!-- Track Background with gradient -->
-                            <Border Background="#0D0D15" CornerRadius="4" Height="8" 
-                                    VerticalAlignment="Center" Margin="8,0"/>
-                            
-                            <!-- Filled portion (progress track) -->
-                            <Border Background="{TemplateBinding Foreground}" CornerRadius="4" Height="8"
-                                    VerticalAlignment="Center" Margin="8,0"
-                                    HorizontalAlignment="Left"
-                                    Width="{Binding RelativeSource={RelativeSource TemplatedParent}, 
-                                            Path=Value, 
-                                            Converter={StaticResource SliderValueToWidthConverter}}">
-                                <Border.OpacityMask>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="#FFFFFFFF" Offset="0"/>
-                                        <GradientStop Color="#FFFFFFFF" Offset="0.98"/>
-                                        <GradientStop Color="#00FFFFFF" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.OpacityMask>
-                            </Border>
-                            
-                            <!-- Track with thumb -->
-                            <Track x:Name="PART_Track">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Style="{StaticResource SliderButtonStyle}" Command="Slider.DecreaseLarge"/>
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb>
-                                        <Thumb.Style>
-                                            <Style TargetType="Thumb">
-                                                <Setter Property="Width" Value="18"/>
-                                                <Setter Property="Height" Value="18"/>
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="Thumb">
-                                                            <Grid>
-                                                                <!-- Glow effect -->
-                                                                <Ellipse Fill="{StaticResource AccentBrush}" Opacity="0.3"
-                                                                         Width="24" Height="24" Margin="-3"/>
-                                                                <!-- Main thumb -->
-                                                                <Ellipse Fill="{StaticResource AccentBrush}" 
-                                                                         Stroke="#40FFFFFF" StrokeThickness="2"/>
-                                                                <!-- Inner highlight -->
-                                                                <Ellipse Fill="White" Width="6" Height="6"
-                                                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Grid>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </Style>
-                                        </Thumb.Style>
-                                    </Thumb>
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Style="{StaticResource SliderButtonStyle}" Command="Slider.IncreaseLarge"/>
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        
         <!-- Gauge Arc Path for monitoring displays -->
         <Style x:Key="GaugeValue" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{StaticResource MonospaceFontFamily}"/>
@@ -130,11 +59,11 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Path Data="{StaticResource IconWarning}" Fill="#F44336" 
+                    <Path Data="{StaticResource IconWarning}" Fill="{StaticResource ErrorBrush}" 
                           Width="20" Height="20" Stretch="Uniform" Margin="0,0,12,0"
                           VerticalAlignment="Top"/>
                     <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
-                        <Run Text="ADVANCED TUNING" FontWeight="Bold" Foreground="#F44336"/>
+                        <Run Text="ADVANCED TUNING" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
                         <Run Text=" — Improper values may cause crashes or freezes. Start small, test stability. Settings reset on reboot unless auto-apply is enabled."/>
                     </TextBlock>
                 </Grid>
@@ -207,7 +136,7 @@
                                             <Ellipse Stroke="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, FallbackValue=#45C7FF}" 
                                                      StrokeThickness="4" Fill="Transparent" Opacity="0.8"
                                                      StrokeDashArray="3.14 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, StringFormat={}{0:F0}°}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=°}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -223,7 +152,7 @@
                                             <Ellipse Stroke="#1A1A2E" StrokeThickness="4" Fill="Transparent"/>
                                             <Ellipse Stroke="#FF9800" StrokeThickness="4" Fill="Transparent" Opacity="0.6"
                                                      StrokeDashArray="2.5 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuPowerWatts, StringFormat={}{0:F0}W}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.CpuPowerWatts, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=W}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -694,7 +623,7 @@
                                                      StrokeThickness="4" Fill="Transparent" Opacity="0.8"
                                                      StrokeDashArray="3.14 10"/>
                                             <!-- Temperature value -->
-                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, StringFormat={}{0:F0}°}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuTemperatureC, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=°}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"
@@ -710,7 +639,7 @@
                                             <Ellipse Stroke="#1A1A2E" StrokeThickness="4" Fill="Transparent"/>
                                             <Ellipse Stroke="#FF9800" StrokeThickness="4" Fill="Transparent" Opacity="0.6"
                                                      StrokeDashArray="2.5 10"/>
-                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuPowerWatts, StringFormat={}{0:F0}W}"
+                                            <TextBlock Text="{Binding LatestMonitoringSample.GpuPowerWatts, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=W}"
                                                        FontFamily="{StaticResource MonospaceFontFamily}"
                                                        FontSize="14" FontWeight="Bold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"

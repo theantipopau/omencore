@@ -86,14 +86,20 @@ namespace OmenCore.Hardware
         private DateTime _lastBatteryQuery = DateTime.MinValue;
         private readonly TimeSpan _batteryQueryCooldown = TimeSpan.FromSeconds(10);
         
-        // NVAPI failure tracking — disable after repeated failures to avoid log spam
+        // NVAPI failure tracking — disable after repeated failures, then auto-recover after cooldown
         private int _nvapiConsecutiveFailures;
         private bool _nvapiMonitoringDisabled;
+        private DateTime _nvapiDisabledUntil = DateTime.MinValue;
         private const int MaxNvapiFailuresBeforeDisable = 10;
+        private const int NvapiRecoveryCooldownSeconds = 60;
         
         // MSI Afterburner coexistence — read GPU metrics from shared memory instead of NVAPI polling
         private ConflictDetectionService? _afterburnerService;
         private bool _afterburnerCoexistenceActive;
+
+        // CPU PerformanceCounter — persistent instance avoids 100ms sleep + allocation every poll
+        private System.Diagnostics.PerformanceCounter? _cpuPerfCounter;
+        private bool _cpuPerfCounterAvailable = true;
         
         public bool IsAvailable => _wmiBios.IsAvailable;
 
@@ -137,6 +143,26 @@ namespace OmenCore.Hardware
             {
                 _logging?.Info("[WmiBiosMonitor] ✓ PawnIO MSR available — CPU throttling detection enabled");
             }
+
+            // Initialise the CPU PerformanceCounter on a background thread — the constructor +
+            // first NextValue() call can block the calling thread for 8-10 seconds on some machines.
+            // The read path already guards with (_cpuPerfCounterAvailable && _cpuPerfCounter != null)
+            // so missing the first few poll cycles is harmless.
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var pc = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total", true);
+                    pc.NextValue(); // baseline — must be called before first real read
+                    _cpuPerfCounter = pc; // assign after warm-up so read path never sees a cold counter
+                    _logging?.Info("[WmiBiosMonitor] ✓ CPU PerformanceCounter initialised (persistent, background)");
+                }
+                catch (Exception ex)
+                {
+                    _cpuPerfCounterAvailable = false;
+                    _logging?.Warn($"[WmiBiosMonitor] CPU PerformanceCounter not available: {ex.Message}");
+                }
+            });
         }
         
         /// <summary>
@@ -158,6 +184,7 @@ namespace OmenCore.Hardware
                 return BuildSampleFromCache();
             }
 
+            if (_disposed) return BuildSampleFromCache();
             await _updateGate.WaitAsync(token);
             try
             {
@@ -172,20 +199,34 @@ namespace OmenCore.Hardware
             }
             finally
             {
-                _updateGate.Release();
+                // Guard against ObjectDisposedException if WmiBiosMonitor is disposed
+                // while a monitoring iteration is in flight (shutdown race condition).
+                try { _updateGate.Release(); }
+                catch (ObjectDisposedException) { }
             }
             
             return BuildSampleFromCache();
         }
         
         /// <summary>
-        /// WMI BIOS monitor doesn't need restart - it has no persistent state.
-        /// Always returns true as there's nothing to restart.
+        /// Reset accumulated failure state so the next poll cycle retries all sources.
+        /// Called by HardwareMonitoringService after consecutive timeout errors.
         /// </summary>
         public Task<bool> TryRestartAsync()
         {
-            _logging?.Info("[WmiBiosMonitor] TryRestartAsync called - WMI BIOS monitor requires no restart");
-            // WMI BIOS has no persistent state to restart - always succeeds
+            // Reset NVAPI suspended state so the next UpdateReadings() immediately retries
+            // GPU telemetry rather than waiting for the cooldown timer to expire.
+            if (_nvapiMonitoringDisabled)
+            {
+                _nvapiMonitoringDisabled = false;
+                _nvapiConsecutiveFailures = 0;
+                _nvapiDisabledUntil = DateTime.MinValue;
+                _logging?.Info("[WmiBiosMonitor] TryRestartAsync: NVAPI failure state cleared — GPU monitoring will retry on next poll");
+            }
+            else
+            {
+                _logging?.Info("[WmiBiosMonitor] TryRestartAsync: no suspended sources to reset");
+            }
             return Task.FromResult(true);
         }
         
@@ -248,7 +289,9 @@ namespace OmenCore.Hardware
                     try
                     {
                         var abData = _afterburnerService.ReadAfterburnerGpuData();
-                        if (abData != null && abData.GpuTemperature > 0)
+                        // Sanity bound: Afterburner shared-memory float may contain garbage if the
+                        // MAHM struct layout has changed; reject anything outside realistic GPU range.
+                        if (abData != null && abData.GpuTemperature > 0 && abData.GpuTemperature < 150)
                         {
                             // GPU temp from Afterburner — same die sensor, no contention
                             _cachedGpuTemp = abData.GpuTemperature;
@@ -317,6 +360,14 @@ namespace OmenCore.Hardware
                 }
                 
                 // Full NVAPI monitoring when Afterburner is NOT providing data
+                // Auto-recover after cooldown period (RC-1 fix: no longer permanently disabled)
+                if (_nvapiMonitoringDisabled && DateTime.Now >= _nvapiDisabledUntil)
+                {
+                    _nvapiMonitoringDisabled = false;
+                    _nvapiConsecutiveFailures = 0;
+                    _logging?.Info($"[WmiBiosMonitor] NVAPI monitoring re-enabled after {NvapiRecoveryCooldownSeconds}s cooldown");
+                }
+
                 if (!afterburnerProvidedData && _nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
                 {
                     try
@@ -350,26 +401,34 @@ namespace OmenCore.Hardware
                         if (_nvapiConsecutiveFailures >= MaxNvapiFailuresBeforeDisable)
                         {
                             _nvapiMonitoringDisabled = true;
-                            _logging?.Warn($"[WmiBiosMonitor] NVAPI monitoring disabled after {MaxNvapiFailuresBeforeDisable} consecutive failures: {ex.Message}");
+                            _nvapiDisabledUntil = DateTime.Now.AddSeconds(NvapiRecoveryCooldownSeconds);
+                            _logging?.Warn($"[WmiBiosMonitor] NVAPI monitoring suspended for {NvapiRecoveryCooldownSeconds}s after {MaxNvapiFailuresBeforeDisable} consecutive failures: {ex.Message}");
                         }
                     }
                 }
                 
                 // ═══════════════════════════════════════════════════════════════
-                // SOURCE 3: Windows PerformanceCounter — CPU load
-                // Lightweight, no admin rights required.
                 // ═══════════════════════════════════════════════════════════════
-                
-                try
+                // SOURCE 3: Windows PerformanceCounter — CPU load
+                // Uses a persistent counter (initialised in constructor) so no
+                // Thread.Sleep() or per-poll allocation is needed. Each NextValue()
+                // call returns the average CPU utilisation since the previous call,
+                // which at 2-second poll intervals gives the correct interval average.
+                // ═══════════════════════════════════════════════════════════════
+
+                if (_cpuPerfCounterAvailable && _cpuPerfCounter != null)
                 {
-                    using var cpuCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total", true);
-                    cpuCounter.NextValue(); // First call always returns 0
-                    Thread.Sleep(100);
-                    _cachedCpuLoad = cpuCounter.NextValue();
-                }
-                catch
-                {
-                    // Performance counters may not be available
+                    try
+                    {
+                        var load = _cpuPerfCounter.NextValue();
+                        if (load >= 0 && load <= 100)
+                            _cachedCpuLoad = load;
+                    }
+                    catch
+                    {
+                        // Counter became unavailable (e.g. performance counter service reset)
+                        _cpuPerfCounterAvailable = false;
+                    }
                 }
                 
                 // ═══════════════════════════════════════════════════════════════
@@ -841,6 +900,7 @@ namespace OmenCore.Hardware
             _disposed = true;
             _updateGate.Dispose();
             _wmiBios.Dispose();
+            _cpuPerfCounter?.Dispose();
         }
     }
 }

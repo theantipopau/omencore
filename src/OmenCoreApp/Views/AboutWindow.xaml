@@ -49,10 +49,7 @@
                         Margin="0,0,0,16">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <TextBlock x:Name="VersionText" Text="Version 1.5.0-beta" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
-                            <Border Background="{StaticResource AccentBrush}" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="BETA" FontSize="9" FontWeight="Bold" Foreground="White"/>
-                            </Border>
+                            <TextBlock x:Name="VersionText" Text="Version 3.0.0" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
                         </StackPanel>
                         <TextBlock Text="Advanced thermal, power, and RGB control for HP OMEN gaming laptops and desktops." 
                                    FontSize="13" 
@@ -63,9 +60,13 @@
                             <Run Text="✓ WMI/EC Fan Control with Custom Curves"/><LineBreak/>
                             <Run Text="✓ CPU Undervolt (Intel) &amp; Curve Optimizer (AMD)"/><LineBreak/>
                             <Run Text="✓ GPU Dynamic Boost (TGP/PPAB)"/><LineBreak/>
+                            <Run Text="✓ Driver-Free Monitoring (WMI BIOS + NVAPI + PawnIO)"/><LineBreak/>
                             <Run Text="✓ Per-Game Profile Auto-Switching"/><LineBreak/>
-                            <Run Text="✓ Multi-Zone RGB Keyboard Control"/><LineBreak/>
-                            <Run Text="✓ Real-time Hardware Monitoring"/>
+                            <Run Text="✓ V2 Keyboard Engine (Per-Key EC &amp; WMI Lighting)"/><LineBreak/>
+                            <Run Text="✓ Guided Fan Diagnostics"/><LineBreak/>
+                            <Run Text="✓ Memory Optimizer"/><LineBreak/>
+                            <Run Text="✓ Headless Mode (Tray-Only, No Window)"/><LineBreak/>
+                            <Run Text="✓ Real-Time Hardware Monitoring"/>
                         </TextBlock>
                         <TextBlock x:Name="UpdateStatusText" 
                                    Text="" 
@@ -77,7 +78,7 @@
                 </Border>
                 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
-                    <TextBlock Text="© 2025 - " 
+                    <TextBlock Text="© 2026 - " 
                                FontSize="12" 
                                Foreground="{StaticResource TextTertiaryBrush}" 
                                VerticalAlignment="Center" />

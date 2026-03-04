@@ -27,6 +27,7 @@ namespace OmenCore.Services
         private MonitoringSample? _lastSample;
         private readonly double _changeThreshold = 0.5; // Minimum change to trigger UI update (degrees/percent)
         private readonly double _lowOverheadChangeThreshold = 3.0; // Higher threshold in low overhead mode
+        private readonly double _powerChangeThresholdWatts = 1.0; // Force UI update on significant power change (Watts)
         private volatile bool _isPaused; // For S0 Modern Standby support (volatile for thread-safety)
         private readonly object _pauseLock = new();
         private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
@@ -378,8 +379,19 @@ namespace OmenCore.Services
 
                     if (consecutiveErrors >= maxErrors)
                     {
-                        _logging.Error("Too many consecutive errors, stopping hardware monitoring");
-                        break;
+                        // P2 fix: back off and restart the loop rather than exiting permanently.
+                        // A transient hardware glitch (driver reset, sleep/wake) should not
+                        // permanently kill telemetry without user action.
+                        _logging.Warn($"[MonitorLoop] {maxErrors} consecutive errors — backing off 10s then restarting loop");
+                        consecutiveErrors = 0;
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(10), token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
                     }
                 }
 
@@ -417,10 +429,16 @@ namespace OmenCore.Services
             var cpuLoadChange = Math.Abs(newSample.CpuLoadPercent - _lastSample.CpuLoadPercent);
             var gpuLoadChange = Math.Abs(newSample.GpuLoadPercent - _lastSample.GpuLoadPercent);
 
+            // Also update UI when power readings change significantly (fixes intermittent 0W display)
+            var cpuPowerChange = Math.Abs(newSample.CpuPowerWatts - _lastSample.CpuPowerWatts);
+            var gpuPowerChange = Math.Abs(newSample.GpuPowerWatts - _lastSample.GpuPowerWatts);
+
             return cpuTempChange >= threshold ||
                    gpuTempChange >= threshold ||
                    cpuLoadChange >= threshold ||
-                   gpuLoadChange >= threshold;
+                   gpuLoadChange >= threshold ||
+                   cpuPowerChange >= _powerChangeThresholdWatts ||
+                   gpuPowerChange >= _powerChangeThresholdWatts;
         }
 
         // IHardwareMonitoringService implementation
@@ -603,14 +621,19 @@ namespace OmenCore.Services
                 Timestamp = DateTime.Now,
                 CpuTemperature = sample.CpuTemperatureC,
                 GpuTemperature = sample.GpuTemperatureC,
-                // Note: Power consumption, battery health, and other metrics would need
-                // additional hardware sensors or calculations based on available data
                 PowerConsumption = CalculateEstimatedPowerConsumption(sample),
-                BatteryHealthPercentage = 100, // Placeholder - would need battery sensor
-                BatteryCycles = 0, // Placeholder
-                EstimatedBatteryLifeYears = 3.0, // Placeholder
+                // Battery health is unknown when sample has no battery reading.
+                // Use -1 sentinel for unknown to avoid fake "100% healthy" UI/telemetry.
+                BatteryHealthPercentage = sample.BatteryChargePercent > 0
+                    ? Math.Clamp(sample.BatteryChargePercent, 0, 100)
+                    : -1,
+                BatteryCycles = 0, // Win32_Battery does not expose cycle count; reserved for future use
+                EstimatedBatteryLifeYears = 3.0, // Static estimate; expandable via HP WMI in a future revision
                 PowerEfficiency = CalculatePowerEfficiency(sample),
-                FanEfficiency = 70.0 // Placeholder - would need fan speed data
+                // Use average RPM from the two fan sensors as an efficiency proxy (0-100 scale)
+                FanEfficiency = sample.Fan1Rpm > 0 || sample.Fan2Rpm > 0
+                    ? Math.Min(100, ((sample.Fan1Rpm + sample.Fan2Rpm) / 2.0) / 50.0)
+                    : 0
             };
 
             _logging.Debug($"UpdateDashboardMetrics: Created metrics - CPU: {metrics.CpuTemperature}°C, GPU: {metrics.GpuTemperature}°C, Power: {metrics.PowerConsumption}W");
@@ -725,7 +748,7 @@ namespace OmenCore.Services
             }
 
             // Battery health alerts
-            if (metrics.BatteryHealthPercentage < 70)
+            if (metrics.BatteryHealthPercentage > 0 && metrics.BatteryHealthPercentage < 70)
             {
                 _activeAlerts.Add(new SystemAlert
                 {
@@ -743,9 +766,9 @@ namespace OmenCore.Services
             return chartType switch
             {
                 ChartType.PowerConsumption => metrics.PowerConsumption,
-                ChartType.BatteryHealth => metrics.BatteryHealthPercentage,
+                ChartType.BatteryHealth => metrics.BatteryHealthPercentage >= 0 ? metrics.BatteryHealthPercentage : 0,
                 ChartType.Temperature => (metrics.CpuTemperature + metrics.GpuTemperature) / 2,
-                ChartType.FanSpeeds => metrics.FanEfficiency, // Placeholder - would be actual fan speed
+                ChartType.FanSpeeds => metrics.FanEfficiency, // Real average fan efficiency derived from RPM sample data
                 _ => 0
             };
         }

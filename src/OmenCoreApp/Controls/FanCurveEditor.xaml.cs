@@ -53,6 +53,22 @@ namespace OmenCore.Controls
             get => (ObservableCollection<FanCurvePoint>?)GetValue(CurvePointsProperty);
             set => SetValue(CurvePointsProperty, value);
         }
+
+        public static readonly DependencyProperty GhostCurvePointsProperty = DependencyProperty.Register(
+            nameof(GhostCurvePoints),
+            typeof(IEnumerable<FanCurvePoint>),
+            typeof(FanCurveEditor),
+            new FrameworkPropertyMetadata(null, OnGhostCurvePointsChanged));
+
+        /// <summary>
+        /// Optional reference curve shown as a translucent ghost overlay on the editor.
+        /// Bind to a preset's curve points to preview it before applying.
+        /// </summary>
+        public IEnumerable<FanCurvePoint>? GhostCurvePoints
+        {
+            get => (IEnumerable<FanCurvePoint>?)GetValue(GhostCurvePointsProperty);
+            set => SetValue(GhostCurvePointsProperty, value);
+        }
         
         public static readonly DependencyProperty CurrentTemperatureProperty = DependencyProperty.Register(
             nameof(CurrentTemperature),
@@ -211,6 +227,12 @@ namespace OmenCore.Controls
                 editor.RenderCurve();
             }
         }
+
+        private static void OnGhostCurvePointsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is FanCurveEditor editor)
+                editor.RenderCurve();
+        }
         
         private static void OnCurrentTemperatureChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -360,6 +382,9 @@ namespace OmenCore.Controls
             
             EmptyStateText.Visibility = Visibility.Collapsed;
             
+            // Draw ghost overlay (preset preview) before the active curve so it sits underneath
+            DrawGhostCurve(width, height);
+
             // Draw the fan curve line
             DrawCurveLine(points, width, height);
             
@@ -450,6 +475,50 @@ namespace OmenCore.Controls
             }
         }
         
+        private void DrawGhostCurve(double width, double height)
+        {
+            var ghostPoints = GhostCurvePoints?.OrderBy(p => p.TemperatureC).ToList();
+            if (ghostPoints == null || ghostPoints.Count < 2) return;
+
+            var ghostStroke = new SolidColorBrush(Color.FromArgb(100, 69, 199, 255));
+            var polyline = new Polyline
+            {
+                Stroke = ghostStroke,
+                StrokeThickness = 2.5,
+                StrokeDashArray = new DoubleCollection { 6, 3 },
+                StrokeLineJoin = PenLineJoin.Round,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                IsHitTestVisible = false
+            };
+
+            polyline.Points.Add(DataToCanvas(MinTemperature, ghostPoints[0].FanPercent));
+            foreach (var pt in ghostPoints)
+                polyline.Points.Add(DataToCanvas(pt.TemperatureC, pt.FanPercent));
+            polyline.Points.Add(DataToCanvas(MaxTemperature, ghostPoints[^1].FanPercent));
+
+            ChartCanvas.Children.Add(polyline);
+
+            // Ghost label at right edge
+            var labelY = DataToCanvas(MaxTemperature, ghostPoints[^1].FanPercent).Y;
+            var label = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(120, 10, 15, 30)),
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 1, 4, 1),
+                IsHitTestVisible = false,
+                Child = new TextBlock
+                {
+                    Text = "preview",
+                    FontSize = 9,
+                    Foreground = new SolidColorBrush(Color.FromArgb(160, 69, 199, 255))
+                }
+            };
+            Canvas.SetRight(label, 4);
+            Canvas.SetTop(label, labelY - 12);
+            ChartCanvas.Children.Add(label);
+        }
+
         private void DrawCurveLine(List<FanCurvePoint> points, double width, double height)
         {
             if (points.Count < 2) return;

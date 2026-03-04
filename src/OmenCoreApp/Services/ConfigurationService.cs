@@ -91,7 +91,7 @@ namespace OmenCore.Services
             // Validate EC device path
             if (string.IsNullOrWhiteSpace(config.EcDevicePath))
             {
-                config.EcDevicePath = @"\\.\WinRing0_1_2";
+                config.EcDevicePath = string.Empty;
             }
 
             // Validate fan transition settings

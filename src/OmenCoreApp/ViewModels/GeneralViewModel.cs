@@ -134,13 +134,25 @@ namespace OmenCore.ViewModels
         public double CpuTemp
         {
             get => _cpuTemp;
-            set { _cpuTemp = value; OnPropertyChanged(); }
+            set
+            {
+                _cpuTemp = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CpuTempDisplay));
+                OnPropertyChanged(nameof(IsCpuTempAvailable));
+            }
         }
 
         public double GpuTemp
         {
             get => _gpuTemp;
-            set { _gpuTemp = value; OnPropertyChanged(); }
+            set
+            {
+                _gpuTemp = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(GpuTempDisplay));
+                OnPropertyChanged(nameof(IsGpuTempAvailable));
+            }
         }
 
         public int CpuFanPercent
@@ -205,6 +217,13 @@ namespace OmenCore.ViewModels
         }
         
         public double RamPercent => RamTotalGb > 0 ? (RamUsedGb / RamTotalGb) * 100 : 0;
+
+        // Temperature display helpers — mirror DashboardViewModel for consistent "—°C" treatment
+        // across all views. Used by any binding that needs a formatted string rather than a raw double.
+        public string CpuTempDisplay => CpuTemp > 0 ? $"{CpuTemp:F0}°C" : "—°C";
+        public string GpuTempDisplay => GpuTemp > 0 ? $"{GpuTemp:F0}°C" : "—°C";
+        public bool IsCpuTempAvailable => CpuTemp > 0;
+        public bool IsGpuTempAvailable => GpuTemp > 0;
 
         // Profile selection indicators
         public bool IsPerformanceSelected => SelectedProfile == "Performance";

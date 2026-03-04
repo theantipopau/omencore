@@ -299,6 +299,9 @@
                                    Foreground="#6B7280"
                                    VerticalAlignment="Center"
                                    Visibility="{Binding HasLastCleanResult, Converter={StaticResource BoolToVisibility}}"/>
+                        <Button Grid.Column="1" Content="📋" ToolTip="Copy last result" Command="{Binding CopyLastCleanCommand}" 
+                                Visibility="{Binding HasLastCleanResult, Converter={StaticResource BoolToVisibility}}" 
+                                Width="24" Height="24" Margin="4,0,0,0" />
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <Button Content="🧹 Smart Clean" 

@@ -70,6 +70,9 @@
                     <TextBlock Text="{Binding GuidedTestResult}" FontFamily="Consolas" FontSize="11" 
                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"
                                TextWrapping="Wrap"/>
+                    <Button Content="Copy Results" Command="{Binding CopyGuidedResultCommand}" 
+                            Style="{StaticResource ModernButton}" Margin="0,8,0,0" 
+                            Visibility="{Binding GuidedTestResult, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
                 </StackPanel>
             </Border>
 

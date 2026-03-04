@@ -27,3 +27,35 @@ jobs:
           OMENCORE_DISABLE_FILE_LOG: '1'
         run: |
           dotnet test "OmenCore.sln" -c Debug --no-build --logger "console;verbosity=normal"
+
+  wmi-v2-tests:
+    name: WMI V2 focused tests (unit)
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+      - name: Run WMI-V2 tests
+        env:
+          OMENCORE_DISABLE_FILE_LOG: '1'
+        run: |
+          dotnet test "OmenCore.sln" -c Debug --no-build --filter FullyQualifiedName~WmiV2VerificationTests|FullyQualifiedName~HpWmiBiosRpmParsingTests --logger "console;verbosity=minimal"
+
+  integration-tests:
+    name: Integration tests (quick-profile stress + diagnostics E2E)
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+      - name: Run integration tests
+        env:
+          OMENCORE_DISABLE_FILE_LOG: '1'
+        run: |
+          dotnet test "OmenCore.sln" -c Debug --no-build --filter FullyQualifiedName~FanSmoothingTests.QuickProfileSwitching_Stress_LongRun|FullyQualifiedName~ModelReportServiceTests.CreateModelDiagnosticBundleAsync_CreatesZipAndReturnsPath|FullyQualifiedName~FanControllerEcWatchdogTests|FullyQualifiedName~FanControllerEcRateTests --logger "console;verbosity=minimal"

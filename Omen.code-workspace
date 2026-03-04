@@ -4,5 +4,24 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"csharp.semanticHighlighting.enabled": true,
+		"csharp.suppressDotnetInstallWarning": true,
+		"csharp.suppressDotnetRestoreNotification": true,
+		"csharp.suppressProjectJsonWarning": true,
+		"csharp.suppressBuildAssetsNotification": true,
+		"csharp.suppressHiddenDiagnostics": true,
+		"csharp.maxProjectFileCountForDiagnosticAnalysis": 50,
+		"omnisharp.enableEditorConfigSupport": false,
+		"omnisharp.enableAsyncCompletion": true,
+		"omnisharp.enableLspDriver": true,
+		"omnisharp.enableMsBuildLoadProjectsOnDemand": true,
+		"omnisharp.maxProjectResults": 50,
+		"omnisharp.disableMSBuildDiagnosticWarning": true,
+		"omnisharp.useModernNet": true,
+		"omnisharp.loggingLevel": "information",
+		"omnisharp.autoStart": true,
+		"omnisharp.projectLoadTimeout": 60,
+		"dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true
+	}
 }

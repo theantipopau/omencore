@@ -33,17 +33,34 @@ namespace OmenCore.Hardware
         private DateTime _lastDutyWriteTime = DateTime.MinValue;
         private const double DutyDeduplicationSeconds = 15.0; // Skip identical writes within this window
 
-        public FanController(IEcAccess ecAccess, IReadOnlyDictionary<string, int> registerMap, LibreHardwareMonitorImpl? bridge, LoggingService? logging = null, HpWmiBios? wmiBios = null)
+        // EC write watchdog fields (safety)
+        private int _ecWriteFailureCount = 0;
+        private const int MaxEcWriteFailuresBeforeDisable = 3;
+        private DateTime _ecWritesDisabledUntil = DateTime.MinValue;
+        private readonly int _ecWriteDisableCooldownSeconds = 120;
+
+        public FanController(IEcAccess ecAccess, IReadOnlyDictionary<string, int> registerMap, LibreHardwareMonitorImpl? bridge, LoggingService? logging = null, HpWmiBios? wmiBios = null, int ecWriteDisableCooldownSeconds = 120)
         {
             _ecAccess = ecAccess;
             _registerMap = registerMap;
             _bridge = bridge;
             _wmiBios = wmiBios;
             _logging = logging;
+            _ecWriteDisableCooldownSeconds = ecWriteDisableCooldownSeconds;
             _logging?.Debug($"FanController initialized (EC access ready: {_ecAccess.IsAvailable}, bridge: {(bridge != null ? "LHM" : "none (FanService provides temps)")}, wmiBios: {(wmiBios != null ? "available" : "none")}");
         }
 
-        public bool IsEcReady => _ecAccess.IsAvailable;
+        public bool IsEcReady => _ecAccess.IsAvailable && !EcWritesTemporarilyDisabled;
+        
+        /// <summary>
+        /// True if EC writes are temporarily disabled by the watchdog (safety cooldown).
+        /// </summary>
+        public bool EcWritesTemporarilyDisabled => DateTime.UtcNow < _ecWritesDisabledUntil;
+        
+        /// <summary>
+        /// Number of consecutive EC write failures recorded by the watchdog.
+        /// </summary>
+        public int EcWriteFailureCount => _ecWriteFailureCount; 
 
         /// <summary>
         /// Apply a preset by evaluating the curve at current temperature.
@@ -417,6 +434,13 @@ namespace OmenCore.Hardware
         {
             // Track last set percentage for RPM estimation fallback
             _lastSetFanPercent = Math.Clamp(percent, 0, 100);
+
+            // If the EC watchdog has temporarily disabled EC writes, skip immediately.
+            if (EcWritesTemporarilyDisabled)
+            {
+                _logging?.Warn($"WriteDuty({percent}%) skipped — EC writes temporarily disabled by watchdog until {_ecWritesDisabledUntil:O}");
+                return;
+            }
             
             // EC WRITE DEDUPLICATION — Critical safety feature
             // When thermal protection is active, it calls WriteDuty(100) every poll cycle (1-5s).
@@ -490,12 +514,22 @@ namespace OmenCore.Hardware
                 // Update deduplication tracking AFTER successful write
                 _lastWrittenDutyPercent = percent;
                 _lastDutyWriteTime = now;
+                // reset EC watchdog failure counter on success
+                _ecWriteFailureCount = 0;
                 
                 _logging?.Debug($"WriteDuty({percent}%) completed: 7 EC writes");
             }
             catch (Exception ex)
             {
-                _logging?.Warn($"WriteDuty EC writes failed: {ex.Message}");
+                // Increment failure counter and engage temporary disable if threshold reached
+                _ecWriteFailureCount++;
+                _logging?.Warn($"WriteDuty EC writes failed (count={_ecWriteFailureCount}): {ex.Message}");
+
+                if (_ecWriteFailureCount >= MaxEcWriteFailuresBeforeDisable)
+                {
+                    _ecWritesDisabledUntil = DateTime.UtcNow.AddSeconds(_ecWriteDisableCooldownSeconds);
+                    _logging?.Error($"EC writes disabled for {_ecWriteDisableCooldownSeconds}s after {_ecWriteFailureCount} consecutive failures to prevent EC overload");
+                }
             }
         }
 
@@ -521,6 +555,13 @@ namespace OmenCore.Hardware
             const ushort REG_FAN_BOOST = 0xEC;
             
             _lastSetFanPercent = 100;
+
+            // If the EC watchdog has temporarily disabled EC writes, skip immediately.
+            if (EcWritesTemporarilyDisabled)
+            {
+                _logging?.Warn($"SetMaxSpeed skipped — EC writes temporarily disabled by watchdog until {_ecWritesDisabledUntil:O}");
+                return;
+            }
             
             // Deduplication: skip if already at max and written recently
             var now = DateTime.UtcNow;

@@ -3,6 +3,7 @@ using OmenCore.Hardware;
 using OmenCore.Logitech;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Utils;
 using OmenCore.Views;
 using System;
@@ -66,6 +67,7 @@ namespace OmenCore.ViewModels
         private readonly SystemInfoService _systemInfoService;
         private readonly AutoUpdateService _autoUpdateService;
         private readonly ProcessMonitoringService _processMonitoringService;
+        private readonly ITelemetryService _telemetryService;
         private readonly GameProfileService _gameProfileService;
         private readonly FanCleaningService _fanCleaningService;
         private readonly HotkeyService _hotkeyService;
@@ -74,12 +76,14 @@ namespace OmenCore.ViewModels
         private readonly PowerAutomationService _powerAutomationService;
         private readonly OmenKeyService _omenKeyService;
         private readonly NvapiService? _nvapiService;
-        private AmdGpuService? _amdGpuService;
+        private volatile AmdGpuService? _amdGpuService;
         private OsdService? _osdService;
         private ConflictDetectionService? _conflictDetectionService;
         private HpWmiBios? _wmiBios;
         private WmiBiosMonitor? _wmiBiosMonitor;
         private OghServiceProxy? _oghProxy;
+        private ThermalMonitoringService? _thermalMonitoringService;
+        private HardwareWatchdogService? _watchdogService;
         private HotkeyOsdWindow? _hotkeyOsd;
         private readonly object _trayActionQueueLock = new();
         private Func<Task>? _pendingTrayAction;
@@ -177,6 +181,13 @@ namespace OmenCore.ViewModels
             }
         }
 
+        private int _selectedTabIndex = 0;
+        public int SelectedTabIndex
+        {
+            get => _selectedTabIndex;
+            set { if (_selectedTabIndex != value) { _selectedTabIndex = value; OnPropertyChanged(nameof(SelectedTabIndex)); } }
+        }
+
         private SettingsViewModel? _settings;
         public SettingsViewModel? Settings
         {
@@ -186,12 +197,15 @@ namespace OmenCore.ViewModels
                 {
                     // Create services required for SettingsViewModel
                     var profileExportService = new ProfileExportService(_logging, _configService);
-                    var diagnosticsExportService = new DiagnosticsExportService(_logging, _configService);
+                    var diagnosticsExportService = new DiagnosticExportService(_logging, _logging.LogDirectory);
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
                         _wmiBios, _omenKeyService, _osdService, _hardwareMonitoringService, 
                         _powerAutomationService, _fanService);
+
+                    // Navigate to Bloatware Manager tab when requested from Settings
+                    _settings.NavigateToBloatwareRequested += OnBloatwareNavigationRequested;
                     
                     // Subscribe to low overhead mode changes from Settings
                     _settings.LowOverheadModeChanged += (s, enabled) =>
@@ -582,10 +596,10 @@ namespace OmenCore.ViewModels
             }
         }
         public bool MonitoringGraphsVisible => !MonitoringLowOverheadMode;
-        public string CpuSummary => LatestMonitoringSample == null ? "CPU telemetry unavailable" : $"{LatestMonitoringSample.CpuTemperatureC:F0}°C • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
-        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{LatestMonitoringSample.GpuTemperatureC:F0}°C • {LatestMonitoringSample.GpuLoadPercent:F0}% load • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM";
+        public string CpuSummary => LatestMonitoringSample == null ? "CPU telemetry unavailable" : $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
+        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
         public string MemorySummary => LatestMonitoringSample == null ? "Memory telemetry unavailable" : $"{LatestMonitoringSample.RamUsageGb:F1} / {LatestMonitoringSample.RamTotalGb:F0} GB";
-        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {LatestMonitoringSample.SsdTemperatureC:F0}°C • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
+        public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {(LatestMonitoringSample.SsdTemperatureC > 0 ? $"{LatestMonitoringSample.SsdTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
         public string CpuClockSummary => LatestMonitoringSample == null || LatestMonitoringSample.CpuCoreClocksMhz.Count == 0
             ? "Per-core clocks unavailable"
             : string.Join(", ", LatestMonitoringSample.CpuCoreClocksMhz.Select((c, i) => $"C{i + 1}:{c:F0}MHz"));
@@ -1055,6 +1069,10 @@ namespace OmenCore.ViewModels
         public ICommand ExportConfigurationCommand { get; }
         public ICommand ImportConfigurationCommand { get; }
 
+        // Diagnostics / reporting
+        public ICommand ReportModelCommand { get; }
+        public ICommand ExportTelemetryCommand { get; }
+
         // Expose Fan Diagnostics VM
         public FanDiagnosticsViewModel FanDiagnostics { get; private set; }
 
@@ -1155,9 +1173,9 @@ namespace OmenCore.ViewModels
                 CapabilityWarning = $"Desktop PC detected ({capabilities.Chassis}). Fan control uses WMI — EC-based curves are not available on desktops.";
                 _logging.Info("Desktop OMEN PC — WMI fan control active. Desktop RGB available via USB HID.");
             }
-            else if (capabilities.SecureBootEnabled && !capabilities.OghRunning)
+            else if (capabilities.SecureBootEnabled && !capabilities.PawnIOAvailable && !capabilities.OghRunning)
             {
-                CapabilityWarning = "Secure Boot enabled - some features may be limited. Install OMEN Gaming Hub for full control.";
+                CapabilityWarning = "Secure Boot enabled — WinRing0 is blocked. PawnIO provides compatible driver access for EC/MSR features.";
             }
             else if (capabilities.FanControl == Hardware.FanControlMethod.MonitoringOnly)
             {
@@ -1210,6 +1228,16 @@ namespace OmenCore.ViewModels
             // Create notification service early (before FanService which needs it)
             _notificationService = new NotificationService(_logging);
             
+            // Thermal alert service — fires Windows toast notifications on CPU/GPU/SSD overtemperature
+            _thermalMonitoringService = new ThermalMonitoringService(_logging, _notificationService);
+            var ta = _config.ThermalAlerts;
+            _thermalMonitoringService.IsEnabled = ta.IsEnabled;
+            _thermalMonitoringService.CpuWarningThreshold = ta.CpuWarningC;
+            _thermalMonitoringService.CpuCriticalThreshold = ta.CpuCriticalC;
+            _thermalMonitoringService.GpuWarningThreshold = ta.GpuWarningC;
+            _thermalMonitoringService.GpuCriticalThreshold = ta.GpuCriticalC;
+            _thermalMonitoringService.SsdWarningThreshold = ta.SsdWarningC;
+            
             _fanService = new FanService(fanController, new ThermalSensorProvider(monitorBridge), _logging, _notificationService, _config.MonitoringIntervalMs);
             _fanService.SetHysteresis(_config.FanHysteresis);
             _fanService.ThermalProtectionEnabled = _config.FanHysteresis?.ThermalProtectionEnabled ?? true;
@@ -1218,6 +1246,9 @@ namespace OmenCore.ViewModels
             ThermalSamples = _fanService.ThermalSamples;
             FanTelemetry = _fanService.FanTelemetry;
             var powerPlanService = new PowerPlanService(_logging);
+            
+            // Hardware watchdog — emergency fan-to-100% if temperature monitoring freezes
+            _watchdogService = new HardwareWatchdogService(_logging, _fanService);
 
             // Fan verification service (closed-loop verification)
             _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
@@ -1250,6 +1281,12 @@ namespace OmenCore.ViewModels
             }
             
             _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging);
+            
+            // Initialize SystemInfoService before KeyboardLightingService so the KB service
+            // receives a non-null reference and its DetectModelConfig() gets populated data.
+            _systemInfoService = new SystemInfoService(_logging);
+            SystemInfo = _systemInfoService.GetSystemInfo();
+
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService);
             _systemOptimizationService = new SystemOptimizationService(_logging);
             _gpuSwitchService = new GpuSwitchService(_logging);
@@ -1311,10 +1348,9 @@ namespace OmenCore.ViewModels
             
             _systemRestoreService = new SystemRestoreService(_logging);
             _hubCleanupService = new OmenGamingHubCleanupService(_logging);
-            _systemInfoService = new SystemInfoService(_logging);
-            SystemInfo = _systemInfoService.GetSystemInfo();
             _autoUpdateService = new AutoUpdateService(_logging);
             _processMonitoringService = new ProcessMonitoringService(_logging);
+            _telemetryService = new TelemetryService(_logging, _configService);
             _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
             _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService, _wmiBios, _oghProxy);
             _biosUpdateService = new BiosUpdateService(_logging);
@@ -1460,6 +1496,10 @@ namespace OmenCore.ViewModels
             ExportConfigurationCommand = new AsyncRelayCommand(_ => ExportConfigurationAsync());
             ImportConfigurationCommand = new AsyncRelayCommand(_ => ImportConfigurationAsync());
 
+            // Diagnostics / reporting
+            ReportModelCommand = new AsyncRelayCommand(async _ => await ReportModelAsync());
+            ExportTelemetryCommand = new AsyncRelayCommand(async _ => await ExportTelemetryAsync());
+
             _logging.LogEmitted += HandleLogLine;
 
             HydrateCollections();
@@ -1467,6 +1507,7 @@ namespace OmenCore.ViewModels
             _undervoltService.Start();
             _ = _undervoltService.RefreshAsync();
             _hardwareMonitoringService.Start();
+            _watchdogService.Start();
             OnPropertyChanged(nameof(MonitoringLowOverheadMode));
             OnPropertyChanged(nameof(MonitoringGraphsVisible));
             _monitoringInitialized = true;
@@ -2401,6 +2442,10 @@ namespace OmenCore.ViewModels
 
         private void HardwareMonitoringServiceOnSampleUpdated(object? sender, MonitoringSample sample)
         {
+            // Feed sample to thermal alert service and hardware watchdog (background — no UI dispatch needed)
+            _thermalMonitoringService?.ProcessSample(sample);
+            _watchdogService?.UpdateTemperature(sample.CpuTemperatureC, sample.GpuTemperatureC);
+            
             Application.Current?.Dispatcher?.BeginInvoke(() => LatestMonitoringSample = sample);
         }
 
@@ -2651,6 +2696,70 @@ namespace OmenCore.ViewModels
                     _logging.Error("Failed to import configuration", ex);
                     PushEvent($"✗ Import failed: {ex.Message}");
                 }
+            }
+            await Task.CompletedTask;
+        }
+
+        private async Task ReportModelAsync()
+        {
+            try
+            {
+                var exportedPath = await ModelReportService.CreateModelDiagnosticBundleAsync(_systemInfoService, new DiagnosticExportService(_logging, _logging.LogDirectory), _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
+
+                if (!string.IsNullOrEmpty(exportedPath) && File.Exists(exportedPath))
+                {
+                    var sysInfo = _systemInfoService.GetSystemInfo();
+                    var model = !string.IsNullOrEmpty(sysInfo.Model) ? sysInfo.Model : (sysInfo.ProductName ?? "Unknown");
+                    var productName = sysInfo.ProductName ?? string.Empty;
+                    var sku = sysInfo.SystemSku ?? string.Empty;
+
+                    var clipboardText = $"Model: {model}\nProductName: {productName}\nSystemSku: {sku}\nDiagnostics: {exportedPath}";
+                    try { Clipboard.SetText(clipboardText); } catch { _logging.Warn("Clipboard unavailable for ReportModel"); }
+
+                    _logging.Info($"ReportModel: diagnostics exported to {exportedPath} and model info copied to clipboard (Model={model})");
+                    PushEvent("✓ Diagnostics bundle created and model info copied to clipboard");
+
+                    if (Application.Current != null)
+                    {
+                        MessageBox.Show(
+                            $"Diagnostics bundle created and model info copied to clipboard.\n\nModel: {model}\nPath: {exportedPath}",
+                            "Report Model",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                }
+                else
+                {
+                    _logging.Warn("ReportModel: diagnostics export returned no path");
+                    PushEvent("✗ Report model failed: export error");
+                    if (Application.Current != null)
+                        MessageBox.Show("Failed to create diagnostics bundle.", "Report Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error("ReportModel failed", ex);
+                PushEvent($"✗ Report model failed: {ex.Message}");
+                if (Application.Current != null)
+                    MessageBox.Show($"Failed to create diagnostics bundle: {ex.Message}", "Report Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+            await Task.CompletedTask;
+        }
+
+        private async Task ExportTelemetryAsync()
+        {
+            var path = _telemetryService.ExportTelemetry();
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                try { Clipboard.SetText(path); } catch { _logging.Warn("Clipboard unavailable for telemetry export"); }
+                _logging.Info($"Telemetry exported to: {path}");
+                PushEvent("✓ Telemetry exported");
+            }
+            else
+            {
+                _logging.Warn("Telemetry export failed");
+                PushEvent("✗ Telemetry export failed");
             }
             await Task.CompletedTask;
         }
@@ -3215,6 +3324,14 @@ namespace OmenCore.ViewModels
         }
 
         /// <summary>
+        /// Navigate to the Bloatware Manager tab when requested from Settings view.
+        /// </summary>
+        private void OnBloatwareNavigationRequested()
+        {
+            SelectedTabIndex = 7; // Bloatware tab index
+        }
+
+        /// <summary>
         /// Handle fan preset changes from FanService (e.g., power automation).
         /// Updates all UI indicators: sidebar, tray, dashboard.
         /// </summary>
@@ -3274,14 +3391,51 @@ namespace OmenCore.ViewModels
             {
                 // Only register hotkeys if enabled in settings
                 var hotkeysEnabled = _config.Monitoring?.HotkeysEnabled ?? true;
+                var windowFocused = _config.Monitoring?.WindowFocusedHotkeys ?? true;
                 
                 _hotkeyService.Initialize(windowHandle);
                 
                 if (hotkeysEnabled)
                 {
-                    _hotkeyService.RegisterDefaultHotkeys();
-                    _logging.Info("Global hotkeys registered");
-                    PushEvent("⌨️ Global hotkeys enabled");
+                    if (windowFocused)
+                    {
+                        // ToggleWindow (Ctrl+Shift+O) must ALWAYS be registered globally.
+                        // Its entire purpose is to bring the window back from tray — it must
+                        // fire even when the window is hidden/deactivated.
+                        _hotkeyService.RegisterHotkey(HotkeyAction.ToggleWindow, ModifierKeys.Control | ModifierKeys.Shift, Key.O);
+                        _logging.Info("ToggleWindow hotkey registered globally (window-focus mode)");
+
+                        // Attach to main window activation events so that the remaining hotkeys
+                        // are only active when the app has focus. This avoids conflicts with
+                        // other applications using the same shortcuts (e.g. games, editors).
+                        var wnd = Application.Current?.MainWindow;
+                        if (wnd != null)
+                        {
+                            wnd.Activated += OnMainWindowActivated;
+                            wnd.Deactivated += OnMainWindowDeactivated;
+                            _logging.Info("Window-focused hotkey behaviour enabled");
+                            // If window already active, register immediately
+                            if (wnd.IsActive)
+                            {
+                                _hotkeyService.RegisterDefaultHotkeys();
+                                _logging.Info("Hotkeys registered (window already active)");
+                                PushEvent("⌨️ Hotkeys active (window focus)");
+                            }
+                        }
+                        else
+                        {
+                            // Fallback: no window handle, just register normally
+                            _hotkeyService.RegisterDefaultHotkeys();
+                            _logging.Info("Global hotkeys registered (no window handle)");
+                            PushEvent("⌨️ Global hotkeys enabled");
+                        }
+                    }
+                    else
+                    {
+                        _hotkeyService.RegisterDefaultHotkeys();
+                        _logging.Info("Global hotkeys registered");
+                        PushEvent("⌨️ Global hotkeys enabled");
+                    }
                 }
                 else
                 {
@@ -3344,6 +3498,40 @@ namespace OmenCore.ViewModels
             }
         }
 
+        #region Hotkey focus handlers
+
+        private void OnMainWindowActivated(object? sender, EventArgs e)
+        {
+            try
+            {
+                _hotkeyService.RegisterDefaultHotkeys();
+                _logging.Info("Hotkeys registered (window activated)");
+                PushEvent("⌨️ Hotkeys active (window focused)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to register hotkeys on activate: {ex.Message}");
+            }
+        }
+
+        private void OnMainWindowDeactivated(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Unregister all window-focused hotkeys EXCEPT ToggleWindow (Ctrl+Shift+O).
+                // ToggleWindow must stay registered so the app can be brought back from tray
+                // even when the window is hidden/deactivated.
+                _hotkeyService.UnregisterAllExcept(HotkeyAction.ToggleWindow);
+                _logging.Info("Hotkeys unregistered (window deactivated; ToggleWindow preserved)");
+                PushEvent("⌨️ Hotkeys inactive (window lost focus)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to unregister hotkeys on deactivate: {ex.Message}");
+            }
+        }
+        #endregion
+
         #endregion
 
         public void Dispose()
@@ -3354,6 +3542,16 @@ namespace OmenCore.ViewModels
             
             _safeModeResetTimer?.Dispose();
             _safeModeResetTimer = null;
+            
+            // Unsubscribe from Settings events before disposing
+            if (_settings != null)
+            {
+                _settings.NavigateToBloatwareRequested -= OnBloatwareNavigationRequested;
+            }
+            
+            // Unsubscribe fan/performance service events before disposing
+            _fanService.PresetApplied -= OnFanPresetApplied;
+            _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
             _fanService.Dispose();
             _undervoltService.StatusChanged -= UndervoltServiceOnStatusChanged;
             _undervoltService.Dispose();
@@ -3388,6 +3586,13 @@ namespace OmenCore.ViewModels
                 _hotkeyService.ToggleQuietModeRequested -= OnHotkeyToggleQuietMode;
                 _hotkeyService.ToggleWindowRequested -= OnHotkeyToggleWindow;
             }
+            // Unsubscribe window focus handlers if attached
+            var wnd = Application.Current?.MainWindow;
+            if (wnd != null)
+            {
+                wnd.Activated -= OnMainWindowActivated;
+                wnd.Deactivated -= OnMainWindowDeactivated;
+            }
 
             // Dispose process monitoring and game profile services
             _processMonitoringService?.Dispose();
@@ -3397,6 +3602,14 @@ namespace OmenCore.ViewModels
             _hotkeyService?.Dispose();
             _notificationService?.Dispose();
             
+            // Unsubscribe OMEN key events before disposing the service
+            if (_omenKeyService != null)
+            {
+                _omenKeyService.ToggleOmenCoreRequested -= OnOmenKeyToggleWindow;
+                _omenKeyService.CyclePerformanceRequested -= OnHotkeyTogglePerformanceMode;
+                _omenKeyService.CycleFanModeRequested -= OnHotkeyToggleFanMode;
+                _omenKeyService.ToggleMaxCoolingRequested -= OnOmenKeyToggleMaxCooling;
+            }
             // Dispose OMEN key service
             _omenKeyService?.Dispose();
             
@@ -3411,6 +3624,10 @@ namespace OmenCore.ViewModels
             _corsairDeviceService?.Dispose();
             _logitechDeviceService?.Dispose();
 
+            // Dispose thermal monitoring and hardware watchdog
+            _thermalMonitoringService = null;
+            _watchdogService?.Dispose();
+            
             // Dispose memory optimizer
             _memoryOptimizer?.Dispose();
         }

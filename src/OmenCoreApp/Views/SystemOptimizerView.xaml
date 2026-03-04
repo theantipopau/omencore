@@ -45,7 +45,7 @@
 
         <!-- Card Style -->
         <Style x:Key="OptimizationCard" TargetType="Border">
-            <Setter Property="Background" Value="#1A1D2E"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16,12"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
@@ -169,13 +169,13 @@
                         
                         <TextBlock Text="{Binding Description}" 
                                    FontSize="12" 
-                                   Foreground="#9CA3AF"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    MaxWidth="500"/>
                         
                         <TextBlock Text="{Binding Warning}" 
                                    FontSize="11" 
-                                   Foreground="#FFB800"
+                                   Foreground="{StaticResource WarningBrush}"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}"/>
                     </StackPanel>
@@ -198,60 +198,47 @@
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
                 Panel.ZIndex="100">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="⟳" 
-                           FontSize="32" 
-                           Foreground="#00C8C8"
-                           HorizontalAlignment="Center">
-                    <TextBlock.RenderTransform>
-                        <RotateTransform x:Name="LoadingRotate"/>
-                    </TextBlock.RenderTransform>
-                    <TextBlock.Triggers>
-                        <EventTrigger RoutedEvent="Loaded">
-                            <BeginStoryboard>
-                                <Storyboard RepeatBehavior="Forever">
-                                    <DoubleAnimation Storyboard.TargetName="LoadingRotate"
-                                                     Storyboard.TargetProperty="Angle"
-                                                     From="0" To="360" Duration="0:0:1"/>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
-                    </TextBlock.Triggers>
-                </TextBlock>
+                <ProgressBar IsIndeterminate="True" Width="180" Height="3"
+                             Margin="0,0,0,12"
+                             Background="{StaticResource SurfaceMediumBrush}"
+                             Foreground="{StaticResource AccentBlueBrush}"
+                             BorderThickness="0"/>
                 <TextBlock Text="{Binding StatusMessage}" 
-                           Foreground="#9CA3AF" 
-                           Margin="0,8,0,0"/>
+                           Foreground="{StaticResource TextSecondaryBrush}" 
+                           HorizontalAlignment="Center"
+                           Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="24">
                 <!-- Header -->
-                <Grid Margin="0,0,0,24">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <StackPanel>
-                        <TextBlock Text="System Optimizer" 
-                                   FontSize="28" 
-                                   FontWeight="Bold" 
-                                   Foreground="White"/>
-                        <TextBlock Text="Fine-tune Windows for gaming performance" 
-                                   FontSize="14" 
-                                   Foreground="#9CA3AF"
-                                   Margin="0,4,0,0"/>
-                    </StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconSettings}" Width="20" Height="20" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <StackPanel>
+                                <TextBlock Text="System Optimizer" Style="{StaticResource Headline}"/>
+                                <TextBlock Text="Fine-tune Windows for gaming performance" Style="{StaticResource Caption}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
 
-                    <Button Grid.Column="1" 
-                            Content="↻ Refresh" 
-                            Style="{StaticResource PresetButton}"
-                            Command="{Binding RefreshCommand}"
-                            VerticalAlignment="Center"/>
-                </Grid>
+                        <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding RefreshCommand}" Padding="12,6" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconRefresh}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                <TextBlock Text="Refresh" FontSize="12"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
 
                 <!-- Summary & Presets -->
-                <Border Background="#1A1D2E" CornerRadius="12" Padding="20" Margin="0,0,0,24">
+                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12" Padding="20" Margin="0,0,0,24">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -265,25 +252,37 @@
                                        Foreground="White"/>
                             <TextBlock Text="{Binding StatusMessage}" 
                                        FontSize="12" 
-                                       Foreground="#9CA3AF"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
                                        Margin="0,4,0,0"/>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Content="🎮 Gaming Max" 
-                                    Style="{StaticResource AccentButton}"
+                            <Button Style="{StaticResource AccentButton}"
                                     Command="{Binding ApplyGamingMaxCommand}"
                                     Margin="0,0,8,0"
-                                    ToolTip="Apply all optimizations for maximum gaming performance"/>
-                            <Button Content="⚖️ Balanced" 
-                                    Style="{StaticResource PresetButton}"
+                                    ToolTip="Apply all optimizations for maximum gaming performance">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="#0F111C" Stretch="Uniform" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Gaming Max" FontSize="13" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource PresetButton}"
                                     Command="{Binding ApplyBalancedCommand}"
                                     Margin="0,0,8,0"
-                                    ToolTip="Apply recommended optimizations only"/>
-                            <Button Content="↩️ Revert All" 
-                                    Style="{StaticResource DangerButton}"
+                                    ToolTip="Apply recommended optimizations only">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="White" Stretch="Uniform" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Balanced" FontSize="13" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource DangerButton}"
                                     Command="{Binding RevertAllCommand}"
-                                    ToolTip="Restore all settings to Windows defaults"/>
+                                    ToolTip="Restore all settings to Windows defaults">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="{StaticResource IconRestore}" Width="14" Height="14" Fill="White" Stretch="Uniform" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Revert All" FontSize="13" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -299,17 +298,26 @@
                     <!-- Left Column -->
                     <StackPanel Grid.Column="0">
                         <!-- Power Optimizations -->
-                        <TextBlock Text="⚡ Power &amp; Performance" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Power &amp; Performance" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding PowerOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Service Optimizations -->
-                        <TextBlock Text="🔧 Windows Services" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconSettings}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Windows Services" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding ServiceOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Network Optimizations -->
-                        <TextBlock Text="🌐 Network &amp; Latency" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconNetwork}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Network &amp; Latency" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding NetworkOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
                     </StackPanel>
@@ -317,31 +325,39 @@
                     <!-- Right Column -->
                     <StackPanel Grid.Column="2">
                         <!-- Input Optimizations -->
-                        <TextBlock Text="🎯 Input &amp; Gaming" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconMouse}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Input &amp; Gaming" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding InputOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Visual Optimizations -->
-                        <TextBlock Text="🖼️ Visual Effects" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconEye}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Visual Effects" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding VisualOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Storage Optimizations -->
-                        <TextBlock Text="💾 Storage &amp; Disk" Style="{StaticResource SectionHeader}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
+                            <Path Data="{StaticResource IconStorage}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Storage &amp; Disk" Style="{StaticResource SectionHeader}" Margin="0"/>
+                        </StackPanel>
                         <ItemsControl ItemsSource="{Binding StorageOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- Footer Info -->
-                <Border Background="#1A1D2E" CornerRadius="8" Padding="16" Margin="0,24,0,0">
+                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="8" Padding="16" Margin="0,24,0,0">
                     <StackPanel>
-                        <TextBlock Text="ℹ️ Important Notes" 
-                                   FontSize="14" 
-                                   FontWeight="SemiBold" 
-                                   Foreground="#FFB800"
-                                   Margin="0,0,0,8"/>
-                        <TextBlock Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Path Data="{StaticResource IconAbout}" Width="14" Height="14" Fill="{StaticResource WarningBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Important Notes" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"/>
+                        </StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap">
                             • A system restore point is created before applying presets&#x0a;
                             • Some changes may require a restart to take effect&#x0a;
                             • Medium/High risk optimizations may affect system stability or features&#x0a;

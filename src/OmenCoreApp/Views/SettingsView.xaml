@@ -7,33 +7,81 @@
              xmlns:utils="clr-namespace:OmenCore.Utils"
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1000">
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/Styles/ModernStyles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Settings" 
-                       FontSize="28" FontWeight="Bold" 
-                       Foreground="{StaticResource TextPrimaryBrush}"/>
-            <TextBlock Text="Configure application behavior, startup options, and driver settings" 
-                       FontSize="12" 
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       Opacity="0.9"
-                       Margin="0,4,0,0"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="260"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Settings" 
+                           FontSize="28" FontWeight="Bold" 
+                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Configure application behavior, startup options, and driver settings" 
+                           FontSize="12" 
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Opacity="0.9"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+            <!-- Search box -->
+            <Border Grid.Column="1" Background="{StaticResource SurfaceDarkBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,4" VerticalAlignment="Bottom">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Path Grid.Column="0" Data="{StaticResource IconSearch}" Width="14" Height="14" Fill="{StaticResource TextTertiaryBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding SettingsSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}"
+                             FontSize="12" VerticalAlignment="Center"
+                             CaretBrush="{StaticResource TextPrimaryBrush}">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="0"/>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Search results panel -->
+        <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8"
+                Visibility="{Binding SettingsSearchVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Search Results" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8"/>
+                <ItemsControl ItemsSource="{Binding SettingsSearchResults}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="4,6" BorderThickness="0,0,0,1" BorderBrush="{StaticResource BorderBrush}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="{StaticResource AccentBlueBrush}" CornerRadius="3" Padding="4,2" HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding TabName}" FontSize="10" FontWeight="SemiBold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
 
         <!-- Sub-tabs for easier navigation (GitHub #48 - kg290) -->
-        <TabControl Grid.Row="1" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" Margin="0,8,0,0">
+        <TabControl Grid.Row="2" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" Margin="0,8,0,0">
             <!-- Status Tab -->
             <TabItem Header="Status">
                 <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
@@ -66,10 +114,10 @@
                             </StackPanel>
                             <Border Grid.Column="1" Background="#1A4CAF50" CornerRadius="4" Padding="12,6">
                                 <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Fill="#4CAF50" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding FanBackend, FallbackValue=Detecting...}" 
                                                FontSize="13" FontWeight="SemiBold"
-                                               Foreground="#4CAF50"/>
+                                               Foreground="{StaticResource SuccessBrush}"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -86,10 +134,10 @@
                                 <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="Secure Boot is disabled - legacy drivers available"/>
+                                            <Setter Property="Text" Value="Secure Boot is disabled — legacy unsigned drivers available"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
-                                                    <Setter Property="Text" Value="Secure Boot blocks unsigned drivers. Use PawnIO or WMI BIOS."/>
+                                                    <Setter Property="Text" Value="Secure Boot enabled — unsigned drivers blocked. PawnIO or WMI BIOS provides compatible access."/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -111,11 +159,11 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Disabled"/>
-                                            <Setter Property="Foreground" Value="#4CAF50"/>
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
                                                     <Setter Property="Text" Value="🔒 Enabled"/>
-                                                    <Setter Property="Foreground" Value="#FF9800"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -151,11 +199,11 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Installed"/>
-                                            <Setter Property="Foreground" Value="#F44336"/>
+                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding PawnIOAvailable}" Value="True">
                                                     <Setter Property="Text" Value="✓ Installed"/>
-                                                    <Setter Property="Foreground" Value="#4CAF50"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -939,6 +987,22 @@
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding HotkeysEnabled}"/>
                         </Grid>
+                        <!-- Window-focused toggle -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Only enable hotkeys when window is focused" FontSize="14" 
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Prevents conflicts by deactivating hotkeys when the app isn’t active" FontSize="12" 
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" 
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding HotkeysWindowFocused}"/>
+                        </Grid>
 
                         <!-- Experimental Firmware Fn+P Profile Cycle -->
                         <Grid Margin="0,0,0,12">
@@ -1138,12 +1202,14 @@
                                     Command="{Binding InstallDriverCommand}"
                                     HorizontalAlignment="Left"
                                     Padding="20,10"
-                                    Margin="0,0,12,0"/>
+                                    Margin="0,0,12,0"
+                                    ToolTip="Download and install PawnIO — a Secure Boot compatible driver for EC/MSR access"/>
                             <Button Content="🔄 Refresh Status" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding RefreshDriverStatusCommand}"
                                     HorizontalAlignment="Left"
-                                    Padding="20,10"/>
+                                    Padding="20,10"
+                                    ToolTip="Re-check driver and EC backend status"/>
                         </StackPanel>
                         
                         <!-- EC Reset Section -->
@@ -1255,14 +1321,16 @@
                                     Command="{Binding CheckBiosUpdatesCommand}"
                                     HorizontalAlignment="Left"
                                     Padding="20,10"
-                                    Margin="0,0,12,0"/>
+                                    Margin="0,0,12,0"
+                                    ToolTip="Check HP for available BIOS firmware updates"/>
                             <Button Content="⬇️ Download Update" 
                                     Style="{StaticResource ModernButton}"
                                     Background="#66BB6A"
                                     Command="{Binding DownloadBiosUpdateCommand}"
                                     Visibility="{Binding BiosUpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
                                     HorizontalAlignment="Left"
-                                    Padding="20,10"/>
+                                    Padding="20,10"
+                                    ToolTip="Download and launch the BIOS update installer"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -1403,7 +1471,8 @@
                                 Command="{Binding StartFanCleaningCommand}"
                                 IsEnabled="{Binding CanStartFanCleaning}"
                                 HorizontalAlignment="Left"
-                                Padding="20,10"/>
+                                Padding="20,10"
+                                ToolTip="Run fans at maximum speed for ~60 seconds to clear dust buildup"/>
 
                         <!-- Boost Progress -->
                         <StackPanel Visibility="{Binding IsFanCleaningActive, Converter={StaticResource BooleanToVisibilityConverter}}"
@@ -1419,89 +1488,36 @@
                     </StackPanel>
                 </Border>
 
-                <!-- HP Bloatware Removal -->
+                <!-- HP Bloatware Removal — redirects to dedicated tab -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <Path Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z" 
-                                  Fill="#EF5350" 
-                                  Width="24" Height="24" Stretch="Uniform" 
+                            <Path Data="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"
+                                  Fill="#EF5350"
+                                  Width="24" Height="24" Stretch="Uniform"
                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
                             <StackPanel>
-                                <TextBlock Text="HP Bloatware Removal" FontSize="20" FontWeight="SemiBold" 
+                                <TextBlock Text="HP Bloatware Removal" FontSize="20" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Remove unnecessary HP pre-installed apps" FontSize="12" 
+                                <TextBlock Text="Remove unnecessary HP pre-installed apps" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <TextBlock TextWrapping="Wrap" FontSize="13" 
-                                   Foreground="{StaticResource TextSecondaryBrush}" 
-                                   Margin="0,0,0,12">
-                            Scan for and remove HP bloatware apps that may slow down your system. HP Support Assistant is excluded and will be preserved.
+                        <TextBlock TextWrapping="Wrap" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,16">
+                            Bloatware removal has moved to its own dedicated tab with per-app risk ratings,
+                            selective removal, restore capability, and a full item list.
                         </TextBlock>
-                        
-                        <!-- Warning disclaimer -->
-                        <Border Background="#33EF5350" CornerRadius="6" Padding="12" Margin="0,0,0,16">
-                            <TextBlock TextWrapping="Wrap" FontSize="12" 
-                                       Foreground="{StaticResource TextPrimaryBrush}">
-                                <Run Foreground="#EF5350" FontWeight="Bold">⚠️ Warning:</Run>
-                                This action cannot be undone! Apps can only be reinstalled from the Microsoft Store or HP Support.
-                                <LineBreak/><LineBreak/>
-                                A system restart is recommended after removal to ensure all components are fully unloaded.
-                            </TextBlock>
-                        </Border>
 
-                        <!-- Scan Status -->
-                        <Border Background="{StaticResource SurfaceDarkBrush}" 
-                                CornerRadius="8" Padding="12" Margin="0,0,0,16"
-                                Visibility="{Binding BloatwareList, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           Margin="0,0,0,8">
-                                    <Run Text="Found "/>
-                                    <Run Text="{Binding BloatwareCount, Mode=OneWay}" Foreground="#EF5350" FontWeight="Bold"/>
-                                    <Run Text=" HP bloatware packages:"/>
-                                </TextBlock>
-                                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
-                                    <TextBlock Text="{Binding BloatwareList}" 
-                                               FontSize="12" FontFamily="Consolas"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               TextWrapping="Wrap"/>
-                                </ScrollViewer>
-                            </StackPanel>
-                        </Border>
-
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="🔍 Scan for Bloatware" 
-                                    Style="{StaticResource ModernButton}"
-                                    Background="#42A5F5"
-                                    Command="{Binding ScanBloatwareCommand}"
-                                    IsEnabled="{Binding IsScanningBloatware, Converter={StaticResource InverseBooleanConverter}}"
-                                    HorizontalAlignment="Left"
-                                    Padding="20,10"
-                                    Margin="0,0,12,0"/>
-                            <Button Content="🗑️ Remove Bloatware" 
-                                    Style="{StaticResource ModernButton}"
-                                    Background="#EF5350"
-                                    Command="{Binding RemoveBloatwareCommand}"
-                                    Visibility="{Binding BloatwareCount, Converter={StaticResource IntGreaterThanZeroToVisibilityConverter}}"
-                                    IsEnabled="{Binding IsScanningBloatware, Converter={StaticResource InverseBooleanConverter}}"
-                                    HorizontalAlignment="Left"
-                                    Padding="20,10"/>
-                        </StackPanel>
-
-                        <!-- Scanning Progress -->
-                        <StackPanel Visibility="{Binding IsScanningBloatware, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    Margin="0,16,0,0">
-                            <TextBlock Text="{Binding BloatwareProgress}" 
-                                       FontSize="14" FontWeight="SemiBold"
-                                       Foreground="#42A5F5"
-                                       Margin="0,0,0,8"/>
-                            <ProgressBar IsIndeterminate="True" Height="8"
-                                         Foreground="#42A5F5"/>
-                        </StackPanel>
+                        <Button Content="🗑️ Open Bloatware Manager →"
+                                Style="{StaticResource ModernButton}"
+                                Background="#EF5350"
+                                Command="{Binding NavigateToBloatwareCommand}"
+                                HorizontalAlignment="Left"
+                                Padding="20,10"
+                                ToolTip="Switch to the Bloatware Manager tab"/>
                     </StackPanel>
                 </Border>
 
@@ -2409,7 +2425,8 @@
                                 <Button Content="Create Manual Restore Point" 
                                         Style="{StaticResource SecondaryButton}"
                                         Command="{Binding CreateRestorePointCommand}"
-                                        HorizontalAlignment="Left" Padding="16,8" Margin="0,12,0,0"/>
+                                        HorizontalAlignment="Left" Padding="16,8" Margin="0,12,0,0"
+                                        ToolTip="Create a Windows System Restore snapshot before running cleanup"/>
                             </StackPanel>
                         </Border>
 
@@ -2439,7 +2456,8 @@
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding RunCleanupCommand}"
                                     Padding="16,8"
-                                    Background="OrangeRed"/>
+                                    Background="{StaticResource ErrorBrush}"
+                                    ToolTip="Execute the selected Windows system cleanup tasks"/>
                         </Grid>
                         
                         <!-- Cleanup Steps Log (visible during/after cleanup) -->
@@ -2550,11 +2568,13 @@
                             <Button Content="📂 Open Config Folder" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenConfigFolderCommand}"
-                                    Padding="16,8" Margin="0,0,12,0"/>
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="Open %LOCALAPPDATA%\OmenCore — where settings and profiles are stored"/>
                             <Button Content="📋 Open Log Folder" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenLogFolderCommand}"
-                                    Padding="16,8" Margin="0,0,12,0"/>
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="Open the folder containing OmenCore diagnostic log files"/>
                             <Button Content="🔄 Reset to Defaults" 
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding ResetToDefaultsCommand}"
@@ -2600,15 +2620,18 @@
                             <Button Content="🌐 GitHub" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenGitHubCommand}"
-                                    Padding="16,8" Margin="0,0,12,0"/>
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="Open the OmenCore GitHub repository in your browser"/>
                             <Button Content="📝 Release Notes" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenReleaseNotesCommand}"
-                                    Padding="16,8" Margin="0,0,12,0"/>
+                                    Padding="16,8" Margin="0,0,12,0"
+                                    ToolTip="View the full changelog for this release"/>
                             <Button Content="🐛 Report Issue" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding OpenIssuesCommand}"
-                                    Padding="16,8"/>
+                                    Padding="16,8"
+                                    ToolTip="Open the GitHub issue tracker to report a bug or request a feature"/>
                         </StackPanel>
                         
                         <!-- Support Section -->
@@ -2633,9 +2656,88 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- Scheduler Tab -->
+            <TabItem Header="Scheduler">
+                <ScrollViewer Style="{StaticResource SmoothScrollViewer}" IsDeferredScrollingEnabled="True" Padding="0,0,12,0">
+                    <StackPanel>
+                        <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Path Data="{StaticResource IconSchedule}" Fill="{StaticResource AccentBrush}" Width="22" Height="22" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Profile Scheduler" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
+                                <TextBlock Text="Automatically apply fan presets and performance modes at scheduled times each day." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,20"/>
+
+                                <!-- Rules list -->
+                                <ItemsControl ItemsSource="{Binding ScheduleRules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Enable toggle -->
+                                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                                                    <!-- Rule name + time -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBox Text="{Binding RuleName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                 Style="{StaticResource ModernTextBox}" FontSize="13" FontWeight="SemiBold" Padding="4,2"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                            <TextBlock Text="Time:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                            <TextBox Text="{Binding TriggerTime, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                     Style="{StaticResource ModernTextBox}" FontSize="11" Width="50" Padding="4,2"/>
+                                                            <TextBlock Text="Fan:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                                                            <ComboBox SelectedValue="{Binding FanPreset, Mode=TwoWay}" Width="90" FontSize="11"
+                                                                      Style="{StaticResource ModernComboBox}">
+                                                                <ComboBoxItem Content="Auto"/>
+                                                                <ComboBoxItem Content="Silent"/>
+                                                                <ComboBoxItem Content="Gaming"/>
+                                                                <ComboBoxItem Content="Extreme"/>
+                                                                <ComboBoxItem Content="Max"/>
+                                                            </ComboBox>
+                                                            <TextBlock Text="Mode:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="12,0,6,0"/>
+                                                            <ComboBox SelectedValue="{Binding PerformanceMode, Mode=TwoWay}" Width="100" FontSize="11"
+                                                                      Style="{StaticResource ModernComboBox}">
+                                                                <ComboBoxItem Content=""/>
+                                                                <ComboBoxItem Content="Balanced"/>
+                                                                <ComboBoxItem Content="Performance"/>
+                                                                <ComboBoxItem Content="Silent"/>
+                                                            </ComboBox>
+                                                        </StackPanel>
+                                                    </StackPanel>
+
+                                                    <!-- Remove button -->
+                                                    <Button Grid.Column="4" Content="✕" Style="{StaticResource DangerButton}"
+                                                            Command="{Binding DataContext.RemoveScheduleRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Width="32" Height="32" Padding="0" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Add rule button -->
+                                <Button Content="+ Add Rule" Command="{Binding AddScheduleRuleCommand}"
+                                        Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
+                                        Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
         </TabControl>
         
         <!-- Loading Overlay -->
-        <controls:LoadingOverlay Grid.RowSpan="2" Panel.ZIndex="1000" />
+        <controls:LoadingOverlay Grid.RowSpan="3" Panel.ZIndex="1000" />
     </Grid>
 </UserControl>

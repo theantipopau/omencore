@@ -8,6 +8,14 @@ namespace OmenCore.Models
         
         // Hotkey and notification settings
         public bool HotkeysEnabled { get; set; } = true;
+        
+        /// <summary>
+        /// When true, global hotkeys are only active while the main window has focus.
+        /// This avoids conflicts with other applications when using common shortcuts.
+        /// Default: true (window-focused). Setting to false reverts to the legacy global behavior.
+        /// </summary>
+        public bool WindowFocusedHotkeys { get; set; } = true;
+
         public bool NotificationsEnabled { get; set; } = true;
         public bool GameNotificationsEnabled { get; set; } = true;
         public bool ModeChangeNotificationsEnabled { get; set; } = true;

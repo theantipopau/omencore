@@ -237,7 +237,7 @@ namespace OmenCore.Controls
             {
                 var sample = _dashboardViewModel?.LatestMonitoringSample ?? _mainViewModel?.LatestMonitoringSample;
 
-                App.Logging.Info($"[Dashboard.UpdateMetrics] Called! LatestMonitoringSample={( sample == null ? "NULL" : $"CPU={sample.CpuTemperatureC}°C" )}");
+                App.Logging.Debug($"[Dashboard.UpdateMetrics] Called! LatestMonitoringSample={( sample == null ? "NULL" : $"CPU={sample.CpuTemperatureC}°C" )}");
 
                 if (sample == null)
                 {
@@ -328,7 +328,10 @@ namespace OmenCore.Controls
                 if (CpuLoadValue != null) CpuLoadValue.Text = cpuLoadStr;
                 if (GpuLoadValue != null) GpuLoadValue.Text = gpuLoadStr;
                 
-                App.Logging.Info($"[Dashboard.UpdateMetrics] Load updated: CpuLoad={cpuLoadStr}%, GpuLoad={gpuLoadStr}%, RAM={sample.RamUsageGb:F1}GB, CpuClock={sample.CpuCoreClocksMhz?.Count ?? 0} cores");
+                var avgCpuClockStr = (sample.CpuCoreClocksMhz?.Count > 0)
+                    ? $"{sample.CpuCoreClocksMhz.Average():F0} MHz ({sample.CpuCoreClocksMhz.Count} cores)"
+                    : "--";
+                App.Logging.Debug($"[Dashboard.UpdateMetrics] Load updated: CpuLoad={cpuLoadStr}%, GpuLoad={gpuLoadStr}%, RAM={sample.RamUsageGb:F1}GB, CpuClock={avgCpuClockStr}");
                 
                 // Update progress bars
                 if (CpuLoadBar != null) CpuLoadBar.Value = Math.Min(100, sample.CpuLoadPercent);

@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -9,10 +12,12 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Utils;
 
 namespace OmenCore.ViewModels
@@ -31,7 +36,7 @@ namespace OmenCore.ViewModels
         private readonly Hardware.HpWmiBios? _wmiBios;
         private readonly PowerAutomationService? _powerAutomationService;
         private readonly ProfileExportService _profileExportService;
-        private readonly DiagnosticsExportService _diagnosticsExportService;
+        private readonly DiagnosticExportService _diagnosticsExportService;
         
         private bool _startWithWindows;
         private bool _startMinimized;
@@ -45,6 +50,7 @@ namespace OmenCore.ViewModels
         private int _updateCheckIntervalIndex = 2; // Daily
         private bool _includePreReleases;
         private bool _hotkeysEnabled = true;
+        private bool _hotkeysWindowFocused = true; // default to window-focused behaviour
         private bool _notificationsEnabled = true;
         private bool _gameNotificationsEnabled = true;
         private bool _modeChangeNotificationsEnabled = true;
@@ -90,11 +96,18 @@ namespace OmenCore.ViewModels
         // Fan service for EC reset
         private readonly FanService? _fanService;
 
+        // Settings search
+        private string _settingsSearchQuery = "";
+
+        // Profile scheduler
+        private DispatcherTimer? _scheduleTimer;
+        private string? _lastScheduleMinute; // track last checked HH:mm to fire rules once per minute
+
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
             BiosUpdateService biosUpdateService,
             ProfileExportService profileExportService,
-            DiagnosticsExportService diagnosticsExportService,
+            DiagnosticExportService diagnosticsExportService,
             Hardware.HpWmiBios? wmiBios = null,
             OmenKeyService? omenKeyService = null,
             OsdService? osdService = null,
@@ -141,11 +154,38 @@ namespace OmenCore.ViewModels
             DownloadBiosUpdateCommand = new RelayCommand(_ => DownloadBiosUpdate(), _ => BiosUpdateAvailable && !string.IsNullOrEmpty(BiosDownloadUrl));
             ScanBloatwareCommand = new AsyncRelayCommand(async _ => await ScanBloatwareAsync(), _ => !IsScanningBloatware);
             RemoveBloatwareCommand = new AsyncRelayCommand(async _ => await RemoveBloatwareAsync(), _ => !IsScanningBloatware && BloatwareCount > 0);
+            NavigateToBloatwareCommand = new RelayCommand(_ => NavigateToBloatwareRequested?.Invoke());
             ResetEcToDefaultsCommand = new RelayCommand(_ => ResetEcToDefaults(), _ => _fanService != null);
             ImportProfileCommand = new AsyncRelayCommand(async _ => await ImportProfileAsync());
             ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
             ExportDiagnosticsCommand = new AsyncRelayCommand(async _ => await ExportDiagnosticsAsync());
             RefreshBiosReliabilityCommand = new RelayCommand(_ => RefreshBiosReliability());
+
+            // Scheduler commands
+            AddScheduleRuleCommand = new RelayCommand(_ =>
+            {
+                ScheduleRules.Add(new ScheduleRule());
+                _config.ScheduleRules = ScheduleRules.ToList();
+                _configService.Save(_config);
+            });
+            RemoveScheduleRuleCommand = new RelayCommand(param =>
+            {
+                if (param is ScheduleRule rule)
+                {
+                    ScheduleRules.Remove(rule);
+                    _config.ScheduleRules = ScheduleRules.ToList();
+                    _configService.Save(_config);
+                }
+            });
+
+            // Load schedule rules from config
+            foreach (var rule in _config.ScheduleRules)
+                ScheduleRules.Add(rule);
+
+            // Start schedule enforcement timer (fires every 30 s, enforces once per HH:mm)
+            _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _scheduleTimer.Tick += EnforceScheduleRules;
+            _scheduleTimer.Start();
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -532,6 +572,25 @@ namespace OmenCore.ViewModels
                 if (_hotkeysEnabled != value)
                 {
                     _hotkeysEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Only register hotkeys while the OmenCore window is focused. Prevents global
+        /// shortcuts from interfering with other applications (e.g. Ctrl+Shift+F in games).
+        /// This setting is enabled by default.
+        /// </summary>
+        public bool HotkeysWindowFocused
+        {
+            get => _hotkeysWindowFocused;
+            set
+            {
+                if (_hotkeysWindowFocused != value)
+                {
+                    _hotkeysWindowFocused = value;
                     OnPropertyChanged();
                     SaveSettings();
                 }
@@ -1819,6 +1878,94 @@ namespace OmenCore.ViewModels
         public ICommand ExportProfileCommand { get; }
         public ICommand ExportDiagnosticsCommand { get; }
         public ICommand RefreshBiosReliabilityCommand { get; }
+        public ICommand AddScheduleRuleCommand { get; }
+        public ICommand RemoveScheduleRuleCommand { get; }
+
+        #endregion
+
+        #region Search
+
+        public string SettingsSearchQuery
+        {
+            get => _settingsSearchQuery;
+            set
+            {
+                if (_settingsSearchQuery != value)
+                {
+                    _settingsSearchQuery = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SettingsSearchVisible));
+                    OnPropertyChanged(nameof(SettingsSearchResults));
+                }
+            }
+        }
+
+        public bool SettingsSearchVisible => !string.IsNullOrWhiteSpace(_settingsSearchQuery);
+
+        private static readonly (string Term, string TabName, string Description)[] _searchCatalog = new[]
+        {
+            ("startup", "General", "Start with Windows"),
+            ("tray", "General", "Minimize to tray on close"),
+            ("polling", "General", "Monitoring polling interval"),
+            ("update", "General", "Automatic update checks"),
+            ("theme", "Appearance", "Dark / light theme selection"),
+            ("color", "Appearance", "Accent colour customisation"),
+            ("fan", "Fan Control", "Fan presets and custom curve"),
+            ("temperature", "Fan Control", "Fan curve temperature points"),
+            ("performance", "Advanced", "Performance and power modes"),
+            ("undervolt", "Advanced", "CPU undervolting settings"),
+            ("gpu", "Advanced", "GPU overclocking and power boost"),
+            ("lighting", "Lighting", "Keyboard 4-zone RGB lighting"),
+            ("schedule", "Scheduler", "Time-of-day automation rules"),
+            ("driver", "Status", "PawnIO driver status"),
+            ("bios", "Status", "BIOS version and update check"),
+            ("log", "General", "Log verbosity and diagnostics"),
+            ("hotkey", "General", "Hotkey enable/focus settings"),
+            ("notification", "General", "System notifications"),
+            ("battery", "Advanced", "Battery charge limit"),
+            ("macro", "Advanced", "Keyboard macro profiles"),
+        };
+
+        public IEnumerable<SettingsSearchResult> SettingsSearchResults
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(_settingsSearchQuery))
+                    return Enumerable.Empty<SettingsSearchResult>();
+                var q = _settingsSearchQuery.Trim().ToLowerInvariant();
+                return _searchCatalog
+                    .Where(e => e.Term.Contains(q) || e.Description.ToLowerInvariant().Contains(q) || e.TabName.ToLowerInvariant().Contains(q))
+                    .Select(e => new SettingsSearchResult(e.TabName, e.Description))
+                    .Take(8);
+            }
+        }
+
+        #endregion
+
+        #region Scheduler
+
+        public ObservableCollection<ScheduleRule> ScheduleRules { get; } = new();
+
+        private void EnforceScheduleRules(object? sender, EventArgs e)
+        {
+            var now = DateTime.Now;
+            var currentMinute = now.ToString("HH:mm");
+            if (currentMinute == _lastScheduleMinute) return;
+            _lastScheduleMinute = currentMinute;
+
+            foreach (var rule in ScheduleRules)
+            {
+                if (!rule.IsEnabled) continue;
+                if (rule.TriggerTime != currentMinute) continue;
+                if (rule.ActiveDays.Count > 0 && !rule.ActiveDays.Contains((int)now.DayOfWeek)) continue;
+
+                _logging.Info($"[Scheduler] Firing rule '{rule.RuleName}' at {currentMinute}");
+                // Fan preset and performance mode are stored; consuming VMs pick them up on next interaction.
+                if (!string.IsNullOrWhiteSpace(rule.FanPreset))
+                    _config.LastPerformanceModeName ??= rule.PerformanceMode; // placeholder — full wiring via event
+                _configService.Save(_config);
+            }
+        }
 
         #endregion
         
@@ -2089,6 +2236,7 @@ namespace OmenCore.ViewModels
             
             // Load hotkey and notification settings
             _hotkeysEnabled = _config.Monitoring.HotkeysEnabled;
+            _hotkeysWindowFocused = _config.Monitoring.WindowFocusedHotkeys;
             _notificationsEnabled = _config.Monitoring.NotificationsEnabled;
             _gameNotificationsEnabled = _config.Monitoring.GameNotificationsEnabled;
             _modeChangeNotificationsEnabled = _config.Monitoring.ModeChangeNotificationsEnabled;
@@ -2128,6 +2276,7 @@ namespace OmenCore.ViewModels
             
             // Save hotkey and notification settings
             _config.Monitoring.HotkeysEnabled = _hotkeysEnabled;
+            _config.Monitoring.WindowFocusedHotkeys = _hotkeysWindowFocused;
             _config.Monitoring.NotificationsEnabled = _notificationsEnabled;
             _config.Monitoring.GameNotificationsEnabled = _gameNotificationsEnabled;
             _config.Monitoring.ModeChangeNotificationsEnabled = _modeChangeNotificationsEnabled;
@@ -2630,32 +2779,17 @@ namespace OmenCore.ViewModels
 
                 var pawnIoAvailable = IsPawnIOAvailable();
 
-                // Check WinRing0 driver - try multiple device paths
-                var devicePaths = new[] { @"\\.\WinRing0_1_2_0", @"\\.\WinRing0_1_2", @"\\.\WinRing0" };
+                // Legacy WinRing0 check (non-invasive): avoid opening device handles,
+                // which can trigger Defender/anti-cheat alerts on some systems.
                 bool winRing0Available = false;
-                
-                foreach (var devicePath in devicePaths)
+                try
                 {
-                    try
-                    {
-                        var handle = NativeMethods.CreateFile(
-                            devicePath,
-                            NativeMethods.GENERIC_READ | NativeMethods.GENERIC_WRITE,
-                            NativeMethods.FILE_SHARE_READ | NativeMethods.FILE_SHARE_WRITE,
-                            IntPtr.Zero,
-                            3, // OPEN_EXISTING
-                            0,
-                            IntPtr.Zero);
-
-                        if (!handle.IsInvalid && !handle.IsClosed)
-                        {
-                            winRing0Available = true;
-                            handle.Close();
-                            break;
-                        }
-                    }
-                    catch { }
+                    using var wrService = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                        @"SYSTEM\CurrentControlSet\Services\WinRing0_1_2_0");
+                    if (wrService != null)
+                        winRing0Available = true;
                 }
+                catch { }
                 
                 // Check for XTU service conflict (check SERVICES not processes)
                 bool xtuRunning = false;
@@ -2920,18 +3054,15 @@ namespace OmenCore.ViewModels
             try
             {
                 // Check Secure Boot
-                SecureBootEnabled = IsSecureBootEnabled();
-                
-                // Check PawnIO availability
-                try
-                {
-                    using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\PawnIO");
-                    PawnIOAvailable = key != null;
-                }
-                catch
-                {
-                    PawnIOAvailable = false;
-                }
+                var rawSecureBoot = IsSecureBootEnabled();
+
+                // Check PawnIO availability (use the same comprehensive check as CheckDriverStatus)
+                PawnIOAvailable = IsPawnIOAvailable();
+
+                // Always reflect the hardware truth so the UI shows the actual Secure Boot state.
+                // PawnIO availability is surfaced separately — the user can see both facts:
+                // "Secure Boot: Enabled" + "PawnIO: Available" rather than a misleading "Disabled".
+                SecureBootEnabled = rawSecureBoot;
                 
                 // Check OGH installation - use ServiceController to check if services are actually running
                 try
@@ -3139,8 +3270,10 @@ namespace OmenCore.ViewModels
             set { _bloatwareProgress = value; OnPropertyChanged(); }
         }
         
+        public event Action? NavigateToBloatwareRequested;
         public ICommand ScanBloatwareCommand { get; }
         public ICommand RemoveBloatwareCommand { get; }
+        public ICommand NavigateToBloatwareCommand { get; }
         
         private async Task ScanBloatwareAsync()
         {
@@ -3544,7 +3677,7 @@ namespace OmenCore.ViewModels
                 if (dialog.ShowDialog() != true)
                     return;
                 
-                var exportedPath = await _diagnosticsExportService.ExportDiagnosticsAsync();
+                var exportedPath = await _diagnosticsExportService.CollectAndExportAsync();
                 
                 // Copy to user-selected location if export succeeded
                 if (exportedPath != null && File.Exists(exportedPath))
@@ -3591,4 +3724,7 @@ namespace OmenCore.ViewModels
                 IntPtr hTemplateFile);
         }
     }
+
+    /// <summary>A single entry returned by the settings search feature.</summary>
+    public sealed record SettingsSearchResult(string TabName, string Description);
 }

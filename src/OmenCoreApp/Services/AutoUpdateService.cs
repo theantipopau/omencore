@@ -189,8 +189,6 @@ namespace OmenCore.Services
             {
                 _logging.Info("Checking for updates...");
                 
-                // TODO: Replace with actual update server API call
-                // For now, this is a stub implementation
                 var response = await _httpClient.GetAsync(_updateCheckUrl);
                 
                 if (!response.IsSuccessStatusCode)

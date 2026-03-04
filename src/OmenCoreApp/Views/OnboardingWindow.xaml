@@ -1,0 +1,190 @@
+<Window x:Class="OmenCore.Views.OnboardingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Welcome to OmenCore"
+        Height="540" Width="680"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{StaticResource BackgroundDarkBrush}"
+        WindowStyle="None"
+        AllowsTransparency="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <Border Background="{StaticResource BackgroundDarkBrush}" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{StaticResource SurfaceMediumBrush}" CornerRadius="12,12,0,0" Padding="20,14" MouseDown="TitleBar_MouseDown">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path Data="{StaticResource IconLighting}" Width="20" Height="20" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0"/>
+                        <TextBlock Text="OmenCore Setup" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextTertiaryBrush}"
+                            FontSize="14" Cursor="Hand" Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Step indicator -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0"
+                        VerticalAlignment="Bottom">
+                <!-- Step dots rendered by code-behind with x:Name -->
+            </StackPanel>
+
+            <!-- Page content -->
+            <Grid Grid.Row="1" Margin="32,24,32,8">
+
+                <!-- Page 1: Welcome -->
+                <StackPanel x:Name="Page1" Visibility="Visible">
+                    <TextBlock Text="👋 Welcome!" FontSize="28" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,24">
+                        <Run Text="OmenCore is a community-built fan, lighting, and performance controller for HP OMEN laptops."/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="This quick setup takes about 30 seconds and helps OmenCore work best on your system."/>
+                    </TextBlock>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="What OmenCore does:" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Path Data="{StaticResource IconFan}" Width="16" Height="16" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Custom fan curves with temperature-based control" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Path Data="{StaticResource IconLighting}" Width="16" Height="16" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="4-zone RGB keyboard lighting control" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <Path Data="{StaticResource IconPerformance}" Width="16" Height="16" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Performance and power mode switching" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconMonitoring}" Width="16" Height="16" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Real-time CPU/GPU temperature and load monitoring" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Page 2: Hardware Detection -->
+                <StackPanel x:Name="Page2" Visibility="Collapsed">
+                    <TextBlock Text="🔍 Your Hardware" FontSize="28" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock Text="OmenCore detected the following on your system:" FontSize="14"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,20"/>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Fan Control Backend" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="FanBackendDot" Width="10" Height="10" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="FanBackendText" Text="Detecting..." FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Monitoring Source" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="MonitoringDot" Width="10" Height="10" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="MonitoringText" Text="Detecting..." FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="20">
+                        <StackPanel>
+                            <TextBlock Text="PawnIO Driver" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="DriverDot" Width="10" Height="10" Fill="{StaticResource WarningBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="DriverText" Text="Checking..." FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Page 3: Quick Start -->
+                <StackPanel x:Name="Page3" Visibility="Collapsed">
+                    <TextBlock Text="🚀 Quick Start" FontSize="28" FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,20">
+                        You're all set! Here are a few things to try first:
+                    </TextBlock>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconFan}" Width="24" Height="24" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Apply a Fan Preset" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Head to Fan Control and try the Auto or Gaming preset." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconLighting}" Width="24" Height="24" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Customise Your Lighting" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Open Lighting and click any keyboard zone to change its colour." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SurfaceCard}" Padding="16">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconSettings}" Width="24" Height="24" Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Configure Settings" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Enable start with Windows, set a polling interval, and explore automations." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- Step dots + navigation footer -->
+            <Grid Grid.Row="2" Margin="32,8,32,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Step indicators -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,12">
+                    <Ellipse x:Name="Dot1" Width="10" Height="10" Fill="{StaticResource AccentBrush}" Margin="4,0"/>
+                    <Ellipse x:Name="Dot2" Width="10" Height="10" Fill="{StaticResource SurfaceHighlightBrush}" Margin="4,0"/>
+                    <Ellipse x:Name="Dot3" Width="10" Height="10" Fill="{StaticResource SurfaceHighlightBrush}" Margin="4,0"/>
+                </StackPanel>
+
+                <!-- Buttons -->
+                <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button x:Name="BackButton" Content="← Back" Style="{StaticResource SecondaryButton}"
+                            Width="90" Margin="0,0,8,0" Click="BackButton_Click" Visibility="Collapsed"/>
+                    <Button x:Name="NextButton" Content="Next →" Style="{StaticResource ModernButton}"
+                            Width="90" Margin="0,0,8,0" Click="NextButton_Click"/>
+                    <Button x:Name="FinishButton" Content="Get Started" Style="{StaticResource ModernButton}"
+                            Width="110" Click="FinishButton_Click" Visibility="Collapsed"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

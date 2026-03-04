@@ -517,12 +517,16 @@ namespace OmenCore.Hardware
 
         private bool CheckWinRing0Available()
         {
+            // Use registry check — Win32_SystemDriver WMI scan takes 15-20s on some machines.
+            // HKLM\SYSTEM\CurrentControlSet\Services is always available without elevated permissions.
             try
             {
-                // Check if WinRing0 service exists
-                using var searcher = new ManagementObjectSearcher(
-                    "SELECT * FROM Win32_SystemDriver WHERE Name = 'WinRing0_1_2_0' OR Name = 'WinRing0x64'");
-                return searcher.Get().Count > 0;
+                using var k1 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\WinRing0_1_2_0");
+                if (k1 != null) return true;
+                using var k2 = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\WinRing0x64");
+                return k2 != null;
             }
             catch
             {
@@ -534,34 +538,50 @@ namespace OmenCore.Hardware
         {
             try
             {
-                // Check if PawnIO is installed (registry or default path)
-                using var key = Registry.LocalMachine.OpenSubKey(
-                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
-                if (key != null)
+                // Step 1: Check if PawnIO is installed (registry or default path)
+                bool installedInRegistry = false;
+                using (var key = Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO"))
                 {
-                    _logging?.Info("  PawnIO: Found in registry (Secure Boot compatible EC access)");
+                    if (key != null) installedInRegistry = true;
+                }
+                
+                if (!installedInRegistry)
+                {
+                    // Check default installation path
+                    string defaultPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), 
+                        "PawnIO", "PawnIOLib.dll");
+                    if (System.IO.File.Exists(defaultPath))
+                        installedInRegistry = true;
+                }
+                
+                if (!installedInRegistry)
+                {
+                    // Check if PawnIO driver is loaded via WMI
+                    using var searcher = new ManagementObjectSearcher(
+                        "SELECT * FROM Win32_SystemDriver WHERE Name LIKE '%PawnIO%'");
+                    if (searcher.Get().Count > 0)
+                        installedInRegistry = true;
+                }
+                
+                if (!installedInRegistry)
+                    return false;
+                
+                // Step 2: PawnIO is installed — probe the driver to confirm it can actually
+                // be initialized. Registry presence alone doesn't guarantee the driver is loaded
+                // (e.g., installed but awaiting reboot, or partially uninstalled).
+                var ecAccess = EcAccessFactory.GetEcAccess();
+                if (ecAccess != null && ecAccess.IsAvailable)
+                {
+                    _logging?.Info("  PawnIO: Probed successfully — EC access confirmed (Secure Boot compatible)");
                     return true;
                 }
                 
-                // Check default installation path
-                string defaultPath = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), 
-                    "PawnIO", "PawnIOLib.dll");
-                if (System.IO.File.Exists(defaultPath))
-                {
-                    _logging?.Info("  PawnIO: Found at default path (Secure Boot compatible EC access)");
-                    return true;
-                }
-                
-                // Check if PawnIO driver is loaded
-                using var searcher = new ManagementObjectSearcher(
-                    "SELECT * FROM Win32_SystemDriver WHERE Name LIKE '%PawnIO%'");
-                if (searcher.Get().Count > 0)
-                {
-                    _logging?.Info("  PawnIO: Driver loaded (Secure Boot compatible EC access)");
-                    return true;
-                }
-                
+                // PawnIO installed but driver initialization failed
+                _logging?.Warn("  PawnIO: Found in registry but driver initialization failed");
+                _logging?.Warn("    → EC and MSR features will be unavailable until driver is operational");
+                _logging?.Info("    → Possible causes: driver awaiting reboot, service not started, or module missing");
                 return false;
             }
             catch

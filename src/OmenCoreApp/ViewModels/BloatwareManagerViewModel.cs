@@ -26,6 +26,13 @@ namespace OmenCore.ViewModels
         private string _filterText = "";
         private BloatwareCategory? _selectedCategory;
         private BloatwareApp? _selectedApp;
+        private string _riskFilter = "All";
+        private int _bulkRemoveProgress;
+        private int _bulkRemoveTotal;
+        private bool _isBulkRemoving;
+        private int _bulkRestoreProgress;
+        private int _bulkRestoreTotal;
+        private bool _isBulkRestoring;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -37,6 +44,7 @@ namespace OmenCore.ViewModels
         public ICommand RemoveSelectedCommand { get; }
         public ICommand RemoveAllLowRiskCommand { get; }
         public ICommand RestoreSelectedCommand { get; }
+        public ICommand RestoreAllRemovedCommand { get; }
 
         public bool IsScanning
         {
@@ -83,6 +91,62 @@ namespace OmenCore.ViewModels
         public int RemovedCount => AllApps.Count(a => a.IsRemoved);
         public int LowRiskCount => AllApps.Count(a => a.RemovalRisk == RemovalRisk.Low && !a.IsRemoved);
 
+        public string RiskFilter
+        {
+            get => _riskFilter;
+            set
+            {
+                _riskFilter = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsRiskAll));
+                OnPropertyChanged(nameof(IsRiskLow));
+                OnPropertyChanged(nameof(IsRiskMedium));
+                OnPropertyChanged(nameof(IsRiskHigh));
+                ApplyFilter();
+            }
+        }
+
+        public bool IsRiskAll    { get => _riskFilter == "All";    set { if (value) RiskFilter = "All"; } }
+        public bool IsRiskLow    { get => _riskFilter == "Low";    set { if (value) RiskFilter = "Low"; } }
+        public bool IsRiskMedium { get => _riskFilter == "Medium"; set { if (value) RiskFilter = "Medium"; } }
+        public bool IsRiskHigh   { get => _riskFilter == "High";   set { if (value) RiskFilter = "High"; } }
+
+        public bool IsBulkRemoving
+        {
+            get => _isBulkRemoving;
+            set { _isBulkRemoving = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRemoveProgress
+        {
+            get => _bulkRemoveProgress;
+            set { _bulkRemoveProgress = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRemoveTotal
+        {
+            get => _bulkRemoveTotal;
+            set { _bulkRemoveTotal = value; OnPropertyChanged(); }
+        }
+
+        public bool IsBulkRestoring
+        {
+            get => _isBulkRestoring;
+            set { _isBulkRestoring = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRestoreProgress
+        {
+            get => _bulkRestoreProgress;
+            set { _bulkRestoreProgress = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRestoreTotal
+        {
+            get => _bulkRestoreTotal;
+            set { _bulkRestoreTotal = value; OnPropertyChanged(); }
+        }
+
         public BloatwareManagerViewModel(LoggingService logger)
         {
             _logger = logger;
@@ -93,6 +157,7 @@ namespace OmenCore.ViewModels
             RemoveSelectedCommand = new RelayCommand(async _ => await RemoveSelectedAsync(), _ => CanRemoveSelected);
             RemoveAllLowRiskCommand = new RelayCommand(async _ => await RemoveAllLowRiskAsync(), _ => LowRiskCount > 0 && CanInteract);
             RestoreSelectedCommand = new RelayCommand(async _ => await RestoreSelectedAsync(), _ => CanRestoreSelected);
+            RestoreAllRemovedCommand = new RelayCommand(async _ => await RestoreAllRemovedAsync(), _ => RemovedCount > 0 && CanInteract);
 
             // Initialize categories
             foreach (var cat in Enum.GetValues<BloatwareCategory>().Where(c => c != BloatwareCategory.Unknown))
@@ -186,13 +251,16 @@ namespace OmenCore.ViewModels
             try
             {
                 IsProcessing = true;
+                IsBulkRemoving = true;
+                BulkRemoveTotal = lowRiskApps.Count;
+                BulkRemoveProgress = 0;
                 var count = 0;
-                var total = lowRiskApps.Count;
 
                 foreach (var app in lowRiskApps)
                 {
                     count++;
-                    StatusMessage = $"Removing {count}/{total}: {app.Name}...";
+                    BulkRemoveProgress = count;
+                    StatusMessage = $"Removing {count}/{lowRiskApps.Count}: {app.Name}...";
                     await _service.RemoveAppAsync(app);
                 }
 
@@ -202,6 +270,8 @@ namespace OmenCore.ViewModels
             finally
             {
                 IsProcessing = false;
+                IsBulkRemoving = false;
+                BulkRemoveProgress = 0;
             }
         }
 
@@ -223,6 +293,48 @@ namespace OmenCore.ViewModels
             }
         }
 
+        private async Task RestoreAllRemovedAsync()
+        {
+            if (IsProcessing) return;
+
+            var removedApps = AllApps.Where(a => a.IsRemoved && a.CanRestore).ToList();
+            if (!removedApps.Any()) return;
+
+            var result = MessageBox.Show(
+                $"This will restore {removedApps.Count} removed items.\n\nAny dependencies or settings will be re-installed from their original sources.\n\nContinue?",
+                "Restore All Removed Bloatware",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                IsProcessing = true;
+                IsBulkRestoring = true;
+                BulkRestoreTotal = removedApps.Count;
+                BulkRestoreProgress = 0;
+                var count = 0;
+
+                foreach (var app in removedApps)
+                {
+                    count++;
+                    BulkRestoreProgress = count;
+                    StatusMessage = $"Restoring {count}/{removedApps.Count}: {app.Name}...";
+                    await _service.RestoreAppAsync(app);
+                }
+
+                StatusMessage = $"Restored {count} bloatware items";
+                UpdateCounts();
+            }
+            finally
+            {
+                IsProcessing = false;
+                IsBulkRestoring = false;
+                BulkRestoreProgress = 0;
+            }
+        }
+
         private void ApplyFilter()
         {
             FilteredApps.Clear();
@@ -233,6 +345,18 @@ namespace OmenCore.ViewModels
             if (SelectedCategory.HasValue)
             {
                 filtered = filtered.Where(a => a.Category == SelectedCategory.Value);
+            }
+
+            // Filter by risk level
+            if (_riskFilter != "All")
+            {
+                filtered = _riskFilter switch
+                {
+                    "Low"    => filtered.Where(a => a.RemovalRisk == RemovalRisk.Low),
+                    "Medium" => filtered.Where(a => a.RemovalRisk == RemovalRisk.Medium),
+                    "High"   => filtered.Where(a => a.RemovalRisk == RemovalRisk.High),
+                    _        => filtered
+                };
             }
 
             // Filter by text

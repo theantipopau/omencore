@@ -7,13 +7,6 @@
              xmlns:utils="clr-namespace:OmenCore.Utils"
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1200">
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/Styles/ModernStyles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
     <ScrollViewer Style="{StaticResource SmoothScrollViewer}" 
                   Padding="0,0,12,0">
         <StackPanel Margin="20,20,20,40">
@@ -43,6 +36,48 @@
                     <views:KeyboardDiagnosticsView DataContext="{Binding KeyboardDiagnostics}" />
                 </GroupBox>
             </Grid>
+
+            <!-- Monitoring Diagnostics (new for v3.0.0) -->
+            <GroupBox Header="Monitoring Diagnostics" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0">
+                <Grid Margin="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="280" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Top">
+                        <TextBlock Text="Health:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding Dashboard.MonitoringHealthStatusText}" FontSize="13" Margin="0,0,0,6" />
+
+                        <TextBlock Text="Source:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding Dashboard.MonitoringSourceText}" FontSize="13" Margin="0,0,0,6" />
+
+                        <TextBlock Text="Last sample age:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding Dashboard.LastSampleAge}" FontSize="13" Margin="0,0,0,6" />
+
+                        <TextBlock Text="Consecutive timeouts:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding HardwareMonitoringService.ConsecutiveTimeouts}" FontSize="13" Margin="0,0,0,6" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Export diagnostics" Command="{Binding Settings.ExportDiagnosticsCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" />
+                            <Button Content="Export telemetry" Command="{Binding ExportTelemetryCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" ToolTip="Create a copy of the telemetry JSON for upload" />
+                            <Button Content="Report model" Command="{Binding ReportModelCommand}" Style="{StaticResource OutlineButtonSmall}" ToolTip="Create diagnostics bundle and copy model info to clipboard" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="12,0,0,0">
+                        <TextBlock Text="Active alerts" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="Backend:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding HardwareMonitoringService.MonitoringSource}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+
+                        <TextBlock Text="Worker timeouts:" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding HardwareMonitoringService.ConsecutiveTimeouts}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+
+                        <TextBlock Text="Quick actions" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                        <Button Content="Open diagnostics folder" Click="OpenDiagnosticsFolder_Click" Style="{StaticResource OutlineButtonSmall}" />
+                    </StackPanel>
+                </Grid>
+            </GroupBox>
 
             <!-- Info Box -->
             <Border Background="{StaticResource SurfaceDarkBrush}" 

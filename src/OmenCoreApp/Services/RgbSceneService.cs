@@ -352,7 +352,7 @@ namespace OmenCore.Services
                 {
                     if (scene.Effect == RgbSceneEffect.Off)
                     {
-                        _keyboardLightingService.SetBrightness(0);
+                        await _keyboardLightingService.SetBrightness(0);
                         return true;
                     }
                     
@@ -364,7 +364,7 @@ namespace OmenCore.Services
                         <= 66 => 2,
                         _ => 3
                     };
-                    _keyboardLightingService.SetBrightness(brightnessLevel);
+                    await _keyboardLightingService.SetBrightness(brightnessLevel);
                     
                     // Apply colors
                     if (scene.ZoneColors.Count > 0)

@@ -362,14 +362,68 @@ namespace OmenCore.Controls
 
             try
             {
-                // This would need access to the logging system's stored logs
-                // For now, return a placeholder
-                logData.Entries.Add(new LogEntry
+                var logDir = _logging.LogDirectory;
+                if (!Directory.Exists(logDir))
                 {
-                    Timestamp = DateTime.Now,
-                    Level = "INFO",
-                    Message = "Log collection not yet implemented - would collect last 1000 log entries"
-                });
+                    logData.ErrorMessage = $"Log directory not found: {logDir}";
+                    return Task.FromResult(logData);
+                }
+
+                // Collect up to 1000 lines from the most recent log files
+                var logFiles = Directory.GetFiles(logDir, "OmenCore*.log")
+                    .OrderByDescending(f => File.GetLastWriteTime(f))
+                    .Take(3)
+                    .ToList();
+
+                const int maxLines = 1000;
+                var lines = new List<string>(maxLines);
+
+                foreach (var file in logFiles)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try
+                    {
+                        // FileShare.ReadWrite allows reading while logger is still writing
+                        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                        using var reader = new StreamReader(fs);
+                        var fileLines = new List<string>();
+                        string? line;
+                        while ((line = reader.ReadLine()) != null)
+                            fileLines.Add(line);
+                        // Newest file first — prepend its lines
+                        lines.InsertRange(0, fileLines);
+                        if (lines.Count >= maxLines) break;
+                    }
+                    catch (IOException)
+                    {
+                        // Skip locked or inaccessible files
+                    }
+                }
+
+                // Keep only the last maxLines lines
+                var trimmed = lines.Count > maxLines ? lines.Skip(lines.Count - maxLines).ToList() : lines;
+
+                foreach (var raw in trimmed)
+                {
+                    // Format: "2026-03-01T14:23:45.1234567+00:00 [INFO] message"
+                    var entry = new LogEntry { Level = "INFO", Message = raw };
+                    var bracketIdx = raw.IndexOf(" [", StringComparison.Ordinal);
+                    if (bracketIdx > 0 && DateTime.TryParse(raw[..bracketIdx], out var ts))
+                    {
+                        entry.Timestamp = ts;
+                        var closeIdx = raw.IndexOf(']', bracketIdx + 2);
+                        if (closeIdx > bracketIdx)
+                        {
+                            entry.Level = raw.Substring(bracketIdx + 2, closeIdx - bracketIdx - 2);
+                            entry.Message = closeIdx + 2 < raw.Length ? raw[(closeIdx + 2)..] : string.Empty;
+                        }
+                    }
+                    logData.Entries.Add(entry);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -518,15 +572,28 @@ namespace OmenCore.Controls
         private string GenerateTextReport(DiagnosticData data)
         {
             var report = new System.Text.StringBuilder();
+            report.AppendLine("==================================================");
             report.AppendLine("OmenCore Diagnostic Report");
-            report.AppendLine($"Generated: {data.ExportTimestamp}");
-            report.AppendLine($"Version: {data.OmenCoreVersion}");
-            report.AppendLine(new string('=', 50));
+            report.AppendLine($"Generated : {data.ExportTimestamp:O}");
+            report.AppendLine($"Version   : {data.OmenCoreVersion}");
+            report.AppendLine("==================================================");
             report.AppendLine();
 
-            // Add sections...
-            report.AppendLine("This is a placeholder for the text report format.");
-            report.AppendLine("Full implementation would format each data section as readable text.");
+            foreach (var kvp in data.Sections)
+            {
+                report.AppendLine($"--- {kvp.Key} ---");
+                try
+                {
+                    // Re-serialize the section value for readable text output
+                    var json = JsonSerializer.Serialize(kvp.Value, new JsonSerializerOptions { WriteIndented = true });
+                    report.AppendLine(json);
+                }
+                catch
+                {
+                    report.AppendLine(kvp.Value?.ToString() ?? "(null)");
+                }
+                report.AppendLine();
+            }
 
             return report.ToString();
         }

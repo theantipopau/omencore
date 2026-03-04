@@ -4,7 +4,8 @@ namespace OmenCore.Hardware
 {
     /// <summary>
     /// Factory for creating EC access providers with automatic fallback.
-    /// Tries PawnIO first (Secure Boot compatible), then WinRing0.
+    /// Tries PawnIO first (Secure Boot compatible). WinRing0 fallback is disabled by default
+    /// to avoid Defender/anti-cheat false positives and can be opt-in via environment variable.
     /// </summary>
     public static class EcAccessFactory
     {
@@ -48,8 +49,9 @@ namespace OmenCore.Hardware
                     return _instance;
                 }
 
-                // Fall back to WinRing0 (requires Secure Boot disabled)
-                if (TryInitializeWinRing0())
+                // Optional legacy fallback: WinRing0 (requires Secure Boot disabled)
+                // Disabled by default to avoid Defender false positives.
+                if (IsWinRing0FallbackEnabled() && TryInitializeWinRing0())
                 {
                     return _instance;
                 }
@@ -151,6 +153,13 @@ namespace OmenCore.Hardware
             }
         }
 
+        private static bool IsWinRing0FallbackEnabled()
+        {
+            var env = Environment.GetEnvironmentVariable("OMENCORE_ENABLE_WINRING0");
+            return string.Equals(env, "1", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(env, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Gets a human-readable status message about EC access.
         /// </summary>
@@ -160,8 +169,28 @@ namespace OmenCore.Hardware
             {
                 EcBackend.PawnIO => "EC access via PawnIO (Secure Boot compatible)",
                 EcBackend.WinRing0 => "EC access via WinRing0 (Secure Boot may need to be disabled)",
-                _ => "No EC access available - install PawnIO from pawnio.eu or disable Secure Boot for WinRing0"
+                _ => IsPawnIOInstalled()
+                    ? "PawnIO installed but EC initialization failed — driver may need a reboot to activate"
+                    : "No EC access available - install PawnIO from pawnio.eu (WinRing0 fallback is opt-in via OMENCORE_ENABLE_WINRING0=1)"
             };
+        }
+        
+        /// <summary>
+        /// Checks if PawnIO is installed on this system (registry presence only, no driver probe).
+        /// </summary>
+        private static bool IsPawnIOInstalled()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
+                if (key != null) return true;
+                string defaultDll = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                    "PawnIO", "PawnIOLib.dll");
+                return System.IO.File.Exists(defaultDll);
+            }
+            catch { return false; }
         }
 
         /// <summary>

@@ -27,8 +27,8 @@ namespace OmenCore.Linux;
 /// </summary>
 class Program
 {
-    public const string Version = "2.9.1";
-    public const string BuildDate = "2026-02";
+    public const string Version = "3.0.1";
+    public const string BuildDate = "2026-03";
     
     public static string ConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 

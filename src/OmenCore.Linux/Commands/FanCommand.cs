@@ -250,9 +250,28 @@ public static class FanCommand
         // Handle individual fan RPM
         if (fan1.HasValue || fan2.HasValue)
         {
+            // Per-fan direct RPM writes require legacy EC register access.
+            // Block on hwmon/unsafe models to avoid unsupported writes.
+            if (ec.IsUnsafeEcModel || ec.HasHwmonFanAccess || !ec.HasEcAccess)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("✗ Per-fan RPM writes are not supported on this model/backend.");
+                Console.WriteLine("  Use --profile auto|silent|balanced|gaming|max or --speed 0..100 instead.");
+                Console.ResetColor();
+                return;
+            }
+
             if (fan1.HasValue)
             {
-                var rpm = (byte)(fan1.Value / 100);
+                if (fan1.Value < 0 || fan1.Value > 5500)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("✗ Fan 1 RPM must be between 0 and 5500.");
+                    Console.ResetColor();
+                    return;
+                }
+
+                var rpm = (byte)Math.Clamp(fan1.Value / 100, 0, 55);
                 if (ec.SetFan1Speed(rpm))
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -263,7 +282,15 @@ public static class FanCommand
             
             if (fan2.HasValue)
             {
-                var rpm = (byte)(fan2.Value / 100);
+                if (fan2.Value < 0 || fan2.Value > 5500)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("✗ Fan 2 RPM must be between 0 and 5500.");
+                    Console.ResetColor();
+                    return;
+                }
+
+                var rpm = (byte)Math.Clamp(fan2.Value / 100, 0, 55);
                 if (ec.SetFan2Speed(rpm))
                 {
                     Console.ForegroundColor = ConsoleColor.Green;

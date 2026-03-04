@@ -6,7 +6,7 @@ namespace OmenCore.Models
 {
     public class AppConfig
     {
-        public string EcDevicePath { get; set; } = @"\\.\WinRing0_1_2";
+        public string EcDevicePath { get; set; } = string.Empty;
         public int MonitoringIntervalMs { get; set; } = 1000;
         public List<FanPreset> FanPresets { get; set; } = new();
         public List<PerformanceMode> PerformanceModes { get; set; } = new();
@@ -254,7 +254,42 @@ namespace OmenCore.Models
         /// Application: run in headless mode (no main window, only tray icon and background services).
         /// Useful for servers or when only fan/performance control is needed. Default: false.
         /// </summary>
-        public bool HeadlessMode { get; set; } = false;    }
+        public bool HeadlessMode { get; set; } = false;
+        
+        /// <summary>
+        /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
+        /// </summary>
+        public ThermalMonitoringSettings ThermalAlerts { get; set; } = new();
+
+        /// <summary>
+        /// Time-of-day automation rules: each rule applies a fan preset and/or performance mode at a scheduled time.
+        /// </summary>
+        public List<ScheduleRule> ScheduleRules { get; set; } = new();
+    }
+    
+    /// <summary>
+    /// Thermal alert thresholds for CPU, GPU, and SSD over-temperature notifications.
+    /// </summary>
+    public class ThermalMonitoringSettings
+    {
+        /// <summary>CPU temperature (°C) for warning notification. Default: 85°C.</summary>
+        public double CpuWarningC { get; set; } = 85;
+        
+        /// <summary>CPU temperature (°C) for critical notification. Default: 95°C.</summary>
+        public double CpuCriticalC { get; set; } = 95;
+        
+        /// <summary>GPU temperature (°C) for warning notification. Default: 85°C.</summary>
+        public double GpuWarningC { get; set; } = 85;
+        
+        /// <summary>GPU temperature (°C) for critical notification. Default: 95°C.</summary>
+        public double GpuCriticalC { get; set; } = 95;
+        
+        /// <summary>SSD temperature (°C) for warning notification. Default: 70°C.</summary>
+        public double SsdWarningC { get; set; } = 70;
+        
+        /// <summary>Enable or disable thermal alert notifications entirely. Default: true.</summary>
+        public bool IsEnabled { get; set; } = true;
+    }
     
     /// <summary>
     /// Settings for HP OMEN keyboard 4-zone RGB lighting.
@@ -698,6 +733,30 @@ namespace OmenCore.Models
         
         /// <summary>Show notification message</summary>
         ShowNotification
+    }
+
+    /// <summary>
+    /// A time-of-day automation rule that applies a fan preset and/or performance mode at a scheduled time.
+    /// </summary>
+    public class ScheduleRule
+    {
+        /// <summary>User-displayed name for the rule.</summary>
+        public string RuleName { get; set; } = "New Rule";
+
+        /// <summary>Whether this rule is active. Disabled rules are stored but not enforced.</summary>
+        public bool IsEnabled { get; set; } = true;
+
+        /// <summary>Time of day to trigger the rule (24-hour "HH:mm" format, e.g. "09:00").</summary>
+        public string TriggerTime { get; set; } = "09:00";
+
+        /// <summary>Fan preset to apply at trigger time. Empty string = no change.</summary>
+        public string FanPreset { get; set; } = "Auto";
+
+        /// <summary>Performance mode to apply at trigger time. Empty string = no change.</summary>
+        public string PerformanceMode { get; set; } = "";
+
+        /// <summary>Days of the week on which this rule is active (0=Sun..6=Sat). Empty = every day.</summary>
+        public List<int> ActiveDays { get; set; } = new();
     }
 }
 

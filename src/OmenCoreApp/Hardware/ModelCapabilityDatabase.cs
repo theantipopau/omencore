@@ -301,6 +301,26 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 UserVerified = true
             });
+
+            // OMEN 16 (2024) - wf1 series (Intel) — Issue #68: ProductId 8BAB, Board 8C78, BIOS F.29
+            // Same WMI fan control path as wf0xxx (8BCA). V2 percentage-based fan levels.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BAB",
+                ModelName = "OMEN 16 (2024) wf1xxx Intel",
+                ModelNamePattern = "16-wf1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 100,          // V2 percentage-based (same generation as wf0xxx)
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "OMEN 16-wf1xxx (2024 Intel) — Board 8C78. Added for Issue #68. Set UserVerified=true after community confirmation."
+            });
             
             // OMEN 16 (2024) - xf series
             AddModel(new ModelCapabilities
@@ -408,6 +428,34 @@ namespace OmenCore.Hardware
                 Notes = "OMEN MAX Gaming Laptop 16t-ah000 (2025) - Intel Core Ultra 7 255HX + RTX 5070 Ti. " +
                        "EC register layout incompatible with legacy addresses. Use ACPI platform_profile " +
                        "(low-power/balanced/performance) and hp-wmi hwmon pwm_enable (0=full,2=auto) for fan control."
+            });
+
+            // OMEN MAX 16 (ak0003nr) - reported by user (AMD HX 375 + RTX 5080)
+            // Newer MAX models use WMI ThermalPolicy V2 and incompatible EC register layout.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "AK0003NR",
+                ModelName = "OMEN MAX 16 (ak0003nr) AMD",
+                ModelNamePattern = "max 16 ak0",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN2024Plus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false, // EC register layout incompatible — prefer WMI V2/ACPI platform_profile
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 100,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool", "L5P" },
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                SupportsAdvancedOptimus = true,
+                HasKeyboardBacklight = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false, // AMD Ryzen — Intel-style undervolt unsupported
+                UserVerified = false,
+                Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers."
             });
             
             // ═══════════════════════════════════════════════════════════════════════════════════

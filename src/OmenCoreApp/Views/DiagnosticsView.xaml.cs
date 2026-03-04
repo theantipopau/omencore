@@ -12,5 +12,16 @@ namespace OmenCore.Views
         {
             InitializeComponent();
         }
+
+        private void OpenDiagnosticsFolder_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var logDir = App.Logging.LogDirectory;
+            var target = System.IO.Directory.Exists(logDir) ? logDir : System.IO.Path.GetTempPath();
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = target,
+                UseShellExecute = true
+            });
+        }
     }
 }
