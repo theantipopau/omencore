@@ -59,11 +59,11 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Path Data="{StaticResource IconWarning}" Fill="#F44336" 
+                    <Path Data="{StaticResource IconWarning}" Fill="{StaticResource ErrorBrush}" 
                           Width="20" Height="20" Stretch="Uniform" Margin="0,0,12,0"
                           VerticalAlignment="Top"/>
                     <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
-                        <Run Text="ADVANCED TUNING" FontWeight="Bold" Foreground="#F44336"/>
+                        <Run Text="ADVANCED TUNING" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
                         <Run Text=" — Improper values may cause crashes or freezes. Start small, test stability. Settings reset on reboot unless auto-apply is enabled."/>
                     </TextBlock>
                 </Grid>

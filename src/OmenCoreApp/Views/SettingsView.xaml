@@ -114,10 +114,10 @@
                             </StackPanel>
                             <Border Grid.Column="1" Background="#1A4CAF50" CornerRadius="4" Padding="12,6">
                                 <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="8" Height="8" Fill="#4CAF50" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <Ellipse Width="8" Height="8" Fill="{StaticResource SuccessBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding FanBackend, FallbackValue=Detecting...}" 
                                                FontSize="13" FontWeight="SemiBold"
-                                               Foreground="#4CAF50"/>
+                                               Foreground="{StaticResource SuccessBrush}"/>
                                 </StackPanel>
                             </Border>
                         </Grid>
@@ -159,11 +159,11 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Disabled"/>
-                                            <Setter Property="Foreground" Value="#4CAF50"/>
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SecureBootEnabled}" Value="True">
                                                     <Setter Property="Text" Value="🔒 Enabled"/>
-                                                    <Setter Property="Foreground" Value="#FF9800"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -199,11 +199,11 @@
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="Not Installed"/>
-                                            <Setter Property="Foreground" Value="#F44336"/>
+                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding PawnIOAvailable}" Value="True">
                                                     <Setter Property="Text" Value="✓ Installed"/>
-                                                    <Setter Property="Foreground" Value="#4CAF50"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
