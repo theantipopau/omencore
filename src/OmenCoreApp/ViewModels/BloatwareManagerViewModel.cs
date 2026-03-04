@@ -30,6 +30,9 @@ namespace OmenCore.ViewModels
         private int _bulkRemoveProgress;
         private int _bulkRemoveTotal;
         private bool _isBulkRemoving;
+        private int _bulkRestoreProgress;
+        private int _bulkRestoreTotal;
+        private bool _isBulkRestoring;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -41,6 +44,7 @@ namespace OmenCore.ViewModels
         public ICommand RemoveSelectedCommand { get; }
         public ICommand RemoveAllLowRiskCommand { get; }
         public ICommand RestoreSelectedCommand { get; }
+        public ICommand RestoreAllRemovedCommand { get; }
 
         public bool IsScanning
         {
@@ -125,6 +129,24 @@ namespace OmenCore.ViewModels
             set { _bulkRemoveTotal = value; OnPropertyChanged(); }
         }
 
+        public bool IsBulkRestoring
+        {
+            get => _isBulkRestoring;
+            set { _isBulkRestoring = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRestoreProgress
+        {
+            get => _bulkRestoreProgress;
+            set { _bulkRestoreProgress = value; OnPropertyChanged(); }
+        }
+
+        public int BulkRestoreTotal
+        {
+            get => _bulkRestoreTotal;
+            set { _bulkRestoreTotal = value; OnPropertyChanged(); }
+        }
+
         public BloatwareManagerViewModel(LoggingService logger)
         {
             _logger = logger;
@@ -135,6 +157,7 @@ namespace OmenCore.ViewModels
             RemoveSelectedCommand = new RelayCommand(async _ => await RemoveSelectedAsync(), _ => CanRemoveSelected);
             RemoveAllLowRiskCommand = new RelayCommand(async _ => await RemoveAllLowRiskAsync(), _ => LowRiskCount > 0 && CanInteract);
             RestoreSelectedCommand = new RelayCommand(async _ => await RestoreSelectedAsync(), _ => CanRestoreSelected);
+            RestoreAllRemovedCommand = new RelayCommand(async _ => await RestoreAllRemovedAsync(), _ => RemovedCount > 0 && CanInteract);
 
             // Initialize categories
             foreach (var cat in Enum.GetValues<BloatwareCategory>().Where(c => c != BloatwareCategory.Unknown))
@@ -267,6 +290,48 @@ namespace OmenCore.ViewModels
                 IsProcessing = false;
                 OnPropertyChanged(nameof(CanRemoveSelected));
                 OnPropertyChanged(nameof(CanRestoreSelected));
+            }
+        }
+
+        private async Task RestoreAllRemovedAsync()
+        {
+            if (IsProcessing) return;
+
+            var removedApps = AllApps.Where(a => a.IsRemoved && a.CanRestore).ToList();
+            if (!removedApps.Any()) return;
+
+            var result = MessageBox.Show(
+                $"This will restore {removedApps.Count} removed items.\n\nAny dependencies or settings will be re-installed from their original sources.\n\nContinue?",
+                "Restore All Removed Bloatware",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                IsProcessing = true;
+                IsBulkRestoring = true;
+                BulkRestoreTotal = removedApps.Count;
+                BulkRestoreProgress = 0;
+                var count = 0;
+
+                foreach (var app in removedApps)
+                {
+                    count++;
+                    BulkRestoreProgress = count;
+                    StatusMessage = $"Restoring {count}/{removedApps.Count}: {app.Name}...";
+                    await _service.RestoreAppAsync(app);
+                }
+
+                StatusMessage = $"Restored {count} bloatware items";
+                UpdateCounts();
+            }
+            finally
+            {
+                IsProcessing = false;
+                IsBulkRestoring = false;
+                BulkRestoreProgress = 0;
             }
         }
 

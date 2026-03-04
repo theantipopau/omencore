@@ -1,5 +1,8 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,6 +24,8 @@ namespace OmenCore.ViewModels
         private readonly MemoryOptimizerService _memoryService;
         private readonly ConfigurationService? _configService;
         private readonly DispatcherTimer _refreshTimer;
+
+        public ObservableCollection<ProcessMemoryInfo> TopProcesses { get; } = new();
 
         // Memory info backing fields
         private long _totalPhysicalMB;
@@ -46,6 +51,8 @@ namespace OmenCore.ViewModels
         private int _autoCleanThreshold = 80;
         private bool _intervalCleanEnabled;
         private int _cleanEveryMinutes = 10;
+        private string _selectedProfile = "Balanced";
+        private string _cleanupPreviewText = "";
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -91,6 +98,9 @@ namespace OmenCore.ViewModels
             CleanModifiedPagesCommand = new RelayCommand(_ => _ = CleanMemoryAsync(MemoryCleanFlags.ModifiedPageList),
                 _ => !IsCleaning);
             CleanCombinePagesCommand = new RelayCommand(_ => _ = CleanMemoryAsync(MemoryCleanFlags.CombinePages),
+                _ => !IsCleaning);
+
+            CleanWithProfileCommand = new RelayCommand(_ => _ = CleanMemoryAsync(GetProfileFlags(_selectedProfile)),
                 _ => !IsCleaning);
 
             CopyLastCleanCommand = new RelayCommand(_ =>
@@ -299,6 +309,7 @@ namespace OmenCore.ViewModels
                 (CleanFileCacheCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (CleanModifiedPagesCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (CleanCombinePagesCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (CleanWithProfileCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
@@ -378,6 +389,50 @@ namespace OmenCore.ViewModels
 
         public string CleanEveryMinutesText => $"Every {CleanEveryMinutes} min";
 
+        /// <summary>
+        /// Gets or sets the selected memory cleaning profile (Conservative, Balanced, or Aggressive).
+        /// </summary>
+        public string SelectedProfile
+        {
+            get => _selectedProfile;
+            set
+            {
+                if (_selectedProfile != value)
+                {
+                    _selectedProfile = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsConservative));
+                    OnPropertyChanged(nameof(IsBalanced));
+                    OnPropertyChanged(nameof(IsAggressive));
+                    UpdateCleanupPreview();
+                }
+            }
+        }
+
+        public bool IsConservative
+        {
+            get => _selectedProfile == "Conservative";
+            set { if (value) SelectedProfile = "Conservative"; }
+        }
+
+        public bool IsBalanced
+        {
+            get => _selectedProfile == "Balanced";
+            set { if (value) SelectedProfile = "Balanced"; }
+        }
+
+        public bool IsAggressive
+        {
+            get => _selectedProfile == "Aggressive";
+            set { if (value) SelectedProfile = "Aggressive"; }
+        }
+
+        public string CleanupPreviewText
+        {
+            get => _cleanupPreviewText;
+            set { _cleanupPreviewText = value; OnPropertyChanged(); }
+        }
+
         // ========== COMMANDS ==========
 
         public ICommand CleanSafeCommand { get; }
@@ -387,8 +442,41 @@ namespace OmenCore.ViewModels
         public ICommand CleanFileCacheCommand { get; }
         public ICommand CleanModifiedPagesCommand { get; }
         public ICommand CleanCombinePagesCommand { get; }
+        public ICommand CleanWithProfileCommand { get; }
 
         // ========== METHODS ==========
+
+        /// <summary>
+        /// Maps a profile name to the corresponding MemoryCleanFlags.
+        /// Conservative: WorkingSets only
+        /// Balanced: WorkingSets, SystemFileCache, StandbyList
+        /// Aggressive: AllSafe (all safe operations)
+        /// </summary>
+        private MemoryCleanFlags GetProfileFlags(string profile) => profile switch
+        {
+            "Conservative" => MemoryCleanFlags.WorkingSets,
+            "Balanced" => MemoryCleanFlags.WorkingSets | MemoryCleanFlags.SystemFileCache | MemoryCleanFlags.StandbyList | MemoryCleanFlags.StandbyListLowPriority,
+            "Aggressive" => MemoryCleanFlags.AllSafe,
+            _ => MemoryCleanFlags.AllSafe // Default fallback to Balanced
+        };
+
+        /// <summary>
+        /// Updates the cleanup preview text based on the current profile selection.
+        /// </summary>
+        private void UpdateCleanupPreview()
+        {
+            try
+            {
+                var flags = GetProfileFlags(_selectedProfile);
+                var preview = _memoryService.PreviewMemoryCleaning(flags);
+                CleanupPreviewText = $"This profile will free approximately {preview.EstimatedFreeMB} MB";
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to update cleanup preview: {ex.Message}");
+                CleanupPreviewText = "";
+            }
+        }
 
         private void RefreshMemoryInfo()
         {
@@ -409,10 +497,33 @@ namespace OmenCore.ViewModels
                 UsedPageFileMB = info.UsedPageFileMB;
                 TotalPageFileMB = info.TotalPageFileMB;
                 KernelNonPagedMB = info.KernelNonPagedMB;
+
+                // Update top memory-consuming processes
+                UpdateTopMemoryHogs();
+
+                // Update cleanup preview
+                UpdateCleanupPreview();
             }
             catch (Exception ex)
             {
                 _logger.Error($"Failed to refresh memory info: {ex.Message}");
+            }
+        }
+
+        private void UpdateTopMemoryHogs()
+        {
+            try
+            {
+                var hogs = _memoryService.GetTopMemoryHogs(10);
+                TopProcesses.Clear();
+                foreach (var hog in hogs)
+                {
+                    TopProcesses.Add(hog);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to update top memory hogs: {ex.Message}");
             }
         }
 

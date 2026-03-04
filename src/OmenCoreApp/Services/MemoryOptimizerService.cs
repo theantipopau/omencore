@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
@@ -77,6 +78,94 @@ namespace OmenCore.Services
                 ThreadCount = (int)perfInfo.ThreadCount,
                 HandleCount = (int)perfInfo.HandleCount,
             };
+        }
+
+        /// <summary>
+        /// Gets the top memory-consuming processes.
+        /// </summary>
+        public ProcessMemoryInfo[] GetTopMemoryHogs(int count = 10)
+        {
+            try
+            {
+                var memInfo = GetMemoryInfo();
+                var totalMB = memInfo.TotalPhysicalMB;
+                if (totalMB <= 0) totalMB = 1; // Prevent division by zero
+
+                var processes = Process.GetProcesses()
+                    .Select(p =>
+                    {
+                        try
+                        {
+                            return new ProcessMemoryInfo
+                            {
+                                ProcessName = p.ProcessName,
+                                WorkingSetMB = p.WorkingSet64 / 1048576,
+                                PrivateMemoryMB = p.PrivateMemorySize64 / 1048576,
+                                MemoryPercent = (p.WorkingSet64 / 1024.0 / 1024.0 / totalMB) * 100.0
+                            };
+                        }
+                        catch
+                        {
+                            return null;
+                        }
+                    })
+                    .Where(p => p != null)
+                    .Cast<ProcessMemoryInfo>()
+                    .Where(p => p.WorkingSetMB > 0)
+                    .OrderByDescending(p => p.WorkingSetMB)
+                    .Take(count)
+                    .ToArray();
+
+                return processes;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to get top memory hogs: {ex.Message}");
+                return Array.Empty<ProcessMemoryInfo>();
+            }
+        }
+
+        /// <summary>
+        /// Previews the estimated memory that would be freed by a cleanup operation.
+        /// Uses heuristics to estimate freed memory without actually performing the cleanup.
+        /// </summary>
+        public MemoryCleanPreview PreviewMemoryCleaning(MemoryCleanFlags flags)
+        {
+            try
+            {
+                var preview = new MemoryCleanPreview();
+                var info = GetMemoryInfo();
+                var processCount = Process.GetProcesses().Length;
+                var estimatedFreeMB = 0L;
+
+                // Estimate working set cleanup (about 10% of used memory in typical scenario)
+                if (flags.HasFlag(MemoryCleanFlags.WorkingSets))
+                {
+                    estimatedFreeMB += Math.Max(100, info.UsedPhysicalMB / 10);
+                }
+
+                // Estimate standby list cleanup
+                if (flags.HasFlag(MemoryCleanFlags.StandbyList))
+                {
+                    estimatedFreeMB += Math.Max(200, (info.TotalPhysicalMB - info.UsedPhysicalMB) / 3);
+                }
+
+                // Estimate file cache cleanup
+                if (flags.HasFlag(MemoryCleanFlags.SystemFileCache))
+                {
+                    estimatedFreeMB += Math.Max(150, info.SystemCacheMB / 2);
+                }
+
+                preview.EstimatedFreeMB = Math.Min(estimatedFreeMB, info.AvailablePhysicalMB + 500);
+                preview.EnumeratedProcesses = processCount;
+
+                return preview;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to preview memory cleaning: {ex.Message}");
+                return new MemoryCleanPreview { EstimatedFreeMB = 0, EnumeratedProcesses = 0 };
+            }
         }
 
         // ========== MEMORY CLEANING ==========
@@ -746,6 +835,26 @@ namespace OmenCore.Services
         public int OperationsSucceeded { get; set; }
         public int OperationsFailed { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    /// <summary>
+    /// Process memory consumption information.
+    /// </summary>
+    public class ProcessMemoryInfo
+    {
+        public string ProcessName { get; set; } = "";
+        public long WorkingSetMB { get; set; }
+        public long PrivateMemoryMB { get; set; }
+        public double MemoryPercent { get; set; }
+    }
+
+    /// <summary>
+    /// Preview of estimated freedMemory from a cleanup operation.
+    /// </summary>
+    public class MemoryCleanPreview
+    {
+        public long EstimatedFreeMB { get; set; }
+        public int EnumeratedProcesses { get; set; }
     }
 
     /// <summary>
