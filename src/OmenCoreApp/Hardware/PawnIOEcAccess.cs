@@ -143,14 +143,17 @@ namespace OmenCore.Hardware
                 else
                 {
                     // Fall back to PawnIO installation
-                    string? pawnIOPath = FindPawnIOInstallation();
-                    if (pawnIOPath != null)
+                    if (DriverInitializationHelper.IsPawnIOInstalled())
                     {
-                        string installedLibPath = Path.Combine(pawnIOPath, "PawnIOLib.dll");
-                        if (File.Exists(installedLibPath))
+                        string? pawnIOPath = FindPawnIOInstallationPath();
+                        if (pawnIOPath != null)
                         {
-                            libPath = installedLibPath;
-                            System.Diagnostics.Debug.WriteLine($"[PawnIO] Using installed PawnIOLib.dll from {pawnIOPath}");
+                            string installedLibPath = Path.Combine(pawnIOPath, "PawnIOLib.dll");
+                            if (File.Exists(installedLibPath))
+                            {
+                                libPath = installedLibPath;
+                                System.Diagnostics.Debug.WriteLine($"[PawnIO] Using installed PawnIOLib.dll from {pawnIOPath}");
+                            }
                         }
                     }
                 }
@@ -187,6 +190,14 @@ namespace OmenCore.Hardware
                 if (!LoadEcModule())
                 {
                     System.Diagnostics.Debug.WriteLine("[PawnIO] Failed to load LpcACPIEC module");
+                    
+                    // Check if this is a post-installation issue (PawnIO installed but module failed)
+                    if (DriverInitializationHelper.IsPawnIOInstalled())
+                    {
+                        var warning = DriverInitializationHelper.GetPostInstallationRebootWarning("PawnIO", "LpcACPIEC");
+                        System.Diagnostics.Debug.WriteLine($"[PawnIO] Post-install reboot warning: {warning}");
+                    }
+                    
                     _pawnioClose!(_handle);
                     _handle = IntPtr.Zero;
                     return false;
@@ -203,11 +214,14 @@ namespace OmenCore.Hardware
             }
         }
 
-        private string? FindPawnIOInstallation()
+        /// <summary>
+        /// Find PawnIO installation path. Uses centralized detection internally.
+        /// </summary>
+        private string? FindPawnIOInstallationPath()
         {
             try
             {
-                // Check registry first
+                // Check registry first (matches DriverInitializationHelper logic)
                 using var key = Registry.LocalMachine.OpenSubKey(
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
                 if (key != null)
@@ -274,7 +288,7 @@ namespace OmenCore.Hardware
                 // If not found in app directory, try PawnIO installation's modules directory
                 if (_lpcAcpiEcModule == null || _lpcAcpiEcModule.Length == 0)
                 {
-                    string? pawnIOPath = FindPawnIOInstallation();
+                    string? pawnIOPath = FindPawnIOInstallationPath();
                     if (pawnIOPath != null)
                     {
                         foreach (var moduleName in moduleNames)
