@@ -742,38 +742,10 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
-        /// Check if PawnIO is installed on the system (static method for pre-instantiation checks)
+        /// Check if PawnIO is installed on the system (static method for pre-instantiation checks).
+        /// Delegates to centralized driver initialization helper.
         /// </summary>
-        public static bool IsPawnIOInstalled()
-        {
-            try
-            {
-                // Check registry first
-                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
-                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
-                if (key != null)
-                {
-                    string? installLocation = key.GetValue("InstallLocation") as string;
-                    if (!string.IsNullOrEmpty(installLocation) && Directory.Exists(installLocation))
-                    {
-                        return true;
-                    }
-                }
-
-                // Check default installation path
-                string defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PawnIO");
-                if (Directory.Exists(defaultPath))
-                {
-                    return true;
-                }
-
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+        public static bool IsPawnIOInstalled() => DriverInitializationHelper.IsPawnIOInstalled();
 
         private static class NativeMethods
         {

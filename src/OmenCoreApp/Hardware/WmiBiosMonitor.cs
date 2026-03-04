@@ -60,6 +60,13 @@ namespace OmenCore.Hardware
         private bool _cpuTempFrozen;
         private DateTime _cpuTempFrozeAt = DateTime.MinValue;
         
+        // GPU temperature freeze detection (similar to CPU temp)
+        private double _lastGpuTempReading;
+        private int _consecutiveIdenticalGpuTempReads;
+        private double _lastValidGpuTempBeforeFreeze;
+        private bool _gpuTempFrozen;
+        private DateTime _gpuTempFrozeAt = DateTime.MinValue;
+        
         // GPU metrics from NVAPI
         private double _cachedGpuPowerWatts;
         private double _lastValidGpuPowerWatts;
@@ -285,7 +292,34 @@ namespace OmenCore.Hardware
                             _lastCpuTempReading = cpuTemp;
                             _cachedCpuTemp = cpuTemp;
                         }
-                        if (gpuTemp > 0) _cachedGpuTemp = gpuTemp;
+                        if (gpuTemp > 0)
+                        {
+                            // Detect GPU temperature freeze (similar to CPU)
+                            if (Math.Abs(gpuTemp - _lastGpuTempReading) < 0.1)
+                            {
+                                _consecutiveIdenticalGpuTempReads++;
+                                if (_consecutiveIdenticalGpuTempReads > MaxConsecutiveIdenticalTempReads && !_gpuTempFrozen)
+                                {
+                                    _gpuTempFrozen = true;
+                                    _gpuTempFrozeAt = DateTime.UtcNow;
+                                    _logging?.Warn($"🥶 GPU temperature appears frozen at {gpuTemp:F1}°C for {_consecutiveIdenticalGpuTempReads} readings");
+                                }
+                            }
+                            else
+                            {
+                                _consecutiveIdenticalGpuTempReads = 0;
+                                if (_gpuTempFrozen)
+                                {
+                                    TimeSpan frozenDuration = DateTime.UtcNow - _gpuTempFrozeAt;
+                                    _logging?.Info($"✓ GPU temperature sensor recovered after {frozenDuration.TotalSeconds:F0}s freeze");
+                                    _gpuTempFrozen = false;
+                                }
+                                _lastValidGpuTempBeforeFreeze = gpuTemp;
+                            }
+
+                            _lastGpuTempReading = gpuTemp;
+                            _cachedGpuTemp = gpuTemp;
+                        }
                     }
                 
                     var rpms = _wmiBios.GetFanRpmDirect();
