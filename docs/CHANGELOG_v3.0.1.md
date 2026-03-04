@@ -687,11 +687,15 @@ D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7
 
 OmenCore-3.0.1-win-x64.zip
 EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8
+
+OmenCore-3.0.1-linux-x64.zip
+EA6329315AEE08849D4D721A01D5618DF56BCE8304BA08098BA4408E05AD9873
 ```
 
 **File Sizes:**
-- `OmenCoreSetup-3.0.1.exe` — 101.08 MB (includes .NET 8.0 runtime, single-file self-contained)
-- `OmenCore-3.0.1-win-x64.zip` — 104.31 MB (portable, ready to extract and run)
+- `OmenCoreSetup-3.0.1.exe` — 101.08 MB (Windows installer, includes .NET 8.0 runtime, single-file self-contained)
+- `OmenCore-3.0.1-win-x64.zip` — 104.31 MB (Windows portable, ready to extract and run)
+- `OmenCore-3.0.1-linux-x64.zip` — 100.19 MB (Linux portable with CLI + Avalonia GUI)
 
 ---
 

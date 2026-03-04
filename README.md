@@ -143,9 +143,11 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 |------|------|--------|
 | **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
 | **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
+| **OmenCore-3.0.1-linux-x64.zip** | 100.19 MB | `EA6329315AEE08849D4D721A01D5618DF56BCE8304BA08098BA4408E05AD9873` |
 
-**Setup File:** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
-**Portable ZIP:** Extract and run immediately from any directory
+**Setup File (Windows):** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
+**Portable ZIP (Windows):** Extract and run immediately from any directory  
+**Linux ZIP:** Includes CLI + Avalonia GUI, fully portable with embedded .NET 8.0 runtime
 
 ### What's Included
 
