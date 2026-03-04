@@ -52,6 +52,14 @@ namespace OmenCore.Hardware
         private bool _acpiThermalAvailable = true; // Try ACPI first, disable on failure
         private string? _cpuThermalZoneInstance;
         
+        // CPU temperature freeze detection (AMD WMI BIOS sensor sometimes stops updating)
+        private double _lastCpuTempReading;
+        private int _consecutiveIdenticalCpuTempReads;
+        private double _lastValidCpuTempBeforeFreeze;
+        private const int MaxConsecutiveIdenticalTempReads = 30; // ~30 seconds at 1Hz monitoring
+        private bool _cpuTempFrozen;
+        private DateTime _cpuTempFrozeAt = DateTime.MinValue;
+        
         // GPU metrics from NVAPI
         private double _cachedGpuPowerWatts;
         private double _lastValidGpuPowerWatts;
@@ -248,7 +256,35 @@ namespace OmenCore.Hardware
                     if (temps.HasValue)
                     {
                         var (cpuTemp, gpuTemp) = temps.Value;
-                        if (cpuTemp > 0) _cachedCpuTemp = cpuTemp;
+                        if (cpuTemp > 0)
+                        {
+                            // Detect CPU temperature freeze (AMD WMI sensor sometimes stops updating)
+                            if (Math.Abs(cpuTemp - _lastCpuTempReading) < 0.1) // Same temp (within 0.1°C)
+                            {
+                                _consecutiveIdenticalCpuTempReads++;
+                                if (_consecutiveIdenticalCpuTempReads > MaxConsecutiveIdenticalTempReads && !_cpuTempFrozen)
+                                {
+                                    _cpuTempFrozen = true;
+                                    _cpuTempFrozeAt = DateTime.UtcNow;
+                                    _logging?.Warn($"🥶 CPU temperature appears frozen at {cpuTemp:F1}°C for {_consecutiveIdenticalCpuTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                }
+                            }
+                            else
+                            {
+                                // Temperature changed — sensor is responding
+                                _consecutiveIdenticalCpuTempReads = 0;
+                                if (_cpuTempFrozen)
+                                {
+                                    TimeSpan frozenDuration = DateTime.UtcNow - _cpuTempFrozeAt;
+                                    _logging?.Info($"✓ CPU temperature sensor recovered after {frozenDuration.TotalSeconds:F0}s freeze");
+                                    _cpuTempFrozen = false;
+                                }
+                                _lastValidCpuTempBeforeFreeze = cpuTemp;
+                            }
+
+                            _lastCpuTempReading = cpuTemp;
+                            _cachedCpuTemp = cpuTemp;
+                        }
                         if (gpuTemp > 0) _cachedGpuTemp = gpuTemp;
                     }
                 

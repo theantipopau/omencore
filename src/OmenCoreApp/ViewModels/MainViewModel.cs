@@ -1120,6 +1120,7 @@ namespace OmenCore.ViewModels
             
             // 2. Try PawnIO MSR for CPU throttling detection (optional, non-critical)
             PawnIOMsrAccess? msrForMonitoring = null;
+            bool pawnIOInstalledButMsrFailed = false;
             try
             {
                 var msrAccess = new PawnIOMsrAccess();
@@ -1132,11 +1133,32 @@ namespace OmenCore.ViewModels
                 {
                     msrAccess.Dispose();
                     _logging.Info("PawnIO MSR not available — throttling detection disabled");
+                    
+                    // Check if PawnIO is installed but MSR module failed to load
+                    // (indicates post-installation reboot needed)
+                    if (PawnIOMsrAccess.IsPawnIOInstalled())
+                    {
+                        pawnIOInstalledButMsrFailed = true;
+                        _logging.Warn("[PawnIO] Installed but MSR initialization failed — driver may need a reboot to activate");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logging.Debug($"PawnIO MSR init: {ex.Message}");
+                
+                // Check if PawnIO is installed
+                if (PawnIOMsrAccess.IsPawnIOInstalled())
+                {
+                    pawnIOInstalledButMsrFailed = true;
+                    _logging.Warn($"[PawnIO] Installed but MSR initialization failed: {ex.Message}");
+                }
+            }
+            
+            // If PawnIO is installed but MSR failed, show notification to user
+            if (pawnIOInstalledButMsrFailed)
+            {
+                _logging.Info("⚠️  CPU power reading will report 0W. Please restart your computer to fully activate PawnIO driver.");
             }
             
             // 3. Create self-sustaining WmiBiosMonitor as PRIMARY monitoring bridge
