@@ -27,6 +27,24 @@ Ten fix series (A–J) resolving 22+ individual issues.
 
 See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details.
 
+### 🎯 Release Artifacts
+
+**Version:** 3.0.1 (Release/win-x64)  
+**Build Date:** 2026-03-04 06:50 UTC
+
+| File | Size | SHA256 |
+|------|------|--------|
+| **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
+| **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
+
+**Enhancements in this build:**
+- ✨ Memory cleaning profiles (Conservative/Balanced/Aggressive presets)
+- ✨ Process memory ranking (top 10 memory consumers with real-time updates)
+- ✨ Memory cleanup preview (estimate freed memory before operation)
+- ✨ Bloatware bulk restore (mirrors bulk remove for complete parity)
+- All enhancements fully backward-compatible, zero breaking changes
+- Build: 0 errors, 0 warnings
+
 ---
 
 ## [3.0.0] - 2026-03-01 - Major Architecture Overhaul 🏗️
