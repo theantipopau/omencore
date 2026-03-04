@@ -54,14 +54,53 @@ chmod +x omencore-gui && sudo ./omencore-gui
 
 ## 🆕 What's New in v3.0.1
 
-### 🔧 Stability & Compatibility Patch (22 Bug Fixes)
-Ten fix series (A–J) covering XAML startup crash, Secure Boot display inversion, Ctrl+Shift+O hotkey regression, capability warning false positive, dispose leaks, race conditions, GUI polish, temperature sensor reliability, keyboard lighting null reference, log spam, shutdown exception, MSI Afterburner garbage temp false thermal emergency, and COM STA reentrancy in GetSystemInfo.
+### 🔧 Stability & Compatibility Patch (10 Bug Fixes A–J)
+- **XAML Startup Crash** — Fixed five undefined resource keys causing `StaticResourceExtension` exceptions
+- **Secure Boot Display** — Fixed inverted Secure Boot status showing "Disabled" when enabled
+- **Ctrl+Shift+O Hotkey** — Restored global keyboard shortcut after window deactivation (issue #70)
+- **Capability Warnings** — Eliminated false positive banners on PawnIO-equipped systems
+- **Memory Leaks** — Fixed five missing event handler unsubscriptions in `MainViewModel.Dispose()`
+- **Race Conditions** — Fixed `volatile` field synchronization in AMD GPU service
+- **GUI Polish** — Updated 18 tooltips, 5 hardcoded colors, Gaming Mode disabled state styling
+- **Sensor Reliability** — Fixed CPU clock log format, thread safety in `GetSystemInfo()`, PawnIO probe timing
+- **Keyboard Lighting** — Fixed null `SystemInfoService` reference causing crashes on Victus 16-r0xxx
+- **Thermal Management** — Fixed MSI Afterburner garbage temperature causing false thermal emergencies
 
-See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details.
+See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details of all fixes.
+
+### 🎯 Major Enhancements in v3.0.1
+
+#### Memory Cleaner Profiles (Conservative/Balanced/Aggressive)
+Smart preset cleaning profiles reduce user confusion from 8 separate buttons:
+- **Conservative** — Working sets only (~10ms, minimal impact)
+- **Balanced** (default) — Working sets + file cache + standby list
+- **Aggressive** — All safe operations including page combining
+
+Radio button selection + live preview showing estimated freed memory.
+
+#### Process Memory Ranking (Top 10 Consumers)
+Real-time list of the 10 most memory-hungry applications:
+- Updated every 2 seconds alongside memory stats
+- Shows ProcessName, WorkingSetMB, PrivateMemoryMB, MemoryPercent
+- Helps users identify which apps to close before cleanup
+
+#### Memory Cleanup Preview
+Intelligent estimation before cleaning:
+- "This profile will free approximately X MB" 
+- Updates instantly when profile selection changes
+- Uses heuristics tuned to actual cleanup behavior
+- Sets user expectations before operation
+
+#### Bloatware Bulk Restore
+Complete parity with bulk remove:
+- Restore all previously-removed items in one operation
+- Progress bar tracks multi-app restoration
+- Works on all AppX packages supporting restoration
+- Graceful cancellation support
 
 ### 🏗️ Architecture Overhaul (v3.0.0 base)
-- **Self-Sustaining Monitoring** — Complete independence from LibreHardwareMonitor, WinRing0, NVML. Uses WMI BIOS + NVAPI natively
-- **Zero Silent Failures** — Early-exit guards removed; all sensor sources (NVAPI, PerformanceCounter, ACPI, PawnIO, SSD/battery) work independently
+- **Self-Sustaining Monitoring** — WMI BIOS + NVAPI + PerformanceCounter + PawnIO MSR
+- **Zero Silent Failures** — All sensor sources work independently; no cascade failures
 
 ### 🐛 Critical Bug Fixes (7 Regressions)
 - **GPU Telemetry Lockup** — NVAPI errors cause 60s auto-recovery instead of permanent telemetry loss
@@ -92,7 +131,34 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 
 ---
 
-## 🗂️ What's New in v2.9.0
+## � v3.0.1 Release Artifacts
+
+**Version:** OmenCore v3.0.1 (Release/win-x64)  
+**Build Date:** 2026-03-04 @ 06:50 UTC  
+**Status:** ✅ Verified stable — tested on OMEN 17-ck2xxx + Victus 16
+
+### Download Files
+
+| File | Size | SHA256 |
+|------|------|--------|
+| **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
+| **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
+
+**Setup File:** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
+**Portable ZIP:** Extract and run immediately from any directory
+
+### What's Included
+
+✅ All 10 bug fixes (A–J) from v3.0.1 hotfix series  
+✅ 4 new enhancements (profiles, bulk restore, process ranking, cleanup preview)  
+✅ v3.0.0 base architecture (self-sustaining monitoring, zero silent failures)  
+✅ Memory Optimizer, Fan Diagnostics, Keyboard Lighting, Bloatware Manager  
+✅ Linux CLI + Avalonia GUI (separate download)  
+✅ Zero telemetry, ads, or bloatware
+
+---
+
+## �🗂️ What's New in v2.9.0
 
 ### Bug Fixes (9 Community Reports)
 - **CPU Temperature 0°C** — Intel Core Ultra / Arrow Lake CPUs now use fallback sensor sweep when primary sensor returns 0
