@@ -59,6 +59,11 @@ namespace OmenCore.Hardware
         private const int MaxConsecutiveIdenticalTempReads = 30; // ~30 seconds at 1Hz monitoring
         private bool _cpuTempFrozen;
         private DateTime _cpuTempFrozeAt = DateTime.MinValue;
+        private bool _cpuTempFallbackLogged;
+        private LibreHardwareMonitorImpl? _tempFallbackMonitor;
+        private bool _tempFallbackInitAttempted;
+        private const double ImplausiblyLowCpuTempThresholdC = 33.0;
+        private const double CpuLoadThresholdForLowTempFallbackPercent = 20.0;
         
         // GPU temperature freeze detection (similar to CPU temp)
         private double _lastGpuTempReading;
@@ -321,7 +326,7 @@ namespace OmenCore.Hardware
                             _cachedGpuTemp = gpuTemp;
                         }
                     }
-                
+
                     var rpms = _wmiBios.GetFanRpmDirect();
                     if (rpms.HasValue)
                     {
@@ -521,6 +526,8 @@ namespace OmenCore.Hardware
                         _acpiThermalAvailable = false;
                     }
                 }
+
+                TryApplyCpuTemperatureFallback();
                 
                 // ═══════════════════════════════════════════════════════════════
                 // SOURCE 3c: WMI Win32_Processor — CPU clock speed
@@ -687,6 +694,78 @@ namespace OmenCore.Hardware
             if (rpm <= 0) return 0;
             if (rpm >= 5500) return 100;
             return (int)(rpm / 55.0);
+        }
+
+        private void TryApplyCpuTemperatureFallback()
+        {
+            if (_cachedCpuTemp <= 0)
+            {
+                return;
+            }
+
+            bool lowAndLoaded = _cachedCpuTemp <= ImplausiblyLowCpuTempThresholdC &&
+                                _cachedCpuLoad >= CpuLoadThresholdForLowTempFallbackPercent;
+            bool shouldFallback = _cpuTempFrozen || lowAndLoaded;
+
+            if (!shouldFallback)
+            {
+                return;
+            }
+
+            var fallbackMonitor = EnsureTempFallbackMonitor();
+            if (fallbackMonitor == null)
+            {
+                return;
+            }
+
+            try
+            {
+                double fallbackCpuTemp = fallbackMonitor.GetCpuTemperature();
+                if (fallbackCpuTemp > 0 && fallbackCpuTemp < 110 &&
+                    Math.Abs(fallbackCpuTemp - _cachedCpuTemp) >= 1.0)
+                {
+                    double previous = _cachedCpuTemp;
+                    _cachedCpuTemp = fallbackCpuTemp;
+                    _lastCpuTempReading = fallbackCpuTemp;
+
+                    if (!_cpuTempFallbackLogged)
+                    {
+                        _logging?.Warn($"[WmiBiosMonitor] CPU temp fallback active: WMI/ACPI reading looked invalid ({previous:F1}°C), using LibreHardwareMonitor ({fallbackCpuTemp:F1}°C)");
+                        _cpuTempFallbackLogged = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Debug($"[WmiBiosMonitor] CPU temp fallback read failed: {ex.Message}");
+            }
+        }
+
+        private LibreHardwareMonitorImpl? EnsureTempFallbackMonitor()
+        {
+            if (_tempFallbackMonitor != null)
+            {
+                return _tempFallbackMonitor;
+            }
+
+            if (_tempFallbackInitAttempted)
+            {
+                return null;
+            }
+
+            _tempFallbackInitAttempted = true;
+
+            try
+            {
+                _tempFallbackMonitor = new LibreHardwareMonitorImpl(msg => _logging?.Debug($"[TempFallback] {msg}"));
+                _logging?.Info("[WmiBiosMonitor] Initialized LibreHardwareMonitor CPU temp fallback for WMI freeze/low-temp recovery");
+                return _tempFallbackMonitor;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] Failed to initialize CPU temp fallback monitor: {ex.Message}");
+                return null;
+            }
         }
         
         private static double GetTotalPhysicalMemoryGB()
@@ -971,6 +1050,7 @@ namespace OmenCore.Hardware
             _updateGate.Dispose();
             _wmiBios.Dispose();
             _cpuPerfCounter?.Dispose();
+            _tempFallbackMonitor?.Dispose();
         }
     }
 }

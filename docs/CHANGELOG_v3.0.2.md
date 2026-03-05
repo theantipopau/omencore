@@ -1,8 +1,8 @@
 # v3.0.2 - AMD OMEN & Driver Initialization Hotfixes
 
-**Release Date:** Pending  
+**Release Date:** 2026-03-05  
 **Base Version:** v3.0.1  
-**Status:** Development (awaiting community validation before installer build)
+**Status:** Release candidate packaged (Windows + Linux artifacts built)
 
 ---
 
@@ -11,6 +11,50 @@
 v3.0.2 is a **hotfix release** targeting AMD OMEN models (specifically OMEN 16 xd0xxx) and addressing driver post-installation detection issues. These are not regressions but rather architectural limitations that were never addressed in prior releases.
 
 All fixes have been validated with 0 errors, 0 warnings.
+
+---
+
+## Last-Minute Release Updates (March 5, 2026)
+
+Additional final-stage updates were completed after community telemetry validation:
+
+1. **OGH Fan Telemetry Fallback (0 RPM/0% UI Fix)**
+   - Some OMEN models returned valid OGH control commands but unreliable OGH telemetry (frequent error code 2), causing OMEN tab fan readouts to show 0 RPM / 0%.
+   - `OghFanControllerWrapper.ReadFanSpeeds()` now falls back to direct WMI RPM/level reads before returning placeholder values.
+   - File: `src/OmenCoreApp/Hardware/FanControllerFactory.cs`
+
+2. **Version Alignment to 3.0.2**
+   - Updated active project and packaging version markers to 3.0.2 across app, desktop, hardware worker, installer define, Linux CLI constant, and top-level release docs.
+   - Files include: `VERSION.txt`, `OmenCoreApp.csproj`, `OmenCore.Desktop.csproj`, `OmenCore.HardwareWorker.csproj`, `installer/OmenCoreInstaller.iss`
+
+3. **Linux 3.0.2 Build Produced**
+   - Built new Linux x64 package containing both `omencore-cli` and `omencore-gui`.
+   - Artifact: `artifacts/OmenCore-3.0.2-linux-x64.zip`
+
+---
+
+## Community Follow-Up (March 2026)
+
+Additional reports after v3.0.2 testing highlighted three recurring symptoms on OMEN Max 16 / Victus 16 / OMEN Transcend:
+- CPU temperature stuck at exactly **28°C** for long periods
+- Fan profiles resetting after sleep/resume
+- Features depending on thermal state becoming unreliable when temperature is invalid
+
+### Additional Mitigations Added
+
+1. **CPU Temperature Fallback Activation (WmiBiosMonitor)**
+   - Freeze detection now triggers an active fallback path, not just logging.
+   - When WMI/ACPI appears frozen or implausibly low under load, OmenCore now queries a fallback monitor and replaces invalid CPU temperature values.
+   - This specifically targets persistent low stuck readings like 28°C.
+
+2. **Resume Recovery for Fan Presets (FanService + MainViewModel)**
+   - On system resume, OmenCore now re-applies the active fan preset automatically.
+   - Helps recover from BIOS/firmware fan policy resets that occur during sleep/modern standby.
+
+**Code updates for this follow-up:**
+- `src/OmenCoreApp/Hardware/WmiBiosMonitor.cs`
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/ViewModels/MainViewModel.cs`
 
 ---
 
@@ -238,7 +282,15 @@ The following patterns were identified but deferred for future releases:
 
 ## Installation & Deployment
 
-**Status:** Code-stage release (installers pending community validation)
+**Status:** Release artifacts built and ready for distribution
+
+### Release Artifacts (with SHA256)
+
+| Artifact | SHA256 |
+|---|---|
+| `OmenCoreSetup-3.0.2.exe` | `2B9CCCD8F28E1661632B48C24A91FA6A1BD0D12A365460FBA9B458718A0C68AC` |
+| `OmenCore-3.0.2-win-x64.zip` | `F644999BC88D55067E7E7DA8E7A7B8EE7AA76356EC4908561D69EBB09A1F2E5B` |
+| `OmenCore-3.0.2-linux-x64.zip` | `01F203D9984E7969A206BA08A0662841283E425C5C925228EF1DFD5924A66569` |
 
 **Build Instructions:**
 ```powershell
@@ -248,11 +300,9 @@ dotnet build -c Release
 ```
 
 **Next Phase:**
-1. Gather community testing feedback
-2. Confirm fixes resolve reported issues
-3. Verify no new bugs introduced
-4. Build final installers (run `build-installer.ps1`)
-5. Create GitHub release with v3.0.2 binaries
+1. Publish artifacts to GitHub Releases
+2. Post release announcement (Discord/Reddit)
+3. Collect post-release telemetry feedback for 3.0.2
 
 ---
 

@@ -27,7 +27,7 @@ namespace OmenCore.Linux;
 /// </summary>
 class Program
 {
-    public const string Version = "3.0.1";
+    public const string Version = "3.0.2";
     public const string BuildDate = "2026-03";
     
     public static string ConfigPath => Path.Combine(

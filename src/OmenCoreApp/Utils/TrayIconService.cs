@@ -60,7 +60,7 @@ namespace OmenCore.Utils
         private string _currentGpuPowerLevel = "Medium";
         private int _currentKeyboardBrightness = 3;
 
-        // v3.0.1: Additional live status menu items
+        // v3.0.2: Additional live status menu items
         private MenuItem? _ramMenuItem;
         private MenuItem? _fanStatusMenuItem;
         private MenuItem? _batteryMenuItem;
@@ -134,7 +134,7 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.1";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.2";
         }
 
         private void InitializeContextMenu()

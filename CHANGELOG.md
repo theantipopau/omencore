@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.0.1] - 2026-03-04 - Stability & Compatibility Patch 🔧
+## [3.0.2] - 2026-03-04 - Stability & Compatibility Patch 🔧
 
 Cumulative stability release incorporating all hotfix1 and hotfix2 work plus additional
 fixes (H–J) identified through community testing on OMEN 17-ck2xxx and Victus 16-r0xxx.
@@ -25,17 +25,17 @@ Ten fix series (A–J) resolving 22+ individual issues.
 - **(I)** Keyboard lighting null `SystemInfoService`, Dashboard INFO spam, `WmiBiosMonitor` dispose exception
 - **(J)** MSI Afterburner garbage temperature false thermal emergency, thermal protection sanity guard, COM STA reentrancy in `GetSystemInfo()`
 
-See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details.
+See [CHANGELOG_v3.0.2.md](docs/CHANGELOG_v3.0.2.md) for full details.
 
 ### 🎯 Release Artifacts
 
-**Version:** 3.0.1 (Release/win-x64)  
+**Version:** 3.0.2 (Release/win-x64)  
 **Build Date:** 2026-03-04 06:50 UTC
 
 | File | Size | SHA256 |
 |------|------|--------|
-| **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
-| **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
+| **OmenCoreSetup-3.0.2.exe** | 101.08 MB | `2B9CCCD8F28E1661632B48C24A91FA6A1BD0D12A365460FBA9B458718A0C68AC` |
+| **OmenCore-3.0.2-win-x64.zip** | 104.31 MB | `F644999BC88D55067E7E7DA8E7A7B8EE7AA76356EC4908561D69EBB09A1F2E5B` |
 
 **Enhancements in this build:**
 - ✨ Memory cleaning profiles (Conservative/Balanced/Aggressive presets)

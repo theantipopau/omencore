@@ -233,6 +233,7 @@ namespace OmenCore.ViewModels
                     _powerAutomationService.SystemResuming += (s, e) =>
                     {
                         _hardwareMonitoringService?.Resume();
+                        _fanService?.HandleSystemResume();
                     };
                     
                     OnPropertyChanged(nameof(Settings));

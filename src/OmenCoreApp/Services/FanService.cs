@@ -236,6 +236,34 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// Reapply active fan mode after system resume.
+        /// Helps recover from BIOS/firmware fan policy resets during sleep.
+        /// </summary>
+        public void HandleSystemResume()
+        {
+            try
+            {
+                if (_activePreset != null)
+                {
+                    _logging.Info($"Re-applying fan preset after resume: {_activePreset.Name}");
+                    ApplyPreset(_activePreset);
+                    return;
+                }
+
+                if (_curveEnabled)
+                {
+                    _logging.Info("Fan curve mode active on resume — forcing immediate curve refresh");
+                    _lastCurveUpdate = DateTime.MinValue;
+                    _lastCurveForceRefresh = DateTime.MinValue;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to re-apply fan settings after resume: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Run a Max verification using the underlying fan controller and return the result and details.
         /// </summary>
         public (bool success, string details) VerifyMaxApplied()

@@ -407,6 +407,7 @@ namespace OmenCore.Hardware
         private readonly OghServiceProxy _proxy;
         private readonly LibreHardwareMonitorImpl? _hwMonitor;
         private readonly LoggingService? _logging;
+        private readonly HpWmiBios _wmiBios;
         private bool _disposed;
 
         public OghFanControllerWrapper(OghServiceProxy proxy, LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null)
@@ -414,6 +415,7 @@ namespace OmenCore.Hardware
             _proxy = proxy;
             _hwMonitor = hwMonitor;
             _logging = logging;
+            _wmiBios = new HpWmiBios(logging);
         }
 
         public bool IsAvailable => _proxy.IsAvailable;
@@ -540,6 +542,70 @@ namespace OmenCore.Hardware
                     index++;
                 }
             }
+
+            // If no OGH or HW-monitor fan telemetry, fall back to direct WMI BIOS RPM reads.
+            // This prevents UI showing 0 RPM / 0% when OGH readback fails with error code 2.
+            if (fans.Count == 0 && _wmiBios.IsAvailable)
+            {
+                try
+                {
+                    var rpms = _wmiBios.GetFanRpmDirect();
+                    if (rpms.HasValue)
+                    {
+                        var (cpuRpm, gpuRpm) = rpms.Value;
+                        var cpuTemp = SensorHelper.GetCpuTemperature(_hwMonitor);
+                        var gpuTemp = SensorHelper.GetGpuTemperature(_hwMonitor);
+
+                        fans.Add(new FanTelemetry
+                        {
+                            Name = "CPU Fan",
+                            SpeedRpm = cpuRpm,
+                            DutyCyclePercent = EstimateDutyFromRpm(cpuRpm),
+                            Temperature = cpuTemp
+                        });
+
+                        fans.Add(new FanTelemetry
+                        {
+                            Name = "GPU Fan",
+                            SpeedRpm = gpuRpm,
+                            DutyCyclePercent = EstimateDutyFromRpm(gpuRpm),
+                            Temperature = gpuTemp
+                        });
+                    }
+                    else
+                    {
+                        var levels = _wmiBios.GetFanLevel();
+                        if (levels.HasValue)
+                        {
+                            var (fan1Level, fan2Level) = levels.Value;
+                            int cpuRpm = fan1Level * 100;
+                            int gpuRpm = fan2Level * 100;
+                            var cpuTemp = SensorHelper.GetCpuTemperature(_hwMonitor);
+                            var gpuTemp = SensorHelper.GetGpuTemperature(_hwMonitor);
+
+                            fans.Add(new FanTelemetry
+                            {
+                                Name = "CPU Fan",
+                                SpeedRpm = cpuRpm,
+                                DutyCyclePercent = EstimateDutyFromRpm(cpuRpm),
+                                Temperature = cpuTemp
+                            });
+
+                            fans.Add(new FanTelemetry
+                            {
+                                Name = "GPU Fan",
+                                SpeedRpm = gpuRpm,
+                                DutyCyclePercent = EstimateDutyFromRpm(gpuRpm),
+                                Temperature = gpuTemp
+                            });
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging?.Debug($"OGH WMI fan telemetry fallback failed: {ex.Message}");
+                }
+            }
             
             // Ensure we have at least placeholder entries
             if (fans.Count == 0)
@@ -611,6 +677,7 @@ namespace OmenCore.Hardware
             if (!_disposed)
             {
                 // Don't dispose proxy - it may be shared
+                _wmiBios.Dispose();
                 _disposed = true;
             }
         }

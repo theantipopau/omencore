@@ -18,6 +18,11 @@ namespace OmenCore.Hardware
         {
             try
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    return false;
+                }
+
                 // Check registry first (most reliable)
                 using var key = Registry.LocalMachine.OpenSubKey(
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO");
@@ -54,6 +59,11 @@ namespace OmenCore.Hardware
         {
             try
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    return false;
+                }
+
                 // Check WinRing0 registry keys
                 using var key1 = Registry.LocalMachine.OpenSubKey(
                     @"SYSTEM\CurrentControlSet\Services\WinRing0_1_2_0");

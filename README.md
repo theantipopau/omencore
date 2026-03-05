@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-3.0.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.0.1)
+[![Version](https://img.shields.io/badge/version-3.0.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.0.2)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -29,7 +29,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCore-3.0.1-win-x64.zip from Releases
+1. Download OmenCore-3.0.2-win-x64.zip from Releases
 2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from extracted folder
@@ -39,8 +39,8 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.0.1/OmenCore-3.0.1-linux-x64.zip
-unzip OmenCore-3.0.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.0.2/OmenCore-3.0.2-linux-x64.zip
+unzip OmenCore-3.0.2-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
@@ -52,7 +52,7 @@ chmod +x omencore-gui && sudo ./omencore-gui
 
 ---
 
-## 🆕 What's New in v3.0.1
+## 🆕 What's New in v3.0.2
 
 ### 🔧 Stability & Compatibility Patch (10 Bug Fixes A–J)
 - **XAML Startup Crash** — Fixed five undefined resource keys causing `StaticResourceExtension` exceptions
@@ -66,9 +66,9 @@ chmod +x omencore-gui && sudo ./omencore-gui
 - **Keyboard Lighting** — Fixed null `SystemInfoService` reference causing crashes on Victus 16-r0xxx
 - **Thermal Management** — Fixed MSI Afterburner garbage temperature causing false thermal emergencies
 
-See [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md) for full details of all fixes.
+See [CHANGELOG_v3.0.2.md](docs/CHANGELOG_v3.0.2.md) for full details of all fixes.
 
-### 🎯 Major Enhancements in v3.0.1
+### 🎯 Major Enhancements in v3.0.2
 
 #### Memory Cleaner Profiles (Conservative/Balanced/Aggressive)
 Smart preset cleaning profiles reduce user confusion from 8 separate buttons:
@@ -127,13 +127,13 @@ Complete parity with bulk remove:
 - **Bloatware Manager Polish** — Risk level filter (All/Low/Med/High), bulk remove progress bar, fixed status badges, BETA removed
 - **Zero-Temp Display** — Shows "—°C" instead of "0°C" when sensors are unavailable
 
-Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v3.0.1 patch notes: [CHANGELOG_v3.0.1.md](docs/CHANGELOG_v3.0.1.md)
+Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v3.0.2 patch notes: [CHANGELOG_v3.0.2.md](docs/CHANGELOG_v3.0.2.md)
 
 ---
 
-## � v3.0.1 Release Artifacts
+## � v3.0.2 Release Artifacts
 
-**Version:** OmenCore v3.0.1 (Release/win-x64)  
+**Version:** OmenCore v3.0.2 (Release/win-x64)  
 **Build Date:** 2026-03-04 @ 06:50 UTC  
 **Status:** ✅ Verified stable — tested on OMEN 17-ck2xxx + Victus 16
 
@@ -141,9 +141,9 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 
 | File | Size | SHA256 |
 |------|------|--------|
-| **OmenCoreSetup-3.0.1.exe** | 101.08 MB | `D83162CE64DAB6CA0B6C13C248F6180BC28B4822083935B4A5653037F9396CE7` |
-| **OmenCore-3.0.1-win-x64.zip** | 104.31 MB | `EF12C9EC8991FE6EBE971094636A5E15C34FE6C7104BF9A8914CB563DD3A53D8` |
-| **OmenCore-3.0.1-linux-x64.zip** | 100.19 MB | `EA6329315AEE08849D4D721A01D5618DF56BCE8304BA08098BA4408E05AD9873` |
+| **OmenCoreSetup-3.0.2.exe** | 101.08 MB | `2B9CCCD8F28E1661632B48C24A91FA6A1BD0D12A365460FBA9B458718A0C68AC` |
+| **OmenCore-3.0.2-win-x64.zip** | 104.31 MB | `F644999BC88D55067E7E7DA8E7A7B8EE7AA76356EC4908561D69EBB09A1F2E5B` |
+| **OmenCore-3.0.2-linux-x64.zip** | 42.08 MB | `01F203D9984E7969A206BA08A0662841283E425C5C925228EF1DFD5924A66569` |
 
 **Setup File (Windows):** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
 **Portable ZIP (Windows):** Extract and run immediately from any directory  
@@ -151,7 +151,7 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 
 ### What's Included
 
-✅ All 10 bug fixes (A–J) from v3.0.1 hotfix series  
+✅ All 10 bug fixes (A–J) from v3.0.2 hotfix series  
 ✅ 4 new enhancements (profiles, bulk restore, process ranking, cleanup preview)  
 ✅ v3.0.0 base architecture (self-sustaining monitoring, zero silent failures)  
 ✅ Memory Optimizer, Fan Diagnostics, Keyboard Lighting, Bloatware Manager  
