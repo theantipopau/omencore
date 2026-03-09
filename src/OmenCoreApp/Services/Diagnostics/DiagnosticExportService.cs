@@ -70,13 +70,23 @@ namespace OmenCore.Services.Diagnostics
         {
             try
             {
-                // Copy recent log files
-                if (Directory.Exists(_logsDirectory))
+                // Copy recent log files from current and legacy locations.
+                var candidateDirs = new List<string> { _logsDirectory };
+                var legacyDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore");
+                if (!candidateDirs.Contains(legacyDir, StringComparer.OrdinalIgnoreCase))
                 {
-                    var logFiles = Directory.GetFiles(_logsDirectory, "*.log")
-                        .OrderByDescending(f => new FileInfo(f).LastWriteTime)
-                        .Take(5); // Last 5 logs
+                    candidateDirs.Add(legacyDir);
+                }
 
+                var logFiles = candidateDirs
+                    .Where(Directory.Exists)
+                    .SelectMany(dir => Directory.GetFiles(dir, "*.log"))
+                    .OrderByDescending(f => new FileInfo(f).LastWriteTime)
+                    .Take(5)
+                    .ToList();
+
+                if (logFiles.Count > 0)
+                {
                     var logsExportPath = Path.Combine(exportPath, "logs");
                     Directory.CreateDirectory(logsExportPath);
 
@@ -85,8 +95,9 @@ namespace OmenCore.Services.Diagnostics
                         File.Copy(logFile, Path.Combine(logsExportPath, Path.GetFileName(logFile)), overwrite: true);
                     }
 
-                    _logging.Info($"Collected {logFiles.Count()} log files");
+                    _logging.Info($"Collected {logFiles.Count} log files");
                 }
+
                 await Task.CompletedTask;
             }
             catch (Exception ex)

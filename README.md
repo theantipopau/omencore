@@ -141,9 +141,9 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 
 | File | Size | SHA256 |
 |------|------|--------|
-| **OmenCoreSetup-3.0.2.exe** | 101.08 MB | `2B9CCCD8F28E1661632B48C24A91FA6A1BD0D12A365460FBA9B458718A0C68AC` |
-| **OmenCore-3.0.2-win-x64.zip** | 104.31 MB | `F644999BC88D55067E7E7DA8E7A7B8EE7AA76356EC4908561D69EBB09A1F2E5B` |
-| **OmenCore-3.0.2-linux-x64.zip** | 42.08 MB | `01F203D9984E7969A206BA08A0662841283E425C5C925228EF1DFD5924A66569` |
+| **OmenCoreSetup-3.0.2.exe** | 101.09 MB | `954AA7C608D36D6CDD99E1599A7BB4CA7F39DB5876241436CDF822BA2DA8FEC0` |
+| **OmenCore-3.0.2-win-x64.zip** | 104.31 MB | `760FDC6D02B4872128383EA2E74FB86BEBFB62EABC74BB57FCE431AF4953B406` |
+| **OmenCore-3.0.2-linux-x64.zip** | 43.55 MB | `582461B475C3C712B669395C58152A688735DE2521F8F4D7B31D2A950CE43ED5` |
 
 **Setup File (Windows):** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
 **Portable ZIP (Windows):** Extract and run immediately from any directory  

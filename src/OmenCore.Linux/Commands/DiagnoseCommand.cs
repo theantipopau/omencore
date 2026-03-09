@@ -109,6 +109,9 @@ public static class DiagnoseCommand
         info.Model = await ReadTextAsync("/sys/devices/virtual/dmi/id/product_name")
                      ?? await ReadTextAsync("/sys/class/dmi/id/product_name")
                      ?? "Unknown";
+        info.BoardId = await ReadTextAsync("/sys/devices/virtual/dmi/id/board_name")
+                 ?? await ReadTextAsync("/sys/class/dmi/id/board_name")
+                 ?? "Unknown";
 
         info.DebugFsMounted = await IsDebugFsMountedAsync();
 
@@ -126,6 +129,13 @@ public static class DiagnoseCommand
         info.HpWmiFanAlwaysOnExists = File.Exists("/sys/devices/platform/hp-wmi/fan_always_on");
         info.HpWmiFan1OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan1_output");
         info.HpWmiFan2OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan2_output");
+        var hpWmiHwmonRoot = "/sys/devices/platform/hp-wmi/hwmon";
+        if (Directory.Exists(hpWmiHwmonRoot))
+        {
+            var hwmonDirs = Directory.GetDirectories(hpWmiHwmonRoot, "hwmon*", SearchOption.TopDirectoryOnly);
+            info.HpWmiFan1TargetExists = hwmonDirs.Any(dir => File.Exists(Path.Combine(dir, "fan1_target")));
+            info.HpWmiFan2TargetExists = hwmonDirs.Any(dir => File.Exists(Path.Combine(dir, "fan2_target")));
+        }
 
         // ACPI platform_profile (kernel 5.18+, used by 2025+ models)
         info.AcpiPlatformProfileExists = File.Exists("/sys/firmware/acpi/platform_profile");
@@ -180,6 +190,14 @@ public static class DiagnoseCommand
                 info.Notes.Add("hp-wmi directory exists but thermal_profile not found; your kernel/firmware may not expose OMEN controls.");
                 info.Recommendations.Add("Try a newer kernel (6.5+ recommended for 2023+ OMEN) and ensure hp-wmi is loaded: sudo modprobe hp-wmi");
             }
+        }
+
+        if (string.Equals(info.BoardId, "8C58", StringComparison.OrdinalIgnoreCase))
+        {
+            info.Notes.Add("Board 8C58 detected (OMEN Transcend 14 family): legacy EC writes are often firmware-reverted.");
+            info.Notes.Add("Prefer hp-wmi/acpi interfaces. If profile paths are missing, this is likely a kernel/firmware exposure gap, not a user permissions issue.");
+            info.Recommendations.Add("Use latest Fedora kernel available (6.19+) and rerun: omencore-cli diagnose --report");
+            info.Recommendations.Add("If fan*_target exists under hp-wmi/hwmon, test manual writes there first; otherwise use profile-based fallback only.");
         }
         
         if (ec.IsUnsafeEcModel)
@@ -275,6 +293,7 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  OS:        {info.OsPrettyName,-76}║");
         Console.WriteLine($"║  Kernel:    {info.KernelRelease,-76}║");
         Console.WriteLine($"║  Model:     {info.Model,-76}║");
+        Console.WriteLine($"║  Board ID:  {info.BoardId,-76}║");
         Console.WriteLine(midBorder);
         Console.WriteLine($"║  Root:      {(info.IsRoot ? "✓" : "✗"),-76}║");
         Console.WriteLine($"║  debugfs:   {(info.DebugFsMounted ? "✓ mounted" : "✗ not mounted"),-76}║");
@@ -286,6 +305,8 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  thermal:   {(info.HpWmiThermalProfileExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  fan1_out:  {(info.HpWmiFan1OutputExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  fan2_out:  {(info.HpWmiFan2OutputExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  fan1_tgt:  {(info.HpWmiFan1TargetExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  fan2_tgt:  {(info.HpWmiFan2TargetExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  acpi_prof: {(info.AcpiPlatformProfileExists ? $"✓ ({info.AcpiPlatformProfile ?? "?"})" : "✗ missing"),-76}║");
         Console.WriteLine($"║  hwmon_fan: {(info.HasHwmonFanAccess ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine(midBorder);
@@ -377,6 +398,7 @@ public static class DiagnoseCommand
         Console.WriteLine($"- **OS:** {info.OsPrettyName}");
         Console.WriteLine($"- **Kernel:** {info.KernelRelease}");
         Console.WriteLine($"- **Model:** {info.Model}");
+        Console.WriteLine($"- **Board ID:** {info.BoardId}");
         Console.WriteLine();
         Console.WriteLine("## Hardware Access Diagnostics");
         Console.WriteLine();
@@ -392,6 +414,8 @@ public static class DiagnoseCommand
         Console.WriteLine($"| Thermal Profile Control | {(info.HpWmiThermalProfileExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine($"| Fan 1 Output Control | {(info.HpWmiFan1OutputExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine($"| Fan 2 Output Control | {(info.HpWmiFan2OutputExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| Fan 1 Target Control (`fan1_target`) | {(info.HpWmiFan1TargetExists ? "✓ Present" : "✗ Missing")} |");
+        Console.WriteLine($"| Fan 2 Target Control (`fan2_target`) | {(info.HpWmiFan2TargetExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine();
         Console.WriteLine($"**Detected Access Method:** `{info.DetectedAccessMethod}`");
         Console.WriteLine();
@@ -451,6 +475,7 @@ public class DiagnoseInfo
     public string OsPrettyName { get; set; } = "";
     public string KernelRelease { get; set; } = "";
     public string Model { get; set; } = "";
+    public string BoardId { get; set; } = "";
 
     public bool DebugFsMounted { get; set; }
 
@@ -464,6 +489,8 @@ public class DiagnoseInfo
     public bool HpWmiFanAlwaysOnExists { get; set; }
     public bool HpWmiFan1OutputExists { get; set; }
     public bool HpWmiFan2OutputExists { get; set; }
+    public bool HpWmiFan1TargetExists { get; set; }
+    public bool HpWmiFan2TargetExists { get; set; }
 
     public string DetectedAccessMethod { get; set; } = "none";
     public bool EcControllerAvailable { get; set; }

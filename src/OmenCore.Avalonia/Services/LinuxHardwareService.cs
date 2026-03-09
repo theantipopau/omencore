@@ -11,12 +11,17 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     private HardwareStatus _lastStatus = new();
     private SystemCapabilities? _capabilities;
     private bool _disposed;
+    private PerformanceMode? _lastFanFallbackMode;
 
     // HP OMEN specific paths
     private const string HP_WMI_PATH = "/sys/devices/platform/hp-wmi";
     private const string HWMON_BASE = "/sys/class/hwmon";
     private const string POWER_SUPPLY = "/sys/class/power_supply";
     private const string BACKLIGHT_PATH = "/sys/class/leds/hp::kbd_backlight";
+    private const string HP_WMI_FAN1_OUTPUT = "/sys/devices/platform/hp-wmi/fan1_output";
+    private const string HP_WMI_FAN2_OUTPUT = "/sys/devices/platform/hp-wmi/fan2_output";
+    private const string HP_WMI_FAN_ALWAYS_ON = "/sys/devices/platform/hp-wmi/fan_always_on";
+    private const string HP_WMI_HWMON_ROOT = "/sys/devices/platform/hp-wmi/hwmon";
     
     // Thermal profile sysfs paths — checked in order of preference
     // The standard kernel platform_profile interface (kernel 5.18+) is most reliable.
@@ -25,6 +30,8 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     {
         "/sys/firmware/acpi/platform_profile",               // Standard kernel interface (most reliable)
         "/sys/devices/platform/hp-wmi/thermal_profile",      // HP-specific WMI sysfs
+        "/sys/devices/platform/hp-wmi/platform_profile",      // Some kernels expose profile under hp-wmi
+        "/sys/devices/platform/hp-wmi/performance_profile",   // OEM variant naming
         "/sys/devices/platform/thinkpad_acpi/thermal_profile" // Fallback for WMI alias
     };
     
@@ -150,7 +157,11 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         // Check for HP OMEN thermal profile (try multiple sysfs paths)
         _resolvedThermalPath = ResolveThermalProfilePath();
-        _capabilities.SupportsFanControl = _resolvedThermalPath != null;
+        bool hasDirectFanControl = File.Exists(HP_WMI_FAN1_OUTPUT) ||
+                       File.Exists(HP_WMI_FAN2_OUTPUT) ||
+                       ResolveHwmonFanTargetPath(1) != null ||
+                       ResolveHwmonFanTargetPath(2) != null;
+        _capabilities.SupportsFanControl = _resolvedThermalPath != null || hasDirectFanControl;
         
         // Check keyboard backlight
         _capabilities.HasKeyboardBacklight = Directory.Exists(BACKLIGHT_PATH);
@@ -278,8 +289,16 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         var thermalPath = _resolvedThermalPath ?? ResolveThermalProfilePath();
         if (thermalPath == null)
+        {
+            var boardId = await ReadFirstExistingTextAsync(new[]
+            {
+                "/sys/class/dmi/id/board_name",
+                "/sys/devices/virtual/dmi/id/board_name"
+            }) ?? "unknown";
+
             throw new InvalidOperationException(
-                "No thermal profile interface found. Ensure the hp-wmi kernel module is loaded (modprobe hp-wmi).");
+                $"No thermal profile interface found (board {boardId}). If hp-wmi is loaded but platform_profile/thermal_profile are missing, run 'omencore-cli diagnose --report' to capture model-specific sysfs capabilities.");
+        }
 
         var profile = await GetKernelProfileStringAsync(mode);
 
@@ -324,15 +343,99 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     public async Task SetCpuFanSpeedAsync(int percentage)
     {
-        // HP OMEN fan control via WMI or EC
-        // This typically requires a kernel driver like hp-omen-helper
-        await Task.CompletedTask;
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        int clamped = Math.Clamp(percentage, 0, 100);
+
+        await TryEnableManualFanOverrideAsync();
+
+        // Prefer direct hp-wmi fan output when exposed by kernel/firmware.
+        try
+        {
+            if (File.Exists(HP_WMI_FAN1_OUTPUT))
+            {
+                await File.WriteAllTextAsync(HP_WMI_FAN1_OUTPUT, clamped.ToString());
+                return;
+            }
+
+            var fanTargetPath = ResolveHwmonFanTargetPath(1);
+            if (fanTargetPath != null)
+            {
+                await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                return;
+            }
+        }
+        catch
+        {
+            // Fall through to profile-based fallback.
+        }
+
+        // Fallback for hp_wmi-only boards that expose only thermal_profile:
+        // approximate requested fan intensity by switching platform performance profile.
+        var mode = clamped switch
+        {
+            <= 35 => PerformanceMode.Quiet,
+            <= 70 => PerformanceMode.Balanced,
+            _ => PerformanceMode.Performance
+        };
+
+        await ApplyFanFallbackProfileAsync(mode);
     }
 
     public async Task SetGpuFanSpeedAsync(int percentage)
     {
-        // Similar to CPU fan
-        await Task.CompletedTask;
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return;
+
+        int clamped = Math.Clamp(percentage, 0, 100);
+
+        await TryEnableManualFanOverrideAsync();
+
+        try
+        {
+            if (File.Exists(HP_WMI_FAN2_OUTPUT))
+            {
+                await File.WriteAllTextAsync(HP_WMI_FAN2_OUTPUT, clamped.ToString());
+                return;
+            }
+
+            var fanTargetPath = ResolveHwmonFanTargetPath(2);
+            if (fanTargetPath != null)
+            {
+                await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                return;
+            }
+        }
+        catch
+        {
+            // Fall through to profile-based fallback.
+        }
+
+        var mode = clamped switch
+        {
+            <= 35 => PerformanceMode.Quiet,
+            <= 70 => PerformanceMode.Balanced,
+            _ => PerformanceMode.Performance
+        };
+
+        await ApplyFanFallbackProfileAsync(mode);
+    }
+
+    private async Task ApplyFanFallbackProfileAsync(PerformanceMode mode)
+    {
+        if (_lastFanFallbackMode == mode)
+            return;
+
+        try
+        {
+            await SetPerformanceModeAsync(mode);
+            _lastFanFallbackMode = mode;
+        }
+        catch
+        {
+            // No profile interface available on this model/kernel. Keep best-effort behavior.
+        }
     }
 
     public async Task<string> GetGpuModeAsync()
@@ -409,11 +512,20 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
+        var multiIntensityPath = Path.Combine(BACKLIGHT_PATH, "multi_intensity");
         var colorPath = Path.Combine(BACKLIGHT_PATH, "color");
 
         try
         {
-            // Format depends on the driver - typically RGB hex or space-separated
+            // Preferred for hp-wmi multicolor interface (used by custom driver): "R G B"
+            if (File.Exists(multiIntensityPath))
+            {
+                var rgbSpace = $"{r} {g} {b}";
+                await File.WriteAllTextAsync(multiIntensityPath, rgbSpace);
+                return;
+            }
+
+            // Legacy fallback used by some keyboard backlight drivers.
             var colorValue = $"{r:X2}{g:X2}{b:X2}";
             await File.WriteAllTextAsync(colorPath, colorValue);
         }
@@ -424,6 +536,63 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     }
 
     #region Private Helpers
+
+    private static async Task TryEnableManualFanOverrideAsync()
+    {
+        try
+        {
+            if (File.Exists(HP_WMI_FAN_ALWAYS_ON))
+            {
+                await File.WriteAllTextAsync(HP_WMI_FAN_ALWAYS_ON, "1");
+            }
+        }
+        catch
+        {
+            // Best-effort only.
+        }
+    }
+
+    private static async Task<string?> ReadFirstExistingTextAsync(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    return (await File.ReadAllTextAsync(path)).Trim();
+                }
+            }
+            catch
+            {
+                // Ignore and continue to next candidate.
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveHwmonFanTargetPath(int fanIndex)
+    {
+        try
+        {
+            if (!Directory.Exists(HP_WMI_HWMON_ROOT))
+                return null;
+
+            foreach (var hwmonDir in Directory.GetDirectories(HP_WMI_HWMON_ROOT, "hwmon*"))
+            {
+                var targetPath = Path.Combine(hwmonDir, $"fan{fanIndex}_target");
+                if (File.Exists(targetPath))
+                    return targetPath;
+            }
+        }
+        catch
+        {
+            // Best-effort resolution.
+        }
+
+        return null;
+    }
 
     private static async Task<int> ReadTemperatureAsync(string type)
     {

@@ -93,6 +93,10 @@ namespace OmenCore.ViewModels
         private readonly DateTime _monitoringStartupUtc = DateTime.UtcNow;
         private volatile bool _safeModeActive;
         private System.Threading.Timer? _safeModeResetTimer;
+        private bool _hotkeysInitialized;
+        private bool _windowFocusHandlersAttached;
+        private bool _windowFocusedHotkeysMode;
+        private bool _windowHotkeysActive;
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
         private FanControlViewModel? _fanControl;
@@ -3410,11 +3414,18 @@ namespace OmenCore.ViewModels
         /// </summary>
         public void InitializeHotkeys(IntPtr windowHandle)
         {
+            if (_hotkeysInitialized)
+            {
+                _logging.Debug("InitializeHotkeys called after initialization - skipping duplicate setup");
+                return;
+            }
+
             try
             {
                 // Only register hotkeys if enabled in settings
                 var hotkeysEnabled = _config.Monitoring?.HotkeysEnabled ?? true;
                 var windowFocused = _config.Monitoring?.WindowFocusedHotkeys ?? true;
+                _windowFocusedHotkeysMode = windowFocused;
                 
                 _hotkeyService.Initialize(windowHandle);
                 
@@ -3434,13 +3445,18 @@ namespace OmenCore.ViewModels
                         var wnd = Application.Current?.MainWindow;
                         if (wnd != null)
                         {
-                            wnd.Activated += OnMainWindowActivated;
-                            wnd.Deactivated += OnMainWindowDeactivated;
-                            _logging.Info("Window-focused hotkey behaviour enabled");
+                            if (!_windowFocusHandlersAttached)
+                            {
+                                wnd.Activated += OnMainWindowActivated;
+                                wnd.Deactivated += OnMainWindowDeactivated;
+                                _windowFocusHandlersAttached = true;
+                                _logging.Info("Window-focused hotkey behaviour enabled");
+                            }
                             // If window already active, register immediately
-                            if (wnd.IsActive)
+                            if (wnd.IsActive && !_windowHotkeysActive)
                             {
                                 _hotkeyService.RegisterDefaultHotkeys();
+                                _windowHotkeysActive = true;
                                 _logging.Info("Hotkeys registered (window already active)");
                                 PushEvent("⌨️ Hotkeys active (window focus)");
                             }
@@ -3456,6 +3472,7 @@ namespace OmenCore.ViewModels
                     else
                     {
                         _hotkeyService.RegisterDefaultHotkeys();
+                        _windowHotkeysActive = true;
                         _logging.Info("Global hotkeys registered");
                         PushEvent("⌨️ Global hotkeys enabled");
                     }
@@ -3477,6 +3494,8 @@ namespace OmenCore.ViewModels
                 // Pass monitoring sample source for accurate CPU/GPU load data
                 _osdService?.SetMonitoringSampleSource(() => LatestMonitoringSample);
                 _osdService?.Initialize();
+
+                _hotkeysInitialized = true;
             }
             catch (Exception ex)
             {
@@ -3525,9 +3544,15 @@ namespace OmenCore.ViewModels
 
         private void OnMainWindowActivated(object? sender, EventArgs e)
         {
+            if (!_windowFocusedHotkeysMode || _windowHotkeysActive)
+            {
+                return;
+            }
+
             try
             {
                 _hotkeyService.RegisterDefaultHotkeys();
+                _windowHotkeysActive = true;
                 _logging.Info("Hotkeys registered (window activated)");
                 PushEvent("⌨️ Hotkeys active (window focused)");
             }
@@ -3539,12 +3564,18 @@ namespace OmenCore.ViewModels
 
         private void OnMainWindowDeactivated(object? sender, EventArgs e)
         {
+            if (!_windowFocusedHotkeysMode || !_windowHotkeysActive)
+            {
+                return;
+            }
+
             try
             {
                 // Unregister all window-focused hotkeys EXCEPT ToggleWindow (Ctrl+Shift+O).
                 // ToggleWindow must stay registered so the app can be brought back from tray
                 // even when the window is hidden/deactivated.
                 _hotkeyService.UnregisterAllExcept(HotkeyAction.ToggleWindow);
+                _windowHotkeysActive = false;
                 _logging.Info("Hotkeys unregistered (window deactivated; ToggleWindow preserved)");
                 PushEvent("⌨️ Hotkeys inactive (window lost focus)");
             }
@@ -3611,10 +3642,11 @@ namespace OmenCore.ViewModels
             }
             // Unsubscribe window focus handlers if attached
             var wnd = Application.Current?.MainWindow;
-            if (wnd != null)
+            if (wnd != null && _windowFocusHandlersAttached)
             {
                 wnd.Activated -= OnMainWindowActivated;
                 wnd.Deactivated -= OnMainWindowDeactivated;
+                _windowFocusHandlersAttached = false;
             }
 
             // Dispose process monitoring and game profile services

@@ -64,6 +64,7 @@ namespace OmenCore.Hardware
         private bool _tempFallbackInitAttempted;
         private const double ImplausiblyLowCpuTempThresholdC = 33.0;
         private const double CpuLoadThresholdForLowTempFallbackPercent = 20.0;
+        private const double MaxAcpiDeltaFromWmiC = 18.0;
         
         // GPU temperature freeze detection (similar to CPU temp)
         private double _lastGpuTempReading;
@@ -93,6 +94,7 @@ namespace OmenCore.Hardware
         private const int MaxTransientZeroPowerReads = 30;
         private const double ActiveLoadThresholdPercent = 2.0;
         private const double ActiveTempThresholdC = 38.0;
+        private bool _powerFallbackLogged;
         
         // SSD temperature
         private double _cachedSsdTemp;
@@ -518,7 +520,18 @@ namespace OmenCore.Hardware
                         var acpiTemp = GetAcpiCpuTemperature();
                         if (acpiTemp > 0 && acpiTemp < 110)
                         {
-                            _cachedCpuTemp = acpiTemp;
+                            // ACPI thermal zones can occasionally report unrelated/system zones.
+                            // Reject large outliers against the current WMI/fallback reading unless
+                            // we are explicitly in a frozen-sensor recovery path.
+                            if (_cachedCpuTemp > 0 && !_cpuTempFrozen &&
+                                Math.Abs(acpiTemp - _cachedCpuTemp) > MaxAcpiDeltaFromWmiC)
+                            {
+                                _logging?.Debug($"[WmiBiosMonitor] Ignoring ACPI CPU outlier {acpiTemp:F1}°C (current {_cachedCpuTemp:F1}°C)");
+                            }
+                            else
+                            {
+                                _cachedCpuTemp = acpiTemp;
+                            }
                         }
                     }
                     catch
@@ -570,6 +583,8 @@ namespace OmenCore.Hardware
                         // MSR read failure is non-critical
                     }
                 }
+
+                TryApplyPowerFallback();
                 
                 // ═══════════════════════════════════════════════════════════════
                 // SOURCE 5: WMI — SSD Temperature + Battery Discharge Rate
@@ -738,6 +753,60 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Debug($"[WmiBiosMonitor] CPU temp fallback read failed: {ex.Message}");
+            }
+        }
+
+        private void TryApplyPowerFallback()
+        {
+            bool cpuNeedsFallback = _cachedCpuPowerWatts <= 0.1 &&
+                                    (_cachedCpuLoad >= 8.0 || _cachedCpuTemp >= 45.0);
+            bool gpuNeedsFallback = _cachedGpuPowerWatts <= 0.1 &&
+                                    (_cachedGpuLoad >= 8.0 || _cachedGpuTemp >= 45.0);
+
+            if (!cpuNeedsFallback && !gpuNeedsFallback)
+            {
+                return;
+            }
+
+            var fallbackMonitor = EnsureTempFallbackMonitor();
+            if (fallbackMonitor == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (cpuNeedsFallback)
+                {
+                    double cpuPowerFallback = fallbackMonitor.GetCpuPowerWatts();
+                    if (cpuPowerFallback > 0.1)
+                    {
+                        _cachedCpuPowerWatts = cpuPowerFallback;
+                        _lastValidCpuPowerWatts = cpuPowerFallback;
+                        _consecutiveZeroCpuPowerReads = 0;
+                    }
+                }
+
+                if (gpuNeedsFallback)
+                {
+                    double gpuPowerFallback = fallbackMonitor.GetGpuPowerWatts();
+                    if (gpuPowerFallback > 0.1)
+                    {
+                        _cachedGpuPowerWatts = gpuPowerFallback;
+                        _lastValidGpuPowerWatts = gpuPowerFallback;
+                        _consecutiveZeroGpuPowerReads = 0;
+                    }
+                }
+
+                if (!_powerFallbackLogged && ((_cachedCpuPowerWatts > 0.1 && cpuNeedsFallback) || (_cachedGpuPowerWatts > 0.1 && gpuNeedsFallback)))
+                {
+                    _logging?.Info("[WmiBiosMonitor] Power fallback active: using LibreHardwareMonitor power sensors when primary sources report 0W under load");
+                    _powerFallbackLogged = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Debug($"[WmiBiosMonitor] Power fallback read failed: {ex.Message}");
             }
         }
 

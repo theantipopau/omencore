@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.2-hotfix] - 2026-03-07 - Telemetry and Linux Reliability Patch
+
+Post-release hotfixes for v3.0.2 targeting Windows power/temperature reliability and Linux runtime compatibility.
+
+### Highlights
+- Windows power fallback now uses LibreHardwareMonitor when primary sensors report 0W under active load.
+- ACPI CPU outlier rejection reduces bogus temperature jumps that can destabilize fan control.
+- Windows crash-hardening added for hotkey focus churn and overlapping fan countdown re-apply callbacks.
+- Linux packaging now guarantees known-good `omencore-cli` payload composition and strips stale sidecar files.
+- Linux fan support expanded for `hp-wmi` `fan1_target`/`fan2_target`; keyboard RGB now supports `multi_intensity`.
+- Avalonia Linux version display aligned to 3.0.2 metadata.
+
+Full hotfix notes: [CHANGELOG_v3.0.2-hotfix.md](docs/CHANGELOG_v3.0.2-hotfix.md)
+
+---
+
 ## [3.0.2] - 2026-03-04 - Stability & Compatibility Patch 🔧
 
 Cumulative stability release incorporating all hotfix1 and hotfix2 work plus additional

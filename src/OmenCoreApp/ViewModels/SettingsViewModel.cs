@@ -1849,7 +1849,7 @@ namespace OmenCore.ViewModels
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OmenCore");
 
         public string LogFolderPath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore");
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore", "logs");
 
         public string AppVersion => System.Reflection.Assembly.GetExecutingAssembly()
             .GetCustomAttribute<System.Reflection.AssemblyFileVersionAttribute>()?.Version ?? "1.0.0.0";

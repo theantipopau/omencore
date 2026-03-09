@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OmenCore.Avalonia.Services;
+using System.Reflection;
 
 namespace OmenCore.Avalonia.ViewModels;
 
@@ -36,7 +37,7 @@ public partial class SettingsViewModel : ObservableObject
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
-    private string _version = "2.6.0";
+    private string _version = "3.0.2";
     
     [ObservableProperty]
     private bool _batteryAwareFans = true;
@@ -51,6 +52,11 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(IConfigurationService configService)
     {
         _configService = configService;
+        var version = Assembly.GetExecutingAssembly().GetName().Version;
+        if (version != null)
+        {
+            Version = $"{version.Major}.{version.Minor}.{version.Build}";
+        }
         LoadSettings();
     }
 

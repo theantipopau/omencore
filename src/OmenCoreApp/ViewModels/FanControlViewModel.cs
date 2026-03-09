@@ -804,6 +804,12 @@ namespace OmenCore.ViewModels
 
         private void ApplyPreset(FanPreset preset)
         {
+            if (_fanService.IsDiagnosticModeActive)
+            {
+                _logging.Warn($"Skipped preset '{preset.Name}' apply request because fan diagnostics mode is active");
+                return;
+            }
+
             _fanService.ApplyPreset(preset);
             
             // Update UI state
@@ -842,6 +848,12 @@ namespace OmenCore.ViewModels
 
         private void ApplyCustomCurve()
         {
+            if (_fanService.IsDiagnosticModeActive)
+            {
+                _logging.Warn("Skipped custom curve apply request because fan diagnostics mode is active");
+                return;
+            }
+
             // Validate the curve before applying
             var validationError = ValidateFanCurve(CustomFanCurve);
             if (validationError != null)
@@ -1243,6 +1255,12 @@ namespace OmenCore.ViewModels
         /// </summary>
         private void ApplyConstantSpeed()
         {
+            if (_fanService.IsDiagnosticModeActive)
+            {
+                _logging.Warn("Skipped constant fan speed apply request because fan diagnostics mode is active");
+                return;
+            }
+
             _fanService.DisableCurve(); // Stop any active curve
             _fanService.ForceSetFanSpeed(ConstantFanPercent);
             ActiveFanMode = "Constant";

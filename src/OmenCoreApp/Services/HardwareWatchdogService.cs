@@ -19,10 +19,14 @@ namespace OmenCore.Services
         private double _lastCpuTemp = 0;
         private double _lastGpuTemp = 0;
         private bool _isWatchdogArmed = true;
+        private bool _failsafeActive;
+        private int _consecutiveFreezeBreaches;
         private bool _disposed;
 
         private const int WatchdogIntervalMs = 10000; // Check every 10 seconds
-        private const int FreezeThresholdSeconds = 60; // Freeze detected after 60s without update
+        private const int FreezeThresholdSeconds = 90; // Require longer stall to reduce false positives
+        private const int FreezeBreachConfirmations = 2; // Require two consecutive breaches before failsafe
+        private const int FailsafeFanPercent = 90;
 
         public HardwareWatchdogService(LoggingService logging, FanService fanService)
         {
@@ -61,6 +65,22 @@ namespace OmenCore.Services
             _lastTempUpdate = DateTime.Now;
             _lastCpuTemp = cpuTemp;
             _lastGpuTemp = gpuTemp;
+            _consecutiveFreezeBreaches = 0;
+
+            if (_failsafeActive)
+            {
+                _failsafeActive = false;
+                _isWatchdogArmed = true;
+                _logging.Warn("WATCHDOG: Monitoring heartbeat recovered — attempting to restore BIOS auto fan control");
+                try
+                {
+                    _fanService.RestoreAutoControl();
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"WATCHDOG: Recovery restore auto control failed: {ex.Message}");
+                }
+            }
         }
 
         /// <summary>
@@ -92,23 +112,28 @@ namespace OmenCore.Services
 
                 if (timeSinceLastUpdate.TotalSeconds > FreezeThresholdSeconds)
                 {
-                    _logging.Error($"🚨 WATCHDOG: Temperature monitoring frozen for {timeSinceLastUpdate.TotalSeconds:F0}s - reverting to safe fan speeds");
+                    _consecutiveFreezeBreaches++;
+                    if (_consecutiveFreezeBreaches < FreezeBreachConfirmations)
+                    {
+                        _logging.Warn($"WATCHDOG: Potential monitoring stall ({timeSinceLastUpdate.TotalSeconds:F0}s, confirmation {_consecutiveFreezeBreaches}/{FreezeBreachConfirmations})");
+                        return;
+                    }
 
-                    // Emergency: Set fans to 100% to prevent thermal damage
+                    _logging.Error($"🚨 WATCHDOG: Temperature monitoring frozen for {timeSinceLastUpdate.TotalSeconds:F0}s - applying failsafe fan speed");
+
+                    // Emergency: set a high but non-max speed to avoid sticky max countdown mode.
                     Task.Run(() =>
                     {
                         try
                         {
-                            Disarm(); // Prevent recursion
-                            _fanService.ForceSetFanSpeed(100);
-                            _logging.Warn("Fans set to 100% due to frozen temperature monitoring");
+                            _failsafeActive = true;
+                            _isWatchdogArmed = false;
+                            _fanService.ForceSetFanSpeed(FailsafeFanPercent);
+                            _logging.Warn($"Fans set to {FailsafeFanPercent}% due to frozen temperature monitoring");
 
                             // Notify user
-                            _logging.Warn("🚨 WATCHDOG: Hardware monitoring frozen — fans set to 100%. Please restart OmenCore.");
+                            _logging.Warn($"🚨 WATCHDOG: Hardware monitoring frozen — fans set to {FailsafeFanPercent}%. Waiting for monitoring recovery.");
                             _logging.Warn("If this issue persists, check: WMI BIOS availability, system stability, or Windows updates.");
-
-                            // Stop watchdog to prevent spam
-                            Stop();
                         }
                         catch (Exception ex)
                         {

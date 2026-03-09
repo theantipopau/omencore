@@ -133,7 +133,9 @@ public class FanCurveService : IFanCurveService
         {
             return (new List<FanCurvePoint>(preset.cpu), new List<FanCurvePoint>(preset.gpu));
         }
-        return Presets["Balanced"];
+
+        var balanced = Presets["Balanced"];
+        return (new List<FanCurvePoint>(balanced.cpu), new List<FanCurvePoint>(balanced.gpu));
     }
 
     public IReadOnlyList<string> GetPresetNames() => Presets.Keys.ToList();

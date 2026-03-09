@@ -20,7 +20,7 @@ namespace OmenCore.Services
     public sealed class LoggingService : IDisposable
     {
         private readonly BlockingCollection<string> _queue = new();
-        private readonly string _logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore");
+        private readonly string _logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore", "logs");
         private readonly string _fileName;
         private Thread? _writerThread;
         private bool _disposed;

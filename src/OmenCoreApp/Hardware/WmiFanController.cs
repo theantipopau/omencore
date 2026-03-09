@@ -44,6 +44,8 @@ namespace OmenCore.Hardware
         // Countdown extension timer - keeps fan settings from reverting
         // HP BIOS aggressively reverts fan settings, especially on OMEN 16/Max/xd0xxx models with fast reversion
         private Timer? _countdownExtensionTimer;
+        private readonly object _countdownTimerLock = new();
+        private int _countdownCallbackActive;
         private const int CountdownExtensionIntervalMs = 800; // 0.8 seconds - more aggressive to combat BIOS reversion on AMD (was 3000)
         private const int CountdownExtensionInitialDelayMs = 250; // 0.25s initial delay (was 1000) - first tick fires early before BIOS reverts
         private bool _countdownExtensionEnabled = false;
@@ -1321,12 +1323,15 @@ namespace OmenCore.Hardware
         /// </summary>
         public void StartCountdownExtension()
         {
-            if (_countdownExtensionEnabled) return;
-            
-            _countdownExtensionTimer = new Timer(CountdownExtensionCallback, null, 
-                CountdownExtensionInitialDelayMs, CountdownExtensionIntervalMs);
-            _countdownExtensionEnabled = true;
-            _logging?.Info("✓ Fan countdown extension enabled (prevents settings reverting)");
+            lock (_countdownTimerLock)
+            {
+                if (_countdownExtensionEnabled) return;
+
+                _countdownExtensionTimer = new Timer(CountdownExtensionCallback, null,
+                    CountdownExtensionInitialDelayMs, CountdownExtensionIntervalMs);
+                _countdownExtensionEnabled = true;
+                _logging?.Info("✓ Fan countdown extension enabled (prevents settings reverting)");
+            }
         }
         
         /// <summary>
@@ -1334,12 +1339,15 @@ namespace OmenCore.Hardware
         /// </summary>
         public void StopCountdownExtension()
         {
-            if (!_countdownExtensionEnabled) return;
-            
-            _countdownExtensionTimer?.Dispose();
-            _countdownExtensionTimer = null;
-            _countdownExtensionEnabled = false;
-            _logging?.Info("Fan countdown extension stopped");
+            lock (_countdownTimerLock)
+            {
+                if (!_countdownExtensionEnabled) return;
+
+                _countdownExtensionTimer?.Dispose();
+                _countdownExtensionTimer = null;
+                _countdownExtensionEnabled = false;
+                _logging?.Info("Fan countdown extension stopped");
+            }
         }
         
         /// <summary>
@@ -1351,6 +1359,13 @@ namespace OmenCore.Hardware
         private void CountdownExtensionCallback(object? state)
         {
             if (!IsAvailable || _disposed) return;
+
+            // Timer callbacks can overlap under heavy system load; guard re-entry to avoid
+            // concurrent firmware writes and unstable fan state transitions.
+            if (Interlocked.Exchange(ref _countdownCallbackActive, 1) == 1)
+            {
+                return;
+            }
             
             try
             {
@@ -1391,6 +1406,10 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to extend fan settings: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _countdownCallbackActive, 0);
             }
         }
         

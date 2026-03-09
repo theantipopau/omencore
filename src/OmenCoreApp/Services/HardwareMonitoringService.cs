@@ -331,6 +331,10 @@ namespace OmenCore.Services
                     // ALWAYS update historical metrics for charts/graphs (bug fix v2.7.0)
                     // The history must be populated even when UI updates are skipped
                     UpdateDashboardMetrics(sample);
+
+                    // Always publish a sample heartbeat so downstream services (watchdog,
+                    // thermal automation) can track liveness even when UI deltas are small.
+                    SampleUpdated?.Invoke(this, sample);
                     
                     // Change detection optimization - only update UI if values changed significantly
                     var shouldUpdate = ShouldUpdateUI(sample);
@@ -359,7 +363,6 @@ namespace OmenCore.Services
                             }
                         }
 
-                        SampleUpdated?.Invoke(this, sample);
                         _lastSample = sample;
                     }
                     else

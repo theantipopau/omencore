@@ -40,6 +40,8 @@ public class LinuxEcController
     // DMI paths for model detection
     private const string DMI_PRODUCT_NAME = "/sys/class/dmi/id/product_name";
     private const string DMI_PRODUCT_NAME_ALT = "/sys/devices/virtual/dmi/id/product_name";
+    private const string DMI_BOARD_NAME = "/sys/class/dmi/id/board_name";
+    private const string DMI_BOARD_NAME_ALT = "/sys/devices/virtual/dmi/id/board_name";
     
     // EC Register addresses (from omen-fan - older models OMEN 15 2020, etc.)
     // WARNING: These registers are ONLY valid for pre-2025 OMEN models!
@@ -71,6 +73,14 @@ public class LinuxEcController
         "16-ah0",     // OMEN MAX Gaming Laptop 16-ah0xxx (2025)
         "17t-ah0",    // OMEN MAX Gaming Laptop 17t-ah0xxx (2025, if exists)
         "17-ah0",     // OMEN MAX Gaming Laptop 17-ah0xxx (2025, if exists)
+        "transcend 14" // Transcend variants often use non-legacy EC maps and hp-wmi flow
+    };
+
+    // Board IDs known to expose hp-wmi with missing/partial thermal interfaces where
+    // direct legacy EC writes are unreliable or immediately reverted by firmware watchdogs.
+    private static readonly string[] UnsafeEcBoardIds = new[]
+    {
+        "8c58"
     };
     
     public bool IsAvailable { get; }
@@ -81,12 +91,14 @@ public class LinuxEcController
     public bool IsUnsafeEcModel { get; }
     public string AccessMethod { get; }
     public string? DetectedModel { get; }
+    public string? DetectedBoardId { get; }
     
     public LinuxEcController()
     {
         // Detect model first to determine safe access methods
         DetectedModel = DetectModelName();
-        IsUnsafeEcModel = CheckUnsafeEcModel(DetectedModel);
+        DetectedBoardId = DetectBoardId();
+        IsUnsafeEcModel = CheckUnsafeEcModel(DetectedModel, DetectedBoardId);
         
         HasEcAccess = File.Exists(EC_PATH) && !IsUnsafeEcModel;
         
@@ -121,7 +133,7 @@ public class LinuxEcController
         if (IsUnsafeEcModel)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"⚠ Model '{DetectedModel}' detected - direct EC register access disabled (different register layout).");
+            Console.WriteLine($"⚠ Model '{DetectedModel}' (board '{DetectedBoardId ?? "unknown"}') detected - direct EC register access disabled (different register layout or firmware watchdog behavior).");
             Console.WriteLine($"  Using safe interface: {AccessMethod}");
             Console.ResetColor();
         }
@@ -141,6 +153,21 @@ public class LinuxEcController
         catch { }
         return null;
     }
+
+    /// <summary>
+    /// Detect board identifier from DMI (for example: 8C58).
+    /// </summary>
+    private static string? DetectBoardId()
+    {
+        try
+        {
+            var path = File.Exists(DMI_BOARD_NAME) ? DMI_BOARD_NAME : DMI_BOARD_NAME_ALT;
+            if (File.Exists(path))
+                return File.ReadAllText(path).Trim();
+        }
+        catch { }
+        return null;
+    }
     
     /// <summary>
     /// Check if the detected model has an unknown/unsafe EC register layout.
@@ -149,13 +176,23 @@ public class LinuxEcController
     /// GitHub Issue #60: OMEN Max 16t-ah000 EC panic from writing to 0x34/0x35
     /// (these addresses contain serial number data on 2025 models, not fan registers).
     /// </summary>
-    private static bool CheckUnsafeEcModel(string? modelName)
+    private static bool CheckUnsafeEcModel(string? modelName, string? boardId)
     {
-        if (string.IsNullOrEmpty(modelName))
-            return false;
-        
-        var modelLower = modelName.ToLowerInvariant();
-        return UnsafeEcModelPatterns.Any(pattern => modelLower.Contains(pattern.ToLowerInvariant()));
+        if (!string.IsNullOrEmpty(modelName))
+        {
+            var modelLower = modelName.ToLowerInvariant();
+            if (UnsafeEcModelPatterns.Any(pattern => modelLower.Contains(pattern.ToLowerInvariant())))
+                return true;
+        }
+
+        if (!string.IsNullOrEmpty(boardId))
+        {
+            var boardLower = boardId.ToLowerInvariant();
+            if (UnsafeEcBoardIds.Any(id => boardLower.Equals(id, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
     }
     
     /// <summary>
@@ -210,7 +247,9 @@ public class LinuxEcController
             ["hp_wmi_exists"] = Directory.Exists(HP_WMI_PATH),
             ["kernel_version"] = GetKernelVersion(),
             ["distribution"] = GetDistributionInfo(),
-            ["is_root"] = CheckRootAccess()
+            ["is_root"] = CheckRootAccess(),
+            ["detected_model"] = DetectedModel ?? "unknown",
+            ["detected_board_id"] = DetectedBoardId ?? "unknown"
         };
         
         // Check file permissions if paths exist

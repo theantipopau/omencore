@@ -1471,6 +1471,30 @@ namespace OmenCore.Hardware
                 return _cachedGpuTemp;
             }
         }
+
+        /// <summary>
+        /// Get current CPU package power in watts.
+        /// </summary>
+        public double GetCpuPowerWatts()
+        {
+            EnsureCacheFresh();
+            lock (_lock)
+            {
+                return _cachedCpuPower;
+            }
+        }
+
+        /// <summary>
+        /// Get current GPU power in watts.
+        /// </summary>
+        public double GetGpuPowerWatts()
+        {
+            EnsureCacheFresh();
+            lock (_lock)
+            {
+                return _cachedGpuPower;
+            }
+        }
         
         /// <summary>
         /// Ensures the hardware cache is fresh before reading values.

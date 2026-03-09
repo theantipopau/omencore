@@ -92,6 +92,7 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
         if (!string.IsNullOrEmpty(value))
         {
             LoadPreset(value);
+            _ = ApplyCurve();
         }
     }
 
