@@ -8,13 +8,13 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 **🎯 Key Differentiators:**
 - ✅ **100% OGH-Independent** - Works without OMEN Gaming Hub installed
-- ✅ **No Bloatware** - Single 70MB self-contained executable
+- ✅ **No Bloatware** - Self-contained release artifacts with no extra runtime installs
 - ✅ **No Telemetry** - Your data stays on your machine
 - ✅ **No Ads** - Clean, focused interface
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-3.0.2-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.0.2)
+[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.1.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -29,7 +29,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCore-3.0.2-win-x64.zip from Releases
+1. Download OmenCore-3.1.0-win-x64.zip from Releases
 2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from extracted folder
@@ -39,8 +39,8 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.0.2/OmenCore-3.0.2-linux-x64.zip
-unzip OmenCore-3.0.2-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.1.0/OmenCore-3.1.0-linux-x64.zip
+unzip OmenCore-3.1.0-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
@@ -48,102 +48,45 @@ chmod +x omencore-cli && sudo ./omencore-cli status
 # GUI (Avalonia)
 chmod +x omencore-gui && sudo ./omencore-gui
 ```
-**[?? Full Linux Installation Guide](docs/LINUX_INSTALL_GUIDE.md)** | [Quick Reference](INSTALL.md#-linux-installation)
+**[📖 Full Linux Installation Guide](docs/LINUX_INSTALL_GUIDE.md)** | [Quick Reference](INSTALL.md#-linux-installation)
 
 ---
 
-## 🆕 What's New in v3.0.2
+## 🆕 What's New in v3.1.0
 
-### 🔧 Stability & Compatibility Patch (10 Bug Fixes A–J)
-- **XAML Startup Crash** — Fixed five undefined resource keys causing `StaticResourceExtension` exceptions
-- **Secure Boot Display** — Fixed inverted Secure Boot status showing "Disabled" when enabled
-- **Ctrl+Shift+O Hotkey** — Restored global keyboard shortcut after window deactivation (issue #70)
-- **Capability Warnings** — Eliminated false positive banners on PawnIO-equipped systems
-- **Memory Leaks** — Fixed five missing event handler unsubscriptions in `MainViewModel.Dispose()`
-- **Race Conditions** — Fixed `volatile` field synchronization in AMD GPU service
-- **GUI Polish** — Updated 18 tooltips, 5 hardcoded colors, Gaming Mode disabled state styling
-- **Sensor Reliability** — Fixed CPU clock log format, thread safety in `GetSystemInfo()`, PawnIO probe timing
-- **Keyboard Lighting** — Fixed null `SystemInfoService` reference causing crashes on Victus 16-r0xxx
-- **Thermal Management** — Fixed MSI Afterburner garbage temperature causing false thermal emergencies
+### 🔧 Telemetry Integrity and Reliability
+- Added explicit telemetry state modeling (`Valid`, `Inactive`, `Unavailable`, `Stale`, `Invalid`) for clearer dashboard and summary behavior.
+- Removed fabricated fan RPM fallback values when readback is unavailable.
+- Fixed dGPU idle reporting so inactive periods no longer display misleading temperatures.
+- Fixed CPU package power stale lock-in on systems without MSR power support.
 
-See [CHANGELOG_v3.0.2.md](docs/CHANGELOG_v3.0.2.md) for full details of all fixes.
+### 🛠️ Community Bug Fixes
+- **GitHub #77:** Sleep/suspend fan max behavior hardened with always-active suspend hooks, paused fan writes during suspend, and BIOS auto fan restore.
+- **GitHub #78:** OMEN MAX 16-ah0000 CPU temperature override added to prioritize worker-backed CPU sensor reads on affected models.
+- Added diagnostics visibility line showing when the model-specific CPU temp override is active.
 
-### 🎯 Major Enhancements in v3.0.2
+### 🎨 UI and Runtime Polish
+- Tray right-click visual artifacts fixed (left gutter and hover/icon bleed).
+- Monitoring/dashboard hot-path logging and UI churn reduced for lower idle overhead.
+- Hardware worker startup bootstrap improved with clearer startup diagnostics.
 
-#### Memory Cleaner Profiles (Conservative/Balanced/Aggressive)
-Smart preset cleaning profiles reduce user confusion from 8 separate buttons:
-- **Conservative** — Working sets only (~10ms, minimal impact)
-- **Balanced** (default) — Working sets + file cache + standby list
-- **Aggressive** — All safe operations including page combining
-
-Radio button selection + live preview showing estimated freed memory.
-
-#### Process Memory Ranking (Top 10 Consumers)
-Real-time list of the 10 most memory-hungry applications:
-- Updated every 2 seconds alongside memory stats
-- Shows ProcessName, WorkingSetMB, PrivateMemoryMB, MemoryPercent
-- Helps users identify which apps to close before cleanup
-
-#### Memory Cleanup Preview
-Intelligent estimation before cleaning:
-- "This profile will free approximately X MB" 
-- Updates instantly when profile selection changes
-- Uses heuristics tuned to actual cleanup behavior
-- Sets user expectations before operation
-
-#### Bloatware Bulk Restore
-Complete parity with bulk remove:
-- Restore all previously-removed items in one operation
-- Progress bar tracks multi-app restoration
-- Works on all AppX packages supporting restoration
-- Graceful cancellation support
-
-### 🏗️ Architecture Overhaul (v3.0.0 base)
-- **Self-Sustaining Monitoring** — WMI BIOS + NVAPI + PerformanceCounter + PawnIO MSR
-- **Zero Silent Failures** — All sensor sources work independently; no cascade failures
-
-### 🐛 Critical Bug Fixes (7 Regressions)
-- **GPU Telemetry Lockup** — NVAPI errors cause 60s auto-recovery instead of permanent telemetry loss
-- **OMEN 16-wf1xxx Fan Control** — ProductId 8BAB now has proper ModelCapabilityDatabase entry; WMI path fixed
-- **Fan Auto Mode 0 RPM** — Debounce window properly resets after profile switches
-- **Monitor Loop Hangs** — Permanent exit on consecutive errors replaced with 10s backoff + restart
-- **Startup Freeze** — WinRing0 check (~17s WMI scan) → instant registry lookup (<1ms); PerformanceCounter moved to background thread
-- **All Sensors 0°C** — Individual sources now work when WMI BIOS is unavailable
-
-### ✨ Major Features
-- **Fan Diagnostics** — Guided sequential test at 30% → 60% → 100% with PASS/FAIL results per fan level
-- **Memory Optimizer Tab** — Real-time RAM monitoring + Smart/Deep clean + configurable auto-clean intervals
-- **Keyboard Lighting Enhancements** — Native WMI brightness control (0–100%) + LED animation effects (Breathing, ColorCycle, Wave)
-- **V2 Keyboard Engine** — PawnIO EC-direct backend; auto-promotes verified models (8A14, 8A15, 8BAD) without config flags
-- **Headless Mode** — `--headless` flag for server/HTPC operation; all features work without GUI
-- **Profile Scheduler** — Time-of-day automation rules for fan presets and performance modes
-
-### 🎨 GUI Improvements
-- **Temperature Chart Time Ranges** — New 1m / 5m / 15m / 30m selector above monitoring charts
-- **Settings Search Bar** — Instant search across all tabs with formatted results
-- **Onboarding Wizard** — Three-step welcome for first-time users with hardware status readout
-- **Fan Curve Ghost Overlay** — Presets render as dashed blue overlay when hovering for instant comparison
-- **System Optimizer Overhaul** — Emoji icons → Path icons; hardcoded hex colors → theme brushes
-- **Bloatware Manager Polish** — Risk level filter (All/Low/Med/High), bulk remove progress bar, fixed status badges, BETA removed
-- **Zero-Temp Display** — Shows "—°C" instead of "0°C" when sensors are unavailable
-
-Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v3.0.2 patch notes: [CHANGELOG_v3.0.2.md](docs/CHANGELOG_v3.0.2.md)
+See [CHANGELOG_v3.1.0.md](docs/CHANGELOG_v3.1.0.md) for full release details.
 
 ---
 
-## � v3.0.2 Release Artifacts
+## 📦 v3.1.0 Release Artifacts
 
-**Version:** OmenCore v3.0.2 (Release/win-x64)  
-**Build Date:** 2026-03-04 @ 06:50 UTC  
-**Status:** ✅ Verified stable — tested on OMEN 17-ck2xxx + Victus 16
+**Version:** OmenCore v3.1.0 (Release/win-x64)  
+**Build Date:** 2026-03-10  
+**Status:** ✅ Consolidated release rollup (includes all pre-release bugfixes)
 
 ### Download Files
 
 | File | Size | SHA256 |
 |------|------|--------|
-| **OmenCoreSetup-3.0.2.exe** | 101.09 MB | `954AA7C608D36D6CDD99E1599A7BB4CA7F39DB5876241436CDF822BA2DA8FEC0` |
-| **OmenCore-3.0.2-win-x64.zip** | 104.31 MB | `760FDC6D02B4872128383EA2E74FB86BEBFB62EABC74BB57FCE431AF4953B406` |
-| **OmenCore-3.0.2-linux-x64.zip** | 43.55 MB | `582461B475C3C712B669395C58152A688735DE2521F8F4D7B31D2A950CE43ED5` |
+| **OmenCoreSetup-3.1.0.exe** | 101.09 MB | `D92548E4E3698A2B71D11A02ED64D918746C3C3CB06EC2035E8602D57C50AD8C` |
+| **OmenCore-3.1.0-win-x64.zip** | 104.32 MB | `1EA65E7BA857285A01A896FC2A7BF8418D1B8D9723DCB9EE4A350E6BA87A06F6` |
+| **OmenCore-3.1.0-linux-x64.zip** | 43.55 MB | `276686F92EB289B3196BDCD02CFC93E95F676D269515740060FB7B5A585D9D0F` |
 
 **Setup File (Windows):** Single-file self-contained executable with embedded .NET 8.0 runtime — no dependencies required  
 **Portable ZIP (Windows):** Extract and run immediately from any directory  
@@ -151,10 +94,10 @@ Full v3.0.0 base changelog: [CHANGELOG_v3.0.0.md](docs/CHANGELOG_v3.0.0.md) · v
 
 ### What's Included
 
-✅ All 10 bug fixes (A–J) from v3.0.2 hotfix series  
-✅ 4 new enhancements (profiles, bulk restore, process ranking, cleanup preview)  
-✅ v3.0.0 base architecture (self-sustaining monitoring, zero silent failures)  
-✅ Memory Optimizer, Fan Diagnostics, Keyboard Lighting, Bloatware Manager  
+✅ Telemetry state model and dashboard clarity improvements  
+✅ Sleep/suspend fan protection hardening (GitHub #77)  
+✅ OMEN MAX 16 CPU temperature override fix (GitHub #78)  
+✅ Tray/menu visual polish and worker startup reliability improvements  
 ✅ Linux CLI + Avalonia GUI (separate download)  
 ✅ Zero telemetry, ads, or bloatware
 

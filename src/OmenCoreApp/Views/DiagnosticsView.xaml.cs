@@ -23,5 +23,19 @@ namespace OmenCore.Views
                 UseShellExecute = true
             });
         }
+
+        private void OpenOmenCoreDataFolder_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            var dataDir = System.IO.Path.Combine(
+                System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+                "OmenCore");
+            var target = System.IO.Directory.Exists(dataDir) ? dataDir : App.Logging.LogDirectory;
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = target,
+                UseShellExecute = true
+            });
+        }
     }
 }

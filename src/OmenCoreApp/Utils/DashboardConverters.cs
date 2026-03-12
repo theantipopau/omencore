@@ -128,12 +128,17 @@ namespace OmenCore.Utils
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var suffix = parameter as string ?? "°C";
+            var rawSuffix = parameter as string ?? "°C";
+            var suffix = string.Equals(rawSuffix, "w", StringComparison.OrdinalIgnoreCase)
+                ? "W"
+                : rawSuffix;
+
             if (value is double d && d > 0)
                 return $"{d:F0}{suffix}";
             if (value is float f && f > 0)
                 return $"{f:F0}{suffix}";
-            return $"—{suffix}";
+
+            return $"--{suffix}";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

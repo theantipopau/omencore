@@ -34,6 +34,13 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         "/sys/devices/platform/hp-wmi/performance_profile",   // OEM variant naming
         "/sys/devices/platform/thinkpad_acpi/thermal_profile" // Fallback for WMI alias
     };
+
+    private static readonly string[] ThermalProfileChoicePaths = new[]
+    {
+        "/sys/firmware/acpi/platform_profile_choices",
+        "/sys/devices/platform/hp-wmi/platform_profile_choices",
+        "/sys/devices/platform/hp-wmi/thermal_profile_choices"
+    };
     
     private string? _resolvedThermalPath; // Cached resolved path
     
@@ -206,7 +213,8 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         return profile.Trim().ToLower() switch
         {
             "low-power" or "cool" or "quiet" => PerformanceMode.Quiet,
-            "balanced" or "balanced-performance" => PerformanceMode.Balanced,
+            "balanced" => PerformanceMode.Balanced,
+            "balanced-performance" => PerformanceMode.Performance,
             "performance" => PerformanceMode.Performance,
             _ => PerformanceMode.Balanced
         };
@@ -228,7 +236,10 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 choices.Contains("quiet") ? "quiet" :
                 choices.Contains("cool") ? "cool" : "low-power",
             PerformanceMode.Balanced => "balanced",
-            PerformanceMode.Performance => "performance",
+            PerformanceMode.Performance =>
+                choices.Contains("performance") ? "performance" :
+                choices.Contains("balanced-performance") ? "balanced-performance" :
+                "performance",
             _ => "balanced"
         };
     }
@@ -241,13 +252,21 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         var choices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            // Try standard kernel interface first
-            var choicesPath = "/sys/firmware/acpi/platform_profile_choices";
-            if (File.Exists(choicesPath))
+            foreach (var choicesPath in ThermalProfileChoicePaths)
             {
+                if (!File.Exists(choicesPath))
+                {
+                    continue;
+                }
+
                 var content = await File.ReadAllTextAsync(choicesPath);
                 foreach (var choice in content.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                     choices.Add(choice.Trim());
+
+                if (choices.Count > 0)
+                {
+                    break;
+                }
             }
         }
         catch { }

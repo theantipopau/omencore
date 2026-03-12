@@ -13,6 +13,9 @@
         ShowActivated="False"
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
         WindowStartupLocation="Manual">
     
     <Window.Resources>
@@ -82,12 +85,14 @@
                            FontSize="22"
                            FontWeight="SemiBold"
                            Foreground="White"
-                           Margin="0,2,0,0"/>
+                           Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="TriggerText"
                            Text="via Hotkey (Ctrl+Shift+F)"
                            FontSize="11"
                            Foreground="#66FFFFFF"
-                           Margin="0,4,0,0"/>
+                           Margin="0,4,0,0"
+                           TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Grid>
     </Border>

@@ -29,6 +29,9 @@ public class LinuxEcController
     // ACPI Platform Profile (kernel 5.18+, used by 2025+ OMEN models)
     private const string ACPI_PLATFORM_PROFILE = "/sys/firmware/acpi/platform_profile";
     private const string ACPI_PLATFORM_PROFILE_CHOICES = "/sys/firmware/acpi/platform_profile_choices";
+    private const string HP_WMI_THERMAL_CHOICES = "/sys/devices/platform/hp-wmi/thermal_profile_choices";
+    private const string HP_WMI_PLATFORM_PROFILE = "/sys/devices/platform/hp-wmi/platform_profile";
+    private const string HP_WMI_PLATFORM_PROFILE_CHOICES = "/sys/devices/platform/hp-wmi/platform_profile_choices";
     
     // HP-WMI hwmon paths (2025+ models use standard hwmon interface for fan control)
     // Discovered at runtime since hwmon number varies
@@ -419,7 +422,7 @@ public class LinuxEcController
 
         try
         {
-            var validProfiles = new[] { "quiet", "balanced", "performance", "extreme" };
+            var validProfiles = new[] { "quiet", "balanced", "balanced-performance", "performance", "extreme" };
             if (!validProfiles.Contains(profile.ToLower()))
                 return false;
 
@@ -532,14 +535,31 @@ public class LinuxEcController
     /// </summary>
     public string[] GetAcpiProfileChoices()
     {
-        if (!HasAcpiProfileAccess || !File.Exists(ACPI_PLATFORM_PROFILE_CHOICES))
-            return Array.Empty<string>();
-        
-        try
+        var choicePaths = new[]
         {
-            return File.ReadAllText(ACPI_PLATFORM_PROFILE_CHOICES).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            ACPI_PLATFORM_PROFILE_CHOICES,
+            HP_WMI_PLATFORM_PROFILE_CHOICES,
+            HP_WMI_THERMAL_CHOICES
+        };
+
+        foreach (var path in choicePaths)
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                return File.ReadAllText(path).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            }
+            catch
+            {
+                // Try next path.
+            }
         }
-        catch { return Array.Empty<string>(); }
+
+        return Array.Empty<string>();
     }
     
     /// <summary>
@@ -568,14 +588,54 @@ public class LinuxEcController
         
         try
         {
+            var normalized = profile.Trim().ToLowerInvariant();
             var choices = GetAcpiProfileChoices();
-            if (choices.Length > 0 && !choices.Contains(profile, StringComparer.OrdinalIgnoreCase))
+            if (choices.Length > 0 && !choices.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                normalized = ResolveSupportedProfileAlias(normalized, choices);
+            }
+
+            if (choices.Length > 0 && !choices.Contains(normalized, StringComparer.OrdinalIgnoreCase))
                 return false;
-            
-            File.WriteAllText(ACPI_PLATFORM_PROFILE, profile.ToLowerInvariant());
+
+            File.WriteAllText(ACPI_PLATFORM_PROFILE, normalized);
             return true;
         }
         catch { return false; }
+    }
+
+    private static string ResolveSupportedProfileAlias(string requested, string[] choices)
+    {
+        if (choices.Length == 0)
+        {
+            return requested;
+        }
+
+        if (requested.Equals("performance", StringComparison.OrdinalIgnoreCase) &&
+            choices.Contains("balanced-performance", StringComparer.OrdinalIgnoreCase))
+        {
+            return "balanced-performance";
+        }
+
+        if (requested.Equals("balanced-performance", StringComparison.OrdinalIgnoreCase) &&
+            choices.Contains("performance", StringComparer.OrdinalIgnoreCase))
+        {
+            return "performance";
+        }
+
+        if ((requested.Equals("quiet", StringComparison.OrdinalIgnoreCase) || requested.Equals("cool", StringComparison.OrdinalIgnoreCase)) &&
+            choices.Contains("low-power", StringComparer.OrdinalIgnoreCase))
+        {
+            return "low-power";
+        }
+
+        if (requested.Equals("low-power", StringComparison.OrdinalIgnoreCase) &&
+            choices.Contains("quiet", StringComparer.OrdinalIgnoreCase))
+        {
+            return "quiet";
+        }
+
+        return requested;
     }
     
     #endregion
@@ -1062,6 +1122,7 @@ public class LinuxEcController
                 return profile switch
                 {
                     "performance" => PerformanceMode.Performance,
+                    "balanced-performance" => PerformanceMode.Performance,
                     "quiet"       => PerformanceMode.Cool,
                     "balanced"    => PerformanceMode.Default,
                     _             => PerformanceMode.Default
@@ -1079,7 +1140,9 @@ public class LinuxEcController
                 return profile switch
                 {
                     "performance" => PerformanceMode.Performance,
+                    "balanced-performance" => PerformanceMode.Performance,
                     "low-power"   => PerformanceMode.Cool,
+                    "quiet"       => PerformanceMode.Cool,
                     "balanced"    => PerformanceMode.Default,
                     _             => PerformanceMode.Default
                 };
@@ -1123,9 +1186,12 @@ public class LinuxEcController
         // Priority 2: ACPI platform_profile
         if (HasAcpiProfileAccess)
         {
+            var profileChoices = GetAcpiProfileChoices();
             var acpiProfile = mode switch
             {
-                PerformanceMode.Performance => "performance",
+                PerformanceMode.Performance => profileChoices.Contains("performance", StringComparer.OrdinalIgnoreCase)
+                    ? "performance"
+                    : "balanced-performance",
                 PerformanceMode.Cool        => "low-power",
                 _                           => "balanced"
             };

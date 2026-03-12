@@ -212,12 +212,25 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Formatted CPU temperature string. Shows "—°C" when sensor data is unavailable (0°C).
         /// </summary>
-        public string CpuTempDisplay => CpuTemperature > 0 ? $"{CpuTemperature:F0}°C" : "—°C";
+        public string CpuTempDisplay => LatestMonitoringSample?.CpuTemperatureState switch
+        {
+            TelemetryDataState.Unavailable => "--°C",
+            TelemetryDataState.Stale => CpuTemperature > 0 ? $"{CpuTemperature:F0}°C*" : "--°C",
+            TelemetryDataState.Invalid => "--°C",
+            _ => CpuTemperature > 0 ? $"{CpuTemperature:F0}°C" : "—°C"
+        };
         
         /// <summary>
         /// Formatted GPU temperature string. Shows "—°C" when sensor data is unavailable (0°C).
         /// </summary>
-        public string GpuTempDisplay => GpuTemperature > 0 ? $"{GpuTemperature:F0}°C" : "—°C";
+        public string GpuTempDisplay => LatestMonitoringSample?.GpuTemperatureState switch
+        {
+            TelemetryDataState.Inactive => GpuTemperature > 0 ? $"{GpuTemperature:F0}°C" : "--°C",
+            TelemetryDataState.Unavailable => "--°C",
+            TelemetryDataState.Stale => GpuTemperature > 0 ? $"{GpuTemperature:F0}°C*" : "--°C",
+            TelemetryDataState.Invalid => "--°C",
+            _ => GpuTemperature > 0 ? $"{GpuTemperature:F0}°C" : "—°C"
+        };
         
         /// <summary>
         /// Whether CPU temperature sensor data is available (non-zero reading).
@@ -234,9 +247,11 @@ namespace OmenCore.ViewModels
             : LatestMonitoringSample.CpuPowerWatts > 0 
                 ? $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% • {LatestMonitoringSample.CpuPowerWatts:F0}W"
                 : $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
-        public string GpuSummary => LatestMonitoringSample == null 
-            ? "GPU telemetry unavailable" 
-            : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
+        public string GpuSummary => LatestMonitoringSample == null
+            ? "GPU telemetry unavailable"
+            : LatestMonitoringSample.GpuTemperatureState == TelemetryDataState.Inactive
+                ? $"dGPU idle • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}"
+                : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
         public string MemorySummary => LatestMonitoringSample == null ? "Memory telemetry unavailable" : $"{LatestMonitoringSample.RamUsageGb:F1} / {LatestMonitoringSample.RamTotalGb:F0} GB";
         public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" 
             : LatestMonitoringSample.SsdTemperatureC > 0 

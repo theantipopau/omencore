@@ -127,7 +127,7 @@ namespace OmenCore.Services.Diagnostics
 
                 // Driver status
                 sb.AppendLine("=== DRIVER STATUS ===");
-                sb.AppendLine($"WinRing0: {GetWinRing0Status()}");
+                sb.AppendLine($"Legacy WinRing0: {GetWinRing0Status()}");
                 sb.AppendLine($"PawnIO: {GetPawnIOStatus()}");
                 sb.AppendLine();
 
@@ -416,7 +416,7 @@ namespace OmenCore.Services.Diagnostics
         {
             try
             {
-                // Check if WinRing0 driver is loaded
+                // Check if legacy WinRing0 artifacts are present
                 var driverPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "drivers", "WinRing0x64.sys");
                 if (File.Exists(driverPath))
                     return "Installed";

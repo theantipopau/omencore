@@ -969,6 +969,7 @@ namespace OmenCore.Hardware
                 int fan1Percent = 0;
                 int fan2Percent = 0;
                 bool gotValidData = false;
+                var rpmSource = RpmSource.Unknown;
                 
                 // Try direct RPM reading first — BUT only on V2+ systems.
                 // CMD 0x38 (GetFanRpmDirect) is a V2-only command; on V1 systems it returns
@@ -1001,6 +1002,7 @@ namespace OmenCore.Hardware
                         fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
                         fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
                         gotValidData = true;
+                        rpmSource = RpmSource.WmiBios;
                         _logging?.Debug($"[FanRPM] Direct RPM: CPU={fan1Rpm} ({fan1Percent}%), GPU={fan2Rpm} ({fan2Percent}%)");
                     }
                 }
@@ -1052,60 +1054,22 @@ namespace OmenCore.Hardware
                         fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
                         fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
                         gotValidData = true;
+                        rpmSource = RpmSource.WmiBios;
                         
-                        _logging?.Info($"HP WMI Fan levels: Fan1={fanLevel.Value.fan1} -> {fan1Rpm} RPM ({fan1Percent}%), Fan2={fanLevel.Value.fan2} -> {fan2Rpm} RPM ({fan2Percent}%)");
+                        _logging?.Debug($"HP WMI Fan levels: Fan1={fanLevel.Value.fan1} -> {fan1Rpm} RPM ({fan1Percent}%), Fan2={fanLevel.Value.fan2} -> {fan2Rpm} RPM ({fan2Percent}%)");
                     }
                 }
                 
-                // Fallback to estimation if WMI fails
+                // Do not fabricate RPM values when WMI readback is unavailable.
+                // Surface a clear unavailable state (0 RPM + Unknown source) instead.
                 if (!gotValidData)
                 {
-                    // WMI BIOS GetFanLevel failed or returned zeros
-                    // Many HP OMEN laptops don't support reading current fan level
-                    // Estimate based on last SET percentage if available
-                    _logging?.Debug($"[FanRPM] GetFanLevel unavailable, using last set percent: {_lastManualFanPercent}");
-                    
-                    if (_lastManualFanPercent >= 0)
-                    {
-                        // We have a last set value - estimate RPM from it
-                        fan1Percent = _lastManualFanPercent;
-                        fan2Percent = _lastManualFanPercent;
-                        // Estimate RPM: linear scale 0-100% = 0-5500 RPM
-                        fan1Rpm = (_lastManualFanPercent * 5500) / 100;
-                        fan2Rpm = (_lastManualFanPercent * 5500) / 100;
-                        _logging?.Debug($"[FanRPM] Using estimated RPM based on last set: {fan1Rpm} RPM ({fan1Percent}%)");
-                    }
-                    else if (_isMaxModeActive)
-                    {
-                        // Max mode is active
-                        fan1Percent = 100;
-                        fan2Percent = 100;
-                        fan1Rpm = 5500;
-                        fan2Rpm = 5500;
-                        _logging?.Debug("[FanRPM] Max mode active - showing 100%");
-                    }
-                    else
-                    {
-                        // No manual control active - fans are in BIOS/auto mode
-                        // Use improved temperature-based estimation for better accuracy
-                        var maxTemp = Math.Max(cpuTemp, gpuTemp);
-                        if (maxTemp > 0)
-                        {
-                            // More accurate BIOS fan curve estimation based on typical OMEN behavior
-                            (fan1Percent, fan1Rpm) = EstimateFanFromTemperature(maxTemp, "CPU");
-                            (fan2Percent, fan2Rpm) = EstimateFanFromTemperature(maxTemp, "GPU");
-                            _logging?.Debug($"[FanRPM] Auto mode estimation: CPU {fan1Percent}% ({fan1Rpm} RPM), GPU {fan2Percent}% ({fan2Rpm} RPM) @ {maxTemp:F1}°C");
-                        }
-                        else
-                        {
-                            // Can't estimate - show placeholder with realistic idle values
-                            fan1Percent = 25; // Typical idle fan %
-                            fan2Percent = 25;
-                            fan1Rpm = 1375; // ~25% of 5500 RPM
-                            fan2Rpm = 1375;
-                            _logging?.Debug("[FanRPM] No temp data, showing idle estimates: 25% (1375 RPM)");
-                        }
-                    }
+                    fan1Rpm = 0;
+                    fan2Rpm = 0;
+                    fan1Percent = 0;
+                    fan2Percent = 0;
+                    rpmSource = RpmSource.Unknown;
+                    _logging?.Debug("[FanRPM] WMI fan readback unavailable - reporting 0 RPM with unknown source");
                 }
 
                 fans.Add(new FanTelemetry 
@@ -1113,7 +1077,8 @@ namespace OmenCore.Hardware
                     Name = "CPU Fan", 
                     SpeedRpm = fan1Rpm, 
                     DutyCyclePercent = fan1Percent, 
-                    Temperature = cpuTemp > 0 ? cpuTemp : biosTemp ?? 0
+                    Temperature = cpuTemp > 0 ? cpuTemp : biosTemp ?? 0,
+                    RpmSource = rpmSource
                 });
                 
                 fans.Add(new FanTelemetry 
@@ -1121,7 +1086,8 @@ namespace OmenCore.Hardware
                     Name = "GPU Fan", 
                     SpeedRpm = fan2Rpm, 
                     DutyCyclePercent = fan2Percent, 
-                    Temperature = gpuTemp
+                    Temperature = gpuTemp,
+                    RpmSource = rpmSource
                 });
 
                 // Track last known RPM for phantom RPM debounce

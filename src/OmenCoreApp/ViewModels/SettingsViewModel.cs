@@ -2832,14 +2832,14 @@ namespace OmenCore.ViewModels
                 {
                     if (xtuRunning)
                     {
-                        DriverStatusText = "WinRing0 Detected (XTU Conflict)";
-                        DriverStatusDetail = $"Intel XTU service ({xtuServiceName}) may block undervolting. Stop XTU to use OmenCore undervolting. Consider migrating to PawnIO. (Note: WinRing0 may trigger Defender false positives - see FAQ)";
+                        DriverStatusText = "Legacy WinRing0 Detected (XTU Conflict)";
+                        DriverStatusDetail = $"Intel XTU service ({xtuServiceName}) may block undervolting. Stop XTU to use OmenCore undervolting. PawnIO remains the recommended backend. (Legacy WinRing0 may trigger Defender false positives.)";
                         DriverStatusColor = new SolidColorBrush(Color.FromRgb(255, 183, 77)); // Orange
                     }
                     else
                     {
-                        DriverStatusText = "WinRing0 Detected (Legacy)";
-                        DriverStatusDetail = "Legacy driver backend working. Note: May trigger Windows Defender false positives (known issue with hardware monitoring tools). PawnIO recommended for Secure Boot systems.";
+                        DriverStatusText = "Legacy WinRing0 Detected";
+                        DriverStatusDetail = "Legacy driver backend detected. OmenCore defaults to PawnIO/WMI paths; WinRing0 is legacy/optional and may trigger Windows Defender false positives.";
                         DriverStatusColor = new SolidColorBrush(Color.FromRgb(255, 183, 77)); // Orange-yellow (warn about legacy)
                     }
                 }
@@ -2860,7 +2860,7 @@ namespace OmenCore.ViewModels
                     else
                     {
                         DriverStatusDetail =
-                            "Install PawnIO (recommended - no Defender false positives) or run OmenCore as Administrator to initialize WinRing0.";
+                            "Install PawnIO (recommended - no Defender false positives). Legacy WinRing0 fallback is optional and not required for core operation.";
                     }
 
                     DriverStatusColor = new SolidColorBrush(Color.FromRgb(239, 83, 80)); // Red
@@ -3130,7 +3130,7 @@ namespace OmenCore.ViewModels
                 else if (OghInstalled)
                     FanBackend = "WMI BIOS (OGH)";
                 else if (!SecureBootEnabled)
-                    FanBackend = "WMI BIOS + Legacy EC";
+                    FanBackend = "WMI BIOS + Optional Legacy EC Path";
                 else
                     FanBackend = "WMI BIOS";
                     

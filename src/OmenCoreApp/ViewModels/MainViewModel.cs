@@ -228,18 +228,6 @@ namespace OmenCore.ViewModels
                         });
                     };
                     
-                    // Subscribe to suspend/resume events for S0 Modern Standby support
-                    _powerAutomationService.SystemSuspending += (s, e) =>
-                    {
-                        _hardwareMonitoringService?.Pause();
-                    };
-                    
-                    _powerAutomationService.SystemResuming += (s, e) =>
-                    {
-                        _hardwareMonitoringService?.Resume();
-                        _fanService?.HandleSystemResume();
-                    };
-                    
                     OnPropertyChanged(nameof(Settings));
                 }
                 return _settings;
@@ -410,12 +398,12 @@ namespace OmenCore.ViewModels
         public string FanBackend { get; private set; } = "Detecting...";
         
         /// <summary>
-        /// The active EC access backend (PawnIO or WinRing0).
+        /// The active EC access backend (typically PawnIO; legacy WinRing0 is optional).
         /// </summary>
         public string EcBackend { get; private set; } = "None";
         
         /// <summary>
-        /// True if Secure Boot is enabled (blocks WinRing0).
+        /// True if Secure Boot is enabled (legacy unsigned drivers are blocked).
         /// </summary>
         public bool SecureBootEnabled => DetectedCapabilities?.SecureBootEnabled ?? false;
         
@@ -423,6 +411,13 @@ namespace OmenCore.ViewModels
         /// Warning message for limited functionality.
         /// </summary>
         public string? CapabilityWarning { get; private set; }
+
+        /// <summary>
+        /// Monitoring diagnostics line indicating whether a model-specific CPU temperature override is active.
+        /// </summary>
+        public string CpuTempOverrideDiagnosticText => _wmiBiosMonitor?.IsModelCpuTempOverrideActive == true
+            ? $"Model override active (GitHub #78): worker CPU sensor prioritized for {_wmiBiosMonitor.ModelName}"
+            : "Model override inactive: standard WMI/ACPI CPU temperature path";
 
         /// <summary>
         /// Power automation service for AC/Battery profile switching.
@@ -578,8 +573,13 @@ namespace OmenCore.ViewModels
                 // v2.6.1: Push update to GeneralViewModel for enhanced General tab
                 _general?.UpdateFromMonitoringSample(value);
                 
-                // Batch property notifications to reduce overhead
-                OnPropertyChanged(string.Empty); // Notifies all properties changed
+                // Notify only telemetry-bound properties to reduce UI refresh overhead.
+                OnPropertyChanged(nameof(LatestMonitoringSample));
+                OnPropertyChanged(nameof(CpuSummary));
+                OnPropertyChanged(nameof(GpuSummary));
+                OnPropertyChanged(nameof(MemorySummary));
+                OnPropertyChanged(nameof(StorageSummary));
+                OnPropertyChanged(nameof(CpuClockSummary));
             }
         }
         public bool MonitoringLowOverheadMode
@@ -601,8 +601,20 @@ namespace OmenCore.ViewModels
             }
         }
         public bool MonitoringGraphsVisible => !MonitoringLowOverheadMode;
-        public string CpuSummary => LatestMonitoringSample == null ? "CPU telemetry unavailable" : $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load";
-        public string GpuSummary => LatestMonitoringSample == null ? "GPU telemetry unavailable" : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
+        public string CpuSummary => LatestMonitoringSample == null
+            ? "CPU telemetry unavailable"
+            : LatestMonitoringSample.CpuTemperatureState switch
+            {
+                TelemetryDataState.Unavailable => $"Unavailable • {LatestMonitoringSample.CpuLoadPercent:F0}% load",
+                TelemetryDataState.Stale => $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C (stale)" : "Stale")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load",
+                TelemetryDataState.Invalid => $"Invalid • {LatestMonitoringSample.CpuLoadPercent:F0}% load",
+                _ => $"{(LatestMonitoringSample.CpuTemperatureC > 0 ? $"{LatestMonitoringSample.CpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.CpuLoadPercent:F0}% load"
+            };
+        public string GpuSummary => LatestMonitoringSample == null
+            ? "GPU telemetry unavailable"
+            : LatestMonitoringSample.GpuTemperatureState == TelemetryDataState.Inactive
+                ? $"dGPU idle • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}"
+                : $"{(LatestMonitoringSample.GpuTemperatureC > 0 ? $"{LatestMonitoringSample.GpuTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.GpuLoadPercent:F0}% load{(LatestMonitoringSample.GpuVramUsageMb > 0 ? $" • {LatestMonitoringSample.GpuVramUsageMb:F0} MB VRAM" : string.Empty)}";
         public string MemorySummary => LatestMonitoringSample == null ? "Memory telemetry unavailable" : $"{LatestMonitoringSample.RamUsageGb:F1} / {LatestMonitoringSample.RamTotalGb:F0} GB";
         public string StorageSummary => LatestMonitoringSample == null ? "Storage telemetry unavailable" : $"SSD {(LatestMonitoringSample.SsdTemperatureC > 0 ? $"{LatestMonitoringSample.SsdTemperatureC:F0}°C" : "—°C")} • {LatestMonitoringSample.DiskUsagePercent:F0}% active";
         public string CpuClockSummary => LatestMonitoringSample == null || LatestMonitoringSample.CpuCoreClocksMhz.Count == 0
@@ -1202,15 +1214,15 @@ namespace OmenCore.ViewModels
             }
             else if (capabilities.SecureBootEnabled && !capabilities.PawnIOAvailable && !capabilities.OghRunning)
             {
-                CapabilityWarning = "Secure Boot enabled — WinRing0 is blocked. PawnIO provides compatible driver access for EC/MSR features.";
+                CapabilityWarning = "Secure Boot enabled — install PawnIO for EC/MSR features. Core monitoring and many controls continue via WMI.";
             }
             else if (capabilities.FanControl == Hardware.FanControlMethod.MonitoringOnly)
             {
                 CapabilityWarning = "Fan control unavailable - monitoring only mode.";
             }
             
-            // Initialize EC access with automatic backend selection
-            // Tries PawnIO first (Secure Boot compatible), then WinRing0
+            // Initialize EC access with automatic backend selection.
+            // PawnIO is primary; legacy WinRing0 fallback is optional/opt-in.
             IEcAccess? ec = null;
             try
             {
@@ -1232,8 +1244,8 @@ namespace OmenCore.ViewModels
                 EcBackend = "Error";
             }
 
-            // Create fan controller with intelligent backend selection using pre-detected capabilities
-            // Priority: OGH Proxy > WMI BIOS (no driver) > EC (requires WinRing0) > Fallback (monitoring only)
+            // Create fan controller with intelligent backend selection using pre-detected capabilities.
+            // Priority: OGH Proxy > WMI BIOS (no driver) > EC (PawnIO-preferred) > Fallback (monitoring only)
             var fanControllerFactory = new FanControllerFactory(monitorBridge, ec, _config.EcFanRegisterMap, _logging, capabilities, _config.MaxFanLevelOverride);
             var fanController = fanControllerFactory.Create();
             FanBackend = fanControllerFactory.ActiveBackend;
@@ -1385,6 +1397,10 @@ namespace OmenCore.ViewModels
             // _notificationService created earlier (before FanService)
             _powerAutomationService = new PowerAutomationService(_logging, _fanService, _performanceModeService, _configService, _gpuSwitchService);
             _omenKeyService = new OmenKeyService(_logging, _configService);
+
+            // Subscribe to suspend/resume early so protection works even if Settings is never opened.
+            _powerAutomationService.SystemSuspending += OnSystemSuspending;
+            _powerAutomationService.SystemResuming += OnSystemResuming;
             
             // Initialize OSD service (will only activate if enabled in settings)
             // Pass ThermalProvider from FanService for temperature data
@@ -1559,6 +1575,18 @@ namespace OmenCore.ViewModels
             
             // Initialize game profile system
             InitializeGameProfilesAsync();
+        }
+
+        private void OnSystemSuspending(object? sender, EventArgs e)
+        {
+            _hardwareMonitoringService?.Pause();
+            _fanService?.HandleSystemSuspend();
+        }
+
+        private void OnSystemResuming(object? sender, EventArgs e)
+        {
+            _hardwareMonitoringService?.Resume();
+            _fanService?.HandleSystemResume();
         }
 
         /// <summary>

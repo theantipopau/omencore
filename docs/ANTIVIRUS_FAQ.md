@@ -9,7 +9,7 @@ OmenCore uses low-level hardware drivers to control your laptop's fan curves, LE
 | Component | Purpose | Why Flagged |
 |-----------|---------|-------------|
 | **PawnIO** | Secure hardware access for Secure Boot systems | Kernel driver for MSR/EC access |
-| **WinRing0** | Legacy hardware access | Kernel driver for MSR/SMBus |
+| **WinRing0 (Legacy/Optional)** | Legacy fallback backend on limited systems | Kernel driver for MSR/SMBus |
 | **LibreHardwareMonitorLib** | Temperature/sensor monitoring | Low-level hardware polling |
 
 ## Is OmenCore Safe?
@@ -18,8 +18,8 @@ OmenCore uses low-level hardware drivers to control your laptop's fan curves, LE
 - https://github.com/theantipopau/omencore
 
 The drivers used are:
-- **PawnIO**: A modern, Secure Boot compatible driver
-- **WinRing0**: A widely-used open-source driver also used by CPU-Z, HWiNFO, and many other system utilities
+- **PawnIO**: The primary and recommended backend for advanced EC/MSR access (Secure Boot compatible)
+- **WinRing0**: A legacy optional backend that may be present on some systems/configurations
 
 ## How to Whitelist OmenCore
 
@@ -83,7 +83,7 @@ OmenCore binaries are periodically scanned on VirusTotal. Detection rates vary b
 
 Common false positive detections:
 - `Generic.Trojan.Malware` - Heuristic detection of kernel driver behavior
-- `Riskware.WinRing0` - WinRing0 driver detected as potentially unwanted
+- `Riskware.WinRing0` - Legacy WinRing0 artifact detected as potentially unwanted
 - `HackTool.Win32` - MSR access flagged as "hacking tool"
 
 These are **false positives** caused by the legitimate low-level hardware access required for fan/thermal control.
@@ -132,7 +132,7 @@ OmenCore requires kernel-level access because:
 | AV Detection | Lower | Higher |
 | Development | Active | Abandoned |
 
-OmenCore prioritizes PawnIO when available, falling back to WinRing0 only if necessary.
+OmenCore defaults to PawnIO and WMI-based paths. WinRing0 is legacy/optional and not required for core operation.
 
 ---
 

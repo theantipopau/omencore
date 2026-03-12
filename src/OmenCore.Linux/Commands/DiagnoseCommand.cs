@@ -126,6 +126,9 @@ public static class DiagnoseCommand
 
         info.HpWmiPathExists = Directory.Exists("/sys/devices/platform/hp-wmi");
         info.HpWmiThermalProfileExists = File.Exists("/sys/devices/platform/hp-wmi/thermal_profile");
+        info.HpWmiPlatformProfileExists = File.Exists("/sys/devices/platform/hp-wmi/platform_profile");
+        info.HpWmiThermalProfileChoicesExists = File.Exists("/sys/devices/platform/hp-wmi/thermal_profile_choices");
+        info.HpWmiPlatformProfileChoicesExists = File.Exists("/sys/devices/platform/hp-wmi/platform_profile_choices");
         info.HpWmiFanAlwaysOnExists = File.Exists("/sys/devices/platform/hp-wmi/fan_always_on");
         info.HpWmiFan1OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan1_output");
         info.HpWmiFan2OutputExists = File.Exists("/sys/devices/platform/hp-wmi/fan2_output");
@@ -144,6 +147,11 @@ public static class DiagnoseCommand
             info.AcpiPlatformProfile = await ReadTextAsync("/sys/firmware/acpi/platform_profile");
             info.AcpiPlatformProfileChoices = await ReadTextAsync("/sys/firmware/acpi/platform_profile_choices");
         }
+
+        info.HpWmiPlatformProfile = await ReadTextAsync("/sys/devices/platform/hp-wmi/platform_profile");
+        info.HpWmiPlatformProfileChoices = await ReadTextAsync("/sys/devices/platform/hp-wmi/platform_profile_choices");
+        info.HpWmiThermalProfile = await ReadTextAsync("/sys/devices/platform/hp-wmi/thermal_profile");
+        info.HpWmiThermalProfileChoices = await ReadTextAsync("/sys/devices/platform/hp-wmi/thermal_profile_choices");
 
         // Detection (use current controller logic)
         var ec = new LinuxEcController();
@@ -179,7 +187,7 @@ public static class DiagnoseCommand
             }
         }
 
-        if (info.HpWmiPathExists && !info.HpWmiThermalProfileExists)
+        if (info.HpWmiPathExists && !info.HpWmiThermalProfileExists && !info.HpWmiPlatformProfileExists)
         {
             if (info.AcpiPlatformProfileExists)
             {
@@ -303,6 +311,9 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  hp_wmi:    {(info.HpWmiModuleLoaded ? "✓ loaded" : "✗ not loaded"),-76}║");
         Console.WriteLine($"║  hp-wmi dir:{(info.HpWmiPathExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  thermal:   {(info.HpWmiThermalProfileExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  wmi_prof:  {(info.HpWmiPlatformProfileExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  therm_ch:  {(info.HpWmiThermalProfileChoicesExists ? "✓ present" : "✗ missing"),-76}║");
+        Console.WriteLine($"║  wmi_ch:    {(info.HpWmiPlatformProfileChoicesExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  fan1_out:  {(info.HpWmiFan1OutputExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  fan2_out:  {(info.HpWmiFan2OutputExists ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine($"║  fan1_tgt:  {(info.HpWmiFan1TargetExists ? "✓ present" : "✗ missing"),-76}║");
@@ -486,11 +497,18 @@ public class DiagnoseInfo
     public bool HpWmiModuleLoaded { get; set; }
     public bool HpWmiPathExists { get; set; }
     public bool HpWmiThermalProfileExists { get; set; }
+    public bool HpWmiPlatformProfileExists { get; set; }
+    public bool HpWmiThermalProfileChoicesExists { get; set; }
+    public bool HpWmiPlatformProfileChoicesExists { get; set; }
     public bool HpWmiFanAlwaysOnExists { get; set; }
     public bool HpWmiFan1OutputExists { get; set; }
     public bool HpWmiFan2OutputExists { get; set; }
     public bool HpWmiFan1TargetExists { get; set; }
     public bool HpWmiFan2TargetExists { get; set; }
+    public string? HpWmiThermalProfile { get; set; }
+    public string? HpWmiThermalProfileChoices { get; set; }
+    public string? HpWmiPlatformProfile { get; set; }
+    public string? HpWmiPlatformProfileChoices { get; set; }
 
     public string DetectedAccessMethod { get; set; } = "none";
     public bool EcControllerAvailable { get; set; }

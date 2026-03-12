@@ -219,8 +219,6 @@ namespace OmenCore.Services
                     lastHeartbeat = DateTime.Now;
                 }
                 
-                _logging.Debug($"[MonitorLoop] Iteration {iteration} starting...");
-                
                 // Check if paused (S0 Modern Standby support)
                 if (_isPaused)
                 {
@@ -238,8 +236,6 @@ namespace OmenCore.Services
 
                 try
                 {
-                    _logging.Debug($"[MonitorLoop] Iteration {iteration}: Reading sample from bridge...");
-                    
                     // Add timeout to prevent infinite hangs in hardware monitoring
                     using var readCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     readCts.CancelAfter(ReadSampleTimeoutMs);
@@ -323,8 +319,6 @@ namespace OmenCore.Services
                     
                     consecutiveErrors = 0; // Reset error counter on success
 
-                    _logging.Debug($"MonitorLoop: Got sample - CPU: {sample.CpuTemperatureC}°C, GPU: {sample.GpuTemperatureC}°C, CPULoad: {sample.CpuLoadPercent}%, GPULoad: {sample.GpuLoadPercent}%, RAM: {sample.RamUsageGb}GB");
-
                     // Temperature freeze detection (v2.7.0)
                     sample = CheckAndRecoverFrozenTemps(sample);
 
@@ -338,12 +332,8 @@ namespace OmenCore.Services
                     
                     // Change detection optimization - only update UI if values changed significantly
                     var shouldUpdate = ShouldUpdateUI(sample);
-                    _logging.Debug($"MonitorLoop: ShouldUpdateUI={shouldUpdate}, lastSample null={_lastSample == null}");
-                    
                     if (shouldUpdate)
                     {
-                        _logging.Debug("MonitorLoop: ShouldUpdateUI returned true, updating UI");
-
                         if (!_lowOverheadMode)
                         {
                             // Throttle UI updates to prevent Dispatcher backlog during heavy load

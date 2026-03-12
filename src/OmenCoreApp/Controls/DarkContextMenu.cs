@@ -27,12 +27,6 @@ namespace OmenCore.Controls
         private static readonly Color TextSecondary = Color.FromRgb(160, 165, 180);
         private static readonly Color TextMuted = Color.FromRgb(120, 125, 140);
 
-        static DarkContextMenu()
-        {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(DarkContextMenu),
-                new FrameworkPropertyMetadata(typeof(DarkContextMenu)));
-        }
-
         public DarkContextMenu()
         {
             // Set up the dark theme appearance
@@ -48,6 +42,9 @@ namespace OmenCore.Controls
             BorderThickness = new Thickness(1);
             Padding = new Thickness(4);
             HasDropShadow = true;
+            SnapsToDevicePixels = true;
+            OverridesDefaultStyle = true;
+            Template = CreateContextMenuTemplate();
 
             // Override all system colors
             Resources.Add(SystemColors.MenuBarBrushKey, new SolidColorBrush(SurfaceDark));
@@ -69,6 +66,43 @@ namespace OmenCore.Controls
         }
 
         /// <summary>
+        /// Creates a custom ContextMenu template so no default system chrome/icon gutter is rendered.
+        /// </summary>
+        private ControlTemplate CreateContextMenuTemplate()
+        {
+            var template = new ControlTemplate(typeof(ContextMenu));
+
+            var border = new FrameworkElementFactory(typeof(Border), "MenuBorder");
+            var bg = new LinearGradientBrush(
+                Color.FromRgb(18, 20, 35),
+                Color.FromRgb(25, 28, 48),
+                new Point(0, 0),
+                new Point(0, 1));
+
+            border.SetValue(Border.BackgroundProperty, bg);
+            border.SetValue(Border.BorderBrushProperty, new SolidColorBrush(BorderColor));
+            border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+            border.SetValue(Border.PaddingProperty, new Thickness(4));
+            border.SetValue(UIElement.SnapsToDevicePixelsProperty, true);
+            border.SetValue(UIElement.EffectProperty, new DropShadowEffect
+            {
+                Color = Colors.Black,
+                BlurRadius = 18,
+                ShadowDepth = 5,
+                Opacity = 0.45
+            });
+
+            var itemsHost = new FrameworkElementFactory(typeof(StackPanel), "ItemsHost");
+            itemsHost.SetValue(Panel.IsItemsHostProperty, true);
+            itemsHost.SetValue(KeyboardNavigation.DirectionalNavigationProperty, KeyboardNavigationMode.Cycle);
+            border.AppendChild(itemsHost);
+
+            template.VisualTree = border;
+            return template;
+        }
+
+        /// <summary>
         /// Creates a complete custom MenuItem style with ControlTemplate that has NO icon gutter.
         /// </summary>
         private Style CreateMenuItemStyle()
@@ -85,6 +119,7 @@ namespace OmenCore.Controls
             style.Setters.Add(new Setter(FontSizeProperty, 12.0));
             style.Setters.Add(new Setter(SnapsToDevicePixelsProperty, true));
             style.Setters.Add(new Setter(OverridesDefaultStyleProperty, true));
+            style.Setters.Add(new Setter(HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
 
             // Create the ControlTemplate
             var template = CreateMenuItemTemplate();
@@ -107,7 +142,7 @@ namespace OmenCore.Controls
             var border = new FrameworkElementFactory(typeof(Border), "Border");
             border.SetValue(Border.BackgroundProperty, Brushes.Transparent);
             border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
-            border.SetValue(Border.MarginProperty, new Thickness(2, 1, 2, 1));
+            border.SetValue(Border.MarginProperty, new Thickness(0, 1, 0, 1));
             border.SetValue(Border.PaddingProperty, new Thickness(12, 8, 12, 8));
 
             // Grid inside border for content + arrow
@@ -119,6 +154,7 @@ namespace OmenCore.Controls
             content.SetValue(ContentPresenter.RecognizesAccessKeyProperty, true);
             content.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
             content.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+            content.SetValue(FrameworkElement.MarginProperty, new Thickness(0));
 
             // Arrow path for submenus
             var arrow = new FrameworkElementFactory(typeof(Path), "Arrow");

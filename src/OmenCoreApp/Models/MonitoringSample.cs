@@ -3,6 +3,17 @@ using System.Collections.Generic;
 
 namespace OmenCore.Models
 {
+    public enum TelemetryDataState
+    {
+        Unknown,
+        Valid,
+        Zero,
+        Inactive,
+        Unavailable,
+        Stale,
+        Invalid
+    }
+
     public class MonitoringSample
     {
         public DateTime Timestamp { get; set; } = DateTime.Now;
@@ -16,6 +27,13 @@ namespace OmenCore.Models
         public double RamUsageGb { get; set; }
         public double RamTotalGb { get; set; }
         public double FanRpm { get; set; }
+        public TelemetryDataState CpuTemperatureState { get; set; } = TelemetryDataState.Unknown;
+        public TelemetryDataState CpuPowerState { get; set; } = TelemetryDataState.Unknown;
+        public TelemetryDataState GpuTemperatureState { get; set; } = TelemetryDataState.Unknown;
+        public TelemetryDataState Fan1RpmState { get; set; } = TelemetryDataState.Unknown;
+        public TelemetryDataState Fan2RpmState { get; set; } = TelemetryDataState.Unknown;
+
+        public bool IsGpuInactive => GpuTemperatureState == TelemetryDataState.Inactive;
         
         // Dual fan support (v2.2)
         public int Fan1Rpm { get; set; }

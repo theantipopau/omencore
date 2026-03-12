@@ -30,6 +30,7 @@ namespace OmenCore.Controls
         private readonly Queue<double> _powerHistory = new(60);
         private double _previousPower;
         private bool _isInitialized;
+        private bool _showingNoDataPlaceholders;
         private double _cachedBatteryHealth = -1; // Cached battery health (expensive to query)
         private DateTime _lastBatteryHealthCheck = DateTime.MinValue;
         
@@ -50,7 +51,7 @@ namespace OmenCore.Controls
             // Set up metrics update timer (fast for responsive UI)
             _updateTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(1)
+                Interval = TimeSpan.FromSeconds(2)
             };
             _updateTimer.Tick += UpdateTimer_Tick;
 
@@ -237,16 +238,13 @@ namespace OmenCore.Controls
             {
                 var sample = _dashboardViewModel?.LatestMonitoringSample ?? _mainViewModel?.LatestMonitoringSample;
 
-                App.Logging.Debug($"[Dashboard.UpdateMetrics] Called! LatestMonitoringSample={( sample == null ? "NULL" : $"CPU={sample.CpuTemperatureC}°C" )}");
-
                 if (sample == null)
                 {
-                    App.Logging.Warn("[Dashboard.UpdateMetrics] LatestMonitoringSample is NULL - showing placeholders");
                     ShowNoDataPlaceholders();
                     return;
                 }
 
-                App.Logging.Debug($"[Dashboard.UpdateMetrics] Got sample: CPU={sample.CpuTemperatureC}°C, GPU={sample.GpuTemperatureC}°C, CPULoad={sample.CpuLoadPercent}%, GPULoad={sample.GpuLoadPercent}%");
+                _showingNoDataPlaceholders = false;
 
                 // Add to history queues for real-time sparklines
                 _cpuTempHistory.Enqueue(sample.CpuTemperatureC);
@@ -297,30 +295,65 @@ namespace OmenCore.Controls
 
                 if (CpuTempValue != null)
                 {
-                    CpuTempValue.Text = cpuTemp.ToString("F0");
-                    AnimateMetricIfCritical(CpuTempValue, cpuTemp > 85);
+                    CpuTempValue.Text = sample.CpuTemperatureState switch
+                    {
+                        TelemetryDataState.Unavailable => "--",
+                        TelemetryDataState.Invalid => "Invalid",
+                        _ => cpuTemp.ToString("F0")
+                    };
+                    AnimateMetricIfCritical(CpuTempValue, sample.CpuTemperatureState == TelemetryDataState.Valid && cpuTemp > 85);
                 }
                 if (CpuTempStatus != null)
                 {
-                    var cpuStatus = GetTemperatureStatus(cpuTemp);
+                    var cpuStatus = sample.CpuTemperatureState switch
+                    {
+                        TelemetryDataState.Unavailable => "Unavailable",
+                        TelemetryDataState.Stale => "Stale",
+                        TelemetryDataState.Invalid => "Invalid",
+                        _ => GetTemperatureStatus(cpuTemp)
+                    };
                     CpuTempStatus.Text = cpuStatus;
-                    CpuTempStatus.Foreground = GetTemperatureBrush(cpuTemp);
+                    CpuTempStatus.Foreground = sample.CpuTemperatureState switch
+                    {
+                        TelemetryDataState.Unavailable => Brushes.Gray,
+                        TelemetryDataState.Stale => Brushes.Orange,
+                        TelemetryDataState.Invalid => Brushes.Red,
+                        _ => GetTemperatureBrush(cpuTemp)
+                    };
                 }
 
                 if (GpuTempValue != null)
                 {
-                    GpuTempValue.Text = gpuTemp.ToString("F0");
-                    AnimateMetricIfCritical(GpuTempValue, gpuTemp > 85);
+                    GpuTempValue.Text = sample.GpuTemperatureState switch
+                    {
+                        TelemetryDataState.Inactive => "Inactive",
+                        TelemetryDataState.Unavailable => "--",
+                        TelemetryDataState.Invalid => "Invalid",
+                        _ => gpuTemp.ToString("F0")
+                    };
+                    AnimateMetricIfCritical(GpuTempValue, sample.GpuTemperatureState == TelemetryDataState.Valid && gpuTemp > 85);
                 }
                 if (GpuTempStatus != null)
                 {
-                    var gpuStatus = GetTemperatureStatus(gpuTemp);
+                    var gpuStatus = sample.GpuTemperatureState switch
+                    {
+                        TelemetryDataState.Inactive => "Inactive",
+                        TelemetryDataState.Unavailable => "Unavailable",
+                        TelemetryDataState.Stale => "Stale",
+                        TelemetryDataState.Invalid => "Invalid",
+                        _ => GetTemperatureStatus(gpuTemp)
+                    };
                     GpuTempStatus.Text = gpuStatus;
-                    GpuTempStatus.Foreground = GetTemperatureBrush(gpuTemp);
+                    GpuTempStatus.Foreground = sample.GpuTemperatureState switch
+                    {
+                        TelemetryDataState.Inactive => Brushes.Gray,
+                        TelemetryDataState.Unavailable => Brushes.Gray,
+                        TelemetryDataState.Stale => Brushes.Orange,
+                        TelemetryDataState.Invalid => Brushes.Red,
+                        _ => GetTemperatureBrush(gpuTemp)
+                    };
                 }
 
-                App.Logging.Debug($"[Dashboard.UpdateMetrics] UI updated: CpuTempValue.Text={CpuTempValue?.Text}, GpuTempValue.Text={GpuTempValue?.Text}");
-                
                 // CPU/GPU Load indicators - with null safety
                 var cpuLoadStr = sample.CpuLoadPercent.ToString("F0");
                 var gpuLoadStr = sample.GpuLoadPercent.ToString("F0");
@@ -331,8 +364,6 @@ namespace OmenCore.Controls
                 var avgCpuClockStr = (sample.CpuCoreClocksMhz?.Count > 0)
                     ? $"{sample.CpuCoreClocksMhz.Average():F0} MHz ({sample.CpuCoreClocksMhz.Count} cores)"
                     : "--";
-                App.Logging.Debug($"[Dashboard.UpdateMetrics] Load updated: CpuLoad={cpuLoadStr}%, GpuLoad={gpuLoadStr}%, RAM={sample.RamUsageGb:F1}GB, CpuClock={avgCpuClockStr}");
-                
                 // Update progress bars
                 if (CpuLoadBar != null) CpuLoadBar.Value = Math.Min(100, sample.CpuLoadPercent);
                 if (GpuLoadBar != null) GpuLoadBar.Value = Math.Min(100, sample.GpuLoadPercent);
@@ -368,9 +399,9 @@ namespace OmenCore.Controls
                     }
                 }
 
-                // Update efficiency metrics - FIXED with null safety
+                // Update efficiency metrics with state-aware temperature averaging.
                 double workload = Math.Min(100, (sample.CpuLoadPercent + sample.GpuLoadPercent) / 2);
-                double avgTemp = (cpuTemp + gpuTemp) / 2;
+                double avgTemp = ComputeAverageTemperature(sample);
                 double efficiency = CalculateEfficiency(workload, avgTemp);
                 
                 if (PowerEfficiencyValue != null) PowerEfficiencyValue.Text = efficiency.ToString("F1");
@@ -402,7 +433,11 @@ namespace OmenCore.Controls
 
         private void ShowNoDataPlaceholders()
         {
-            App.Logging.Warn("[Dashboard] ShowNoDataPlaceholders() called - setting all values to '--'");
+            if (!_showingNoDataPlaceholders)
+            {
+                App.Logging.Debug("[Dashboard] No telemetry sample available - showing placeholders");
+                _showingNoDataPlaceholders = true;
+            }
             if (PowerConsumptionValue != null) PowerConsumptionValue.Text = "--";
             if (PowerConsumptionTrend != null) PowerConsumptionTrend.Text = "No data";
             if (BatteryHealthValue != null) BatteryHealthValue.Text = "--";
@@ -428,24 +463,47 @@ namespace OmenCore.Controls
 
         private double CalculatePowerConsumption(MonitoringSample sample)
         {
-            // More sophisticated power estimation based on load and clock speeds
-            double cpuPower = (sample.CpuLoadPercent / 100.0) * 45.0; // Max 45W for CPU
-            double gpuPower = (sample.GpuLoadPercent / 100.0) * 100.0; // Max 100W for GPU
+            // Prefer measured telemetry when available, then estimate from utilization.
+            double cpuPower = sample.CpuPowerWatts > 0 ? sample.CpuPowerWatts : (sample.CpuLoadPercent / 100.0) * 45.0;
+            double gpuPower = sample.GpuPowerWatts > 0 ? sample.GpuPowerWatts : (sample.GpuLoadPercent / 100.0) * 100.0;
             double basePower = 15.0; // Baseline system power
-            double ramPower = (sample.RamUsageGb / sample.RamTotalGb) * 5.0; // RAM contribution
+            double ramTotal = sample.RamTotalGb > 0 ? sample.RamTotalGb : 1.0;
+            double ramPower = (sample.RamUsageGb / ramTotal) * 5.0; // RAM contribution
             
             return cpuPower + gpuPower + basePower + ramPower;
+        }
+
+        private static double ComputeAverageTemperature(MonitoringSample sample)
+        {
+            var values = new List<double>(2);
+
+            if (sample.CpuTemperatureState == TelemetryDataState.Valid && sample.CpuTemperatureC > 0)
+            {
+                values.Add(sample.CpuTemperatureC);
+            }
+
+            if (sample.GpuTemperatureState == TelemetryDataState.Valid && sample.GpuTemperatureC > 0)
+            {
+                values.Add(sample.GpuTemperatureC);
+            }
+
+            if (values.Count == 0)
+            {
+                return 0;
+            }
+
+            return values.Average();
         }
 
         /// <summary>
         /// Gets real battery health percentage by comparing FullChargeCapacity to DesignCapacity.
         /// Uses WMI BatteryStaticData for DesignCapacity and BatteryFullChargedCapacity for current capacity.
-        /// Caches result for 60 seconds to avoid excessive WMI queries.
+        /// Caches result for 5 minutes to avoid excessive WMI queries.
         /// </summary>
         private async Task<double> GetBatteryHealthPercentAsync()
         {
             // Return cached value if recent (battery health doesn't change often)
-            if (_cachedBatteryHealth >= 0 && (DateTime.Now - _lastBatteryHealthCheck).TotalSeconds < 60)
+            if (_cachedBatteryHealth >= 0 && (DateTime.Now - _lastBatteryHealthCheck).TotalMinutes < 5)
             {
                 return _cachedBatteryHealth;
             }
@@ -482,19 +540,19 @@ namespace OmenCore.Controls
                         _cachedBatteryHealth = (fullChargeCapacity * 100.0) / designCapacity;
                         _cachedBatteryHealth = Math.Min(100.0, Math.Max(0.0, _cachedBatteryHealth)); // Clamp to 0-100
                         _lastBatteryHealthCheck = DateTime.Now;
-                        App.Logging.Info($"[Dashboard] Battery health: {_cachedBatteryHealth:F1}% (FullCharge={fullChargeCapacity} mWh, Design={designCapacity} mWh)");
+                        App.Logging.Debug($"[Dashboard] Battery health: {_cachedBatteryHealth:F1}% (FullCharge={fullChargeCapacity} mWh, Design={designCapacity} mWh)");
                         return _cachedBatteryHealth;
                     }
 
                     // Fallback: use EstimatedChargeRemaining if above fails (less accurate)
-                    App.Logging.Warn("[Dashboard] Battery WMI data unavailable, showing 100% as fallback");
+                    App.Logging.Debug("[Dashboard] Battery WMI data unavailable, showing 100% as fallback");
                     _cachedBatteryHealth = 100.0;
                     _lastBatteryHealthCheck = DateTime.Now;
                     return _cachedBatteryHealth;
                 }
                 catch (Exception ex)
                 {
-                    App.Logging.Warn($"[Dashboard] Failed to get battery health: {ex.Message}");
+                    App.Logging.Debug($"[Dashboard] Failed to get battery health: {ex.Message}");
                     _cachedBatteryHealth = 100.0; // Fallback
                     _lastBatteryHealthCheck = DateTime.Now;
                     return _cachedBatteryHealth;
@@ -515,7 +573,8 @@ namespace OmenCore.Controls
         private double CalculateFanEfficiency(MonitoringSample sample)
         {
             // Fan efficiency based on cooling performance
-            double avgTemp = (sample.CpuTemperatureC + sample.GpuTemperatureC) / 2;
+            double avgTemp = ComputeAverageTemperature(sample);
+            if (avgTemp <= 0) return 0;
             if (avgTemp < 50) return 95.0;
             if (avgTemp < 65) return 85.0;
             if (avgTemp < 75) return 75.0;

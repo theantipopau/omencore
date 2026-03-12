@@ -37,6 +37,7 @@ namespace OmenCore.Services
         private bool _independentCurvesEnabled = false; // When true, use separate curves
         private FanPreset? _activePreset;
         private bool _curveEnabled = false;
+        private volatile bool _systemSuspendActive;
         private readonly object _curveLock = new();
         
         /// <summary>
@@ -236,11 +237,41 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// Prepare fan control for system suspend by pausing active fan-engine writes
+        /// and restoring BIOS auto policy to avoid fan spikes while sleeping.
+        /// </summary>
+        public void HandleSystemSuspend()
+        {
+            _systemSuspendActive = true;
+
+            // Reset thermal protection state so stale readings cannot pin max fans while suspended.
+            _thermalProtectionActive = false;
+            _thermalAboveThresholdSince = DateTime.MinValue;
+            _thermalBelowReleaseSince = DateTime.MinValue;
+
+            try
+            {
+                if (FanWritesAvailable)
+                {
+                    _fanController.RestoreAutoControl();
+                }
+
+                _logging.Info("System suspend detected — fan engine paused and BIOS auto fan control restored");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to restore BIOS auto control during suspend: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Reapply active fan mode after system resume.
         /// Helps recover from BIOS/firmware fan policy resets during sleep.
         /// </summary>
         public void HandleSystemResume()
         {
+            _systemSuspendActive = false;
+
             try
             {
                 if (_activePreset != null)
@@ -858,6 +889,12 @@ namespace OmenCore.Services
             {
                 try
                 {
+                    if (_systemSuspendActive)
+                    {
+                        await Task.Delay(1000, token);
+                        continue;
+                    }
+
                     // Read temperatures
                     var temps = _thermalProvider.ReadTemperatures().ToList();
                     var cpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius 

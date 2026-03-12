@@ -34,7 +34,7 @@ namespace OmenCore.Services
                 var export = new OmenCoreProfile
                 {
                     ExportDate = DateTime.Now,
-                    Version = "3.0.2",
+                    Version = "3.1.0",
                     SystemInfo = new ProfileSystemInfo
                     {
                         OsVersion = Environment.OSVersion.ToString(),

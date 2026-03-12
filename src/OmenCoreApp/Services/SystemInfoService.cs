@@ -54,7 +54,7 @@ namespace OmenCore.Services
             // Check 5: PawnIO driver
             audit.Checks.Add(CheckPawnIODriver());
             
-            // Check 6: WinRing0 driver (legacy, not needed)
+            // Check 6: Legacy WinRing0 artifacts (optional, not used by default)
             audit.Checks.Add(CheckWinRing0Driver());
             
             // Determine overall status
@@ -315,8 +315,8 @@ private DependencyCheck CheckPawnIODriver()
         {
             var check = new DependencyCheck
             {
-                Name = "WinRing0 Driver",
-                Description = "Legacy Ring0 driver (NOT used by OmenCore)",
+                Name = "Legacy WinRing0 Driver",
+                Description = "Legacy optional Ring0 backend artifact check (not used by default)",
                 IsRequired = false,
                 IsOptional = false // We don't use this
             };
@@ -331,14 +331,14 @@ private DependencyCheck CheckPawnIODriver()
                 check.IsDetected = winring0 != null;
                 check.Status = check.IsDetected ? "Detected" : "Not Present";
                 check.Details = check.IsDetected
-                    ? "WinRing0 detected - OmenCore does not use this driver"
-                    : "WinRing0 not present - this is expected ✓";
+                    ? "Legacy WinRing0 artifacts detected - OmenCore defaults to PawnIO/WMI paths"
+                    : "Legacy WinRing0 artifacts not present - this is expected ✓";
             }
             catch
             {
                 check.IsDetected = false;
                 check.Status = "Unknown";
-                check.Details = "Could not check WinRing0 status";
+                check.Details = "Could not check legacy WinRing0 status";
             }
             
             _logging.Info($"  [{(!check.IsDetected ? "✓" : "○")}] {check.Name}: {check.Status}");

@@ -21,7 +21,7 @@ namespace OmenCore.Services
     /// For true dust removal, users should use compressed air or open the chassis for cleaning.
     /// 
     /// BACKEND PRIORITY:
-    /// 1. EC Access (WinRing0/PawnIO) - Direct EC control, most responsive
+    /// 1. EC Access (PawnIO/legacy WinRing0) - Direct EC control, most responsive
     /// 2. OMEN Gaming Hub WMI - Uses OGH services if installed and running  
     /// 3. HP WMI BIOS - Standard HP WMI interface for fan control
     /// </summary>
@@ -39,7 +39,7 @@ namespace OmenCore.Services
         public enum FanControlBackend
         {
             None,
-            EcAccess,      // Direct EC via WinRing0/PawnIO
+            EcAccess,      // Direct EC via PawnIO/legacy WinRing0
             OghProxy,      // OMEN Gaming Hub WMI
             WmiBios        // HP WMI BIOS
         }
@@ -123,7 +123,7 @@ namespace OmenCore.Services
             if (_ecAccess != null && _ecAccess.IsAvailable && CanPerformEcWrite())
             {
                 _activeBackend = FanControlBackend.EcAccess;
-                _logging.Info("Fan boost using EC access backend (WinRing0/PawnIO)");
+                _logging.Info("Fan boost using EC access backend (PawnIO/legacy WinRing0)");
                 return;
             }
             

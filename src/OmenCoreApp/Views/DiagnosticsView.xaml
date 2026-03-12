@@ -58,6 +58,9 @@
                         <TextBlock Text="Consecutive timeouts:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
                         <TextBlock Text="{Binding HardwareMonitoringService.ConsecutiveTimeouts}" FontSize="13" Margin="0,0,0,6" />
 
+                        <TextBlock Text="CPU temp override:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding CpuTempOverrideDiagnosticText}" FontSize="13" Margin="0,0,0,6" TextWrapping="Wrap" />
+
                         <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                             <Button Content="Export diagnostics" Command="{Binding Settings.ExportDiagnosticsCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" />
                             <Button Content="Export telemetry" Command="{Binding ExportTelemetryCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" ToolTip="Create a copy of the telemetry JSON for upload" />
@@ -74,7 +77,8 @@
                         <TextBlock Text="{Binding HardwareMonitoringService.ConsecutiveTimeouts}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
 
                         <TextBlock Text="Quick actions" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                        <Button Content="Open diagnostics folder" Click="OpenDiagnosticsFolder_Click" Style="{StaticResource OutlineButtonSmall}" />
+                        <Button Content="Open app logs folder" Click="OpenDiagnosticsFolder_Click" Style="{StaticResource OutlineButtonSmall}" Margin="0,0,0,8" />
+                        <Button Content="Open OmenCore data folder" Click="OpenOmenCoreDataFolder_Click" Style="{StaticResource OutlineButtonSmall}" />
                     </StackPanel>
                 </Grid>
             </GroupBox>

@@ -656,7 +656,7 @@
                                             <Ellipse Stroke="{StaticResource AccentBrush}" StrokeThickness="4" Fill="Transparent" Opacity="0.6"
                                                      StrokeDashArray="2 10"/>
                                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                <TextBlock Text="{Binding LatestMonitoringSample.GpuClockMhz, StringFormat={}{0:F0}}"
+                                                <TextBlock Text="{Binding LatestMonitoringSample.GpuClockMhz, Converter={StaticResource ZeroDoubleToPlaceholderConverter}, ConverterParameter=''}"
                                                            FontFamily="{StaticResource MonospaceFontFamily}"
                                                            FontSize="12" FontWeight="Bold"
                                                            Foreground="{StaticResource TextPrimaryBrush}"

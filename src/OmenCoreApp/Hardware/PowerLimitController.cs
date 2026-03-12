@@ -41,7 +41,7 @@ namespace OmenCore.Hardware
         {
             if (!_ecAccess.IsAvailable)
             {
-                throw new InvalidOperationException("EC access not available - WinRing0 driver required");
+                throw new InvalidOperationException("EC access not available - PawnIO or legacy WinRing0 backend required");
             }
 
             if (_useSimplifiedMode)
@@ -81,7 +81,7 @@ namespace OmenCore.Hardware
             {
                 throw new InvalidOperationException(
                     $"EC register 0x{EC_PERFORMANCE_MODE:X} not in safety allowlist. " +
-                    "Add to WinRing0EcAccess.AllowedWriteAddresses if you've verified this is correct for your hardware.");
+                    "Add it to the EC write allowlist only after verifying it is correct for your hardware.");
             }
         }
 

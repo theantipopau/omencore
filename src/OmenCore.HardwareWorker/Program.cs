@@ -100,6 +100,10 @@ class Program
         
         // Rotate old log files
         RotateLogIfNeeded();
+
+        File.AppendAllText(
+            GetLogPath(),
+            $"[{DateTime.Now:O}] Worker starting. PID={Environment.ProcessId}, ParentPID={_parentProcessId}, OrphanTimeoutEnabled={_orphanTimeoutEnabled}, OrphanTimeoutMinutes={_orphanTimeoutMinutes}\n");
         
         // Set up crash handler to log before exit
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
@@ -262,18 +266,18 @@ class Program
         _computer.Open();
         Console.WriteLine("LibreHardwareMonitor initialized.");
         
-        // Initialize PawnIO fallback for CPU temp (in case Defender blocks WinRing0)
+        // Initialize PawnIO fallback for CPU temp when primary sensor path returns null/zero.
         try
         {
             _pawnIOCpuTemp = new PawnIOCpuTemp();
             if (_pawnIOCpuTemp.IsAvailable)
             {
                 Console.WriteLine("PawnIO CPU temp fallback available.");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] PawnIO CPU temp fallback initialized (available if WinRing0 blocked)\n");
+                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] PawnIO CPU temp fallback initialized for null/zero CPU temp recovery\n");
             }
             else
             {
-                Console.WriteLine("PawnIO not available (WinRing0 will be used for CPU temp).");
+                Console.WriteLine("PawnIO not available (primary sensor path only).");
             }
         }
         catch (Exception ex)
@@ -638,7 +642,7 @@ class Program
                     }
                 }
                 
-                // PawnIO fallback: If LibreHardwareMonitor returns 0 (WinRing0 blocked by Defender),
+                // PawnIO fallback: if the primary CPU sensor path returns 0 repeatedly,
                 // try reading CPU temp via PawnIO MSR instead
                 if (cpuTemp <= 0 && _pawnIOCpuTemp != null && _pawnIOCpuTemp.IsAvailable)
                 {
@@ -651,7 +655,7 @@ class Program
                             _pawnIOFallbackActive = true;
                             File.AppendAllText(GetLogPath(), 
                                 $"[{DateTime.Now:O}] ⚠️ LibreHardwareMonitor CPU temp null for {_consecutiveNullCpuTemp} readings. " +
-                                $"Switching to PawnIO fallback (WinRing0 likely blocked by Defender).\n");
+                                $"Switching to PawnIO fallback for resilient CPU temperature reads.\n");
                             Console.WriteLine("Switching to PawnIO CPU temp fallback");
                         }
                         
@@ -1159,8 +1163,7 @@ public class HardwareSample
 }
 
 /// <summary>
-/// PawnIO-based CPU temperature reader as fallback when LibreHardwareMonitor fails.
-/// LibreHardwareMonitor uses WinRing0 which Windows Defender often blocks.
+/// PawnIO-based CPU temperature reader as fallback when the primary sensor path fails.
 /// PawnIO is a signed driver that works with Secure Boot and Defender.
 /// </summary>
 [SupportedOSPlatform("windows")]

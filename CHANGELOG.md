@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.0] - 2026-03-10 - Telemetry Integrity, UI Polish, and Worker Reliability
+
+Durable monitoring correctness update focused on explicit sensor-state semantics,
+removal of fabricated fan telemetry, and lower UI/monitor loop churn while preserving
+existing fan-control and profile workflows.
+
+This entry includes all pre-release bugfix work that was previously tracked as internal
+`hotfix1`/`hotfix2`/`hotfix3` notes before first public deployment of 3.1.0.
+
+### Fixed
+- Linux thermal profile selection now supports kernel variants exposing `balanced-performance` and alternative hp-wmi `*_choices` paths, improving high-power profile activation reliability on newer Bazzite/Fedora kernels.
+- CPU power no longer pins to an initial stale value on systems where MSR power reads are unavailable.
+- GPU temperature handling now marks inactive dGPU periods explicitly instead of surfacing random placeholders.
+- Fan RPM fallback no longer fabricates estimated values when real readback is unavailable.
+- GitHub #77: standby/sleep fan behavior was hardened so suspend handling is always active (not gated by Settings tab initialization), fan writes are paused during suspend, and BIOS auto control is restored to prevent max-RPM spikes while sleeping.
+- GitHub #78: OMEN MAX 16-ah0000 CPU temperature handling now prefers worker-backed sensor reads via model-scoped override to avoid incorrect CPU temperature reporting on affected Intel systems.
+
+### Improved
+- Added explicit per-sensor telemetry state modeling (valid/zero/inactive/unavailable/stale/invalid) in monitoring samples.
+- Dashboard/Main summaries now render intentional inactive/unavailable states for clearer user-facing diagnostics.
+- GPU inactive status is surfaced consistently in dashboard value and status fields.
+- CPU/GPU dashboard cards now surface stale/invalid states explicitly for clearer troubleshooting.
+- Linux diagnostics now report additional hp-wmi platform/thermal profile and choices paths for faster model-specific triage.
+- Runtime messaging now consistently treats WinRing0 as legacy/optional and keeps PawnIO+WMI as the primary recommended path.
+- Removed obsolete LibreHardwareMonitor driver-install helper flow from startup code to avoid outdated backend guidance.
+- Dependency audit, settings backend label, and antivirus FAQ wording were aligned to explicit PawnIO/WMI-default semantics with legacy WinRing0 clearly marked optional.
+- Tuning telemetry placeholders now consistently render `--W` and placeholder-aware GPU clock values when live data is unavailable.
+- Sidebar temperature state text was compacted to reduce clipping in narrow layouts.
+- Diagnostics tab now shows an explicit monitoring status line for model-specific CPU temperature override activation (GitHub #78), making affected-model behavior visible during troubleshooting.
+
+### Optimized
+- Reduced monitoring hot-path log verbosity to cut avoidable background work.
+- Replaced broad telemetry property-change invalidation with targeted notifications to reduce UI churn.
+- Increased high-frequency dashboard metric refresh interval from 1s to 2s to lower idle CPU overhead.
+- Added defensive RAM-power estimation math to avoid no-data NaN propagation.
+- Reduced repetitive no-sample placeholder logging from warning spam to transition-based debug output.
+- Added `OMENCORE_DISABLE_LHM=1` monitor fallback opt-out and removed misleading WinRing0-specific worker fallback wording.
+- Dashboard battery-health polling cache increased to 5 minutes and noisy battery logs moved to debug to reduce background overhead.
+- Tray version loading now uses streaming reads to avoid startup-time full-file allocation.
+- Tray right-click menu reliability was restored by removing problematic custom context-menu style-key override behavior.
+- Tray menu visual consistency was improved by removing default left-gutter artifacts and hover/icon underlay bleed in the custom dark template.
+- Hardware worker startup was hardened: bootstrap at app startup, prewarm fallback path, and additional startup diagnostics for launch outcomes.
+
+### Release Artifacts and SHA256
+
+| File | Size | SHA256 |
+|------|------|--------|
+| `OmenCoreSetup-3.1.0.exe` | 101.09 MB | `D92548E4E3698A2B71D11A02ED64D918746C3C3CB06EC2035E8602D57C50AD8C` |
+| `OmenCore-3.1.0-win-x64.zip` | 104.32 MB | `1EA65E7BA857285A01A896FC2A7BF8418D1B8D9723DCB9EE4A350E6BA87A06F6` |
+| `OmenCore-3.1.0-linux-x64.zip` | 43.55 MB | `276686F92EB289B3196BDCD02CFC93E95F676D269515740060FB7B5A585D9D0F` |
+
+Full release notes: [CHANGELOG_v3.1.0.md](docs/CHANGELOG_v3.1.0.md)
+
+---
+
 ## [3.0.2-hotfix] - 2026-03-07 - Telemetry and Linux Reliability Patch
 
 Post-release hotfixes for v3.0.2 targeting Windows power/temperature reliability and Linux runtime compatibility.

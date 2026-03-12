@@ -1,5 +1,6 @@
 using System;
-using System.IO.Compression;
+using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -110,7 +111,7 @@ namespace OmenCore
                 Logging.Info("User chose to continue on desktop system - experimental mode");
             }
 
-            // Check for WinRing0 driver availability
+            // Check for driver backend availability
             CheckDriverStatus();
 
             // Configure dependency injection
@@ -121,12 +122,23 @@ namespace OmenCore
             // Initialize system tray
             InitializeTrayIcon();
 
+            // Ensure worker starts with app startup (not only when fallback paths are exercised).
+            TryStartHardwareWorkerBootstrap();
+
             // Check if we should start minimized to tray
             // Priority: command line flag > config setting
             bool hasMinimizedFlag = e.Args.Contains("--minimized") || e.Args.Contains("-m") || e.Args.Contains("/minimized");
             bool hasHeadlessFlag = e.Args.Contains("--headless") || e.Args.Contains("-h") || e.Args.Contains("/headless");
-            bool headlessMode = hasHeadlessFlag || Configuration.Config.HeadlessMode;
+
+            // Safety: only explicit CLI args should suppress the main window.
+            // A persisted config flag can otherwise trap normal launches in tray-only mode.
+            bool headlessMode = hasHeadlessFlag;
             bool startMinimized = hasMinimizedFlag || headlessMode || (Configuration.Config.Monitoring?.StartMinimized ?? false);
+
+            if (Configuration.Config.HeadlessMode && !hasHeadlessFlag)
+            {
+                Logging.Warn("HeadlessMode is enabled in config but ignored for interactive launch. Use --headless for tray-only startup.");
+            }
             
             if (headlessMode)
             {
@@ -190,7 +202,7 @@ namespace OmenCore
                     // Prompt user only on first startup if driver missing
                     if (!Configuration.Config.FirstRunCompleted)
                     {
-                        Dispatcher.Invoke(() => PromptDriverInstallation(secureBootEnabled, memoryIntegrityEnabled));
+                        Dispatcher.Invoke(PromptDriverInstallation);
                     }
                 }
                 else
@@ -427,6 +439,101 @@ namespace OmenCore
                 };
             }
         }
+
+        private void TryStartHardwareWorkerBootstrap()
+        {
+            try
+            {
+                var disableLhm = Environment.GetEnvironmentVariable("OMENCORE_DISABLE_LHM");
+                if (string.Equals(disableLhm, "1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(disableLhm, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logging.Info("Skipping worker bootstrap because OMENCORE_DISABLE_LHM is enabled");
+                    return;
+                }
+
+                var existing = Process.GetProcessesByName("OmenCore.HardwareWorker");
+                if (existing.Length > 0)
+                {
+                    Logging.Info($"Hardware worker already running (PID: {existing[0].Id})");
+                    return;
+                }
+
+                var workerPath = ResolveHardwareWorkerPath();
+                if (string.IsNullOrEmpty(workerPath) || !File.Exists(workerPath))
+                {
+                    Logging.Warn("Hardware worker bootstrap skipped: OmenCore.HardwareWorker.exe not found");
+                    return;
+                }
+
+                var orphanTimeoutEnabled = Configuration.Config.HardwareWorkerOrphanTimeoutEnabled;
+                var orphanTimeoutMinutes = Math.Clamp(Configuration.Config.HardwareWorkerOrphanTimeoutMinutes, 1, 60);
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = workerPath,
+                    Arguments = $"{Environment.ProcessId} {orphanTimeoutEnabled} {orphanTimeoutMinutes}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false
+                };
+
+                var started = Process.Start(startInfo);
+                if (started != null)
+                {
+                    Logging.Info($"Hardware worker bootstrap started (PID: {started.Id})");
+                }
+                else
+                {
+                    Logging.Warn("Hardware worker bootstrap failed: Process.Start returned null");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"Hardware worker bootstrap failed: {ex.Message}");
+            }
+        }
+
+        private static string? ResolveHardwareWorkerPath()
+        {
+            try
+            {
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
+                foreach (var candidate in EnumerateHardwareWorkerCandidates(appDir))
+                {
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateHardwareWorkerCandidates(string appDir)
+        {
+            yield return Path.Combine(appDir, "OmenCore.HardwareWorker.exe");
+
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            yield return Path.Combine(programFiles, "OmenCore", "OmenCore.HardwareWorker.exe");
+
+            var current = new DirectoryInfo(appDir);
+            while (current != null)
+            {
+                yield return Path.Combine(current.FullName, "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Release", "net8.0-windows", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Release", "net8.0-windows", "win-x64", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Debug", "net8.0-windows", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Debug", "net8.0-windows", "win-x64", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "publish", "win-x64", "OmenCore.HardwareWorker.exe");
+                current = current.Parent;
+            }
+        }
         
         /// <summary>
         /// Retry tray icon visibility after boot.
@@ -559,25 +666,20 @@ namespace OmenCore
             }
         }
 
-        private void PromptDriverInstallation(bool secureBootEnabled, bool memoryIntegrityEnabled)
+        private void PromptDriverInstallation()
         {
-            var recommendPawnIo = secureBootEnabled || memoryIntegrityEnabled;
-            var recommendedBackend = recommendPawnIo
-                ? "PawnIO (recommended on Secure Boot/Memory Integrity systems)"
-                : "LibreHardwareMonitor (provides WinRing0)";
+            var recommendedBackend = "PawnIO (recommended)";
 
             var result = MessageBox.Show(
                 "Some hardware-control features require a driver backend.\n\n" +
                 "Depending on your system, you can use:\n" +
                 "• PawnIO (Secure Boot compatible)\n" +
-                "• WinRing0 (often provided by LibreHardwareMonitor)\n\n" +
+                "• WMI-only mode (monitoring and many controls still work)\n\n" +
                 "Without a supported driver backend, these features may be disabled:\n" +
                 "• Direct EC fan control (some models)\n" +
                 "• CPU undervolting and TCC offset (Intel MSR)\n\n" +
                 $"Recommended: {recommendedBackend}\n\n" +
-                (recommendPawnIo
-                    ? "Click YES to open PawnIO download page\n"
-                    : "Click YES to download LibreHardwareMonitor now\n") +
+                "Click YES to open PawnIO download page\n" +
                 "Click NO to continue without driver-dependent features",
                 "Driver Required - OmenCore",
                 MessageBoxButton.YesNo,
@@ -589,14 +691,7 @@ namespace OmenCore
 
             if (result == MessageBoxResult.Yes)
             {
-                if (recommendPawnIo)
-                {
-                    OpenPawnIODownloadPage();
-                }
-                else
-                {
-                    DownloadAndInstallLibreHardwareMonitor();
-                }
+                OpenPawnIODownloadPage();
             }
         }
 
@@ -642,94 +737,6 @@ namespace OmenCore
             catch
             {
                 return false;
-            }
-        }
-
-        private async void DownloadAndInstallLibreHardwareMonitor()
-        {
-            const string downloadUrl = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/v0.9.3/LibreHardwareMonitor-net472.zip";
-            // Use a unique temp folder with timestamp to avoid file-in-use conflicts
-            var uniqueId = DateTime.Now.Ticks.ToString();
-            var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"OmenCore_LHM_{uniqueId}");
-            var zipPath = System.IO.Path.Combine(tempDir, "LibreHardwareMonitor.zip");
-            var extractPath = System.IO.Path.Combine(tempDir, "LibreHardwareMonitor");
-
-            try
-            {
-                // Show progress dialog
-                Logging.Info("📥 Downloading LibreHardwareMonitor...");
-
-                // Create temp directory (unique, so no conflicts)
-                System.IO.Directory.CreateDirectory(tempDir);
-
-                // Download the ZIP file
-                using (var client = new System.Net.Http.HttpClient())
-                {
-                    client.Timeout = TimeSpan.FromMinutes(5);
-                    var response = await client.GetAsync(downloadUrl);
-                    response.EnsureSuccessStatusCode();
-                    
-                    var bytes = await response.Content.ReadAsByteArrayAsync();
-                    await System.IO.File.WriteAllBytesAsync(zipPath, bytes);
-                }
-
-                Logging.Info("✓ Download complete, extracting...");
-
-                // Extract ZIP (no need to delete - unique folder)
-                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, extractPath);
-
-                // Find and run LibreHardwareMonitor.exe
-                var exePath = System.IO.Path.Combine(extractPath, "LibreHardwareMonitor.exe");
-                if (System.IO.File.Exists(exePath))
-                {
-                    Logging.Info("🚀 Launching LibreHardwareMonitor to install driver...");
-                    
-                    var startInfo = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = exePath,
-                        UseShellExecute = true,
-                        Verb = "runas" // Run as admin to install driver
-                    };
-                    
-                    System.Diagnostics.Process.Start(startInfo);
-
-                    MessageBox.Show(
-                        "LibreHardwareMonitor has been downloaded and launched.\n\n" +
-                        "IMPORTANT STEPS:\n" +
-                        "1. Let it run for a few seconds (this installs the driver)\n" +
-                        "2. You can close LibreHardwareMonitor after it opens\n" +
-                        "3. Restart OmenCore to enable fan control\n\n" +
-                        "⚠️ If Windows Defender blocks it, click 'More info' → 'Run anyway'\n" +
-                        "The driver is safe - it's used by many hardware monitoring tools.",
-                        "Driver Installation",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    throw new System.IO.FileNotFoundException("LibreHardwareMonitor.exe not found in downloaded archive");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logging.Error("Failed to download/install LibreHardwareMonitor", ex);
-                
-                // Fallback: Open download page in browser
-                var fallbackResult = MessageBox.Show(
-                    $"Automatic download failed: {ex.Message}\n\n" +
-                    "Would you like to open the download page in your browser instead?",
-                    "Download Failed",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (fallbackResult == MessageBoxResult.Yes)
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest",
-                        UseShellExecute = true
-                    });
-                }
             }
         }
 

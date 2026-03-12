@@ -121,8 +121,7 @@ namespace OmenCore.Utils
                 var versionFile = Path.Combine(AppContext.BaseDirectory, "VERSION.txt");
                 if (File.Exists(versionFile))
                 {
-                    var lines = File.ReadAllLines(versionFile);
-                    foreach (var line in lines)
+                    foreach (var line in File.ReadLines(versionFile))
                     {
                         var version = line.Trim();
                         if (!string.IsNullOrEmpty(version))
@@ -134,78 +133,16 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.0.2";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.1.0";
         }
 
         private void InitializeContextMenu()
         {
-            // TEMP: Use regular ContextMenu with dark theme resources
-            var contextMenu = new ContextMenu();
-
-            // Apply dark theme resources to override default Windows styling
-            var darkResources = new ResourceDictionary
-            {
-                { SystemColors.MenuBarBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)) },
-                { SystemColors.MenuBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)) },
-                { SystemColors.MenuTextBrushKey, new SolidColorBrush(Color.FromRgb(240, 240, 245)) },
-                { SystemColors.HighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)) },
-                { SystemColors.HighlightTextBrushKey, Brushes.White },
-                { SystemColors.MenuHighlightBrushKey, new SolidColorBrush(Color.FromRgb(40, 45, 65)) },
-                { SystemColors.ControlBrushKey, new SolidColorBrush(Color.FromRgb(15, 17, 28)) },
-                { SystemColors.WindowBrushKey, new SolidColorBrush(Color.FromRgb(18, 20, 35)) }
-            };
-
-            // Apply gradient background with OMEN accent
-            var gradientBg = new LinearGradientBrush(
-                Color.FromRgb(18, 20, 35),
-                Color.FromRgb(25, 28, 48),
-                new Point(0, 0),
-                new Point(0, 1));
-            contextMenu.Background = gradientBg;
-            contextMenu.Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 245));
-            contextMenu.BorderBrush = new SolidColorBrush(Color.FromRgb(255, 0, 92)); // OMEN Red accent
-            contextMenu.BorderThickness = new Thickness(1);
+            // Use the fully templated dark menu to avoid default system gutters/white edges.
+            var contextMenu = new DarkContextMenu();
             contextMenu.MinWidth = 320;
             contextMenu.Padding = new Thickness(0, 4, 0, 4);
-            
-            // Create dark MenuItem style
-            var menuItemStyle = new Style(typeof(MenuItem));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(240, 240, 245))));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(12, 8, 12, 8)));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.MinHeightProperty, 32.0));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.FontFamilyProperty, new FontFamily("Segoe UI")));
-            menuItemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 12.0));
-            
-            // Add hover trigger with OMEN accent
-            var hoverTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
-            hoverTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 0, 92)))); // OMEN red
-            hoverTrigger.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(255, 255, 255))));
-            menuItemStyle.Triggers.Add(hoverTrigger);
-
-            // Disabled items stay readable on the dark background (CPU/GPU temp rows etc.)
-            var disabledTrigger = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
-            disabledTrigger.Setters.Add(new Setter(MenuItem.ForegroundProperty, new SolidColorBrush(Color.FromRgb(155, 160, 182))));
-            disabledTrigger.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
-            menuItemStyle.Triggers.Add(disabledTrigger);
-            
-            darkResources.Add(typeof(MenuItem), menuItemStyle);
-            
-            // Create dark Separator style
-            var separatorStyle = new Style(typeof(Separator));
-            separatorStyle.Setters.Add(new Setter(Separator.BackgroundProperty, new SolidColorBrush(Color.FromRgb(60, 65, 90))));
-            separatorStyle.Setters.Add(new Setter(Separator.HeightProperty, 1.0));
-            separatorStyle.Setters.Add(new Setter(Separator.MarginProperty, new Thickness(8, 4, 8, 4)));
-            darkResources.Add(typeof(Separator), separatorStyle);
-            
-            // Create dark Popup style for submenus
-            var popupStyle = new Style(typeof(System.Windows.Controls.Primitives.Popup));
-            popupStyle.Setters.Add(new Setter(System.Windows.Controls.Primitives.Popup.AllowsTransparencyProperty, true));
-            darkResources.Add(typeof(System.Windows.Controls.Primitives.Popup), popupStyle);
-            
-            // Merge resources
-            contextMenu.Resources.MergedDictionaries.Add(darkResources);
+            var menuItemStyle = contextMenu.Resources[typeof(MenuItem)] as Style ?? new Style(typeof(MenuItem));
 
             // ═══ HEADER ═══
             var headerItem = new MenuItem { Header = $"🎮  OmenCore  v{_appVersion}", IsEnabled = false, FontWeight = FontWeights.Bold, FontSize = 13 };

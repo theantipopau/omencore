@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Models;
@@ -30,6 +32,8 @@ namespace OmenCore.Hardware
         private readonly HpWmiBios _wmiBios;
         private readonly NvapiService? _nvapi;
         private readonly PawnIOMsrAccess? _msrAccess;
+        private readonly string _systemModel;
+        private readonly bool _preferWorkerCpuTempForModel;
         private bool _disposed;
         
         // Cached values for performance
@@ -56,12 +60,14 @@ namespace OmenCore.Hardware
         private double _lastCpuTempReading;
         private int _consecutiveIdenticalCpuTempReads;
         private double _lastValidCpuTempBeforeFreeze;
-        private const int MaxConsecutiveIdenticalTempReads = 30; // ~30 seconds at 1Hz monitoring
+        private const int MaxConsecutiveIdenticalTempReads = 12; // Faster freeze recovery in steady-state polling
         private bool _cpuTempFrozen;
         private DateTime _cpuTempFrozeAt = DateTime.MinValue;
         private bool _cpuTempFallbackLogged;
+        private bool _modelCpuTempPreferenceLogged;
         private LibreHardwareMonitorImpl? _tempFallbackMonitor;
         private bool _tempFallbackInitAttempted;
+        private bool _lhmFallbackDisabledLogged;
         private const double ImplausiblyLowCpuTempThresholdC = 33.0;
         private const double CpuLoadThresholdForLowTempFallbackPercent = 20.0;
         private const double MaxAcpiDeltaFromWmiC = 18.0;
@@ -72,6 +78,8 @@ namespace OmenCore.Hardware
         private double _lastValidGpuTempBeforeFreeze;
         private bool _gpuTempFrozen;
         private DateTime _gpuTempFrozeAt = DateTime.MinValue;
+        private int _consecutiveGpuInactiveReads;
+        private bool _gpuInactive;
         
         // GPU metrics from NVAPI
         private double _cachedGpuPowerWatts;
@@ -122,8 +130,19 @@ namespace OmenCore.Hardware
         // CPU PerformanceCounter — persistent instance avoids 100ms sleep + allocation every poll
         private System.Diagnostics.PerformanceCounter? _cpuPerfCounter;
         private bool _cpuPerfCounterAvailable = true;
+        private static int _workerPrelaunchAttempted;
         
         public bool IsAvailable => _wmiBios.IsAvailable;
+
+        /// <summary>
+        /// True when model-specific CPU temperature source override is active.
+        /// </summary>
+        public bool IsModelCpuTempOverrideActive => _preferWorkerCpuTempForModel;
+
+        /// <summary>
+        /// Human-readable model name used for CPU temperature source override decisions.
+        /// </summary>
+        public string ModelName => _systemModel;
 
         public string MonitoringSource => _nvapi?.IsAvailable == true 
             ? "WMI BIOS + NVAPI (Self-Sustaining)" 
@@ -141,6 +160,8 @@ namespace OmenCore.Hardware
             _wmiBios = new HpWmiBios(logging);
             _nvapi = nvapi;
             _msrAccess = msrAccess;
+            _systemModel = GetSystemModel();
+            _preferWorkerCpuTempForModel = ShouldPreferWorkerCpuTemp(_systemModel);
             
             if (_wmiBios.IsAvailable)
             {
@@ -165,6 +186,17 @@ namespace OmenCore.Hardware
             {
                 _logging?.Info("[WmiBiosMonitor] ✓ PawnIO MSR available — CPU throttling detection enabled");
             }
+
+            if (_preferWorkerCpuTempForModel)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] Model '{_systemModel}' detected — prioritizing worker-backed CPU temperature source for accuracy");
+            }
+
+            TryPrelaunchHardwareWorker();
+
+            // Prewarm the fallback monitor so the crash-isolated hardware worker is available
+            // shortly after app startup rather than only on first fallback event.
+            _ = EnsureTempFallbackMonitor();
 
             // Initialise the CPU PerformanceCounter on a background thread — the constructor +
             // first NextValue() call can block the calling thread for 8-10 seconds on some machines.
@@ -333,8 +365,8 @@ namespace OmenCore.Hardware
                     if (rpms.HasValue)
                     {
                         var (cpuRpm, gpuRpm) = rpms.Value;
-                        if (HpWmiBios.IsValidRpm(cpuRpm)) _cachedCpuFanRpm = cpuRpm;
-                        if (HpWmiBios.IsValidRpm(gpuRpm)) _cachedGpuFanRpm = gpuRpm;
+                        _cachedCpuFanRpm = HpWmiBios.IsValidRpm(cpuRpm) ? cpuRpm : 0;
+                        _cachedGpuFanRpm = HpWmiBios.IsValidRpm(gpuRpm) ? gpuRpm : 0;
                     }
                     else
                     {
@@ -346,8 +378,8 @@ namespace OmenCore.Hardware
                             var (fan1Level, fan2Level) = levels.Value;
                             int fan1Rpm = fan1Level * 100;
                             int fan2Rpm = fan2Level * 100;
-                            if (HpWmiBios.IsValidRpm(fan1Rpm)) _cachedCpuFanRpm = fan1Rpm;
-                            if (HpWmiBios.IsValidRpm(fan2Rpm)) _cachedGpuFanRpm = fan2Rpm;
+                            _cachedCpuFanRpm = HpWmiBios.IsValidRpm(fan1Rpm) ? fan1Rpm : 0;
+                            _cachedGpuFanRpm = HpWmiBios.IsValidRpm(fan2Rpm) ? fan2Rpm : 0;
                         }
                     }
                 }
@@ -585,6 +617,7 @@ namespace OmenCore.Hardware
                 }
 
                 TryApplyPowerFallback();
+                SanitizeGpuTelemetry();
                 
                 // ═══════════════════════════════════════════════════════════════
                 // SOURCE 5: WMI — SSD Temperature + Battery Discharge Rate
@@ -650,6 +683,11 @@ namespace OmenCore.Hardware
         
         private MonitoringSample BuildSampleFromCache()
         {
+            var cpuTempState = GetTemperatureState(_cachedCpuTemp, _cpuTempFrozen, false);
+            var gpuTempState = _gpuInactive
+                ? TelemetryDataState.Inactive
+                : GetTemperatureState(_cachedGpuTemp, _gpuTempFrozen, false);
+
             return new MonitoringSample
             {
                 Timestamp = DateTime.Now,
@@ -661,6 +699,11 @@ namespace OmenCore.Hardware
                 Fan1Rpm = _cachedCpuFanRpm,
                 Fan2Rpm = _cachedGpuFanRpm,
                 GpuFanPercent = EstimateFanPercent(_cachedGpuFanRpm),
+                CpuTemperatureState = cpuTempState,
+                GpuTemperatureState = gpuTempState,
+                CpuPowerState = GetPowerState(_cachedCpuPowerWatts),
+                Fan1RpmState = GetRpmState(_cachedCpuFanRpm),
+                Fan2RpmState = GetRpmState(_cachedGpuFanRpm),
                 
                 // PerformanceCounter — CPU load
                 CpuLoadPercent = _cachedCpuLoad,
@@ -713,14 +756,14 @@ namespace OmenCore.Hardware
 
         private void TryApplyCpuTemperatureFallback()
         {
-            if (_cachedCpuTemp <= 0)
+            if (_cachedCpuTemp <= 0 && !_preferWorkerCpuTempForModel)
             {
                 return;
             }
 
             bool lowAndLoaded = _cachedCpuTemp <= ImplausiblyLowCpuTempThresholdC &&
                                 _cachedCpuLoad >= CpuLoadThresholdForLowTempFallbackPercent;
-            bool shouldFallback = _cpuTempFrozen || lowAndLoaded;
+            bool shouldFallback = _preferWorkerCpuTempForModel || _cpuTempFrozen || lowAndLoaded;
 
             if (!shouldFallback)
             {
@@ -736,17 +779,28 @@ namespace OmenCore.Hardware
             try
             {
                 double fallbackCpuTemp = fallbackMonitor.GetCpuTemperature();
-                if (fallbackCpuTemp > 0 && fallbackCpuTemp < 110 &&
-                    Math.Abs(fallbackCpuTemp - _cachedCpuTemp) >= 1.0)
+                if (fallbackCpuTemp > 0 && fallbackCpuTemp < 110)
                 {
-                    double previous = _cachedCpuTemp;
-                    _cachedCpuTemp = fallbackCpuTemp;
-                    _lastCpuTempReading = fallbackCpuTemp;
+                    bool shouldApplyFallback = _preferWorkerCpuTempForModel ||
+                                               _cachedCpuTemp <= 0 ||
+                                               Math.Abs(fallbackCpuTemp - _cachedCpuTemp) >= 1.0;
 
-                    if (!_cpuTempFallbackLogged)
+                    if (shouldApplyFallback)
                     {
-                        _logging?.Warn($"[WmiBiosMonitor] CPU temp fallback active: WMI/ACPI reading looked invalid ({previous:F1}°C), using LibreHardwareMonitor ({fallbackCpuTemp:F1}°C)");
-                        _cpuTempFallbackLogged = true;
+                        double previous = _cachedCpuTemp;
+                        _cachedCpuTemp = fallbackCpuTemp;
+                        _lastCpuTempReading = fallbackCpuTemp;
+
+                        if (_preferWorkerCpuTempForModel && !_modelCpuTempPreferenceLogged)
+                        {
+                            _logging?.Info($"[WmiBiosMonitor] CPU temp source override active for model '{_systemModel}': using worker sensor ({fallbackCpuTemp:F1}°C)");
+                            _modelCpuTempPreferenceLogged = true;
+                        }
+                        else if (!_cpuTempFallbackLogged)
+                        {
+                            _logging?.Warn($"[WmiBiosMonitor] CPU temp fallback active: WMI/ACPI reading looked invalid ({previous:F1}°C), using LibreHardwareMonitor ({fallbackCpuTemp:F1}°C)");
+                            _cpuTempFallbackLogged = true;
+                        }
                     }
                 }
             }
@@ -756,10 +810,42 @@ namespace OmenCore.Hardware
             }
         }
 
+        private static string GetSystemModel()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT Model FROM Win32_ComputerSystem");
+                foreach (var obj in searcher.Get())
+                {
+                    var model = obj["Model"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(model))
+                    {
+                        return model.Trim();
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return string.Empty;
+        }
+
+        private static bool ShouldPreferWorkerCpuTemp(string model)
+        {
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                return false;
+            }
+
+            return model.Contains("OMEN MAX 16", StringComparison.OrdinalIgnoreCase) ||
+                   model.Contains("ah0000", StringComparison.OrdinalIgnoreCase);
+        }
+
         private void TryApplyPowerFallback()
         {
-            bool cpuNeedsFallback = _cachedCpuPowerWatts <= 0.1 &&
-                                    (_cachedCpuLoad >= 8.0 || _cachedCpuTemp >= 45.0);
+            bool cpuNeedsFallback = _msrAccess == null || (_cachedCpuPowerWatts <= 0.1 &&
+                                    (_cachedCpuLoad >= 8.0 || _cachedCpuTemp >= 45.0));
             bool gpuNeedsFallback = _cachedGpuPowerWatts <= 0.1 &&
                                     (_cachedGpuLoad >= 8.0 || _cachedGpuTemp >= 45.0);
 
@@ -784,6 +870,11 @@ namespace OmenCore.Hardware
                         _cachedCpuPowerWatts = cpuPowerFallback;
                         _lastValidCpuPowerWatts = cpuPowerFallback;
                         _consecutiveZeroCpuPowerReads = 0;
+                    }
+                    else if (_msrAccess == null)
+                    {
+                        // On systems without MSR power support, avoid pinning a stale initial value forever.
+                        _cachedCpuPowerWatts = 0;
                     }
                 }
 
@@ -810,8 +901,72 @@ namespace OmenCore.Hardware
             }
         }
 
+        private void SanitizeGpuTelemetry()
+        {
+            bool hasLiveGpuTelemetry = _cachedGpuTemp > 0 || _cachedGpuClockMhz >= 300.0 || _cachedGpuPowerWatts >= 3.0;
+            bool inactiveNow = !hasLiveGpuTelemetry && _cachedGpuLoad < 1.0;
+            _consecutiveGpuInactiveReads = inactiveNow ? _consecutiveGpuInactiveReads + 1 : 0;
+            _gpuInactive = _consecutiveGpuInactiveReads >= 3;
+
+            if (_gpuInactive)
+            {
+                _cachedGpuTemp = 0;
+                return;
+            }
+
+            if (_cachedGpuTemp <= 0)
+            {
+                return;
+            }
+
+            if (_cachedGpuTemp < 15 || _cachedGpuTemp > 110)
+            {
+                _cachedGpuTemp = 0;
+                return;
+            }
+
+        }
+
+        private static TelemetryDataState GetTemperatureState(double value, bool isFrozen, bool isInactive)
+        {
+            if (isInactive) return TelemetryDataState.Inactive;
+            if (value <= 0) return TelemetryDataState.Unavailable;
+            if (double.IsNaN(value) || double.IsInfinity(value)) return TelemetryDataState.Invalid;
+            if (value < 0 || value > 120) return TelemetryDataState.Invalid;
+            if (isFrozen) return TelemetryDataState.Stale;
+            return TelemetryDataState.Valid;
+        }
+
+        private static TelemetryDataState GetPowerState(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return TelemetryDataState.Invalid;
+            if (value < 0) return TelemetryDataState.Invalid;
+            if (value == 0) return TelemetryDataState.Zero;
+            return TelemetryDataState.Valid;
+        }
+
+        private static TelemetryDataState GetRpmState(int rpm)
+        {
+            if (rpm < 0) return TelemetryDataState.Invalid;
+            if (rpm == 0) return TelemetryDataState.Zero;
+            if (rpm > 8000) return TelemetryDataState.Invalid;
+            return TelemetryDataState.Valid;
+        }
+
         private LibreHardwareMonitorImpl? EnsureTempFallbackMonitor()
         {
+            var disableLhm = Environment.GetEnvironmentVariable("OMENCORE_DISABLE_LHM");
+            if (string.Equals(disableLhm, "1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disableLhm, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!_lhmFallbackDisabledLogged)
+                {
+                    _logging?.Info("[WmiBiosMonitor] LibreHardwareMonitor fallback disabled via OMENCORE_DISABLE_LHM; using WMI/NVAPI/PawnIO-only telemetry");
+                    _lhmFallbackDisabledLogged = true;
+                }
+                return null;
+            }
+
             if (_tempFallbackMonitor != null)
             {
                 return _tempFallbackMonitor;
@@ -826,14 +981,142 @@ namespace OmenCore.Hardware
 
             try
             {
-                _tempFallbackMonitor = new LibreHardwareMonitorImpl(msg => _logging?.Debug($"[TempFallback] {msg}"));
-                _logging?.Info("[WmiBiosMonitor] Initialized LibreHardwareMonitor CPU temp fallback for WMI freeze/low-temp recovery");
+                bool orphanTimeoutEnabled = true;
+                int orphanTimeoutMinutes = 5;
+
+                try
+                {
+                    var cfg = App.Configuration?.Config;
+                    if (cfg != null)
+                    {
+                        orphanTimeoutEnabled = cfg.HardwareWorkerOrphanTimeoutEnabled;
+                        orphanTimeoutMinutes = cfg.HardwareWorkerOrphanTimeoutMinutes;
+                    }
+                }
+                catch
+                {
+                    // Keep safe defaults when configuration is unavailable during early startup.
+                }
+
+                _tempFallbackMonitor = new LibreHardwareMonitorImpl(
+                    msg => _logging?.Debug($"[TempFallback] {msg}"),
+                    useWorker: true,
+                    msrAccess: null,
+                    orphanTimeoutEnabled: orphanTimeoutEnabled,
+                    orphanTimeoutMinutes: orphanTimeoutMinutes);
+
+                _logging?.Info("[WmiBiosMonitor] Initialized LibreHardwareMonitor fallback worker for resilient telemetry recovery");
                 return _tempFallbackMonitor;
             }
             catch (Exception ex)
             {
                 _logging?.Warn($"[WmiBiosMonitor] Failed to initialize CPU temp fallback monitor: {ex.Message}");
                 return null;
+            }
+        }
+
+        private void TryPrelaunchHardwareWorker()
+        {
+            if (Interlocked.Exchange(ref _workerPrelaunchAttempted, 1) != 0)
+            {
+                return;
+            }
+
+            try
+            {
+                var disableLhm = Environment.GetEnvironmentVariable("OMENCORE_DISABLE_LHM");
+                if (string.Equals(disableLhm, "1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(disableLhm, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logging?.Info("[WmiBiosMonitor] Skipping worker prelaunch because OMENCORE_DISABLE_LHM is enabled");
+                    return;
+                }
+
+                var workerPath = ResolveWorkerExecutablePath();
+                if (string.IsNullOrEmpty(workerPath) || !File.Exists(workerPath))
+                {
+                    _logging?.Warn("[WmiBiosMonitor] Hardware worker prelaunch skipped: OmenCore.HardwareWorker.exe not found in expected paths");
+                    return;
+                }
+
+                bool orphanTimeoutEnabled = true;
+                int orphanTimeoutMinutes = 5;
+                try
+                {
+                    var cfg = App.Configuration?.Config;
+                    if (cfg != null)
+                    {
+                        orphanTimeoutEnabled = cfg.HardwareWorkerOrphanTimeoutEnabled;
+                        orphanTimeoutMinutes = cfg.HardwareWorkerOrphanTimeoutMinutes;
+                    }
+                }
+                catch
+                {
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = workerPath,
+                    Arguments = $"{Environment.ProcessId} {orphanTimeoutEnabled} {Math.Clamp(orphanTimeoutMinutes, 1, 60)}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false
+                };
+
+                var started = Process.Start(startInfo);
+                if (started != null)
+                {
+                    _logging?.Info($"[WmiBiosMonitor] Hardware worker prelaunch started (PID: {started.Id})");
+                }
+                else
+                {
+                    _logging?.Warn("[WmiBiosMonitor] Hardware worker prelaunch returned null process handle");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] Hardware worker prelaunch failed: {ex.Message}");
+            }
+        }
+
+        private static string? ResolveWorkerExecutablePath()
+        {
+            try
+            {
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
+                foreach (var candidate in EnumerateWorkerExecutableCandidates(appDir))
+                {
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> EnumerateWorkerExecutableCandidates(string appDir)
+        {
+            yield return Path.Combine(appDir, "OmenCore.HardwareWorker.exe");
+
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            yield return Path.Combine(programFiles, "OmenCore", "OmenCore.HardwareWorker.exe");
+
+            var current = new DirectoryInfo(appDir);
+            while (current != null)
+            {
+                yield return Path.Combine(current.FullName, "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Release", "net8.0-windows", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Release", "net8.0-windows", "win-x64", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Debug", "net8.0-windows", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "src", "OmenCore.HardwareWorker", "bin", "Debug", "net8.0-windows", "win-x64", "OmenCore.HardwareWorker.exe");
+                yield return Path.Combine(current.FullName, "publish", "win-x64", "OmenCore.HardwareWorker.exe");
+                current = current.Parent;
             }
         }
         

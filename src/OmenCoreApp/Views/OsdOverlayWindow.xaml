@@ -11,25 +11,32 @@
         ShowActivated="False"
         ResizeMode="NoResize"
         Focusable="False"
-        IsHitTestVisible="False">
+        IsHitTestVisible="False"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
     
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
     </Window.Resources>
     
     <!-- Improved contrast and sizing for high-DPI (1440p+) displays -->
-    <Border Background="#DD0A0A14" 
+        <Border x:Name="RootBorder"
+            Background="#DD0A0A14" 
             BorderBrush="#88FF005C" 
             BorderThickness="2" 
             CornerRadius="8"
             Padding="16,12"
             Margin="6"
-            MinWidth="180">
+            MinWidth="220"
+            MaxWidth="900"
+            MaxHeight="900">
         <Border.Effect>
             <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="10" ShadowDepth="2"/>
         </Border.Effect>
         
-        <StackPanel x:Name="MainPanel">
+        <StackPanel x:Name="MainPanel" Grid.IsSharedSizeScope="True">
             <!-- Clock Time -->
             <TextBlock Text="{Binding ClockTime}" 
                        FontSize="13" 
@@ -53,9 +60,9 @@
             <!-- Performance Mode -->
             <Grid Margin="0,3" Visibility="{Binding ShowPerformanceMode, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="MODE" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding PerformanceMode}" FontSize="12" Foreground="#FFD700" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
@@ -64,9 +71,9 @@
             <!-- Fan Mode -->
             <Grid Margin="0,3" Visibility="{Binding ShowFanMode, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="FANS" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding FanMode}" FontSize="12" Foreground="#00BFFF" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
@@ -79,9 +86,9 @@
             <!-- CPU Stats -->
             <Grid Margin="0,3" Visibility="{Binding ShowCpuTemp, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="CPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -98,9 +105,9 @@
             <!-- CPU Clock Speed -->
             <Grid Margin="0,3" Visibility="{Binding ShowCpuClock, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="CPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding CpuClockSpeed}" FontSize="12" Foreground="#42A5F5" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -109,9 +116,9 @@
             <!-- GPU Stats -->
             <Grid Margin="0,3" Visibility="{Binding ShowGpuTemp, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="GPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -128,9 +135,9 @@
             <!-- GPU Clock Speed -->
             <Grid Margin="0,3" Visibility="{Binding ShowGpuClock, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="GPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding GpuClockSpeed}" FontSize="12" Foreground="#00D4FF" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -139,9 +146,9 @@
             <!-- GPU Hotspot Temperature -->
             <Grid Margin="0,3" Visibility="{Binding ShowGpuHotspot, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="TJUNC" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding GpuHotspotTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuHotspotTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
@@ -150,9 +157,9 @@
             <!-- VRAM Usage -->
             <Grid Margin="0,3" Visibility="{Binding ShowVramUsage, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="VRAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding VramUsage}" FontSize="12" Foreground="#AB47BC" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -161,9 +168,9 @@
             <!-- Package Power (CPU+GPU) -->
             <Grid Margin="0,3" Visibility="{Binding ShowPackagePower, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="PKG" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding PackagePower}" FontSize="12" Foreground="#FFA726" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -172,9 +179,9 @@
             <!-- Fan Speed -->
             <Grid Margin="0,3" Visibility="{Binding ShowFanSpeed, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="FAN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding FanSpeed}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -183,9 +190,9 @@
             <!-- RAM Usage -->
             <Grid Margin="0,3" Visibility="{Binding ShowRamUsage, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="RAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -194,9 +201,9 @@
             <!-- Battery -->
             <Grid Margin="0,3" Visibility="{Binding ShowBattery, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="BAT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding BatteryPercent}" FontSize="12" Foreground="{Binding BatteryColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -209,9 +216,9 @@
             <!-- FPS/GPU Activity (prominent display) -->
             <Grid Margin="0,4" Visibility="{Binding ShowFps, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding FpsLabel}" FontSize="14" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" ToolTip="FPS (via RTSS) or GPU Activity when RTSS not available"/>
                 <TextBlock Grid.Column="2" Text="{Binding FpsDisplay}" FontSize="18" Foreground="#00FF88" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
@@ -220,9 +227,9 @@
             <!-- Frametime -->
             <Grid Margin="0,3" Visibility="{Binding ShowFrametime, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="FT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding FrametimeDisplay}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -231,9 +238,9 @@
             <!-- Network Latency -->
             <Grid Margin="0,3" Visibility="{Binding ShowNetworkLatency, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="PING" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="12" Foreground="{Binding NetworkLatencyColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
@@ -242,9 +249,9 @@
             <!-- Network Upload Speed -->
             <Grid Margin="0,3" Visibility="{Binding ShowNetworkUpload, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="↑ UP" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -256,9 +263,9 @@
             <!-- Network Download Speed -->
             <Grid Margin="0,3" Visibility="{Binding ShowNetworkDownload, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="↓ DN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">

@@ -28,12 +28,37 @@ namespace OmenCore.Views
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
         
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hwnd, int index);
         
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public int dwFlags;
+        }
         
         private readonly DispatcherTimer _updateTimer;
         private readonly DispatcherTimer _pingTimer;
@@ -185,6 +210,19 @@ namespace OmenCore.Views
             
             InitializeComponent();
             DataContext = this;
+
+            Loaded += (_, _) =>
+            {
+                ApplyDpiAwareScale();
+                PositionWindow();
+            };
+            SizeChanged += (_, _) =>
+            {
+                if (IsLoaded)
+                {
+                    PositionWindow();
+                }
+            };
             
             // Set opacity from settings
             Opacity = _settings.Opacity;
@@ -250,6 +288,12 @@ namespace OmenCore.Views
                 MainPanel.Orientation = settings.Layout?.Equals("Horizontal", StringComparison.OrdinalIgnoreCase) == true
                     ? System.Windows.Controls.Orientation.Horizontal
                     : System.Windows.Controls.Orientation.Vertical;
+            }
+
+            if (IsLoaded)
+            {
+                ApplyDpiAwareScale();
+                PositionWindow();
             }
         }
         
@@ -663,39 +707,101 @@ namespace OmenCore.Views
         
         private void PositionWindow()
         {
-            var workArea = SystemParameters.WorkArea;
+            UpdateLayout();
+            var workArea = GetCurrentMonitorWorkArea();
+
+            var width = ActualWidth > 0 ? ActualWidth : Math.Max(220, DesiredSize.Width);
+            var height = ActualHeight > 0 ? ActualHeight : Math.Max(140, DesiredSize.Height);
+            const double padding = 10;
             
             switch (_settings.Position.ToLowerInvariant())
             {
                 case "topleft":
-                    Left = workArea.Left + 10;
-                    Top = workArea.Top + 10;
+                    Left = workArea.Left + padding;
+                    Top = workArea.Top + padding;
                     break;
                 case "topcenter":
-                    Left = workArea.Left + (workArea.Width - Width) / 2;
-                    Top = workArea.Top + 10;
+                    Left = workArea.Left + (workArea.Width - width) / 2;
+                    Top = workArea.Top + padding;
                     break;
                 case "topright":
-                    Left = workArea.Right - Width - 10;
-                    Top = workArea.Top + 10;
+                    Left = workArea.Right - width - padding;
+                    Top = workArea.Top + padding;
                     break;
                 case "bottomleft":
-                    Left = workArea.Left + 10;
-                    Top = workArea.Bottom - Height - 10;
+                    Left = workArea.Left + padding;
+                    Top = workArea.Bottom - height - padding;
                     break;
                 case "bottomcenter":
-                    Left = workArea.Left + (workArea.Width - Width) / 2;
-                    Top = workArea.Bottom - Height - 10;
+                    Left = workArea.Left + (workArea.Width - width) / 2;
+                    Top = workArea.Bottom - height - padding;
                     break;
                 case "bottomright":
-                    Left = workArea.Right - Width - 10;
-                    Top = workArea.Bottom - Height - 10;
+                    Left = workArea.Right - width - padding;
+                    Top = workArea.Bottom - height - padding;
                     break;
                 default:
-                    Left = workArea.Left + 10;
-                    Top = workArea.Top + 10;
+                    Left = workArea.Left + padding;
+                    Top = workArea.Top + padding;
                     break;
             }
+
+            // Clamp final placement to visible work area to prevent clipping on any DPI/resolution.
+            Left = Math.Max(workArea.Left + padding, Math.Min(Left, workArea.Right - width - padding));
+            Top = Math.Max(workArea.Top + padding, Math.Min(Top, workArea.Bottom - height - padding));
+        }
+
+        private Rect GetCurrentMonitorWorkArea()
+        {
+            try
+            {
+                var hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd == IntPtr.Zero)
+                {
+                    return SystemParameters.WorkArea;
+                }
+
+                var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                if (monitor == IntPtr.Zero)
+                {
+                    return SystemParameters.WorkArea;
+                }
+
+                var monitorInfo = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+                if (!GetMonitorInfo(monitor, ref monitorInfo))
+                {
+                    return SystemParameters.WorkArea;
+                }
+
+                return new Rect(
+                    monitorInfo.rcWork.Left,
+                    monitorInfo.rcWork.Top,
+                    Math.Max(1, monitorInfo.rcWork.Right - monitorInfo.rcWork.Left),
+                    Math.Max(1, monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top));
+            }
+            catch
+            {
+                return SystemParameters.WorkArea;
+            }
+        }
+
+        private void ApplyDpiAwareScale()
+        {
+            if (RootBorder == null)
+            {
+                return;
+            }
+
+            var workArea = GetCurrentMonitorWorkArea();
+            double scale = workArea.Height switch
+            {
+                >= 2000 => 1.28,
+                >= 1400 => 1.14,
+                <= 800 => 0.92,
+                _ => 1.0
+            };
+
+            RootBorder.LayoutTransform = new ScaleTransform(scale, scale);
         }
         
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
