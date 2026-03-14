@@ -14,7 +14,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 - ✅ **No Sign-In Required** - Full offline operation
 - 🐧 **Cross-Platform** - Windows GUI + Linux CLI & Avalonia GUI
 
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.1.0)
+[![Version](https://img.shields.io/badge/version-3.1.1-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.1.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
@@ -29,7 +29,7 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 
 ### Windows
 ```
-1. Download OmenCore-3.1.0-win-x64.zip from Releases
+1. Download OmenCore-3.1.1-win-x64.zip from Releases
 2. Extract and run OmenCore.exe as Administrator
 3. (Optional) Check "Install PawnIO driver" for advanced features
 4. Launch from extracted folder
@@ -39,8 +39,8 @@ OmenCore is a **complete replacement** for HP OMEN Gaming Hub - no OGH services 
 ### Linux (CachyOS, Arch, Ubuntu, Fedora)
 ```bash
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.1.0/OmenCore-3.1.0-linux-x64.zip
-unzip OmenCore-3.1.0-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.1.1/OmenCore-3.1.1-linux-x64.zip
+unzip OmenCore-3.1.1-linux-x64.zip
 
 # CLI
 chmod +x omencore-cli && sudo ./omencore-cli status
