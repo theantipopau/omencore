@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
 using OmenCore.Services;
+using OmenCore.Utils;
 
 namespace OmenCore.Views
 {
@@ -17,7 +18,7 @@ namespace OmenCore.Views
         {
             InitializeComponent();
             _updateService = new AutoUpdateService(App.Logging, "https://api.github.com/repos/theantipopau/omencore/releases/latest");
-            VersionText.Text = $"Version {_updateService.GetCurrentVersion()}";
+            VersionText.Text = $"Version {AppVersionProvider.GetVersionString()}";
         }
 
         private async void CheckUpdatesClicked(object sender, RoutedEventArgs e)

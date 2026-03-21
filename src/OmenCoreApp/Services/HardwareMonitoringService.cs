@@ -20,8 +20,8 @@ namespace OmenCore.Services
         private readonly LoggingService _logging;
         private readonly ObservableCollection<MonitoringSample> _samples = new();
         private readonly int _history;
-        private readonly TimeSpan _baseInterval;
-        private readonly TimeSpan _lowOverheadInterval;
+        private TimeSpan _baseInterval;
+        private TimeSpan _lowOverheadInterval;
         private CancellationTokenSource? _cts;
         private volatile bool _lowOverheadMode; // volatile for thread-safe reads from monitor loop
         private MonitoringSample? _lastSample;
@@ -123,6 +123,14 @@ namespace OmenCore.Services
             {
                 lhwm.SetLowOverheadMode(enabled);
             }
+        }
+
+        public void SetPollingInterval(int intervalMs)
+        {
+            var clamped = Math.Clamp(intervalMs, 500, 5000);
+            _baseInterval = TimeSpan.FromMilliseconds(clamped);
+            _lowOverheadInterval = TimeSpan.FromMilliseconds(Math.Max(5000, clamped * 5));
+            _logging.Info($"Hardware monitoring base poll interval updated: {_baseInterval.TotalMilliseconds}ms (low-overhead: {_lowOverheadInterval.TotalMilliseconds}ms)");
         }
 
         /// <summary>

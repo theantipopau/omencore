@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -21,6 +22,8 @@ class Program
 {
     private const string PipeName = "OmenCore_HardwareWorker";
     private const int UpdateIntervalMs = 500;
+    private const int IdleUpdateIntervalMs = 1500;
+    private const int OrphanIdleUpdateIntervalMs = 3000;
     private const int DefaultOrphanTimeoutMs = 5 * 60 * 1000; // 5 minutes with no client before self-exit
     private const string MutexName = "Global\\OmenCore_HardwareWorker_Mutex";
     
@@ -31,6 +34,9 @@ class Program
     private static DateTime _lastUpdate = DateTime.MinValue;
     private static int _parentProcessId = -1;
     private static readonly Dictionary<string, DateTime> _lastErrorLog = new(); // Rate-limit error logging
+    private static DateTime _lastErrorLogPruneUtc = DateTime.MinValue;
+    private const int ErrorLogPruneIntervalMinutes = 15;
+    private const int ErrorLogRetentionHours = 6;
     private static bool _hasInitialized = false; // Track if we've done at least one full hardware update cycle
     
     // Configurable orphan timeout
@@ -50,11 +56,28 @@ class Program
     
     // v2.8.6: Fallback sensor logging for Intel Core Ultra / Arrow Lake
     private static bool _cpuTempFallbackLogged = false;
+
+    // Frozen temperature recovery: detect implausible "stuck hot" readings and force re-probe.
+    private static int _consecutiveCpuTempFrozenReads = 0;
+    private static DateTime _lastCpuTempRecoveryAttemptUtc = DateTime.MinValue;
+    private const int FrozenCpuTempTriggerCycles = 120; // ~60s at 500ms active poll
+    private const double FrozenCpuTempThresholdC = 75.0;
+    private const double FrozenCpuLoadMaxPercent = 25.0;
+    private const int FrozenCpuRecoveryCooldownSeconds = 120;
     
     // Dead battery protection: disable battery sensor polling to prevent EC timeouts
     private static bool _batteryMonitoringDisabled = false;
     private static int _consecutiveZeroBatteryReads = 0;
     private const int MaxZeroBatteryReadsBeforeDisable = 3;
+
+    // Buffered file logging to avoid high-frequency synchronous disk writes.
+    private static readonly ConcurrentQueue<string> _pendingLogLines = new();
+    private static readonly AutoResetEvent _logSignal = new(false);
+    private static CancellationTokenSource? _logWriterCts;
+    private static Task? _logWriterTask;
+    private static volatile bool _logWriterStarted;
+    private const int LogFlushIntervalMs = 1000;
+    private const int MaxLogBatchLines = 128;
 
     static async Task Main(string[] args)
     {
@@ -88,7 +111,7 @@ class Program
             if (!createdNew)
             {
                 Console.WriteLine("Another HardwareWorker is already running. Exiting.");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Another worker already running (mutex held). Exiting duplicate.\n");
+                DirectAppendLog($"[{DateTime.Now:O}] Another worker already running (mutex held). Exiting duplicate.\n");
                 return;
             }
         }
@@ -101,15 +124,15 @@ class Program
         // Rotate old log files
         RotateLogIfNeeded();
 
-        File.AppendAllText(
-            GetLogPath(),
-            $"[{DateTime.Now:O}] Worker starting. PID={Environment.ProcessId}, ParentPID={_parentProcessId}, OrphanTimeoutEnabled={_orphanTimeoutEnabled}, OrphanTimeoutMinutes={_orphanTimeoutMinutes}\n");
+        StartLogWriter();
+
+        LogToFile($"[{DateTime.Now:O}] Worker starting. PID={Environment.ProcessId}, ParentPID={_parentProcessId}, OrphanTimeoutEnabled={_orphanTimeoutEnabled}, OrphanTimeoutMinutes={_orphanTimeoutMinutes}\n");
         
         // Set up crash handler to log before exit
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
             var ex = e.ExceptionObject as Exception;
-            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] WORKER CRASH: {ex?.GetType().Name}: {ex?.Message}\n{ex?.StackTrace}\n");
+            DirectAppendLog($"[{DateTime.Now:O}] WORKER CRASH: {ex?.GetType().Name}: {ex?.Message}\n{ex?.StackTrace}\n");
         };
 
         Console.WriteLine($"OmenCore Hardware Worker starting... PID={Environment.ProcessId}");
@@ -132,12 +155,13 @@ class Program
         }
         catch (Exception ex)
         {
-            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] WORKER ERROR: {ex}\n");
+            LogToFile($"[{DateTime.Now:O}] WORKER ERROR: {ex}\n");
             throw;
         }
         finally
         {
             CleanupHardware();
+            StopLogWriter();
         }
     }
     
@@ -164,7 +188,7 @@ class Program
             if (parentProcess.HasExited)
             {
                 Console.WriteLine($"Parent process {_parentProcessId} exited. Worker continuing — waiting for new connection...");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} exited. Worker staying alive for reconnection.\n");
+                LogToFile($"[{DateTime.Now:O}] Parent process {_parentProcessId} exited. Worker staying alive for reconnection.\n");
                 _parentAlive = false;
                 // Do NOT exit — keep running so the next OmenCore instance can reuse us
                 // The OrphanWatchdog will handle cleanup if no client reconnects
@@ -174,12 +198,12 @@ class Program
         {
             // Parent process doesn't exist (already exited)
             Console.WriteLine($"Parent process {_parentProcessId} not found. Worker continuing — waiting for new connection...");
-            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent process {_parentProcessId} not found. Worker staying alive for reconnection.\n");
+            LogToFile($"[{DateTime.Now:O}] Parent process {_parentProcessId} not found. Worker staying alive for reconnection.\n");
             _parentAlive = false;
         }
         catch (Exception ex)
         {
-            File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Parent monitor error: {ex.Message}\n");
+            LogToFile($"[{DateTime.Now:O}] Parent monitor error: {ex.Message}\n");
         }
     }
 
@@ -204,7 +228,7 @@ class Program
             if (timeSinceActivity.TotalMilliseconds > timeoutMs)
             {
                 Console.WriteLine($"No client activity for {timeSinceActivity.TotalMinutes:F1} minutes. Exiting orphaned worker.");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");
+                LogToFile($"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");
                 _running = false;
                 
                 try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
@@ -219,6 +243,110 @@ class Program
         var logDir = Path.Combine(localAppData, "OmenCore");
         Directory.CreateDirectory(logDir);
         return Path.Combine(logDir, "HardwareWorker.log");
+    }
+
+    private static void StartLogWriter()
+    {
+        if (_logWriterStarted)
+        {
+            return;
+        }
+
+        _logWriterCts = new CancellationTokenSource();
+        _logWriterTask = Task.Run(() => LogWriterLoop(_logWriterCts.Token));
+        _logWriterStarted = true;
+    }
+
+    private static void StopLogWriter()
+    {
+        if (!_logWriterStarted)
+        {
+            return;
+        }
+
+        try
+        {
+            _logWriterCts?.Cancel();
+            _logSignal.Set();
+            _logWriterTask?.Wait(2000);
+        }
+        catch
+        {
+            // Best-effort shutdown only.
+        }
+        finally
+        {
+            FlushPendingLogLines();
+            _logWriterCts?.Dispose();
+            _logWriterCts = null;
+            _logWriterTask = null;
+            _logWriterStarted = false;
+        }
+    }
+
+    private static async Task LogWriterLoop(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            _logSignal.WaitOne(LogFlushIntervalMs);
+            FlushPendingLogLines();
+            await Task.Yield();
+        }
+
+        FlushPendingLogLines();
+    }
+
+    private static void LogToFile(string line)
+    {
+        if (_logWriterStarted)
+        {
+            _pendingLogLines.Enqueue(line);
+            _logSignal.Set();
+            return;
+        }
+
+        DirectAppendLog(line);
+    }
+
+    private static void FlushPendingLogLines()
+    {
+        if (_pendingLogLines.IsEmpty)
+        {
+            return;
+        }
+
+        try
+        {
+            var logPath = GetLogPath();
+            var sb = new StringBuilder();
+            var drained = 0;
+            while (drained < MaxLogBatchLines && _pendingLogLines.TryDequeue(out var line))
+            {
+                sb.Append(line);
+                drained++;
+            }
+
+            if (sb.Length > 0)
+            {
+                File.AppendAllText(logPath, sb.ToString());
+            }
+        }
+        catch
+        {
+            // Never crash worker due to logging failures.
+        }
+    }
+
+    private static void DirectAppendLog(string line)
+    {
+        try
+        {
+            File.AppendAllText(GetLogPath(), line);
+        }
+        catch
+        {
+            // Ignore logging errors.
+        }
     }
     
     /// <summary>
@@ -273,7 +401,7 @@ class Program
             if (_pawnIOCpuTemp.IsAvailable)
             {
                 Console.WriteLine("PawnIO CPU temp fallback available.");
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] PawnIO CPU temp fallback initialized for null/zero CPU temp recovery\n");
+                LogToFile($"[{DateTime.Now:O}] PawnIO CPU temp fallback initialized for null/zero CPU temp recovery\n");
             }
             else
             {
@@ -311,12 +439,12 @@ class Program
                 Console.WriteLine($"  Load sensors ({loadSensors.Count}): [{string.Join(", ", loadSensors.Select(s => $"{s.Name}={s.Value:F0}%"))}]");
                 Console.WriteLine($"  Power sensors ({powerSensors.Count}): [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]");
                 
-                File.AppendAllText(logPath, $"[{DateTime.Now:O}] [CPU Detected] {hw.Name}\n");
-                File.AppendAllText(logPath, $"  Temp sensors ({tempSensors.Count}): [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
+                LogToFile($"[{DateTime.Now:O}] [CPU Detected] {hw.Name}\n");
+                LogToFile($"  Temp sensors ({tempSensors.Count}): [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
                 
                 if (tempSensors.Count == 0)
                 {
-                    File.AppendAllText(logPath, $"  ⚠️ WARNING: No CPU temperature sensors detected!\n");
+                    LogToFile("  ⚠️ WARNING: No CPU temperature sensors detected!\n");
                     Console.WriteLine("  ⚠️ WARNING: No CPU temperature sensors detected!");
                 }
             }
@@ -348,8 +476,8 @@ class Program
                 Console.WriteLine($"  Power sensors: [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]");
                 
                 // Also log to file
-                File.AppendAllText(logPath, $"[{DateTime.Now:O}] [GPU Detected] {gpuType}: {hw.Name}\n");
-                File.AppendAllText(logPath, $"  Temp sensors: [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
+                LogToFile($"[{DateTime.Now:O}] [GPU Detected] {gpuType}: {hw.Name}\n");
+                LogToFile($"  Temp sensors: [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
             }
         }
         
@@ -365,8 +493,8 @@ class Program
                 Console.WriteLine($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}MB"))}]");
                 
                 // Also log to file
-                File.AppendAllText(logPath, $"[{DateTime.Now:O}] [Memory Detected] {hw.Name}\n");
-                File.AppendAllText(logPath, $"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}MB"))}]\n");
+                LogToFile($"[{DateTime.Now:O}] [Memory Detected] {hw.Name}\n");
+                LogToFile($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}MB"))}]\n");
             }
         }
     }
@@ -392,20 +520,41 @@ class Program
             catch (AccessViolationException ex)
             {
                 // NVML crash - log and continue (may crash process anyway)
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] NVML ACCESS VIOLATION: {ex.Message}\n");
+                LogToFile($"[{DateTime.Now:O}] NVML ACCESS VIOLATION: {ex.Message}\n");
             }
             catch (Exception ex)
             {
-                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Update error: {ex.Message}\n");
+                LogToFile($"[{DateTime.Now:O}] Update error: {ex.Message}\n");
             }
-            
-            await Task.Delay(UpdateIntervalMs);
+
+            await Task.Delay(GetAdaptiveUpdateDelayMs());
         }
+    }
+
+    private static int GetAdaptiveUpdateDelayMs()
+    {
+        var idleSeconds = (DateTime.Now - _lastClientActivity).TotalSeconds;
+
+        // Orphaned worker with no active client can poll slower to avoid wasting CPU.
+        if (!_parentAlive && idleSeconds >= 30)
+        {
+            return OrphanIdleUpdateIntervalMs;
+        }
+
+        // No recent client requests; keep telemetry warm but reduce overhead.
+        if (idleSeconds >= 15)
+        {
+            return IdleUpdateIntervalMs;
+        }
+
+        return UpdateIntervalMs;
     }
 
     private static void UpdateHardwareReadings()
     {
         if (_computer == null) return;
+
+        PruneErrorLogCacheIfNeeded();
         
         lock (_lock)
         {
@@ -439,21 +588,6 @@ class Program
                 IsFresh = true,  // Assume fresh until proven otherwise
                 StaleCount = 0
             };
-            
-            // UpdateVisitor can throw if storage goes to sleep - catch and continue
-            try
-            {
-                _computer.Accept(new UpdateVisitor());
-            }
-            catch (ObjectDisposedException)
-            {
-                // Storage drive went to sleep - this is normal, continue with individual hardware updates
-            }
-            catch (Exception ex) when (ex.Message.Contains("disposed", StringComparison.OrdinalIgnoreCase) ||
-                                        ex.Message.Contains("SafeFileHandle", StringComparison.OrdinalIgnoreCase))
-            {
-                // Also catch nested disposed errors
-            }
             
             int hardwareUpdated = 0;
             bool cpuHardwareUpdateSucceeded = false;
@@ -540,7 +674,7 @@ class Program
                     
                     if (shouldLog)
                     {
-                        File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Error updating {hardware.Name}: {ex.Message}\n");
+                        LogToFile($"[{DateTime.Now:O}] Error updating {hardware.Name}: {ex.Message}\n");
                     }
                     
                     // CRITICAL: Even if this hardware device failed, continue to next device
@@ -562,7 +696,7 @@ class Program
                     // Log once when we first detect staleness
                     if (_lastSample.IsFresh)
                     {
-                        File.AppendAllText(GetLogPath(), 
+                        LogToFile(
                             $"[{DateTime.Now:O}] ⚠️ CPU hardware update failed for {sample.StaleCount} cycles (temp={sample.CpuTemperature:F1}°C). Reinitializing sensors...\n");
                         
                         // Try to reinitialize CPU sensors
@@ -584,6 +718,8 @@ class Program
                 sample.StaleCount = 0;
                 sample.IsFresh = true;
             }
+
+            DetectAndRecoverFrozenCpuTemperature(sample, previousCpuTemp, cpuHardwareUpdateSucceeded);
             
             sample.Timestamp = DateTime.Now;
             _lastSample = sample;
@@ -595,6 +731,85 @@ class Program
                 _hasInitialized = true;
                 Console.WriteLine("[Worker] Hardware monitoring initialized - first sample complete");
             }
+        }
+    }
+
+    private static void PruneErrorLogCacheIfNeeded()
+    {
+        var nowUtc = DateTime.UtcNow;
+        if ((nowUtc - _lastErrorLogPruneUtc).TotalMinutes < ErrorLogPruneIntervalMinutes)
+        {
+            return;
+        }
+
+        _lastErrorLogPruneUtc = nowUtc;
+        if (_lastErrorLog.Count == 0)
+        {
+            return;
+        }
+
+        var cutoffUtc = nowUtc.AddHours(-ErrorLogRetentionHours);
+        var staleKeys = _lastErrorLog
+            .Where(kvp => kvp.Value < cutoffUtc)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var key in staleKeys)
+        {
+            _lastErrorLog.Remove(key);
+        }
+    }
+
+    private static void DetectAndRecoverFrozenCpuTemperature(HardwareSample sample, double previousCpuTemp, bool cpuHardwareUpdateSucceeded)
+    {
+        if (!cpuHardwareUpdateSucceeded || sample.CpuTemperature <= 0)
+        {
+            _consecutiveCpuTempFrozenReads = 0;
+            return;
+        }
+
+        if (Math.Abs(sample.CpuTemperature - previousCpuTemp) < 0.05)
+        {
+            _consecutiveCpuTempFrozenReads++;
+        }
+        else
+        {
+            _consecutiveCpuTempFrozenReads = 0;
+            return;
+        }
+
+        var suspiciouslyHotAndIdle = sample.CpuTemperature >= FrozenCpuTempThresholdC && sample.CpuLoad <= FrozenCpuLoadMaxPercent;
+        if (!suspiciouslyHotAndIdle || _consecutiveCpuTempFrozenReads < FrozenCpuTempTriggerCycles)
+        {
+            return;
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        if ((nowUtc - _lastCpuTempRecoveryAttemptUtc).TotalSeconds < FrozenCpuRecoveryCooldownSeconds)
+        {
+            return;
+        }
+
+        _lastCpuTempRecoveryAttemptUtc = nowUtc;
+        _consecutiveCpuTempFrozenReads = 0;
+
+        LogToFile(
+            $"[{DateTime.Now:O}] ⚠️ Detected frozen CPU temp ({sample.CpuTemperature:F1}°C for prolonged period at {sample.CpuLoad:F1}% load). Forcing sensor recovery.\n");
+
+        // Force next cycles to use null-temp recovery path instead of presenting stale hot readings.
+        sample.IsFresh = false;
+        sample.StaleCount = Math.Max(sample.StaleCount, _lastSample.StaleCount + 1);
+        sample.CpuTemperature = 0;
+        _consecutiveNullCpuTemp = Math.Max(_consecutiveNullCpuTemp, NullTempThresholdForFallback);
+
+        try
+        {
+            var cpuHw = _computer?.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+            cpuHw?.Update();
+        }
+        catch
+        {
+            // Ignore recovery update errors; normal loop will continue retrying.
         }
     }
 
@@ -634,7 +849,7 @@ class Program
                         if (!_cpuTempFallbackLogged)
                         {
                             _cpuTempFallbackLogged = true;
-                            File.AppendAllText(GetLogPath(),
+                            LogToFile(
                                 $"[{DateTime.Now:O}] ⚠️ CPU temp named-sensor returned 0 (prev={_lastSample.CpuTemperature:F1}°C). " +
                                 $"Using fallback sensor '{allTempSensors[0].Name}'={cpuTemp:F1}°C " +
                                 $"(available: {string.Join(", ", allTempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))})\n");
@@ -653,7 +868,7 @@ class Program
                         if (!_pawnIOFallbackActive)
                         {
                             _pawnIOFallbackActive = true;
-                            File.AppendAllText(GetLogPath(), 
+                            LogToFile(
                                 $"[{DateTime.Now:O}] ⚠️ LibreHardwareMonitor CPU temp null for {_consecutiveNullCpuTemp} readings. " +
                                 $"Switching to PawnIO fallback for resilient CPU temperature reads.\n");
                             Console.WriteLine("Switching to PawnIO CPU temp fallback");
@@ -675,7 +890,7 @@ class Program
                                 DateTime.Now - lastLog > TimeSpan.FromMinutes(5))
                             {
                                 _lastErrorLog[errorKey] = DateTime.Now;
-                                File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] PawnIO CPU temp read failed: {ex.Message}\n");
+                                LogToFile($"[{DateTime.Now:O}] PawnIO CPU temp read failed: {ex.Message}\n");
                             }
                         }
                     }
@@ -686,7 +901,7 @@ class Program
                     if (_pawnIOFallbackActive)
                     {
                         _pawnIOFallbackActive = false;
-                        File.AppendAllText(GetLogPath(), 
+                        LogToFile(
                             $"[{DateTime.Now:O}] ✓ LibreHardwareMonitor CPU temp restored. Disabling PawnIO fallback.\n");
                     }
                     _consecutiveNullCpuTemp = 0;
@@ -695,7 +910,6 @@ class Program
                 // Always update temperature, even if 0 (indicates sensor failure/unavailable)
                 // This prevents stuck readings when sensors become temporarily unavailable
                 sample.CpuTemperature = cpuTemp;
-                Console.WriteLine($"CPU Temp: {cpuTemp}°C");
                 
                 var cpuLoad = GetSensorValue(hardware, SensorType.Load, "CPU Total");
                 // Always assign load - 0 is a valid idle reading
@@ -725,7 +939,6 @@ class Program
                     "GPU Core", "Core");
                 // Always update temperature, even if 0 (indicates sensor failure/unavailable)
                 sample.GpuTemperature = gpuTemp;
-                Console.WriteLine($"GPU Temp: {gpuTemp}°C");
                 
                 var gpuHotspot = GetSensorValueMulti(hardware, SensorType.Temperature, 
                     "GPU Hot Spot", "Hot Spot");
@@ -772,7 +985,6 @@ class Program
                         "GPU Core", "GPU Package", "GPU");
                     // Always update temperature, even if 0
                     sample.GpuTemperature = intelTemp;
-                    Console.WriteLine($"Intel GPU Temp: {intelTemp}°C");
                     
                     if (isArc || string.IsNullOrEmpty(sample.GpuName))
                         sample.GpuName = hardware.Name;
@@ -858,7 +1070,7 @@ class Program
                         sample.BatteryCharge = 100;
                         sample.IsOnAc = true;
                         Console.WriteLine("Dead battery detected (0% on AC for 3+ reads) — disabling battery polling to prevent EC timeouts");
-                        File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Dead battery auto-detected — battery monitoring disabled\n");
+                        LogToFile($"[{DateTime.Now:O}] Dead battery auto-detected — battery monitoring disabled\n");
                     }
                 }
                 else
@@ -1038,7 +1250,7 @@ class Program
                         _parentAlive = true;
                         
                         Console.WriteLine($"New parent registered: PID {newPid} (was {oldPid})");
-                        File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] New parent registered: PID {newPid} (was {oldPid}). Worker reattached.\n");
+                        LogToFile($"[{DateTime.Now:O}] New parent registered: PID {newPid} (was {oldPid}). Worker reattached.\n");
                         
                         // Start monitoring new parent in background
                         _ = Task.Run(MonitorParentProcess);
@@ -1059,7 +1271,7 @@ class Program
                 {
                     _batteryMonitoringDisabled = true;
                     Console.WriteLine("Battery monitoring disabled by client (dead/removed battery).");
-                    File.AppendAllText(GetLogPath(), $"[{DateTime.Now:O}] Battery monitoring disabled by client command\n");
+                    LogToFile($"[{DateTime.Now:O}] Battery monitoring disabled by client command\n");
                     response = "OK";
                 }
                 else

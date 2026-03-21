@@ -146,9 +146,34 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task SavePreset()
     {
-        // TODO: Implement save preset dialog
-        StatusMessage = "Save preset functionality coming soon";
-        await Task.CompletedTask;
+        try
+        {
+            var baseName = string.IsNullOrWhiteSpace(SelectedPreset) ? "Custom" : SelectedPreset.Trim();
+            var presetName = baseName;
+
+            if (Presets.Contains(presetName))
+            {
+                presetName = $"{baseName}-{DateTime.Now:HHmmss}";
+            }
+
+            var cpuCurve = CpuFanCurve.Select(vm => new FanCurvePoint(vm.Temperature, vm.FanSpeed)).ToList();
+            var gpuCurve = GpuFanCurve.Select(vm => new FanCurvePoint(vm.Temperature, vm.FanSpeed)).ToList();
+
+            _fanCurveService.SavePreset(presetName, cpuCurve, gpuCurve);
+
+            if (!Presets.Contains(presetName))
+            {
+                Presets.Add(presetName);
+            }
+
+            SelectedPreset = presetName;
+            await ApplyCurve();
+            StatusMessage = $"Saved preset '{presetName}'";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save preset: {ex.Message}";
+        }
     }
 
     [RelayCommand]

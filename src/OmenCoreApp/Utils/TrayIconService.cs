@@ -133,7 +133,7 @@ namespace OmenCore.Utils
             
             // Fallback to assembly version
             var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.1.0";
+            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.2.0";
         }
 
         private void InitializeContextMenu()
@@ -725,6 +725,20 @@ namespace OmenCore.Utils
             {
                 _gpuPowerMenuItem.Header = $"⚡ GPU Power ▶ [{level}]";
             }
+        }
+        
+        /// <summary>
+        /// Show or hide the GPU Power tray submenu based on whether the feature is supported on this hardware.
+        /// Call after SystemControlViewModel.DetectGpuPowerBoost() completes — hides the submenu on HP Victus
+        /// and other models where SupportsGpuPowerBoost = false, preventing confusing no-op menu items.
+        /// </summary>
+        public void SetGpuPowerAvailable(bool available)
+        {
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                if (_gpuPowerMenuItem != null)
+                    _gpuPowerMenuItem.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+            });
         }
         
         /// <summary>

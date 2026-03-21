@@ -73,7 +73,7 @@ namespace OmenCore
             Logging.Level = Configuration.Config.LogLevel;
             
             var asm = Assembly.GetExecutingAssembly();
-            var fileVer = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "unknown";
+            var fileVer = AppVersionProvider.GetVersionString();
             var asmVer = asm.GetName().Version?.ToString() ?? "unknown";
             Logging.Info($"OmenCore v{fileVer} starting up (Assembly: {asmVer})");
             
@@ -411,12 +411,23 @@ namespace OmenCore
                 // Initial sync: force access to SystemControl/Dashboard to load saved modes,
                 // then sync to tray immediately AFTER subscriptions are set up
                 var _ = mainViewModel.Dashboard; // Trigger lazy load
-                var __ = mainViewModel.SystemControl; // Trigger lazy load
+                var systemControl = mainViewModel.SystemControl; // Trigger lazy load (DetectGpuPowerBoost runs sync in ctor)
                 
                 // Now sync to tray with actual values
                 _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
                 _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
                 _trayIconService?.UpdateMonitoringHealth(mainViewModel.HardwareMonitoringService.HealthStatus);
+                
+                // Hide GPU Power tray submenu if not supported on this model (e.g., HP Victus)
+                _trayIconService?.SetGpuPowerAvailable(systemControl?.GpuPowerBoostAvailable ?? true);
+                if (systemControl != null)
+                {
+                    systemControl.PropertyChanged += (s, e) =>
+                    {
+                        if (e.PropertyName == nameof(SystemControlViewModel.GpuPowerBoostAvailable))
+                            _trayIconService?.SetGpuPowerAvailable(systemControl.GpuPowerBoostAvailable);
+                    };
+                }
 
                 mainViewModel.HardwareMonitoringService.HealthStatusChanged += (s, health) =>
                 {

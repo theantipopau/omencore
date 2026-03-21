@@ -594,6 +594,25 @@
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                         </StackPanel>
 
+                        <!-- Polling Profile -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="220"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Polling profile" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Choose a tuned profile for responsiveness vs system overhead" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding PollingProfiles}"
+                                      SelectedItem="{Binding PollingProfile, Mode=TwoWay}"
+                                      HorizontalAlignment="Right"
+                                      Width="180"/>
+                        </Grid>
+
                         <!-- Polling Interval -->
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>

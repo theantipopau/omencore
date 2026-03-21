@@ -173,8 +173,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         // Check keyboard backlight
         _capabilities.HasKeyboardBacklight = Directory.Exists(BACKLIGHT_PATH);
         
-        // TODO: Detect RGB capabilities
-        _capabilities.HasFourZoneRgb = File.Exists("/sys/class/leds/hp::kbd_backlight/color");
+        // Detect RGB capabilities from common HP OMEN LED interfaces.
+        _capabilities.HasFourZoneRgb = DetectFourZoneRgbSupport();
+        _capabilities.HasPerKeyRgb = DetectPerKeyRgbSupport();
         
         // Check for discrete GPU
         _capabilities.HasDiscreteGpu = await HasDiscreteGpuAsync();
@@ -189,6 +190,52 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         _capabilities.GpuName = await ReadGpuNameAsync();
 
         return _capabilities;
+    }
+
+    private static bool DetectFourZoneRgbSupport()
+    {
+        if (File.Exists("/sys/class/leds/hp::kbd_backlight/color"))
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!Directory.Exists("/sys/class/leds"))
+            {
+                return false;
+            }
+
+            var zoneMatches = Directory.EnumerateDirectories("/sys/class/leds", "hp::*zone*", SearchOption.TopDirectoryOnly).Any();
+            if (zoneMatches)
+            {
+                return true;
+            }
+
+            return Directory.EnumerateFiles("/sys/class/leds", "*multicolor*", SearchOption.AllDirectories).Any();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool DetectPerKeyRgbSupport()
+    {
+        try
+        {
+            if (!Directory.Exists("/sys/class/leds"))
+            {
+                return false;
+            }
+
+            return Directory.EnumerateDirectories("/sys/class/leds", "hp::*key*", SearchOption.TopDirectoryOnly).Any()
+                || Directory.EnumerateDirectories("/sys/class/leds", "*kbd*perkey*", SearchOption.TopDirectoryOnly).Any();
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>

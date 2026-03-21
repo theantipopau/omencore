@@ -1,4 +1,7 @@
 using System;
+using System.IO;
+using System.Net.Http;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
@@ -6,6 +9,9 @@ namespace OmenCore.Desktop.Views;
 
 public partial class SettingsView : UserControl
 {
+    private static readonly HttpClient HttpClient = new();
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
     public SettingsView()
     {
         InitializeComponent();
@@ -14,17 +20,38 @@ public partial class SettingsView : UserControl
     
     private void LoadSettings()
     {
-        // TODO: Load settings from config file
-        // For now, use defaults
-        
-        // Update config path based on platform
-        var configPath = Environment.OSVersion.Platform == PlatformID.Unix
-            ? "~/.config/omencore"
-            : Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\OmenCore";
-        ConfigPathText.Text = configPath;
-        
-        // Update version
-        VersionText.Text = "Version 2.1.2-beta";
+        var (configDirectory, configFile) = GetSettingsPaths();
+        ConfigPathText.Text = configDirectory;
+        VersionText.Text = "Version 3.2.0";
+
+        if (!File.Exists(configFile))
+        {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(configFile);
+            var settings = JsonSerializer.Deserialize<SettingsData>(json, JsonOptions);
+            if (settings == null)
+            {
+                return;
+            }
+
+            StartWithSystemToggle.IsChecked = settings.StartWithSystem;
+            StartMinimizedToggle.IsChecked = settings.StartMinimized;
+            CloseToTrayToggle.IsChecked = settings.CloseToTray;
+            CheckUpdatesToggle.IsChecked = settings.CheckUpdates;
+            PollingIntervalCombo.SelectedIndex = Math.Clamp(settings.PollingInterval, 0, 3);
+            ApplyFanOnStartToggle.IsChecked = settings.ApplyFanOnStart;
+            ApplyLightingOnStartToggle.IsChecked = settings.ApplyLightingOnStart;
+            ThemeCombo.SelectedIndex = Math.Clamp(settings.Theme, 0, 2);
+            DebugLoggingToggle.IsChecked = settings.DebugLogging;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
+        }
     }
     
     private void AccentColor_Click(object? sender, RoutedEventArgs e)
@@ -76,8 +103,7 @@ public partial class SettingsView : UserControl
     
     private void CheckUpdates_Click(object? sender, RoutedEventArgs e)
     {
-        // TODO: Check for updates
-        System.Diagnostics.Debug.WriteLine("Check updates clicked");
+        _ = CheckUpdatesAsync();
     }
     
     private void ResetSettings_Click(object? sender, RoutedEventArgs e)
@@ -96,24 +122,73 @@ public partial class SettingsView : UserControl
     
     private void SaveSettings_Click(object? sender, RoutedEventArgs e)
     {
-        // TODO: Save settings to config file
-        System.Diagnostics.Debug.WriteLine("Save settings clicked");
-        
-        // Collect current settings
-        var settings = new
+        try
         {
-            StartWithSystem = StartWithSystemToggle.IsChecked,
-            StartMinimized = StartMinimizedToggle.IsChecked,
-            CloseToTray = CloseToTrayToggle.IsChecked,
-            CheckUpdates = CheckUpdatesToggle.IsChecked,
-            PollingInterval = PollingIntervalCombo.SelectedIndex,
-            ApplyFanOnStart = ApplyFanOnStartToggle.IsChecked,
-            ApplyLightingOnStart = ApplyLightingOnStartToggle.IsChecked,
-            Theme = ThemeCombo.SelectedIndex,
-            DebugLogging = DebugLoggingToggle.IsChecked
-        };
-        
-        System.Diagnostics.Debug.WriteLine($"Settings: {settings}");
+            var (configDirectory, configFile) = GetSettingsPaths();
+            Directory.CreateDirectory(configDirectory);
+
+            var settings = new SettingsData
+            {
+                StartWithSystem = StartWithSystemToggle.IsChecked ?? false,
+                StartMinimized = StartMinimizedToggle.IsChecked ?? false,
+                CloseToTray = CloseToTrayToggle.IsChecked ?? true,
+                CheckUpdates = CheckUpdatesToggle.IsChecked ?? true,
+                PollingInterval = PollingIntervalCombo.SelectedIndex,
+                ApplyFanOnStart = ApplyFanOnStartToggle.IsChecked ?? true,
+                ApplyLightingOnStart = ApplyLightingOnStartToggle.IsChecked ?? true,
+                Theme = ThemeCombo.SelectedIndex,
+                DebugLogging = DebugLoggingToggle.IsChecked ?? false
+            };
+
+            var json = JsonSerializer.Serialize(settings, JsonOptions);
+            File.WriteAllText(configFile, json);
+            System.Diagnostics.Debug.WriteLine($"Saved settings to {configFile}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
+        }
+    }
+
+    private async Task CheckUpdatesAsync()
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.github.com/repos/theantipopau/omencore/releases/latest");
+            request.Headers.UserAgent.ParseAdd("OmenCore-Desktop");
+
+            using var response = await HttpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                System.Diagnostics.Debug.WriteLine($"Update check failed: {(int)response.StatusCode}");
+                return;
+            }
+
+            var payload = await response.Content.ReadAsStringAsync();
+            using var document = JsonDocument.Parse(payload);
+            if (document.RootElement.TryGetProperty("tag_name", out var tag))
+            {
+                var latestTag = tag.GetString();
+                if (!string.IsNullOrWhiteSpace(latestTag))
+                {
+                    VersionText.Text = $"Version 3.2.0 (latest: {latestTag})";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Update check failed: {ex.Message}");
+        }
+    }
+
+    private static (string configDirectory, string configFile) GetSettingsPaths()
+    {
+        var configDirectory = Environment.OSVersion.Platform == PlatformID.Unix
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "omencore")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "OmenCore");
+
+        var configFile = Path.Combine(configDirectory, "settings.desktop.json");
+        return (configDirectory, configFile);
     }
     
     private static void OpenUrl(string url)
@@ -131,5 +206,18 @@ public partial class SettingsView : UserControl
         {
             System.Diagnostics.Debug.WriteLine($"Failed to open URL: {ex.Message}");
         }
+    }
+
+    private sealed class SettingsData
+    {
+        public bool StartWithSystem { get; set; }
+        public bool StartMinimized { get; set; }
+        public bool CloseToTray { get; set; } = true;
+        public bool CheckUpdates { get; set; } = true;
+        public int PollingInterval { get; set; } = 1;
+        public bool ApplyFanOnStart { get; set; } = true;
+        public bool ApplyLightingOnStart { get; set; } = true;
+        public int Theme { get; set; }
+        public bool DebugLogging { get; set; }
     }
 }

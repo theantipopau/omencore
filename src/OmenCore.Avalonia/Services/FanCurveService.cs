@@ -39,6 +39,11 @@ public interface IFanCurveService
     /// Gets available preset names.
     /// </summary>
     IReadOnlyList<string> GetPresetNames();
+
+    /// <summary>
+    /// Saves or updates a named preset.
+    /// </summary>
+    void SavePreset(string name, IEnumerable<FanCurvePoint> cpuCurve, IEnumerable<FanCurvePoint> gpuCurve);
 }
 
 /// <summary>
@@ -139,6 +144,25 @@ public class FanCurveService : IFanCurveService
     }
 
     public IReadOnlyList<string> GetPresetNames() => Presets.Keys.ToList();
+
+    public void SavePreset(string name, IEnumerable<FanCurvePoint> cpuCurve, IEnumerable<FanCurvePoint> gpuCurve)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
+        }
+
+        var normalizedName = name.Trim();
+        var cpu = cpuCurve.OrderBy(p => p.Temperature).Select(p => new FanCurvePoint(p.Temperature, Math.Clamp(p.FanSpeed, 0, 100))).ToList();
+        var gpu = gpuCurve.OrderBy(p => p.Temperature).Select(p => new FanCurvePoint(p.Temperature, Math.Clamp(p.FanSpeed, 0, 100))).ToList();
+
+        if (cpu.Count < 2 || gpu.Count < 2)
+        {
+            throw new InvalidOperationException("Fan curve presets require at least 2 points for CPU and GPU.");
+        }
+
+        Presets[normalizedName] = (cpu, gpu);
+    }
 
     private static int InterpolateFanSpeed(List<FanCurvePoint> curve, double temperature)
     {

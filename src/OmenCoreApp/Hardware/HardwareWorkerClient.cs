@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -436,13 +437,13 @@ namespace OmenCore.Hardware
             if (_pipeClient == null || !_pipeClient.IsConnected)
                 return "";
             
+            var buffer = ArrayPool<byte>.Shared.Rent(65536);
             try
             {
                 var requestBytes = Encoding.UTF8.GetBytes(request);
                 await _pipeClient.WriteAsync(requestBytes, 0, requestBytes.Length);
                 await _pipeClient.FlushAsync();
                 
-                var buffer = new byte[65536];
                 using var cts = new CancellationTokenSource(RequestTimeoutMs);
                 var bytesRead = await _pipeClient.ReadAsync(buffer, 0, buffer.Length, cts.Token);
                 
@@ -452,6 +453,10 @@ namespace OmenCore.Hardware
             {
                 _logger?.Invoke($"[Worker] Request error: {ex.Message}");
                 return "";
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
         
@@ -473,11 +478,19 @@ namespace OmenCore.Hardware
                 _restartAttempts = 0; // Reset restart counter
             }
             
-            // Check cooldown
-            if (DateTime.Now - _lastRestartAttempt < TimeSpan.FromMilliseconds(RestartCooldownMs))
+            // Check cooldown — exponential backoff per attempt: 2s, 5s, 10s, 20s, 30s
+            var cooldownMs = _restartAttempts switch
+            {
+                <= 1 => 2_000,
+                2    => 5_000,
+                3    => 10_000,
+                4    => 20_000,
+                _    => 30_000
+            };
+            if (DateTime.Now - _lastRestartAttempt < TimeSpan.FromMilliseconds(cooldownMs))
                 return false;
             
-            // Check max attempts - use exponential backoff after max attempts
+            // Check max attempts
             if (_restartAttempts >= MaxRestartAttempts)
             {
                 if (_restartAttempts == MaxRestartAttempts)

@@ -915,10 +915,12 @@ namespace OmenCore.Hardware
                 data[3] = 0x00; // PeakTemperature
 
                 _logging?.Info($"Sending GPU power command: Level={level}, CustomTgp={data[0]}, PPAB={data[1]}, DState={data[2]}");
+                _logging?.Debug($"[GitHub #91 Debug] GPU power bytes: [{string.Join(",", data)}]");
                 
                 var result = SendBiosCommand(BiosCmd.Default, CMD_GPU_SET_POWER, data, 0);
                 if (result != null)
                 {
+                    _logging?.Info($"GPU power command result: {result} for level {level}");
                     _logging?.Info($"✓ GPU power set to: {level} (CustomTgp={data[0]}, PPAB={data[1]})");
                     return true;
                 }

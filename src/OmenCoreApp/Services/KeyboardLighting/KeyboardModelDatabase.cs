@@ -364,6 +364,21 @@ namespace OmenCore.Services.KeyboardLighting
                 Notes = "Added from user report — ensures Victus 16 PN:8A26 applies keyboard zones correctly"
             });
 
+            // Victus 16 Ryzen (2024+) - r0xxx series - 4-zone RGB keyboard
+            // GitHub Issue #89: Victus 16-r0xxx keyboard light control not working
+            // Common Ryzen variant models with FourZone RGB support
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8C2F",
+                ModelName = "HP Victus 16 (2024+) Ryzen r0xxx",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.EcDirect },
+                ModelYear = 2024,
+                UserVerified = false,
+                Notes = "GitHub #89 — Victus 16-r0xxx (Ryzen 2024+) with 4-zone RGB keyboard support"
+            });
+
             // ═══════════════════════════════════════════════════════════════════════════════════
             // Older OMEN Models (2018-2019) - Backlight only
             // ═══════════════════════════════════════════════════════════════════════════════════

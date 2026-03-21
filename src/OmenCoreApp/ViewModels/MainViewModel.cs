@@ -2088,73 +2088,65 @@ namespace OmenCore.ViewModels
 
         private void HydrateCollections()
         {
-            FanPresets.Clear();
-            foreach (var preset in _config.FanPresets)
-            {
-                FanPresets.Add(preset);
-            }
+            SyncCollection(FanPresets, _config.FanPresets);
             SelectedPreset = FanPresets.FirstOrDefault();
 
-            PerformanceModes.Clear();
-            foreach (var mode in _config.PerformanceModes)
-            {
-                PerformanceModes.Add(mode);
-            }
+            SyncCollection(PerformanceModes, _config.PerformanceModes);
             SelectedPerformanceMode = PerformanceModes.FirstOrDefault();
 
-            LightingProfiles.Clear();
-            foreach (var profile in _config.LightingProfiles)
-            {
-                LightingProfiles.Add(profile);
-            }
+            SyncCollection(LightingProfiles, _config.LightingProfiles);
             SelectedLightingProfile = LightingProfiles.FirstOrDefault();
 
-            SystemToggles.Clear();
-            foreach (var toggle in _config.SystemToggles)
-            {
-                SystemToggles.Add(toggle);
-            }
+            SyncCollection(SystemToggles, _config.SystemToggles);
 
-            CorsairDevices.Clear();
-            if (_corsairDeviceService != null)
-            {
-                foreach (var device in _corsairDeviceService.Devices)
-                {
-                    CorsairDevices.Add(device);
-                }
-            }
+            SyncCollection(CorsairDevices, _corsairDeviceService?.Devices ?? Enumerable.Empty<CorsairDevice>());
 
-            CorsairLightingPresets.Clear();
-            foreach (var preset in _config.CorsairLightingPresets)
-            {
-                CorsairLightingPresets.Add(preset);
-            }
+            SyncCollection(CorsairLightingPresets, _config.CorsairLightingPresets);
             SelectedCorsairPreset = CorsairLightingPresets.FirstOrDefault();
 
-            LogitechDevices.Clear();
-            if (_logitechDeviceService != null)
-            {
-                foreach (var device in _logitechDeviceService.Devices)
-                {
-                    LogitechDevices.Add(device);
-                }
-            }
+            SyncCollection(LogitechDevices, _logitechDeviceService?.Devices ?? Enumerable.Empty<LogitechDevice>());
             SelectedLogitechDevice = LogitechDevices.FirstOrDefault();
 
-            MacroProfiles.Clear();
-            foreach (var macro in _config.MacroProfiles)
-            {
-                MacroProfiles.Add(macro);
-            }
+            SyncCollection(MacroProfiles, _config.MacroProfiles);
             SelectedMacroProfile = MacroProfiles.FirstOrDefault();
         }
 
         private void LoadCurve(FanPreset preset)
         {
-            CustomFanCurve.Clear();
-            foreach (var point in preset.Curve)
+            var incoming = preset.Curve.Select(point => new FanCurvePoint
             {
-                CustomFanCurve.Add(new FanCurvePoint { TemperatureC = point.TemperatureC, FanPercent = point.FanPercent });
+                TemperatureC = point.TemperatureC,
+                FanPercent = point.FanPercent
+            });
+            SyncCollection(CustomFanCurve, incoming);
+        }
+
+        private static void SyncCollection<T>(ObservableCollection<T> target, IEnumerable<T> source)
+        {
+            var sourceList = source as IList<T> ?? source.ToList();
+
+            if (target.Count == sourceList.Count)
+            {
+                var equal = true;
+                for (var i = 0; i < target.Count; i++)
+                {
+                    if (!EqualityComparer<T>.Default.Equals(target[i], sourceList[i]))
+                    {
+                        equal = false;
+                        break;
+                    }
+                }
+
+                if (equal)
+                {
+                    return;
+                }
+            }
+
+            target.Clear();
+            foreach (var item in sourceList)
+            {
+                target.Add(item);
             }
         }
 

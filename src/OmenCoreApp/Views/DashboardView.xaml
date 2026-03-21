@@ -19,6 +19,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -103,6 +104,21 @@
             </WrapPanel>
         </Grid>
 
+        <!-- Telemetry stale/degraded banner -->
+        <Border Grid.Row="1"
+            Background="#1AE67E22"
+            BorderBrush="#66E67E22"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="10,6"
+            Margin="0,0,0,12"
+            Visibility="{Binding IsTelemetryStale, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <TextBlock Text="{Binding TelemetryStateBannerText}"
+                   Foreground="{StaticResource WarningBrush}"
+                   FontSize="11"
+                   TextWrapping="Wrap"/>
+        </Border>
+
         <!-- Quick Status Bar (v2.2) -->
         <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16,12" Margin="0,0,0,12">
             <Grid>
@@ -162,7 +178,7 @@
         </Border>
 
         <!-- Hardware Summary Cards -->
-        <Grid Grid.Row="2" Margin="0,0,0,20">
+        <Grid Grid.Row="3" Margin="0,0,0,20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="160"/>
                 <ColumnDefinition Width="*" MinWidth="160"/>
@@ -409,7 +425,7 @@
         </Grid>
 
         <!-- Charts (only visible when not in low overhead mode) -->
-        <DockPanel Grid.Row="4" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <DockPanel Grid.Row="5" Visibility="{Binding MonitoringGraphsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
 
             <!-- Time range selector -->
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
@@ -604,7 +620,7 @@
         </DockPanel>
 
         <!-- Low Overhead Message -->
-        <Border Grid.Row="4" 
+        <Border Grid.Row="5" 
                 Style="{StaticResource SurfaceCard}" 
                 Padding="48" 
                 Visibility="{Binding MonitoringLowOverheadMode, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -634,7 +650,7 @@
         </Border>
         
             <!-- Loading Overlay -->
-            <controls:LoadingOverlay Grid.RowSpan="5" Panel.ZIndex="1000" />
+            <controls:LoadingOverlay Grid.RowSpan="6" Panel.ZIndex="1000" />
         </Grid>
     </ScrollViewer>
 </UserControl>

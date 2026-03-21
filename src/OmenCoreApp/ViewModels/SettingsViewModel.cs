@@ -43,6 +43,8 @@ namespace OmenCore.ViewModels
         private bool _minimizeToTrayOnClose = true;
         private bool _stayOnTop;
         private bool _headlessMode;
+        private string _pollingProfile = "Balanced";
+        private bool _suppressPollingProfileSync;
         private int _pollingIntervalMs = 2000;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
@@ -284,6 +286,37 @@ namespace OmenCore.ViewModels
 
         #region Monitoring Settings
 
+        public ObservableCollection<string> PollingProfiles { get; } = new()
+        {
+            "Performance",
+            "Balanced",
+            "Low overhead",
+            "Custom"
+        };
+
+        public string PollingProfile
+        {
+            get => _pollingProfile;
+            set
+            {
+                if (_pollingProfile == value)
+                {
+                    return;
+                }
+
+                _pollingProfile = value;
+                OnPropertyChanged();
+
+                if (_suppressPollingProfileSync)
+                {
+                    return;
+                }
+
+                ApplyPollingProfile(value);
+                SaveSettings();
+            }
+        }
+
         public int PollingIntervalMs
         {
             get => _pollingIntervalMs;
@@ -293,6 +326,8 @@ namespace OmenCore.ViewModels
                 {
                     _pollingIntervalMs = value;
                     OnPropertyChanged();
+                    _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
+                    UpdatePollingProfileFromCurrentSettings();
                     SaveSettings();
                 }
             }
@@ -328,6 +363,7 @@ namespace OmenCore.ViewModels
                     
                     // Raise event for MainViewModel to update MonitoringGraphsVisible
                     LowOverheadModeChanged?.Invoke(this, value);
+                    UpdatePollingProfileFromCurrentSettings();
                     
                     SaveSettings();
                 }
@@ -1851,8 +1887,7 @@ namespace OmenCore.ViewModels
         public string LogFolderPath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmenCore", "logs");
 
-        public string AppVersion => System.Reflection.Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<System.Reflection.AssemblyFileVersionAttribute>()?.Version ?? "1.0.0.0";
+        public string AppVersion => AppVersionProvider.GetVersionString();
 
         #endregion
 
@@ -2219,9 +2254,13 @@ namespace OmenCore.ViewModels
         private void LoadSettings()
         {
             // Load from config
+            _pollingProfile = string.IsNullOrWhiteSpace(_config.Monitoring.PollingProfile)
+                ? "Balanced"
+                : _config.Monitoring.PollingProfile;
             _pollingIntervalMs = _config.Monitoring.PollIntervalMs;
             _historyCount = _config.Monitoring.HistoryCount;
             _lowOverheadMode = _config.Monitoring.LowOverheadMode;
+            _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
             _autoCheckUpdates = _config.Updates?.AutoCheckEnabled ?? true;
             _includePreReleases = _config.Updates?.IncludePreReleases ?? false;
             // Map CheckIntervalHours to dropdown index: 0=Every startup, 1=Every 6 hours, 2=Daily(12h), 3=Weekly
@@ -2270,6 +2309,7 @@ namespace OmenCore.ViewModels
 
         private void SaveSettings()
         {
+            _config.Monitoring.PollingProfile = _pollingProfile;
             _config.Monitoring.PollIntervalMs = _pollingIntervalMs;
             _config.Monitoring.HistoryCount = _historyCount;
             _config.Monitoring.LowOverheadMode = _lowOverheadMode;
@@ -2315,6 +2355,64 @@ namespace OmenCore.ViewModels
             };
 
             _configService.Save(_config);
+        }
+
+        private void ApplyPollingProfile(string profile)
+        {
+            _suppressPollingProfileSync = true;
+            try
+            {
+                switch (profile)
+                {
+                    case "Performance":
+                        _pollingIntervalMs = 500;
+                        _lowOverheadMode = false;
+                        break;
+                    case "Balanced":
+                        _pollingIntervalMs = 1000;
+                        _lowOverheadMode = false;
+                        break;
+                    case "Low overhead":
+                        _pollingIntervalMs = 2000;
+                        _lowOverheadMode = true;
+                        break;
+                    default:
+                        return;
+                }
+
+                OnPropertyChanged(nameof(PollingIntervalMs));
+                OnPropertyChanged(nameof(LowOverheadMode));
+                _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
+                _hardwareMonitoringService?.SetLowOverheadMode(_lowOverheadMode);
+                LowOverheadModeChanged?.Invoke(this, _lowOverheadMode);
+            }
+            finally
+            {
+                _suppressPollingProfileSync = false;
+            }
+        }
+
+        private void UpdatePollingProfileFromCurrentSettings()
+        {
+            if (_suppressPollingProfileSync)
+            {
+                return;
+            }
+
+            var inferred = _lowOverheadMode
+                ? (_pollingIntervalMs == 2000 ? "Low overhead" : "Custom")
+                : _pollingIntervalMs switch
+                {
+                    500 => "Performance",
+                    1000 => "Balanced",
+                    _ => "Custom"
+                };
+
+            if (!string.Equals(_pollingProfile, inferred, StringComparison.Ordinal))
+            {
+                _pollingProfile = inferred;
+                OnPropertyChanged(nameof(PollingProfile));
+            }
         }
         
         /// <summary>

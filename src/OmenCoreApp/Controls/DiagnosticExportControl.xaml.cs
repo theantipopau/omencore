@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using OmenCore;
 using OmenCore.Services;
+using OmenCore.Utils;
 
 namespace OmenCore.Controls
 {
@@ -641,15 +642,7 @@ namespace OmenCore.Controls
 
         private string GetOmenCoreVersion()
         {
-            try
-            {
-                return System.Reflection.Assembly.GetExecutingAssembly()
-                    .GetName().Version?.ToString() ?? "Unknown";
-            }
-            catch
-            {
-                return "2.6.0";
-            }
+            return AppVersionProvider.GetVersionString();
         }
 
         private static string FormatFileSize(long bytes)

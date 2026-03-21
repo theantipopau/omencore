@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
+using OmenCore.Utils;
 
 namespace OmenCore.Services.Diagnostics
 {
@@ -375,11 +376,7 @@ namespace OmenCore.Services.Diagnostics
 
         private string GetOmenCoreVersion()
         {
-            try
-            {
-                return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
-            }
-            catch { return "Unknown"; }
+            return AppVersionProvider.GetVersionString();
         }
 
         private string GetSecureBootStatus()
@@ -532,11 +529,7 @@ namespace OmenCore.Services.Diagnostics
 
         private static string GetVersionFromAssembly()
         {
-            try
-            {
-                return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "Unknown";
-            }
-            catch { return "Unknown"; }
+            return AppVersionProvider.GetVersionString();
         }
     }
 }

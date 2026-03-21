@@ -85,8 +85,13 @@ Common false positive detections:
 - `Generic.Trojan.Malware` - Heuristic detection of kernel driver behavior
 - `Riskware.WinRing0` - Legacy WinRing0 artifact detected as potentially unwanted
 - `HackTool.Win32` - MSR access flagged as "hacking tool"
+- `Trojan.Gen` / `Trojan detected` - Kernel driver / low-level hardware access (GitHub #90)
 
 These are **false positives** caused by the legitimate low-level hardware access required for fan/thermal control.
+
+**GitHub #90: Defender detected a trojan in OmenCore**
+- This is a false positive due to the presence of kernel drivers
+- Solution: Whitelist the folder and rest assured OmenCore is safe and open-source
 
 ## Building from Source
 

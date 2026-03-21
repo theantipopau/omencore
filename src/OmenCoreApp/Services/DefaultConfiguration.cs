@@ -111,6 +111,7 @@ namespace OmenCore.Services
 
             config.Monitoring = new MonitoringPreferences
             {
+                PollingProfile = "Balanced",
                 PollIntervalMs = 1000,  // Faster updates for smoother temperature display
                 HistoryCount = 120,
                 LowOverheadMode = false

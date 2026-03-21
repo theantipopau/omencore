@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -408,7 +409,7 @@ namespace OmenCore.Services
         {
             try
             {
-                if (!OperatingSystem.IsWindows())
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     return null;
                     
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam");

@@ -363,6 +363,15 @@ namespace OmenCore.Hardware
                 var targetPoint = curveList.LastOrDefault(p => p.TemperatureC <= maxTemp) 
                                   ?? curveList.Last(); // Use highest, not lowest!
 
+                // On many Victus/OMEN systems, manual 0% via WMI does not mean "silent auto";
+                // it can leave fans pinned in an unresponsive manual-zero state. Treat 0% as
+                // a request to return control to BIOS auto mode.
+                if (targetPoint.FanPercent <= 0)
+                {
+                    _logging?.Info($"Custom curve requested 0% at {maxTemp}°C - restoring BIOS auto control instead of manual 0%.");
+                    return RestoreAutoControl();
+                }
+
                 // Convert percentage to fan level (0-100% maps to 0-_maxFanLevel)
                 byte fanLevel = (byte)(targetPoint.FanPercent * _maxFanLevel / 100);
 
@@ -395,6 +404,14 @@ namespace OmenCore.Hardware
             }
 
             percent = Math.Clamp(percent, 0, 100);
+
+            // Manual 0% can wedge some firmware states (fans stop and fail to recover).
+            // For safety and model compatibility, map 0% to BIOS auto mode.
+            if (percent == 0)
+            {
+                _logging?.Info("SetFanSpeed(0) mapped to RestoreAutoControl for firmware-safe silent behavior.");
+                return RestoreAutoControl();
+            }
 
             // Retry logic for fan control hardening
             const int maxRetries = 3;
@@ -520,6 +537,14 @@ namespace OmenCore.Hardware
             cpuPercent = Math.Clamp(cpuPercent, 0, 100);
             gpuPercent = Math.Clamp(gpuPercent, 0, 100);
 
+            // Safety mapping: dual 0% means return to BIOS auto. On V2 firmware,
+            // explicit manual 0% can produce "fans dead" behavior on some Victus units.
+            if (cpuPercent == 0 && gpuPercent == 0)
+            {
+                _logging?.Info("SetFanSpeeds(0,0) mapped to RestoreAutoControl for firmware-safe silent behavior.");
+                return RestoreAutoControl();
+            }
+
             try
             {
                 bool success;
@@ -545,6 +570,23 @@ namespace OmenCore.Hardware
                 {
                     // Disable max mode first
                     _wmiBios.SetFanMax(false);
+
+                    // Single-fan 0% requests on percentage-scale firmware can leave the EC in an
+                    // unstable manual-zero state. Keep a minimal manual duty for that channel.
+                    if (_maxFanLevel >= 100)
+                    {
+                        if (cpuPercent == 0)
+                        {
+                            cpuPercent = 1;
+                            _logging?.Debug("Adjusted CPU 0% request to 1% on V2 firmware safety path.");
+                        }
+
+                        if (gpuPercent == 0)
+                        {
+                            gpuPercent = 1;
+                            _logging?.Debug("Adjusted GPU 0% request to 1% on V2 firmware safety path.");
+                        }
+                    }
                     
                     // Convert percentages to fan levels (0-_maxFanLevel range)
                     byte cpuLevel = (byte)(cpuPercent * _maxFanLevel / 100);

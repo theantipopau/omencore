@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace OmenCore.Hardware
@@ -18,7 +19,7 @@ namespace OmenCore.Hardware
         {
             try
             {
-                if (!OperatingSystem.IsWindows())
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     return false;
                 }
@@ -59,7 +60,7 @@ namespace OmenCore.Hardware
         {
             try
             {
-                if (!OperatingSystem.IsWindows())
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     return false;
                 }

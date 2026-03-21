@@ -585,6 +585,7 @@ AddModel(new ModelCapabilities
                 SupportsIndependentFanCurves = false,
                 FanZoneCount = 1,
                 HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
                 SupportsUndervolt = false,
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
@@ -601,6 +602,8 @@ AddModel(new ModelCapabilities
                 SupportsFanCurves = true,
                 FanZoneCount = 2,
                 HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
                 HasFourZoneRgb = true, // Victus 16 has 4-zone
                 UserVerified = true
             });

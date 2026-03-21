@@ -24,6 +24,8 @@ public class FanCurveEngine : IDisposable
     private int _lastMaxTemp = 0;
     private bool _isRunning;
     private bool _lastBatteryState;
+    private IReadOnlyList<FanCurvePoint>? _sortedCurvePoints;
+    private string? _curveCacheKey;
     
     public event Action<string>? OnLog;
     public event Action<int, int, int>? OnSpeedChange; // (temp, targetSpeed, actualSpeed)
@@ -171,7 +173,7 @@ public class FanCurveEngine : IDisposable
     /// </summary>
     private int CalculateSpeedFromCurve(int temp)
     {
-        var points = _config.Fan.Curve.Points.OrderBy(p => p.Temp).ToList();
+        var points = GetSortedCurvePoints();
         
         if (points.Count == 0)
         {
@@ -209,6 +211,22 @@ public class FanCurveEngine : IDisposable
         }
         
         return 50; // Fallback
+    }
+
+    private IReadOnlyList<FanCurvePoint> GetSortedCurvePoints()
+    {
+        var key = string.Join(";", _config.Fan.Curve.Points.Select(p => $"{p.Temp}:{p.Speed}"));
+        if (_sortedCurvePoints != null && string.Equals(_curveCacheKey, key, StringComparison.Ordinal))
+        {
+            return _sortedCurvePoints;
+        }
+
+        _curveCacheKey = key;
+        _sortedCurvePoints = _config.Fan.Curve.Points
+            .OrderBy(p => p.Temp)
+            .ToList();
+
+        return _sortedCurvePoints;
     }
     
     /// <summary>

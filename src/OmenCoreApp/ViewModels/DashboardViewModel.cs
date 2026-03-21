@@ -427,6 +427,16 @@ namespace OmenCore.ViewModels
             MonitoringHealthStatus.Stale => "#E74C3C",    // Red
             _ => "#95A5A6"                                 // Gray
         };
+
+        public bool IsTelemetryStale => _monitoringService.HealthStatus == MonitoringHealthStatus.Stale ||
+                        _monitoringService.HealthStatus == MonitoringHealthStatus.Degraded;
+
+        public string TelemetryStateBannerText => _monitoringService.HealthStatus switch
+        {
+            MonitoringHealthStatus.Stale => "Telemetry stale: sensor data is delayed or frozen. OmenCore is attempting automatic recovery.",
+            MonitoringHealthStatus.Degraded => "Telemetry degraded: data quality reduced. Monitoring recovery is in progress.",
+            _ => string.Empty
+        };
         
         /// <summary>
         /// Time since last successful sensor reading.
@@ -451,6 +461,8 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(MonitoringHealthStatusText));
                 OnPropertyChanged(nameof(MonitoringHealthColor));
                 OnPropertyChanged(nameof(MonitoringSourceText));
+                OnPropertyChanged(nameof(IsTelemetryStale));
+                OnPropertyChanged(nameof(TelemetryStateBannerText));
             });
         }
 
