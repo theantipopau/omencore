@@ -1,117 +1,126 @@
-﻿# OmenCore
+﻿<div align="center">
 
-**A modern, lightweight, and fully independent control center for HP OMEN & Victus gaming laptops.**
+# OmenCore
 
-OmenCore is a **complete replacement** for HP OMEN Gaming Hub — no OGH services required, no bloatware, no telemetry, no ads. Built on .NET 8, it provides professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
+## A Modern, Lightweight Control Center for HP OMEN & Victus Gaming Laptops
 
-**Key Differentiators:**
-- ✅ **100% OGH-Independent** — Works without OMEN Gaming Hub installed
-- ✅ **No Bloatware** — Self-contained release artifacts with no extra runtime installs
-- ✅ **No Telemetry** — Your data stays on your machine
-- ✅ **No Ads** — Clean, focused interface
-- ✅ **No Sign-In Required** — Full offline operation
-- 🐧 **Cross-Platform** — Windows WPF GUI + Linux CLI & Avalonia GUI
-
-[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](https://github.com/theantipopau/omencore/releases/tag/v3.2.0)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![Website](https://img.shields.io/badge/website-omencore.info-brightgreen.svg)](https://omencore.info)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C.svg?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
-
-![OmenCore Screenshot](docs/screenshots/main-window.png)
+</div>
 
 ---
 
-## 🚀 Quick Installation
+**OmenCore** is a **complete, independent replacement** for HP OMEN Gaming Hub. No dependencies. No OGH services. No bloatware, telemetry, or ads. Built on .NET 8, it delivers professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
+
+### ✨ Why OmenCore?
+
+| Feature | Status |
+|---------|--------|
+| **100% OGH-Independent** | ✅ Works without OMEN Gaming Hub installed |
+| **Zero Bloatware** | ✅ Self-contained artifacts, no runtime installs |
+| **No Telemetry** | ✅ Your data stays on your machine |
+| **Ad-Free** | ✅ Clean, focused interface |
+| **Offline Operation** | ✅ No sign-in required, fully local control |
+| **Cross-Platform** | ✅ Windows WPF + Linux CLI & Avalonia GUI |
+
+---
+
+### 🎯 Quick Links
+
+[![Version](https://img.shields.io/badge/version-3.2.0-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.0)
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-00457C.svg?style=for-the-badge&logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=XH8CKYF8T7EBU&no_recurring=0&item_name=Thank+you+for+your+generous+donation%2C+this+will+allow+me+to+continue+developing+my+programs.&currency_code=AUD)
+
+---
+
+### 📸 Interface Preview
+
+![OmenCore Main Window](docs/screenshots/main-window.png)
+
+## 🚀 **Quick Start**
 
 ### Windows
 
-```
-1. Download OmenCoreSetup-3.2.0.exe from Releases (recommended)
-   — or — OmenCore-3.2.0-win-x64.zip for the portable version
-2. Run installer as Administrator and follow the prompts
-3. Launch OmenCore from the Start Menu
+```bash
+# Option 1: Installer (Recommended)
+1. Download OmenCoreSetup-3.2.0.exe from Releases
+2. Run as Administrator
+3. Launch from Start Menu
 ```
 
-**[Full Windows Installation Guide](INSTALL.md#-windows-installation)**
+→ **[Full Installation Guide](INSTALL.md#-windows-installation)**
 
-### Linux (CachyOS, Arch, Ubuntu, Fedora)
+### Linux (CachyOS • Arch • Ubuntu • Fedora)
 
 ```bash
-# Download and extract
+# Download & Extract
 wget https://github.com/theantipopau/omencore/releases/download/v3.2.0/OmenCore-3.2.0-linux-x64.zip
-unzip OmenCore-3.2.0-linux-x64.zip
+unzip OmenCore-3.2.0-linux-x64.zip && chmod +x omencore-*
 
-# CLI
-chmod +x omencore-cli && sudo ./omencore-cli status
+# CLI: Check status
+sudo ./omencore-cli status
 
-# GUI (Avalonia)
-chmod +x omencore-gui && sudo ./omencore-gui
+# GUI: Launch Avalonia
+sudo ./omencore-gui
 ```
 
-**[Full Linux Installation Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
+→ **[Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
+
+## 🔥 **What's New in v3.2.0**
+
+### **Stability & Performance Enhancements**
+
+- **Dashboard Layout** — Stale banner no longer overlaps quick-status cards
+- **Telemetry State Coverage** — Dashboard now displays Stale _and_ Degraded banners
+- **Fan Safety** — 0% duty cycle automatically remapped to minimum threshold (prevents stalling)
+- **Adaptive Polling** — Hardware worker gracefully backs off after transient errors
+- **Temp Watchdog** — Detects frozen CPU temps (>90s unchanged) and forces re-probe
+
+### **Fan Preset Management**
+
+- Custom fan curves can be **named and saved** as presets (Avalonia/Linux)
+- Collision-safe naming with timestamp suffixes
+- Presets load instantly without restart
+
+### **Linux RGB Detection**
+
+- Automatic sysfs probing (`/sys/class/leds/`, `hp-wmi`) at startup
+- Eliminates false "RGB unavailable" messages on supported OMEN Max 16
+
+### **Cross-Platform Settings**
+
+- Avalonia settings now persist to `settings.desktop.json`
+- GitHub Releases integration for real auto-update checks
+
+### **Community Reports Fixed**
+
+| Report | Resolution |
+|--------|-----------|
+| Fan hits 0% during cool-down | Fixed with 0% safety remapping |
+| CPU temp freezes on OMEN 17-ck1xxx | Fixed with watchdog daemon |
+| Preset selector empty after restart | Fixed with persistence |
+| Linux RGB returns "unavailable" | Fixed with sysfs probing |
+| Dashboard stale banner overlap | Fixed with grid row correction |
+
+→ **[Full Changelog & Root Causes](docs/CHANGELOG_v3.2.0.md)**
 
 ---
 
-## 🆕 What's New in v3.2.0
+## 📦 **Downloads & Artifacts**
 
-### Stability and Resource Optimization
+**Version:** v3.2.0 | **Build Date:** 2026-03-19 | **Status:** Release Candidate (RC1)
 
-- **Dashboard stale banner** no longer overlaps the quick-status card — grid row conflict fixed.
-- **Telemetry state coverage** extended: the dashboard now correctly shows banners for both `Stale` and `Degraded` states, not only `Stale`.
-- **Fan 0% duty safety** — duty cycles that interpolate to 0% are remapped to the configured minimum (default 25%), preventing fans from stalling on cool-down curves.
-- **Adaptive hardware polling** — the hardware worker backs off polling after transient driver errors rather than crashing; reduces noise from GPU driver installs and hot-plug events.
-- **Frozen CPU temperature watchdog** — detects when CPU temp has been identical for more than 90 s and forces a sensor re-probe, resolving the "17-ck1xxx stuck at 45°C" class of issues.
+| Download | Platform | Details |
+|----------|----------|---------|
+| **OmenCoreSetup-3.2.0.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
+| **OmenCore-3.2.0-win-x64.zip** | Windows | Portable — Extract & run, no installation |
+| **OmenCore-3.2.0-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
 
-### Fan Preset Save Workflow (Avalonia / Linux)
-
-- Custom fan curves can now be named and saved as presets directly from the Avalonia UI.
-- Collision-safe naming appends a timestamp suffix when a preset name already exists.
-- Saved presets are immediately applied and appear in the preset selector without a restart.
-
-### Linux RGB Capability Detection
-
-- The Linux hardware service now probes sysfs (`/sys/class/leds/` and `hp-wmi` paths) to detect four-zone and per-key RGB support at startup.
-- Eliminates spurious "RGB not available" messages on supported OMEN Max hardware.
-
-### Desktop Settings Persistence (Avalonia)
-
-- Settings are persisted to `settings.desktop.json` in the platform config directory across sessions.
-- "Check for Updates" performs a real GitHub Releases API call; stub removed.
-
-### Community Reports Addressed
-
-| Source | Report | Resolution |
-|--------|--------|-----------|
-| Discord 2025-02-11 | Fan duty hits 0% during cool-down curve transition | Fixed with 0% safety remapping |
-| Discord 2025-02-18 | CPU temperature freezes on OMEN 17-ck1xxx after resume | Fixed with watchdog re-probe |
-| GitHub #82 | Avalonia preset selector empty after Linux restart | Fixed; presets persisted and reloaded |
-| GitHub #83 | Linux RGB returns "unavailable" on OMEN Max 16 with per-key support | Fixed with sysfs probing |
-| GitHub #84 | Dashboard quick-status card hidden behind stale banner | Fixed with grid row correction |
-
-See **[CHANGELOG_v3.2.0.md](docs/CHANGELOG_v3.2.0.md)** for full root cause analysis, regression safety notes, and files changed.
+> 🔐 **Security:** SHA256 hashes are published on the [Releases page](https://github.com/theantipopau/omencore/releases/tag/v3.2.0) and verified by the auto-updater.
 
 ---
 
-## 📦 v3.2.0 Release Artifacts
-
-**Version:** OmenCore v3.2.0  
-**Build Date:** 2026-03-19  
-**Status:** Release Candidate (RC1)  
-**Base:** v3.1.1 + stability and UX improvements
-
-| File | Platform | Notes |
-|------|----------|-------|
-| **OmenCoreSetup-3.2.0.exe** | Windows | Installer (recommended). Embeds .NET 8 runtime. |
-| **OmenCore-3.2.0-win-x64.zip** | Windows | Portable — extract and run. No install required. |
-| **OmenCore-3.2.0-linux-x64.zip** | Linux | CLI + Avalonia GUI. Self-contained with embedded runtime. |
-
-> SHA256 hashes are published alongside the [GitHub Release notes](https://github.com/theantipopau/omencore/releases/tag/v3.2.0) and are required for the in-app auto-updater.
-
----
-
-## 🔧 Features
+## 🔧 **Features**
 
 ### Thermal & Fan Management
 
