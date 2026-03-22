@@ -1,5 +1,7 @@
 ﻿<div align="center">
 
+<img src="docs/screenshots/githublogo.png" alt="OmenCore Logo" width="520" />
+
 # OmenCore
 
 ## A Modern, Lightweight Control Center for HP OMEN & Victus Gaming Laptops
