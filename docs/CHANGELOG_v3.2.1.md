@@ -16,7 +16,7 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 ## Fixed
 
 ### 1. False CPU Overheat Notifications (107C/108C spikes)
-- **Issue:** Some users received repeated high-temperature notifications (for example 107C and 108C) even when real system temperatures were not critically high.
+- **Issue:** Some users received repeated high-temperature notifications (e.g. 107°C and 108°C) even when real system temperatures were not critically high.
 - **Root Cause:** Thermal alerts could trigger on transient or implausible sensor spikes without requiring sample persistence, and without filtering by telemetry state quality.
 - **Fix Deployed:**
   - Added telemetry sanity checks before thermal notifications:
@@ -53,11 +53,11 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **File:** src/OmenCoreApp/Hardware/WmiFanController.cs
 - **Status:** Fixed
 
-### 5. Extreme Preset Not Reaching Full Fan at 75C
-- **Issue:** Users reported Extreme mode not fully maxing fan behavior around 75C.
-- **Root Cause:** Curve interpolation and safety clamping could still yield less than 100% at/above 75C for Extreme-named presets.
+### 5. Extreme Preset Not Reaching Full Fan at 75°C
+- **Issue:** Users reported Extreme mode not fully maxing fan behavior around 75°C.
+- **Root Cause:** Curve interpolation and safety clamping could still yield less than 100% at/above 75°C for Extreme-named presets.
 - **Fix Deployed:**
-  - Added explicit Extreme preset rule: force fan target to 100% when temperature is at or above 75C.
+  - Added explicit Extreme preset rule: force fan target to 100% when temperature is at or above 75°C.
 - **File:** src/OmenCoreApp/Services/FanService.cs
 - **Status:** Fixed
 
@@ -99,7 +99,7 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Status:** Fixed
 
 ### 10. Ryzen CPU Temperature Could Read Implausibly Low During Gaming
-- **Issue:** Some OMEN Ryzen + RTX systems reported unrealistically low CPU temperatures (for example ~34C while gaming), creating fan-control trust concerns.
+- **Issue:** Some OMEN Ryzen + RTX systems reported unrealistically low CPU temperatures (e.g. ~34°C while gaming), creating fan-control trust concerns.
 - **Root Cause:** CPU temperature selection could prioritize suboptimal sensor names on some AMD systems (especially per-core style sensors), under-reporting package-level thermal reality.
 - **Fix Deployed:**
   - Added vendor-aware CPU sensor ranking in HardwareWorker.
@@ -109,7 +109,7 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Status:** Fixed
 
 ### 11. OMEN 16-ap0xxx (Board 8E35) Model-Specific CPU Temp Override
-- **Issue:** Newer OMEN model family may require worker-backed CPU telemetry preference for accurate reads.
+- **Issue:** OMEN 16-ap0xxx (board 8E35) required worker-backed CPU telemetry preference for accurate temperature reads.
 - **Fix Deployed:**
   - Expanded model override match list to include `16-ap0` and board identifier `8E35` in monitoring source selection.
 - **File:** src/OmenCoreApp/Hardware/WmiBiosMonitor.cs
@@ -164,7 +164,7 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 
 ### 17. Fan Diagnostic Reports "Failed" on HP Victus (False Negative)
 - **Issue:** Running the fan diagnostic on HP Victus hardware (e.g. Ryzen 7 7445HS + RTX 4050) produced a red "Failed" result even when fans were working correctly.
-- **Root Cause:** `FanVerificationService` constants were calibrated for OMEN Max hardware: `MaxRpm = 5500`, `RpmTolerance = 0.25`. Victus-class fans peak at 3500–4500 RPM, producing deviations >250% against the 5500 RPM baseline, which always scored zero.
+- **Root Cause:** `FanVerificationService` constants were calibrated for OMEN Max hardware: `MaxRpm = 5500`, `RpmTolerance = 0.25`. Victus-class fans peak at 3500–4500 RPM, producing ~30–40% RPM deviations against the 5500 RPM baseline — enough to zero out the accuracy score under the old 15% scoring threshold.
 - **Fix Deployed:**
   - `MaxRpm` reduced from 5500 → 4500 RPM (typical HP Victus / mid-range HP gaming fan peak).
   - `RpmTolerance` increased from 0.25 → 0.30 (30% base tolerance accommodates budget-tier fan variance).
