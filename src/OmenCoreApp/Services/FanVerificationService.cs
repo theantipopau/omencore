@@ -59,8 +59,10 @@ namespace OmenCore.Services
                 if (ActualRpmAfter <= 0 && RequestedPercent > 0) return 5; // Minimal score for zero RPM
                 
                 // Accuracy score (0-50): Based on deviation from expected RPM
-                // 0% deviation = 50 points, 15% deviation = 0 points
-                double accuracyScore = Math.Max(0, 50 - (DeviationPercent / 15.0 * 50));
+                // 0% deviation = 50 points, 30% deviation = 0 points.
+                // Using 30% threshold instead of 15% so budget HP Victus models
+                // (whose RPM tables differ from high-end OMEN) don't score 0.
+                double accuracyScore = Math.Max(0, 50 - (DeviationPercent / 30.0 * 50));
                 
                 // Stability score (0-30): Based on standard deviation of samples
                 // 0 std dev = 30 points, 200+ std dev = 0 points
@@ -117,14 +119,19 @@ namespace OmenCore.Services
         private const int VerificationRetries = 3;          // Retry verification up to 3 times (increased from 2)
         private const int VerificationSamples = 5;          // Take 5 RPM samples and average (increased from 3)
         private const int SampleDelayMs = 200;              // Wait 200ms between samples (reduced for faster verification)
+        // MaxRpm is calibrated to 4500 RPM (typical HP Victus / mid-range HP gaming peak).
+        // High-end OMEN models may exceed this, but using a lower baseline avoids false "Failed"
+        // verification results on budget HP models where fans top out at 3800-4500 RPM.
         private const int MaxLevel = 55;  // HP uses 55 as max on most models
         private const int MinRpm = 0;
-        private const int MaxRpm = 5500;  // Typical max RPM
+        private const int MaxRpm = 4500;  // Conservative baseline; keeps Victus-class fans in range
         
         // Verification timing
         private const int FanResponseDelayMs = 2000;  // Reduced from 2500ms for faster response
         private const int RetryDelayMs = 1500;        // Reduced from 2000ms
-        private const double RpmTolerance = 0.25;     // Base tolerance — adaptive scaling applied at low speeds
+        // 30% base tolerance accommodates HP Victus-class fans that have fewer RPM steps
+        // and whose actual response curves don't match expected RPM tables.
+        private const double RpmTolerance = 0.30;     // Base tolerance — adaptive scaling applied at low speeds
         
         // Auto-revert settings
         private const bool AutoRevertOnFailure = true;     // Enable auto-revert to previous state

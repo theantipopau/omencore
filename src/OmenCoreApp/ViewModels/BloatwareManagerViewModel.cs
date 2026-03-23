@@ -169,6 +169,12 @@ namespace OmenCore.ViewModels
             _service.StatusChanged += status => Application.Current.Dispatcher.Invoke(() => StatusMessage = status);
             _service.AppRemoved += app => Application.Current.Dispatcher.Invoke(() => UpdateCounts());
             _service.AppRestored += app => Application.Current.Dispatcher.Invoke(() => UpdateCounts());
+
+            // Warn immediately if not running as admin
+            if (!BloatwareManagerService.IsRunningAsAdmin)
+            {
+                StatusMessage = "⚠️ OmenCore is not running as Administrator. Bloatware removal requires admin rights — right-click OmenCore and choose 'Run as administrator'.";
+            }
         }
 
         public async Task ScanAsync()

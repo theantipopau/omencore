@@ -986,8 +986,10 @@ namespace OmenCore.Services
             _restartInProgress = true;
             try
             {
-                // Give drivers a brief window to settle after resume.
-                await Task.Delay(1000);
+                // Give drivers a generous window to settle after resume.
+                // 1000ms was too short — sensor stacks (LibreHardwareMonitor, NVAPI) can
+                // take 5–15 seconds to reinitialise after a long sleep.
+                await Task.Delay(5000);
 
                 var restarted = await _bridge.TryRestartAsync();
                 if (restarted)

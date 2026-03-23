@@ -92,6 +92,7 @@ namespace OmenCore.ViewModels
         private readonly CancellationTokenSource _trayWorkerCts = new();
         private readonly DateTime _monitoringStartupUtc = DateTime.UtcNow;
         private volatile bool _safeModeActive;
+        private MonitoringHealthStatus _prevHealthStatus = MonitoringHealthStatus.Unknown;
         private System.Threading.Timer? _safeModeResetTimer;
         private bool _hotkeysInitialized;
         private bool _windowFocusHandlersAttached;
@@ -2888,6 +2889,25 @@ namespace OmenCore.ViewModels
         private void HardwareMonitoringServiceOnHealthStatusChanged(object? sender, MonitoringHealthStatus status)
         {
             var features = _configService.Config.Features;
+            var prevStatus = _prevHealthStatus;
+            _prevHealthStatus = status;
+
+            // Reassert active fan preset when monitoring recovers from a degraded/stale state.
+            // Without this, BIOS thermal protection may hold fans at 100% after the OS wakes from
+            // sleep (causing the sensor stack to stall temporarily), and no preset is reapplied
+            // when the monitor self-recovers — leaving fans stuck at 100% indefinitely.
+            if (!_safeModeActive &&
+                status == MonitoringHealthStatus.Healthy &&
+                (prevStatus == MonitoringHealthStatus.Degraded || prevStatus == MonitoringHealthStatus.Stale))
+            {
+                _logging.Info($"[HealthRecovery] Monitoring recovered {prevStatus} → Healthy — reasserting active fan preset");
+                _ = Task.Run(async () =>
+                {
+                    // Brief settle delay so fan service sees stable sensor data before reapplying curves
+                    await Task.Delay(2000);
+                    _fanService?.HandleSystemResume();
+                });
+            }
 
             // Reset safe mode when monitoring recovers to Healthy
             if (_safeModeActive && status == MonitoringHealthStatus.Healthy)

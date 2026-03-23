@@ -143,6 +143,45 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **File:** src/OmenCoreApp/Services/AutoUpdateService.cs
 - **Status:** Fixed
 
+### 15. Curve Optimizer Returns "Bad" Error on HP Victus with Phoenix CPU (Ryzen 7 7445HS)
+- **Issue:** Users on HP Victus 15 (fb-3093dx, Ryzen 7 7445HS + RTX 4050) reported a red error banner: "Failed to set All-Core CO: Bad".
+- **Root Cause:** HP Victus BIOS on Phoenix 2 variants (Model 0x78) routes the Curve Optimizer mailbox through MP1 rather than PSMU. The code only tried PSMU 0x5D; when the BIOS blocks PSMU, it returns `RyzenSmu.SmuStatus.Bad`.
+- **Fix Deployed:**
+  - Added MP1 0x5D fallback for Phoenix/HawkPoint/Mendocino/Rembrandt/StrixPoint families: if PSMU returns non-OK, the same opcode is retried via the MP1 mailbox before raising an error.
+  - Improved error message for persistent `Bad` status: now explains HP BIOS restriction and missing admin rights as likely causes, rather than showing a raw status code.
+- **File:** src/OmenCoreApp/Hardware/AmdUndervoltProvider.cs
+- **Status:** Fixed
+
+### 16. Bloatware Manager Silently Fails to Remove Apps Without Admin Rights
+- **Issue:** Users on HP Victus reported that selecting apps in Bloatware Manager and clicking Remove appeared to do nothing — no error, no confirmation.
+- **Root Cause:** `Remove-AppxPackage` and Win32 uninstallers both fail with access-denied when OmenCore is not running as Administrator, but the service did not check privileges and swallowed the failure silently.
+- **Fix Deployed:**
+  - Added `IsRunningAsAdmin` property (via `WindowsIdentity`/`WindowsPrincipal`) to `BloatwareManagerService`.
+  - `RemoveAppAsync` now returns `false` immediately with a clear status message when not elevated.
+  - `BloatwareManagerViewModel` now shows an admin-required warning banner on construction if OmenCore lacks elevation.
+- **Files:** src/OmenCoreApp/Services/BloatwareManager/BloatwareManagerService.cs, src/OmenCoreApp/ViewModels/BloatwareManagerViewModel.cs
+- **Status:** Fixed
+
+### 17. Fan Diagnostic Reports "Failed" on HP Victus (False Negative)
+- **Issue:** Running the fan diagnostic on HP Victus hardware (e.g. Ryzen 7 7445HS + RTX 4050) produced a red "Failed" result even when fans were working correctly.
+- **Root Cause:** `FanVerificationService` constants were calibrated for OMEN Max hardware: `MaxRpm = 5500`, `RpmTolerance = 0.25`. Victus-class fans peak at 3500–4500 RPM, producing deviations >250% against the 5500 RPM baseline, which always scored zero.
+- **Fix Deployed:**
+  - `MaxRpm` reduced from 5500 → 4500 RPM (typical HP Victus / mid-range HP gaming fan peak).
+  - `RpmTolerance` increased from 0.25 → 0.30 (30% base tolerance accommodates budget-tier fan variance).
+  - Accuracy score drop-off denominator doubled (15% → 30%) so deviations in the 15–30% range are not scored as total failures.
+- **File:** src/OmenCoreApp/Services/FanVerificationService.cs
+- **Status:** Fixed
+
+### 18. Fans Stuck at 100% After Resume from Sleep (OMEN MAX 16-ak0xxx)
+- **Issue:** After waking from sleep (especially long sleeps >20 min), fans would spin up to 100% and remain there regardless of the active fan preset, until OmenCore was manually restarted. Logs showed repeated "ReadSampleAsync timed out" pairs cycling for hours after resume.
+- **Root Cause (primary):** After a long sleep, LibreHardwareMonitor/NVAPI sensor stacks take >20 seconds to reinitialise. With `DegradedTimeoutThreshold = 2` and a 10-second per-read timeout, two consecutive timeouts trigger a `Stale` health transition. In `Stale`, fan curve output stops and BIOS thermal protection holds fans at 100%. When monitoring self-recovered to `Healthy`, **no code reasserted the active preset** — the recovery notification only updated the UI tray icon.
+- **Root Cause (secondary):** The post-resume bridge restart delay was only 1000 ms, too short for firmware to settle; the partial restart drove repeated Stale/Healthy cycling for hours.
+- **Fix Deployed:**
+  - **`HardwareMonitoringService`:** Increased `RecoverAfterResumeAsync` bridge restart grace delay from 1000 ms → 5000 ms, giving sensor stacks adequate time to reinitialise before the bridge reconnects.
+  - **`MainViewModel`:** Added `_prevHealthStatus` tracking in `HardwareMonitoringServiceOnHealthStatusChanged`. When status transitions from `Degraded` or `Stale` back to `Healthy` (outside startup safe mode), `FanService.HandleSystemResume()` is called after a 2-second settle delay to reassert the active fan preset.
+- **Files:** src/OmenCoreApp/Services/HardwareMonitoringService.cs, src/OmenCoreApp/ViewModels/MainViewModel.cs
+- **Status:** Fixed
+
 ---
 
 ## Notes

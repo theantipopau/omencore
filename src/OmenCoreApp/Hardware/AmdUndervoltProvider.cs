@@ -72,7 +72,12 @@ namespace OmenCore.Hardware
                 var status = SetAllCoreCO(allCoreCO);
                 if (status != RyzenSmu.SmuStatus.Ok)
                 {
-                    throw new InvalidOperationException($"Failed to set All-Core CO: {status}");
+                    string hint = status == RyzenSmu.SmuStatus.Bad
+                        ? $"Failed to set All-Core CO (status: {status}). The SMU did not respond — this usually means " +
+                          $"the HP BIOS has restricted Curve Optimizer access on this model, or OmenCore is not running " +
+                          $"as Administrator. Ensure PawnIO is installed and OmenCore is launched with admin rights."
+                        : $"Failed to set All-Core CO: {status}";
+                    throw new InvalidOperationException(hint);
                 }
                 _lastAllCoreCO = allCoreCO;
 
@@ -194,6 +199,15 @@ namespace OmenCore.Hardware
                 case RyzenFamily.HawkPoint:
                 case RyzenFamily.StrixPoint:
                     result = _smu.SendPsmu(0x5D, ref args);
+                    if (result != RyzenSmu.SmuStatus.Ok)
+                    {
+                        // Some HP Victus/Phoenix 2 variants (Model 0x78) route CO
+                        // through MP1 rather than PSMU — try that as a fallback.
+                        uint[] mp1Args = (uint[])args.Clone();
+                        var mp1Result = _smu.SendMp1(0x5D, ref mp1Args);
+                        if (mp1Result == RyzenSmu.SmuStatus.Ok)
+                            result = mp1Result;
+                    }
                     break;
 
                 case RyzenFamily.StrixHalo:

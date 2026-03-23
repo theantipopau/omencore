@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Management;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -28,6 +29,19 @@ namespace OmenCore.Services.BloatwareManager
         public event Action<BloatwareApp>? AppRestored;
 
         public IReadOnlyList<BloatwareApp> DetectedApps => _detectedApps.AsReadOnly();
+
+        /// <summary>
+        /// True when OmenCore is running with Administrator privileges.
+        /// Bloatware removal requires admin rights.
+        /// </summary>
+        public static bool IsRunningAsAdmin
+        {
+            get
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+            }
+        }
 
         public BloatwareManagerService(LoggingService logger)
         {
@@ -282,6 +296,13 @@ namespace OmenCore.Services.BloatwareManager
         {
             if (app.IsRemoved) return true;
 
+            if (!IsRunningAsAdmin)
+            {
+                StatusChanged?.Invoke("Administrator privileges required. Please restart OmenCore as Administrator to remove applications.");
+                _logger.Warn($"Bloatware removal attempted without Administrator rights: {app.Name}");
+                return false;
+            }
+
             StatusChanged?.Invoke($"Removing {app.Name}...");
             _logger.Info($"Attempting to remove bloatware: {app.Name} ({app.Type})");
 
@@ -410,7 +431,13 @@ namespace OmenCore.Services.BloatwareManager
                 if (process == null) return false;
 
                 await process.WaitForExitAsync();
-                return true; // Win32 uninstallers have inconsistent exit codes
+                if (process.ExitCode != 0)
+                {
+                    _logger.Warn($"Win32 uninstaller for {app.Name} exited with code {process.ExitCode} (may still have succeeded)");
+                }
+                // Win32 uninstallers use inconsistent exit codes; treat as success
+                // unless the process could not be started at all.
+                return true;
             }
             catch
             {
