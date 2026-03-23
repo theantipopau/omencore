@@ -21,8 +21,8 @@
     <Window.Resources>
         <!-- Gradient Background Brush -->
         <LinearGradientBrush x:Key="OsdBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#E6181818" Offset="0"/>
-            <GradientStop Color="#E6242424" Offset="1"/>
+            <GradientStop Color="#F0141416" Offset="0"/>
+            <GradientStop Color="#F01E1E22" Offset="1"/>
         </LinearGradientBrush>
         
         <!-- Accent Color -->
@@ -66,8 +66,10 @@
                     </LinearGradientBrush>
                 </Border.Background>
                 <TextBlock x:Name="ModeIcon"
-                           Text="🌀"
-                           FontSize="28"
+                           Text="FAN"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           FontFamily="Segoe UI"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
             </Border>
@@ -78,19 +80,19 @@
                            Text="Fan Mode"
                            FontSize="12"
                            FontWeight="Medium"
-                           Foreground="#99FFFFFF"
+                           Foreground="#B3FFFFFF"
                            Opacity="0.8"/>
                 <TextBlock x:Name="ModeName"
                            Text="Balanced"
                            FontSize="22"
-                           FontWeight="SemiBold"
+                           FontWeight="Bold"
                            Foreground="White"
                            Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis"/>
                 <TextBlock x:Name="TriggerText"
                            Text="via Hotkey (Ctrl+Shift+F)"
                            FontSize="11"
-                           Foreground="#66FFFFFF"
+                           Foreground="#99FFFFFF"
                            Margin="0,4,0,0"
                            TextTrimming="CharacterEllipsis"/>
             </StackPanel>

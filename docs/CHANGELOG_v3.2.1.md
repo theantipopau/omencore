@@ -195,6 +195,18 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Files:** docs/LINUX_INSTALL_GUIDE.md, INSTALL.md, README.md
 - **Status:** Fixed
 
+### 20. Hotkey OSD Visual Polish and Multi-Monitor Positioning Improvements
+- **Issue:** Hotkey OSD popups could feel visually inconsistent (emoji glyph rendering/clipping varies by system font), jitter under rapid hotkey presses, and always appear using primary-screen positioning.
+- **Root Cause:** The OSD badge relied on emoji icons in a transparent overlay, always used `SystemParameters.WorkArea`, and restarted entrance animations even for rapid consecutive updates.
+- **Fix Deployed:**
+  - Improved OSD contrast/typography for readability (stronger heading/body contrast and bolder primary label).
+  - Replaced emoji-dependent icon labels with deterministic text badges (`PERF`, `BAL`, `QUIET`, etc.) to avoid glyph fallback issues.
+  - Added burst-safe re-show behavior: rapid updates now refresh content and extend timer without replaying full enter animation.
+  - OSD now positions on the active monitor (cursor screen) and clamps to that screen's working area.
+  - Hardened animation transform handling to avoid edge-case render-transform conflicts.
+- **Files:** src/OmenCoreApp/Views/HotkeyOsdWindow.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml.cs
+- **Status:** Fixed
+
 ---
 
 ## Notes

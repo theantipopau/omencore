@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using System.Windows.Forms;
 
 namespace OmenCore.Views
 {
@@ -14,6 +15,8 @@ namespace OmenCore.Views
     {
         private readonly DispatcherTimer _dismissTimer;
         private bool _isAnimatingOut;
+        private DateTime _lastShowUtc = DateTime.MinValue;
+        private const int MinReshowMs = 120;
 
         public HotkeyOsdWindow()
         {
@@ -32,6 +35,22 @@ namespace OmenCore.Views
         /// </summary>
         public void ShowMode(string category, string modeName, string? hotkeyDescription = null)
         {
+            // Avoid animation spam and visual jitter when multiple hotkeys fire
+            // in the same short burst; just refresh content if OSD is already visible.
+            var now = DateTime.UtcNow;
+            if (IsVisible && (now - _lastShowUtc).TotalMilliseconds < MinReshowMs)
+            {
+                ModeCategory.Text = category;
+                ModeName.Text = modeName;
+                ModeIcon.Text = GetModeIcon(category, modeName);
+                TriggerText.Text = hotkeyDescription ?? "via Hotkey";
+                UpdateAccentColor(modeName);
+                _dismissTimer.Stop();
+                _dismissTimer.Start();
+                _lastShowUtc = now;
+                return;
+            }
+
             // Cancel any existing animations
             _isAnimatingOut = false;
             _dismissTimer.Stop();
@@ -44,6 +63,7 @@ namespace OmenCore.Views
             
             // Update accent color based on mode
             UpdateAccentColor(modeName);
+            _lastShowUtc = now;
             
             // Show the window first (required for accurate size measurement)
             Opacity = 0;
@@ -61,8 +81,12 @@ namespace OmenCore.Views
 
         private void PositionWindow()
         {
-            // Get the working area (excludes taskbar)
-            var workArea = SystemParameters.WorkArea;
+            // Place on the monitor where the user currently is (cursor screen),
+            // then clamp to that monitor's working area (excludes taskbar).
+            var cursor = Cursor.Position;
+            var screen = Screen.FromPoint(cursor);
+            var workAreaRect = screen.WorkingArea;
+            var workArea = new Rect(workAreaRect.Left, workAreaRect.Top, workAreaRect.Width, workAreaRect.Height);
             
             // Update layout to get actual size
             UpdateLayout();
@@ -84,25 +108,39 @@ namespace OmenCore.Views
         private string GetModeIcon(string category, string modeName)
         {
             var lowerMode = modeName.ToLower();
-            
-            return category.ToLower() switch
+
+            // Use deterministic text labels instead of emoji glyphs.
+            // Emoji rendering can vary by font/locale and may clip in transparent overlays.
+            var icon = category.ToLower() switch
             {
                 "fan mode" => lowerMode switch
                 {
-                    "performance" or "max" or "turbo" => "🔥",
-                    "quiet" or "silent" => "🤫",
-                    "balanced" or "auto" => "⚖️",
-                    _ => "🌀"
+                    "performance" or "max" or "turbo" => "PERF",
+                    "quiet" or "silent" => "QUIET",
+                    "balanced" or "auto" => "BAL",
+                    _ => "FAN"
                 },
                 "performance" => lowerMode switch
                 {
-                    "performance" => "⚡",
-                    "balanced" => "⚖️",
-                    "quiet" or "power saver" => "🔋",
-                    _ => "💻"
+                    "performance" => "PWR",
+                    "balanced" => "BAL",
+                    "quiet" or "power saver" => "ECO",
+                    _ => "SYS"
                 },
-                "boost" => "🚀",
-                _ => "⚙️"
+                "boost" => "BST",
+                _ => "OSD"
+            };
+
+            return icon switch
+            {
+                "🔥" => "PERF",
+                "🤫" => "QUIET",
+                "⚖️" => "BAL",
+                "🌀" => "FAN",
+                "⚡" => "PWR",
+                "🔋" => "ECO",
+                "🚀" => "BST",
+                _ => icon
             };
         }
 
@@ -132,8 +170,9 @@ namespace OmenCore.Views
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             };
             
-            var transform = new TranslateTransform(0, 20);
-            OsdBorder.RenderTransform = transform;
+            var transform = EnsureTranslateTransform();
+            transform.X = 0;
+            transform.Y = 20;
             
             BeginAnimation(OpacityProperty, fadeIn);
             transform.BeginAnimation(TranslateTransform.YProperty, slideIn);
@@ -156,7 +195,7 @@ namespace OmenCore.Views
                 onComplete?.Invoke();
             };
             
-            var transform = OsdBorder.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            var transform = EnsureTranslateTransform();
             var slideOut = new DoubleAnimation(0, 20, TimeSpan.FromMilliseconds(200))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
@@ -180,6 +219,33 @@ namespace OmenCore.Views
         {
             _dismissTimer.Stop();
             AnimateOut();
+        }
+
+        private TranslateTransform EnsureTranslateTransform()
+        {
+            if (OsdBorder.RenderTransform is TranslateTransform tt)
+            {
+                return tt;
+            }
+
+            if (OsdBorder.RenderTransform is TransformGroup group)
+            {
+                foreach (var child in group.Children)
+                {
+                    if (child is TranslateTransform gtt)
+                    {
+                        return gtt;
+                    }
+                }
+
+                var created = new TranslateTransform();
+                group.Children.Add(created);
+                return created;
+            }
+
+            var transform = new TranslateTransform();
+            OsdBorder.RenderTransform = transform;
+            return transform;
         }
     }
 }
