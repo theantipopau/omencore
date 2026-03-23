@@ -558,10 +558,7 @@
 
                     <!-- Update Banner + Non-HP Warning -->
                     <StackPanel Grid.Row="0">
-                        <Border Background="{StaticResource InfoBackgroundBrush}"
-                                BorderBrush="{StaticResource AccentBlueBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8"
+                        <Border Style="{StaticResource PremiumInfoBannerCard}"
                                 Padding="16"
                                 Margin="24,12,24,8"
                                 Visibility="{Binding UpdateBannerVisible, Converter={StaticResource BoolToVisibility}}">
@@ -617,10 +614,10 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <Border Background="#44FF9800" 
+                        <Border Style="{StaticResource PremiumPanelCard}"
+                            Background="#2A4C3517" 
                                 BorderBrush="{StaticResource WarningBrush}" 
                                 BorderThickness="2" 
-                                CornerRadius="8" 
                                 Padding="14,10" 
                                 Margin="24,12,24,12"
                                 Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource InverseBoolToVisibility}}">

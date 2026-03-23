@@ -1296,6 +1296,75 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        public int OsdHotkeyToastDurationMs
+        {
+            get => _config.Osd?.HotkeyToastDurationMs ?? 2200;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                var clamped = Math.Clamp(value, 800, 6000);
+                if (_config.Osd.HotkeyToastDurationMs != clamped)
+                {
+                    _config.Osd.HotkeyToastDurationMs = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public int OsdHotkeyToastScalePercent
+        {
+            get => _config.Osd?.HotkeyToastScalePercent ?? 100;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                var clamped = Math.Clamp(value, 80, 140);
+                if (_config.Osd.HotkeyToastScalePercent != clamped)
+                {
+                    _config.Osd.HotkeyToastScalePercent = clamped;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public bool OsdHotkeyToastCompact
+        {
+            get => _config.Osd?.HotkeyToastCompact ?? false;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                if (_config.Osd.HotkeyToastCompact != value)
+                {
+                    _config.Osd.HotkeyToastCompact = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public string OsdHotkeyToastAccent
+        {
+            get => _config.Osd?.HotkeyToastAccent ?? "Auto";
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Auto" : value.Trim();
+                if (_config.Osd.HotkeyToastAccent != normalized)
+                {
+                    _config.Osd.HotkeyToastAccent = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public string[] OsdHotkeyToastAccentOptions => new[] { "Auto", "Cyan", "Orange", "Teal", "Magenta" };
         
         /// <summary>
         /// Notify OSD service that settings have changed so it can update the overlay live

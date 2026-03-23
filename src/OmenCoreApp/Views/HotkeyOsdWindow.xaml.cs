@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using System.Windows.Forms;
+using OmenCore.Models;
 
 namespace OmenCore.Views
 {
@@ -17,6 +18,10 @@ namespace OmenCore.Views
         private bool _isAnimatingOut;
         private DateTime _lastShowUtc = DateTime.MinValue;
         private const int MinReshowMs = 120;
+        private int _dismissDurationMs = 2200;
+        private bool _compactMode;
+        private string _accentMode = "Auto";
+        private double _scaleFactor = 1.0;
 
         public HotkeyOsdWindow()
         {
@@ -46,7 +51,9 @@ namespace OmenCore.Views
                 TriggerText.Text = hotkeyDescription ?? "via Hotkey";
                 UpdateAccentColor(modeName);
                 _dismissTimer.Stop();
+                _dismissTimer.Interval = TimeSpan.FromMilliseconds(_dismissDurationMs);
                 _dismissTimer.Start();
+                StartProgressAnimation();
                 _lastShowUtc = now;
                 return;
             }
@@ -75,15 +82,55 @@ namespace OmenCore.Views
             {
                 PositionWindow();
                 AnimateIn();
+                _dismissTimer.Interval = TimeSpan.FromMilliseconds(_dismissDurationMs);
                 _dismissTimer.Start();
+                StartProgressAnimation();
             });
+        }
+
+        public void ApplySettings(OsdSettings? settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            _dismissDurationMs = Math.Clamp(settings.HotkeyToastDurationMs, 800, 6000);
+            _compactMode = settings.HotkeyToastCompact;
+            _accentMode = string.IsNullOrWhiteSpace(settings.HotkeyToastAccent) ? "Auto" : settings.HotkeyToastAccent;
+            _scaleFactor = Math.Clamp(settings.HotkeyToastScalePercent, 80, 140) / 100.0;
+
+            OsdBorder.LayoutTransform = new ScaleTransform(_scaleFactor, _scaleFactor);
+
+            if (_compactMode)
+            {
+                OsdBorder.Padding = new Thickness(16, 12, 16, 12);
+                ModeBadge.Width = 44;
+                ModeBadge.Height = 44;
+                ModeBadge.CornerRadius = new CornerRadius(22);
+                ModeIcon.FontSize = 12;
+                ModeName.FontSize = 18;
+                ModeCategory.Visibility = Visibility.Collapsed;
+                TriggerText.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                OsdBorder.Padding = new Thickness(24, 16, 24, 16);
+                ModeBadge.Width = 56;
+                ModeBadge.Height = 56;
+                ModeBadge.CornerRadius = new CornerRadius(28);
+                ModeIcon.FontSize = 14;
+                ModeName.FontSize = 22;
+                ModeCategory.Visibility = Visibility.Visible;
+                TriggerText.Visibility = Visibility.Visible;
+            }
         }
 
         private void PositionWindow()
         {
             // Place on the monitor where the user currently is (cursor screen),
             // then clamp to that monitor's working area (excludes taskbar).
-            var cursor = Cursor.Position;
+            var cursor = System.Windows.Forms.Cursor.Position;
             var screen = Screen.FromPoint(cursor);
             var workAreaRect = screen.WorkingArea;
             var workArea = new Rect(workAreaRect.Left, workAreaRect.Top, workAreaRect.Width, workAreaRect.Height);
@@ -131,30 +178,31 @@ namespace OmenCore.Views
                 _ => "OSD"
             };
 
-            return icon switch
-            {
-                "🔥" => "PERF",
-                "🤫" => "QUIET",
-                "⚖️" => "BAL",
-                "🌀" => "FAN",
-                "⚡" => "PWR",
-                "🔋" => "ECO",
-                "🚀" => "BST",
-                _ => icon
-            };
+            return icon;
         }
 
         private void UpdateAccentColor(string modeName)
         {
-            var color = modeName.ToLower() switch
+            var autoColor = modeName.ToLower() switch
             {
                 "performance" or "boost" or "max" or "turbo" => Color.FromRgb(0xFF, 0x6B, 0x35), // Orange
                 "quiet" or "silent" => Color.FromRgb(0x4E, 0xCD, 0xC4), // Teal
                 "balanced" or "auto" => Color.FromRgb(0x00, 0xD4, 0xFF), // Cyan
                 _ => Color.FromRgb(0x00, 0xD4, 0xFF) // Default cyan
             };
+
+            var color = _accentMode.ToLowerInvariant() switch
+            {
+                "cyan" => Color.FromRgb(0x00, 0xD4, 0xFF),
+                "orange" => Color.FromRgb(0xFF, 0x8A, 0x3D),
+                "teal" => Color.FromRgb(0x4E, 0xCD, 0xC4),
+                "magenta" => Color.FromRgb(0xFF, 0x4F, 0xC3),
+                _ => autoColor
+            };
             
-            OsdBorder.BorderBrush = new SolidColorBrush(color);
+            var brush = new SolidColorBrush(color);
+            OsdBorder.BorderBrush = brush;
+            ProgressFill.Background = brush;
         }
 
         private void AnimateIn()
@@ -182,6 +230,7 @@ namespace OmenCore.Views
         {
             if (_isAnimatingOut) return;
             _isAnimatingOut = true;
+            ProgressScaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             
             // Fade out and slide down
             var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200))
@@ -219,6 +268,20 @@ namespace OmenCore.Views
         {
             _dismissTimer.Stop();
             AnimateOut();
+        }
+
+        private void StartProgressAnimation()
+        {
+            ProgressScaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            ProgressScaleTransform.ScaleX = 1;
+            ProgressScaleTransform.ScaleY = 1;
+
+            var countdown = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(_dismissDurationMs))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+
+            ProgressScaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, countdown);
         }
 
         private TranslateTransform EnsureTranslateTransform()

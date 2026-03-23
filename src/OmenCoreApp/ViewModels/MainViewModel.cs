@@ -3565,12 +3565,20 @@ namespace OmenCore.ViewModels
         {
             try
             {
+                // Respect user preference for mode-change notifications.
+                if (_configService?.Config?.Osd?.ShowModeChangeNotifications == false)
+                {
+                    return;
+                }
+
                 // Create OSD window if it doesn't exist
                 if (_hotkeyOsd == null)
                 {
                     _hotkeyOsd = new HotkeyOsdWindow();
                     _logging.Info("HotkeyOsdWindow created");
                 }
+
+                _hotkeyOsd.ApplySettings(_configService?.Config?.Osd);
                 
                 _hotkeyOsd.ShowMode(category, modeName, $"via Hotkey ({hotkeyText})");
             }

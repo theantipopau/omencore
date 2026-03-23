@@ -429,6 +429,18 @@ namespace OmenCore.Models
         
         /// <summary>Show current fan mode (Auto, Performance, Silent, Max)</summary>
         public bool ShowFanMode { get; set; } = true;
+
+        /// <summary>Hotkey OSD toast duration in milliseconds (800-6000).</summary>
+        public int HotkeyToastDurationMs { get; set; } = 2200;
+
+        /// <summary>Hotkey OSD toast scale percent (80-140).</summary>
+        public int HotkeyToastScalePercent { get; set; } = 100;
+
+        /// <summary>Use compact hotkey OSD layout (smaller card, less secondary text).</summary>
+        public bool HotkeyToastCompact { get; set; } = false;
+
+        /// <summary>Accent mode for hotkey OSD card: Auto, Cyan, Orange, Teal, Magenta.</summary>
+        public string HotkeyToastAccent { get; set; } = "Auto";
         
         /// <summary>Show performance mode (Balanced, Performance, Silent)</summary>
         public bool ShowPerformanceMode { get; set; } = false;

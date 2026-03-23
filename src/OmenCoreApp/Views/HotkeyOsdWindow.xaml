@@ -48,13 +48,18 @@
         </Border.Effect>
         
         <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             
             <!-- Mode Icon -->
-            <Border Grid.Column="0" 
+                <Border x:Name="ModeBadge"
+                    Grid.Row="0" Grid.Column="0" 
                     Width="56" Height="56" 
                     CornerRadius="28"
                     Margin="0,0,16,0"
@@ -75,7 +80,7 @@
             </Border>
             
             <!-- Mode Text -->
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <StackPanel Grid.Row="0" Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock x:Name="ModeCategory"
                            Text="Fan Mode"
                            FontSize="12"
@@ -96,6 +101,21 @@
                            Margin="0,4,0,0"
                            TextTrimming="CharacterEllipsis"/>
             </StackPanel>
+
+            <!-- Remaining-time progress line -->
+            <Border Grid.Row="1" Grid.ColumnSpan="2"
+                    Height="3"
+                    Margin="0,12,0,0"
+                    CornerRadius="2"
+                    Background="#33FFFFFF">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="ProgressScaleTransform" ScaleX="1" ScaleY="1"/>
+                </Border.RenderTransform>
+                <Border.RenderTransformOrigin>0,0.5</Border.RenderTransformOrigin>
+                <Border x:Name="ProgressFill"
+                        CornerRadius="2"
+                        Background="{StaticResource OsdAccentBrush}"/>
+            </Border>
         </Grid>
     </Border>
 </Window>

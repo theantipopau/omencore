@@ -89,7 +89,7 @@
                               Padding="0,0,12,0">
                     <StackPanel>
                         <!-- System Status Section -->
-                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
+                <Border Style="{StaticResource PremiumPanelCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                             <Path Data="{StaticResource IconMonitoring}" 
@@ -1983,6 +1983,58 @@
                                     <TextBox Grid.Column="1" Text="{Binding OsdHotkey, Mode=TwoWay}" 
                                              Padding="8,6"/>
                                 </Grid>
+
+                                <!-- Hotkey OSD visual polish controls -->
+                                <TextBlock Text="Hotkey OSD Visuals" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,8"/>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="200"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Popup Duration" FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Slider Minimum="800" Maximum="6000" TickFrequency="100" IsSnapToTickEnabled="True"
+                                                Value="{Binding OsdHotkeyToastDurationMs}" Width="120" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding OsdHotkeyToastDurationMs, StringFormat={}{0} ms}" FontSize="12" Width="72"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="200"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Popup Size" FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Slider Minimum="80" Maximum="140" TickFrequency="5" IsSnapToTickEnabled="True"
+                                                Value="{Binding OsdHotkeyToastScalePercent}" Width="120" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding OsdHotkeyToastScalePercent, StringFormat={}{0}%}" FontSize="12" Width="72"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Accent Theme" FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedItem="{Binding OsdHotkeyToastAccent, Mode=TwoWay}"
+                                              ItemsSource="{Binding OsdHotkeyToastAccentOptions}"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="Compact Popup" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdHotkeyToastCompact}"/>
+                                    <TextBlock Text="(smaller card, less secondary text)" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                </StackPanel>
 
                                 <!-- Metrics Selection -->
                                 <TextBlock Text="Metrics to Display" FontSize="13" FontWeight="SemiBold"

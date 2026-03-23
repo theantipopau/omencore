@@ -207,6 +207,23 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Files:** src/OmenCoreApp/Views/HotkeyOsdWindow.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml.cs
 - **Status:** Fixed
 
+### 21. Premium Polish Pass: Configurable Hotkey OSD + Elevated GUI Surfaces
+- **Issue:** Final pre-ship polish required richer OSD customization and stronger visual hierarchy for key GUI surfaces.
+- **Fix Deployed:**
+  - Added user-configurable hotkey OSD presentation settings in Appearance:
+    - Popup duration (`800–6000 ms`)
+    - Popup size (`80–140%`)
+    - Accent theme (`Auto`, `Cyan`, `Orange`, `Teal`, `Magenta`)
+    - Compact popup mode (reduced secondary text and tighter card)
+  - Hotkey OSD now renders a timed progress line that depletes over the popup lifetime.
+  - Settings are applied live to hotkey OSD behavior via `MainViewModel` before each display.
+  - Added reusable premium card styles and applied them to high-visibility surfaces:
+    - Update banner in main window
+    - Non-HP warning banner in main window
+    - OSD settings panel in Appearance tab
+- **Files:** src/OmenCoreApp/Models/AppConfig.cs, src/OmenCoreApp/ViewModels/SettingsViewModel.cs, src/OmenCoreApp/Views/SettingsView.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml.cs, src/OmenCoreApp/ViewModels/MainViewModel.cs, src/OmenCoreApp/Views/MainWindow.xaml, src/OmenCoreApp/Styles/ModernStyles.xaml
+- **Status:** Fixed
+
 ---
 
 ## Notes

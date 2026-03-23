@@ -383,6 +383,39 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Premium elevated panel style used for high-importance UI cards -->
+    <Style x:Key="PremiumPanelCard" TargetType="Border" BasedOn="{StaticResource SurfaceCard}">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#FF171B2B" Offset="0"/>
+                    <GradientStop Color="#FF121623" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush" Value="#553C4F7A"/>
+        <Setter Property="BorderThickness" Value="1.5"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#000000" Opacity="0.24" BlurRadius="20" ShadowDepth="6" Direction="270"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Premium informational banner style with subtle blue atmosphere -->
+    <Style x:Key="PremiumInfoBannerCard" TargetType="Border" BasedOn="{StaticResource PremiumPanelCard}">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#1F20406F" Offset="0"/>
+                    <GradientStop Color="#1828455E" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush" Value="#AA45C7FF"/>
+    </Style>
+
     <!-- Typography -->
     <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, "Segoe UI", Arial</FontFamily>
     <FontFamily x:Key="MonospaceFontFamily">Cascadia Mono, Consolas, "Courier New", monospace</FontFamily>
