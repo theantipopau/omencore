@@ -182,6 +182,19 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Files:** src/OmenCoreApp/Services/HardwareMonitoringService.cs, src/OmenCoreApp/ViewModels/MainViewModel.cs
 - **Status:** Fixed
 
+### 19. Linux Install Docs Out of Date and Missing Guidance for Runtime/GUI Exceptions
+- **Issue:** Linux users (including Pop!_OS on OMEN 16-xf0060ax) reported startup failures when following old install steps, including:
+  - `System.IO.FileNotFoundException: Could not load file or assembly 'System.Runtime, Version=8.0.0.0'`
+  - `System.MissingMethodException: Method not found: 'Boolean System.OperatingSystem.IsWindows()'`
+- **Root Cause:** Install docs still pointed to older Linux package versions and did not include explicit recovery guidance for stale/incomplete extractions or known older GUI builds.
+- **Fix Deployed:**
+  - Updated Linux installation commands to current v3.2.1 package URLs.
+  - Hardened extraction instructions to use a clean target folder (`unzip ... -d OmenCore-linux-x64`).
+  - Updated README quick-start Linux snippet to avoid shell-specific `&&` behavior and use explicit extraction + chmod steps.
+  - Added troubleshooting playbook for both reported exceptions, including binary validation (`file ./omencore-cli`) and clean re-download flow.
+- **Files:** docs/LINUX_INSTALL_GUIDE.md, INSTALL.md, README.md
+- **Status:** Fixed
+
 ---
 
 ## Notes

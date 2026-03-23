@@ -57,7 +57,10 @@
 ```bash
 # Download & Extract
 wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
-unzip OmenCore-3.2.1-linux-x64.zip && chmod +x omencore-*
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+cd OmenCore-linux-x64
+chmod +x omencore-cli omencore-gui
 
 # CLI: Check status
 sudo ./omencore-cli status

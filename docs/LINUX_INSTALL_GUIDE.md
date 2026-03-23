@@ -44,10 +44,11 @@ Complete guide for installing and running OmenCore on Linux distributions. OmenC
 
 ```bash
 # Download latest release
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
 
 # Extract
-unzip OmenCore-2.8.6-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # Make executable
@@ -64,10 +65,11 @@ sudo cp omencore-cli /usr/local/bin/
 
 ```bash
 # Download latest release
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
 
 # Extract
-unzip OmenCore-2.8.6-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # Make both executables
@@ -92,8 +94,9 @@ sudo apt update
 sudo apt install -y unzip wget libice6 libsm6 libx11-6 libxext6 libxrandr2 libxi6
 
 # Download and extract OmenCore
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -116,8 +119,9 @@ sudo ./omencore-cli status
 sudo dnf install -y unzip wget libICE libSM libX11 libXext libXrandr libXi
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -139,8 +143,9 @@ sudo ./omencore-cli status
 sudo pacman -S --needed unzip wget libice libsm libx11 libxext libxrandr libxi
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -163,8 +168,9 @@ sudo ./omencore-cli status
 sudo zypper install unzip wget libICE6 libSM6 libX11-6 libXext6 libXrandr2 libXi6
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/latest/download/OmenCore-2.8.6-linux-x64.zip
-unzip OmenCore-2.8.6-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -683,6 +689,39 @@ DISPLAY=:0 sudo ./omencore-gui
 
 # For Wayland, try XWayland
 XDG_SESSION_TYPE=x11 sudo ./omencore-gui
+```
+
+### "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'"
+
+This usually means you are running an older or incomplete Linux package.
+
+```bash
+# Verify you're on the fixed package
+./omencore-cli --version
+
+# Re-download v3.2.1 and extract into a clean folder
+rm -rf OmenCore-linux-x64
+mkdir -p OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+cd OmenCore-linux-x64
+chmod +x omencore-cli omencore-gui
+
+# Sanity check binary type
+file ./omencore-cli
+
+# Retry
+sudo ./omencore-cli status
+```
+
+### "Method not found: Boolean System.OperatingSystem.IsWindows()" (GUI)
+
+This is a known issue in older Linux GUI builds and is fixed in v3.2.1.
+
+```bash
+# Use the current package
+./omencore-gui --version || true
+sudo ./omencore-gui
 ```
 
 ### Temperatures Show 0°C

@@ -1,6 +1,6 @@
 ﻿# OmenCore Installation Guide
 
-Complete installation instructions for OmenCore v3.2.0 on Windows and Linux.
+Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
 
 ---
 
@@ -26,7 +26,7 @@ Complete installation instructions for OmenCore v3.2.0 on Windows and Linux.
 
 ### Option 1: Installer (Recommended)
 
-1. **Download** `OmenCoreSetup-3.2.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.0)
+1. **Download** `OmenCoreSetup-3.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
 
 2. **Verify** the SHA256 hash published in the release notes before running (optional but recommended)
 
@@ -44,7 +44,7 @@ Complete installation instructions for OmenCore v3.2.0 on Windows and Linux.
 
 ### Option 2: Portable ZIP
 
-1. **Download** `OmenCore-3.2.0-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.0)
+1. **Download** `OmenCore-3.2.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
 
 2. **Verify SHA256** of the ZIP (hash published in GitHub Release notes)
 
@@ -69,10 +69,11 @@ Complete installation instructions for OmenCore v3.2.0 on Windows and Linux.
 
 ```bash
 # 1. Download the Linux release
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.0/OmenCore-3.2.0-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
 
 # 2. Extract
-unzip OmenCore-3.2.0-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Make executables
@@ -88,10 +89,11 @@ sudo ./omencore-gui
 
 ```bash
 # 1. Download
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.0/OmenCore-3.2.0-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
 
 # 2. Extract
-unzip OmenCore-3.2.0-linux-x64.zip
+mkdir -p OmenCore-linux-x64
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Install to system path (optional)
@@ -223,6 +225,29 @@ ldd ./omencore-gui | grep "not found"
 
 # Try with an explicit display
 DISPLAY=:0 sudo ./omencore-gui
+```
+
+#### "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'"
+
+```bash
+# Re-download fixed Linux package into a clean folder
+rm -rf OmenCore-linux-x64
+mkdir -p OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+cd OmenCore-linux-x64
+chmod +x omencore-cli omencore-gui
+
+# Verify binary and retry
+file ./omencore-cli
+sudo ./omencore-cli status
+```
+
+#### "Method not found: Boolean System.OperatingSystem.IsWindows()"
+
+```bash
+# Fixed in v3.2.1 Linux GUI package
+sudo ./omencore-gui
 ```
 
 ---
