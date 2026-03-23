@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,6 +31,7 @@ namespace OmenCore.Services
         private readonly LoggingService _logging;
         private readonly HttpClient _httpClient;
         private readonly string _updateCheckUrl;
+        private readonly string _releaseFeedUrl;
         private readonly string _downloadDirectory;
         private readonly Version _currentVersion;
         private readonly InstallationType _installationType;
@@ -57,6 +59,9 @@ namespace OmenCore.Services
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
             
             _updateCheckUrl = updateCheckUrl;
+            _releaseFeedUrl = updateCheckUrl.EndsWith("/latest", StringComparison.OrdinalIgnoreCase)
+                ? updateCheckUrl.Substring(0, updateCheckUrl.Length - "/latest".Length) + "?per_page=20"
+                : "https://api.github.com/repos/theantipopau/omencore/releases?per_page=20";
             _downloadDirectory = Path.Combine(Path.GetTempPath(), "OmenCore", "Updates");
             Directory.CreateDirectory(_downloadDirectory);
             _currentVersion = LoadCurrentVersion();
@@ -189,17 +194,14 @@ namespace OmenCore.Services
             {
                 _logging.Info("Checking for updates...");
                 
-                var response = await _httpClient.GetAsync(_updateCheckUrl);
-                
-                if (!response.IsSuccessStatusCode)
+                var jsonContent = await GetReleasePayloadAsync();
+                if (string.IsNullOrWhiteSpace(jsonContent))
                 {
                     result.Status = UpdateStatus.CheckFailed;
-                    result.Message = $"Update check failed: HTTP {response.StatusCode}";
+                    result.Message = "No release data returned from GitHub.";
                     _logging.Warn(result.Message);
                     return result;
                 }
-                
-                var jsonContent = await response.Content.ReadAsStringAsync();
                 
                 // Parse GitHub release JSON
                 using var jsonDoc = JsonDocument.Parse(jsonContent);
@@ -312,6 +314,64 @@ namespace OmenCore.Services
             
             UpdateCheckCompleted?.Invoke(this, result);
             return result;
+        }
+
+        private async Task<string?> GetReleasePayloadAsync()
+        {
+            var includePreReleases = _preferences?.IncludePreReleases == true;
+
+            if (!includePreReleases)
+            {
+                // Fast path for stable updates.
+                var stablePayload = await GetStringIfSuccessAsync(_updateCheckUrl);
+                if (!string.IsNullOrWhiteSpace(stablePayload))
+                {
+                    return stablePayload;
+                }
+            }
+
+            // Fallback and prerelease path: use releases feed and pick matching candidate.
+            var feedPayload = await GetStringIfSuccessAsync(_releaseFeedUrl);
+            if (string.IsNullOrWhiteSpace(feedPayload))
+            {
+                return null;
+            }
+
+            using var feedDoc = JsonDocument.Parse(feedPayload);
+            if (feedDoc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            foreach (var release in feedDoc.RootElement.EnumerateArray())
+            {
+                if (release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean())
+                {
+                    continue;
+                }
+
+                var isPrerelease = release.TryGetProperty("prerelease", out var preProp) && preProp.GetBoolean();
+                if (!includePreReleases && isPrerelease)
+                {
+                    continue;
+                }
+
+                return release.GetRawText();
+            }
+
+            return null;
+        }
+
+        private async Task<string?> GetStringIfSuccessAsync(string url)
+        {
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logging.Warn($"Update endpoint returned HTTP {(int)response.StatusCode}: {url}");
+                return null;
+            }
+
+            return await response.Content.ReadAsStringAsync();
         }
         
         /// <summary>
@@ -585,6 +645,9 @@ namespace OmenCore.Services
         
         private Version LoadCurrentVersion()
         {
+            Version? versionFromFile = null;
+            string prereleaseFromFile = string.Empty;
+
             try
             {
                 var versionFile = Path.Combine(AppContext.BaseDirectory, "VERSION.txt");
@@ -601,26 +664,97 @@ namespace OmenCore.Services
                         var dashIndex = candidate.IndexOf('-');
                         if (dashIndex > 0)
                         {
-                            _currentPrereleaseTag = candidate[dashIndex..]; // e.g., "-beta2"
+                            prereleaseFromFile = candidate[dashIndex..]; // e.g., "-beta2"
                             versionPart = candidate.Substring(0, dashIndex); // e.g., "1.4.0"
                         }
                         
                         if (Version.TryParse(versionPart, out var fileVersion))
                         {
+                            versionFromFile = fileVersion;
                             _logging.Info($"Loaded version from VERSION.txt: {candidate}");
-                            return fileVersion;
+                            break;
                         }
                     }
                 }
 
-                var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
-                return assemblyVersion ?? new Version(1, 0, 0);
+                var assembly = Assembly.GetExecutingAssembly();
+                var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+                var fileVersionAttribute = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
+                var assemblyNameVersion = assembly.GetName().Version?.ToString();
+
+                string prereleaseFromFileVersion = string.Empty;
+                Version? versionFromAssembly =
+                    TryParseVersionString(informationalVersion, out var prereleaseFromInfo) ??
+                    TryParseVersionString(fileVersionAttribute, out prereleaseFromFileVersion) ??
+                    TryParseVersionString(assemblyNameVersion, out _);
+
+                var assemblyPrerelease = !string.IsNullOrEmpty(prereleaseFromInfo)
+                    ? prereleaseFromInfo
+                    : prereleaseFromFileVersion;
+
+                if (versionFromFile != null && versionFromAssembly != null)
+                {
+                    if (versionFromAssembly > versionFromFile)
+                    {
+                        _currentPrereleaseTag = assemblyPrerelease;
+                        _logging.Info($"Using assembly version {versionFromAssembly} over VERSION.txt {versionFromFile}");
+                        return versionFromAssembly;
+                    }
+
+                    _currentPrereleaseTag = prereleaseFromFile;
+                    return versionFromFile;
+                }
+
+                if (versionFromFile != null)
+                {
+                    _currentPrereleaseTag = prereleaseFromFile;
+                    return versionFromFile;
+                }
+
+                if (versionFromAssembly != null)
+                {
+                    _currentPrereleaseTag = assemblyPrerelease;
+                    return versionFromAssembly;
+                }
+
+                return new Version(1, 0, 0);
             }
             catch (Exception ex)
             {
                 _logging.Warn($"Falling back to default version: {ex.Message}");
                 return new Version(1, 0, 0);
             }
+        }
+
+        private static Version? TryParseVersionString(string? versionText, out string prereleaseTag)
+        {
+            prereleaseTag = string.Empty;
+            if (string.IsNullOrWhiteSpace(versionText))
+            {
+                return null;
+            }
+
+            var text = versionText.Trim();
+            var plus = text.IndexOf('+');
+            if (plus > 0)
+            {
+                text = text.Substring(0, plus);
+            }
+
+            var match = Regex.Match(text, @"(?<ver>\d+\.\d+\.\d+(?:\.\d+)?)(?<pre>-[0-9A-Za-z.-]+)?");
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var ver = match.Groups["ver"].Value;
+            var pre = match.Groups["pre"].Value;
+            if (!string.IsNullOrEmpty(pre))
+            {
+                prereleaseTag = pre;
+            }
+
+            return Version.TryParse(ver, out var parsed) ? parsed : null;
         }
         
         /// <summary>

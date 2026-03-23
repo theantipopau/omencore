@@ -27,7 +27,7 @@
 
 ### 🎯 Quick Links
 
-[![Version](https://img.shields.io/badge/version-3.2.0-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.0)
+[![Version](https://img.shields.io/badge/version-3.2.1-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -45,7 +45,7 @@
 
 ```bash
 # Option 1: Installer (Recommended)
-1. Download OmenCoreSetup-3.2.0.exe from Releases
+1. Download OmenCoreSetup-3.2.1.exe from Releases
 2. Run as Administrator
 3. Launch from Start Menu
 ```
@@ -56,8 +56,8 @@
 
 ```bash
 # Download & Extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.0/OmenCore-3.2.0-linux-x64.zip
-unzip OmenCore-3.2.0-linux-x64.zip && chmod +x omencore-*
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+unzip OmenCore-3.2.1-linux-x64.zip && chmod +x omencore-*
 
 # CLI: Check status
 sudo ./omencore-cli status
@@ -68,7 +68,7 @@ sudo ./omencore-gui
 
 → **[Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
 
-## 🔥 **What's New in v3.2.0**
+## 🔥 **What's New in v3.2.1**
 
 ### **Stability & Performance Enhancements**
 
@@ -104,13 +104,13 @@ sudo ./omencore-gui
 | Linux RGB returns "unavailable" | Fixed with sysfs probing |
 | Dashboard stale banner overlap | Fixed with grid row correction |
 
-→ **[Full Changelog & Root Causes](docs/CHANGELOG_v3.2.0.md)**
+→ **[Full Changelog & Root Causes](docs/CHANGELOG_v3.2.1.md)**
 
 ---
 
 ## 📦 **Downloads & Artifacts**
 
-**Version:** v3.2.0 | **Build Date:** 2026-03-19 | **Status:** Release Candidate (RC1)
+**Version:** v3.2.1 | **Build Date:** 2026-03-19 | **Status:** Release Candidate (RC1)
 
 | Download | Platform | Details |
 |----------|----------|---------|

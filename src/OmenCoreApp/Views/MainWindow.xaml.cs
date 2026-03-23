@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using OmenCore.Controls;
 using OmenCore.ViewModels;
 
@@ -163,14 +164,42 @@ namespace OmenCore.Views
 
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            // Ignore clicks on window control buttons so minimize/maximize/close always work.
+            if (IsFromWindowControl(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
             if (e.ClickCount == 2)
             {
                 WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
             }
             else
             {
-                DragMove();
+                try
+                {
+                    DragMove();
+                }
+                catch
+                {
+                    // Ignore drag failures caused by transient input state races.
+                }
             }
+        }
+
+        private static bool IsFromWindowControl(DependencyObject? source)
+        {
+            while (source != null)
+            {
+                if (source is Button)
+                {
+                    return true;
+                }
+
+                source = VisualTreeHelper.GetParent(source);
+            }
+
+            return false;
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)

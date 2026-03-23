@@ -56,6 +56,23 @@ namespace OmenCore.Services
             
             // Check 6: Legacy WinRing0 artifacts (optional, not used by default)
             audit.Checks.Add(CheckWinRing0Driver());
+
+            // If HP WMI BIOS is missing but another backend exists, this is a limited-feature
+            // fallback mode rather than a hard required dependency failure.
+            var hpWmiCheck = audit.Checks.FirstOrDefault(c => c.Name == "HP WMI BIOS");
+            var pawnIoCheck = audit.Checks.FirstOrDefault(c => c.Name == "PawnIO Driver");
+            var oghCheck = audit.Checks.FirstOrDefault(c => c.Name == "OMEN Gaming Hub");
+            var hasFallbackBackend = (pawnIoCheck?.IsDetected == true) || (oghCheck?.IsDetected == true);
+
+            if (hpWmiCheck != null && !hpWmiCheck.IsDetected && hasFallbackBackend)
+            {
+                hpWmiCheck.IsRequired = false;
+                hpWmiCheck.IsOptional = true;
+                hpWmiCheck.Status = "Fallback";
+                hpWmiCheck.Details = (pawnIoCheck?.IsDetected == true)
+                    ? "HP WMI BIOS not detected; using PawnIO fallback (some HP-service features may be unavailable)"
+                    : "HP WMI BIOS not detected; using OMEN service fallback (some direct BIOS features may be unavailable)";
+            }
             
             // Determine overall status
             var requiredMissing = audit.Checks.Where(c => c.IsRequired && !c.IsDetected).ToList();
@@ -82,10 +99,20 @@ namespace OmenCore.Services
             }
             else
             {
-                audit.Status = StandaloneStatus.OK;
-                audit.StatusText = "Standalone";
-                audit.StatusColor = "#00FF88"; // Green
-                audit.Summary = "OmenCore is running fully standalone without HP dependencies";
+                if (hpWmiCheck != null && !hpWmiCheck.IsDetected && hasFallbackBackend)
+                {
+                    audit.Status = StandaloneStatus.Limited;
+                    audit.StatusText = "Limited";
+                    audit.StatusColor = "#FFD93D"; // Yellow
+                    audit.Summary = "Direct HP WMI BIOS interface is unavailable; fallback backend is active (core fan control works, some HP-dependent features may be limited)";
+                }
+                else
+                {
+                    audit.Status = StandaloneStatus.OK;
+                    audit.StatusText = "Standalone";
+                    audit.StatusColor = "#00FF88"; // Green
+                    audit.Summary = "OmenCore is running fully standalone without HP dependencies";
+                }
             }
             
             _logging.Info($"Dependency Audit Complete: {audit.StatusText}");

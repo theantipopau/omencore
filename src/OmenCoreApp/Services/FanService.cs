@@ -1372,6 +1372,12 @@ namespace OmenCore.Services
                     
                     // Apply safety bounds clamping based on temperature
                     targetFanPercent = ApplySafetyBoundsClamping(targetFanPercent, maxTemp);
+
+                    // Extreme preset behavior: users expect full fan at/above 75C.
+                    if (_activePreset?.Name?.Contains("Extreme", StringComparison.OrdinalIgnoreCase) == true && maxTemp >= 75.0)
+                    {
+                        targetFanPercent = Math.Max(targetFanPercent, 100.0);
+                    }
                     
                     // If immediate flag passed, bypass hysteresis and smoothing and apply now
                     if (immediate)

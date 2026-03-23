@@ -182,7 +182,15 @@ namespace OmenCore.Services
                 if (_isPaused)
                 {
                     _isPaused = false;
+                    ResetFreezeDetectionState();
+                    _consecutiveTimeouts = 0;
+                    _consecutiveZeroTempReadings = 0;
+                    _lastSuccessfulSampleTime = DateTime.Now;
                     _logging.Info("Hardware monitoring resumed (system waking from standby)");
+
+                    // Some sensor stacks return stale data after sleep until reinitialized.
+                    // Trigger a best-effort bridge refresh so users do not need to restart OmenCore.
+                    _ = Task.Run(RecoverAfterResumeAsync);
                 }
             }
         }
@@ -956,6 +964,50 @@ namespace OmenCore.Services
             }
             
             return sample;
+        }
+
+        private void ResetFreezeDetectionState()
+        {
+            _consecutiveSameCpuTemp = 0;
+            _consecutiveSameGpuTemp = 0;
+            _lastCpuTempForFreezeCheck = 0;
+            _lastGpuTempForFreezeCheck = 0;
+            _gpuFreezeWarningLogged = false;
+            _usingWmiFallback = false;
+        }
+
+        private async Task RecoverAfterResumeAsync()
+        {
+            if (_restartInProgress)
+            {
+                return;
+            }
+
+            _restartInProgress = true;
+            try
+            {
+                // Give drivers a brief window to settle after resume.
+                await Task.Delay(1000);
+
+                var restarted = await _bridge.TryRestartAsync();
+                if (restarted)
+                {
+                    _logging.Info("[MonitorLoop] Bridge refresh successful after system resume");
+                    UpdateHealthStatus(MonitoringHealthStatus.Healthy);
+                }
+                else
+                {
+                    _logging.Warn("[MonitorLoop] Bridge refresh after resume did not report success; monitoring will continue and self-recover");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[MonitorLoop] Bridge refresh after resume failed: {ex.Message}");
+            }
+            finally
+            {
+                _restartInProgress = false;
+            }
         }
         
         /// <summary>

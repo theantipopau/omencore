@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 using OmenCore.Models;
 using OmenCore.ViewModels;
@@ -24,6 +26,8 @@ namespace OmenCore.Services
         private bool _isEnabled;
         private bool _lastKnownAcState;
         private bool _disposed;
+        private CancellationTokenSource? _stateChangeCts;
+        private readonly object _stateChangeLock = new();
 
         public event EventHandler<PowerStateChangedEventArgs>? PowerStateChanged;
         public event EventHandler? SystemSuspending;
@@ -220,25 +224,9 @@ namespace OmenCore.Services
                     var postResumeAcState = GetCurrentAcState();
                     if (postResumeAcState != _lastKnownAcState)
                     {
-                        _lastKnownAcState = postResumeAcState;
-                        _logging.Info($"AC state changed during sleep: now {(postResumeAcState ? "AC Connected" : "On Battery")}");
-                        
-                        try
-                        {
-                            if (System.Windows.Application.Current?.Dispatcher != null)
-                            {
-                                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                                {
-                                    PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(postResumeAcState));
-                                });
-                            }
-                        }
-                        catch { }
-                        
-                        if (_isEnabled)
-                        {
-                            ApplyPowerProfile(postResumeAcState);
-                        }
+#pragma warning disable CS4014
+                        _ = QueueVerifiedPowerStateChangeAsync(postResumeAcState, "resume");
+#pragma warning restore CS4014
                     }
                     return;
                 }
@@ -260,23 +248,69 @@ namespace OmenCore.Services
                     return;
                 }
 
-                _lastKnownAcState = currentAcState;
-                
-                _logging.Info($"Power state changed: {(currentAcState ? "AC Connected" : "On Battery")}");
-                
+#pragma warning disable CS4014
+                _ = QueueVerifiedPowerStateChangeAsync(currentAcState, "status-change");
+#pragma warning restore CS4014
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Error handling power mode change: {ex.Message}", ex);
+            }
+        }
+
+        private async Task QueueVerifiedPowerStateChangeAsync(bool targetAcState, string reason)
+        {
+            CancellationTokenSource cts;
+            lock (_stateChangeLock)
+            {
+                _stateChangeCts?.Cancel();
+                _stateChangeCts?.Dispose();
+                _stateChangeCts = new CancellationTokenSource();
+                cts = _stateChangeCts;
+            }
+
+            try
+            {
+                // Debounce transient line-state flaps (dock wobble, battery telemetry jitter).
+                await Task.Delay(2500, cts.Token);
+
+                var confirm1 = GetCurrentAcState();
+                await Task.Delay(1000, cts.Token);
+                var confirm2 = GetCurrentAcState();
+                await Task.Delay(1000, cts.Token);
+                var confirm3 = GetCurrentAcState();
+
+                var onAcVotes = (confirm1 ? 1 : 0) + (confirm2 ? 1 : 0) + (confirm3 ? 1 : 0);
+                var stableState = onAcVotes >= 2;
+
+                if (stableState != targetAcState)
+                {
+                    _logging.Warn($"Ignoring transient power transition ({reason}): target={targetAcState}, sampled={confirm1}/{confirm2}/{confirm3}");
+                    return;
+                }
+
+                if (stableState == _lastKnownAcState)
+                {
+                    _logging.Debug($"Verified power state unchanged after debounce ({reason})");
+                    return;
+                }
+
+                _lastKnownAcState = stableState;
+                _logging.Info($"Power state verified ({reason}): {(stableState ? "AC Connected" : "On Battery")}");
+
                 // Raise event for UI updates - marshal to UI thread if needed
                 try
                 {
                     if (System.Windows.Application.Current?.Dispatcher != null)
                     {
-                        System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
                         {
-                            PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(currentAcState));
+                            PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(stableState));
                         });
                     }
                     else
                     {
-                        PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(currentAcState));
+                        PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(stableState));
                     }
                 }
                 catch (Exception ex)
@@ -284,20 +318,34 @@ namespace OmenCore.Services
                     _logging.Warn($"Failed to raise PowerStateChanged event: {ex.Message}");
                 }
 
-                // Apply automation if enabled
                 if (_isEnabled)
                 {
-                    _logging.Info("Power automation is enabled, applying profile...");
-                    ApplyPowerProfile(currentAcState);
+                    _logging.Info("Power automation is enabled, applying verified profile...");
+                    ApplyPowerProfile(stableState);
                 }
                 else
                 {
                     _logging.Info("Power automation is disabled, skipping profile application");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // Newer power transition superseded this pending change.
+            }
             catch (Exception ex)
             {
-                _logging.Error($"Error handling power mode change: {ex.Message}", ex);
+                _logging.Warn($"Verified power-state transition failed: {ex.Message}");
+            }
+            finally
+            {
+                lock (_stateChangeLock)
+                {
+                    if (ReferenceEquals(_stateChangeCts, cts))
+                    {
+                        _stateChangeCts.Dispose();
+                        _stateChangeCts = null;
+                    }
+                }
             }
         }
 
@@ -435,6 +483,12 @@ namespace OmenCore.Services
             if (!_disposed)
             {
                 SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+                lock (_stateChangeLock)
+                {
+                    _stateChangeCts?.Cancel();
+                    _stateChangeCts?.Dispose();
+                    _stateChangeCts = null;
+                }
                 _disposed = true;
             }
         }

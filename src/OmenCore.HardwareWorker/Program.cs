@@ -818,19 +818,11 @@ class Program
         switch (hardware.HardwareType)
         {
             case HardwareType.Cpu:
-                // CPU Temperature - prioritize stable sensors over individual cores
-                var cpuTemp = GetSensorValueMulti(hardware, SensorType.Temperature, 
-                    "CPU Package", "Package",                                    // Intel Package (most stable)
-                    "CPU DTS",                                                   // Intel DTS (Arrow Lake / Core Ultra)
-                    "Core (Tctl/Tdie)", "Tctl/Tdie",                          // AMD Ryzen primary
-                    "Core Max", "Core Average",                               // Stable aggregates
-                    "Core #1", "Core #0",                                    // Individual cores (fallback)
-                    "Tctl", "Tdie",                                          // AMD variants
-                    "CPU (Tctl/Tdie)",                                       // AMD Ryzen variant
-                    "CCD1 (Tdie)", "CCD 1 (Tdie)",                          // AMD CCD with Tdie
-                    "CCD1", "CCD 1",                                        // AMD CCD fallback
-                    "CCDs Max", "CCDs Average",                             // AMD multi-CCD
-                    "CPU", "SoC", "Socket");                                // Generic fallbacks
+                var cpuLoad = GetSensorValue(hardware, SensorType.Load, "CPU Total");
+
+                // CPU Temperature - apply model/vendor-aware sensor ranking.
+                // This avoids selecting low individual-core sensors on some Ryzen systems.
+                var cpuTemp = GetBestCpuTemperature(hardware, cpuLoad);
                 
                 // v2.8.6: Safety net for Intel Core Ultra / Arrow Lake CPUs where the
                 // primary sensor returns 0 after initial readings.  When we had a valid
@@ -910,8 +902,7 @@ class Program
                 // Always update temperature, even if 0 (indicates sensor failure/unavailable)
                 // This prevents stuck readings when sensors become temporarily unavailable
                 sample.CpuTemperature = cpuTemp;
-                
-                var cpuLoad = GetSensorValue(hardware, SensorType.Load, "CPU Total");
+
                 // Always assign load - 0 is a valid idle reading
                 sample.CpuLoad = cpuLoad;
                 
@@ -1124,6 +1115,67 @@ class Program
         // Fallback to any sensor of this type
         var fallback = hardware.Sensors.FirstOrDefault(s => s.SensorType == type);
         return fallback?.Value ?? 0;
+    }
+
+    private static double GetBestCpuTemperature(IHardware hardware, double cpuLoad)
+    {
+        var tempSensors = hardware.Sensors
+            .Where(s => s.SensorType == SensorType.Temperature && s.Value.HasValue)
+            .Select(s => new { Sensor = s, Value = (double)s.Value!.Value })
+            .Where(s => s.Value > 0 && s.Value < 120)
+            .ToList();
+
+        if (tempSensors.Count == 0)
+        {
+            return 0;
+        }
+
+        var isAmdCpu = hardware.Name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                       hardware.Name.Contains("Ryzen", StringComparison.OrdinalIgnoreCase);
+
+        // Preferred stable sources first (Intel and AMD package-level sensors).
+        var preferredByName = GetSensorValueMulti(hardware, SensorType.Temperature,
+            "CPU Package", "Package", "CPU DTS",
+            "Core (Tctl/Tdie)", "CPU (Tctl/Tdie)", "Tctl/Tdie",
+            "Tctl", "Tdie", "CCDs Max", "CCDs Average", "Core Max", "Core Average");
+
+        if (!isAmdCpu)
+        {
+            if (preferredByName > 0)
+            {
+                return preferredByName;
+            }
+
+            return tempSensors.Max(s => s.Value);
+        }
+
+        var amdAggregateCandidates = tempSensors
+            .Where(s =>
+                s.Sensor.Name.Contains("Tctl", StringComparison.OrdinalIgnoreCase) ||
+                s.Sensor.Name.Contains("Tdie", StringComparison.OrdinalIgnoreCase) ||
+                s.Sensor.Name.Contains("Package", StringComparison.OrdinalIgnoreCase) ||
+                s.Sensor.Name.Contains("CCD", StringComparison.OrdinalIgnoreCase) ||
+                s.Sensor.Name.Contains("Core Max", StringComparison.OrdinalIgnoreCase) ||
+                s.Sensor.Name.Contains("Average", StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Value)
+            .ToList();
+
+        var amdCandidate = amdAggregateCandidates.Count > 0
+            ? amdAggregateCandidates.Max()
+            : (preferredByName > 0 ? preferredByName : tempSensors.Max(s => s.Value));
+
+        // Guardrail: if selected temp is implausibly low while load is meaningful,
+        // prefer the hottest aggregate/CCD-like candidate.
+        if (cpuLoad >= 20.0 && amdCandidate < 45.0)
+        {
+            var hottest = tempSensors.Max(s => s.Value);
+            if (hottest - amdCandidate >= 10.0)
+            {
+                return hottest;
+            }
+        }
+
+        return amdCandidate;
     }
 
     /// <summary>

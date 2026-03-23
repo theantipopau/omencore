@@ -185,6 +185,42 @@ Based on [omen-fan](https://github.com/alou-S/omen-fan) documentation:
 
 ## Troubleshooting
 
+### Requesting board support (new model / board ID)
+
+If your model is not fully supported yet (for example OMEN 16-ap0xxx, board 8E35),
+open a GitHub issue and attach the diagnostics below.
+
+Required:
+
+```bash
+# 1) OmenCore diagnostic bundle
+sudo omencore-cli diagnose > omencore-diagnose.txt
+
+# 2) DMI / board info
+sudo dmidecode -t system -t baseboard > dmi-system-baseboard.txt
+
+# 3) hp-wmi and thermal nodes
+ls -R /sys/devices/platform/hp-wmi > hp-wmi-tree.txt
+ls -R /sys/class/hwmon > hwmon-tree.txt
+
+# 4) Loaded modules
+lsmod | grep -E "hp_wmi|ec_sys|wmi" > module-state.txt
+```
+
+Optional but useful for deeper support:
+
+```bash
+# ACPI tables (optional)
+sudo acpidump > acpidump.txt
+```
+
+Please include:
+- Exact laptop model string (`sudo dmidecode -s system-product-name`)
+- Board ID (from dmidecode/baseboard)
+- Kernel version (`uname -a`)
+- Distro + version
+- Which commands/features fail and their exact error text
+
 ### "Cannot access EC"
 
 ```bash

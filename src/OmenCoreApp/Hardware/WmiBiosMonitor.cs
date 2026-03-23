@@ -839,7 +839,10 @@ namespace OmenCore.Hardware
             }
 
             return model.Contains("OMEN MAX 16", StringComparison.OrdinalIgnoreCase) ||
-                   model.Contains("ah0000", StringComparison.OrdinalIgnoreCase);
+                   model.Contains("ah0000", StringComparison.OrdinalIgnoreCase) ||
+                   model.Contains("16-xd0", StringComparison.OrdinalIgnoreCase) ||
+                   model.Contains("16-ap0", StringComparison.OrdinalIgnoreCase) ||
+                   model.Contains("8E35", StringComparison.OrdinalIgnoreCase);
         }
 
         private void TryApplyPowerFallback()

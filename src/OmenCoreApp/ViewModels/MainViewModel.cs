@@ -3123,9 +3123,9 @@ namespace OmenCore.ViewModels
                             int brightness = level switch
                             {
                                 0 => 0,
-                                1 => 85,
-                                2 => 170,
-                                _ => 255
+                                1 => 33,
+                                2 => 66,
+                                _ => 100
                             };
                             await _keyboardLightingService.SetBrightness(brightness);
                             CurrentKeyboardBrightness = level;

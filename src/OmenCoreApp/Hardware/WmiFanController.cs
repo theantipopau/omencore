@@ -796,14 +796,11 @@ namespace OmenCore.Hardware
                     {
                         _logging?.Info("  Step 3: SetFanLevel(20, 20) succeeded (V1 krpm hint)");
                     }
-                    
-                    System.Threading.Thread.Sleep(50);
-                    
-                    // Step 4: Set fan levels to 0 to let BIOS take over
-                    if (_wmiBios.SetFanLevel(0, 0))
-                    {
-                        _logging?.Info("  Step 4: SetFanLevel(0, 0) succeeded (V1 release to BIOS)");
-                    }
+
+                    // Do not write explicit 0-level on V1 during reset: some firmware interprets
+                    // this as a hard stop and fans can dip to 0 RPM briefly before BIOS catches up.
+                    // We rely on SetFanMode(Default) above to restore automatic control.
+                    _logging?.Info("  Step 4: Skipped SetFanLevel(0, 0) on V1 to avoid transient 0 RPM drop; BIOS auto mode handles release");
                 }
                 else
                 {
