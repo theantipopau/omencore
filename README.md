@@ -43,12 +43,9 @@
 
 ### Windows
 
-```bash
-# Option 1: Installer (Recommended)
-1. Download OmenCoreSetup-3.2.1.exe from Releases
+1. Download `OmenCoreSetup-3.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
 2. Run as Administrator
-3. Launch from Start Menu
-```
+3. Launch OmenCore from the Start Menu
 
 → **[Full Installation Guide](INSTALL.md#-windows-installation)**
 
@@ -73,55 +70,49 @@ sudo ./omencore-gui
 
 ## 🔥 **What's New in v3.2.1**
 
-### **Stability & Performance Enhancements**
+v3.2.1 is a major hotfix rollup focused on reliability, telemetry accuracy, and UI polish.
 
-- **Dashboard Layout** — Stale banner no longer overlaps quick-status cards
-- **Telemetry State Coverage** — Dashboard now displays Stale _and_ Degraded banners
-- **Fan Safety** — 0% duty cycle automatically remapped to minimum threshold (prevents stalling)
-- **Adaptive Polling** — Hardware worker gracefully backs off after transient errors
-- **Temp Watchdog** — Detects frozen CPU temps (>90s unchanged) and forces re-probe
+### Reliability and telemetry
 
-### **Fan Preset Management**
+- Reduced false thermal alerts with stronger sensor sanity and persistence checks
+- Improved sleep/resume monitoring recovery behavior and fan-state reapplication
+- Hardened CPU temperature source fallback logic to prevent 32C/70C source oscillation on affected sessions
+- Reduced fallback log noise for portable mode and CIM to legacy WMI transitions
 
-- Custom fan curves can be **named and saved** as presets (Avalonia/Linux)
-- Collision-safe naming with timestamp suffixes
-- Presets load instantly without restart
+### Fan and power behavior
 
-### **Linux RGB Detection**
+- Improved fan safety around mode transitions and low-duty edge cases
+- Better handling of transient AC/battery state glitches in automation paths
+- Improved fan diagnostic scoring for Victus-class hardware characteristics
 
-- Automatic sysfs probing (`/sys/class/leds/`, `hp-wmi`) at startup
-- Eliminates false "RGB unavailable" messages on supported OMEN Max 16
+### UX polish
 
-### **Cross-Platform Settings**
+- Hotkey OSD visual upgrades with configurable duration, size, accent themes, and compact mode
+- Premium surface styling pass across key dashboard and fan-control areas
 
-- Avalonia settings now persist to `settings.desktop.json`
-- GitHub Releases integration for real auto-update checks
-
-### **Community Reports Fixed**
-
-| Report | Resolution |
-|--------|-----------|
-| Fan hits 0% during cool-down | Fixed with 0% safety remapping |
-| CPU temp freezes on OMEN 17-ck1xxx | Fixed with watchdog daemon |
-| Preset selector empty after restart | Fixed with persistence |
-| Linux RGB returns "unavailable" | Fixed with sysfs probing |
-| Dashboard stale banner overlap | Fixed with grid row correction |
-
-→ **[Full Changelog & Root Causes](docs/CHANGELOG_v3.2.1.md)**
+→ **[Full Changelog](docs/CHANGELOG_v3.2.1.md)**
 
 ---
 
 ## 📦 **Downloads & Artifacts**
 
-**Version:** v3.2.1 | **Build Date:** 2026-03-19 | **Status:** Release Candidate (RC1)
+**Version:** v3.2.1 | **Build Date:** 2026-03-24 | **Status:** Released
 
 | Download | Platform | Details |
 |----------|----------|---------|
-| **OmenCoreSetup-3.2.0.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
-| **OmenCore-3.2.0-win-x64.zip** | Windows | Portable — Extract & run, no installation |
-| **OmenCore-3.2.0-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
+| **OmenCoreSetup-3.2.1.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
+| **OmenCore-3.2.1-win-x64.zip** | Windows | Portable — Extract and run, no installation |
+| **OmenCore-3.2.1-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
 
-> 🔐 **Security:** SHA256 hashes are published on the [Releases page](https://github.com/theantipopau/omencore/releases/tag/v3.2.0) and verified by the auto-updater.
+### SHA256
+
+```text
+3EB2BCC82A001FA408AF79031C74F8813F1E6F56429F323E5BDC4F97525FD907  OmenCoreSetup-3.2.1.exe
+ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695  OmenCore-3.2.1-win-x64.zip
+344EA6C5BD4394B574939F2693B9842E6720475A6805357A058E68B4286FC1BA  OmenCore-3.2.1-linux-x64.zip
+```
+
+> Security: release hashes are also published on the [v3.2.1 release page](https://github.com/theantipopau/omencore/releases/tag/v3.2.1).
 
 ---
 
@@ -265,7 +256,7 @@ OmenCore/
 ├── installer/                    # Inno Setup script
 ├── config/                       # default_config.json
 ├── docs/                         # Changelogs, audit reports, guides
-└── VERSION.txt                   # Current: 3.2.0
+└── VERSION.txt                   # Current: 3.2.1
 ```
 
 **Principles:** Safety-first EC write allowlist · Async by default · Telemetry change-detection (0.5°/0.5%) · Graceful per-service degradation · Out-of-process crash isolation
@@ -297,7 +288,7 @@ cd src\OmenCoreApp\bin\Release\net8.0-windows10.0.19041.0
 
 ```powershell
 pwsh ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
-# Outputs: artifacts/OmenCoreSetup-3.2.0.exe  and  artifacts/OmenCore-3.2.0-win-x64.zip
+# Outputs: artifacts/OmenCoreSetup-3.2.1.exe and artifacts/OmenCore-3.2.1-win-x64.zip
 ```
 
 ### Tests
@@ -339,6 +330,7 @@ Detailed logs are in `%LOCALAPPDATA%\OmenCore\`. On Linux, use `sudo omencore-cl
 
 | Version | Key Changes |
 |---------|------------|
+| **v3.2.1** | 23-fix hotfix rollup: telemetry hardening, OSD/premium UI polish, portable log hygiene, CPU temp oscillation guard |
 | **v3.2.0** | Dashboard row fix, fan 0% safety, frozen temp watchdog, Avalonia preset save, Linux RGB detection |
 | **v3.1.1** | CPU temp regression (17-ck1xxx), fan 0-RPM guard, worker crash on GPU driver install, PE header validation |
 | **v3.1.0** | Telemetry state model, sleep/suspend fan hardening (#77), OMEN MAX 16 CPU temp override (#78) |
@@ -358,7 +350,7 @@ Older release notes: [docs/](docs/)
 - [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) — Antivirus false positive handling
 - [docs/DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md) — Windows Defender exclusion steps
 - [docs/WINRING0_SETUP.md](docs/WINRING0_SETUP.md) — WinRing0 driver setup
-- [docs/CHANGELOG_v3.2.0.md](docs/CHANGELOG_v3.2.0.md) — Current release notes
+- [docs/CHANGELOG_v3.2.1.md](docs/CHANGELOG_v3.2.1.md) — Current release notes
 
 ---
 
