@@ -6,6 +6,7 @@
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $root
 $publishRoot = Join-Path $root "publish"
 $publishDir = Join-Path $publishRoot $Runtime
 $artifactsDir = Join-Path $root "artifacts"
@@ -59,6 +60,9 @@ $publishArgs = @(
 Write-Host "Building self-contained single-file executable with embedded .NET runtime..." -ForegroundColor Yellow
 
 & dotnet publish @publishArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "App publish failed with exit code $LASTEXITCODE"
+}
 
 # Build and publish the hardware worker (out-of-process monitoring for crash isolation)
 Write-Host "Building hardware worker process..." -ForegroundColor Yellow
@@ -72,6 +76,9 @@ $workerPublishArgs = @(
     "-o", $publishDir
 )
 & dotnet publish @workerPublishArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "Hardware worker publish failed with exit code $LASTEXITCODE"
+}
 Write-Host "Hardware worker built successfully" -ForegroundColor Green
 
 # Build Avalonia GUI for Linux platforms
@@ -91,6 +98,9 @@ if ($Runtime -like "linux*") {
             "-o", $publishDir
         )
         & dotnet publish @guiPublishArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Avalonia GUI publish failed with exit code $LASTEXITCODE"
+        }
         Write-Host "Avalonia GUI built successfully" -ForegroundColor Green
     } else {
         Write-Host "Avalonia GUI project not found at $guiProject - skipping GUI build" -ForegroundColor Yellow
@@ -127,6 +137,9 @@ if (-not $iscc) {
 $installer = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (Test-Path $installer) { Remove-Item $installer -Force }
 & $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version"
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup compile failed with exit code $LASTEXITCODE"
+}
 $generated = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (-not (Test-Path $generated)) {
     throw "Inno Setup compiler did not produce the expected output at $generated"

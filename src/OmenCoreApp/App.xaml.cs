@@ -473,7 +473,14 @@ namespace OmenCore
                 var workerPath = ResolveHardwareWorkerPath();
                 if (string.IsNullOrEmpty(workerPath) || !File.Exists(workerPath))
                 {
-                    Logging.Warn("Hardware worker bootstrap skipped: OmenCore.HardwareWorker.exe not found");
+                    if (IsLikelyPortableRuntime())
+                    {
+                        Logging.Info("Hardware worker bootstrap skipped in portable mode: OmenCore.HardwareWorker.exe not found");
+                    }
+                    else
+                    {
+                        Logging.Warn("Hardware worker bootstrap skipped: OmenCore.HardwareWorker.exe not found");
+                    }
                     return;
                 }
 
@@ -524,6 +531,48 @@ namespace OmenCore
             }
 
             return null;
+        }
+
+        private static bool IsLikelyPortableRuntime()
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OmenCore");
+                if (key != null)
+                {
+                    return false;
+                }
+
+                using var keyUser = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OmenCore");
+                if (keyUser != null)
+                {
+                    return false;
+                }
+
+                var baseDir = AppContext.BaseDirectory;
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+                if (!string.IsNullOrEmpty(baseDir) &&
+                    (baseDir.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) ||
+                     baseDir.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return false;
+                }
+
+                if (!string.IsNullOrEmpty(baseDir) &&
+                    (File.Exists(Path.Combine(baseDir, "unins000.exe")) ||
+                     File.Exists(Path.Combine(baseDir, "Uninstall.exe"))))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         private static IEnumerable<string> EnumerateHardwareWorkerCandidates(string appDir)

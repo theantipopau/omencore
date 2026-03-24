@@ -1,6 +1,6 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "3.0.2"
+  #define MyAppVersion "3.2.1"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
@@ -41,7 +41,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "startmenu"; Description: "Create Start Menu shortcut"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "installpawnio"; Description: "Install PawnIO driver (RECOMMENDED - enables MSR, EC access, Secure Boot compatible)"; GroupDescription: "Hardware Drivers:"
+Name: "installpawnio"; Description: "Install PawnIO Driver (Recommended - Secure Boot compatible; enables MSR/EC access)"; GroupDescription: "Hardware Drivers:"
 Name: "autostart"; Description: "Start OmenCore with Windows"; GroupDescription: "Startup Options:"; Flags: unchecked
 
 [Files]
@@ -136,4 +136,4 @@ begin
 end;
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%n🎮 OmenCore - Complete OMEN Control Suite%n%n✓ FAN CONTROL - Custom curves, visual editor%n✓ MONITORING - CPU/GPU temps, fan RPM%n✓ POWER - Undervolting, Dynamic Boost%n✓ RGB - Keyboard lighting control%n✓ PROFILES - Auto-switch with games%n%nReplaces HP OMEN Gaming Hub.%n%nClick Next to continue.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nOmenCore is a premium control suite for HP OMEN and Victus systems.%n%nKey capabilities:%n- Advanced fan control with custom curve editor%n- Real-time CPU/GPU monitoring with health recovery%n- Performance and power profiles%n- Keyboard/RGB controls%n- Game-aware automation profiles%n%nClick Next to continue.

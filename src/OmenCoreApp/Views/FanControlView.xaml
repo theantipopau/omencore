@@ -79,7 +79,7 @@
         </Border>
 
         <!-- Fan Profile Selection - Redesigned -->
-        <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,16">
+        <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,0,16">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -441,7 +441,7 @@
                 
                 <!-- Single Curve Editor (when IndependentCurvesEnabled = false) -->
                 <Border Grid.Row="0" 
-                        Style="{StaticResource SurfaceCard}" 
+                        Style="{StaticResource PremiumPanelCardAnimated}" 
                         Padding="20"
                         Visibility="{Binding IndependentCurvesEnabled, Converter={StaticResource InverseBoolToVisibility}}">
                     <Grid>
@@ -608,7 +608,7 @@
                     </Grid.RowDefinitions>
                     
                     <!-- CPU Fan Curve Editor -->
-                    <Border Grid.Row="0" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8">
+                    <Border Grid.Row="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16" Margin="0,0,0,8">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -676,7 +676,7 @@
                     </Border>
                     
                     <!-- GPU Fan Curve Editor -->
-                    <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,8,0,0">
+                    <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16" Margin="0,8,0,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -760,7 +760,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Thermal Chart -->
-                <Border Grid.Row="0" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,8">
+                <Border Grid.Row="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16" Margin="0,0,0,8">
                     <StackPanel>
                         <TextBlock Text="TEMPERATURE HISTORY" 
                                    Style="{StaticResource Label}" 
@@ -771,7 +771,7 @@
                 </Border>
 
                 <!-- Fan Telemetry -->
-                <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,8,0,0">
+                <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16" Margin="0,8,0,0">
                     <StackPanel>
                         <TextBlock Text="REAL-TIME STATUS" 
                                    Style="{StaticResource Label}" 

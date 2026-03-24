@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Win32;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Models;
@@ -60,9 +61,12 @@ namespace OmenCore.Hardware
         private double _lastCpuTempReading;
         private int _consecutiveIdenticalCpuTempReads;
         private double _lastValidCpuTempBeforeFreeze;
-        private const int MaxConsecutiveIdenticalTempReads = 12; // Faster freeze recovery in steady-state polling
+        private const int MaxConsecutiveIdenticalTempReads = 20;
+        private const int IdleConsecutiveIdenticalTempReads = 40;
+        private const int FreezeWarnCooldownSeconds = 60;
         private bool _cpuTempFrozen;
         private DateTime _cpuTempFrozeAt = DateTime.MinValue;
+        private DateTime _lastCpuFreezeWarnAt = DateTime.MinValue;
         private bool _cpuTempFallbackLogged;
         private bool _modelCpuTempPreferenceLogged;
         private LibreHardwareMonitorImpl? _tempFallbackMonitor;
@@ -70,7 +74,10 @@ namespace OmenCore.Hardware
         private bool _lhmFallbackDisabledLogged;
         private const double ImplausiblyLowCpuTempThresholdC = 33.0;
         private const double CpuLoadThresholdForLowTempFallbackPercent = 20.0;
+        private const double CpuPowerThresholdForLowTempFallbackWatts = 20.0;
+        private const int CpuFallbackHoldSeconds = 120;
         private const double MaxAcpiDeltaFromWmiC = 18.0;
+        private DateTime _cpuFallbackHoldUntilUtc = DateTime.MinValue;
         
         // GPU temperature freeze detection (similar to CPU temp)
         private double _lastGpuTempReading;
@@ -78,6 +85,7 @@ namespace OmenCore.Hardware
         private double _lastValidGpuTempBeforeFreeze;
         private bool _gpuTempFrozen;
         private DateTime _gpuTempFrozeAt = DateTime.MinValue;
+        private DateTime _lastGpuFreezeWarnAt = DateTime.MinValue;
         private int _consecutiveGpuInactiveReads;
         private bool _gpuInactive;
         
@@ -302,17 +310,29 @@ namespace OmenCore.Hardware
                     if (temps.HasValue)
                     {
                         var (cpuTemp, gpuTemp) = temps.Value;
+                        var cpuFreezeThreshold = (_cachedCpuLoad < 20 && _cachedCpuPowerWatts <= 15)
+                            ? IdleConsecutiveIdenticalTempReads
+                            : MaxConsecutiveIdenticalTempReads;
+                        var gpuFreezeThreshold = _cachedGpuLoad < 10
+                            ? IdleConsecutiveIdenticalTempReads
+                            : MaxConsecutiveIdenticalTempReads;
+
                         if (cpuTemp > 0)
                         {
                             // Detect CPU temperature freeze (AMD WMI sensor sometimes stops updating)
                             if (Math.Abs(cpuTemp - _lastCpuTempReading) < 0.1) // Same temp (within 0.1°C)
                             {
                                 _consecutiveIdenticalCpuTempReads++;
-                                if (_consecutiveIdenticalCpuTempReads > MaxConsecutiveIdenticalTempReads && !_cpuTempFrozen)
+                                if (_consecutiveIdenticalCpuTempReads > cpuFreezeThreshold && !_cpuTempFrozen)
                                 {
-                                    _cpuTempFrozen = true;
-                                    _cpuTempFrozeAt = DateTime.UtcNow;
-                                    _logging?.Warn($"🥶 CPU temperature appears frozen at {cpuTemp:F1}°C for {_consecutiveIdenticalCpuTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                    var nowUtc = DateTime.UtcNow;
+                                    if ((nowUtc - _lastCpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
+                                    {
+                                        _cpuTempFrozen = true;
+                                        _cpuTempFrozeAt = nowUtc;
+                                        _lastCpuFreezeWarnAt = nowUtc;
+                                        _logging?.Warn($"🥶 CPU temperature appears frozen at {cpuTemp:F1}°C for {_consecutiveIdenticalCpuTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                    }
                                 }
                             }
                             else
@@ -337,11 +357,16 @@ namespace OmenCore.Hardware
                             if (Math.Abs(gpuTemp - _lastGpuTempReading) < 0.1)
                             {
                                 _consecutiveIdenticalGpuTempReads++;
-                                if (_consecutiveIdenticalGpuTempReads > MaxConsecutiveIdenticalTempReads && !_gpuTempFrozen)
+                                if (_consecutiveIdenticalGpuTempReads > gpuFreezeThreshold && !_gpuTempFrozen)
                                 {
-                                    _gpuTempFrozen = true;
-                                    _gpuTempFrozeAt = DateTime.UtcNow;
-                                    _logging?.Warn($"🥶 GPU temperature appears frozen at {gpuTemp:F1}°C for {_consecutiveIdenticalGpuTempReads} readings");
+                                    var nowUtc = DateTime.UtcNow;
+                                    if ((nowUtc - _lastGpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
+                                    {
+                                        _gpuTempFrozen = true;
+                                        _gpuTempFrozeAt = nowUtc;
+                                        _lastGpuFreezeWarnAt = nowUtc;
+                                        _logging?.Warn($"🥶 GPU temperature appears frozen at {gpuTemp:F1}°C for {_consecutiveIdenticalGpuTempReads} readings (load={_cachedGpuLoad:F0}%)");
+                                    }
                                 }
                             }
                             else
@@ -756,14 +781,16 @@ namespace OmenCore.Hardware
 
         private void TryApplyCpuTemperatureFallback()
         {
-            if (_cachedCpuTemp <= 0 && !_preferWorkerCpuTempForModel)
-            {
-                return;
-            }
-
             bool lowAndLoaded = _cachedCpuTemp <= ImplausiblyLowCpuTempThresholdC &&
                                 _cachedCpuLoad >= CpuLoadThresholdForLowTempFallbackPercent;
-            bool shouldFallback = _preferWorkerCpuTempForModel || _cpuTempFrozen || lowAndLoaded;
+            bool lowAndHighPower = _cachedCpuTemp <= ImplausiblyLowCpuTempThresholdC &&
+                                   _cachedCpuPowerWatts >= CpuPowerThresholdForLowTempFallbackWatts;
+            bool fallbackHoldActive = DateTime.UtcNow < _cpuFallbackHoldUntilUtc;
+            bool shouldFallback = _preferWorkerCpuTempForModel ||
+                                  _cpuTempFrozen ||
+                                  lowAndLoaded ||
+                                  lowAndHighPower ||
+                                  fallbackHoldActive;
 
             if (!shouldFallback)
             {
@@ -790,6 +817,11 @@ namespace OmenCore.Hardware
                         double previous = _cachedCpuTemp;
                         _cachedCpuTemp = fallbackCpuTemp;
                         _lastCpuTempReading = fallbackCpuTemp;
+
+                        if (lowAndLoaded || lowAndHighPower || _cpuTempFrozen)
+                        {
+                            _cpuFallbackHoldUntilUtc = DateTime.UtcNow.AddSeconds(CpuFallbackHoldSeconds);
+                        }
 
                         if (_preferWorkerCpuTempForModel && !_modelCpuTempPreferenceLogged)
                         {
@@ -1038,7 +1070,14 @@ namespace OmenCore.Hardware
                 var workerPath = ResolveWorkerExecutablePath();
                 if (string.IsNullOrEmpty(workerPath) || !File.Exists(workerPath))
                 {
-                    _logging?.Warn("[WmiBiosMonitor] Hardware worker prelaunch skipped: OmenCore.HardwareWorker.exe not found in expected paths");
+                    if (IsLikelyPortableRuntime())
+                    {
+                        _logging?.Info("[WmiBiosMonitor] Hardware worker prelaunch skipped in portable mode: OmenCore.HardwareWorker.exe not found in expected paths");
+                    }
+                    else
+                    {
+                        _logging?.Warn("[WmiBiosMonitor] Hardware worker prelaunch skipped: OmenCore.HardwareWorker.exe not found in expected paths");
+                    }
                     return;
                 }
 
@@ -1101,6 +1140,48 @@ namespace OmenCore.Hardware
             }
 
             return null;
+        }
+
+        private static bool IsLikelyPortableRuntime()
+        {
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OmenCore");
+                if (key != null)
+                {
+                    return false;
+                }
+
+                using var keyUser = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OmenCore");
+                if (keyUser != null)
+                {
+                    return false;
+                }
+
+                var baseDir = AppContext.BaseDirectory;
+                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+                if (!string.IsNullOrEmpty(baseDir) &&
+                    (baseDir.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) ||
+                     baseDir.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return false;
+                }
+
+                if (!string.IsNullOrEmpty(baseDir) &&
+                    (File.Exists(Path.Combine(baseDir, "unins000.exe")) ||
+                     File.Exists(Path.Combine(baseDir, "Uninstall.exe"))))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         private static IEnumerable<string> EnumerateWorkerExecutableCandidates(string appDir)

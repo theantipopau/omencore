@@ -120,7 +120,7 @@
         </Border>
 
         <!-- Quick Status Bar (v2.2) -->
-        <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="16,12" Margin="0,0,0,12">
+        <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16,12" Margin="0,0,0,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -190,7 +190,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- CPU Card -->
-            <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="0,0,10,0"
+            <Border Grid.Column="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="0,0,10,0"
                     ToolTip="CPU temperature and utilization. Green = OK, Yellow = Warm, Orange = Hot, Red = Critical">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -229,7 +229,7 @@
             </Border>
 
             <!-- GPU Card -->
-            <Border Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+            <Border Grid.Column="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="5,0"
                     ToolTip="GPU temperature, load, and VRAM usage. GPUs can safely run hotter than CPUs.">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -268,7 +268,7 @@
             </Border>
 
             <!-- Memory Card -->
-            <Border Grid.Column="2" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+            <Border Grid.Column="2" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="5,0"
                     ToolTip="System RAM usage. High usage may cause slowdowns - consider closing unused applications.">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -307,7 +307,7 @@
             </Border>
 
             <!-- Storage Card (hidden when SSD data unavailable) -->
-            <Border Grid.Column="3" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+            <Border Grid.Column="3" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="5,0"
                     ToolTip="SSD temperature and disk activity. Optimal SSD temp is below 45°C."
                     Visibility="{Binding IsSsdDataAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
@@ -337,7 +337,7 @@
             </Border>
             
             <!-- Battery Card -->
-            <Border Grid.Column="4" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+            <Border Grid.Column="4" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="5,0"
                     ToolTip="Battery charge level and power status. Keep battery between 20-80% for longevity.">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -366,7 +366,7 @@
             </Border>
             
             <!-- Power Consumption Card -->
-            <Border Grid.Column="5" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="5,0"
+            <Border Grid.Column="5" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="5,0"
                     ToolTip="System power consumption from CPU and GPU. Higher values indicate more intensive workloads.">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -395,7 +395,7 @@
             </Border>
             
             <!-- Fan Curve Card -->
-            <Border Grid.Column="6" Style="{StaticResource SurfaceCard}" Padding="18,16" Margin="10,0,0,0"
+            <Border Grid.Column="6" Style="{StaticResource PremiumPanelCardAnimated}" Padding="18,16" Margin="10,0,0,0"
                     ToolTip="Live fan curve showing temperature vs fan speed relationship.">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -448,7 +448,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- CPU Temperature Chart -->
-            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,10,10">
+            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,10,10">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -467,7 +467,7 @@
             </Border>
 
             <!-- GPU Temperature Chart -->
-            <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="10,0,0,10">
+            <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="10,0,0,10">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -486,7 +486,7 @@
             </Border>
 
             <!-- CPU/GPU Load Chart -->
-            <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,10,10,0">
+            <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,10,10,0">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -525,7 +525,7 @@
             </Border>
 
             <!-- CPU Clock Details -->
-            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="10,10,0,0">
+            <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="10,10,0,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                         <Path Data="{StaticResource IconPerformance}" Width="16" Height="16" 
@@ -542,7 +542,7 @@
             </Border>
 
             <!-- GPU Voltage/Current Chart -->
-            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,10,10,0">
+            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,10,10,0">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -580,7 +580,7 @@
             </Border>
 
             <!-- Fan Curve Chart -->
-            <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="10,10,0,0">
+            <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="10,10,0,0">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -621,7 +621,7 @@
 
         <!-- Low Overhead Message -->
         <Border Grid.Row="5" 
-                Style="{StaticResource SurfaceCard}" 
+                Style="{StaticResource PremiumPanelCardAnimated}" 
                 Padding="48" 
                 Visibility="{Binding MonitoringLowOverheadMode, Converter={StaticResource BooleanToVisibilityConverter}}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">

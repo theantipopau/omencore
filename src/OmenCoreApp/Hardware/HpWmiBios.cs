@@ -38,6 +38,8 @@ namespace OmenCore.Hardware
         
         // Legacy WMI fallback for BIOS F.15+
         private bool _useLegacyWmi = false;
+        private static int _legacyFallbackTransitionLogged;
+        private static int _legacyFallbackSuccessLogged;
         
         // Error throttling to reduce log spam
         private DateTime _lastErrorLog = DateTime.MinValue;
@@ -1614,8 +1616,16 @@ namespace OmenCore.Hardware
             }
             catch (CimException ex)
             {
-                // Log detailed CIM error for debugging BIOS F.15+ compatibility issues
-                LogThrottledError($"CIM command failed: {ex.Message} (NativeErrorCode: {ex.NativeErrorCode}, StatusCode: {ex.StatusCode})");
+                // Log CIM failure once prominently, then keep subsequent entries at debug level.
+                var cimError = $"CIM command failed: {ex.Message} (NativeErrorCode: {ex.NativeErrorCode}, StatusCode: {ex.StatusCode})";
+                if (_useLegacyWmi || Interlocked.CompareExchange(ref _legacyFallbackTransitionLogged, 1, 0) == 1)
+                {
+                    _logging?.Debug(cimError);
+                }
+                else
+                {
+                    LogThrottledError(cimError);
+                }
                 _consecutiveFailures++;
                 TrackCommandResult(false);
             }
@@ -1636,14 +1646,20 @@ namespace OmenCore.Hardware
             // Try legacy WMI as fallback for BIOS F.15+ compatibility
             if (!_useLegacyWmi)
             {
-                _logging?.Info("CIM failed, trying legacy System.Management WMI...");
+                if (Interlocked.CompareExchange(ref _legacyFallbackTransitionLogged, 1, 0) == 0)
+                {
+                    _logging?.Info("CIM failed, trying legacy System.Management WMI...");
+                }
                 var legacyResult = SendBiosCommandLegacy(command, commandType, inData, outDataSize);
                 if (legacyResult != null)
                 {
                     _useLegacyWmi = true; // Use legacy from now on
                     _wmiCommandsDisabled = false;
                     _consecutiveFailures = 0;
-                    _logging?.Info("✓ Legacy WMI fallback successful - switching to legacy mode");
+                    if (Interlocked.CompareExchange(ref _legacyFallbackSuccessLogged, 1, 0) == 0)
+                    {
+                        _logging?.Info("✓ Legacy WMI fallback successful - switching to legacy mode");
+                    }
                     return legacyResult;
                 }
             }

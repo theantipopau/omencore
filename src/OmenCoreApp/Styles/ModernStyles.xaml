@@ -416,6 +416,34 @@
         <Setter Property="BorderBrush" Value="#AA45C7FF"/>
     </Style>
 
+    <!-- Premium card with subtle entry transition for high-visibility sections -->
+    <Style x:Key="PremiumPanelCardAnimated" TargetType="Border" BasedOn="{StaticResource PremiumPanelCard}">
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <TranslateTransform Y="8"/>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.22">
+                            <DoubleAnimation.EasingFunction>
+                                <QuadraticEase EasingMode="EaseOut"/>
+                            </DoubleAnimation.EasingFunction>
+                        </DoubleAnimation>
+                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="8" To="0" Duration="0:0:0.22">
+                            <DoubleAnimation.EasingFunction>
+                                <QuadraticEase EasingMode="EaseOut"/>
+                            </DoubleAnimation.EasingFunction>
+                        </DoubleAnimation>
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Typography -->
     <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, "Segoe UI", Arial</FontFamily>
     <FontFamily x:Key="MonospaceFontFamily">Cascadia Mono, Consolas, "Courier New", monospace</FontFamily>

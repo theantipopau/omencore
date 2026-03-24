@@ -1,7 +1,7 @@
 # OmenCore v3.2.1 - Hotfix Rollup
 
-**Release Date:** 2026-03-21
-**Release Status:** In Progress
+**Release Date:** 2026-03-24
+**Release Status:** Released
 **Type:** Hotfix release
 **Base Version:** v3.2.0
 
@@ -224,10 +224,43 @@ v3.2.1 is a rolling hotfix release for post-v3.2.0 regressions reported by users
 - **Files:** src/OmenCoreApp/Models/AppConfig.cs, src/OmenCoreApp/ViewModels/SettingsViewModel.cs, src/OmenCoreApp/Views/SettingsView.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml, src/OmenCoreApp/Views/HotkeyOsdWindow.xaml.cs, src/OmenCoreApp/ViewModels/MainViewModel.cs, src/OmenCoreApp/Views/MainWindow.xaml, src/OmenCoreApp/Styles/ModernStyles.xaml
 - **Status:** Fixed
 
+### 22. Startup and Telemetry Log Hygiene (Portable Mode + Sensor Freeze Noise)
+- **Issue:** Test builds in portable mode produced noisy warnings that looked like failures even when the app was healthy:
+  - Hardware worker bootstrap/prelaunch logged warnings when `OmenCore.HardwareWorker.exe` was not present in portable test layouts.
+  - CIM-to-legacy WMI fallback transitions could repeat noisy warning/info sequences on BIOS versions where legacy mode is expected.
+  - CPU/GPU freeze warnings could trigger too aggressively during stable/idle thermal periods.
+- **Root Cause:** Logging severity and thresholds were tuned for strict diagnostics, not for portable validation runs and long idle stability windows.
+- **Fix Deployed:**
+  - Added portable-runtime detection to bootstrap/prelaunch paths; missing worker executable now logs as informational in portable mode.
+  - Deduplicated CIM fallback transition messaging in `HpWmiBios`; repeated CIM failures after legacy activation are downgraded to debug-level noise.
+  - Added idle-aware freeze thresholds and warning cooldown in `WmiBiosMonitor` to reduce false-positive/storm-style freeze warnings.
+- **Files:** src/OmenCoreApp/App.xaml.cs, src/OmenCoreApp/Hardware/WmiBiosMonitor.cs, src/OmenCoreApp/Hardware/HpWmiBios.cs
+- **Status:** Fixed
+
+### 23. CPU Temperature Oscillation Guard (32C <-> 70C Bounce Under Portable Test)
+- **Issue:** On some OMEN 17-ck2xxx sessions, CPU temperature could oscillate between an implausibly low reading (~31-32C) and realistic load values (~60-70C), while OMEN Gaming Hub remained steady.
+- **Root Cause:** CPU temp fallback activation relied mostly on load-based low-temp checks. During low-load/high-power windows, fallback could engage briefly and then release, allowing monitor source bounce between low WMI/ACPI samples and worker-backed temperatures.
+- **Fix Deployed:**
+  - Added additional low-temp anomaly trigger using CPU package power (low temp + high power).
+  - Added a stabilization hold window after anomaly/freeze fallback, keeping worker-backed CPU temperature active long enough to avoid source ping-pong.
+- **File:** src/OmenCoreApp/Hardware/WmiBiosMonitor.cs
+- **Status:** Fixed
+
+---
+
+## Release Artifacts (SHA256)
+
+- `OmenCoreSetup-3.2.1.exe`  
+  `3EB2BCC82A001FA408AF79031C74F8813F1E6F56429F323E5BDC4F97525FD907`
+- `OmenCore-3.2.1-win-x64.zip`  
+  `ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695`
+- `OmenCore-3.2.1-linux-x64.zip`  
+  `344EA6C5BD4394B574939F2693B9842E6720475A6805357A058E68B4286FC1BA`
+
 ---
 
 ## Notes
 
 - This is a rolling changelog. Additional v3.2.1 fixes will be appended as new reports are addressed.
-- Per maintainer workflow, build/package steps are deferred until explicitly requested.
+- Release packaging completed for Windows installer and Linux x64 ZIP with checksums recorded above.
 - Feature request: reverse fan spin (dust-clean mode) requires model/firmware support. No universal WMI method is currently confirmed across OMEN/Victus; implement only on explicitly supported models after capability detection and safety validation.
