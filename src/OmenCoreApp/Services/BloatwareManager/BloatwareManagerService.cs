@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Text.RegularExpressions;
 using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text.Json;
@@ -397,24 +398,11 @@ namespace OmenCore.Services.BloatwareManager
         {
             if (string.IsNullOrEmpty(app.UninstallCommand)) return false;
 
-            // Parse uninstall command
-            var cmd = app.UninstallCommand;
-            var args = "";
-
-            if (cmd.Contains("msiexec", StringComparison.OrdinalIgnoreCase))
+            var (cmd, args) = ParseWin32UninstallCommand(app.UninstallCommand);
+            if (string.IsNullOrWhiteSpace(cmd))
             {
-                // Add silent flags for MSI
-                args = cmd.Replace("msiexec.exe", "").Trim() + " /qn /norestart";
-                cmd = "msiexec.exe";
-            }
-            else if (cmd.StartsWith("\""))
-            {
-                var endQuote = cmd.IndexOf("\"", 1);
-                if (endQuote > 0)
-                {
-                    args = cmd[(endQuote + 1)..].Trim() + " /S /silent /quiet";
-                    cmd = cmd[1..endQuote];
-                }
+                _logger.Warn($"Could not parse Win32 uninstall command for {app.Name}: {app.UninstallCommand}");
+                return false;
             }
 
             var psi = new ProcessStartInfo
@@ -433,16 +421,131 @@ namespace OmenCore.Services.BloatwareManager
                 await process.WaitForExitAsync();
                 if (process.ExitCode != 0)
                 {
-                    _logger.Warn($"Win32 uninstaller for {app.Name} exited with code {process.ExitCode} (may still have succeeded)");
+                    _logger.Warn($"Win32 uninstaller for {app.Name} exited with code {process.ExitCode}; verifying actual removal state");
                 }
-                // Win32 uninstallers use inconsistent exit codes; treat as success
-                // unless the process could not be started at all.
-                return true;
+
+                var removed = await VerifyWin32AppRemovedAsync(app);
+                if (!removed)
+                {
+                    _logger.Warn($"Win32 app still detected after uninstall attempt: {app.Name}");
+                }
+
+                return removed;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.Warn($"Win32 uninstall failed for {app.Name}: {ex.Message}");
                 return false;
             }
+        }
+
+        private (string fileName, string arguments) ParseWin32UninstallCommand(string uninstallCommand)
+        {
+            var command = uninstallCommand.Trim();
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                return (string.Empty, string.Empty);
+            }
+
+            if (command.Contains("msiexec", StringComparison.OrdinalIgnoreCase))
+            {
+                var args = Regex.Replace(command, "(?i)^\s*\"?msiexec(?:\\.exe)?\"?", string.Empty).Trim();
+                args = Regex.Replace(args, "(?i)(^|\s)/i(?=\s|\{)", "$1/X");
+
+                if (!Regex.IsMatch(args, "(?i)(^|\s)/(quiet|qn|passive)(\s|$)"))
+                {
+                    args += " /qn /norestart";
+                }
+
+                return ("msiexec.exe", args.Trim());
+            }
+
+            if (command.StartsWith("\"", StringComparison.Ordinal))
+            {
+                var endQuote = command.IndexOf("\"", 1);
+                if (endQuote > 0)
+                {
+                    var fileName = command[1..endQuote];
+                    var args = command[(endQuote + 1)..].Trim();
+                    return (fileName, AppendSilentFlags(args));
+                }
+            }
+
+            var exeIndex = command.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+            if (exeIndex >= 0)
+            {
+                var fileName = command[..(exeIndex + 4)].Trim();
+                var args = command[(exeIndex + 4)..].Trim();
+                return (fileName, AppendSilentFlags(args));
+            }
+
+            return (command, string.Empty);
+        }
+
+        private static string AppendSilentFlags(string args)
+        {
+            if (Regex.IsMatch(args, "(?i)(^|\s)/(s|silent|quiet|verysilent)(\s|$)"))
+            {
+                return args;
+            }
+
+            return string.IsNullOrWhiteSpace(args)
+                ? "/S /silent /quiet"
+                : args + " /S /silent /quiet";
+        }
+
+        private async Task<bool> VerifyWin32AppRemovedAsync(BloatwareApp app)
+        {
+            const int maxChecks = 6;
+
+            for (var attempt = 1; attempt <= maxChecks; attempt++)
+            {
+                if (!IsWin32AppStillInstalled(app))
+                {
+                    return true;
+                }
+
+                await Task.Delay(2000);
+            }
+
+            return false;
+        }
+
+        private bool IsWin32AppStillInstalled(BloatwareApp app)
+        {
+            var uninstallKeys = new[]
+            {
+                (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.LocalMachine, @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.CurrentUser, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
+            };
+
+            foreach (var (hive, keyPath) in uninstallKeys)
+            {
+                using var key = hive.OpenSubKey(keyPath);
+                if (key == null)
+                {
+                    continue;
+                }
+
+                foreach (var subKeyName in key.GetSubKeyNames())
+                {
+                    using var subKey = key.OpenSubKey(subKeyName);
+                    if (subKey == null)
+                    {
+                        continue;
+                    }
+
+                    var displayName = subKey.GetValue("DisplayName")?.ToString();
+                    if (string.Equals(subKeyName, app.PackageId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(displayName, app.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private Task<bool> RemoveStartupItemAsync(BloatwareApp app)

@@ -24,12 +24,12 @@ This changelog uses a split format:
 ### 1. Performance Mode Buttons Reordered (Quiet → Balanced → Perform)
 - **Change:** Performance mode button order in Quick Access and the main window now reads left-to-right as Quiet → Balanced → Perform, matching the natural low-to-high intensity progression users expect.
 - **Previously:** Order was Balanced → Perform → Quiet (arbitrary/non-intuitive).
-- **Status:** Pending implementation
+- **Status:** ✅ Fixed
 
 ### 2. OMEN-Tab Fan Curve Mode in Quick Access
 - **Change:** Quick Access fan control now includes an additional "Custom" mode that applies the active OMEN-tab fan curve preset instead of forcing one of the three fixed modes (Auto / Max / Quiet).
 - **Benefit:** Users who tune fan curves in the main OMEN tab can now activate them directly from the tray popup without navigating to the full window.
-- **Status:** Pending implementation
+- **Status:** ✅ Fixed
 
 ### 3. Fan Control Decoupled from Performance Mode
 - **Change:** Switching performance modes (Silent/Balanced/Turbo/Fans+Power) no longer silently overwrites a manually set fan mode or fan curve.
@@ -96,6 +96,52 @@ This changelog uses a split format:
 - **Status:** ✅ Fixed
 
 ---
+
+### 8. Post-Sleep High Fan RPM Regression: Watchdog Sleep/Wake Race
+- **Issue:** After long sleep periods, the hardware watchdog could misinterpret suspend time as a frozen monitoring pipeline and force fans to 90% shortly after wake. On recovery, a race between watchdog recovery and monitoring-health recovery could leave repeated 90% writes latched until the user manually switched fan modes.
+- **Root causes:**
+  1. `HardwareWatchdogService` remained active across suspend, so a long sleep could satisfy the 90-second freeze threshold immediately after wake.
+  2. The watchdog only set `_isWatchdogArmed = false` inside an async `Task.Run`, leaving a race window where duplicate timer ticks could queue extra 90% failsafe writes.
+- **Fixes applied:**
+  - Added explicit watchdog suspend/resume handlers and wired them into `MainViewModel` system power events.
+  - On suspend: watchdog now disarms, clears freeze-breach state, and resets its heartbeat baseline.
+  - On resume: watchdog re-arms with a 120-second grace period so sensor reattachment after wake is not treated as a hard monitoring freeze.
+  - Closed the async race by setting `_failsafeActive` and `_isWatchdogArmed` before scheduling the failsafe write, preventing duplicate queued 90% writes after recovery.
+- **Files:** `HardwareWatchdogService.cs`, `MainViewModel.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 9. System Optimizer: Toggle Responsiveness and Per-Item Pending State
+- **Issue:** Optimizer toggles could appear to do nothing or flip back unexpectedly. The root cause was a UI binding race: the toggle was bound two-way, so `OptimizationItem.IsEnabled` changed before the async action ran, and `SystemOptimizerViewModel` interpreted the new value as the previous state, calling apply/revert in the wrong direction.
+- **Fixes applied:**
+  - Changed optimizer toggles to one-way state binding so the UI no longer mutates the model before the async operation starts.
+  - `SystemOptimizerView.xaml.cs` now captures the user’s intended state explicitly and snaps the visual toggle back to the last authoritative value until the apply/revert completes.
+  - `SystemOptimizerViewModel.ToggleOptimizationAsync()` now takes `desiredState` directly, so apply vs revert is based on actual user intent rather than transient bound state.
+  - Single-item toggles now use `OptimizationItem.IsApplying` instead of the full-page loading overlay.
+  - Added an inline `Applying...` indicator per toggle and disabled only the active toggle while it runs.
+  - Single-item toggles now refresh optimizer state without showing the global blocking overlay.
+- **Files:** `SystemOptimizerViewModel.cs`, `SystemOptimizerView.xaml`, `SystemOptimizerView.xaml.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 10. Bloatware Manager: Win32 Uninstall No-Op and False Success
+- **Issue:** Some Win32 removals appeared to succeed while the application remained installed. The service treated most Win32 uninstallers as success regardless of exit code and never verified whether the app actually disappeared from uninstall registry keys.
+- **Root causes:**
+  1. MSI uninstall strings such as `msiexec /I {GUID}` were preserved as `/I`, which opens modify/repair flows instead of uninstall.
+  2. Generic Win32 uninstall commands were only parsed correctly in a few cases, so unquoted `.exe` uninstallers with arguments could fail to launch cleanly.
+  3. The service returned success without any post-uninstall verification, so the UI could report removal even when the app was still present.
+- **Fixes applied:**
+  - Added robust Win32 uninstall command parsing for quoted and unquoted `.exe` uninstallers.
+  - MSI uninstall strings now rewrite `/I` to `/X` before execution so they actually uninstall.
+  - Silent flags are appended only when they are missing.
+  - Win32 uninstall now polls uninstall registry keys after execution and only reports success when the app is no longer detected.
+  - Non-zero uninstaller exit codes are no longer treated as blanket success; the final outcome is based on actual post-uninstall state.
+- **Files:** `BloatwareManagerService.cs`
+- **Status:** ✅ Fixed
+
+---
 ### [Discord - 2026-03-26] CPU Temperature Random Drops to 40°C on OMEN 17-ck1xxx
 **Reported by:** Serg (Discord)
 **System:** v3.2.1 · Windows 11 · OMEN 17-ck1xxx · Secure Boot enabled · HP background services running
@@ -121,7 +167,7 @@ This changelog uses a split format:
 
 **Reported by:** Serg (Discord) — feature request
 **Symptom:** Performance mode buttons in Quick Access show Balanced → Perform → Quiet, which feels backwards. Request: reorder to Quiet → Balanced → Perform (low to high intensity, left to right).
-**Status:** 🔧 Queued (see New Features section above, item 1)
+**Status:** ✅ Fixed
 
 ---
 
@@ -130,7 +176,7 @@ This changelog uses a split format:
 **Reported by:** Serg (Discord) — feature request
 **Symptom:** Quick Access fan section only offers Auto / Max / Quiet. Users who maintain a custom OMEN-tab fan curve have no way to activate it from the popup without opening the full window.
 **Request:** Add a "Custom" or fan-curve option that activates the current OMEN-tab preset.
-**Status:** 🔧 Queued (see New Features section above, item 2)
+**Status:** ✅ Fixed
 
 ---
 

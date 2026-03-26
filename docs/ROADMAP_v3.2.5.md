@@ -172,7 +172,7 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] No removal path reports success without post-state verification.
+- [x] No removal path reports success without post-state verification.
 - [ ] Bulk remove clearly reports per-item outcomes and failure reasons.
 - [ ] Non-admin session blocks removal with explicit reason before operation start.
 - [ ] User can export bloatware action result log from UI.
@@ -311,8 +311,8 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] Toggle feedback shows pending/success/failure deterministically.
-- [ ] Failed toggle remains visually failed with reason instead of snapping silently.
+- [x] Toggle feedback shows pending/success/failure deterministically.
+- [x] Failed toggle remains visually failed with reason instead of snapping silently.
 - [ ] Optimizer actions are test-covered for non-admin and admin modes.
 
 #### 3.4.7 P0 - Victus 15-fa1xxx (Product 8BB1) classification uncertainty

@@ -104,12 +104,16 @@ namespace OmenCore.ViewModels
 
         // ========== METHODS ==========
 
-        public async Task RefreshStateAsync()
+        public async Task RefreshStateAsync(bool showOverlay = true)
         {
             try
             {
-                IsLoading = true;
-                StatusMessage = "Scanning system state...";
+                if (showOverlay)
+                {
+                    IsLoading = true;
+                }
+
+                StatusMessage = showOverlay ? "Scanning system state..." : "Refreshing optimizer state...";
                 
                 _currentState = await _optimizerService.GetCurrentStateAsync();
                 
@@ -128,7 +132,10 @@ namespace OmenCore.ViewModels
             }
             finally
             {
-                IsLoading = false;
+                if (showOverlay)
+                {
+                    IsLoading = false;
+                }
             }
         }
 
@@ -373,29 +380,34 @@ namespace OmenCore.ViewModels
             });
         }
 
-        private async Task ToggleOptimizationAsync(OptimizationItem item)
+        private async Task ToggleOptimizationAsync(OptimizationItem item, bool desiredState)
         {
             try
             {
-                IsLoading = true;
-                StatusMessage = item.IsEnabled ? 
-                    $"Reverting {item.Name}..." : 
-                    $"Applying {item.Name}...";
+                if (item.IsApplying)
+                {
+                    return;
+                }
+
+                item.IsApplying = true;
+                StatusMessage = desiredState ?
+                    $"Applying {item.Name}..." :
+                    $"Reverting {item.Name}...";
                 
                 OptimizationResult result;
                 
-                if (item.IsEnabled)
+                if (desiredState)
                 {
-                    result = await _optimizerService.RevertOptimizationAsync(item.Id);
+                    result = await _optimizerService.ApplyOptimizationAsync(item.Id);
                 }
                 else
                 {
-                    result = await _optimizerService.ApplyOptimizationAsync(item.Id);
+                    result = await _optimizerService.RevertOptimizationAsync(item.Id);
                 }
                 
                 if (result.Success)
                 {
-                    item.IsEnabled = !item.IsEnabled;
+                    item.IsEnabled = desiredState;
                     StatusMessage = $"{item.Name} {(item.IsEnabled ? "enabled" : "disabled")}";
                     
                     if (result.RequiresReboot)
@@ -408,8 +420,8 @@ namespace OmenCore.ViewModels
                     StatusMessage = $"Failed: {result.ErrorMessage}";
                 }
                 
-                // Refresh counts
-                await RefreshStateAsync();
+                // Refresh authoritative state without blocking the whole page for a single-item toggle.
+                await RefreshStateAsync(showOverlay: false);
             }
             catch (Exception ex)
             {
@@ -418,7 +430,7 @@ namespace OmenCore.ViewModels
             }
             finally
             {
-                IsLoading = false;
+                item.IsApplying = false;
             }
         }
 
@@ -566,7 +578,7 @@ namespace OmenCore.ViewModels
         public OptimizationRisk Risk { get; set; }
         public string? Warning { get; set; }
         
-        public Func<OptimizationItem, Task>? OnToggleAsync { get; set; }
+        public Func<OptimizationItem, bool, Task>? OnToggleAsync { get; set; }
 
         public bool IsEnabled
         {
@@ -605,13 +617,13 @@ namespace OmenCore.ViewModels
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        public async void Toggle()
+        public async void Toggle(bool desiredState)
         {
             try
             {
                 if (OnToggleAsync != null)
                 {
-                    await OnToggleAsync(this);
+                    await OnToggleAsync(this, desiredState);
                 }
             }
             catch (Exception ex)

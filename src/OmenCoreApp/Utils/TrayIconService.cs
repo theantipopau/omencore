@@ -264,16 +264,16 @@ namespace OmenCore.Utils
             // Performance submenu
             _performanceModeMenuItem = new MenuItem { Header = "⚡ Power Profile ▶" };
             
+            _perfQuietMenuItem = new MenuItem { Header = "   🔋 Power Saver — Battery life" };
+            _perfQuietMenuItem.Click += (s, e) => SetPerformanceMode("Quiet");
             _perfBalancedMenuItem = new MenuItem { Header = "✓ ⚖️ Balanced — Default" };
             _perfBalancedMenuItem.Click += (s, e) => SetPerformanceMode("Balanced");
             _perfPerformanceMenuItem = new MenuItem { Header = "   🚀 Performance — Max power" };
             _perfPerformanceMenuItem.Click += (s, e) => SetPerformanceMode("Performance");
-            _perfQuietMenuItem = new MenuItem { Header = "   🔋 Power Saver — Battery life" };
-            _perfQuietMenuItem.Click += (s, e) => SetPerformanceMode("Quiet");
             
+            _performanceModeMenuItem.Items.Add(_perfQuietMenuItem);
             _performanceModeMenuItem.Items.Add(_perfBalancedMenuItem);
             _performanceModeMenuItem.Items.Add(_perfPerformanceMenuItem);
-            _performanceModeMenuItem.Items.Add(_perfQuietMenuItem);
             _performanceModeMenuItem.ItemContainerStyle = menuItemStyle;
             _performanceModeMenuItem.SubmenuOpened += (s, e) =>
             {

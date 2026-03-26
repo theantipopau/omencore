@@ -1583,12 +1583,14 @@ namespace OmenCore.ViewModels
 
         private void OnSystemSuspending(object? sender, EventArgs e)
         {
+            _watchdogService?.HandleSystemSuspend();
             _hardwareMonitoringService?.Pause();
             _fanService?.HandleSystemSuspend();
         }
 
         private void OnSystemResuming(object? sender, EventArgs e)
         {
+            _watchdogService?.HandleSystemResume();
             _hardwareMonitoringService?.Resume();
             _fanService?.HandleSystemResume();
         }
@@ -2976,6 +2978,9 @@ namespace OmenCore.ViewModels
                     {
                         targetPreset = mode switch
                         {
+                            "Custom" => SelectedPreset is { IsBuiltIn: false } activeCustom
+                                ? activeCustom
+                                : FanPresets.FirstOrDefault(p => !p.IsBuiltIn && p.Curve.Count > 0),
                             "Max" => FanPresets.FirstOrDefault(p => p.Name.Equals("Max", StringComparison.OrdinalIgnoreCase))
                                      ?? FanPresets.FirstOrDefault(p => p.Name.Contains("Max", StringComparison.OrdinalIgnoreCase)),
                             "Quiet" => FanPresets.FirstOrDefault(p => p.Name.Contains("Quiet", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Silent", StringComparison.OrdinalIgnoreCase)),
@@ -2992,9 +2997,10 @@ namespace OmenCore.ViewModels
                         await dispatcher.InvokeAsync(() =>
                         {
                             SelectedPreset = targetPreset;
-                            CurrentFanMode = mode;
-                            PushEvent($"🌀 Fan mode: {mode}");
-                            _notificationService.ShowFanModeChanged(mode, "Quick Access");
+                            var appliedModeName = targetPreset.IsBuiltIn ? mode : targetPreset.Name;
+                            CurrentFanMode = appliedModeName;
+                            PushEvent($"🌀 Fan mode: {appliedModeName}");
+                            _notificationService.ShowFanModeChanged(appliedModeName, "Quick Access");
                         });
                     }
                 }

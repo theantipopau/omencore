@@ -180,12 +180,20 @@
                                    Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}"/>
                     </StackPanel>
 
-                    <ToggleButton Grid.Column="1" 
-                                  Style="{StaticResource OptimizationToggle}"
-                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                  Click="OnToggleClicked"
-                                  VerticalAlignment="Center"
-                                  Tag="{Binding}"/>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <ToggleButton Style="{StaticResource OptimizationToggle}"
+                                      IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                      IsEnabled="{Binding IsApplying, Converter={StaticResource InverseBooleanConverter}}"
+                                      Click="OnToggleClicked"
+                                      HorizontalAlignment="Center"
+                                      Tag="{Binding}"/>
+                        <TextBlock Text="Applying..."
+                                   FontSize="11"
+                                   Margin="0,6,0,0"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Visibility="{Binding IsApplying, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>

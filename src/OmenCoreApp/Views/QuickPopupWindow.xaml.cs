@@ -131,6 +131,7 @@ namespace OmenCore.Views
             FanAutoBtn.Style = (Style)FindResource("ModeButtonStyle");
             FanMaxBtn.Style = (Style)FindResource("ModeButtonStyle");
             FanQuietBtn.Style = (Style)FindResource("ModeButtonStyle");
+            FanCustomBtn.Style = (Style)FindResource("ModeButtonStyle");
             
             // Highlight active button
             var activeStyle = (Style)FindResource("ActiveModeButtonStyle");
@@ -147,6 +148,9 @@ namespace OmenCore.Views
                 case "quiet":
                 case "silent":
                     FanQuietBtn.Style = activeStyle;
+                    break;
+                default:
+                    FanCustomBtn.Style = activeStyle;
                     break;
             }
         }

@@ -12,8 +12,8 @@
         ShowInTaskbar="False"
         ShowActivated="True"
         ResizeMode="NoResize"
-        Width="320"
-        Height="480"
+        Width="360"
+        Height="500"
         WindowStartupLocation="Manual"
         Deactivated="Window_Deactivated">
     
@@ -200,11 +200,23 @@
                         <TextBlock Text="Quiet" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Button>
+                <Button x:Name="FanCustomBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Custom">
+                    <StackPanel>
+                        <TextBlock Text="🎛️" FontSize="18" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Custom" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Button>
             </UniformGrid>
             
             <!-- Performance Mode Section -->
             <TextBlock Grid.Row="4" Text="Performance Mode" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
             <UniformGrid Grid.Row="5" Rows="1" Margin="0,0,0,12" VerticalAlignment="Top">
+                <Button x:Name="PerfQuietBtn" Style="{StaticResource ModeButtonStyle}" Click="PerformanceMode_Click" Tag="Quiet">
+                    <StackPanel>
+                        <TextBlock Text="🔋" FontSize="18" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Quiet" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Button>
                 <Button x:Name="PerfBalancedBtn" Style="{StaticResource ModeButtonStyle}" Click="PerformanceMode_Click" Tag="Balanced">
                     <StackPanel>
                         <TextBlock Text="⚖️" FontSize="18" HorizontalAlignment="Center"/>
@@ -215,12 +227,6 @@
                     <StackPanel>
                         <TextBlock Text="🚀" FontSize="18" HorizontalAlignment="Center"/>
                         <TextBlock Text="Perform" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="PerfQuietBtn" Style="{StaticResource ModeButtonStyle}" Click="PerformanceMode_Click" Tag="Quiet">
-                    <StackPanel>
-                        <TextBlock Text="🔋" FontSize="18" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Quiet" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Button>
             </UniformGrid>
