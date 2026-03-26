@@ -27,6 +27,9 @@ This roadmap is based on:
   - GitHub #96
   - GitHub #97
   - User report: "F11 activates OmenCore" on 3.2.1
+  - Discord 2026-03-26 (Serg): CPU temp random drop to 40°C on OMEN 17-ck1xxx
+  - Discord 2026-03-26 (Serg): Performance mode button order feedback (Quiet→Balanced→Perform)
+  - Discord 2026-03-26 (Serg): Quick Access OMEN fan curve mode request
 
 ---
 
@@ -133,9 +136,9 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] Installed-mode updater only accepts installer `.exe` assets.
-- [ ] Updater logs include URL, final redirect target, content-type, and header signature.
-- [ ] SHA256 mismatch or missing hash blocks install and shows actionable reason.
+- [x] Installed-mode updater only accepts installer `.exe` assets.
+- [x] Updater logs include URL, final redirect target, content-type, and header signature.
+- [x] SHA256 mismatch or missing hash blocks install and shows actionable reason.
 - [ ] Repro flow from current user report no longer fails on 3 consecutive test runs.
 
 #### 3.4.2 P1 - Bloatware Manager appears to remove nothing
@@ -206,7 +209,7 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] Switching performance mode no longer silently overwrites manual fan mode.
+- [x] Switching performance mode no longer silently overwrites manual fan mode. *(v3.2.5 — `LinkFanToPerformanceMode` flag, default off)*
 - [ ] If linked mode is enabled, UI explicitly indicates linked behavior.
 - [ ] Tray, dashboard, and quick popup always show the same effective fan/perf state.
 
@@ -246,10 +249,10 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] Fan state machine prevents persistent high-fan lock after load spikes.
+- [x] Fan state machine prevents persistent high-fan lock after load spikes.
 - [ ] Diagnostic run always restores expected pre-test state (preset or BIOS auto).
-- [ ] "No effect" paths include model/backend guidance in UI and logs.
-- [ ] Guided diagnostics output includes backend, deviation, and pass/fail confidence.
+- [x] "No effect" paths include model/backend guidance in UI and logs.
+- [x] Guided diagnostics output includes backend, deviation, and pass/fail confidence.
 
 #### 3.4.5 P1 - Fan Diagnostics UI clipping and unclear copy
 
@@ -274,8 +277,8 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] No clipping at 100%, 125%, and 150% Windows DPI.
-- [ ] Diagnostic labels are self-explanatory without external docs.
+- [x] No clipping at 100%, 125%, and 150% Windows DPI.
+- [x] Diagnostic labels are self-explanatory without external docs.
 - [ ] Result panel remains readable on minimum supported window width.
 
 #### 3.4.6 P1 - Optimizer tab toggles appear unresponsive
@@ -343,8 +346,8 @@ This roadmap is based on:
 
 **Done boxes**
 
-- [ ] 8BB1 conflict is resolved to the correct family/model at runtime.
-- [ ] Capability, fan, and RGB gating all use the same resolved identity.
+- [x] 8BB1 conflict is resolved to the correct family/model at runtime. *(v3.2.5 — model-name disambiguation in both DBs)*
+- [x] Capability, fan, and RGB gating all use the same resolved identity. *(Victus 15-fa1xxx gets correct BacklightOnly + Victus capability profile)*
 - [ ] Diagnostic export includes identity resolution trace for support.
 
 #### 3.4.8 Regression test gate for this bug pack

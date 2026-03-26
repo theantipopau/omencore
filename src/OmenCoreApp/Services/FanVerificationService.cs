@@ -119,12 +119,12 @@ namespace OmenCore.Services
         private const int VerificationRetries = 3;          // Retry verification up to 3 times (increased from 2)
         private const int VerificationSamples = 5;          // Take 5 RPM samples and average (increased from 3)
         private const int SampleDelayMs = 200;              // Wait 200ms between samples (reduced for faster verification)
-        // MaxRpm is calibrated to 4500 RPM (typical HP Victus / mid-range HP gaming peak).
-        // High-end OMEN models may exceed this, but using a lower baseline avoids false "Failed"
-        // verification results on budget HP models where fans top out at 3800-4500 RPM.
+        // MaxRpm calibrated to 6000 RPM — covers high-end OMEN 16/17 models (5500-6500 RPM peaks).
+        // Victus and mid-range HP fans (3800-4500 RPM peak) still pass because the absolute 500 RPM
+        // floor tolerance in VerifyRpm() keeps low-step-count fans within range regardless.
         private const int MaxLevel = 55;  // HP uses 55 as max on most models
         private const int MinRpm = 0;
-        private const int MaxRpm = 4500;  // Conservative baseline; keeps Victus-class fans in range
+        private const int MaxRpm = 6000;  // Covers high-end OMEN fans (5500-6500 RPM); Victus-class handled by 500 RPM floor tolerance
         
         // Verification timing
         private const int FanResponseDelayMs = 2000;  // Reduced from 2500ms for faster response

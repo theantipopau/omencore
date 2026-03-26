@@ -7,8 +7,8 @@
     <Border Style="{StaticResource SurfaceCard}" Padding="16">
         <StackPanel>
             <TextBlock Text="Fan Diagnostics" Style="{StaticResource Heading2}" />
-            <StackPanel Orientation="Horizontal" Margin="0,8,0,12">
-                <StackPanel Width="240">
+            <WrapPanel Orientation="Horizontal" Margin="0,8,0,12">
+                <StackPanel MinWidth="200" MaxWidth="280" Margin="0,0,16,8">
                     <TextBlock Text="Selected Fan" Style="{StaticResource Caption}" />
                     <ComboBox SelectedIndex="{Binding SelectedFanIndex, Mode=TwoWay}" Margin="0,6,0,0">
                         <ComboBoxItem Content="CPU Fan" />
@@ -27,7 +27,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="16,0,0,0" VerticalAlignment="Top">
+                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="0,0,16,8" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="Current State" FontWeight="SemiBold" />
                         <TextBlock Text="RPM:" Style="{StaticResource Caption}" Margin="0,6,0,0" />
@@ -44,11 +44,11 @@
                 </Border>
                 
                 <!-- Guided Diagnostic (v2.7.0) -->
-                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="16,0,0,0" VerticalAlignment="Top">
-                    <StackPanel MinWidth="180" MaxWidth="280">
-                        <TextBlock Text="Guided Diagnostic" FontWeight="SemiBold" />
+                <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="0,0,16,8" VerticalAlignment="Top">
+                    <StackPanel MinWidth="200" MaxWidth="320">
+                        <TextBlock Text="Fan Verification Sequence" FontWeight="SemiBold" />
                         <TextBlock Text="Tests: 30% → 60% → 100%" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                        <Button Content="Run Full Test" Command="{Binding RunGuidedDiagnosticCommand}" 
+                        <Button Content="Run Verification Sequence" Command="{Binding RunGuidedDiagnosticCommand}" 
                                 Style="{StaticResource ModernButton}" Margin="0,8,0,0" 
                                 IsEnabled="{Binding IsGuidedTestRunning, Converter={StaticResource InverseBooleanConverter}}"/>
                         
@@ -60,13 +60,13 @@
                                    Visibility="{Binding GuidedTestStatus, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
                     </StackPanel>
                 </Border>
-            </StackPanel>
+            </WrapPanel>
             
-            <!-- Guided Test Results (v2.7.0) -->
+            <!-- Fan Verification Results (v2.7.0) -->
             <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="12" Margin="0,12,0,0"
                     Visibility="{Binding GuidedTestResult, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
                 <StackPanel>
-                    <TextBlock Text="Diagnostic Results" FontWeight="SemiBold" />
+                    <TextBlock Text="Verification Results" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding GuidedTestResult}" FontFamily="Consolas" FontSize="11" 
                                Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"
                                TextWrapping="Wrap"/>

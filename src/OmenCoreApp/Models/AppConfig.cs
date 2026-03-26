@@ -74,6 +74,13 @@ namespace OmenCore.Models
         public bool StayOnTop { get; set; } = false;
         
         /// <summary>
+        /// When true, switching performance modes also writes a fan policy (legacy coupled behavior).
+        /// Default is false — performance mode switches only affect power plan and EC power limits;
+        /// fan presets or curves set by the user are preserved across profile switches.
+        /// </summary>
+        public bool LinkFanToPerformanceMode { get; set; } = false;
+
+        /// <summary>
         /// Last applied performance mode name (e.g., "Balanced", "Performance", "Quiet")
         /// Restored on startup.
         /// </summary>

@@ -387,8 +387,15 @@ namespace OmenCore.Services
                     _logging.Warn("No download URL provided for the requested update.");
                     return null;
                 }
-                
-                // Use actual asset filename from GitHub release, fallback to constructed name
+
+                    // Block download if no hash — we cannot verify integrity post-download
+                    if (string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
+                    {
+                        _logging.Warn("Download blocked: release notes do not include a SHA256 hash for this asset. Open GitHub releases to download manually.");
+                        return null;
+                    }
+
+                    // Use actual asset filename from GitHub release, fallback to constructed name
                 var fileName = !string.IsNullOrWhiteSpace(versionInfo.AssetFileName) 
                     ? versionInfo.AssetFileName 
                     : $"OmenCoreSetup-{versionInfo.VersionString}.exe";
@@ -400,6 +407,17 @@ namespace OmenCore.Services
                 
                 using var response = await _httpClient.GetAsync(versionInfo.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
+
+                    // Log response diagnostics to aid troubleshooting asset-selection and redirect issues
+                    var contentType = response.Content.Headers.ContentType?.ToString() ?? "none";
+                    var actualUrl = response.RequestMessage?.RequestUri?.ToString() ?? versionInfo.DownloadUrl;
+                    _logging.Info($"Download response — Status: {(int)response.StatusCode}, Content-Type: {contentType}, URL: {actualUrl}");
+                    if (!contentType.Contains("octet-stream", StringComparison.OrdinalIgnoreCase) &&
+                        !contentType.Contains("application/", StringComparison.OrdinalIgnoreCase) &&
+                        !contentType.Contains("binary/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logging.Warn($"Unexpected Content-Type '{contentType}' — may indicate an error page or redirect loop");
+                    }
                 
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
                 var downloadedBytes = 0L;
@@ -442,22 +460,15 @@ namespace OmenCore.Services
                 await Task.Delay(100, cancellationToken);
                 
                 // Verify file hash if available (preferred for security)
-                if (!string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
+                // Hash guaranteed non-empty — pre-validated above before download started
+                var computedHash = ComputeSha256Hash(downloadPath);
+                if (!computedHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
                 {
-                    var computedHash = ComputeSha256Hash(downloadPath);
-                    if (!computedHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logging.Error($"SHA256 verification failed! Expected: {versionInfo.Sha256Hash}, Computed: {computedHash}");
-                        File.Delete(downloadPath);
-                        throw new System.Security.SecurityException($"Update package failed SHA256 verification. File may be corrupted or tampered with.");
-                    }
-                    _logging.Info($"✓ SHA256 hash verified successfully ({computedHash.Substring(0, 16)}...)");
+                    _logging.Error($"SHA256 verification failed! Expected: {versionInfo.Sha256Hash}, Computed: {computedHash}");
+                    File.Delete(downloadPath);
+                    throw new System.Security.SecurityException($"Update package failed SHA256 verification. File may be corrupted or tampered with.");
                 }
-                else
-                {
-                    // No hash provided - warn but allow download (for releases without hash in notes)
-                    _logging.Warn("⚠️ Update downloaded without SHA256 verification (hash not in release notes). Proceeding with caution.");
-                }
+                _logging.Info($"✓ SHA256 hash verified successfully ({computedHash[..16]}...)");
                 
                 // Validate downloaded file before returning
                 var fileInfo = new System.IO.FileInfo(downloadPath);
@@ -948,7 +959,7 @@ namespace OmenCore.Services
                 var nameLower = name.ToLowerInvariant();
                 
                 // Installer detection: Setup.exe, installer in name
-                if (nameLower.Contains("setup") && nameLower.EndsWith(".exe"))
+                    if ((nameLower.Contains("setup") || nameLower.Contains("installer")) && nameLower.EndsWith(".exe"))
                 {
                     installerAsset = asset;
                 }
@@ -971,21 +982,28 @@ namespace OmenCore.Services
                 case InstallationType.Installer:
                     if (installerAsset.ValueKind != JsonValueKind.Undefined)
                     {
-                        _logging.Info("Selected installer asset for installed version");
+                            _logging.Info($"Selected installer asset: {installerAsset.GetProperty("name").GetString()}");
                         return installerAsset;
                     }
-                    break;
-                    
+                        // For installed builds, never fall back to a portable archive — only accept .exe
+                        if (fallbackAsset.ValueKind != JsonValueKind.Undefined)
+                        {
+                            _logging.Warn($"No installer asset found; using fallback .exe: {fallbackAsset.GetProperty("name").GetString()}");
+                            return fallbackAsset;
+                        }
+                        _logging.Warn("No suitable installer asset found in release assets.");
+                        return default;
+
                 case InstallationType.Portable:
                     if (portableAsset.ValueKind != JsonValueKind.Undefined)
                     {
-                        _logging.Info("Selected portable asset for portable version");
+                            _logging.Info($"Selected portable asset: {portableAsset.GetProperty("name").GetString()}");
                         return portableAsset;
                     }
                     break;
             }
             
-            // Fallback: prefer installer, then portable, then any exe
+                // Unknown install type: prefer installer over portable over any exe
             if (installerAsset.ValueKind != JsonValueKind.Undefined)
                 return installerAsset;
             if (portableAsset.ValueKind != JsonValueKind.Undefined)

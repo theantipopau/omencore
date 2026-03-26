@@ -874,7 +874,11 @@ namespace OmenCore.Hardware
                    model.Contains("ah0000", StringComparison.OrdinalIgnoreCase) ||
                    model.Contains("16-xd0", StringComparison.OrdinalIgnoreCase) ||
                    model.Contains("16-ap0", StringComparison.OrdinalIgnoreCase) ||
-                   model.Contains("8E35", StringComparison.OrdinalIgnoreCase);
+                   model.Contains("8E35", StringComparison.OrdinalIgnoreCase) ||
+                   // Discord report 2026-03-26: OMEN 17-ck1xxx random CPU temp drop to 40°C
+                   // Same WMI sensor arbitration issue as ck2xxx/xd0xxx — prefer worker-backed temp.
+                   model.Contains("17-ck1", StringComparison.OrdinalIgnoreCase) ||
+                   model.Contains("17-ck2", StringComparison.OrdinalIgnoreCase);
         }
 
         private void TryApplyPowerFallback()

@@ -1320,7 +1320,10 @@ namespace OmenCore.ViewModels
                 _logging.Info("⚠️ Experimental EC keyboard writes ENABLED (user opted in)");
             }
             
-            _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging);
+            _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging)
+            {
+                LinkFanToPerformanceMode = _config.LinkFanToPerformanceMode
+            };
             
             // Initialize SystemInfoService before KeyboardLightingService so the KB service
             // receives a non-null reference and its DetectModelConfig() gets populated data.

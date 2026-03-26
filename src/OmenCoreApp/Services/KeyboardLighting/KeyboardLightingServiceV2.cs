@@ -204,7 +204,7 @@ namespace OmenCore.Services.KeyboardLighting
                 
                 if (!string.IsNullOrEmpty(productId))
                 {
-                    var config = KeyboardModelDatabase.GetConfig(productId);
+                        var config = KeyboardModelDatabase.GetConfig(productId, systemInfo?.Model);
                     if (config != null)
                     {
                         _logging.Info($"[KeyboardLightingV2] Matched by product ID: {productId} → {config.ModelName}");

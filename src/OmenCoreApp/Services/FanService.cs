@@ -195,6 +195,22 @@ namespace OmenCore.Services
         /// Whether diagnostic mode is active (suspends curve engine for manual testing).
         /// </summary>
         public bool IsDiagnosticModeActive => _diagnosticModeActive;
+
+            /// <summary>
+            /// Human-readable description of the current fan control state for diagnostics/UI.
+            /// Mirrors the implicit state machine: thermal > diagnostic > curve > preset > auto.
+            /// </summary>
+            public string FanControlStateDescription
+            {
+                get
+                {
+                    if (_thermalProtectionActive) return "Thermal protection (overriding)";
+                    if (_diagnosticModeActive)    return "Diagnostic mode (curve suspended)";
+                    if (IsCurveActive)            return $"Fan curve active — {_activePreset?.Name ?? "custom"}";
+                    if (_activePreset != null)    return $"Preset: {_activePreset.Name}";
+                    return "BIOS auto control";
+                }
+            }
         
         /// <summary>
         /// Enter diagnostic mode - suspends curve engine to allow manual fan testing.
