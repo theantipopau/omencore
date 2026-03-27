@@ -352,7 +352,7 @@ This roadmap is based on:
 
 #### 3.4.8 Regression test gate for this bug pack
 
-- [ ] Add a "3.2.1 Regression Pack" checklist to pre-release sign-off.
+- [x] Add a "3.2.1 Regression Pack" checklist to pre-release sign-off. *(see `docs/REGRESSION_PACK_v3.2.5.md`)*
 - [ ] Run 30-minute stress scenario (mode switches + diagnostics + update check) without fan lock or stale state.
 - [ ] Validate updater path with both installer and portable installations.
 - [ ] Capture and archive logs/screenshots from Victus test machine in release QA bundle.
