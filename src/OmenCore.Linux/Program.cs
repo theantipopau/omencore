@@ -27,7 +27,15 @@ namespace OmenCore.Linux;
 /// </summary>
 class Program
 {
-    public const string Version = "3.1.0";
+    /// <summary>
+    /// Version is driven by the single &lt;Version&gt; property in OmenCore.Linux.csproj.
+    /// Do NOT hardcode a version string here — edit the .csproj instead.
+    /// </summary>
+    public static readonly string Version =
+        typeof(Program).Assembly.GetName().Version is { } v
+            ? $"{v.Major}.{v.Minor}.{v.Build}"
+            : "unknown";
+
     public const string BuildDate = "2026-03";
     
     public static string ConfigPath => Path.Combine(

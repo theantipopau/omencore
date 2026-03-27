@@ -174,7 +174,7 @@ This roadmap is based on:
 
 - [x] No removal path reports success without post-state verification.
 - [ ] Bulk remove clearly reports per-item outcomes and failure reasons.
-- [ ] Non-admin session blocks removal with explicit reason before operation start.
+- [x] Non-admin session blocks removal with explicit reason before operation start. *(early-return guard added to RemoveSelectedAsync / RemoveAllLowRiskAsync)*
 - [ ] User can export bloatware action result log from UI.
 
 #### 3.4.3 P0 - Quiet performance mode overrides manual fan mode
@@ -250,7 +250,7 @@ This roadmap is based on:
 **Done boxes**
 
 - [x] Fan state machine prevents persistent high-fan lock after load spikes.
-- [ ] Diagnostic run always restores expected pre-test state (preset or BIOS auto).
+- [x] Diagnostic run always restores expected pre-test state (preset or BIOS auto). *(already implemented in FanDiagnosticsViewModel finally blocks since v2.7.1)*
 - [x] "No effect" paths include model/backend guidance in UI and logs.
 - [x] Guided diagnostics output includes backend, deviation, and pass/fail confidence.
 

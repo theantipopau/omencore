@@ -13,6 +13,11 @@
     <PublishTrimmed>true</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>
     
+    <!-- Single version source — consumed by Program.cs via Assembly.GetName().Version -->
+    <Version>3.2.5</Version>
+    <AssemblyVersion>3.2.5.0</AssemblyVersion>
+    <FileVersion>3.2.5.0</FileVersion>
+
     <!-- Metadata -->
     <Authors>OmenCore Team</Authors>
     <Product>OmenCore Linux CLI</Product>

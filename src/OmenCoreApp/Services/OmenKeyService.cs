@@ -739,6 +739,14 @@ namespace OmenCore.Services
             // VK 157 (0x9D) - reported on some OMEN models
             if (vkCode == VK_OMEN_157)
             {
+                // In strict mode require a matching OMEN scan code to avoid false positives
+                // from software-generated VK events (e.g. macros, games).
+                bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
+                if (strictMode && !OmenScanCodes.Contains((int)scanCode))
+                {
+                    _logging.Debug($"VK 157 (0x9D) rejected in strict mode — scan code 0x{scanCode:X4} not in OMEN set");
+                    return false;
+                }
                 _logging.Debug($"VK 157 (0x9D) detected with scan code: 0x{scanCode:X4} - OMEN key");
                 return true;
             }
@@ -746,6 +754,12 @@ namespace OmenCore.Services
             // F24 (0x87) - reported on some OMEN models
             if (vkCode == VK_F24)
             {
+                bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
+                if (strictMode && !OmenScanCodes.Contains((int)scanCode))
+                {
+                    _logging.Debug($"F24 (0x87) rejected in strict mode — scan code 0x{scanCode:X4} not in OMEN set");
+                    return false;
+                }
                 _logging.Debug($"F24 (0x87) detected with scan code: 0x{scanCode:X4} - OMEN key");
                 return true;
             }

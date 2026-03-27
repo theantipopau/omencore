@@ -197,4 +197,38 @@ This changelog uses a split format:
 
 ---
 
+### 12. Linux version was hardcoded to 3.1.0
+- **Issue:** `OmenCore.Linux/Program.cs` had `public const string Version = "3.1.0"` regardless of the built assembly version, so `omencore-cli --version` always reported 3.1.0.
+- **Fix:** Removed the hardcoded constant. Version is now read from `Assembly.GetName().Version` at runtime, driven by `<Version>3.2.5</Version>` in `OmenCore.Linux.csproj`. Also added `<AssemblyVersion>` and `<FileVersion>` for completeness.
+- **Files:** `OmenCore.Linux.csproj`, `Program.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 13. OMEN key false triggers from F24-sending software
+- **Issue:** `IsOmenKey()` in `OmenKeyService` accepted VK_F24 (0x87) and VK_OMEN_157 (0x9D) unconditionally, without checking the scan code. Any software (game macro, input remapper) that sent a VK_F24 event could accidentally trigger OmenCore's OMEN key actions.
+- **Fix:** Added `AppConfig.StrictOmenKeyMode` (default `true`). When strict mode is enabled, VK_F24 and VK_OMEN_157 are only accepted if their scan code is also present in `OmenScanCodes`. If the scan code does not match, the key event is rejected with a Debug log entry. Users experiencing hardware OMEN key non-detection can set `StrictOmenKeyMode: false` in config.
+- **Files:** `AppConfig.cs`, `OmenKeyService.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 14. Bloatware removal allowed without admin in non-admin sessions
+- **Issue:** The bloatware manager showed a warning status message when not running as administrator, but both `RemoveSelectedAsync()` and `RemoveAllLowRiskAsync()` still proceeded to attempt removal, leading to silent failures or confusing errors deeper in the call stack.
+- **Fix:** Both remove methods now have an early-return admin guard at the top: if `BloatwareManagerService.IsRunningAsAdmin` is false, `StatusMessage` is set to a clear user-facing explanation and the method returns immediately before any removal is attempted.
+- **Files:** `BloatwareManagerViewModel.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 15. LinkFanToPerformanceMode and UseSoftwareRendering not exposed in Settings UI
+- **Issue:** Both `AppConfig.LinkFanToPerformanceMode` and `AppConfig.UseSoftwareRendering` existed in config since earlier fixes (fan-decoupling and RTSS crash fix respectively), but neither was wired into `SettingsViewModel` or `SettingsView.xaml`. Users had no way to toggle them from the UI.
+- **Fix:**
+  - `SettingsViewModel`: Added `LinkFanToPerformanceMode` and `UseSoftwareRendering` properties with proper backing fields, `LoadSettings()`, and `SaveSettings()` wiring. `UseSoftwareRendering` setter also calls `App.EnableSoftwareRendering()` so the session immediately switches to software rendering when toggled on.
+  - `SettingsView.xaml`: Added **Software rendering mode** toggle in the General tab (after Headless mode) with a note that a restart is required for full effect. Added **Link fan to performance mode** toggle at the bottom of the Power Automation section.
+- **Files:** `SettingsViewModel.cs`, `SettingsView.xaml`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*

@@ -210,6 +210,12 @@ namespace OmenCore.ViewModels
 
         private async Task RemoveSelectedAsync()
         {
+            if (!BloatwareManagerService.IsRunningAsAdmin)
+            {
+                StatusMessage = "⚠️ Cannot remove: OmenCore is not running as Administrator. Right-click OmenCore → Run as administrator.";
+                return;
+            }
+
             if (SelectedApp == null || IsProcessing) return;
 
             var app = SelectedApp;
@@ -241,6 +247,12 @@ namespace OmenCore.ViewModels
 
         private async Task RemoveAllLowRiskAsync()
         {
+            if (!BloatwareManagerService.IsRunningAsAdmin)
+            {
+                StatusMessage = "⚠️ Cannot remove: OmenCore is not running as Administrator. Right-click OmenCore → Run as administrator.";
+                return;
+            }
+
             if (IsProcessing) return;
 
             var lowRiskApps = AllApps.Where(a => a.RemovalRisk == RemovalRisk.Low && !a.IsRemoved).ToList();

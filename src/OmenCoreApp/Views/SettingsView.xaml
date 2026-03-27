@@ -473,6 +473,23 @@
                                           IsChecked="{Binding HeadlessMode, Mode=TwoWay}"/>
                         </Grid>
 
+                        <!-- Software Rendering (RTSS / overlay compatibility) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Software rendering mode" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Use CPU-based rendering to prevent crashes caused by overlays (RTSS, MSI Afterburner). Requires restart." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding UseSoftwareRendering, Mode=TwoWay}"/>
+                        </Grid>
+
                         <!-- Minimize to Tray on Close -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -897,7 +914,22 @@
                                       IsEnabled="{Binding PowerAutomationEnabled}"/>
                         </Grid>
 
-                        <!-- Current Power Status -->
+                        <!-- Link fan preset to performance mode selection -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Link fan to performance mode" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Automatically apply the matching fan preset whenever you change performance mode." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding LinkFanToPerformanceMode, Mode=TwoWay}"/>
+                        </Grid>
                         <Border Background="#1F1F1F" CornerRadius="4" Padding="12" Margin="0,8,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Current status: " FontSize="12" 

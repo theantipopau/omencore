@@ -43,6 +43,8 @@ namespace OmenCore.ViewModels
         private bool _minimizeToTrayOnClose = true;
         private bool _stayOnTop;
         private bool _headlessMode;
+        private bool _linkFanToPerformanceMode;
+        private bool _useSoftwareRendering;
         private string _pollingProfile = "Balanced";
         private bool _suppressPollingProfileSync;
         private int _pollingIntervalMs = 2000;
@@ -241,6 +243,36 @@ namespace OmenCore.ViewModels
                 {
                     _headlessMode = value;
                     OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public bool LinkFanToPerformanceMode
+        {
+            get => _linkFanToPerformanceMode;
+            set
+            {
+                if (_linkFanToPerformanceMode != value)
+                {
+                    _linkFanToPerformanceMode = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public bool UseSoftwareRendering
+        {
+            get => _useSoftwareRendering;
+            set
+            {
+                if (_useSoftwareRendering != value)
+                {
+                    _useSoftwareRendering = value;
+                    OnPropertyChanged();
+                    if (value)
+                        App.EnableSoftwareRendering();
                     SaveSettings();
                 }
             }
@@ -2355,6 +2387,8 @@ namespace OmenCore.ViewModels
             _minimizeToTrayOnClose = _config.Monitoring.MinimizeToTrayOnClose;
             _stayOnTop = _config.StayOnTop;
             _headlessMode = _config.HeadlessMode;
+            _linkFanToPerformanceMode = _config.LinkFanToPerformanceMode;
+            _useSoftwareRendering = _config.UseSoftwareRendering;
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -2396,6 +2430,8 @@ namespace OmenCore.ViewModels
             _config.Monitoring.MinimizeToTrayOnClose = _minimizeToTrayOnClose;
             _config.StayOnTop = _stayOnTop;
             _config.HeadlessMode = _headlessMode;
+            _config.LinkFanToPerformanceMode = _linkFanToPerformanceMode;
+            _config.UseSoftwareRendering = _useSoftwareRendering;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();

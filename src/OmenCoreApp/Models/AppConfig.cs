@@ -179,6 +179,14 @@ namespace OmenCore.Models
         
         /// <summary>Whether to block the key (true) or let it pass through (false)</summary>
         public bool OmenKeyIntercept { get; set; } = true;
+
+        /// <summary>
+        /// When true (default), VK_F24 and VK_OMEN_157 are only accepted as the OMEN key if their
+        /// scan code is also in the known OMEN scan code set. This prevents games or apps that
+        /// happen to send F24 (vkCode 0x87) from accidentally triggering OmenCore actions.
+        /// Set to false only if your hardware model's OMEN key is not recognised in strict mode.
+        /// </summary>
+        public bool StrictOmenKeyMode { get; set; } = true;
         
         /// <summary>Action to perform when OMEN key is pressed</summary>
         public string OmenKeyAction { get; set; } = "ToggleOmenCore";
