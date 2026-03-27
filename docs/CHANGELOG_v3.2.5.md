@@ -180,4 +180,21 @@ This changelog uses a split format:
 
 ---
 
+---
+
+### 11. RTSS/Overlay Render-Thread Crash (UCEERR_RENDERTHREADFAILURE)
+- **Issue:** Users with RivaTuner Statistics Server (RTSS) or MSI Afterburner overlay running would experience repeated WPF `UCEERR_RENDERTHREADFAILURE` (`0x88980406`) crashes shortly after launch, causing OmenCore to shut down. Root cause: RTSS injects D3D/DXGI hooks that corrupt the WPF hardware render channel.
+- **Previous behaviour:** App treated RTSS as low-impact ("usually OK"), provided no targeted guidance, and shut down on the crash.
+- **Fixes applied:**
+  - RTSS conflict severity raised from **Low → High** with an accurate description of the render-thread risk.
+  - On startup, OmenCore now detects RTSS processes (`RTSS`, `RTSSHooksLoader64`, `RTSSHooksLoader`) and automatically switches WPF to software rendering (`RenderMode.SoftwareOnly`) before any window is created, preventing the crash entirely.
+  - `AppConfig.UseSoftwareRendering` flag added (default `false`) — users can also opt in permanently via config (Settings → General) without needing RTSS present.
+  - `App.EnableSoftwareRendering()` is now a static helper callable from settings UI during an active session.
+  - The `DispatcherUnhandledException` handler now intercepts `UCEERR_RENDERTHREADFAILURE` specifically: marks it as handled (no shutdown), activates software rendering for the rest of the session, and shows a targeted warning that identifies RTSS as the cause and explains how to permanently fix it.
+- **Net result:** RTSS users no longer crash. The app warns once and continues running in software rendering mode.
+- **Files:** `ConflictDetectionService.cs`, `App.xaml.cs`, `AppConfig.cs`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*

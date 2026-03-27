@@ -45,11 +45,35 @@ namespace OmenCore
         /// </summary>
         public static TrayIconService? TrayIcon { get; private set; }
 
+        // HRESULT emitted when RTSS/D3D hooks corrupt WPF's render channel
+        private const int UCEERR_RENDERTHREADFAILURE = unchecked((int)0x88980406);
+
         public App()
         {
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        }
+
+        /// <summary>
+        /// Force WPF into software rendering so RTSS/D3D hooks cannot corrupt the render channel.
+        /// Called at startup when RTSS is detected or when the user enables the setting.
+        /// </summary>
+        public static void EnableSoftwareRendering()
+        {
+            System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+            Logging.Info("Software rendering enabled (RTSS compatibility mode)");
+        }
+
+        private static bool IsRtssRunning()
+        {
+            try
+            {
+                return System.Diagnostics.Process.GetProcessesByName("RTSS").Length > 0
+                    || System.Diagnostics.Process.GetProcessesByName("RTSSHooksLoader64").Length > 0
+                    || System.Diagnostics.Process.GetProcessesByName("RTSSHooksLoader").Length > 0;
+            }
+            catch { return false; }
         }
 
         protected override void OnStartup(StartupEventArgs e)
@@ -65,7 +89,20 @@ namespace OmenCore
             
             base.OnStartup(e);
             Logging.Initialize();
-            
+
+            // Enable software rendering if RTSS is running or user has opted in via config.
+            // Must be set before any WPF window is created to prevent UCEERR_RENDERTHREADFAILURE.
+            bool rtssActive = IsRtssRunning();
+            if (rtssActive)
+            {
+                Logging.Warn("RTSS detected at startup — enabling software rendering to prevent render-thread crash (UCEERR_RENDERTHREADFAILURE)");
+                EnableSoftwareRendering();
+            }
+            else if (Configuration.Config.UseSoftwareRendering)
+            {
+                EnableSoftwareRendering();
+            }
+
             // Subscribe to session switch events to prevent window activation during RDP
             SystemEvents.SessionSwitch += OnSessionSwitch;
             
@@ -959,6 +996,35 @@ namespace OmenCore
 
         private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
+            // UCEERR_RENDERTHREADFAILURE: WPF render channel corrupted by RTSS/D3D hooks.
+            // Do NOT shut down — mark handled, switch to software rendering, and notify the user.
+            if (e.Exception is System.Runtime.InteropServices.COMException comEx
+                && comEx.HResult == UCEERR_RENDERTHREADFAILURE)
+            {
+                e.Handled = true;
+                Logging.Error("Render-thread failure (UCEERR_RENDERTHREADFAILURE) — likely caused by RTSS/D3D overlay hooks", e.Exception);
+
+                // Activate software rendering for the remainder of this session so the crash stops.
+                try { EnableSoftwareRendering(); } catch { }
+
+                bool rtssRunning = IsRtssRunning();
+                string detail = rtssRunning
+                    ? "RivaTuner Statistics Server (RTSS) is running and its D3D hooks have corrupted OmenCore's render thread."
+                    : "A D3D/DXGI overlay hook (possibly RTSS, an overlay tool, or a game anti-cheat) has corrupted OmenCore's render thread.";
+
+                MessageBox.Show(
+                    $"{detail}\n\n" +
+                    "OmenCore has switched to software rendering for this session to prevent further crashes.\n\n" +
+                    "To permanently fix this:\n" +
+                    "  • Close RTSS / MSI Afterburner overlay before starting OmenCore, OR\n" +
+                    "  • Enable 'Software Rendering' in OmenCore Settings → General\n\n" +
+                    "OmenCore will continue running. Restart the app for full GPU-accelerated rendering once the overlay is closed.",
+                    "OmenCore — Render Conflict Detected",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             Logging.Error("Unhandled UI thread exception", e.Exception);
             e.Handled = true;
             ShowFatalDialog(e.Exception, false);

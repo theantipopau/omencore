@@ -42,9 +42,9 @@ namespace OmenCore.Services
             {
                 Name = "RivaTuner Statistics Server",
                 ProcessNames = new[] { "RTSS", "RTSSHooksLoader", "RTSSHooksLoader64" },
-                Impact = ConflictSeverity.Low,
-                Description = "Generally compatible, but may cause minor FPS measurement conflicts",
-                Mitigation = "Usually no action needed"
+                Impact = ConflictSeverity.High,
+                Description = "RTSS injects D3D/DXGI hooks that corrupt WPF's render channel and can cause repeated UCEERR_RENDERTHREADFAILURE crashes",
+                Mitigation = "Close RTSS, or enable Software Rendering in OmenCore Settings → General to avoid render-thread conflicts"
             },
             ["OmenHub"] = new ConflictInfo
             {

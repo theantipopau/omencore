@@ -262,7 +262,15 @@ namespace OmenCore.Models
         /// Useful for servers or when only fan/performance control is needed. Default: false.
         /// </summary>
         public bool HeadlessMode { get; set; } = false;
-        
+
+        /// <summary>
+        /// Force WPF into software rendering mode (RenderMode.SoftwareOnly).
+        /// Prevents UCEERR_RENDERTHREADFAILURE crashes caused by RTSS/MSI Afterburner D3D hooks.
+        /// OmenCore also enables this automatically when RTSS is detected at startup.
+        /// Default: false. Enable this if you see repeated render-thread crash dialogs.
+        /// </summary>
+        public bool UseSoftwareRendering { get; set; } = false;
+
         /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
         /// </summary>
