@@ -307,6 +307,9 @@ namespace OmenCore.Services.BloatwareManager
             StatusChanged?.Invoke($"Removing {app.Name}...");
             _logger.Info($"Attempting to remove bloatware: {app.Name} ({app.Type})");
 
+            app.LastRemovalStatus = RemovalStatus.Pending;
+            app.LastFailureReason = null;
+
             try
             {
                 // Backup before removal if possible
@@ -327,12 +330,15 @@ namespace OmenCore.Services.BloatwareManager
                 if (success)
                 {
                     app.IsRemoved = true;
+                    app.LastRemovalStatus = RemovalStatus.VerifiedSuccess;
                     AppRemoved?.Invoke(app);
                     StatusChanged?.Invoke($"Successfully removed {app.Name}");
                     _logger.Info($"Successfully removed: {app.Name}");
                 }
                 else
                 {
+                    app.LastRemovalStatus = RemovalStatus.Failed;
+                    app.LastFailureReason = "Removal command completed but post-state verification detected the item is still present.";
                     StatusChanged?.Invoke($"Failed to remove {app.Name}");
                     _logger.Warn($"Failed to remove: {app.Name}");
                 }
@@ -341,6 +347,8 @@ namespace OmenCore.Services.BloatwareManager
             }
             catch (Exception ex)
             {
+                app.LastRemovalStatus = RemovalStatus.Failed;
+                app.LastFailureReason = ex.Message;
                 _logger.Error($"Error removing {app.Name}: {ex.Message}");
                 StatusChanged?.Invoke($"Error removing {app.Name}: {ex.Message}");
                 return false;
@@ -380,15 +388,19 @@ namespace OmenCore.Services.BloatwareManager
             var stderr = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync();
             
-            if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(stderr))
+            if (process.ExitCode != 0)
             {
-                _logger.Warn($"AppX removal failed for {app.Name}: {stderr.Trim()}");
+                var reason = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : "PowerShell AppX removal exited with non-zero code.";
+                _logger.Warn($"AppX removal failed for {app.Name}: {reason}");
                 
-                if (stderr.Contains("Access is denied", StringComparison.OrdinalIgnoreCase) ||
-                    stderr.Contains("0x80070005", StringComparison.OrdinalIgnoreCase))
+                if (reason.Contains("Access is denied", StringComparison.OrdinalIgnoreCase) ||
+                    reason.Contains("0x80070005", StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.Warn($"  → Run OmenCore as Administrator to remove provisioned packages");
+                    reason = "Access denied — run OmenCore as Administrator to remove provisioned packages.";
                 }
+
+                app.LastFailureReason = reason;
             }
             
             return process.ExitCode == 0;
@@ -428,6 +440,9 @@ namespace OmenCore.Services.BloatwareManager
                 if (!removed)
                 {
                     _logger.Warn($"Win32 app still detected after uninstall attempt: {app.Name}");
+                    app.LastFailureReason = process.ExitCode != 0
+                        ? $"Uninstaller exited with code {process.ExitCode} and app is still present."
+                        : "Uninstaller exited successfully but app was still detected after verification.";
                 }
 
                 return removed;
@@ -435,6 +450,7 @@ namespace OmenCore.Services.BloatwareManager
             catch (Exception ex)
             {
                 _logger.Warn($"Win32 uninstall failed for {app.Name}: {ex.Message}");
+                app.LastFailureReason = ex.Message;
                 return false;
             }
         }
@@ -1351,6 +1367,66 @@ namespace OmenCore.Services.BloatwareManager
             SaveBackups();
             GC.SuppressFinalize(this);
         }
+
+        /// <summary>
+        /// Exports a plain-text removal result log for all apps that had a removal attempted in this session.
+        /// Returns the full path of the written file, or null on failure.
+        /// </summary>
+        public string? ExportRemovalLog(IEnumerable<BloatwareApp> apps)
+        {
+            try
+            {
+                var attempted = apps.Where(a => a.LastRemovalStatus != RemovalStatus.NotAttempted).ToList();
+                if (!attempted.Any()) return null;
+
+                var logDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "OmenCore", "Logs");
+                Directory.CreateDirectory(logDir);
+                var logPath = Path.Combine(logDir, $"bloatware-removal-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+
+                var lines = new System.Text.StringBuilder();
+                lines.AppendLine($"OmenCore Bloatware Removal Log");
+                lines.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                lines.AppendLine(new string('─', 70));
+                lines.AppendLine();
+
+                var succeeded = attempted.Where(a => a.LastRemovalStatus == RemovalStatus.VerifiedSuccess || a.LastRemovalStatus == RemovalStatus.Succeeded).ToList();
+                var failed = attempted.Where(a => a.LastRemovalStatus == RemovalStatus.Failed).ToList();
+
+                lines.AppendLine($"Summary: {succeeded.Count} succeeded, {failed.Count} failed out of {attempted.Count} attempted.");
+                lines.AppendLine();
+
+                if (succeeded.Any())
+                {
+                    lines.AppendLine("SUCCEEDED:");
+                    foreach (var a in succeeded)
+                        lines.AppendLine($"  ✓  [{a.Type,-13}] {a.Name} ({a.Category})");
+                    lines.AppendLine();
+                }
+
+                if (failed.Any())
+                {
+                    lines.AppendLine("FAILED:");
+                    foreach (var a in failed)
+                    {
+                        lines.AppendLine($"  ✗  [{a.Type,-13}] {a.Name} ({a.Category})");
+                        if (!string.IsNullOrWhiteSpace(a.LastFailureReason))
+                            lines.AppendLine($"       Reason: {a.LastFailureReason}");
+                    }
+                    lines.AppendLine();
+                }
+
+                File.WriteAllText(logPath, lines.ToString(), System.Text.Encoding.UTF8);
+                _logger.Info($"Bloatware removal log exported: {logPath}");
+                return logPath;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Failed to export bloatware removal log: {ex.Message}");
+                return null;
+            }
+        }
     }
 
     #region Supporting Types
@@ -1369,6 +1445,10 @@ namespace OmenCore.Services.BloatwareManager
         public string? UninstallCommand { get; set; }
         public string? RegistryPath { get; set; }
         public string? RegistryHive { get; set; }
+        /// <summary>Result of the most recent removal attempt.</summary>
+        public RemovalStatus LastRemovalStatus { get; set; } = RemovalStatus.NotAttempted;
+        /// <summary>Human-readable failure reason from the most recent removal attempt.</summary>
+        public string? LastFailureReason { get; set; }
     }
 
     public class BloatwareBackup
@@ -1418,6 +1498,15 @@ namespace OmenCore.Services.BloatwareManager
         Low,
         Medium,
         High
+    }
+
+    public enum RemovalStatus
+    {
+        NotAttempted,
+        Pending,
+        Succeeded,
+        VerifiedSuccess,
+        Failed
     }
 
     #endregion

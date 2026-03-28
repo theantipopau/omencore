@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -33,6 +35,7 @@ namespace OmenCore.ViewModels
         private int _bulkRestoreProgress;
         private int _bulkRestoreTotal;
         private bool _isBulkRestoring;
+        private bool _hasRemovalResults;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -45,6 +48,7 @@ namespace OmenCore.ViewModels
         public ICommand RemoveAllLowRiskCommand { get; }
         public ICommand RestoreSelectedCommand { get; }
         public ICommand RestoreAllRemovedCommand { get; }
+        public ICommand ExportResultLogCommand { get; }
 
         public bool IsScanning
         {
@@ -147,6 +151,13 @@ namespace OmenCore.ViewModels
             set { _bulkRestoreTotal = value; OnPropertyChanged(); }
         }
 
+        /// <summary>True after any bulk removal has completed, enabling the Export Log button.</summary>
+        public bool HasRemovalResults
+        {
+            get => _hasRemovalResults;
+            set { _hasRemovalResults = value; OnPropertyChanged(); }
+        }
+
         public BloatwareManagerViewModel(LoggingService logger)
         {
             _logger = logger;
@@ -158,6 +169,7 @@ namespace OmenCore.ViewModels
             RemoveAllLowRiskCommand = new RelayCommand(async _ => await RemoveAllLowRiskAsync(), _ => LowRiskCount > 0 && CanInteract);
             RestoreSelectedCommand = new RelayCommand(async _ => await RestoreSelectedAsync(), _ => CanRestoreSelected);
             RestoreAllRemovedCommand = new RelayCommand(async _ => await RestoreAllRemovedAsync(), _ => RemovedCount > 0 && CanInteract);
+            ExportResultLogCommand = new RelayCommand(_ => ExportResultLog(), _ => HasRemovalResults);
 
             // Initialize categories
             foreach (var cat in Enum.GetValues<BloatwareCategory>().Where(c => c != BloatwareCategory.Unknown))
@@ -235,6 +247,7 @@ namespace OmenCore.ViewModels
             {
                 IsProcessing = true;
                 await _service.RemoveAppAsync(app);
+                HasRemovalResults = true;
                 UpdateCounts();
             }
             finally
@@ -282,7 +295,20 @@ namespace OmenCore.ViewModels
                     await _service.RemoveAppAsync(app);
                 }
 
-                StatusMessage = $"Removed {count} bloatware items";
+                var succeeded = lowRiskApps.Count(a => a.LastRemovalStatus == RemovalStatus.VerifiedSuccess || a.LastRemovalStatus == RemovalStatus.Succeeded);
+                var failed = lowRiskApps.Count(a => a.LastRemovalStatus == RemovalStatus.Failed);
+
+                if (failed == 0)
+                    StatusMessage = $"✓ Removed {succeeded}/{count} items successfully.";
+                else
+                {
+                    var failedNames = string.Join(", ", lowRiskApps
+                        .Where(a => a.LastRemovalStatus == RemovalStatus.Failed)
+                        .Select(a => a.Name));
+                    StatusMessage = $"Completed: {succeeded} succeeded, {failed} failed — {failedNames}. Export log for details.";
+                }
+
+                HasRemovalResults = true;
                 UpdateCounts();
             }
             finally
@@ -400,6 +426,20 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(RemovedCount));
             OnPropertyChanged(nameof(LowRiskCount));
+        }
+
+        private void ExportResultLog()
+        {
+            var path = _service.ExportRemovalLog(AllApps);
+            if (path == null)
+            {
+                StatusMessage = "Nothing to export — no removal attempts recorded in this session.";
+                return;
+            }
+
+            StatusMessage = $"Log exported: {path}";
+            try { Process.Start("explorer.exe", $"/select,\"{path}\""); }
+            catch { /* non-fatal; file is still created */ }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

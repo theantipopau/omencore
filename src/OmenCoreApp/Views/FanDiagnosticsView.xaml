@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d" d:DesignHeight="400" d:DesignWidth="700">
     <Border Style="{StaticResource SurfaceCard}" Padding="16">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
             <TextBlock Text="Fan Diagnostics" Style="{StaticResource Heading2}" />
             <WrapPanel Orientation="Horizontal" Margin="0,8,0,12">
@@ -93,7 +94,7 @@
                                             <Run Text=")" />
                                         </TextBlock>
                                         <TextBlock FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-                                                   TextWrapping="Wrap" MaxWidth="500">
+                                                   TextWrapping="Wrap">
                                             <Run Text="{Binding ErrorMessage, Mode=OneWay}" />
                                         </TextBlock>
                             </StackPanel>
@@ -102,5 +103,6 @@
                 </ListBox.ItemTemplate>
             </ListBox>
         </StackPanel>
+        </ScrollViewer>
     </Border>
 </UserControl>

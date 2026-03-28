@@ -277,6 +277,9 @@
                                                         <DataTrigger Binding="{Binding IsRemoved}" Value="True">
                                                             <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
+                                                            <Setter Property="Background" Value="#4A0000"/>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
@@ -289,6 +292,10 @@
                                                             <DataTrigger Binding="{Binding IsRemoved}" Value="True">
                                                                 <Setter Property="Text" Value="REMOVED"/>
                                                                 <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
+                                                                <Setter Property="Text" Value="FAILED"/>
+                                                                <Setter Property="Foreground" Value="#FF6B6B"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -380,6 +387,17 @@
                            VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Command="{Binding ExportResultLogCommand}"
+                            Style="{StaticResource SecondaryButton}"
+                            Padding="10,4"
+                            Margin="0,0,10,0"
+                            ToolTip="Export removal results to a log file"
+                            AutomationProperties.Name="Export Removal Log">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconExport}" Width="11" Height="11" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="Export Log" FontSize="10"/>
+                        </StackPanel>
+                    </Button>
                     <Path Data="{StaticResource IconWarning}" Width="12" Height="12" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Some removals may require a restart" 
                                Foreground="{StaticResource TextTertiaryBrush}" 
