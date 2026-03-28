@@ -231,4 +231,12 @@ This changelog uses a split format:
 
 ---
 
+### 16. Fan curve apply now uses a verification kick
+- **Issue:** Some HP laptops follow the diagnostics tab's one-shot `Apply & Verify` flow more reliably than a plain custom-curve apply, especially immediately after switching into Custom mode.
+- **Fix:** Applying a custom fan curve now keeps the normal preset/curve engine path, then runs a one-shot post-apply verification kick using `FanVerificationService` at the current curve target percentage. The curve is reapplied after verification so ongoing automatic control is preserved. The same verification kick is now also used when loading saved custom presets from the fan tab preset dropdown. The fan control UI now shows the verification/apply result directly.
+- **Files:** `FanControlViewModel.cs`, `FanControlView.xaml`, `MainViewModel.cs`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*

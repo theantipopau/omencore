@@ -18,6 +18,7 @@ namespace OmenCore.ViewModels
         private readonly FanService _fanService;
         private readonly LoggingService _logging;
         private readonly ConfigurationService _configService;
+        private readonly IFanVerificationService? _fanVerificationService;
         private FanPreset? _selectedPreset;
         private string _customPresetName = "Custom";
         private double _currentTemperature;
@@ -25,6 +26,8 @@ namespace OmenCore.ViewModels
         private double _currentGpuTemperature;
         private bool _suppressApplyOnSelection;
         private IEnumerable<FanCurvePoint>? _hoveredPresetCurve;
+        private bool _isApplyingCustomCurve;
+        private string _curveApplyStatus = "Ready to apply";
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
@@ -325,6 +328,32 @@ namespace OmenCore.ViewModels
         /// </summary>
         public bool IsCurveActive => _fanService.IsCurveActive;
 
+        public bool IsApplyingCustomCurve
+        {
+            get => _isApplyingCustomCurve;
+            private set
+            {
+                if (_isApplyingCustomCurve != value)
+                {
+                    _isApplyingCustomCurve = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string CurveApplyStatus
+        {
+            get => _curveApplyStatus;
+            private set
+            {
+                if (_curveApplyStatus != value)
+                {
+                    _curveApplyStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string CustomPresetName
         {
             get => _customPresetName;
@@ -508,17 +537,18 @@ namespace OmenCore.ViewModels
         
         #endregion
 
-        public FanControlViewModel(FanService fanService, ConfigurationService configService, LoggingService logging)
+        public FanControlViewModel(FanService fanService, ConfigurationService configService, LoggingService logging, IFanVerificationService? fanVerificationService = null)
         {
             _fanService = fanService;
             _configService = configService;
             _logging = logging;
+            _fanVerificationService = fanVerificationService;
             
             // Load hysteresis and transition settings from config
             _fanService.SetHysteresis(_configService.Config.FanHysteresis);
             ImmediateApplyOnApply = _configService.Config.FanTransition.ApplyImmediatelyOnUserAction;
             
-            ApplyCustomCurveCommand = new RelayCommand(_ => ApplyCustomCurve());
+            ApplyCustomCurveCommand = new AsyncRelayCommand(async _ => await ApplyCustomCurveAsync(), _ => !IsApplyingCustomCurve);
 
             // Initialize transition values from config
             SmoothingDurationMs = _configService.Config.FanTransition.SmoothingDurationMs;
@@ -825,7 +855,42 @@ namespace OmenCore.ViewModels
             
             // Save last applied preset name to config for persistence across restarts
             SaveLastPresetToConfig(preset.Name);
-            // FanService logs success/failure, no need to duplicate
+
+            if (!preset.IsBuiltIn && preset.Mode == FanMode.Manual && preset.Curve != null && preset.Curve.Count > 0)
+            {
+                _ = VerifySavedPresetApplyAsync(preset);
+            }
+            else
+            {
+                CurveApplyStatus = $"Preset '{preset.Name}' applied";
+            }
+        }
+
+        private async Task VerifySavedPresetApplyAsync(FanPreset preset)
+        {
+            if (IsApplyingCustomCurve)
+            {
+                CurveApplyStatus = "Verification already in progress...";
+                return;
+            }
+
+            IsApplyingCustomCurve = true;
+            try
+            {
+                await RunCurveVerificationKickAsync(
+                    sourceLabel: $"Preset '{preset.Name}'",
+                    curvePoints: preset.Curve,
+                    reapplyCurveAction: () => _fanService.ApplyPreset(preset, ImmediateApplyOnApply));
+            }
+            catch (Exception ex)
+            {
+                CurveApplyStatus = $"Preset '{preset.Name}' apply failed: {ex.Message}";
+                _logging.Error($"Preset '{preset.Name}' verification kick failed", ex);
+            }
+            finally
+            {
+                IsApplyingCustomCurve = false;
+            }
         }
         
         /// <summary>
@@ -846,7 +911,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private void ApplyCustomCurve()
+        private async Task ApplyCustomCurveAsync()
         {
             if (_fanService.IsDiagnosticModeActive)
             {
@@ -874,10 +939,131 @@ namespace OmenCore.ViewModels
                 Curve = CustomFanCurve.ToList()
             };
 
-            _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply);
-            ActiveFanMode = "Custom";
-            OnPropertyChanged(nameof(CurrentFanModeName));
-            // FanService logs success/failure, no need to duplicate
+            IsApplyingCustomCurve = true;
+            try
+            {
+                CurveApplyStatus = "Applying custom curve...";
+                _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply);
+                ActiveFanMode = "Custom";
+                OnPropertyChanged(nameof(CurrentFanModeName));
+
+                await RunCurveVerificationKickAsync(
+                    sourceLabel: "Custom curve",
+                    curvePoints: CustomFanCurve,
+                    reapplyCurveAction: () => _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply));
+            }
+            catch (Exception ex)
+            {
+                CurveApplyStatus = $"Custom curve apply failed: {ex.Message}";
+                _logging.Error("Custom curve apply failed", ex);
+            }
+            finally
+            {
+                IsApplyingCustomCurve = false;
+            }
+        }
+
+        private async Task RunCurveVerificationKickAsync(
+            string sourceLabel,
+            System.Collections.Generic.IEnumerable<FanCurvePoint> curvePoints,
+            Action reapplyCurveAction)
+        {
+            if (_fanVerificationService?.IsAvailable != true)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied";
+                return;
+            }
+
+            if (FanTelemetry.Count == 0)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied; verification skipped (no RPM telemetry)";
+                return;
+            }
+
+            var controlTemp = Math.Max(CurrentCpuTemperature, CurrentGpuTemperature);
+            if (controlTemp <= 0)
+                controlTemp = CurrentTemperature;
+
+            var targetPercent = EvaluateCurvePercent(curvePoints, controlTemp);
+            targetPercent = ApplySafetyFloor(targetPercent, controlTemp);
+
+            CurveApplyStatus = $"Verifying {sourceLabel.ToLowerInvariant()} at {controlTemp:F0}°C -> {targetPercent}%...";
+            _logging.Info($"[FanCurve] Running post-apply verification kick for {sourceLabel} at {controlTemp:F1}°C -> {targetPercent}%");
+
+            var fanCount = Math.Min(2, FanTelemetry.Count);
+            var results = new System.Collections.Generic.List<FanApplyResult>();
+
+            _fanService.EnterDiagnosticMode();
+            try
+            {
+                for (int fanIndex = 0; fanIndex < fanCount; fanIndex++)
+                {
+                    results.Add(await _fanVerificationService.ApplyAndVerifyFanSpeedAsync(fanIndex, targetPercent));
+                }
+            }
+            finally
+            {
+                _fanService.ExitDiagnosticMode();
+                reapplyCurveAction();
+            }
+
+            var passedCount = results.Count(r => r.VerificationPassed);
+            if (passedCount == results.Count)
+            {
+                CurveApplyStatus = results.Count == 1
+                    ? $"{sourceLabel} verified at {targetPercent}% ({results[0].ActualRpmAfter} RPM)"
+                    : $"{sourceLabel} verified on both fans at {targetPercent}%";
+            }
+            else if (passedCount > 0)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied; verification partial ({passedCount}/{results.Count} fans passed)";
+            }
+            else
+            {
+                var firstFailure = results.FirstOrDefault(r => !r.VerificationPassed)?.ErrorMessage;
+                CurveApplyStatus = string.IsNullOrWhiteSpace(firstFailure)
+                    ? $"{sourceLabel} applied; verification did not confirm RPM change"
+                    : $"{sourceLabel} applied; verification warning: {firstFailure}";
+            }
+        }
+
+        private static int EvaluateCurvePercent(System.Collections.Generic.IEnumerable<FanCurvePoint> curve, double temp)
+        {
+            var points = curve.OrderBy(p => p.TemperatureC).ToList();
+            if (points.Count == 0)
+                return 0;
+
+            if (temp <= points[0].TemperatureC)
+                return points[0].FanPercent;
+
+            if (temp >= points[^1].TemperatureC)
+                return points[^1].FanPercent;
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var left = points[i];
+                var right = points[i + 1];
+                if (temp < left.TemperatureC || temp > right.TemperatureC)
+                    continue;
+
+                var ratio = (temp - left.TemperatureC) / (right.TemperatureC - left.TemperatureC);
+                return (int)Math.Round(left.FanPercent + ((right.FanPercent - left.FanPercent) * ratio));
+            }
+
+            return points[^1].FanPercent;
+        }
+
+        private static int ApplySafetyFloor(int fanPercent, double temp)
+        {
+            if (temp >= 95)
+                return 100;
+            if (temp >= 90)
+                return Math.Max(fanPercent, 80);
+            if (temp >= 85)
+                return Math.Max(fanPercent, 60);
+            if (temp >= 80)
+                return Math.Max(fanPercent, 40);
+            return fanPercent;
         }
         
         /// <summary>
