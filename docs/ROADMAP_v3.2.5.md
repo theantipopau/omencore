@@ -348,7 +348,7 @@ This roadmap is based on:
 
 - [x] 8BB1 conflict is resolved to the correct family/model at runtime. *(v3.2.5 — model-name disambiguation in both DBs)*
 - [x] Capability, fan, and RGB gating all use the same resolved identity. *(Victus 15-fa1xxx gets correct BacklightOnly + Victus capability profile)*
-- [ ] Diagnostic export includes identity resolution trace for support.
+- [x] Diagnostic export includes identity resolution trace for support. *(v3.2.5 — diagnostics bundle now includes `identity-resolution-trace.txt` with raw identifiers, DB candidates, effective model resolution path, and keyboard disambiguation details)*
 
 #### 3.4.8 Regression test gate for this bug pack
 

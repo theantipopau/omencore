@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
+using OmenCore.Services.KeyboardLighting;
 using OmenCore.Utils;
 
 namespace OmenCore.Services.Diagnostics
@@ -47,6 +48,7 @@ namespace OmenCore.Services.Diagnostics
                 {
                     CollectLogsAsync(exportPath),
                     CollectSystemInfoAsync(exportPath),
+                    CollectModelIdentityTraceAsync(exportPath),
                     CollectEcStateAsync(exportPath, ecAccess),
                     CollectHardwareInfoAsync(exportPath, hwMonitor),
                     CollectWmiCommandHistoryAsync(exportPath, wmiController)
@@ -144,6 +146,104 @@ namespace OmenCore.Services.Diagnostics
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to collect system info: {ex.Message}");
+            }
+        }
+
+        private async Task CollectModelIdentityTraceAsync(string exportPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== MODEL IDENTITY RESOLUTION TRACE ===");
+                sb.AppendLine($"Captured: {DateTime.Now:O}");
+                sb.AppendLine();
+
+                var systemInfo = new SystemInfoService(_logging).GetSystemInfo();
+
+                sb.AppendLine("Raw System Identity Inputs:");
+                sb.AppendLine($"  Manufacturer: {systemInfo.Manufacturer}");
+                sb.AppendLine($"  WMI Model: {systemInfo.Model}");
+                sb.AppendLine($"  Baseboard ProductName: {systemInfo.ProductName}");
+                sb.AppendLine($"  System SKU: {systemInfo.SystemSku}");
+                sb.AppendLine($"  BIOS Version: {systemInfo.BiosVersion}");
+                sb.AppendLine();
+
+                using var capabilityService = new CapabilityDetectionService(_logging);
+                var capabilities = capabilityService.DetectCapabilities();
+
+                sb.AppendLine("Capability Detection Output:");
+                sb.AppendLine($"  ProductId: {capabilities.ProductId}");
+                sb.AppendLine($"  ModelName: {capabilities.ModelName}");
+                sb.AppendLine($"  ModelFamily: {capabilities.ModelFamily}");
+                sb.AppendLine($"  IsKnownModel: {capabilities.IsKnownModel}");
+                sb.AppendLine();
+
+                var modelNameMatch = ModelCapabilityDatabase.GetCapabilitiesByModelName(capabilities.ModelName);
+                var productIdMatch = ModelCapabilityDatabase.IsKnownModel(capabilities.ProductId)
+                    ? ModelCapabilityDatabase.GetCapabilities(capabilities.ProductId)
+                    : null;
+                var resolvedModel = capabilities.ModelConfig;
+
+                sb.AppendLine("Model Capability Database Resolution:");
+                sb.AppendLine($"  Name-pattern candidate: {(modelNameMatch != null ? modelNameMatch.ModelName + " (" + modelNameMatch.ProductId + ")" : "none")}");
+                sb.AppendLine($"  ProductId candidate: {(productIdMatch != null ? productIdMatch.ModelName + " (" + productIdMatch.ProductId + ")" : "none")}");
+                sb.AppendLine($"  Effective resolved model: {(resolvedModel != null ? resolvedModel.ModelName + " (" + resolvedModel.ProductId + ")" : "none")}");
+
+                if (resolvedModel != null)
+                {
+                    string resolutionPath;
+                    if (modelNameMatch != null && string.Equals(resolvedModel.ProductId, modelNameMatch.ProductId, StringComparison.OrdinalIgnoreCase))
+                        resolutionPath = "Matched by model-name pattern";
+                    else if (productIdMatch != null && string.Equals(resolvedModel.ProductId, productIdMatch.ProductId, StringComparison.OrdinalIgnoreCase))
+                        resolutionPath = "Matched by ProductId";
+                    else if (resolvedModel.ProductId.StartsWith("FAMILY_", StringComparison.OrdinalIgnoreCase))
+                        resolutionPath = "Family fallback";
+                    else if (string.Equals(resolvedModel.ProductId, ModelCapabilityDatabase.DefaultCapabilities.ProductId, StringComparison.OrdinalIgnoreCase))
+                        resolutionPath = "Default capabilities fallback";
+                    else
+                        resolutionPath = "Resolved by runtime fallback path";
+
+                    sb.AppendLine($"  Resolution path: {resolutionPath}");
+                    sb.AppendLine($"  User-verified profile: {(resolvedModel.UserVerified ? "yes" : "no")}");
+                    if (!string.IsNullOrWhiteSpace(resolvedModel.Notes))
+                        sb.AppendLine($"  Profile notes: {resolvedModel.Notes}");
+                }
+
+                sb.AppendLine();
+
+                var keyboardProductIdCandidate = !string.IsNullOrWhiteSpace(systemInfo.ProductName)
+                    ? systemInfo.ProductName.Trim()
+                    : systemInfo.SystemSku?.Trim() ?? string.Empty;
+                var keyboardConfig = KeyboardModelDatabase.GetConfig(keyboardProductIdCandidate, systemInfo.Model);
+
+                sb.AppendLine("Keyboard Model Resolution:");
+                sb.AppendLine($"  ProductId candidate: {keyboardProductIdCandidate}");
+                sb.AppendLine($"  ProductId ambiguous: {(KeyboardModelDatabase.IsAmbiguousProductId(keyboardProductIdCandidate) ? "yes" : "no")}");
+                sb.AppendLine($"  WMI Model context: {systemInfo.Model}");
+
+                if (keyboardConfig != null)
+                {
+                    sb.AppendLine($"  Effective keyboard model: {keyboardConfig.ModelName} ({keyboardConfig.ProductId})");
+                    sb.AppendLine($"  Keyboard type: {keyboardConfig.KeyboardType}");
+                    sb.AppendLine($"  Preferred method: {keyboardConfig.PreferredMethod}");
+                    sb.AppendLine($"  User-verified profile: {(keyboardConfig.UserVerified ? "yes" : "no")}");
+                    if (!string.IsNullOrWhiteSpace(keyboardConfig.ModelNamePattern))
+                        sb.AppendLine($"  Disambiguation pattern: {keyboardConfig.ModelNamePattern}");
+                    if (!string.IsNullOrWhiteSpace(keyboardConfig.Notes))
+                        sb.AppendLine($"  Notes: {keyboardConfig.Notes}");
+                }
+                else
+                {
+                    sb.AppendLine("  Effective keyboard model: none (no direct match)");
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "identity-resolution-trace.txt"), sb.ToString());
+                _logging.Info("Collected model identity resolution trace");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect model identity resolution trace: {ex.Message}");
             }
         }
 

@@ -279,4 +279,19 @@ This changelog uses a split format:
 
 ---
 
+### 20. Diagnostic export now includes model identity resolution trace
+- **Issue:** Support diagnostics did not include the actual model-resolution decision path (raw identifiers, DB candidates, and final resolved profile), which made Product ID collisions and model-name disambiguation issues harder to triage remotely.
+- **Fix:**
+  - Added `CollectModelIdentityTraceAsync()` to diagnostics export flow.
+  - Diagnostics bundles now include `identity-resolution-trace.txt` with:
+    - Raw identity inputs (`Manufacturer`, WMI `Model`, `ProductName`, `SystemSku`, BIOS version)
+    - Capability detection output (`ProductId`, `ModelName`, `ModelFamily`, known-model state)
+    - Model capability DB candidate comparison (name-pattern candidate vs ProductId candidate vs effective resolved profile)
+    - Explicit resolution path classification (name-pattern match, ProductId match, family fallback, default fallback)
+    - Keyboard model resolution/disambiguation details (including ambiguous Product ID signal and matched keyboard profile)
+- **Files:** `DiagnosticExportService.cs`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*
