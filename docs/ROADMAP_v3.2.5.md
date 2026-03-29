@@ -1867,10 +1867,10 @@ Use this section as the working completion board for v3.2.5.
 
 #### #96 Linux package/version consistency
 
-- [ ] Replace hardcoded Linux CLI version path with shared version source
-- [ ] Ensure Linux GUI reports same version source
+- [x] Replace hardcoded Linux CLI version path with shared version source. *(CLI version now read from assembly metadata; Linux packaging injects `VERSION.txt` into `Version/AssemblyVersion/FileVersion` publish properties)*
+- [x] Ensure Linux GUI reports same version source. *(Avalonia publish now receives the same version metadata from `VERSION.txt`; stale hardcoded UI fallback removed)*
 - [ ] Add pre-release version verifier (archive vs CLI vs GUI)
-- [ ] Add release manifest output (`version.json`)
+- [x] Add release manifest output (`version.json`). *(build script emits `artifacts/version.json` with version, assemblyVersion, runtime, package file and SHA256)*
 - [ ] Validate clean Ubuntu extraction reports expected version
 - [ ] Attach evidence (logs/screenshots/command output) in release notes draft
 

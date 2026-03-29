@@ -37,7 +37,7 @@ public partial class SettingsViewModel : ObservableObject
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
-    private string _version = "3.1.0";
+    private string _version = "unknown";
     
     [ObservableProperty]
     private bool _batteryAwareFans = true;

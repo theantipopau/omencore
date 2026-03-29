@@ -313,4 +313,20 @@ This changelog uses a split format:
 
 ---
 
+### 22. Linux packaging now enforces VERSION.txt and emits version manifest
+- **Issue:** Linux packaging/version consistency still had drift risk: Avalonia project metadata remained at `3.1.0`, UI had a stale fallback version literal, and build packaging did not emit a machine-readable release manifest.
+- **Fix:**
+  - `build-linux-package.ps1` now treats `VERSION.txt` as canonical and injects:
+    - `-p:Version=$version`
+    - `-p:AssemblyVersion=$assemblyVersion`
+    - `-p:FileVersion=$assemblyVersion`
+    into both Linux GUI and CLI publish steps.
+  - Added `version.json` generation in `artifacts/` with version, assembly version, runtime, package filename, SHA256, and UTC timestamp.
+  - Added packaging guardrails to fail when package naming does not include expected version/runtime or manifest generation fails.
+  - Updated Avalonia baseline metadata to `3.2.5` and removed stale UI fallback version literal (`unknown` fallback now used until assembly version is loaded).
+- **Files:** `build-linux-package.ps1`, `OmenCore.Avalonia.csproj`, `SettingsViewModel.cs`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*

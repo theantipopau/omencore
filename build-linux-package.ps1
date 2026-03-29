@@ -19,6 +19,12 @@ if ([string]::IsNullOrWhiteSpace($version)) {
     throw "VERSION.txt must contain a semantic version string."
 }
 
+if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)') {
+    throw "VERSION.txt must start with Major.Minor.Patch (for example 3.2.5). Found: '$version'"
+}
+
+$assemblyVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3]).0"
+
 $artifactsDir = Join-Path $root "artifacts"
 $stagingRoot = Join-Path $root "publish\$Runtime\$version"
 $guiOut = Join-Path $stagingRoot "gui"
@@ -42,12 +48,16 @@ Write-Host "Building OmenCore Linux package $version ($Configuration/$Runtime)" 
 # Keeping outputs isolated prevents it from replacing the final CLI binary.
 dotnet publish "$root\src\OmenCore.Avalonia\OmenCore.Avalonia.csproj" `
     -c $Configuration -r $Runtime --self-contained true `
-    -p:PublishSingleFile=true -o $guiOut
+    -p:PublishSingleFile=true `
+    -p:Version=$version -p:AssemblyVersion=$assemblyVersion -p:FileVersion=$assemblyVersion `
+    -o $guiOut
 
 # Build CLI second into its own folder.
 dotnet publish "$root\src\OmenCore.Linux\OmenCore.Linux.csproj" `
     -c $Configuration -r $Runtime --self-contained true `
-    -p:PublishSingleFile=true -o $cliOut
+    -p:PublishSingleFile=true `
+    -p:Version=$version -p:AssemblyVersion=$assemblyVersion -p:FileVersion=$assemblyVersion `
+    -o $cliOut
 
 if (-not (Test-Path "$guiOut\omencore-gui")) {
     throw "GUI publish did not produce omencore-gui at $guiOut"
@@ -90,7 +100,28 @@ $sizeMb = [Math]::Round((Get-Item $zipPath).Length / 1MB, 2)
 
 Set-Content -Path $shaPath -Value "$hash  $([IO.Path]::GetFileName($zipPath))" -NoNewline
 
+# Emit machine-readable package manifest for support/release verification.
+$manifest = [ordered]@{
+    version = $version
+    assemblyVersion = $assemblyVersion
+    runtime = $Runtime
+    configuration = $Configuration
+    packageFile = [IO.Path]::GetFileName($zipPath)
+    packageSha256 = $hash
+    generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+}
+$manifestPath = Join-Path $artifactsDir "version.json"
+$manifest | ConvertTo-Json -Depth 3 | Set-Content -Path $manifestPath -Encoding UTF8
+
+if (-not ($zipPath -like "*-$version-$Runtime.zip")) {
+    throw "Version verification failed: package filename does not include expected version/runtime ($version/$Runtime)."
+}
+if (-not (Test-Path $manifestPath)) {
+    throw "Version verification failed: manifest was not generated."
+}
+
 Write-Host "Created $zipPath" -ForegroundColor Green
 Write-Host "Size: $sizeMb MB" -ForegroundColor Green
 Write-Host "SHA256: $hash" -ForegroundColor Green
 Write-Host "Hash file: $shaPath" -ForegroundColor Green
+Write-Host "Manifest: $manifestPath" -ForegroundColor Green
