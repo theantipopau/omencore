@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using OmenCore.Services.SystemOptimizer.Optimizations;
 
@@ -15,6 +16,7 @@ namespace OmenCore.Services.SystemOptimizer
     {
         private readonly LoggingService _logger;
         private readonly RegistryBackupService _backupService;
+        private readonly Func<bool> _isAdminChecker;
         
         // Individual optimizers
         private readonly PowerOptimizer _powerOptimizer;
@@ -27,9 +29,10 @@ namespace OmenCore.Services.SystemOptimizer
         public event Action<string>? StatusChanged;
         public event Action<OptimizationResult>? OptimizationCompleted;
 
-        public SystemOptimizerService(LoggingService logger)
+        public SystemOptimizerService(LoggingService logger, Func<bool>? isAdminChecker = null)
         {
             _logger = logger;
+            _isAdminChecker = isAdminChecker ?? IsRunningAsAdmin;
             _backupService = new RegistryBackupService(logger);
             _ = new OptimizationVerifier(logger);
             
@@ -78,6 +81,21 @@ namespace OmenCore.Services.SystemOptimizer
         public async Task<List<OptimizationResult>> ApplyGamingMaximumAsync()
         {
             var results = new List<OptimizationResult>();
+
+            if (!_isAdminChecker())
+            {
+                const string msg = "Administrator privileges are required to apply optimizer changes.";
+                StatusChanged?.Invoke(msg);
+                _logger.Warn(msg);
+                results.Add(new OptimizationResult
+                {
+                    Id = "optimizer_admin_preflight",
+                    Name = "Administrator preflight",
+                    Success = false,
+                    ErrorMessage = msg
+                });
+                return results;
+            }
             
             _logger.Info("Applying Gaming Maximum optimization profile...");
             StatusChanged?.Invoke("Creating system restore point...");
@@ -116,6 +134,21 @@ namespace OmenCore.Services.SystemOptimizer
         public async Task<List<OptimizationResult>> ApplyBalancedAsync()
         {
             var results = new List<OptimizationResult>();
+
+            if (!_isAdminChecker())
+            {
+                const string msg = "Administrator privileges are required to apply optimizer changes.";
+                StatusChanged?.Invoke(msg);
+                _logger.Warn(msg);
+                results.Add(new OptimizationResult
+                {
+                    Id = "optimizer_admin_preflight",
+                    Name = "Administrator preflight",
+                    Success = false,
+                    ErrorMessage = msg
+                });
+                return results;
+            }
             
             _logger.Info("Applying Balanced optimization profile...");
             StatusChanged?.Invoke("Creating backup...");
@@ -144,6 +177,21 @@ namespace OmenCore.Services.SystemOptimizer
         public async Task<List<OptimizationResult>> RevertAllAsync()
         {
             var results = new List<OptimizationResult>();
+
+            if (!_isAdminChecker())
+            {
+                const string msg = "Administrator privileges are required to revert optimizer changes.";
+                StatusChanged?.Invoke(msg);
+                _logger.Warn(msg);
+                results.Add(new OptimizationResult
+                {
+                    Id = "optimizer_admin_preflight",
+                    Name = "Administrator preflight",
+                    Success = false,
+                    ErrorMessage = msg
+                });
+                return results;
+            }
             
             _logger.Info("Reverting all optimizations to defaults...");
             StatusChanged?.Invoke("Reverting optimizations...");
@@ -168,6 +216,15 @@ namespace OmenCore.Services.SystemOptimizer
         public async Task<OptimizationResult> ApplyOptimizationAsync(string optimizationId)
         {
             var result = new OptimizationResult { Id = optimizationId };
+
+            if (!_isAdminChecker())
+            {
+                result.Success = false;
+                result.ErrorMessage = "Administrator privileges are required to apply optimizer changes.";
+                StatusChanged?.Invoke(result.ErrorMessage);
+                OptimizationCompleted?.Invoke(result);
+                return result;
+            }
             
             try
             {
@@ -205,6 +262,15 @@ namespace OmenCore.Services.SystemOptimizer
         public async Task<OptimizationResult> RevertOptimizationAsync(string optimizationId)
         {
             var result = new OptimizationResult { Id = optimizationId };
+
+            if (!_isAdminChecker())
+            {
+                result.Success = false;
+                result.ErrorMessage = "Administrator privileges are required to revert optimizer changes.";
+                StatusChanged?.Invoke(result.ErrorMessage);
+                OptimizationCompleted?.Invoke(result);
+                return result;
+            }
             
             try
             {
@@ -239,6 +305,20 @@ namespace OmenCore.Services.SystemOptimizer
         {
             _powerOptimizer?.Dispose();
             _serviceOptimizer?.Dispose();
+        }
+
+        private static bool IsRunningAsAdmin()
+        {
+            try
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                var principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

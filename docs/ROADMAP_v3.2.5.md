@@ -313,7 +313,7 @@ This roadmap is based on:
 
 - [x] Toggle feedback shows pending/success/failure deterministically.
 - [x] Failed toggle remains visually failed with reason instead of snapping silently.
-- [ ] Optimizer actions are test-covered for non-admin and admin modes.
+- [x] Optimizer actions are test-covered for non-admin and admin modes. *(v3.2.5 — added `SystemOptimizerServiceAdminTests` covering non-admin preflight failure and admin-path routing behavior)*
 
 #### 3.4.7 P0 - Victus 15-fa1xxx (Product 8BB1) classification uncertainty
 

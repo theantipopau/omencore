@@ -294,4 +294,23 @@ This changelog uses a split format:
 
 ---
 
+### 21. Optimizer now has deterministic admin preflight and admin/non-admin tests
+- **Issue:** Optimizer operations could proceed into low-level apply/revert paths without an explicit admin preflight gate, and roadmap coverage for non-admin/admin behavior was still missing.
+- **Fix:**
+  - Added explicit admin preflight checks in `SystemOptimizerService` for:
+    - `ApplyGamingMaximumAsync`
+    - `ApplyBalancedAsync`
+    - `RevertAllAsync`
+    - `ApplyOptimizationAsync`
+    - `RevertOptimizationAsync`
+  - Added injectable admin checker seam (`Func<bool>? isAdminChecker`) to make privilege-dependent behavior unit-testable.
+  - Added `SystemOptimizerServiceAdminTests` covering:
+    - non-admin single-action apply returns admin-preflight error,
+    - admin path does not falsely fail preflight,
+    - non-admin balanced preset returns deterministic preflight failure result.
+- **Files:** `SystemOptimizerService.cs`, `SystemOptimizerServiceAdminTests.cs`
+- **Status:** ✅ Fixed
+
+---
+
 *This changelog is updated continuously as fixes land on the `dev/v3.2.5` branch.*
