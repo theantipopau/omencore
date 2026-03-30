@@ -39,6 +39,9 @@ public class SystemCapabilities
     public bool HasDiscreteGpu { get; set; }
     public bool HasGpuMuxSwitch { get; set; }
     public bool SupportsFanControl { get; set; }
+    public bool SupportsPerformanceProfiles { get; set; }
+    public string FanControlCapabilityClass { get; set; } = "unsupported-control";
+    public string FanControlCapabilityReason { get; set; } = string.Empty;
     public string ModelName { get; set; } = "Unknown";
     public string CpuName { get; set; } = "Unknown";
     public string GpuName { get; set; } = "Unknown";

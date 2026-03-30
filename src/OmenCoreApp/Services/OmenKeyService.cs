@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Management;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -34,8 +36,10 @@ namespace OmenCore.Services
         private string _externalAppPath = string.Empty;
         private long _lastKeyPressTicks = 0; // Use ticks for thread-safe Interlocked operations
         private const int DebounceMs = 300;
-        private long _lastBrightnessKeyTicks = 0;
-        private const int BrightnessGuardWindowMs = 1200;
+        private long _lastNeverInterceptKeyTicks = 0;
+        private int _lastNeverInterceptVkCode = 0;
+        private int _lastNeverInterceptScanCode = 0;
+        private const int NeverInterceptGuardWindowMs = 1200;
         
         // WMI event watcher for HP BIOS events
         private ManagementEventWatcher? _wmiEventWatcher;
@@ -48,10 +52,13 @@ namespace OmenCore.Services
         private const int VK_OEM_OMEN = 0xFF;     // Some models use this
         
         // Brightness keys that should NEVER be treated as OMEN key
+        private const int VK_F1 = 0x70;
         private const int VK_BRIGHTNESS_DOWN = 0x70;  // F1 - brightness down
         private const int VK_BRIGHTNESS_UP = 0x71;    // F2 - brightness up
         private const int VK_F2 = 0x71;               // F2
         private const int VK_F3 = 0x72;               // F3
+        private const int VK_F11 = 0x7A;              // F11 must never be intercepted
+        private const int VK_F23 = 0x86;
         
         // Additional keys that must NEVER be treated as OMEN key (GitHub #46)
         private const int VK_SCROLL_LOCK = 0x91;      // Scroll Lock - scan code 0x46 conflicts with OMEN
@@ -381,15 +388,9 @@ namespace OmenCore.Services
                 
                 _logging.Debug($"WMI event received: class={className}, eventId={eventId}, eventData={eventData}");
 
-                var brightnessTicks = Interlocked.Read(ref _lastBrightnessKeyTicks);
-                if (brightnessTicks > 0)
+                if (ShouldSuppressWmiEventFromRecentNeverInterceptKey())
                 {
-                    var sinceBrightnessMs = (DateTime.UtcNow.Ticks - brightnessTicks) / TimeSpan.TicksPerMillisecond;
-                    if (sinceBrightnessMs >= 0 && sinceBrightnessMs <= BrightnessGuardWindowMs)
-                    {
-                        _logging.Debug($"WMI event filtered: recent brightness/F-key activity ({sinceBrightnessMs}ms ago)");
-                        return;
-                    }
+                    return;
                 }
                 
                 // Known brightness/hotkey event IDs to exclude (varies by model)
@@ -517,10 +518,9 @@ namespace OmenCore.Services
                         _logging.Debug($"[KeyHook] VK=0x{hookStruct.vkCode:X2} ({hookStruct.vkCode}), Scan=0x{hookStruct.scanCode:X4}, Flags=0x{hookStruct.flags:X}");
                     }
 
-                    if (hookStruct.vkCode == VK_BRIGHTNESS_DOWN || hookStruct.vkCode == VK_BRIGHTNESS_UP ||
-                        hookStruct.vkCode == VK_F2 || hookStruct.vkCode == VK_F3)
+                    if (TryGetNeverInterceptReason(hookStruct.vkCode, hookStruct.scanCode, out var neverInterceptReason))
                     {
-                        Interlocked.Exchange(ref _lastBrightnessKeyTicks, DateTime.UtcNow.Ticks);
+                        RememberNeverInterceptKey(hookStruct.vkCode, hookStruct.scanCode, neverInterceptReason);
                     }
                 }
                 
@@ -662,24 +662,18 @@ namespace OmenCore.Services
 
         private bool IsOmenKey(uint vkCode, uint scanCode)
         {
+            if (TryGetNeverInterceptReason(vkCode, scanCode, out var neverInterceptReason))
+            {
+                LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, neverInterceptReason);
+                return false;
+            }
+
             // CRITICAL: Exclude Scroll Lock, Pause, and Num Lock keys (GitHub #46)
             // Scroll Lock has scan code 0x46 which conflicts with OMEN scan codes
             // These are standard keyboard keys that should NEVER trigger OmenCore
             if (vkCode == VK_SCROLL_LOCK || vkCode == VK_PAUSE || vkCode == VK_NUM_LOCK)
             {
                 _logging.Debug($"Excluded lock key: VK=0x{vkCode:X2}, Scan=0x{scanCode:X4} - NOT OMEN key");
-                return false;
-            }
-            
-            // CRITICAL: Exclude brightness keys and other function keys that should never trigger OMEN actions
-            // These keys are commonly used with Fn modifier and can conflict with OMEN key detection
-            // Issue #42: Fn+F2/F3 brightness keys incorrectly triggering OmenCore
-            // User report: Fn+F3/F4 on Victus triggering app open
-            if (vkCode == VK_BRIGHTNESS_DOWN || vkCode == VK_BRIGHTNESS_UP ||
-                vkCode == VK_F2 || vkCode == VK_F3 ||
-                (vkCode >= 0x70 && vkCode <= 0x86)) // F1-F23 (F24 handled explicitly for supported OMEN models)
-            {
-                _logging.Debug($"Excluded F-key: VK=0x{vkCode:X2}, Scan=0x{scanCode:X4} - NOT OMEN key");
                 return false;
             }
             
@@ -708,7 +702,7 @@ namespace OmenCore.Services
                 }
                 
                 // Log unrecognized scan codes for debugging (but don't treat as OMEN key)
-                _logging.Debug($"VK_LAUNCH_APP2 with unknown scan code: 0x{scanCode:X4} - NOT treated as OMEN key (may be Calculator)");
+                LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "vk-launch-app2-scan-mismatch");
                 return false;
             }
 
@@ -732,7 +726,7 @@ namespace OmenCore.Services
                         return true;
                     }
                 }
-                _logging.Debug($"VK_LAUNCH_APP1 (0xB6) with non-OMEN scan code: 0x{scanCode:X4} - NOT treated as OMEN key (likely Remote Desktop or media app)");
+                LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "vk-launch-app1-scan-mismatch");
                 return false;
             }
             
@@ -744,7 +738,7 @@ namespace OmenCore.Services
                 bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
                 if (strictMode && !OmenScanCodes.Contains((int)scanCode))
                 {
-                    _logging.Debug($"VK 157 (0x9D) rejected in strict mode — scan code 0x{scanCode:X4} not in OMEN set");
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "strict-mode-vk157-scan-mismatch");
                     return false;
                 }
                 _logging.Debug($"VK 157 (0x9D) detected with scan code: 0x{scanCode:X4} - OMEN key");
@@ -757,7 +751,7 @@ namespace OmenCore.Services
                 bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
                 if (strictMode && !OmenScanCodes.Contains((int)scanCode))
                 {
-                    _logging.Debug($"F24 (0x87) rejected in strict mode — scan code 0x{scanCode:X4} not in OMEN set");
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "strict-mode-f24-scan-mismatch");
                     return false;
                 }
                 _logging.Debug($"F24 (0x87) detected with scan code: 0x{scanCode:X4} - OMEN key");
@@ -789,11 +783,74 @@ namespace OmenCore.Services
                         _logging.Debug($"OMEN scan code 0x{scanCode:X4} with OMEN VK 0x{vkCode:X2} - OMEN key confirmed");
                         return true;
                     }
-                    _logging.Debug($"OMEN scan code 0x{scanCode:X4} with non-OMEN VK 0x{vkCode:X2} - NOT treated as OMEN key (likely Fn+Fx)");
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "non-extended-scan-with-non-omen-vk");
                 }
             }
 
             return false;
+        }
+
+        private bool ShouldSuppressWmiEventFromRecentNeverInterceptKey()
+        {
+            var lastTicks = Interlocked.Read(ref _lastNeverInterceptKeyTicks);
+            if (lastTicks <= 0)
+            {
+                return false;
+            }
+
+            var sinceLastMs = (DateTime.UtcNow.Ticks - lastTicks) / TimeSpan.TicksPerMillisecond;
+            if (sinceLastMs < 0 || sinceLastMs > NeverInterceptGuardWindowMs)
+            {
+                return false;
+            }
+
+            var vkCode = Volatile.Read(ref _lastNeverInterceptVkCode);
+            var scanCode = Volatile.Read(ref _lastNeverInterceptScanCode);
+            _logging.Debug($"WMI event filtered: recent never-intercept key activity source=keyboard-hook vk=0x{vkCode:X2} scan=0x{scanCode:X4} ageMs={sinceLastMs}");
+            return true;
+        }
+
+        private void RememberNeverInterceptKey(uint vkCode, uint scanCode, string reason)
+        {
+            Interlocked.Exchange(ref _lastNeverInterceptVkCode, unchecked((int)vkCode));
+            Interlocked.Exchange(ref _lastNeverInterceptScanCode, unchecked((int)scanCode));
+            Interlocked.Exchange(ref _lastNeverInterceptKeyTicks, DateTime.UtcNow.Ticks);
+            _logging.Debug($"Never-intercept key observed: vk=0x{vkCode:X2} scan=0x{scanCode:X4} reason={reason}");
+        }
+
+        private bool TryGetNeverInterceptReason(uint vkCode, uint scanCode, out string reason)
+        {
+            if (vkCode == VK_SCROLL_LOCK || vkCode == VK_PAUSE || vkCode == VK_NUM_LOCK)
+            {
+                reason = "never-intercept-lock-key";
+                return true;
+            }
+
+            if (vkCode == VK_F11)
+            {
+                reason = "never-intercept-f11";
+                return true;
+            }
+
+            if (vkCode == VK_BRIGHTNESS_DOWN || vkCode == VK_BRIGHTNESS_UP || vkCode == VK_F2 || vkCode == VK_F3)
+            {
+                reason = "never-intercept-brightness-key";
+                return true;
+            }
+
+            if (vkCode >= VK_F1 && vkCode <= VK_F23)
+            {
+                reason = "never-intercept-function-key";
+                return true;
+            }
+
+            reason = string.Empty;
+            return false;
+        }
+
+        private void LogRejectedCandidate(string source, uint vkCode, uint scanCode, uint? flags, string reason)
+        {
+            _logging.Debug($"OMEN candidate rejected: source={source} vk=0x{vkCode:X2} scan=0x{scanCode:X4} flags={(flags.HasValue ? $"0x{flags.Value:X}" : "n/a")} reason={reason}");
         }
 
         /// <summary>

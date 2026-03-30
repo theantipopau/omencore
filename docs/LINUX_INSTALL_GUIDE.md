@@ -256,6 +256,15 @@ The Avalonia-based GUI provides a graphical dashboard similar to the Windows ver
 # Standard launch
 sudo ./omencore-gui
 
+# Prefer EGL first, then GLX, then software fallback (default in v3.2.5)
+sudo ./omencore-gui
+
+# Force software rendering on Fedora/X11 systems where GLX fails or llvmpipe is blacklisted
+sudo env OMENCORE_GUI_RENDER_MODE=software DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+
+# Prefer EGL explicitly if you want to avoid GLX first
+sudo env OMENCORE_GUI_RENDER_MODE=egl DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+
 # If using Wayland
 DISPLAY=:0 sudo ./omencore-gui
 
@@ -618,6 +627,7 @@ OmenCore automatically selects the best fan control method available for your ha
 | OMEN 17 2021 | 5.15+ | ec_sys | Full EC access |
 | OMEN 16 2024 (xd0xxx) | 6.5+ | hp-wmi | WMI fan control |
 | OMEN Max 2025 | 6.18+ | hwmon PWM | EC writes blocked |
+| OMEN Transcend 14-fb1xxx (8E41) | 6.17+ | hp-wmi (capability-gated) | Usually telemetry/profile-only until kernel hp-wmi exposes fan target/thermal controls |
 
 ### Run Diagnostics to Check Your Model
 
@@ -678,6 +688,20 @@ Some distributions (Fedora 43+, some Arch builds) don't include `ec_sys`:
    sudo ./omencore-cli diagnose --report > omencore-report.txt
    ```
 
+4. **Transcend 14 note (boards 8C58/8E41)**:
+   - Legacy EC writes are intentionally blocked for safety on these boards.
+   - If `hp-wmi` exposes telemetry but no `thermal_profile` / `fan*_target`, control is limited by current kernel/firmware exposure.
+   - Collect and share:
+     ```bash
+     uname -a
+     sudo ./omencore-cli status
+     sudo ./omencore-cli diagnose
+     ls -la /sys/devices/platform/hp-wmi/
+     ls -la /sys/devices/platform/hp-wmi/hwmon/*/ 2>/dev/null
+     cat /sys/class/dmi/id/board_name
+     cat /sys/class/dmi/id/product_name
+     ```
+
 ### GUI Won't Start
 
 ```bash
@@ -689,7 +713,18 @@ DISPLAY=:0 sudo ./omencore-gui
 
 # For Wayland, try XWayland
 XDG_SESSION_TYPE=x11 sudo ./omencore-gui
+
+# Force CPU/software rendering if GLX fails or llvmpipe is blacklisted
+sudo env OMENCORE_GUI_RENDER_MODE=software DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+
+# Prefer EGL before GLX on X11
+sudo env OMENCORE_GUI_RENDER_MODE=egl DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
 ```
+
+Notes:
+- `SESSION_MANAGER environment variable not defined` is usually informational on X11 and is not the root cause by itself.
+- If terminal or `journalctl` output mentions `Unable to initialize GLX-based rendering` or `llvmpipe ... is blacklisted`, use `OMENCORE_GUI_RENDER_MODE=software` and retry.
+- v3.2.5 writes a GUI startup log on failure and prints its path to stderr so launch issues are not silent.
 
 ### "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'"
 

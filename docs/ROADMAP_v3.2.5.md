@@ -357,6 +357,10 @@ This roadmap is based on:
 - [ ] Validate updater path with both installer and portable installations.
 - [ ] Capture and archive logs/screenshots from Victus test machine in release QA bundle.
 
+Automation support:
+- `qa/run-stress-harness.ps1` (30-minute scripted harness with periodic updater checks and log signal scanning)
+- `qa/run-updater-regression.ps1` (installer vs portable updater asset/headers/signature verification)
+
 ---
 
 ## 4. Product Upgrade Tracks for 3.2.5
@@ -1869,53 +1873,54 @@ Use this section as the working completion board for v3.2.5.
 
 - [x] Replace hardcoded Linux CLI version path with shared version source. *(CLI version now read from assembly metadata; Linux packaging injects `VERSION.txt` into `Version/AssemblyVersion/FileVersion` publish properties)*
 - [x] Ensure Linux GUI reports same version source. *(Avalonia publish now receives the same version metadata from `VERSION.txt`; stale hardcoded UI fallback removed)*
-- [ ] Add pre-release version verifier (archive vs CLI vs GUI)
+- [x] Add pre-release version verifier (archive vs CLI vs GUI). *(v3.2.5 — `qa/verify-linux-package.ps1` verifies archive naming, manifest version, and CLI/GUI `--version` output; invoked automatically by `build-linux-package.ps1`)*
 - [x] Add release manifest output (`version.json`). *(build script emits `artifacts/version.json` with version, assemblyVersion, runtime, package file and SHA256)*
 - [ ] Validate clean Ubuntu extraction reports expected version
 - [ ] Attach evidence (logs/screenshots/command output) in release notes draft
 
 Evidence notes:
-- Owner:
-- Branch/PR:
-- Validation date:
-- Validation command(s):
+- Owner: Copilot session (in-repo)
+- Branch/PR: current working branch
+- Validation date: 2026-03-30
+- Validation command(s): `docs/LINUX_VALIDATION_EVIDENCE_v3.2.5.md` (captures `dotnet test ...HotkeyAndMonitoringTests` pass and Linux-host pending checks)
 
 #### #97 Victus Linux capability/reliability
 
-- [ ] Implement capability classification (full/profile-only/telemetry-only/unsupported)
-- [ ] Wire capability classification into CLI behavior and messaging
-- [ ] Wire capability classification into Avalonia control visibility and disable reasons
-- [ ] Improve diagnostics report with board-specific guidance
-- [ ] Harden Linux GPU telemetry fallback chain
+- [x] Implement capability classification (full/profile-only/telemetry-only/unsupported). *(v3.2.5 — added shared Linux capability classifier based on EC/hp-wmi/hwmon/platform-profile exposure and board safety state)*
+- [x] Wire capability classification into CLI behavior and messaging. *(v3.2.5 — `status` and `diagnose` now emit capability class plus user-readable reason text)*
+- [x] Wire capability classification into Avalonia control visibility and disable reasons. *(v3.2.5 — Avalonia now hides manual Fan Control navigation on profile-only/telemetry-only boards and retains the reason string from capability detection)*
+- [x] Improve diagnostics report with board-specific guidance. *(v3.2.5 — `diagnose` exports capability reason and board-aware guidance for unsafe/partial hp-wmi boards)*
+- [x] Harden Linux GPU telemetry fallback chain *(v3.2.5 — shared Linux telemetry resolver now prefers hwmon/thermal-zone sensors, falls back to EC only when needed, and `status`/`diagnose` report the active GPU telemetry source/path or explicit unavailability)*
+- [x] Extend unsafe Transcend board mapping to include 8E41 (Issue #99) so EC write paths and diagnostics match 8C58 handling. *(v3.2.5 — Linux EC controller, diagnose guidance, and Avalonia Linux capability detection now treat 8E41 as Transcend unsafe-EC path)*
 - [ ] Validate on representative partial hp-wmi board scenario
 
 Evidence notes:
-- Owner:
-- Branch/PR:
-- Validation date:
-- Test hardware/VM profile:
+- Owner: Pending Linux host run
+- Branch/PR: current working branch
+- Validation date: pending
+- Test hardware/VM profile: pending representative partial hp-wmi board (tracked in `docs/LINUX_VALIDATION_EVIDENCE_v3.2.5.md`)
 
 #### F11 activates OmenCore
 
-- [ ] Add strict interception filtering mode and set as default
-- [ ] Add explicit never-intercept function-key guard path including F11 workflow
-- [ ] Add false-positive logging payload sufficient for tuning
-- [ ] Add regression tests for key-routing and false-positive suppression
+- [x] Add strict interception filtering mode and set as default
+- [x] Add explicit never-intercept function-key guard path including F11 workflow
+- [x] Add false-positive logging payload sufficient for tuning
+- [x] Add regression tests for key-routing and false-positive suppression
 - [ ] Validate F11 workflow in at least one fullscreen app/game scenario
 
 Evidence notes:
-- Owner:
-- Branch/PR:
-- Validation date:
-- Repro checklist result:
+- Owner: Copilot session (in-repo)
+- Branch/PR: current working branch
+- Validation date: 2026-03-30
+- Repro checklist result: Automated regression suite passed (`dotnet test ... --filter HotkeyAndMonitoringTests`, 6/6); manual fullscreen scenario still pending.
 
 ### 11.4 Phase Execution Done Boxes
 
 #### Phase 0 Foundation and Triage
 
-- [ ] P0-1 Unify version source for Linux CLI/Avalonia
-- [ ] P0-2 Add release artifact version verifier in pipeline
-- [ ] P0-3 Repro harness for #96/#97/F11 bug class
+- [x] P0-1 Unify version source for Linux CLI/Avalonia
+- [x] P0-2 Add release artifact version verifier in pipeline
+- [x] P0-3 Repro harness for #96/#97/F11 bug class
 - [ ] P0-4 Capability model spec approved
 - [ ] Phase 0 exit criteria signed off
 
@@ -1926,11 +1931,11 @@ Phase 0 sign-off:
 
 #### Phase 1 Critical Stabilization
 
-- [ ] P1-1 Fix F11 false-trigger class in strict path
-- [ ] P1-2 Strict interception default plus telemetry
-- [ ] P1-3 Linux capability-gated control visibility
-- [ ] P1-4 Linux GPU telemetry fallback hardening
-- [ ] P1-5 Startup failure surfacing
+- [x] P1-1 Fix F11 false-trigger class in strict path
+- [x] P1-2 Strict interception default plus telemetry
+- [x] P1-3 Linux capability-gated control visibility
+- [x] P1-4 Linux GPU telemetry fallback hardening
+- [x] P1-5 Startup failure surfacing
 - [ ] Phase 1 exit criteria signed off
 
 Phase 1 sign-off:
@@ -1943,7 +1948,7 @@ Phase 1 sign-off:
 - [ ] P2-1 Artifact integrity manifest and verification
 - [ ] P2-2 Worker/client resilience pass
 - [ ] P2-3 Config migration test suite
-- [ ] P2-4 Log hygiene pass with correlation IDs
+- [x] P2-4 Log hygiene pass with correlation IDs
 - [ ] P2-5 Smoke tests for tray/hotkey/worker reconnect
 - [ ] Phase 2 exit criteria signed off
 
@@ -2022,13 +2027,13 @@ Phase 4 sign-off:
 
 - [ ] OMEN model validation pass
 - [ ] Victus model validation pass
-- [ ] Hotkey/interception regression pass (including F11 workflow)
+- [~] Hotkey/interception regression pass (including F11 workflow) *(Automated regression suite passing; fullscreen manual scenario still pending)*
 - [ ] Tray/startup/worker reconnect smoke pass
 
 #### Linux matrix
 
 - [ ] Ubuntu representative test pass
-- [ ] Capability-class scenarios validated (full/profile-only/telemetry-only/unsupported)
+- [~] Capability-class scenarios validated (full/profile-only/telemetry-only/unsupported) *(Classifier + board mapping complete in code; representative Linux board evidence still pending)*
 - [ ] CLI diagnostics output review pass
 - [ ] Avalonia startup and control gating pass
 

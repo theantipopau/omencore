@@ -27,7 +27,7 @@
 
 ### 🎯 Quick Links
 
-[![Version](https://img.shields.io/badge/version-3.2.1-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+[![Version](https://img.shields.io/badge/version-3.2.5-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.5)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -43,7 +43,7 @@
 
 ### Windows
 
-1. Download `OmenCoreSetup-3.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+1. Download `OmenCoreSetup-3.2.5.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.5)
 2. Run as Administrator
 3. Launch OmenCore from the Start Menu
 
@@ -53,9 +53,9 @@
 
 ```bash
 # Download & Extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.2.5/OmenCore-3.2.5-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.2.5-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -68,51 +68,59 @@ sudo ./omencore-gui
 
 → **[Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
 
-## 🔥 **What's New in v3.2.1**
+### Linux issue reporting (one-command triage bundle)
 
-v3.2.1 is a major hotfix rollup focused on reliability, telemetry accuracy, and UI polish.
+When reporting Linux model support issues (for example missing `hp-wmi` fan interfaces), run:
 
-### Reliability and telemetry
+```bash
+./qa/collect-linux-triage.sh
+```
 
-- Reduced false thermal alerts with stronger sensor sanity and persistence checks
-- Improved sleep/resume monitoring recovery behavior and fan-state reapplication
-- Hardened CPU temperature source fallback logic to prevent 32C/70C source oscillation on affected sessions
-- Reduced fallback log noise for portable mode and CIM to legacy WMI transitions
+This generates a timestamped folder with:
+- `omencore-linux-triage.txt` (kernel/OS, CLI status/diagnose output, sysfs snapshots)
+- optional `acpidump.dat` when `acpidump` is available
 
-### Fan and power behavior
+Attach those files to your GitHub issue for faster triage.
 
-- Improved fan safety around mode transitions and low-duty edge cases
-- Better handling of transient AC/battery state glitches in automation paths
-- Improved fan diagnostic scoring for Victus-class hardware characteristics
+## 🔥 **What's New in v3.2.5**
 
-### UX polish
+v3.2.5 closes regressions, adds hardware model support, decouples fan control from performance modes, and improves Quick Access controls.
 
-- Hotkey OSD visual upgrades with configurable duration, size, accent themes, and compact mode
-- Premium surface styling pass across key dashboard and fan-control areas
+### Core Improvements
 
-→ **[Full Changelog](docs/CHANGELOG_v3.2.1.md)**
+- **Hardened Worker Subprocess** — Fixed critical issue where hardware worker reconnection spam occurred on app restart (now properly idempotent)
+- **Fan Control Decoupled from Performance Modes** — Switching CPU/GPU performance profiles no longer overwrites manually set fan curves; optional `LinkFanToPerformanceMode` config restores legacy behavior
+- **Quick Access Fan Mode** — Added "Custom" mode to apply saved OMEN-tab fan curves directly from tray; reordered buttons (Quiet → Balanced → Perform) for intuitive intensity progression
+
+### Hardware & Compatibility
+
+- **New Model Support** — Added OMEN 17 (2021) Intel (ProductID: 8BB1) with correct capability database mappings
+- **Robust Telemetry** — Improved CPU temperature source fallback, reduced false sensor oscillation on affected sessions
+- **Assembly Version Alignment** — Corrected stale version metadata in Windows builds (was 3.2.1, now 3.2.5)
+
+→ **[Full Changelog](docs/CHANGELOG_v3.2.5.md)**
 
 ---
 
 ## 📦 **Downloads & Artifacts**
 
-**Version:** v3.2.1 | **Build Date:** 2026-03-24 | **Status:** Released
+**Version:** v3.2.5 | **Build Date:** 2026-03-30 | **Status:** Released
 
 | Download | Platform | Details |
-|----------|----------|---------|
-| **OmenCoreSetup-3.2.1.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
-| **OmenCore-3.2.1-win-x64.zip** | Windows | Portable — Extract and run, no installation |
-| **OmenCore-3.2.1-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
+|----------|----------|----------|
+| **OmenCoreSetup-3.2.5.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
+| **OmenCore-3.2.5-win-x64.zip** | Windows | Portable — Extract and run, no installation |
+| **OmenCore-3.2.5-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
 
 ### SHA256
 
 ```text
-3EB2BCC82A001FA408AF79031C74F8813F1E6F56429F323E5BDC4F97525FD907  OmenCoreSetup-3.2.1.exe
-ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695  OmenCore-3.2.1-win-x64.zip
-344EA6C5BD4394B574939F2693B9842E6720475A6805357A058E68B4286FC1BA  OmenCore-3.2.1-linux-x64.zip
+9BA9A36111358F24912174D341932DE1666260F8A5140A73418E7EB472EA8072  OmenCoreSetup-3.2.5.exe
+01CF69CE5BB6A8A435C6816265029E14F9A24EB651E0098B4E86436AECA7C0D7  OmenCore-3.2.5-win-x64.zip
+768F94CB97A8B684728E3C619C490AA10DE4F0541A4640A30E5CAFDD7F342AB0  OmenCore-3.2.5-linux-x64.zip
 ```
 
-> Security: release hashes are also published on the [v3.2.1 release page](https://github.com/theantipopau/omencore/releases/tag/v3.2.1).
+> Security: release hashes are documented in [CHANGELOG_v3.2.5.md](docs/CHANGELOG_v3.2.5.md) and the [v3.2.5 release page](https://github.com/theantipopau/omencore/releases/tag/v3.2.5).
 
 ---
 
@@ -133,7 +141,7 @@ ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695  OmenCore-3.2.1
 ### Performance Control
 
 - CPU undervolting via Intel MSR with independent core/cache offset sliders (typical safe range: -80 to -125 mV)
-- Performance modes (Balanced, Performance, Turbo) — CPU/GPU wattage envelope management
+- Performance modes (Quiet, Balanced, Performance, Turbo) — CPU/GPU wattage envelope management (decoupled from fan mode in v3.2.5)
 - GPU Power Boost — +15W Dynamic Boost (PPAB)
 - GPU mux switching — Hybrid, Discrete (dGPU), and Integrated (iGPU)
 - Per-game profiles — auto-switch on game process detection
@@ -296,6 +304,14 @@ pwsh ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
 ```powershell
 dotnet test OmenCore.sln
 dotnet test OmenCore.sln --collect:"XPlat Code Coverage"
+```
+
+### Linux triage bundle (maintainers/reporters)
+
+```bash
+./qa/collect-linux-triage.sh [output_dir] [bin_dir]
+# Example:
+./qa/collect-linux-triage.sh ./triage ./
 ```
 
 ### Release Process

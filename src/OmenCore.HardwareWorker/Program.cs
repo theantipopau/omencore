@@ -1298,6 +1298,12 @@ class Program
                     if (int.TryParse(pidStr, out var newPid) && newPid > 0)
                     {
                         var oldPid = _parentProcessId;
+                        if (oldPid == newPid && _parentAlive)
+                        {
+                            response = "OK";
+                        }
+                        else
+                        {
                         _parentProcessId = newPid;
                         _parentAlive = true;
                         
@@ -1308,6 +1314,7 @@ class Program
                         _ = Task.Run(MonitorParentProcess);
                         
                         response = "OK";
+                        }
                     }
                     else
                     {

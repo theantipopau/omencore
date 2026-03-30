@@ -1,0 +1,741 @@
+﻿<Window x:Class="OmenCore.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:OmenCore.ViewModels"
+        xmlns:views="clr-namespace:OmenCore.Views"
+        xmlns:controls="clr-namespace:OmenCore.Controls"
+        xmlns:models="clr-namespace:OmenCore.Models"
+        xmlns:utils="clr-namespace:OmenCore.Utils"
+        mc:Ignorable="d"
+        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="500" MinWidth="800"
+        Icon="pack://application:,,,/OmenCore;component/Assets/OmenCore.ico"
+        Background="Transparent"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResizeWithGrip"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        AutomationProperties.Name="OmenCore Gaming Laptop Control Center">
+    
+    <!-- Keyboard Shortcuts for refresh -->
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding CheckForUpdatesCommand}" />
+    </Window.InputBindings>
+    
+    <!-- DataContext will be set via dependency injection in code-behind -->
+    
+    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12"
+            Background="{StaticResource BackgroundDarkBrush}">
+        <Border.Effect>
+            <!-- Subtle shadow for depth on systems that support it -->
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.25" />
+        </Border.Effect>
+        <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+            
+            <!-- Custom Title Bar -->
+            <Border Grid.Row="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12,12,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Height="44">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0">
+                        <!-- App Title -->
+                        <Image Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,8,0"/>
+                        <TextBlock Text="OmenCore" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        
+                        <!-- Version Badge -->
+                        <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                           <TextBlock Text="{Binding AppVersionLabel}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" />
+                        </Border>
+                        
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
+                        <Button Content="—" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" FontSize="12" />
+                        <Button x:Name="MaximizeButton" Content="☐" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" FontSize="12" />
+                        <Button Content="✕" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" FontSize="12" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" MinWidth="200" MaxWidth="300" />
+                    <ColumnDefinition Width="*" MinWidth="600" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Sidebar -->
+                <Border Grid.Column="0" CornerRadius="0,0,0,12">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#0D1117" Offset="0"/>
+                            <GradientStop Color="#0A0E14" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <DockPanel LastChildFill="True" Margin="16,20,16,20">
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+                            <!-- Brand Header with Glow Effect -->
+                            <Border Background="Transparent" Padding="8" Margin="-8,0,-8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border CornerRadius="8" Padding="4">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#FF005C" BlurRadius="12" Opacity="0.3" ShadowDepth="0"/>
+                                        </Border.Effect>
+                                        <Image Source="pack://application:,,,/Assets/logo.png" Width="36" Height="36" Stretch="Uniform" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                    </Border>
+                                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="OmenCore" Foreground="{StaticResource TextPrimaryBrush}" FontSize="20" FontWeight="Bold" />
+                                        <TextBlock Text="C O N T R O L   C E N T E R" Foreground="{StaticResource AccentBrush}" FontSize="8" FontWeight="Bold" Opacity="0.9"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Live Status Card with Enhanced Design -->
+                            <Border Margin="0,16,0,0" CornerRadius="10" Padding="14,12">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#161B28" Offset="0"/>
+                                        <GradientStop Color="#12161F" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="8" Opacity="0.2" ShadowDepth="2" Direction="270"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Performance Mode -->
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Path Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="PERFORMANCE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, FallbackValue=--}" 
+                                                   FontSize="13" FontWeight="SemiBold" 
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+
+                                    <!-- Fan Mode -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Path Data="{StaticResource IconFan}" Width="12" Height="12" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="FAN MODE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Dashboard.CurrentFanMode, FallbackValue=--}" 
+                                                   FontSize="13" FontWeight="SemiBold" 
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding FanPerformanceLinkStatus}"
+                                                   FontSize="9"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   Margin="0,2,0,0"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Live Temp Indicators -->
+                                    <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,12,0,0" 
+                                            Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="10,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                                <TextBlock Text="CPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Dashboard.CpuTempDisplay, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Dashboard.IsCpuTempAvailable}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="ToolTip" Value="CPU temperature sensor unavailable"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Rectangle Grid.Column="1" Width="1" Fill="{StaticResource BorderBrush}" Margin="8,2"/>
+                                            <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                                <TextBlock Text="GPU" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Dashboard.GpuTempDisplay, FallbackValue=--°C}" 
+                                                           FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"
+                                                           FontFamily="{StaticResource MonospaceFontFamily}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Dashboard.IsGpuTempAvailable}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="ToolTip" Value="GPU temperature sensor unavailable"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Monitoring Source + EC Backend -->
+                                    <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0"
+                                            Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="10,7">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Monitoring health dot + source label -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                                        ToolTip="{Binding Dashboard.MonitoringHealthStatusText}">
+                                                <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"
+                                                         Fill="{Binding Dashboard.MonitoringHealthColor, Converter={StaticResource HexToBrushConverter}, FallbackValue=#95A5A6}"/>
+                                                <TextBlock Text="{Binding Dashboard.MonitoringSourceText, FallbackValue=No source}"
+                                                           FontSize="9" Foreground="{StaticResource TextMutedBrush}"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <!-- EC backend badge -->
+                                            <Border Grid.Column="1" CornerRadius="3" Padding="6,2" VerticalAlignment="Center"
+                                                    ToolTip="{Binding EcBackend, StringFormat='EC backend: {0}'}">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#1A2E1A"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding EcBackend}" Value="None">
+                                                                <Setter Property="Background" Value="#2A1A1A"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding EcBackend}" Value="Error">
+                                                                <Setter Property="Background" Value="#2A1A1A"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="9" FontWeight="Bold" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                            <Setter Property="Text" Value="{Binding EcBackend}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding EcBackend}" Value="None">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                                    <Setter Property="Text" Value="No EC"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding EcBackend}" Value="Error">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                                    <Setter Property="Text" Value="EC Err"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                        
+                        <!-- Bottom Utility Buttons -->
+                        <Border DockPanel.Dock="Bottom" Margin="0,12,0,0" Padding="0,12,0,0" BorderThickness="0,1,0,0" BorderBrush="{StaticResource BorderBrush}">
+                            <StackPanel>
+                                <TextBlock Text="UTILITIES" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                <UniformGrid Columns="2" Rows="2" Margin="0,0,0,8">
+                                    <Button Command="{Binding ExportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="0,0,4,4" ToolTip="Export your settings">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconExport}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Export" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding ImportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="4,0,0,4" ToolTip="Import settings file">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconImport}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Import" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding OpenGameProfileManagerCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="0,4,4,0" ToolTip="Manage per-game settings">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="Profiles" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding OpenAboutCommand}" Style="{StaticResource SecondaryButton}" Height="34" Margin="4,4,0,0" ToolTip="About OmenCore">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconAbout}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                            <TextBlock Text="About" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </UniformGrid>
+                                <Button Command="{Binding CheckForUpdatesCommand}" Height="36" Margin="0,0,0,0" ToolTip="Manually check for a new version">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#1A2332" Offset="0"/>
+                                                        <GradientStop Color="#1E2940" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </Button.Style>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconUpdate}" Width="14" Height="14" Fill="{StaticResource SuccessBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
+                                        <TextBlock Text="Check for Updates" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                        <ScrollViewer Style="{StaticResource SmoothScrollViewer}">
+                            <StackPanel>
+                                <!-- Quick Actions Section -->
+                                <Border Margin="0,0,0,16" Padding="0">
+                                    <StackPanel>
+                                        <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                        <Border CornerRadius="8" Padding="4">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#161B28" Offset="0"/>
+                                                    <GradientStop Color="#12161F" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <StackPanel>
+                                                <Button Command="{Binding ApplyFanPresetCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply your saved fan preset">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border x:Name="FanIconBorder" CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Apply Fan Preset" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding ApplyPerformanceModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Switch performance profile">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource WarningBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Performance Mode" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding ApplyLightingProfileCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply RGB lighting">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentPurpleBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Apply Lighting" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding GamingModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Enable gaming optimizations">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
+                                                            <Setter Property="Background" Value="Transparent"/>
+                                                            <Setter Property="Opacity" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="Gaming Mode" FontSize="12" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,8,0,0" HorizontalContentAlignment="Center" Height="32" ToolTip="Reset fan curves, lighting, and performance mode to their defaults">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Restore Defaults" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <!-- System Information -->
+                                <TextBlock Text="SYSTEM" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
+                                <Border CornerRadius="8" Padding="12,10">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#161B28" Offset="0"/>
+                                            <GradientStop Color="#12161F" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <StackPanel>
+                                        <!-- HP OMEN Model (shown for HP gaming systems) -->
+                                        <Grid Margin="0,0,0,10" Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{StaticResource AccentBrush}" CornerRadius="4" Width="20" Height="20" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                <Image Source="pack://application:,,,/Assets/omen.png" Width="14" Height="14" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="HP OMEN" Foreground="{StaticResource AccentBrush}" FontSize="9" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.ModelName, FallbackValue=HP OMEN Laptop}" 
+                                                           Foreground="{StaticResource TextSecondaryBrush}" 
+                                                           FontSize="10" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        
+                                        <!-- CPU -->
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Grid.Column="0" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                <Image.Style>
+                                                    <Style TargetType="Image">
+                                                        <Setter Property="Source" Value="pack://application:,,,/Assets/intel.png" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SystemInfo.CpuVendor}" Value="AMD">
+                                                                <Setter Property="Source" Value="pack://application:,,,/Assets/amd.png" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Image.Style>
+                                            </Image>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="PROCESSOR" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.CpuName}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextWrapping="Wrap" />
+                                                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="9" Margin="0,2,0,0">
+                                                    <Run Text="{Binding SystemInfo.CpuCores, Mode=OneWay}"/>
+                                                    <Run Text="Cores /"/>
+                                                    <Run Text="{Binding SystemInfo.CpuThreads, Mode=OneWay}"/>
+                                                    <Run Text="Threads"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Grid>
+                                        
+                                        <!-- RAM -->
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{StaticResource AccentPurpleBrush}" CornerRadius="4" Width="20" Height="20" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                <Path Data="{StaticResource IconRam}" Width="12" Height="12" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="MEMORY" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                <TextBlock Text="{Binding SystemInfo.RamSizeFormatted}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" />
+                                            </StackPanel>
+                                        </Grid>
+                                        
+                                        <!-- GPU(s) -->
+                                        <ItemsControl ItemsSource="{Binding SystemInfo.Gpus}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="24" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Image Grid.Column="0" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                            <Image.Style>
+                                                                <Style TargetType="Image">
+                                                                    <Setter Property="Source" Value="pack://application:,,,/Assets/nvidia.png" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Vendor}" Value="AMD">
+                                                                            <Setter Property="Source" Value="pack://application:,,,/Assets/amd.png" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Vendor}" Value="Intel">
+                                                                            <Setter Property="Source" Value="pack://application:,,,/Assets/intel.png" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Image.Style>
+                                                        </Image>
+                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                            <TextBlock Text="GRAPHICS" Foreground="{StaticResource TextMutedBrush}" FontSize="8" FontWeight="Bold" />
+                                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <!-- Main Content -->
+                <Grid Grid.Column="1" Background="{StaticResource BackgroundDarkBrush}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="160" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Update Banner + Non-HP Warning -->
+                    <StackPanel Grid.Row="0">
+                        <Border Style="{StaticResource PremiumInfoBannerCard}"
+                                Padding="16"
+                                Margin="24,12,24,8"
+                                Visibility="{Binding UpdateBannerVisible, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- Update Banner Header -->
+                                <StackPanel Orientation="Horizontal" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                    <Path Data="{StaticResource IconUpdate}" Width="20" Height="20" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Update Ready" FontSize="15" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding UpdateBannerMessage}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                                
+                                <!-- Buttons -->
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Install Update"
+                                            Command="{Binding InstallUpdateCommand}"
+                                            Style="{StaticResource ModernButton}"
+                                            Width="140"
+                                            Height="34"
+                                            Margin="0,0,8,0" />
+                                    <Button Content="Release Notes"
+                                            Command="{Binding OpenReleaseNotesCommand}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Width="130"
+                                            Height="34" />
+                                </StackPanel>
+                                
+                                <!-- Download Progress -->
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
+                                            Margin="34,12,0,0"
+                                            Visibility="{Binding UpdateDownloadInProgress, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                    <ProgressBar Value="{Binding UpdateDownloadProgress, Mode=OneWay}" 
+                                                 Minimum="0" Maximum="100" 
+                                                 Height="8" 
+                                                 BorderThickness="0"
+                                                 Foreground="{StaticResource AccentBlueBrush}"
+                                                 Background="{StaticResource SurfaceDarkBrush}"
+                                                 Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding UpdateDownloadStatus, Mode=OneWay}" 
+                                               FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               FontFamily="Consolas" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource PremiumPanelCard}"
+                            Background="#2A4C3517" 
+                                BorderBrush="{StaticResource WarningBrush}" 
+                                BorderThickness="2" 
+                                Padding="14,10" 
+                                Margin="24,12,24,12"
+                                Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource InverseBoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel>
+                                    <TextBlock Text="Warning: Non-HP Gaming System Detected" 
+                                               FontWeight="Bold" 
+                                               Foreground="{StaticResource TextPrimaryBrush}" 
+                                               FontSize="14" />
+                                    <TextBlock Text="This application is designed for HP OMEN and Victus gaming laptops. Some features may not work correctly on your system." 
+                                               TextWrapping="Wrap" 
+                                               Foreground="{StaticResource TextPrimaryBrush}" 
+                                               FontSize="12" 
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+                <!-- Tab indices: General(0), OMEN(1), Tuning(2), Diagnostics(3), Monitoring(4), Optimizer(5), Memory(6), Bloatware(7), RGB(8), Settings(9), Games(10) -->
+                <!-- General Tab: Performance + Fan Profiles (Paired) -->
+                <TabItem Header="General">
+                    <views:GeneralView DataContext="{Binding General}" />
+                </TabItem>
+                
+                <!-- OMEN Tab: HP OMEN-specific features -->
+                <TabItem Header="OMEN">
+                    <views:AdvancedView DataContext="{Binding}" />
+                </TabItem>
+                
+                <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
+                <TabItem Header="Tuning">
+                    <views:TuningView DataContext="{Binding}" />
+                </TabItem>
+                
+                <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->
+                <TabItem Header="Diagnostics">
+                    <views:DiagnosticsView DataContext="{Binding}" />
+                </TabItem>
+                
+                <!-- Monitoring Tab with Hardware Monitoring Dashboard -->
+                <TabItem Header="Monitoring" x:Name="MonitoringTabItem">
+                    <!-- Content will be created programmatically in code-behind -->
+                </TabItem>
+                
+                <!-- System Optimizer Tab - Windows Gaming Tweaks -->
+                <TabItem Header="Optimizer">
+                    <views:SystemOptimizerView DataContext="{Binding SystemOptimizer}" />
+                </TabItem>
+                
+                <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
+                <TabItem Header="Memory">
+                    <views:MemoryOptimizerView DataContext="{Binding MemoryOptimizer}" />
+                </TabItem>
+                
+                <!-- Bloatware Manager Tab -->
+                <TabItem Header="Bloatware">
+                    <views:BloatwareManagerView DataContext="{Binding BloatwareManager}" />
+                </TabItem>
+                
+                <!-- Peripherals Tab with Lighting View -->
+                <TabItem Header="RGB" Visibility="{Binding Lighting, Converter={StaticResource NullToVisibilityConverter}}">
+                    <views:LightingView DataContext="{Binding Lighting}" />
+                </TabItem>
+                
+                <!-- Settings Tab -->
+                <TabItem Header="Settings">
+                    <views:SettingsView DataContext="{Binding Settings}" />
+                </TabItem>
+                
+                <!-- Game Library Tab -->
+                <TabItem Header="Games">
+                    <views:GameLibraryView DataContext="{Binding GameLibrary}" />
+                </TabItem>
+            </TabControl>
+
+            <!-- Footer: Recent Activity and System Log (GitHub #48 - its-urbi: Collapsible logs) -->
+            <Grid Grid.Row="2" Margin="24,0,24,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                
+                <!-- Collapse/Expand Toggle -->
+                <Button Grid.Row="0" HorizontalAlignment="Right" Content="{Binding LogsToggleText}"
+                        Command="{Binding ToggleLogsCommand}" Style="{StaticResource LinkButton}" FontSize="11" Margin="0,0,0,4" />
+                
+                <Grid Grid.Row="1" Visibility="{Binding LogsCollapsed, Converter={StaticResource InverseBoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,8,0" Padding="12,8">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="RECENT ACTIVITY" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8" />
+                            <ListBox ItemsSource="{Binding RecentEvents}" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" FontFamily="Consolas" FontSize="11" 
+                                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="5" VirtualizingPanel.CacheLengthUnit="Item" />
+                        </DockPanel>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource CardBorder}" Padding="12,8">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="SYSTEM LOG" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8" />
+                            <ScrollViewer x:Name="SystemLogScrollViewer" Style="{StaticResource SmoothScrollViewer}">
+                                <TextBlock Text="{Binding LogBuffer}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Consolas" FontSize="10" LineHeight="14" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

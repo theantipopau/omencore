@@ -111,7 +111,9 @@
                         </Button>
                         
                         <Button Classes="navButton" Command="{Binding NavigateToFanControlCommand}"
-                                Classes.active="{Binding IsFanControlActive}">
+                                Classes.active="{Binding IsFanControlActive}"
+                                IsVisible="{Binding ShowFanControlNavigation}"
+                                ToolTip.Tip="{Binding FanControlCapabilityReason}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="🌀" FontSize="16" />
                                 <TextBlock Text="Fan Control" VerticalAlignment="Center" FontSize="13" />

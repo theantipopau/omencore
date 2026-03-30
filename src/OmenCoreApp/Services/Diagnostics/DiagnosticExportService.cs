@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
@@ -479,6 +480,7 @@ namespace OmenCore.Services.Diagnostics
             return AppVersionProvider.GetVersionString();
         }
 
+        [SupportedOSPlatform("windows")]
         private string GetSecureBootStatus()
         {
             try
@@ -494,6 +496,7 @@ namespace OmenCore.Services.Diagnostics
             return "Unknown";
         }
 
+        [SupportedOSPlatform("windows")]
         private string GetHvciStatus()
         {
             try
@@ -527,6 +530,7 @@ namespace OmenCore.Services.Diagnostics
             return "Not Found";
         }
 
+        [SupportedOSPlatform("windows")]
         private string GetPawnIOStatus()
         {
             try
@@ -549,6 +553,7 @@ namespace OmenCore.Services.Diagnostics
             return "Not Installed";
         }
 
+        [SupportedOSPlatform("windows")]
         private string GetXtuServiceStatus()
         {
             try

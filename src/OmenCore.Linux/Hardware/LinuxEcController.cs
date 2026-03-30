@@ -83,7 +83,8 @@ public class LinuxEcController
     // direct legacy EC writes are unreliable or immediately reverted by firmware watchdogs.
     private static readonly string[] UnsafeEcBoardIds = new[]
     {
-        "8c58"
+        "8c58",
+        "8e41"
     };
     
     public bool IsAvailable { get; }

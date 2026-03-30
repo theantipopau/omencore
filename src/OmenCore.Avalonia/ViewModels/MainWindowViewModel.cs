@@ -46,6 +46,12 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isFanControlActive;
 
     [ObservableProperty]
+    private bool _showFanControlNavigation = true;
+
+    [ObservableProperty]
+    private string _fanControlCapabilityReason = string.Empty;
+
+    [ObservableProperty]
     private bool _isSystemControlActive;
 
     [ObservableProperty]
@@ -90,7 +96,15 @@ public partial class MainWindowViewModel : ObservableObject
             await _configService.LoadAsync();
             var capabilities = await _hardwareService.GetCapabilitiesAsync();
             ModelName = capabilities.ModelName;
-            StatusText = "Connected";
+            ShowFanControlNavigation = capabilities.SupportsFanControl;
+            FanControlCapabilityReason = capabilities.FanControlCapabilityReason;
+            StatusText = capabilities.FanControlCapabilityClass switch
+            {
+                "full-control" => "Connected",
+                "profile-only" => "Connected - profile-only fan support",
+                "telemetry-only" => "Connected - telemetry-only fan support",
+                _ => "Connected - control limited"
+            };
             IsConnected = true;
 
             // Get current modes

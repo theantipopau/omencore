@@ -43,6 +43,10 @@
 - [ ] Updater log snippet for portable path
 - [ ] Screenshot of success or blocked-with-reason state
 
+**Automation command**
+- `powershell -ExecutionPolicy Bypass -File qa/run-updater-regression.ps1 -Runs 3`
+- Output artifacts: `artifacts/updater-regression-*.json` and `artifacts/updater-regression-*.txt`
+
 ---
 
 ## 2. Fan and Thermal Regression Pack
@@ -139,6 +143,20 @@
 **Evidence to capture**
 - [ ] Quick Access screenshot
 - [ ] Tray submenu screenshot
+
+---
+
+## 7. 30-Minute Stress Harness
+
+Use the scripted harness to run the stabilization gate scenario with periodic updater checks and log-signal scanning.
+
+**Automation command**
+- `powershell -ExecutionPolicy Bypass -File qa/run-stress-harness.ps1 -DurationMinutes 30 -SampleSeconds 30`
+
+**Harness outputs**
+- `artifacts/stress-harness-<timestamp>/summary.txt`
+- `artifacts/stress-harness-<timestamp>/summary.json`
+- Nested updater checks in the same session directory
 
 ---
 

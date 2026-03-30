@@ -451,6 +451,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         
                         <!-- Header with instructions -->
@@ -554,9 +555,22 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </Border>
+
+                                <Border Grid.Row="4"
+                                    Background="#1A2A3A"
+                                    BorderBrush="{StaticResource AccentBlueBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8"
+                                    Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding CurveApplyStatus}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource AccentBlueBrush}"
+                                           TextWrapping="Wrap"/>
+                                </Border>
                         
                         <!-- Current curve points summary -->
-                        <Border Grid.Row="4" 
+                                <Border Grid.Row="5" 
                                 Background="{StaticResource SurfaceDarkBrush}"
                                 CornerRadius="6"
                                 Padding="12"

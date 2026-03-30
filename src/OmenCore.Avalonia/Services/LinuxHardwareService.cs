@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using OmenCore.Linux.Hardware;
 
 namespace OmenCore.Avalonia.Services;
 
@@ -156,6 +157,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 HasDiscreteGpu = true,
                 HasGpuMuxSwitch = true,
                 SupportsFanControl = true,
+                SupportsPerformanceProfiles = true,
+                FanControlCapabilityClass = "full-control",
+                FanControlCapabilityReason = "Mock environment reports full control.",
                 ModelName = "HP OMEN 16 (Mock)",
                 CpuName = "AMD Ryzen 9 7945HX",
                 GpuName = "NVIDIA GeForce RTX 4070"
@@ -168,7 +172,26 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                        File.Exists(HP_WMI_FAN2_OUTPUT) ||
                        ResolveHwmonFanTargetPath(1) != null ||
                        ResolveHwmonFanTargetPath(2) != null;
-        _capabilities.SupportsFanControl = _resolvedThermalPath != null || hasDirectFanControl;
+        var capabilityAssessment = LinuxCapabilityClassifier.Assess(
+            CheckRootAccess(),
+            File.Exists("/sys/kernel/debug/ec/ec0/io"),
+            Directory.Exists(HP_WMI_PATH),
+            File.Exists("/sys/devices/platform/hp-wmi/thermal_profile"),
+            File.Exists("/sys/devices/platform/hp-wmi/platform_profile"),
+            File.Exists("/sys/firmware/acpi/platform_profile"),
+            File.Exists(HP_WMI_FAN1_OUTPUT),
+            File.Exists(HP_WMI_FAN2_OUTPUT),
+            ResolveHwmonFanTargetPath(1) != null,
+            ResolveHwmonFanTargetPath(2) != null,
+            ResolveHwmonPwmEnablePath(1) != null || ResolveHwmonPwmEnablePath(2) != null,
+            Directory.Exists(HWMON_BASE) || Directory.Exists(HP_WMI_PATH),
+            IsUnsafeEcModel(),
+            await ReadDmiStringAsync("product_name"),
+            await ReadDmiStringAsync("board_name"));
+        _capabilities.SupportsFanControl = capabilityAssessment.SupportsManualFanControl;
+        _capabilities.SupportsPerformanceProfiles = capabilityAssessment.SupportsProfileControl;
+        _capabilities.FanControlCapabilityClass = capabilityAssessment.CapabilityKey;
+        _capabilities.FanControlCapabilityReason = capabilityAssessment.Reason;
         
         // Check keyboard backlight
         _capabilities.HasKeyboardBacklight = Directory.Exists(BACKLIGHT_PATH);
@@ -250,6 +273,100 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         }
         return null;
     }
+
+    private static string? ResolveHwmonPwmEnablePath(int index)
+    {
+        var pwmFile = $"pwm{index}_enable";
+        if (!Directory.Exists(HP_WMI_HWMON_ROOT))
+        {
+            return null;
+        }
+
+        try
+        {
+            foreach (var hwmonDir in Directory.GetDirectories(HP_WMI_HWMON_ROOT, "hwmon*", SearchOption.TopDirectoryOnly))
+            {
+                var candidate = Path.Combine(hwmonDir, pwmFile);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static bool CheckRootAccess()
+    {
+        try
+        {
+            return geteuid() == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsUnsafeEcModel()
+    {
+        try
+        {
+            var modelName = ReadDmiString("product_name");
+            var boardName = ReadDmiString("board_name");
+            if (modelName?.Contains("transcend 14", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return true;
+            }
+
+            if (boardName != null &&
+                (string.Equals(boardName, "8C58", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(boardName, "8E41", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static string? ReadDmiString(string name)
+    {
+        var paths = new[]
+        {
+            $"/sys/devices/virtual/dmi/id/{name}",
+            $"/sys/class/dmi/id/{name}"
+        };
+
+        foreach (var path in paths)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    return File.ReadAllText(path).Trim();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    [DllImport("libc")]
+    private static extern uint geteuid();
 
     /// <summary>
     /// Convert kernel platform_profile string to OmenCore PerformanceMode.

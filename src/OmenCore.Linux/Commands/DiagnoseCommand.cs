@@ -153,12 +153,39 @@ public static class DiagnoseCommand
         info.HpWmiThermalProfile = await ReadTextAsync("/sys/devices/platform/hp-wmi/thermal_profile");
         info.HpWmiThermalProfileChoices = await ReadTextAsync("/sys/devices/platform/hp-wmi/thermal_profile_choices");
 
-        // Detection (use current controller logic)
         var ec = new LinuxEcController();
+        var hwmon = new LinuxHwMonController();
+        var gpuReading = LinuxTelemetryResolver.GetGpuTemperature(ec, hwmon);
+
+        // Detection (use current controller logic)
         info.DetectedAccessMethod = ec.AccessMethod;
         info.EcControllerAvailable = ec.IsAvailable;
         info.IsUnsafeEcModel = ec.IsUnsafeEcModel;
         info.HasHwmonFanAccess = ec.HasHwmonFanAccess;
+        info.GpuTelemetrySource = gpuReading?.Source ?? "unavailable";
+        info.GpuTelemetryPath = gpuReading?.Path ?? string.Empty;
+
+        var capabilityAssessment = LinuxCapabilityClassifier.Assess(
+            info.IsRoot,
+            ec.HasEcAccess,
+            info.HpWmiPathExists,
+            info.HpWmiThermalProfileExists,
+            info.HpWmiPlatformProfileExists,
+            info.AcpiPlatformProfileExists,
+            info.HpWmiFan1OutputExists,
+            info.HpWmiFan2OutputExists,
+            info.HpWmiFan1TargetExists,
+            info.HpWmiFan2TargetExists,
+            info.HasHwmonFanAccess,
+            info.EcIoPathExists || info.HpWmiPathExists,
+            info.IsUnsafeEcModel,
+            info.Model,
+            info.BoardId);
+        info.CapabilityClass = capabilityAssessment.CapabilityKey;
+        info.CapabilityReason = capabilityAssessment.Reason;
+        info.SupportsManualFanControl = capabilityAssessment.SupportsManualFanControl;
+        info.SupportsProfileControl = capabilityAssessment.SupportsProfileControl;
+        info.SupportsTelemetry = capabilityAssessment.SupportsTelemetry;
         
         // Add detailed diagnostics from controller
         var ecDiagnostics = ec.GetDiagnostics();
@@ -200,12 +227,14 @@ public static class DiagnoseCommand
             }
         }
 
-        if (string.Equals(info.BoardId, "8C58", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(info.BoardId, "8C58", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(info.BoardId, "8E41", StringComparison.OrdinalIgnoreCase))
         {
-            info.Notes.Add("Board 8C58 detected (OMEN Transcend 14 family): legacy EC writes are often firmware-reverted.");
+            info.Notes.Add($"Board {info.BoardId} detected (OMEN Transcend 14 family): legacy EC writes are often firmware-reverted.");
             info.Notes.Add("Prefer hp-wmi/acpi interfaces. If profile paths are missing, this is likely a kernel/firmware exposure gap, not a user permissions issue.");
             info.Recommendations.Add("Use latest Fedora kernel available (6.19+) and rerun: omencore-cli diagnose --report");
             info.Recommendations.Add("If fan*_target exists under hp-wmi/hwmon, test manual writes there first; otherwise use profile-based fallback only.");
+            info.Recommendations.Add("For Transcend 14-fb1xxx (8E41), collect and attach full diagnose output plus ACPI dump when requesting kernel hp-wmi support updates.");
         }
         
         if (ec.IsUnsafeEcModel)
@@ -217,6 +246,18 @@ public static class DiagnoseCommand
             if (info.AcpiPlatformProfileExists)
                 info.Notes.Add($"✓ ACPI platform profile available: {info.AcpiPlatformProfile} (choices: {info.AcpiPlatformProfileChoices})");
         }
+
+        if (gpuReading == null)
+        {
+            info.Notes.Add("GPU telemetry fallback chain exhausted: no hwmon, thermal-zone, or EC temperature source is currently readable.");
+        }
+        else if (!string.Equals(gpuReading.Source, "hwmon", StringComparison.Ordinal))
+        {
+            info.Notes.Add($"GPU telemetry is running on fallback source '{gpuReading.Source}' via {gpuReading.Path}.");
+        }
+
+        info.Notes.Add($"Capability classification: {info.CapabilityClass}.");
+        info.Notes.Add(info.CapabilityReason);
 
         if (info.DetectedAccessMethod == "none")
         {
@@ -321,6 +362,8 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  acpi_prof: {(info.AcpiPlatformProfileExists ? $"✓ ({info.AcpiPlatformProfile ?? "?"})" : "✗ missing"),-76}║");
         Console.WriteLine($"║  hwmon_fan: {(info.HasHwmonFanAccess ? "✓ present" : "✗ missing"),-76}║");
         Console.WriteLine(midBorder);
+        Console.WriteLine($"║  Capability:{Truncate(info.CapabilityClass, 76),-76}║");
+        Console.WriteLine($"║  GPU Telem.: {Truncate($"{info.GpuTelemetrySource} {info.GpuTelemetryPath}".Trim(), 76),-76}║");
         Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-76}║");
         Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-76}║");
         if (info.IsUnsafeEcModel)
@@ -428,6 +471,14 @@ public static class DiagnoseCommand
         Console.WriteLine($"| Fan 1 Target Control (`fan1_target`) | {(info.HpWmiFan1TargetExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine($"| Fan 2 Target Control (`fan2_target`) | {(info.HpWmiFan2TargetExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine();
+        Console.WriteLine($"**Capability Classification:** `{info.CapabilityClass}`");
+        Console.WriteLine();
+        Console.WriteLine($"**Capability Reason:** {info.CapabilityReason}");
+        Console.WriteLine();
+        Console.WriteLine($"**GPU Telemetry Source:** `{info.GpuTelemetrySource}`");
+        Console.WriteLine();
+        Console.WriteLine($"**GPU Telemetry Path:** `{info.GpuTelemetryPath}`");
+        Console.WriteLine();
         Console.WriteLine($"**Detected Access Method:** `{info.DetectedAccessMethod}`");
         Console.WriteLine();
         Console.WriteLine($"**Controller Available:** {(info.EcControllerAvailable ? "✓ Yes" : "✗ No")}");
@@ -515,6 +566,13 @@ public class DiagnoseInfo
     public bool IsUnsafeEcModel { get; set; }
     public bool HasHwmonFanAccess { get; set; }
     public Dictionary<string, object>? EcDiagnostics { get; set; }
+    public string CapabilityClass { get; set; } = "unsupported-control";
+    public string CapabilityReason { get; set; } = string.Empty;
+    public bool SupportsManualFanControl { get; set; }
+    public bool SupportsProfileControl { get; set; }
+    public bool SupportsTelemetry { get; set; }
+    public string GpuTelemetrySource { get; set; } = "unavailable";
+    public string GpuTelemetryPath { get; set; } = string.Empty;
     
     // ACPI platform_profile (2025+ models)
     public bool AcpiPlatformProfileExists { get; set; }

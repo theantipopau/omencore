@@ -465,10 +465,10 @@ namespace OmenCore.Services.BloatwareManager
 
             if (command.Contains("msiexec", StringComparison.OrdinalIgnoreCase))
             {
-                var args = Regex.Replace(command, "(?i)^\s*\"?msiexec(?:\\.exe)?\"?", string.Empty).Trim();
-                args = Regex.Replace(args, "(?i)(^|\s)/i(?=\s|\{)", "$1/X");
+                var args = Regex.Replace(command, @"(?i)^\s*""?msiexec(?:\.exe)?""?", string.Empty).Trim();
+                args = Regex.Replace(args, @"(?i)(^|\s)/i(?=\s|\{)", "$1/X");
 
-                if (!Regex.IsMatch(args, "(?i)(^|\s)/(quiet|qn|passive)(\s|$)"))
+                if (!Regex.IsMatch(args, @"(?i)(^|\s)/(quiet|qn|passive)(\s|$)"))
                 {
                     args += " /qn /norestart";
                 }
@@ -500,7 +500,7 @@ namespace OmenCore.Services.BloatwareManager
 
         private static string AppendSilentFlags(string args)
         {
-            if (Regex.IsMatch(args, "(?i)(^|\s)/(s|silent|quiet|verysilent)(\s|$)"))
+            if (Regex.IsMatch(args, @"(?i)(^|\s)/(s|silent|quiet|verysilent)(\s|$)"))
             {
                 return args;
             }

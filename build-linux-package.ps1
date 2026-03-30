@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
-    [string]$Runtime = "linux-x64"
+    [string]$Runtime = "linux-x64",
+    [switch]$SkipBinaryVersionCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -118,6 +119,23 @@ if (-not ($zipPath -like "*-$version-$Runtime.zip")) {
 }
 if (-not (Test-Path $manifestPath)) {
     throw "Version verification failed: manifest was not generated."
+}
+
+$verifyScript = Join-Path $root "qa\verify-linux-package.ps1"
+if (-not (Test-Path $verifyScript)) {
+    throw "Version verification script not found: $verifyScript"
+}
+
+& $verifyScript `
+    -Version $version `
+    -Runtime $Runtime `
+    -ArtifactsDir $artifactsDir `
+    -CliPath (Join-Path $cliOut "omencore-cli") `
+    -GuiPath (Join-Path $guiOut "omencore-gui") `
+    -SkipBinaryExecution:$SkipBinaryVersionCheck
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Linux package version verification failed."
 }
 
 Write-Host "Created $zipPath" -ForegroundColor Green

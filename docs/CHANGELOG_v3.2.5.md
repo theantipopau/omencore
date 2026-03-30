@@ -1,7 +1,7 @@
 # OmenCore v3.2.5 - Stability, Model Support, and UX Improvements
 
-**Release Date:** TBD
-**Release Status:** In Development (dev/v3.2.5)
+**Release Date:** 2026-03-30
+**Release Status:** ✅ Released (v3.2.5)
 **Type:** Minor+ stability, hardware compatibility, and UX improvement release
 **Base Version:** v3.2.1
 
@@ -14,6 +14,18 @@ v3.2.5 closes a bundle of regressions accumulated since v3.2.1, adds hardware mo
 This changelog uses a split format:
 - **Top section** — proactive fixes, improvements, and new features from the dev team.
 - **Bottom section** — targeted fixes directly sourced from user feedback (Discord reports and GitHub issues).
+
+---
+
+## 📦 Downloads & Artifacts
+
+| File | Platform | SHA256 |
+|------|----------|--------|
+| `OmenCoreSetup-3.2.5.exe` | Windows Installer | `9BA9A36111358F24912174D341932DE1666260F8A5140A73418E7EB472EA8072` |
+| `OmenCore-3.2.5-win-x64.zip` | Windows Portable | `01CF69CE5BB6A8A435C6816265029E14F9A24EB651E0098B4E86436AECA7C0D7` |
+| `OmenCore-3.2.5-linux-x64.zip` | Linux (CLI + GUI) | `768F94CB97A8B684728E3C619C490AA10DE4F0541A4640A30E5CAFDD7F342AB0` |
+
+→ **[View on GitHub Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.5)**
 
 ---
 
@@ -326,6 +338,115 @@ This changelog uses a split format:
   - Updated Avalonia baseline metadata to `3.2.5` and removed stale UI fallback version literal (`unknown` fallback now used until assembly version is loaded).
 - **Files:** `build-linux-package.ps1`, `OmenCore.Avalonia.csproj`, `SettingsViewModel.cs`
 - **Status:** ✅ Fixed
+
+---
+
+### 23. Linux packaging now includes executable version verification (archive vs CLI vs GUI)
+- **Issue:** Packaging metadata checks existed, but there was no executable-level verifier proving runtime-reported CLI and GUI versions matched the archive/version metadata.
+- **Fix:**
+  - Added `qa/verify-linux-package.ps1`.
+  - Verifier checks:
+    - archive filename/version/runtime contract,
+    - `artifacts/version.json` consistency,
+    - CLI `--version` output,
+    - GUI `--version` output.
+  - Added `--version` support to Avalonia GUI entry point (`Program.cs`) so GUI version can be validated in pre-release checks.
+  - Wired verifier into `build-linux-package.ps1` as a required step (with `-SkipBinaryVersionCheck` opt-out for local environments without Linux/WSL execution).
+- **Files:** `qa/verify-linux-package.ps1`, `build-linux-package.ps1`, `src/OmenCore.Avalonia/Program.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 24. Added updater regression automation and 30-minute stress harness scripts
+- **Issue:** Regression gate items for updater-path validation and the 30-minute stress scenario required manual execution and lacked repeatable automation artifacts.
+- **Fix:**
+  - Added `qa/run-updater-regression.ps1`:
+    - runs installer vs portable asset selection checks,
+    - validates HTTP metadata and signature bytes (`MZ` for installer, `PK` for zip),
+    - supports 3-run regression loops,
+    - emits JSON/TXT reports under `artifacts/`.
+  - Added `qa/run-stress-harness.ps1`:
+    - runs timed stress sessions (default 30 minutes),
+    - samples process health,
+    - performs periodic updater checks,
+    - scans logs for known regression signals,
+    - emits session summary JSON/TXT artifacts.
+  - Added commands and outputs to regression documentation.
+- **Files:** `qa/run-updater-regression.ps1`, `qa/run-stress-harness.ps1`, `docs/REGRESSION_PACK_v3.2.5.md`
+- **Status:** ✅ Fixed
+
+---
+
+### 25. Linux capability classification now distinguishes full/profile-only/telemetry-only boards
+- **Issue:** On partial hp-wmi boards, Linux surfaces could still imply manual fan control even when firmware only exposed thermal profiles or telemetry paths.
+- **Fix:**
+  - Added a shared Linux capability classifier covering `full-control`, `profile-only`, `telemetry-only`, and `unsupported-control` states.
+  - Wired the classifier into `omencore-cli status` and `omencore-cli diagnose`, including explicit reason text for missing manual fan control.
+  - Avalonia Linux capabilities now expose the same classification so manual Fan Control navigation is hidden on non-manual boards while profile control remains available.
+- **Files:** `src/OmenCore.Linux/Hardware/LinuxCapabilityClassifier.cs`, `src/OmenCore.Linux/Commands/DiagnoseCommand.cs`, `src/OmenCore.Linux/Commands/StatusCommand.cs`, `src/OmenCore.Avalonia/Services/LinuxHardwareService.cs`, `src/OmenCore.Avalonia/ViewModels/MainWindowViewModel.cs`, `src/OmenCore.Avalonia/Views/MainWindow.axaml`
+- **Status:** ✅ Fixed
+
+### 26. Linux GPU telemetry now reports its active fallback source
+- **Issue:** Partial hp-wmi and newer Linux boards could degrade from hwmon GPU telemetry to EC or no telemetry at all without making the active source visible in `status` or `diagnose` output.
+- **Fix:**
+  - Added a shared Linux telemetry resolver that prefers hwmon and thermal-zone sensors, then falls back to EC reads only when they remain valid.
+  - `omencore-cli status` JSON/human output now includes the active GPU telemetry source and path.
+  - `omencore-cli diagnose` now records whether GPU telemetry is using fallback or is fully unavailable.
+- **Files:** `src/OmenCore.Linux/Hardware/LinuxTelemetryResolver.cs`, `src/OmenCore.Linux/Hardware/LinuxHwMonController.cs`, `src/OmenCore.Linux/Commands/StatusCommand.cs`, `src/OmenCore.Linux/Commands/DiagnoseCommand.cs`, `src/OmenCore.Linux/JsonContext.cs`
+- **Status:** ✅ Fixed
+
+### 27. Linux Avalonia startup now falls back more predictably and emits an actionable failure log
+- **Issue:** Some Fedora/X11 users could launch the CLI successfully but see the GUI fail during Avalonia startup with GLX initialization errors and blacklisted `llvmpipe`, leaving little guidance beyond terminal noise.
+- **Fix:**
+  - Made Linux X11 rendering preference explicit as `EGL -> GLX -> Software` instead of relying on opaque platform defaults.
+  - Added `OMENCORE_GUI_RENDER_MODE` override support for `software`, `egl`, `glx`, or `vulkan` when support needs a deterministic launch mode.
+  - Disabled X11 session-management opt-in for the GUI startup path so `SESSION_MANAGER` noise does not distract from the actual rendering fault.
+  - Wrapped startup in a failure reporter that prints an actionable stderr summary and writes a startup log with session/display/render context.
+- **Files:** `src/OmenCore.Avalonia/Program.cs`, `docs/LINUX_INSTALL_GUIDE.md`
+- **Status:** ✅ Fixed
+
+---
+
+### 28. F11/function-key false-trigger path is now explicitly blocked in OMEN key interception
+- **Issue:** Users reported F11 and other function-key workflows could still be misclassified as OMEN key events in strict-mode edge cases and during nearby WMI event windows.
+- **Fix:**
+  - Added explicit never-intercept guard handling for F11/function-key class keys in OMEN key detection.
+  - Added recent never-intercept key suppression window to reduce WMI false-positive follow-on events.
+  - Added structured rejection logging for tuning (`reason` payload in candidate rejection traces).
+  - Added regression coverage for F11 rejection, strict F24 scan mismatch rejection, and never-intercept WMI suppression.
+- **Files:** `src/OmenCoreApp/Services/OmenKeyService.cs`, `src/OmenCoreApp.Tests/Services/HotkeyAndMonitoringTests.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 29. Worker startup/recovery logs now include session and correlation IDs
+- **Issue:** Worker reconnect/startup diagnostics were hard to stitch together in noisy logs because startup and recovery messages had no operation-level correlation context.
+- **Fix:**
+  - Added per-process worker session ID in `HardwareWorkerClient` log formatting.
+  - Added operation correlation IDs for startup and recovery/reconnect flows.
+  - Routed startup/reconnect/restart log paths through a shared formatter to keep context consistent.
+  - Added regression test coverage to ensure correlation/session tags remain present in formatted worker logs.
+- **Files:** `src/OmenCoreApp/Hardware/HardwareWorkerClient.cs`, `src/OmenCoreApp.Tests/Services/HotkeyAndMonitoringTests.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 30. Linux Transcend 14-fb1xxx board 8E41 now gets the same safety classification and diagnostics as 8C58
+- **Issue:** Community report (GitHub #99) showed OMEN Transcend 14-fb1xxx (`Board ID 8E41`) exposing hp-wmi telemetry but missing thermal/fan control paths; prior Linux guardrails and tailored diagnostics only matched board `8C58`.
+- **Fix:**
+  - Added `8E41` to the Linux unsafe EC board list so legacy EC writes stay blocked on this board family.
+  - Updated Linux diagnose guidance to treat `8C58` and `8E41` consistently with Transcend 14 targeted recommendations.
+  - Aligned Avalonia Linux unsafe-model detection to include `8E41` in the same safety path.
+- **Files:** `src/OmenCore.Linux/Hardware/LinuxEcController.cs`, `src/OmenCore.Linux/Commands/DiagnoseCommand.cs`, `src/OmenCore.Avalonia/Services/LinuxHardwareService.cs`
+- **Status:** ✅ Fixed
+
+---
+
+### 31. Added issue #99 follow-up diagnostic checklist for faster Linux triage closure
+- **Issue:** Reporter follow-up for board 8E41 needs consistent command output and interface snapshots to confirm final capability-class behavior on real hardware.
+- **Fix:** Added a ready-to-post issue response checklist with exact commands and expected verification targets.
+- **Files:** `docs/ISSUE_99_FOLLOWUP_CHECKLIST.md`, `docs/LINUX_INSTALL_GUIDE.md`, `qa/collect-linux-triage.sh`, `docs/ROADMAP_v3.2.5.md`
+- **Status:** ✅ Added
 
 ---
 

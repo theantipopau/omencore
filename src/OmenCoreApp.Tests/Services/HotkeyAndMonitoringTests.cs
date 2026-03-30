@@ -37,6 +37,61 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void IsOmenKey_ReturnsFalse_ForF11()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { (uint)0x7A, (uint)0x0057 })!;
+
+            result.Should().BeFalse("F11 must never be intercepted as an OMEN key");
+        }
+
+        [Fact]
+        public void IsOmenKey_RejectsF24_WhenStrictModeAndScanDoesNotMatch()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { (uint)0x87, (uint)0x0057 })!;
+
+            result.Should().BeFalse("software-generated F24 without an OMEN scan code must be rejected in strict mode");
+        }
+
+        [Fact]
+        public void ShouldSuppressWmiEventFromRecentNeverInterceptKey_ReturnsTrue_ForRecentF11Activity()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            typeof(OmenKeyService).GetField("_lastNeverInterceptKeyTicks", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(svc, DateTime.UtcNow.Ticks);
+            typeof(OmenKeyService).GetField("_lastNeverInterceptVkCode", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(svc, 0x7A);
+            typeof(OmenKeyService).GetField("_lastNeverInterceptScanCode", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(svc, 0x0057);
+
+            var suppressMethod = typeof(OmenKeyService).GetMethod("ShouldSuppressWmiEventFromRecentNeverInterceptKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            suppressMethod.Should().NotBeNull();
+
+            var result = (bool)suppressMethod!.Invoke(svc, null)!;
+
+            result.Should().BeTrue("recent F11 activity should suppress a matching WMI OMEN-key false positive window");
+        }
+
+        [Fact]
         public void ShouldUpdateUI_ReturnsTrue_When_PowerChangeExceedsThreshold()
         {
             var logging = new LoggingService();
@@ -119,6 +174,41 @@ namespace OmenCoreApp.Tests.Services
             var result = (bool)shouldMethod!.Invoke(svc, new object[] { newSample })!;
 
             result.Should().BeFalse("UI should not refresh for sub-threshold power changes when no other metrics changed");
+        }
+
+        [Fact]
+        public void HardwareWorkerClient_FormatsLogs_WithSessionAndCorrelationContext()
+        {
+            var client = new HardwareWorkerClient();
+            var formatMethod = typeof(HardwareWorkerClient).GetMethod("FormatWorkerLog", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            formatMethod.Should().NotBeNull();
+
+            var withoutCorrelation = (string)formatMethod!.Invoke(client, new object[] { "startup", null! })!;
+            var withCorrelation = (string)formatMethod.Invoke(client, new object[] { "recover", "recover-1234abcd" })!;
+
+            withoutCorrelation.Should().Contain("[Worker][session=");
+            withoutCorrelation.Should().NotContain("[correlation=");
+
+            withCorrelation.Should().Contain("[Worker][session=");
+            withCorrelation.Should().Contain("[correlation=recover-1234abcd]");
+            withCorrelation.Should().EndWith("recover");
+        }
+
+        [Theory]
+        [InlineData(false, false, false, true)]
+        [InlineData(true, false, true, false)]
+        [InlineData(true, true, false, false)]
+        [InlineData(true, true, true, true)]
+        public void HardwareWorkerClient_ShouldRecoverConnection_UsesWorkerOwnershipState(bool isConnected, bool ownsWorkerProcess, bool workerProcessExited, bool expected)
+        {
+            var shouldRecoverMethod = typeof(HardwareWorkerClient).GetMethod("ShouldRecoverConnection", BindingFlags.Static | BindingFlags.NonPublic);
+
+            shouldRecoverMethod.Should().NotBeNull();
+
+            var result = (bool)shouldRecoverMethod!.Invoke(null, new object[] { isConnected, ownsWorkerProcess, workerProcessExited })!;
+
+            result.Should().Be(expected);
         }
     }
 }

@@ -6,9 +6,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore</AssemblyName>
-    <AssemblyVersion>3.2.1</AssemblyVersion>
-    <FileVersion>3.2.1</FileVersion>
-    <InformationalVersion>3.2.1</InformationalVersion>
+    <Version>3.2.5</Version>
+    <AssemblyVersion>3.2.5.0</AssemblyVersion>
+    <FileVersion>3.2.5.0</FileVersion>
+    <InformationalVersion>3.2.5</InformationalVersion>
     <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
