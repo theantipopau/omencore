@@ -6,6 +6,7 @@ using System.Linq;
 using System.Management;
 using System.Timers;
 using Timer = System.Timers.Timer;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -127,6 +128,12 @@ namespace OmenCore.Services
 
             _isMonitoring = true;
             _pollTimer.Start();
+            BackgroundTimerRegistry.Register(
+                "ProcessMonitor",
+                "ProcessMonitoringService",
+                "Polls running processes to detect game launches and workload switches",
+                (int)_pollTimer.Interval,
+                BackgroundTimerTier.Optional);
             _logging.Info($"Process monitoring started ({_trackedProcesses.Count} tracked)");
 
             // Initial scan
@@ -143,6 +150,7 @@ namespace OmenCore.Services
 
             _isMonitoring = false;
             _pollTimer.Stop();
+            BackgroundTimerRegistry.Unregister("ProcessMonitor");
             _logging.Info("Process monitoring stopped");
         }
 

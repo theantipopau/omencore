@@ -9,20 +9,6 @@
              d:DesignHeight="800" d:DesignWidth="1000"
              Background="Transparent">
 
-    <UserControl.Resources>
-        <!-- Risk Level Colors -->
-        <SolidColorBrush x:Key="RiskLowBrush" Color="#4CAF50"/>
-        <SolidColorBrush x:Key="RiskMediumBrush" Color="#FF9800"/>
-        <SolidColorBrush x:Key="RiskHighBrush" Color="#F44336"/>
-        
-        <!-- Category Icons -->
-        <Style x:Key="CategoryBadge" TargetType="Border">
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="6,2"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-        </Style>
-    </UserControl.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -53,22 +39,22 @@
 
                 <!-- Stats Panel -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="6" Padding="12,8" Margin="0,0,8,0">
+                    <Border Style="{StaticResource Omen.Card.Utility}" Padding="12,8" Margin="0,0,8,0">
                         <StackPanel>
-                            <TextBlock Text="{Binding TotalCount}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="DETECTED" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding TotalCount}" Style="{StaticResource UtilityMetricValue}"/>
+                            <TextBlock Text="Detected" Style="{StaticResource UtilityMetricLabel}"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="6" Padding="12,8" Margin="0,0,8,0">
+                    <Border Style="{StaticResource Omen.Card.Utility}" Padding="12,8" Margin="0,0,8,0">
                         <StackPanel>
-                            <TextBlock Text="{Binding RemovedCount}" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Text="REMOVED" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding RemovedCount}" Style="{StaticResource UtilityMetricValue}" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock Text="Removed" Style="{StaticResource UtilityMetricLabel}"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="6" Padding="12,8">
+                    <Border Style="{StaticResource Omen.Card.Utility}" Padding="12,8">
                         <StackPanel>
-                            <TextBlock Text="{Binding LowRiskCount}" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center"/>
-                            <TextBlock Text="LOW RISK" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding LowRiskCount}" Style="{StaticResource UtilityMetricValue}" Foreground="{StaticResource SuccessBrush}"/>
+                            <TextBlock Text="Low Risk" Style="{StaticResource UtilityMetricLabel}"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -108,6 +94,16 @@
                             <TextBlock Text="Remove Low-Risk" FontSize="11"/>
                         </StackPanel>
                     </Button>
+                    <Button Command="{Binding CancelBulkOperationCommand}"
+                            Style="{StaticResource SecondaryButton}"
+                            Padding="10,6"
+                            Visibility="{Binding CanCancelBulkOperation, Converter={StaticResource BoolToVisibility}}"
+                            AutomationProperties.Name="Cancel Bulk Operation">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconClose}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="Cancel" FontSize="11"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Filter/Search -->
@@ -122,7 +118,7 @@
                                        IsHitTestVisible="False"
                                        VerticalAlignment="Center"
                                        Margin="10,0,0,0"
-                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
                                        FontSize="11">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -209,12 +205,80 @@
                              Foreground="{StaticResource SuccessBrush}"
                              BorderThickness="0"/>
                 <TextBlock Grid.Column="1"
-                           Text="{Binding BulkRemoveProgress, StringFormat={}{0} done}"
+                           Text="{Binding BulkRemoveProgressText}"
                            FontSize="10"
                            Foreground="{StaticResource TextTertiaryBrush}"
                            VerticalAlignment="Center"
                            Margin="8,0,0,0"/>
             </Grid>
+
+            <Grid Margin="0,8,0,0"
+                  Visibility="{Binding IsBulkRestoring, Converter={StaticResource BoolToVisibility}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <ProgressBar Grid.Column="0" Value="{Binding BulkRestoreProgress}" Maximum="{Binding BulkRestoreTotal}"
+                             Height="4"
+                             Background="{StaticResource SurfaceMediumBrush}"
+                             Foreground="{StaticResource AccentBrush}"
+                             BorderThickness="0"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding BulkRestoreProgressText}"
+                           FontSize="10"
+                           Foreground="{StaticResource TextTertiaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"/>
+            </Grid>
+
+            <Border Style="{StaticResource Omen.Toast}" Margin="0,8,0,0" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}"
+                    Margin="0,10,0,0"
+                    Visibility="{Binding IsRemovalPreviewVisible, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Path Data="{StaticResource IconWarning}" Width="14" Height="14" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding RemovalPreviewTitle}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding RemovalPreviewSummary}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="{Binding RemovalPreviewEstimatedText}" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,8"/>
+
+                    <ListView ItemsSource="{Binding RemovalPreviewItems}" Height="160" Margin="0,0,0,10"
+                              Background="{StaticResource SurfaceDarkBrush}" BorderBrush="{StaticResource BorderBrush}">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Remove" Width="60">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="App" Width="220" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="Risk" Width="70" DisplayMemberBinding="{Binding Risk}"/>
+                                <GridViewColumn Header="Est." Width="60" DisplayMemberBinding="{Binding EstimatedText}"/>
+                                <GridViewColumn Header="Dependency Hint" Width="280" DisplayMemberBinding="{Binding DependencyHint}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Command="{Binding ToggleAllPreviewItemsCommand}" Style="{StaticResource SecondaryButton}" Padding="10,6" Margin="0,0,8,0">
+                            <TextBlock Text="Toggle All" FontSize="11"/>
+                        </Button>
+                        <Button Command="{Binding CancelRemovalPreviewCommand}" Style="{StaticResource SecondaryButton}" Padding="10,6" Margin="0,0,8,0">
+                            <TextBlock Text="Cancel" FontSize="11"/>
+                        </Button>
+                        <Button Command="{Binding ConfirmRemovalPreviewCommand}" Style="{StaticResource ModernButton}" Background="#C62828" Padding="10,6">
+                            <TextBlock Text="Remove Selected" FontSize="11" Foreground="White"/>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
             </StackPanel>
         </Border>
 
@@ -222,17 +286,20 @@
         <Border Grid.Row="2" Style="{StaticResource CardBorder}">
             <Grid>
                 <!-- Loading Overlay -->
-                <Border Background="#80000000" 
+                <Border Style="{StaticResource Omen.Busy.Overlay}"
                         CornerRadius="8" 
                         Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}"
                         Panel.ZIndex="10">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <ProgressBar IsIndeterminate="True" Width="200" Height="4" Margin="0,0,0,12"/>
-                        <TextBlock Text="Scanning for bloatware..." 
-                                   Foreground="{StaticResource TextPrimaryBrush}" 
-                                   FontSize="14"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <Border Style="{StaticResource Omen.Busy.Panel}" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <StackPanel>
+                            <ProgressBar Style="{StaticResource Omen.Busy.Progress}" IsIndeterminate="True" Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding StatusMessage}" 
+                                       Foreground="{StaticResource TextSecondaryBrush}" 
+                                       FontSize="13"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
                 </Border>
 
                 <!-- Empty State - only show when not scanning AND count is zero -->
@@ -269,9 +336,9 @@
                             <GridViewColumn Header="Status" Width="70">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Center">
+                                        <Border HorizontalAlignment="Center">
                                             <Border.Style>
-                                                <Style TargetType="Border">
+                                                <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
                                                     <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRemoved}" Value="True">
@@ -279,6 +346,9 @@
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
                                                             <Setter Property="Background" Value="#4A0000"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Skipped">
+                                                            <Setter Property="Background" Value="#4A3A00"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -296,6 +366,10 @@
                                                             <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
                                                                 <Setter Property="Text" Value="FAILED"/>
                                                                 <Setter Property="Foreground" Value="#FF6B6B"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Skipped">
+                                                                <Setter Property="Text" Value="SKIPPED"/>
+                                                                <Setter Property="Foreground" Value="#FFD166"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -315,7 +389,7 @@
                             <GridViewColumn Header="Category" Width="120">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="4" Padding="6,2" Background="{StaticResource SurfaceMediumBrush}">
+                                        <Border Style="{StaticResource StatusBadge}" Background="{StaticResource SurfaceMediumBrush}">
                                             <TextBlock Text="{Binding Category}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
                                     </DataTemplate>
@@ -331,9 +405,10 @@
                             <GridViewColumn Header="Risk" Width="80">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border CornerRadius="4" Padding="6,2" HorizontalAlignment="Center">
+                                        <Border HorizontalAlignment="Center">
                                             <Border.Style>
-                                                <Style TargetType="Border">
+                                                <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+                                                    <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding RemovalRisk}" Value="Low">
                                                             <Setter Property="Background" Value="#1B5E20"/>
@@ -396,6 +471,18 @@
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconExport}" Width="11" Height="11" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
                             <TextBlock Text="Export Log" FontSize="10"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ViewLastReportCommand}"
+                            Style="{StaticResource SecondaryButton}"
+                            Padding="10,4"
+                            Margin="0,0,10,0"
+                            Visibility="{Binding HasLastReport, Converter={StaticResource BoolToVisibility}}"
+                            ToolTip="Open the most recent removal report"
+                            AutomationProperties.Name="View Last Removal Report">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconExport}" Width="11" Height="11" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
+                            <TextBlock Text="View Report" FontSize="10"/>
                         </StackPanel>
                     </Button>
                     <Path Data="{StaticResource IconWarning}" Width="12" Height="12" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>

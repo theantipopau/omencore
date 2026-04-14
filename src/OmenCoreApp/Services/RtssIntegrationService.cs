@@ -4,6 +4,7 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services;
 
@@ -135,6 +136,12 @@ public class RtssIntegrationService : IDisposable
         if (_pollTimer != null) return;
         
         _pollTimer = new Timer(_ => PollFrameData(), null, 0, intervalMs);
+        BackgroundTimerRegistry.Register(
+            "RtssFrameDataPoll",
+            "RtssIntegrationService",
+            "Polls RTSS shared memory for frame time and FPS data",
+            intervalMs,
+            BackgroundTimerTier.VisibleOnly);
     }
     
     /// <summary>
@@ -142,6 +149,7 @@ public class RtssIntegrationService : IDisposable
     /// </summary>
     public void StopPolling()
     {
+        BackgroundTimerRegistry.Unregister("RtssFrameDataPoll");
         _pollTimer?.Dispose();
         _pollTimer = null;
     }

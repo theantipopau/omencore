@@ -1,6 +1,6 @@
 ﻿# OmenCore Installation Guide
 
-Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
+Complete installation instructions for OmenCore v3.3.0 on Windows and Linux.
 
 ---
 
@@ -26,7 +26,7 @@ Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
 
 ### Option 1: Installer (Recommended)
 
-1. **Download** `OmenCoreSetup-3.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+1. **Download** `OmenCoreSetup-3.3.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
 
 2. **Verify** the SHA256 hash published in the release notes before running (optional but recommended)
 
@@ -44,7 +44,7 @@ Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
 
 ### Option 2: Portable ZIP
 
-1. **Download** `OmenCore-3.2.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+1. **Download** `OmenCore-3.3.0-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
 
 2. **Verify SHA256** of the ZIP (hash published in GitHub Release notes)
 
@@ -61,6 +61,8 @@ Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
 - OmenCore auto-detects your laptop model and selects the best fan control method (WMI BIOS by default — no drivers needed for basic operation)
 - Use **Settings → OGH Cleanup** to safely remove OMEN Gaming Hub if desired
 
+> **Startup hardware restore (v3.3.0):** `EnableStartupHardwareRestore` is **disabled by default**. This feature applies saved hardware settings on every startup, but on OMEN 16 and Victus models it has been observed to cause CMOS state loss. Do **not** enable this option on those models unless you understand the risk and have a recovery plan.
+
 ---
 
 ## 🐧 Linux Installation
@@ -69,19 +71,28 @@ Complete installation instructions for OmenCore v3.2.1 on Windows and Linux.
 
 ```bash
 # 1. Download the Linux release
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 
 # 2. Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Make executables
 chmod +x omencore-cli omencore-gui
 
-# 4. Run with sudo (required for hardware access)
-sudo ./omencore-gui
+# 4. Launch GUI (prefer normal user session)
+./omencore-gui
 ```
+
+> Prefer launching the GUI without `sudo`. OmenCore escalates privileged actions when needed.
+
+> If you must launch as root (e.g. in a minimal session), preserve your display and session variables:
+> ```bash
+> sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS ./omencore-gui
+> ```
+
+> **Software rendering (v3.3.0):** OmenCore now automatically retries in software mode when GPU/GLX initialization fails. The choice is persisted in `render-startup-state.json` so subsequent launches skip the GPU attempt. You can also force it manually: `OMENCORE_GUI_RENDER_MODE=software ./omencore-gui`
 
 > CachyOS / Arch / Fedora users: same steps. The build is self-contained and all .NET dependencies are bundled.
 
@@ -89,11 +100,11 @@ sudo ./omencore-gui
 
 ```bash
 # 1. Download
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 
 # 2. Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Install to system path (optional)
@@ -190,7 +201,7 @@ omencore-cli daemon --generate-config > ~/.config/omencore/config.toml
 
 OmenCore requires root for hardware access:
 ```bash
-sudo ./omencore-gui
+./omencore-gui
 sudo omencore-cli status
 ```
 
@@ -224,8 +235,15 @@ sudo omencore-cli --report > omencore-report.txt
 ldd ./omencore-gui | grep "not found"
 
 # Try with an explicit display
-DISPLAY=:0 sudo ./omencore-gui
+DISPLAY=:0 ./omencore-gui
+
+# If elevated launch is unavoidable, preserve DBus/session variables
+sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS,OMENCORE_GUI_RENDER_MODE ./omencore-gui
 ```
+
+Notes:
+- OmenCore now retries once in software mode automatically when Linux renderer initialization fails.
+- After repeated renderer startup failures, OmenCore can persist software as last-known-good render mode.
 
 #### "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'"
 
@@ -233,8 +251,8 @@ DISPLAY=:0 sudo ./omencore-gui
 # Re-download fixed Linux package into a clean folder
 rm -rf OmenCore-linux-x64
 mkdir -p OmenCore-linux-x64
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -246,8 +264,8 @@ sudo ./omencore-cli status
 #### "Method not found: Boolean System.OperatingSystem.IsWindows()"
 
 ```bash
-# Fixed in v3.2.1 Linux GUI package
-sudo ./omencore-gui
+# Fixed in v3.3.0 Linux GUI package
+./omencore-gui
 ```
 
 ---

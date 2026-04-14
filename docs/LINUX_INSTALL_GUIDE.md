@@ -44,11 +44,11 @@ Complete guide for installing and running OmenCore on Linux distributions. OmenC
 
 ```bash
 # Download latest release
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 
 # Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # Make executable
@@ -65,18 +65,18 @@ sudo cp omencore-cli /usr/local/bin/
 
 ```bash
 # Download latest release
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 
 # Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # Make both executables
 chmod +x omencore-cli omencore-gui
 
-# Run GUI (requires display)
-sudo ./omencore-gui
+# Run GUI (prefer user session)
+./omencore-gui
 
 # Or run CLI
 sudo ./omencore-cli status
@@ -94,9 +94,9 @@ sudo apt update
 sudo apt install -y unzip wget libice6 libsm6 libx11-6 libxext6 libxrandr2 libxi6
 
 # Download and extract OmenCore
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -119,9 +119,9 @@ sudo ./omencore-cli status
 sudo dnf install -y unzip wget libICE libSM libX11 libXext libXrandr libXi
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -143,9 +143,9 @@ sudo ./omencore-cli status
 sudo pacman -S --needed unzip wget libice libsm libx11 libxext libxrandr libxi
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -168,9 +168,9 @@ sudo ./omencore-cli status
 sudo zypper install unzip wget libICE6 libSM6 libX11-6 libXext6 libXrandr2 libXi6
 
 # Download and extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -254,22 +254,25 @@ The Avalonia-based GUI provides a graphical dashboard similar to the Windows ver
 
 ```bash
 # Standard launch
-sudo ./omencore-gui
+./omencore-gui
 
-# Prefer EGL first, then GLX, then software fallback (default in v3.2.5)
-sudo ./omencore-gui
+# Prefer EGL first, then GLX, then software fallback (default in v3.3.0)
+./omencore-gui
 
 # Force software rendering on Fedora/X11 systems where GLX fails or llvmpipe is blacklisted
-sudo env OMENCORE_GUI_RENDER_MODE=software DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+OMENCORE_GUI_RENDER_MODE=software ./omencore-gui
 
 # Prefer EGL explicitly if you want to avoid GLX first
-sudo env OMENCORE_GUI_RENDER_MODE=egl DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+OMENCORE_GUI_RENDER_MODE=egl ./omencore-gui
+
+# If elevated launch is unavoidable, preserve desktop-session variables
+sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS,OMENCORE_GUI_RENDER_MODE ./omencore-gui
 
 # If using Wayland
-DISPLAY=:0 sudo ./omencore-gui
+DISPLAY=:0 ./omencore-gui
 
 # Or with explicit Wayland
-WAYLAND_DISPLAY=wayland-0 sudo ./omencore-gui
+WAYLAND_DISPLAY=wayland-0 ./omencore-gui
 
 # Check for missing libraries
 ldd ./omencore-gui | grep "not found"
@@ -295,14 +298,18 @@ EOF
 
 ### System Tray (Optional)
 
-OmenCore includes a Python-based system tray script:
+A shell-based tray helper is available in the source repository (not bundled in the release zip). It integrates with `yad`, `libappindicator`, or `pystray`:
 
 ```bash
-# Install Python dependency
+# If using the pystray backend, install the Python dependency
 pip install pystray pillow
 
+# Download the script from the repository
+wget https://raw.githubusercontent.com/theantipopau/omencore/main/src/OmenCore.Linux/scripts/omencore-tray.sh
+chmod +x omencore-tray.sh
+
 # Run tray icon (requires omencore-cli in PATH)
-python3 scripts/omencore-tray.sh &
+./omencore-tray.sh start &
 ```
 
 ---
@@ -367,6 +374,22 @@ sudo omencore-cli perf --tcc 5             # Throttle 5°C below TjMax
 # Set thermal power limit level (0-5)
 sudo omencore-cli perf --power-limit 3
 ```
+
+### GPU TGP and Power Limit Notes (Linux)
+
+- OmenCore Linux CLI does not currently expose a direct dGPU TGP command (for example, no `gpu --tgp` flag yet).
+- `perf --power-limit` controls platform thermal/power policy and CPU-side behavior, not NVIDIA/AMD board-level VBIOS TGP directly.
+- If you flashed a custom VBIOS, validate effective GPU power limits with vendor tooling:
+
+```bash
+# NVIDIA: check real-time draw and active limit
+nvidia-smi --query-gpu=name,power.draw,power.limit --format=csv
+
+# Optional live watch
+watch -n 1 nvidia-smi --query-gpu=temperature.gpu,utilization.gpu,power.draw,power.limit --format=csv,noheader
+```
+
+Planned direction for future Linux releases: add explicit GPU power-limit control where firmware, driver stack, and hardware safety checks allow it.
 
 ### Keyboard RGB
 
@@ -651,7 +674,9 @@ This will show:
 OmenCore requires root access for hardware control:
 ```bash
 sudo ./omencore-cli status
-sudo ./omencore-gui
+./omencore-gui
+# If elevated launch is unavoidable:
+sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS,OMENCORE_GUI_RENDER_MODE ./omencore-gui
 ```
 
 ### "ec_sys module not found"
@@ -709,22 +734,28 @@ Some distributions (Fedora 43+, some Arch builds) don't include `ec_sys`:
 ldd ./omencore-gui | grep "not found"
 
 # Try with explicit display
-DISPLAY=:0 sudo ./omencore-gui
+DISPLAY=:0 ./omencore-gui
 
 # For Wayland, try XWayland
-XDG_SESSION_TYPE=x11 sudo ./omencore-gui
+XDG_SESSION_TYPE=x11 ./omencore-gui
 
 # Force CPU/software rendering if GLX fails or llvmpipe is blacklisted
-sudo env OMENCORE_GUI_RENDER_MODE=software DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+OMENCORE_GUI_RENDER_MODE=software ./omencore-gui
 
 # Prefer EGL before GLX on X11
-sudo env OMENCORE_GUI_RENDER_MODE=egl DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ./omencore-gui
+OMENCORE_GUI_RENDER_MODE=egl ./omencore-gui
+
+# If you must run elevated, preserve DBus/session env vars
+sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS,OMENCORE_GUI_RENDER_MODE ./omencore-gui
 ```
 
 Notes:
 - `SESSION_MANAGER environment variable not defined` is usually informational on X11 and is not the root cause by itself.
+- Running the GUI via raw `sudo ./omencore-gui` can drop session DBus context and trigger a blank/black startup on some systems.
+- OmenCore now retries once in software mode automatically if Linux renderer initialization fails.
+- After repeated renderer startup failures, OmenCore can persist `software` as a last-known-good render mode for next launch.
 - If terminal or `journalctl` output mentions `Unable to initialize GLX-based rendering` or `llvmpipe ... is blacklisted`, use `OMENCORE_GUI_RENDER_MODE=software` and retry.
-- v3.2.5 writes a GUI startup log on failure and prints its path to stderr so launch issues are not silent.
+- v3.3.0 writes a GUI startup log on failure and prints its path to stderr so launch issues are not silent.
 
 ### "Could not load file or assembly 'System.Runtime, Version=8.0.0.0'"
 
@@ -734,11 +765,11 @@ This usually means you are running an older or incomplete Linux package.
 # Verify you're on the fixed package
 ./omencore-cli --version
 
-# Re-download v3.2.1 and extract into a clean folder
+# Re-download v3.3.0 and extract into a clean folder
 rm -rf OmenCore-linux-x64
 mkdir -p OmenCore-linux-x64
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -751,12 +782,12 @@ sudo ./omencore-cli status
 
 ### "Method not found: Boolean System.OperatingSystem.IsWindows()" (GUI)
 
-This is a known issue in older Linux GUI builds and is fixed in v3.2.1.
+This is a known issue in older Linux GUI builds and is fixed in v3.3.0.
 
 ```bash
 # Use the current package
 ./omencore-gui --version || true
-sudo ./omencore-gui
+./omencore-gui
 ```
 
 ### Temperatures Show 0°C

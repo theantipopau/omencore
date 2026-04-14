@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using OmenCore.Hardware;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -23,6 +24,7 @@ namespace OmenCore.Services
         private readonly ThermalSensorProvider? _thermalProvider;
         private readonly NvapiService? _nvapiService;
         private readonly UndervoltService? _undervoltService;
+        private readonly PerformanceModeService? _performanceModeService;
         private readonly ProcessMonitoringService _processMonitor;
         
         private readonly System.Threading.Timer _evaluationTimer;
@@ -43,7 +45,8 @@ namespace OmenCore.Services
             ProcessMonitoringService processMonitor,
             ThermalSensorProvider? thermalProvider = null,
             NvapiService? nvapiService = null,
-            UndervoltService? undervoltService = null)
+            UndervoltService? undervoltService = null,
+            PerformanceModeService? performanceModeService = null)
         {
             _logger = logger;
             _configService = configService;
@@ -51,6 +54,7 @@ namespace OmenCore.Services
             _thermalProvider = thermalProvider;
             _nvapiService = nvapiService;
             _undervoltService = undervoltService;
+            _performanceModeService = performanceModeService;
             _processMonitor = processMonitor;
             
             _evaluationTimer = new System.Threading.Timer(EvaluateRules, null, Timeout.Infinite, Timeout.Infinite);
@@ -66,6 +70,12 @@ namespace OmenCore.Services
 
             _isRunning = true;
             _evaluationTimer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(5)); // Evaluate every 5 seconds
+            BackgroundTimerRegistry.Register(
+                "AutomationEvaluation",
+                "AutomationService",
+                "Evaluates active automation rules against system conditions",
+                5000,
+                BackgroundTimerTier.Optional);
             _logger.Info("Automation service started (5s interval)");
         }
 
@@ -79,6 +89,7 @@ namespace OmenCore.Services
 
             _isRunning = false;
             _evaluationTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            BackgroundTimerRegistry.Unregister("AutomationEvaluation");
             _logger.Info("Automation service stopped");
         }
 
@@ -99,6 +110,12 @@ namespace OmenCore.Services
                 {
                     try
                     {
+                        if (!AutomationRuleSchemaValidator.TryValidate(rule, out var validationError))
+                        {
+                            _logger.Warn($"Skipping automation rule '{rule.Name}': {validationError}");
+                            continue;
+                        }
+
                         var shouldTrigger = EvaluateTrigger(rule);
                         var ruleKey = rule.Id;
 
@@ -367,8 +384,11 @@ namespace OmenCore.Services
                     break;
 
                 case ActionType.SetPerformanceMode:
-                    // Performance mode requires platform-specific implementation
-                    _logger.Info($"Performance mode action: {action.Parameter} (not yet implemented)");
+                    if (!string.IsNullOrWhiteSpace(action.Parameter) && _performanceModeService != null)
+                    {
+                        _performanceModeService.SetPerformanceMode(action.Parameter);
+                        _logger.Info($"Applied performance mode: {action.Parameter}");
+                    }
                     break;
 
                 case ActionType.SetGpuOcProfile:
@@ -382,6 +402,7 @@ namespace OmenCore.Services
                             _nvapiService.SetCoreClockOffset(ocProfile.CoreClockOffsetMHz);
                             _nvapiService.SetMemoryClockOffset(ocProfile.MemoryClockOffsetMHz);
                             _nvapiService.SetPowerLimit(ocProfile.PowerLimitPercent);
+                            _nvapiService.SetVoltageOffset(ocProfile.VoltageOffsetMv);
                             _logger.Info($"Applied GPU OC profile: {action.Parameter}");
                         }
                     }
@@ -441,6 +462,97 @@ namespace OmenCore.Services
         public RuleTriggeredEventArgs(AutomationRule rule)
         {
             Rule = rule;
+        }
+    }
+
+    public static class AutomationRuleSchemaValidator
+    {
+        public static IReadOnlyList<TriggerType> SupportedTriggerTypes { get; } = new[]
+        {
+            TriggerType.Time,
+            TriggerType.Battery,
+            TriggerType.ACPower
+        };
+
+        public static bool IsSupportedTriggerType(TriggerType triggerType)
+            => SupportedTriggerTypes.Contains(triggerType);
+
+        public static bool TryValidate(AutomationRule rule, out string error)
+        {
+            if (rule == null)
+            {
+                error = "Rule payload is missing.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.Name))
+            {
+                error = "Rule name is required.";
+                return false;
+            }
+
+            if (!IsSupportedTriggerType(rule.Trigger))
+            {
+                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power.";
+                return false;
+            }
+
+            if (rule.Actions == null || rule.Actions.Count == 0)
+            {
+                error = "At least one action is required.";
+                return false;
+            }
+
+            foreach (var action in rule.Actions)
+            {
+                if (action.Type == ActionType.SetFanPreset || action.Type == ActionType.SetPerformanceMode || action.Type == ActionType.ShowNotification)
+                {
+                    if (string.IsNullOrWhiteSpace(action.Parameter))
+                    {
+                        error = $"Action '{action.Type}' requires a text parameter.";
+                        return false;
+                    }
+                }
+            }
+
+            switch (rule.Trigger)
+            {
+                case TriggerType.Time:
+                    if (!rule.TriggerData.StartTime.HasValue || !rule.TriggerData.EndTime.HasValue)
+                    {
+                        error = "Time rules require both start and end time.";
+                        return false;
+                    }
+                    break;
+
+                case TriggerType.Battery:
+                    if (!rule.TriggerData.BatteryThreshold.HasValue ||
+                        rule.TriggerData.BatteryThreshold.Value < 1 ||
+                        rule.TriggerData.BatteryThreshold.Value > 100)
+                    {
+                        error = "Battery rules require a threshold between 1 and 100.";
+                        return false;
+                    }
+
+                    if (!string.Equals(rule.TriggerData.BatteryCondition, "Below", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(rule.TriggerData.BatteryCondition, "Above", StringComparison.OrdinalIgnoreCase))
+                    {
+                        error = "Battery rules require condition 'Below' or 'Above'.";
+                        return false;
+                    }
+                    break;
+
+                case TriggerType.ACPower:
+                    if (!rule.TriggerData.ACConnected.HasValue)
+                    {
+                        error = "AC power rules must specify connected or disconnected.";
+                        return false;
+                    }
+                    break;
+            }
+
+            error = string.Empty;
+            return true;
         }
     }
 }

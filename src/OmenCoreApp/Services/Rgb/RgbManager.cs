@@ -72,16 +72,30 @@ namespace OmenCore.Services.Rgb
         }
 
         /// <summary>
-        /// Apply an effect string to all available providers.
+        /// Apply an effect string to all available providers using a two-phase prepare/commit
+        /// so that providers finish staging before the first hardware write begins.
         /// </summary>
         public async Task ApplyEffectToAllAsync(string effectId)
         {
             // Exclude "system" provider to avoid infinite recursion (it delegates back to this manager)
-            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system");
-            var tasks = available.Select(p => SafeApplyEffectAsync(p, effectId));
-            await Task.WhenAll(tasks);
+            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system").ToList();
+
+            // Phase 1: prepare — providers may pre-serialise payloads or acquire handles
+            await Task.WhenAll(available.Select(p => SafePrepareEffectAsync(p, effectId)));
+
+            // Phase 2: commit — all providers begin their hardware/network write simultaneously
+            await Task.WhenAll(available.Select(p => SafeApplyEffectAsync(p, effectId)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs(effectId, available.Count()));
+            SyncCompleted?.Invoke(this, new RgbSyncEventArgs(effectId, available.Count));
+        }
+        
+        private async Task SafePrepareEffectAsync(IRgbProvider provider, string effectId)
+        {
+            try
+            {
+                await provider.PrepareEffectAsync(effectId);
+            }
+            catch { }
         }
         
         private async Task SafeApplyEffectAsync(IRgbProvider provider, string effectId)
@@ -102,11 +116,18 @@ namespace OmenCore.Services.Rgb
         public async Task SyncStaticColorAsync(Color color)
         {
             // Exclude "system" provider to avoid infinite recursion (it delegates back to this manager)
-            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Static));
+            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Static)).ToList();
+
+            var effectId = $"color:#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+            // Phase 1: prepare
+            await Task.WhenAll(available.Select(p => SafePrepareEffectAsync(p, effectId)));
+
+            // Phase 2: commit
             var tasks = available.Select(p => SafeSetStaticColorAsync(p, color));
             await Task.WhenAll(tasks);
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs($"color:#{color.R:X2}{color.G:X2}{color.B:X2}", available.Count()));
+            SyncCompleted?.Invoke(this, new RgbSyncEventArgs(effectId, available.Count));
         }
         
         private async Task SafeSetStaticColorAsync(IRgbProvider provider, Color color)

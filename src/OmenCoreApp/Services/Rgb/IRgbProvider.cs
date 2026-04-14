@@ -34,6 +34,16 @@ namespace OmenCore.Services.Rgb
         /// Number of connected devices.
         /// </summary>
         int DeviceCount { get; }
+
+        /// <summary>
+        /// Structured connection status for UI badges and diagnostics.
+        /// </summary>
+        RgbProviderConnectionStatus ConnectionStatus { get; }
+
+        /// <summary>
+        /// Human-readable detail describing the current connection state (e.g. device count, error message).
+        /// </summary>
+        string StatusDetail { get; }
         
         /// <summary>
         /// List of supported effect types.
@@ -50,6 +60,14 @@ namespace OmenCore.Services.Rgb
         /// Format: "color:#FF0000" or "preset:MyPreset" or "effect:breathing"
         /// </summary>
         Task ApplyEffectAsync(string effectId);
+
+        /// <summary>
+        /// Optional prepare phase for the coordinated commit pattern.
+        /// Providers may pre-serialise payloads or acquire device handles here.
+        /// The default implementation is a no-op and is overridden only when staging
+        /// provides a measurable benefit.
+        /// </summary>
+        Task PrepareEffectAsync(string effectId) => Task.CompletedTask;
         
         /// <summary>
         /// Apply a static color to all devices.
@@ -72,6 +90,21 @@ namespace OmenCore.Services.Rgb
         Task TurnOffAsync();
     }
     
+    /// <summary>
+    /// Structured connection state for an RGB provider.
+    /// </summary>
+    public enum RgbProviderConnectionStatus
+    {
+        /// <summary>SDK detected and at least one device is active.</summary>
+        Connected,
+        /// <summary>SDK detected but no devices were discovered.</summary>
+        NoDevices,
+        /// <summary>SDK / software not installed or not running.</summary>
+        Disabled,
+        /// <summary>An error occurred during initialization or while applying an effect.</summary>
+        Error
+    }
+
     /// <summary>
     /// Supported RGB effect types.
     /// </summary>

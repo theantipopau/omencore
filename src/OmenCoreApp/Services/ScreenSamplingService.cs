@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Services.Rgb;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -26,6 +27,9 @@ namespace OmenCore.Services
         private int _historyIndex;
         private Color _lastAppliedColor;
         private int _changeThreshold = 20; // Min RGB difference to trigger update
+        private int _stableFrameCount;     // Consecutive frames below change threshold
+        private bool _inSlowMode;          // True when back-off is active
+        private volatile bool _isHostMinimized; // Set by host window state changes
         
         /// <summary>
         /// Whether ambient sampling is currently active.
@@ -86,6 +90,19 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// Notify the sampler that the host application window is minimized.
+        /// When minimized, the sampling rate is reduced to 2 s to avoid unnecessary
+        /// desktop composition overhead when no ambient display is visible.
+        /// </summary>
+        public void SetHostMinimized(bool minimized)
+        {
+            if (_isHostMinimized == minimized) return;
+            _isHostMinimized = minimized;
+            if (_isRunning && _samplingTimer != null)
+                ApplyCurrentInterval();
+        }
+
+        /// <summary>
         /// Start ambient screen sampling.
         /// </summary>
         public void Start()
@@ -93,7 +110,15 @@ namespace OmenCore.Services
             if (_isRunning) return;
             
             _isRunning = true;
+            _stableFrameCount = 0;
+            _inSlowMode = false;
             _samplingTimer = new Timer(SampleScreen, null, 0, _sampleIntervalMs);
+            BackgroundTimerRegistry.Register(
+                "AmbientScreenSampling",
+                "ScreenSamplingService",
+                "Captures ambient screen colors for dynamic lighting effects",
+                _sampleIntervalMs,
+                BackgroundTimerTier.VisibleOnly);
             _logging.Info($"Screen sampling started (interval={_sampleIntervalMs}ms, smoothing={_smoothingFactor})");
         }
 
@@ -105,6 +130,7 @@ namespace OmenCore.Services
             if (!_isRunning) return;
             
             _isRunning = false;
+            BackgroundTimerRegistry.Unregister("AmbientScreenSampling");
             _samplingTimer?.Dispose();
             _samplingTimer = null;
             _logging.Info("Screen sampling stopped");
@@ -116,6 +142,13 @@ namespace OmenCore.Services
             
             try
             {
+                // If minimized, switch to a very slow idle rate and skip colour work
+                if (_isHostMinimized)
+                {
+                    SetSlowMode(true);
+                    return;
+                }
+
                 var sampledColor = CaptureAverageScreenColor();
                 
                 // Add to history for smoothing
@@ -127,11 +160,22 @@ namespace OmenCore.Services
                 CurrentColor = avgColor;
                 
                 // Only apply if color changed significantly
-                if (ColorDifference(_lastAppliedColor, avgColor) >= _changeThreshold)
+                int diff = ColorDifference(_lastAppliedColor, avgColor);
+                if (diff >= _changeThreshold)
                 {
                     _lastAppliedColor = avgColor;
                     ApplyColorToDevices(avgColor);
                     ColorChanged?.Invoke(this, avgColor);
+                    // Colour is changing — leave slow mode
+                    _stableFrameCount = 0;
+                    SetSlowMode(false);
+                }
+                else
+                {
+                    // Screen is stable; back off after 10 consecutive stable frames
+                    _stableFrameCount++;
+                    if (_stableFrameCount >= 10)
+                        SetSlowMode(true);
                 }
             }
             catch (Exception ex)
@@ -139,6 +183,26 @@ namespace OmenCore.Services
                 // Don't spam logs, sampling can fail occasionally
                 System.Diagnostics.Debug.WriteLine($"Screen sampling error: {ex.Message}");
             }
+        }
+
+        private void SetSlowMode(bool slow)
+        {
+            if (_inSlowMode == slow || _samplingTimer == null) return;
+            _inSlowMode = slow;
+            ApplyCurrentInterval();
+        }
+
+        private void ApplyCurrentInterval()
+        {
+            if (_samplingTimer == null) return;
+            int interval = _isHostMinimized ? 2000 : (_inSlowMode ? 500 : _sampleIntervalMs);
+            _samplingTimer.Change(interval, interval);
+            BackgroundTimerRegistry.Unregister("AmbientScreenSampling");
+            BackgroundTimerRegistry.Register("AmbientScreenSampling", "ScreenSamplingService",
+                _isHostMinimized ? "Ambient sampling paused (app minimized)" :
+                (_inSlowMode ? "Ambient sampling in back-off (stable scene)" : "Captures ambient screen colors for dynamic lighting effects"),
+                interval,
+                BackgroundTimerTier.VisibleOnly);
         }
 
         private Color CaptureAverageScreenColor()

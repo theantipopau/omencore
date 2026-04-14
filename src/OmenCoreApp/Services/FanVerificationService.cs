@@ -119,7 +119,7 @@ namespace OmenCore.Services
         private const int VerificationRetries = 3;          // Retry verification up to 3 times (increased from 2)
         private const int VerificationSamples = 5;          // Take 5 RPM samples and average (increased from 3)
         private const int SampleDelayMs = 200;              // Wait 200ms between samples (reduced for faster verification)
-        // MaxRpm calibrated to 6000 RPM � covers high-end OMEN 16/17 models (5500-6500 RPM peaks).
+        // MaxRpm calibrated to 6000 RPM � covers high-end OMEN 16/17 models (5500-6500 RPM peaks).
         // Victus and mid-range HP fans (3800-4500 RPM peak) still pass because the absolute 500 RPM
         // floor tolerance in VerifyRpm() keeps low-step-count fans within range regardless.
         private const int MaxLevel = 55;  // HP uses 55 as max on most models
@@ -319,17 +319,12 @@ namespace OmenCore.Services
                     _logging.Error($"Fan {fanIndex} verification failed after {totalAttempts} attempts: expected ~{result.ExpectedRpm} RPM, got {result.ActualRpmAfter} RPM");
                     result.ErrorMessage = $"RPM verification failed after {totalAttempts} attempts: expected ~{result.ExpectedRpm}, got {result.ActualRpmAfter}";
                     
-                    // Track failure for diagnostics
-                    _logging.Warn($"⚠️ Fan {fanIndex} commands appear ineffective. This model may not support WMI-based control. Consider using OGH proxy backend if available, or verify EC register mapping.");
+                    // Track failure for diagnostics — report only, do NOT change fan state.
+                    // Previously this called SetFanMode(Default) which would kill any active
+                    // fan curve, causing the curve to stop working permanently after the first
+                    // save. The FanService curve engine handles recovery on its own.
+                    _logging.Warn($"⚠️ Fan {fanIndex} verification mismatch. This may indicate OGH interference, EC lag, or confirmation-counter delay in RPM telemetry. The curve engine will maintain target speeds. [TIP: Consider switching to OGH proxy backend if fans are unresponsive]");
                     result.ErrorMessage += " [TIP: Consider switching to OGH proxy backend for this model]";
-                    
-                    // Auto-revert attempt: set fans back to auto mode
-                    _logging.Warn($"Attempting to restore auto control due to verification failure...");
-                    try
-                    {
-                        _wmiBios?.SetFanMode(HpWmiBios.FanMode.Default);
-                    }
-                    catch { /* Ignore revert errors */ }
                 }
             }
             catch (Exception ex)

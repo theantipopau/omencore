@@ -30,6 +30,7 @@ namespace OmenCore.ViewModels
         private readonly PerformanceModeService? _performanceModeService;
         private readonly RgbSceneService? _sceneService;
         private readonly ScreenSamplingService? _screenSamplingService;
+        private readonly AudioReactiveRgbService? _audioReactiveRgbService;
         
         private CorsairDevice? _selectedCorsairDevice;
         private CorsairLightingPreset? _selectedCorsairPreset;
@@ -45,12 +46,15 @@ namespace OmenCore.ViewModels
         // Scene-related fields
         private RgbScene? _selectedScene;
         private bool _isAmbientModeActive;
+        private bool _isAudioReactiveModeActive;
+        private AudioVisualizationMode _selectedAudioVisualizationMode = AudioVisualizationMode.Pulse;
         
         // 4-Zone Keyboard colors
         private string _zone1ColorHex = "#E6002E"; // OMEN Red
         private string _zone2ColorHex = "#0096FF"; // Blue
         private string _zone3ColorHex = "#9B30FF"; // Purple
         private string _zone4ColorHex = "#00FFFF"; // Cyan
+        private string _selectedPerKeyColorHex = "#E6002E";
         private KeyboardPreset? _selectedKeyboardPreset;
         private bool _colorsLoadedFromConfig; // Track if colors were loaded from saved config
         private bool _applyKeyboardColorsOnStartup = true;
@@ -132,6 +136,65 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Whether audio-reactive (WASAPI loopback) mode is active.
+        /// </summary>
+        public bool IsAudioReactiveModeActive
+        {
+            get => _isAudioReactiveModeActive;
+            set
+            {
+                if (_isAudioReactiveModeActive != value)
+                {
+                    _isAudioReactiveModeActive = value;
+                    OnPropertyChanged();
+                    _ = ToggleAudioReactiveModeAsync(value);
+                }
+            }
+        }
+
+        public bool IsAudioReactiveModeAvailable => _audioReactiveRgbService != null;
+
+        public ObservableCollection<AudioVisualizationMode> AudioVisualizationModes { get; } = new();
+
+        public AudioVisualizationMode SelectedAudioVisualizationMode
+        {
+            get => _selectedAudioVisualizationMode;
+            set
+            {
+                if (_selectedAudioVisualizationMode != value)
+                {
+                    _selectedAudioVisualizationMode = value;
+                    if (_audioReactiveRgbService != null)
+                    {
+                        _audioReactiveRgbService.Mode = value;
+                    }
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public float AudioReactiveSensitivity
+        {
+            get => _audioReactiveRgbService?.Sensitivity ?? 0.5f;
+            set
+            {
+                if (_audioReactiveRgbService == null)
+                    return;
+
+                var clamped = Math.Clamp(value, 0.1f, 1f);
+                if (Math.Abs(_audioReactiveRgbService.Sensitivity - clamped) > 0.001f)
+                {
+                    _audioReactiveRgbService.Sensitivity = clamped;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string AudioReactiveLevelText => _audioReactiveRgbService == null
+            ? "Audio capture unavailable"
+            : $"Level: {Math.Round(_audioReactiveRgbService.CurrentLevel * 100)}%";
         
         /// <summary>
         /// Whether scene service is available.
@@ -162,6 +225,11 @@ namespace OmenCore.ViewModels
         /// Command to toggle ambient mode.
         /// </summary>
         public ICommand ToggleAmbientModeCommand { get; }
+
+        /// <summary>
+        /// Command to toggle audio-reactive mode.
+        /// </summary>
+        public ICommand ToggleAudioReactiveModeCommand { get; }
         
         #endregion
         
@@ -174,6 +242,29 @@ namespace OmenCore.ViewModels
         public bool IsCorsairEnabled => _corsairService != null;
         public bool IsLogitechEnabled => _logitechService != null;
         public bool IsRazerEnabled => _razerService != null;
+
+        // Provider status badges — color + detail from IRgbProvider.ConnectionStatus
+        private OmenCore.Services.Rgb.RgbProviderConnectionStatus GetProviderStatus(string id)
+            => _rgbManager?.GetProvider(id)?.ConnectionStatus
+               ?? OmenCore.Services.Rgb.RgbProviderConnectionStatus.Disabled;
+
+        private static System.Windows.Media.SolidColorBrush StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus status)
+            => status switch
+            {
+                OmenCore.Services.Rgb.RgbProviderConnectionStatus.Connected  => new(System.Windows.Media.Color.FromRgb(0x4C, 0xAF, 0x50)),
+                OmenCore.Services.Rgb.RgbProviderConnectionStatus.NoDevices  => new(System.Windows.Media.Color.FromRgb(0xFF, 0xC1, 0x07)),
+                OmenCore.Services.Rgb.RgbProviderConnectionStatus.Error      => new(System.Windows.Media.Color.FromRgb(0xF4, 0x43, 0x36)),
+                _                                                             => new(System.Windows.Media.Color.FromRgb(0x75, 0x75, 0x75)),
+            };
+
+        public System.Windows.Media.SolidColorBrush CorsairStatusBrush => StatusToBrush(GetProviderStatus("corsair"));
+        public string CorsairStatusDetail => _rgbManager?.GetProvider("corsair")?.StatusDetail ?? "Corsair iCUE not configured";
+
+        public System.Windows.Media.SolidColorBrush LogitechStatusBrush => StatusToBrush(GetProviderStatus("logitech"));
+        public string LogitechStatusDetail => _rgbManager?.GetProvider("logitech")?.StatusDetail ?? "Logitech G HUB not configured";
+
+        public System.Windows.Media.SolidColorBrush RazerStatusBrush => StatusToBrush(GetProviderStatus("razer"));
+        public string RazerStatusDetail => _rgbManager?.GetProvider("razer")?.StatusDetail ?? "Razer Synapse not configured";
         
         // Razer properties
         private readonly ObservableCollection<RazerDevice> _razerDevices = new();
@@ -270,6 +361,12 @@ namespace OmenCore.ViewModels
         /// Used to show/hide the keyboard lighting section.
         /// </summary>
         public bool IsKeyboardLightingAvailable => _keyboardLightingService?.IsAvailable ?? false;
+
+        public bool IsPerKeyLightingAvailable => _keyboardLightingService?.IsPerKey ?? false;
+
+        public string PerKeyCapabilitySummary =>
+            "Per-key RGB is available on select OMEN Max models with HID per-key keyboards. " +
+            "This keyboard does not support per-key control; the editor activates automatically when supported hardware is detected.";
         
         /// <summary>
         /// Backend type for keyboard lighting (WMI BIOS, WMI, EC, or None).
@@ -384,6 +481,25 @@ namespace OmenCore.ViewModels
         public SolidColorBrush Zone2Brush => new(ParseMediaColor(_zone2ColorHex));
         public SolidColorBrush Zone3Brush => new(ParseMediaColor(_zone3ColorHex));
         public SolidColorBrush Zone4Brush => new(ParseMediaColor(_zone4ColorHex));
+
+        // Per-Key lighting
+        public ObservableCollection<PerKeyCell> PerKeyGrid { get; } = new();
+
+        public string SelectedPerKeyColorHex
+        {
+            get => _selectedPerKeyColorHex;
+            set
+            {
+                if (_selectedPerKeyColorHex != value)
+                {
+                    _selectedPerKeyColorHex = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedPerKeyColorBrush));
+                }
+            }
+        }
+
+        public SolidColorBrush SelectedPerKeyColorBrush => new(ParseMediaColor(_selectedPerKeyColorHex));
         
         public KeyboardPreset? SelectedKeyboardPreset
         {
@@ -849,7 +965,6 @@ namespace OmenCore.ViewModels
             }
         }
 
-        public ICommand DiscoverCorsairCommand { get; }
         public ICommand ApplyCorsairLightingCommand { get; }
         public ICommand ApplyCorsairCustomColorCommand { get; }
         public ICommand ApplyCorsairDpiCommand { get; }
@@ -858,7 +973,6 @@ namespace OmenCore.ViewModels
         public ICommand ApplyCorsairDpiProfileCommand { get; }
         public ICommand DeleteCorsairDpiProfileCommand { get; }
         public ICommand FlashCorsairDeviceCommand { get; }
-        public ICommand DiscoverLogitechCommand { get; }
         public ICommand ApplyLogitechColorCommand { get; }
         public ICommand DiscoverCorsairDevicesCommand { get; }
         public ICommand DiscoverLogitechDevicesCommand { get; }
@@ -882,7 +996,12 @@ namespace OmenCore.ViewModels
         public ICommand SetZone3ColorCommand { get; }
         public ICommand SetZone4ColorCommand { get; }
 
-        public LightingViewModel(CorsairDeviceService? corsairService, LogitechDeviceService? logitechService, LoggingService logging, KeyboardLightingService? keyboardLightingService = null, ConfigurationService? configService = null, RazerService? razerService = null, OmenCore.Services.Rgb.RgbManager? rgbManager = null, HardwareMonitoringService? hardwareMonitoringService = null, PerformanceModeService? performanceModeService = null, RgbSceneService? sceneService = null, ScreenSamplingService? screenSamplingService = null)
+        // Per-Key Lighting Commands
+        public ICommand PaintKeyCommand { get; }
+        public ICommand FillAllPerKeyCommand { get; }
+        public ICommand ApplyPerKeyLightingCommand { get; }
+
+        public LightingViewModel(CorsairDeviceService? corsairService, LogitechDeviceService? logitechService, LoggingService logging, KeyboardLightingService? keyboardLightingService = null, ConfigurationService? configService = null, RazerService? razerService = null, OmenCore.Services.Rgb.RgbManager? rgbManager = null, HardwareMonitoringService? hardwareMonitoringService = null, PerformanceModeService? performanceModeService = null, RgbSceneService? sceneService = null, ScreenSamplingService? screenSamplingService = null, AudioReactiveRgbService? audioReactiveRgbService = null)
         {
             _corsairService = corsairService;
             _logitechService = logitechService;
@@ -895,6 +1014,7 @@ namespace OmenCore.ViewModels
             _performanceModeService = performanceModeService;
             _sceneService = sceneService;
             _screenSamplingService = screenSamplingService;
+            _audioReactiveRgbService = audioReactiveRgbService;
             
             // Get OpenRGB provider from RgbManager if available
             _openRgbProvider = rgbManager?.GetProvider("openrgb") as OmenCore.Services.Rgb.OpenRgbProvider;
@@ -903,7 +1023,6 @@ namespace OmenCore.ViewModels
             LoadKeyboardColorsFromConfig();
 
             // Initialize Corsair commands (only functional if service is available)
-            DiscoverCorsairCommand = new AsyncRelayCommand(async _ => { if (_corsairService != null) await _corsairService.DiscoverAsync(); });
             DiscoverCorsairDevicesCommand = new AsyncRelayCommand(async _ => { if (_corsairService != null) await _corsairService.DiscoverAsync(); });
             ApplyCorsairLightingCommand = new AsyncRelayCommand(async _ => await ApplyCorsairLightingAsync(), _ => SelectedCorsairPreset != null && _corsairService != null);
             ApplyCorsairCustomColorCommand = new AsyncRelayCommand(async _ => await ApplyCorsairCustomColorAsync());
@@ -923,7 +1042,6 @@ namespace OmenCore.ViewModels
             SyncAllRgbCommand = new AsyncRelayCommand(async _ => await SyncAllRgbAsync());
             
             // Initialize Logitech commands (only functional if service is available)
-            DiscoverLogitechCommand = new AsyncRelayCommand(async _ => { if (_logitechService != null) await _logitechService.DiscoverAsync(); });
             DiscoverLogitechDevicesCommand = new AsyncRelayCommand(async _ => { if (_logitechService != null) await _logitechService.DiscoverAsync(); });
             ApplyLogitechColorCommand = new AsyncRelayCommand(async _ => await ApplyLogitechColorAsync(), _ => SelectedLogitechDevice != null && _logitechService != null);
             LoadMacroProfileCommand = new AsyncRelayCommand(async _ => await LoadMacroProfileAsync());
@@ -948,11 +1066,40 @@ namespace OmenCore.ViewModels
             SetZone2ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(2, "Left"));
             SetZone3ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(3, "Right"));
             SetZone4ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(4, "Far Right"));
+
+            // Per-Key Lighting Commands
+            PaintKeyCommand = new RelayCommand(cell =>
+            {
+                if (cell is PerKeyCell keyCell)
+                    keyCell.ColorHex = SelectedPerKeyColorHex;
+            });
+            FillAllPerKeyCommand = new RelayCommand(_ =>
+            {
+                foreach (var cell in PerKeyGrid.Where(c => c.IsVisible))
+                    cell.ColorHex = SelectedPerKeyColorHex;
+            });
+            ApplyPerKeyLightingCommand = new AsyncRelayCommand(
+                async _ => await ApplyPerKeyLightingAsync(),
+                _ => IsPerKeyLightingAvailable);
+            InitializePerKeyGrid();
             
             // Scene Commands
             ApplySceneCommand = new AsyncRelayCommand(async param => await ApplySceneFromParameterAsync(param));
             SaveAsSceneCommand = new AsyncRelayCommand(async _ => await SaveCurrentAsSceneAsync());
             ToggleAmbientModeCommand = new RelayCommand(_ => IsAmbientModeActive = !IsAmbientModeActive);
+            ToggleAudioReactiveModeCommand = new RelayCommand(_ => IsAudioReactiveModeActive = !IsAudioReactiveModeActive);
+
+            AudioVisualizationModes.Clear();
+            foreach (var mode in Enum.GetValues<AudioVisualizationMode>())
+            {
+                AudioVisualizationModes.Add(mode);
+            }
+
+            if (_audioReactiveRgbService != null)
+            {
+                _audioReactiveRgbService.AudioDataProcessed += OnAudioReactiveDataProcessed;
+                SelectedAudioVisualizationMode = _audioReactiveRgbService.Mode;
+            }
             
             // Initialize scenes from service
             InitializeScenesFromService();
@@ -1936,18 +2083,25 @@ namespace OmenCore.ViewModels
         {
             if (!TemperatureResponsiveLightingEnabled && !ThrottlingIndicatorLightingEnabled)
                 return;
-            
-            // Temperature-responsive lighting
-            if (TemperatureResponsiveLightingEnabled)
+
+            // Marshal to the UI thread before touching any WPF-owned objects.
+            // The async void lighting methods access WPF-bound properties (color hex, threshold
+            // values, service availability flags) before their first await, so they must start on
+            // the dispatcher thread — exactly as DashboardViewModel and MainViewModel do.
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
-                ApplyTemperatureBasedLighting(sample);
-            }
-            
-            // Throttling indicators
-            if (ThrottlingIndicatorLightingEnabled && sample.IsThrottling)
-            {
-                ApplyThrottlingLighting(sample);
-            }
+                // Temperature-responsive lighting
+                if (TemperatureResponsiveLightingEnabled)
+                {
+                    ApplyTemperatureBasedLighting(sample);
+                }
+
+                // Throttling indicators
+                if (ThrottlingIndicatorLightingEnabled && sample.IsThrottling)
+                {
+                    ApplyThrottlingLighting(sample);
+                }
+            });
         }
         
         private void OnPerformanceModeApplied(object? sender, string modeName)
@@ -2178,6 +2332,12 @@ namespace OmenCore.ViewModels
                 _selectedScene = e.CurrentScene;
                 OnPropertyChanged(nameof(SelectedScene));
                 OnPropertyChanged(nameof(CurrentSceneName));
+
+                _isAmbientModeActive = e.CurrentScene.Effect == RgbSceneEffect.Ambient;
+                OnPropertyChanged(nameof(IsAmbientModeActive));
+
+                _isAudioReactiveModeActive = e.CurrentScene.Effect == RgbSceneEffect.AudioReactive;
+                OnPropertyChanged(nameof(IsAudioReactiveModeActive));
             });
         }
         
@@ -2329,6 +2489,12 @@ namespace OmenCore.ViewModels
                 _logging.Warn("Screen sampling service not available");
                 return;
             }
+
+            if (enabled && _isAudioReactiveModeActive)
+            {
+                _isAudioReactiveModeActive = false;
+                OnPropertyChanged(nameof(IsAudioReactiveModeActive));
+            }
             
             if (enabled)
             {
@@ -2341,8 +2507,115 @@ namespace OmenCore.ViewModels
                 _logging.Info("Ambient mode disabled");
             }
         }
+
+        private async Task ToggleAudioReactiveModeAsync(bool enabled)
+        {
+            if (_audioReactiveRgbService == null)
+            {
+                _logging.Warn("Audio reactive service not available");
+                return;
+            }
+
+            if (enabled && _isAmbientModeActive)
+            {
+                _isAmbientModeActive = false;
+                OnPropertyChanged(nameof(IsAmbientModeActive));
+                _screenSamplingService?.Stop();
+            }
+
+            if (enabled)
+            {
+                var started = await _audioReactiveRgbService.StartAsync();
+                if (!started)
+                {
+                    _isAudioReactiveModeActive = false;
+                    OnPropertyChanged(nameof(IsAudioReactiveModeActive));
+                    return;
+                }
+
+                _logging.Info("Audio-reactive mode enabled");
+            }
+            else
+            {
+                await _audioReactiveRgbService.StopAsync();
+                _logging.Info("Audio-reactive mode disabled");
+            }
+
+            OnPropertyChanged(nameof(AudioReactiveLevelText));
+        }
+
+        private void OnAudioReactiveDataProcessed(object? sender, AudioDataEventArgs e)
+        {
+            Application.Current?.Dispatcher?.Invoke(() =>
+            {
+                AmbientColorHex = $"#{_audioReactiveRgbService?.GetCurrentColor().R ?? 0:X2}{_audioReactiveRgbService?.GetCurrentColor().G ?? 0:X2}{_audioReactiveRgbService?.GetCurrentColor().B ?? 0:X2}";
+                OnPropertyChanged(nameof(AmbientColorHex));
+                OnPropertyChanged(nameof(AudioReactiveLevelText));
+            });
+        }
+
+        public void NotifyHostMinimized(bool minimized)
+            => _screenSamplingService?.SetHostMinimized(minimized);
+
+        #region Per-Key Lighting
+
+        private void InitializePerKeyGrid()
+        {
+            var layout = new[]
+            {
+                new[] { "Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","" },
+                new[] { "`","1","2","3","4","5","6","7","8","9","0","-","=","BS" },
+                new[] { "Tab","Q","W","E","R","T","Y","U","I","O","P","[","]","\\" },
+                new[] { "Caps","A","S","D","F","G","H","J","K","L",";","'","Ent","" },
+                new[] { "Sh","Z","X","C","V","B","N","M",",",".","/","Sh","","" },
+                new[] { "Ct","Win","Alt","Spc","","","","Alt","","","","Ct","","" },
+            };
+            foreach (var row in layout)
+            {
+                foreach (var key in row)
+                {
+                    PerKeyGrid.Add(new PerKeyCell
+                    {
+                        KeyName = key,
+                        KeyLabel = key,
+                        IsVisible = !string.IsNullOrEmpty(key),
+                        ColorHex = "#1A1A2E"
+                    });
+                }
+            }
+        }
+
+        private async Task ApplyPerKeyLightingAsync()
+        {
+            if (_keyboardLightingService == null || !IsPerKeyLightingAvailable) return;
+            var flatColors = PerKeyGrid
+                .Select(c => c.IsVisible ? ParseDrawingColor(c.ColorHex) : System.Drawing.Color.Black)
+                .ToArray();
+            var success = await _keyboardLightingService.ApplyPerKeyGridAsync(flatColors);
+            if (!success)
+                _logging.Warn("[LightingVM] ApplyPerKeyGridAsync returned false");
+        }
+
+        #endregion
         
         #endregion
+
+        public void Cleanup()
+        {
+            if (_audioReactiveRgbService != null)
+                _audioReactiveRgbService.AudioDataProcessed -= OnAudioReactiveDataProcessed;
+            if (_hardwareMonitoringService != null)
+                _hardwareMonitoringService.SampleUpdated -= OnMonitoringSampleUpdated;
+            if (_performanceModeService != null)
+                _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
+            if (_sceneService != null)
+            {
+                _sceneService.SceneChanged -= OnSceneServiceSceneChanged;
+                _sceneService.ScenesListChanged -= OnSceneServiceListChanged;
+            }
+            if (_screenSamplingService != null)
+                _screenSamplingService.ColorChanged -= OnAmbientColorChanged;
+        }
     }
     
     /// <summary>
@@ -2355,5 +2628,51 @@ namespace OmenCore.ViewModels
         public string Zone2 { get; set; } = "#E6002E";
         public string Zone3 { get; set; } = "#E6002E";
         public string Zone4 { get; set; } = "#E6002E";
+    }
+
+    /// <summary>
+    /// Represents a single key in the per-key RGB grid editor.
+    /// Implements INotifyPropertyChanged so ColorHex changes propagate to the UI.
+    /// </summary>
+    public class PerKeyCell : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _colorHex = "#1A1A2E";
+
+        public string KeyName { get; set; } = "";
+        public string KeyLabel { get; set; } = "";
+        public bool IsVisible { get; set; } = true;
+
+        public string ColorHex
+        {
+            get => _colorHex;
+            set
+            {
+                if (_colorHex != value)
+                {
+                    _colorHex = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(ColorHex)));
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(KeyBrush)));
+                }
+            }
+        }
+
+        public System.Windows.Media.SolidColorBrush KeyBrush
+        {
+            get
+            {
+                try
+                {
+                    var c = (System.Windows.Media.Color)
+                        System.Windows.Media.ColorConverter.ConvertFromString(_colorHex);
+                    return new System.Windows.Media.SolidColorBrush(c);
+                }
+                catch
+                {
+                    return System.Windows.Media.Brushes.Black;
+                }
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 }

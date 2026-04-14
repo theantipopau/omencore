@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using Microsoft.Win32;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +37,7 @@ namespace OmenCore.Hardware
         private readonly PawnIOMsrAccess? _msrAccess;
         private readonly string _systemModel;
         private readonly bool _preferWorkerCpuTempForModel;
+        private readonly bool _workerBackedCpuTempOverrideEnabled;
         private bool _disposed;
         
         // Cached values for performance
@@ -77,7 +80,11 @@ namespace OmenCore.Hardware
         private const double CpuPowerThresholdForLowTempFallbackWatts = 20.0;
         private const int CpuFallbackHoldSeconds = 120;
         private const double MaxAcpiDeltaFromWmiC = 18.0;
+        private const int CpuFallbackReadTimeoutMs = 500;
+        private const int CpuFallbackReadCooldownSeconds = 30;
         private DateTime _cpuFallbackHoldUntilUtc = DateTime.MinValue;
+        private DateTime _cpuFallbackReadDisabledUntilUtc = DateTime.MinValue;
+        private bool _cpuFallbackTimeoutLogged;
         
         // GPU temperature freeze detection (similar to CPU temp)
         private double _lastGpuTempReading;
@@ -88,6 +95,7 @@ namespace OmenCore.Hardware
         private DateTime _lastGpuFreezeWarnAt = DateTime.MinValue;
         private int _consecutiveGpuInactiveReads;
         private bool _gpuInactive;
+        private int _updateReadingsCount;
         
         // GPU metrics from NVAPI
         private double _cachedGpuPowerWatts;
@@ -111,6 +119,14 @@ namespace OmenCore.Hardware
         private const double ActiveLoadThresholdPercent = 2.0;
         private const double ActiveTempThresholdC = 38.0;
         private bool _powerFallbackLogged;
+
+        // Windows GPU engine counters fallback (self-reliant, no worker dependency)
+        private readonly Dictionary<string, PerformanceCounter> _gpuEngineCounters = new(StringComparer.OrdinalIgnoreCase);
+        private bool _gpuEngineCountersPrimed;
+        private DateTime _lastGpuEngineCounterRefreshUtc = DateTime.MinValue;
+        private static readonly TimeSpan GpuEngineCounterRefreshInterval = TimeSpan.FromSeconds(20);
+        private bool _gpuEngineFallbackLogged;
+        private string _gpuLoadSource = "NVAPI";
         
         // SSD temperature
         private double _cachedSsdTemp;
@@ -170,6 +186,12 @@ namespace OmenCore.Hardware
             _msrAccess = msrAccess;
             _systemModel = GetSystemModel();
             _preferWorkerCpuTempForModel = ShouldPreferWorkerCpuTemp(_systemModel);
+            // For models where WMI BIOS reports coarse/slow-updating CPU temps (e.g. 17-ck2xxx),
+            // always use the LHM-backed temp source — either via the worker process when available,
+            // or in-process LibreHardwareMonitor when the worker isn't found.
+            // Without this, WMI BIOS integer temps (e.g. stuck at 44°C idle) never update accurately
+            // and fan curves make decisions on stale data.
+            _workerBackedCpuTempOverrideEnabled = _preferWorkerCpuTempForModel;
             
             if (_wmiBios.IsAvailable)
             {
@@ -195,9 +217,13 @@ namespace OmenCore.Hardware
                 _logging?.Info("[WmiBiosMonitor] ✓ PawnIO MSR available — CPU throttling detection enabled");
             }
 
-            if (_preferWorkerCpuTempForModel)
+            if (_workerBackedCpuTempOverrideEnabled)
             {
-                _logging?.Warn($"[WmiBiosMonitor] Model '{_systemModel}' detected — prioritizing worker-backed CPU temperature source for accuracy");
+                var workerFound = !string.IsNullOrEmpty(ResolveWorkerExecutablePath());
+                if (workerFound)
+                    _logging?.Warn($"[WmiBiosMonitor] Model '{_systemModel}' detected — prioritizing worker-backed LHM CPU temperature for accuracy");
+                else
+                    _logging?.Warn($"[WmiBiosMonitor] Model '{_systemModel}' detected — worker not found; using in-process LHM CPU temperature (WMI BIOS reads coarse on this model)");
             }
 
             TryPrelaunchHardwareWorker();
@@ -272,7 +298,8 @@ namespace OmenCore.Hardware
         
         /// <summary>
         /// Reset accumulated failure state so the next poll cycle retries all sources.
-        /// Called by HardwareMonitoringService after consecutive timeout errors.
+        /// Called by HardwareMonitoringService after consecutive timeout errors, and also
+        /// by RecoverAfterResumeAsync after the system wakes from sleep.
         /// </summary>
         public Task<bool> TryRestartAsync()
         {
@@ -287,8 +314,31 @@ namespace OmenCore.Hardware
             }
             else
             {
-                _logging?.Info("[WmiBiosMonitor] TryRestartAsync: no suspended sources to reset");
+                _logging?.Info("[WmiBiosMonitor] TryRestartAsync: NVAPI monitoring active — no NVAPI state to reset");
             }
+
+            // After sleep/wake, the hardware worker process may have exited (Windows can kill
+            // background processes during sleep, or the orphan-timeout fires before the system
+            // resumes). The cached _tempFallbackMonitor still holds a reference to the dead
+            // worker's IPC channel, so GetCpuTemperature() returns the last stale value
+            // (e.g. 44°C frozen) instead of live data. Disposing and nulling the monitor
+            // forces EnsureTempFallbackMonitor() to create a fresh instance that connects
+            // to the newly-started worker on the next poll cycle.
+            if (_tempFallbackMonitor != null)
+            {
+                try { _tempFallbackMonitor.Dispose(); } catch { }
+                _tempFallbackMonitor = null;
+                _tempFallbackInitAttempted = false;
+                _modelCpuTempPreferenceLogged = false;
+                _cpuTempFallbackLogged = false;
+                _logging?.Info("[WmiBiosMonitor] TryRestartAsync: worker-backed temp monitor reset — will reconnect on next poll");
+            }
+
+            // Allow TryPrelaunchHardwareWorker() to run again so the worker process is
+            // restarted if it died during sleep. Interlocked reset lets the guard pass once.
+            Interlocked.Exchange(ref _workerPrelaunchAttempted, 0);
+            TryPrelaunchHardwareWorker();
+
             return Task.FromResult(true);
         }
         
@@ -423,58 +473,91 @@ namespace OmenCore.Hardware
                     try
                     {
                         var abData = _afterburnerService.ReadAfterburnerGpuData();
-                        // Sanity bound: Afterburner shared-memory float may contain garbage if the
-                        // MAHM struct layout has changed; reject anything outside realistic GPU range.
-                        if (abData != null && abData.GpuTemperature > 0 && abData.GpuTemperature < 150)
+                        if (abData != null)
                         {
-                            // GPU temp from Afterburner — same die sensor, no contention
-                            _cachedGpuTemp = abData.GpuTemperature;
-                            
-                            // Clocks & power from Afterburner
+                            // Keep coexistence conservative: prefer NVAPI + engine counters, but
+                            // allow MAHM as fallback when NVAPI power/load endpoints degrade.
                             if (abData.CoreClockMhz > 0) _cachedGpuClockMhz = abData.CoreClockMhz;
                             if (abData.MemoryClockMhz > 0) _cachedGpuMemClockMhz = abData.MemoryClockMhz;
-                            // Afterburner reports power as percentage
-                            var afterburnerGpuPower = abData.GpuPower > 0
-                                ? (_nvapi?.DefaultPowerLimitWatts > 0
-                                    ? (abData.GpuPower / 100.0) * _nvapi.DefaultPowerLimitWatts
-                                    : abData.GpuPower)
-                                : 0;
-                            _cachedGpuPowerWatts = StabilizePowerReading(
-                                afterburnerGpuPower,
-                                ref _lastValidGpuPowerWatts,
-                                ref _consecutiveZeroGpuPowerReads,
-                                _cachedGpuLoad,
-                                _cachedGpuTemp);
-                            
-                            // GPU load from Afterburner if available
-                            if (abData.GpuLoadPercent > 0)
-                                _cachedGpuLoad = abData.GpuLoadPercent;
-                            
+
                             afterburnerProvidedData = true;
-                            
+
                             if (!_afterburnerCoexistenceActive)
                             {
                                 _afterburnerCoexistenceActive = true;
                                 _afterburnerService.AfterburnerCoexistenceActive = true;
-                                _logging?.Info("[WmiBiosMonitor] ✓ Afterburner coexistence active — GPU temp/clocks/power from shared memory, NVAPI reduced to load+VRAM");
+                                _logging?.Info("[WmiBiosMonitor] ✓ Afterburner coexistence active — clocks from shared memory, NVAPI used for temp+load, worker fallback for power/load");
                             }
-                            
-                            // Use lightweight NVAPI for load (if not from AB) + VRAM only
+
+                            // In coexistence mode: NVAPI remains primary for temp/load/VRAM,
+                            // Windows GPU Engine is secondary for load, and MAHM can recover
+                            // load/power if NVAPI reports invalid or zero values.
                             if (_nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
                             {
                                 try
                                 {
                                     var lightSample = _nvapi.GetLoadAndVramOnly();
-                                    
-                                    // Only use NVAPI load if Afterburner didn't provide it
-                                    if (abData.GpuLoadPercent <= 0)
-                                        _cachedGpuLoad = lightSample.GpuLoadPercent;
-                                    
+                                    double nvapiLoad = -1;
+
+                                    if (lightSample.GpuTemperatureC > 0)
+                                        _cachedGpuTemp = lightSample.GpuTemperatureC;
+
+                                    if (lightSample.GpuLoadPercent >= 0 && lightSample.GpuLoadPercent <= 100)
+                                        nvapiLoad = lightSample.GpuLoadPercent;
+
+                                    double mahmLoad = (abData.GpuLoadPercent >= 0 && abData.GpuLoadPercent <= 100)
+                                        ? abData.GpuLoadPercent
+                                        : -1;
+
+                                    var engineLoad = TryReadWindowsGpuEngineLoadPercent();
+                                    if (engineLoad > 0)
+                                    {
+                                        double chosenLoad = nvapiLoad >= 0 ? Math.Max(nvapiLoad, engineLoad) : engineLoad;
+                                        string chosenSource = engineLoad >= nvapiLoad + 1.0 ? "WinGpuEngine" : "NVAPI";
+
+                                        if (mahmLoad >= 0 && mahmLoad > chosenLoad + 1.0 && Math.Abs(mahmLoad - chosenLoad) <= 25.0)
+                                        {
+                                            chosenLoad = mahmLoad;
+                                            chosenSource = "MAHM";
+                                        }
+
+                                        _cachedGpuLoad = chosenLoad;
+                                        _gpuLoadSource = chosenSource;
+
+                                        if (!_gpuEngineFallbackLogged && _gpuLoadSource == "WinGpuEngine")
+                                        {
+                                            _logging?.Info("[WmiBiosMonitor] GPU load source switched to Windows GPU Engine counters during Afterburner coexistence");
+                                            _gpuEngineFallbackLogged = true;
+                                        }
+                                    }
+                                    else if (nvapiLoad >= 0)
+                                    {
+                                        _cachedGpuLoad = nvapiLoad;
+                                        _gpuLoadSource = "NVAPI";
+                                    }
+                                    else if (mahmLoad >= 0)
+                                    {
+                                        _cachedGpuLoad = mahmLoad;
+                                        _gpuLoadSource = "MAHM";
+                                    }
+
                                     _cachedGpuVramUsedMb = lightSample.VramUsedMb;
                                     _cachedGpuVramTotalMb = lightSample.VramTotalMb;
+
+                                    var nvapiPowerWatts = _nvapi.GetGpuPowerWatts();
+                                    var normalizedMahmPowerWatts = NormalizeAfterburnerPowerToWatts(abData.GpuPower, abData.GpuPowerUnit);
+                                    double chosenPowerWatts = nvapiPowerWatts > 0.1 ? nvapiPowerWatts : normalizedMahmPowerWatts;
+
+                                    _cachedGpuPowerWatts = StabilizePowerReading(
+                                        chosenPowerWatts,
+                                        ref _lastValidGpuPowerWatts,
+                                        ref _consecutiveZeroGpuPowerReads,
+                                        _cachedGpuLoad,
+                                        _cachedGpuTemp);
+
                                     _nvapiConsecutiveFailures = 0;
                                 }
-                                catch { } // Non-critical — VRAM data is cosmetic
+                                catch { } // Non-critical
                             }
                         }
                     }
@@ -509,6 +592,7 @@ namespace OmenCore.Hardware
                         var gpuSample = _nvapi.GetMonitoringSample();
                         
                         _cachedGpuLoad = gpuSample.GpuLoadPercent;
+                        _gpuLoadSource = "NVAPI";
                         _cachedGpuPowerWatts = StabilizePowerReading(
                             gpuSample.GpuPowerWatts,
                             ref _lastValidGpuPowerWatts,
@@ -641,6 +725,7 @@ namespace OmenCore.Hardware
                     }
                 }
 
+                TryApplyLoadFallback();
                 TryApplyPowerFallback();
                 SanitizeGpuTelemetry();
                 
@@ -673,6 +758,13 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Warn($"[WmiBiosMonitor] Update failed: {ex.Message}");
+            }
+
+            // Periodic diagnostic: log CPU/GPU load every 10 samples (~10s at 1s cadence)
+            _updateReadingsCount++;
+            if (_updateReadingsCount % 10 == 0)
+            {
+                _logging?.Info($"[WmiBiosMonitor] Periodic telemetry — CPU load: {_cachedCpuLoad:F0}% ({(_cpuPerfCounter != null ? "PerfCounter" : "unavailable")}), GPU load: {_cachedGpuLoad:F0}% ({_gpuLoadSource}), PCtr active: {_cpuPerfCounterAvailable}");
             }
         }
 
@@ -786,7 +878,12 @@ namespace OmenCore.Hardware
             bool lowAndHighPower = _cachedCpuTemp <= ImplausiblyLowCpuTempThresholdC &&
                                    _cachedCpuPowerWatts >= CpuPowerThresholdForLowTempFallbackWatts;
             bool fallbackHoldActive = DateTime.UtcNow < _cpuFallbackHoldUntilUtc;
-            bool shouldFallback = _preferWorkerCpuTempForModel ||
+            if (DateTime.UtcNow < _cpuFallbackReadDisabledUntilUtc)
+            {
+                return;
+            }
+
+            bool shouldFallback = _workerBackedCpuTempOverrideEnabled ||
                                   _cpuTempFrozen ||
                                   lowAndLoaded ||
                                   lowAndHighPower ||
@@ -805,10 +902,25 @@ namespace OmenCore.Hardware
 
             try
             {
-                double fallbackCpuTemp = fallbackMonitor.GetCpuTemperature();
+                var fallbackTask = Task.Run(() => fallbackMonitor.GetCpuTemperature());
+                if (!fallbackTask.Wait(TimeSpan.FromMilliseconds(CpuFallbackReadTimeoutMs)))
+                {
+                    _cpuFallbackReadDisabledUntilUtc = DateTime.UtcNow.AddSeconds(CpuFallbackReadCooldownSeconds);
+                    if (!_cpuFallbackTimeoutLogged)
+                    {
+                        _logging?.Warn($"[WmiBiosMonitor] CPU temp fallback timed out after {CpuFallbackReadTimeoutMs}ms — disabling fallback for {CpuFallbackReadCooldownSeconds}s to keep monitoring responsive");
+                        _cpuFallbackTimeoutLogged = true;
+                    }
+                    return;
+                }
+
+                double fallbackCpuTemp = fallbackTask.Result;
                 if (fallbackCpuTemp > 0 && fallbackCpuTemp < 110)
                 {
-                    bool shouldApplyFallback = _preferWorkerCpuTempForModel ||
+                    _cpuFallbackTimeoutLogged = false;
+                    _cpuFallbackReadDisabledUntilUtc = DateTime.MinValue;
+
+                    bool shouldApplyFallback = _workerBackedCpuTempOverrideEnabled ||
                                                _cachedCpuTemp <= 0 ||
                                                Math.Abs(fallbackCpuTemp - _cachedCpuTemp) >= 1.0;
 
@@ -823,7 +935,7 @@ namespace OmenCore.Hardware
                             _cpuFallbackHoldUntilUtc = DateTime.UtcNow.AddSeconds(CpuFallbackHoldSeconds);
                         }
 
-                        if (_preferWorkerCpuTempForModel && !_modelCpuTempPreferenceLogged)
+                        if (_workerBackedCpuTempOverrideEnabled && !_modelCpuTempPreferenceLogged)
                         {
                             _logging?.Info($"[WmiBiosMonitor] CPU temp source override active for model '{_systemModel}': using worker sensor ({fallbackCpuTemp:F1}°C)");
                             _modelCpuTempPreferenceLogged = true;
@@ -879,6 +991,233 @@ namespace OmenCore.Hardware
                    // Same WMI sensor arbitration issue as ck2xxx/xd0xxx — prefer worker-backed temp.
                    model.Contains("17-ck1", StringComparison.OrdinalIgnoreCase) ||
                    model.Contains("17-ck2", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool _loadFallbackLogged;
+
+        private void TryApplyLoadFallback()
+        {
+            bool cpuNeedsFallback = _cachedCpuLoad <= 2.0 && (_cachedCpuPowerWatts >= 10.0 || _cachedCpuTemp >= 48.0);
+            bool gpuNeedsFallback = _cachedGpuLoad <= 2.0 && (
+                _cachedGpuPowerWatts >= 15.0 ||
+                _cachedGpuTemp >= 50.0 ||
+                _cachedGpuClockMhz >= 1200.0 ||
+                _cachedGpuMemClockMhz >= 3000.0);
+
+            if (!cpuNeedsFallback && !gpuNeedsFallback)
+            {
+                return;
+            }
+
+            try
+            {
+                bool cpuRecovered = false;
+                bool gpuRecovered = false;
+
+                LibreHardwareMonitorImpl? fallbackMonitor = null;
+
+                if (cpuNeedsFallback)
+                {
+                    fallbackMonitor ??= EnsureTempFallbackMonitor();
+                    if (fallbackMonitor == null)
+                    {
+                        cpuNeedsFallback = false;
+                    }
+                }
+
+                if (cpuNeedsFallback)
+                {
+                    double cpuLoadFallback = fallbackMonitor!.GetCpuLoadPercent();
+                    if (cpuLoadFallback > 0 && cpuLoadFallback <= 100)
+                    {
+                        _cachedCpuLoad = cpuLoadFallback;
+                        cpuRecovered = true;
+                    }
+                }
+
+                if (gpuNeedsFallback)
+                {
+                    // First try Windows GPU engine counters (no worker dependency).
+                    var gpuEngineLoad = TryReadWindowsGpuEngineLoadPercent();
+                    if (gpuEngineLoad > _cachedGpuLoad + 1.0 && gpuEngineLoad <= 100)
+                    {
+                        _cachedGpuLoad = gpuEngineLoad;
+                        gpuRecovered = true;
+
+                        if (!_gpuEngineFallbackLogged)
+                        {
+                            _logging?.Info("[WmiBiosMonitor] GPU load fallback source: Windows GPU Engine counters");
+                            _gpuEngineFallbackLogged = true;
+                        }
+                    }
+                    else
+                    {
+                        fallbackMonitor ??= EnsureTempFallbackMonitor();
+                        if (fallbackMonitor == null)
+                        {
+                            goto FinishFallback;
+                        }
+
+                        double gpuLoadFallback = fallbackMonitor.GetGpuLoadPercent();
+                        if (gpuLoadFallback > _cachedGpuLoad + 1.0 && gpuLoadFallback <= 100)
+                        {
+                            _cachedGpuLoad = gpuLoadFallback;
+                            gpuRecovered = true;
+                        }
+                    }
+
+                    // Final safety net: infer a minimum plausible load from sustained GPU power.
+                    // Prevents persistent low/stale percentages when vendor counters desync under coexistence.
+                    if (_cachedGpuLoad < 15.0 && _cachedGpuPowerWatts >= 45.0)
+                    {
+                        var defaultTdp = _nvapi?.DefaultPowerLimitWatts > 0 ? _nvapi.DefaultPowerLimitWatts : 150;
+                        var inferredLoad = Math.Clamp((_cachedGpuPowerWatts / defaultTdp) * 100.0, 15.0, 100.0);
+                        if (inferredLoad > _cachedGpuLoad + 1.0)
+                        {
+                            _cachedGpuLoad = inferredLoad;
+                            _gpuLoadSource = "PowerInferred";
+                            gpuRecovered = true;
+                        }
+                    }
+                }
+
+            FinishFallback:
+
+                if (!_loadFallbackLogged && (cpuRecovered || gpuRecovered))
+                {
+                    _logging?.Info("[WmiBiosMonitor] Load fallback active: using alternate sensors when primary sources report near-zero load");
+                    _loadFallbackLogged = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging?.Debug($"[WmiBiosMonitor] Load fallback read failed: {ex.Message}");
+            }
+        }
+
+        private double NormalizeAfterburnerPowerToWatts(double rawPower, string? unit)
+        {
+            if (!double.IsFinite(rawPower) || rawPower <= 0)
+            {
+                return 0;
+            }
+
+            int defaultTdp = _nvapi?.DefaultPowerLimitWatts > 0 ? _nvapi.DefaultPowerLimitWatts : 150;
+            string normalizedUnit = (unit ?? string.Empty).Trim();
+
+            if (normalizedUnit.Contains("W", StringComparison.OrdinalIgnoreCase))
+            {
+                return Math.Clamp(rawPower, 0, defaultTdp * 1.5);
+            }
+
+            if (normalizedUnit.Contains("%", StringComparison.OrdinalIgnoreCase))
+            {
+                return Math.Clamp((rawPower / 100.0) * defaultTdp, 0, defaultTdp * 1.5);
+            }
+
+            // Unknown MAHM unit: treat <=110 as percent, otherwise assume watts if plausible.
+            if (rawPower <= 110)
+            {
+                return Math.Clamp((rawPower / 100.0) * defaultTdp, 0, defaultTdp * 1.5);
+            }
+
+            if (rawPower <= defaultTdp * 1.5)
+            {
+                return rawPower;
+            }
+
+            // Last-resort for suspiciously large values (e.g. percent-like without unit):
+            // clamp to a plausible upper bound instead of surfacing 0W.
+            return defaultTdp * 1.5;
+        }
+
+        private double TryReadWindowsGpuEngineLoadPercent()
+        {
+            try
+            {
+                RefreshGpuEngineCountersIfNeeded();
+                if (_gpuEngineCounters.Count == 0)
+                {
+                    return 0;
+                }
+
+                if (!_gpuEngineCountersPrimed)
+                {
+                    foreach (var counter in _gpuEngineCounters.Values)
+                    {
+                        _ = counter.NextValue();
+                    }
+
+                    _gpuEngineCountersPrimed = true;
+                    return 0;
+                }
+
+                double totalLoad = 0;
+                double preferredEnginePeak = 0;
+                foreach (var kvp in _gpuEngineCounters)
+                {
+                    var instanceName = kvp.Key;
+                    var value = kvp.Value.NextValue();
+                    if (double.IsFinite(value) && value > 0)
+                    {
+                        totalLoad += value;
+
+                        if (instanceName.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) ||
+                            instanceName.Contains("engtype_Compute", StringComparison.OrdinalIgnoreCase) ||
+                            instanceName.Contains("engtype_Cuda", StringComparison.OrdinalIgnoreCase))
+                        {
+                            preferredEnginePeak = Math.Max(preferredEnginePeak, value);
+                        }
+                    }
+                }
+
+                var effectiveLoad = preferredEnginePeak > 0 ? preferredEnginePeak : totalLoad;
+                return Math.Round(Math.Clamp(effectiveLoad, 0, 100), 1);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private void RefreshGpuEngineCountersIfNeeded()
+        {
+            if (DateTime.UtcNow - _lastGpuEngineCounterRefreshUtc < GpuEngineCounterRefreshInterval && _gpuEngineCounters.Count > 0)
+            {
+                return;
+            }
+
+            var category = new PerformanceCounterCategory("GPU Engine");
+            var instanceNames = category.GetInstanceNames()
+                .Where(name =>
+                    name.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Compute", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Cuda", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Copy", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_VideoDecode", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_VideoProcessing", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var staleInstances = _gpuEngineCounters.Keys.Except(instanceNames, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var stale in staleInstances)
+            {
+                _gpuEngineCounters[stale].Dispose();
+                _gpuEngineCounters.Remove(stale);
+            }
+
+            foreach (var instanceName in instanceNames)
+            {
+                if (_gpuEngineCounters.ContainsKey(instanceName))
+                {
+                    continue;
+                }
+
+                _gpuEngineCounters[instanceName] = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName, true);
+                _gpuEngineCountersPrimed = false;
+            }
+
+            _lastGpuEngineCounterRefreshUtc = DateTime.UtcNow;
         }
 
         private void TryApplyPowerFallback()
@@ -1037,14 +1376,18 @@ namespace OmenCore.Hardware
                     // Keep safe defaults when configuration is unavailable during early startup.
                 }
 
+                var useWorker = !string.IsNullOrEmpty(ResolveWorkerExecutablePath());
+
                 _tempFallbackMonitor = new LibreHardwareMonitorImpl(
                     msg => _logging?.Debug($"[TempFallback] {msg}"),
-                    useWorker: true,
+                    useWorker: useWorker,
                     msrAccess: null,
                     orphanTimeoutEnabled: orphanTimeoutEnabled,
                     orphanTimeoutMinutes: orphanTimeoutMinutes);
 
-                _logging?.Info("[WmiBiosMonitor] Initialized LibreHardwareMonitor fallback worker for resilient telemetry recovery");
+                _logging?.Info(useWorker
+                    ? "[WmiBiosMonitor] Initialized LibreHardwareMonitor fallback worker for resilient telemetry recovery"
+                    : "[WmiBiosMonitor] Initialized in-process LibreHardwareMonitor fallback for on-demand recovery only");
                 return _tempFallbackMonitor;
             }
             catch (Exception ex)
@@ -1150,6 +1493,11 @@ namespace OmenCore.Hardware
         {
             try
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    return false;
+                }
+
                 using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OmenCore");
                 if (key != null)
                 {
@@ -1190,6 +1538,15 @@ namespace OmenCore.Hardware
 
         private static IEnumerable<string> EnumerateWorkerExecutableCandidates(string appDir)
         {
+            // Check the directory of the running exe first — most reliable for single-file self-contained
+            // builds where AppDomain.CurrentDomain.BaseDirectory may differ from the exe's location.
+            var processDir = Path.GetDirectoryName(Environment.ProcessPath);
+            if (!string.IsNullOrEmpty(processDir) &&
+                !string.Equals(processDir, appDir, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return Path.Combine(processDir, "OmenCore.HardwareWorker.exe");
+            }
+
             yield return Path.Combine(appDir, "OmenCore.HardwareWorker.exe");
 
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -1491,6 +1848,11 @@ namespace OmenCore.Hardware
             _wmiBios.Dispose();
             _cpuPerfCounter?.Dispose();
             _tempFallbackMonitor?.Dispose();
+            foreach (var counter in _gpuEngineCounters.Values)
+            {
+                counter.Dispose();
+            }
+            _gpuEngineCounters.Clear();
         }
     }
 }

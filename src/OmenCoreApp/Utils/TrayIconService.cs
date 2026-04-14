@@ -39,6 +39,7 @@ namespace OmenCore.Utils
         private MonitoringSample? _latestSample;
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
+        private string? _curvePresetName;
         private bool _linkFanToPerformanceMode;
         private string _monitoringHealth = "Unknown";
         private bool _disposed;
@@ -879,6 +880,15 @@ namespace OmenCore.Utils
             });
         }
 
+        public void UpdateCurvePresetName(string? presetName)
+        {
+            _curvePresetName = presetName;
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                _quickPopup?.UpdateCurvePresetName(presetName);
+            });
+        }
+
         public void UpdatePerformanceMode(string mode)
         {
             _currentPerformanceMode = mode;
@@ -956,6 +966,7 @@ namespace OmenCore.Utils
                 {
                     _quickPopup.PositionNearTray();
                     _quickPopup.UpdateFanMode(_currentFanMode);
+                    _quickPopup.UpdateCurvePresetName(_curvePresetName);
                     _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
                     _quickPopup.UpdateLinkedMode(_linkFanToPerformanceMode);
                     _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
@@ -986,6 +997,7 @@ namespace OmenCore.Utils
 
                 _quickPopup.PositionNearTray();
                 _quickPopup.UpdateFanMode(_currentFanMode);
+                _quickPopup.UpdateCurvePresetName(_curvePresetName);
                 _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
                 _quickPopup.UpdateLinkedMode(_linkFanToPerformanceMode);
                 _quickPopup.UpdateMonitoringHealth(_monitoringHealth);

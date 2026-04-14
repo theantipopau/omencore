@@ -23,6 +23,30 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable { get; private set; } = false;
         public bool IsConnected => IsAvailable && (_surface?.Devices.Count() ?? 0) > 0;
         public int DeviceCount => _surface?.Devices.Count() ?? 0;
+        private bool _initFailed;
+        private string _initError = string.Empty;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (_initFailed) return RgbProviderConnectionStatus.Error;
+                if (!IsAvailable) return RgbProviderConnectionStatus.Disabled;
+                if (DeviceCount == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (_initFailed) return _initError;
+                if (!IsAvailable) return "No RGB.NET-compatible devices found";
+                if (DeviceCount == 0) return "Surface created, no devices enumerated";
+                return $"{DeviceCount} device(s) managed by RGB.NET";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects { get; } = new[]
         {
@@ -54,6 +78,8 @@ namespace OmenCore.Services.Rgb
             {
                 _logging.Warn($"RgbNetSystemProvider initialization failed: {ex.Message}");
                 IsAvailable = false;
+                _initFailed = true;
+                _initError = ex.Message;
             }
 
             return Task.CompletedTask;

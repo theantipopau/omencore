@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -127,6 +128,7 @@ namespace OmenCore.Services
             // Stop existing timer if any
             _checkTimer?.Stop();
             _checkTimer?.Dispose();
+            BackgroundTimerRegistry.Unregister("AutoUpdateCheck");
             
             if (preferences.AutoCheckEnabled && preferences.CheckIntervalHours > 0)
             {
@@ -135,11 +137,18 @@ namespace OmenCore.Services
                 _checkTimer.Elapsed += async (s, e) => await OnTimerCheckAsync();
                 _checkTimer.AutoReset = true;
                 _checkTimer.Start();
+                BackgroundTimerRegistry.Register(
+                    "AutoUpdateCheck",
+                    "AutoUpdateService",
+                    "Background update availability check",
+                    (int)TimeSpan.FromHours(preferences.CheckIntervalHours).TotalMilliseconds,
+                    BackgroundTimerTier.Optional);
                 
                 _logging.Info($"Background update checks enabled (every {preferences.CheckIntervalHours}h)");
             }
             else
             {
+                _checkTimer = null;
                 _logging.Info("Background update checks disabled");
             }
         }
@@ -176,7 +185,11 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Error("Scheduled update check failed", ex);
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "OnTimerCheckAsync",
+                    message: "Scheduled update check failed",
+                    ex: ex);
             }
         }
         
@@ -303,13 +316,21 @@ namespace OmenCore.Services
             {
                 result.Status = UpdateStatus.NetworkError;
                 result.Message = $"Network error: {ex.Message}";
-                _logging.Error("Update check failed", ex);
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "CheckForUpdatesAsync.Network",
+                    message: "Update check failed",
+                    ex: ex);
             }
             catch (Exception ex)
             {
                 result.Status = UpdateStatus.CheckFailed;
                 result.Message = $"Update check failed: {ex.Message}";
-                _logging.Error("Update check failed", ex);
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "CheckForUpdatesAsync",
+                    message: "Update check failed",
+                    ex: ex);
             }
             
             UpdateCheckCompleted?.Invoke(this, result);
@@ -508,7 +529,11 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Error("Update download failed", ex);
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "DownloadUpdateAsync",
+                    message: "Update download failed",
+                    ex: ex);
                 return null;
             }
         }
@@ -594,7 +619,11 @@ namespace OmenCore.Services
             {
                 result.Success = false;
                 result.Message = $"Installation failed: {ex.Message}";
-                _logging.Error("Update installation failed", ex);
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "InstallUpdateAsync",
+                    message: "Update installation failed",
+                    ex: ex);
             }
             
             InstallCompleted?.Invoke(this, result);
@@ -1051,6 +1080,7 @@ namespace OmenCore.Services
             
             if (disposing)
             {
+                BackgroundTimerRegistry.Unregister("AutoUpdateCheck");
                 _checkTimer?.Stop();
                 _checkTimer?.Dispose();
                 _httpClient?.Dispose();

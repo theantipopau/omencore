@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -24,6 +25,7 @@ namespace OmenCore.Services
         private readonly ThermalSensorProvider _thermalProvider;
         private readonly LoggingService _logging;
         private readonly NotificationService _notificationService;
+        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
         private TimeSpan _monitorPollPeriod;
         private readonly ObservableCollection<ThermalSample> _thermalSamples = new();
         private readonly ObservableCollection<FanTelemetry> _fanTelemetry = new();
@@ -369,12 +371,13 @@ namespace OmenCore.Services
         /// <summary>
         /// Create FanService with the new IFanController interface.
         /// </summary>
-        public FanService(IFanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs)
+        public FanService(IFanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
         {
             _fanController = controller;
             _thermalProvider = thermalProvider;
             _logging = logging;
             _notificationService = notificationService;
+            _resumeDiagnostics = resumeDiagnostics;
             _monitorPollPeriod = TimeSpan.FromMilliseconds(Math.Max(MonitorMinIntervalMs, pollMs));
             ThermalSamples = new ReadOnlyObservableCollection<ThermalSample>(_thermalSamples);
             FanTelemetry = new ReadOnlyObservableCollection<FanTelemetry>(_fanTelemetry);
@@ -385,8 +388,8 @@ namespace OmenCore.Services
         /// <summary>
         /// Legacy constructor for compatibility with existing FanController.
         /// </summary>
-        public FanService(FanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs)
-            : this(new EcFanControllerWrapper(controller, null!, logging), thermalProvider, logging, notificationService, pollMs)
+        public FanService(FanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
+            : this(new EcFanControllerWrapper(controller, null!, logging), thermalProvider, logging, notificationService, pollMs, resumeDiagnostics)
         {
         }
 
@@ -490,22 +493,14 @@ namespace OmenCore.Services
                             return false;
                         }
 
-                        // 2) For curve-based presets or other performance presets: ensure fan telemetry reflects a change
-                        // Read fan speeds a few times allowing the controller to settle
-                        var baseline = _fanController.ReadFanSpeeds().Select(f => f.Rpm).ToList();
-
-                        for (int attempt = 0; attempt < 4; attempt++)
-                        {
-                            Thread.Sleep(200); // short wait for controller to apply
-                            var sample = _fanController.ReadFanSpeeds().Select(f => f.Rpm).ToList();
-
-                            // If any fan RPM changed by a non-trivial amount, consider verification successful
-                            for (int i = 0; i < Math.Min(baseline.Count, sample.Count); i++)
-                            {
-                                if (Math.Abs(sample[i] - baseline[i]) >= 50) // 50 RPM tolerance
-                                    return true;
-                            }
-                        }
+                        // 2) For curve-based presets: the controller returning true is sufficient.
+                        // The continuous curve engine maintains correct fan speeds each poll cycle.
+                        // Checking for RPM change here is unreliable — fans may already be near the
+                        // target speed (e.g. at idle, 40% curve target ≈ current 40% idle speed),
+                        // causing a false "no change detected" rollback that permanently disables
+                        // the curve even though the preset was applied successfully.
+                        if (preset.Curve != null && preset.Curve.Count > 0)
+                            return true;
 
                         // 3) For Auto/default presets, we accept controller.RestoreAutoControl above and treat as success
                         if (nameLower.Contains("auto") || nameLower.Contains("default") || nameLower.Contains("balanced"))
@@ -1373,8 +1368,8 @@ namespace OmenCore.Services
             {
                 if (_activeCurve == null)
                     return Task.CompletedTask;
-                try
-                {
+                   try
+                   {
                     // Use max of CPU/GPU temp to determine fan speed
                     var maxTemp = Math.Max(cpuTemp, gpuTemp);
                     

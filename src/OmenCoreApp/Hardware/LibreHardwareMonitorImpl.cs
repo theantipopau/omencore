@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using LibreHardwareMonitor.Hardware;
 using OmenCore.Models;
 using OmenCore.Services;
+using System.Diagnostics;
 
 namespace OmenCore.Hardware
 {
@@ -89,6 +90,12 @@ namespace OmenCore.Hardware
         private static readonly TimeSpan _lowOverheadCacheLifetime = TimeSpan.FromMilliseconds(3000); // 3 seconds in low overhead
 
         private readonly Action<string>? _logger;
+        private PerformanceCounter? _cpuLoadCounter;
+        private bool _cpuLoadCounterPrimed;
+        private readonly Dictionary<string, PerformanceCounter> _gpuEngineCounters = new(StringComparer.OrdinalIgnoreCase);
+        private bool _gpuEngineCountersPrimed;
+        private DateTime _lastGpuEngineCounterRefresh = DateTime.MinValue;
+        private static readonly TimeSpan _gpuEngineCounterRefreshInterval = TimeSpan.FromSeconds(15);
         // Temperature smoothing
         private readonly List<double> _cpuTempHistory = new();
         private const int CpuTempSmoothingWindow = 3; // 3 readings average
@@ -522,6 +529,26 @@ namespace OmenCore.Hardware
                     }
                 });
             }
+
+            // Some systems expose temperatures but not reliable load sensors through the worker.
+            // Backfill CPU/GPU load locally so the UI does not stay pinned at 0%.
+            if (workerSample.CpuLoad <= 0)
+            {
+                var cpuLoadFallback = TryReadCpuLoadFallback();
+                if (cpuLoadFallback > 0)
+                {
+                    workerSample.CpuLoad = cpuLoadFallback;
+                }
+            }
+
+            if (workerSample.GpuLoad <= 0)
+            {
+                var gpuLoadFallback = TryReadGpuLoadFallback();
+                if (gpuLoadFallback > 0)
+                {
+                    workerSample.GpuLoad = gpuLoadFallback;
+                }
+            }
             
             // Update cache from worker sample
             lock (_lock)
@@ -594,6 +621,119 @@ namespace OmenCore.Hardware
             }
             
             return BuildSampleFromCache();
+        }
+
+        private double TryReadCpuLoadFallback()
+        {
+            try
+            {
+                _cpuLoadCounter ??= new PerformanceCounter("Processor", "% Processor Time", "_Total", true);
+
+                if (!_cpuLoadCounterPrimed)
+                {
+                    _cpuLoadCounter.NextValue();
+                    _cpuLoadCounterPrimed = true;
+                    return 0;
+                }
+
+                return Math.Round(Math.Clamp(_cpuLoadCounter.NextValue(), 0, 100), 1);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[Monitor] CPU load fallback failed: {ex.Message}");
+                return 0;
+            }
+        }
+
+        private double TryReadGpuLoadFallback()
+        {
+            try
+            {
+                RefreshGpuEngineCountersIfNeeded();
+
+                if (_gpuEngineCounters.Count == 0)
+                {
+                    return 0;
+                }
+
+                if (!_gpuEngineCountersPrimed)
+                {
+                    foreach (var counter in _gpuEngineCounters.Values)
+                    {
+                        _ = counter.NextValue();
+                    }
+
+                    _gpuEngineCountersPrimed = true;
+                    return 0;
+                }
+
+                double totalLoad = 0;
+                double preferredEnginePeak = 0;
+                foreach (var kvp in _gpuEngineCounters)
+                {
+                    var instanceName = kvp.Key;
+                    var value = kvp.Value.NextValue();
+                    if (double.IsFinite(value) && value > 0)
+                    {
+                        totalLoad += value;
+
+                        if (instanceName.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) ||
+                            instanceName.Contains("engtype_Compute", StringComparison.OrdinalIgnoreCase) ||
+                            instanceName.Contains("engtype_Cuda", StringComparison.OrdinalIgnoreCase))
+                        {
+                            preferredEnginePeak = Math.Max(preferredEnginePeak, value);
+                        }
+                    }
+                }
+
+                var effectiveLoad = preferredEnginePeak > 0 ? preferredEnginePeak : totalLoad;
+                return Math.Round(Math.Clamp(effectiveLoad, 0, 100), 1);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[Monitor] GPU load fallback failed: {ex.Message}");
+                return 0;
+            }
+        }
+
+        private void RefreshGpuEngineCountersIfNeeded()
+        {
+            if (DateTime.Now - _lastGpuEngineCounterRefresh < _gpuEngineCounterRefreshInterval && _gpuEngineCounters.Count > 0)
+            {
+                return;
+            }
+
+            var category = new PerformanceCounterCategory("GPU Engine");
+            var instanceNames = category.GetInstanceNames()
+                .Where(name =>
+                    name.Contains("engtype_3D", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Compute", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Cuda", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_Copy", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_VideoDecode", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("engtype_VideoProcessing", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var staleInstances = _gpuEngineCounters.Keys.Except(instanceNames, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var stale in staleInstances)
+            {
+                _gpuEngineCounters[stale].Dispose();
+                _gpuEngineCounters.Remove(stale);
+            }
+
+            foreach (var instanceName in instanceNames)
+            {
+                if (_gpuEngineCounters.ContainsKey(instanceName))
+                {
+                    continue;
+                }
+
+                _gpuEngineCounters[instanceName] = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName, true);
+                _gpuEngineCountersPrimed = false;
+            }
+
+            _lastGpuEngineCounterRefresh = DateTime.Now;
         }
 
         // Track consecutive NVML failures to avoid spam
@@ -1042,11 +1182,7 @@ namespace OmenCore.Hardware
                                 _lastGpuTempReading = _cachedGpuTemp;
                             }
                             
-                            var gpuLoadSensor = GetSensor(hardware, SensorType.Load, "GPU Core")
-                                ?? GetSensor(hardware, SensorType.Load, "Core")
-                                ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
-                            
-                            var loadValue = gpuLoadSensor?.Value ?? 0;
+                            var loadValue = GetBestGpuLoadFromHardware(hardware);
                             if (loadValue > 0 || _cachedGpuLoad == 0)
                             {
                                 _cachedGpuLoad = Math.Clamp(loadValue, 0, 100);
@@ -1172,10 +1308,7 @@ namespace OmenCore.Hardware
                             
                             if (isIntelArc || _cachedGpuLoad == 0)
                             {
-                                var intelLoadSensor = GetSensor(hardware, SensorType.Load, "GPU Core")
-                                    ?? GetSensor(hardware, SensorType.Load, "D3D 3D")
-                                    ?? hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Load);
-                                var loadVal = intelLoadSensor?.Value ?? 0;
+                                var loadVal = GetBestGpuLoadFromHardware(hardware);
                                 if (loadVal > 0 || _cachedGpuLoad == 0)
                                 {
                                     _cachedGpuLoad = Math.Clamp(loadVal, 0, 100);
@@ -1425,6 +1558,47 @@ namespace OmenCore.Hardware
             }
             return sensors.FirstOrDefault();
         }
+
+        private double GetBestGpuLoadFromHardware(IHardware hardware)
+        {
+            var loadSensors = hardware.Sensors
+                .Where(s => s.SensorType == SensorType.Load)
+                .Where(s => !s.Name.Contains("Fan", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (loadSensors.Count == 0)
+            {
+                return 0;
+            }
+
+            // Prefer core/3D/compute style loads, then fall back to highest reported GPU load sensor.
+            var preferred = loadSensors
+                .Where(s =>
+                    s.Name.Contains("GPU Core", StringComparison.OrdinalIgnoreCase) ||
+                    s.Name.Contains("Core", StringComparison.OrdinalIgnoreCase) ||
+                    s.Name.Contains("D3D", StringComparison.OrdinalIgnoreCase) ||
+                    s.Name.Contains("3D", StringComparison.OrdinalIgnoreCase) ||
+                    s.Name.Contains("Compute", StringComparison.OrdinalIgnoreCase) ||
+                    s.Name.Contains("CUDA", StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.Value)
+                .Where(v => v.HasValue)
+                .Select(v => (double)v!.Value)
+                .ToList();
+
+            if (preferred.Count > 0)
+            {
+                return Math.Clamp(preferred.Max(), 0, 100);
+            }
+
+            var anyLoad = loadSensors
+                .Select(s => s.Value)
+                .Where(v => v.HasValue)
+                .Select(v => (double)v!.Value)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return Math.Clamp(anyLoad, 0, 100);
+        }
         
         /// <summary>
         /// Get sensor with exact name match (case-insensitive).
@@ -1470,6 +1644,54 @@ namespace OmenCore.Hardware
             {
                 return _cachedGpuTemp;
             }
+        }
+
+        /// <summary>
+        /// Get current CPU load percentage.
+        /// </summary>
+        public double GetCpuLoadPercent()
+        {
+            EnsureCacheFresh();
+            lock (_lock)
+            {
+                return _cachedCpuLoad;
+            }
+        }
+
+        /// <summary>
+        /// Get current GPU load percentage.
+        /// </summary>
+        public double GetGpuLoadPercent()
+        {
+            EnsureCacheFresh();
+
+            double cachedLoad;
+            double cachedGpuPower;
+            double cachedGpuTemp;
+            double cachedGpuClock;
+            lock (_lock)
+            {
+                cachedLoad = _cachedGpuLoad;
+                cachedGpuPower = _cachedGpuPower;
+                cachedGpuTemp = _cachedGpuTemp;
+                cachedGpuClock = _cachedGpuClock;
+            }
+
+            if (cachedLoad <= 2.0)
+            {
+                var gpuLoadFallback = TryReadGpuLoadFallback();
+                if (gpuLoadFallback >= 0 && gpuLoadFallback <= 100 && gpuLoadFallback > cachedLoad + 1.0)
+                {
+                    lock (_lock)
+                    {
+                        _cachedGpuLoad = gpuLoadFallback;
+                    }
+
+                    return gpuLoadFallback;
+                }
+            }
+
+            return cachedLoad;
         }
 
         /// <summary>
@@ -1714,6 +1936,23 @@ namespace OmenCore.Hardware
         public void Dispose()
         {
             _disposed = true;
+
+            try
+            {
+                _cpuLoadCounter?.Dispose();
+                _cpuLoadCounter = null;
+
+                foreach (var counter in _gpuEngineCounters.Values)
+                {
+                    counter.Dispose();
+                }
+
+                _gpuEngineCounters.Clear();
+            }
+            catch
+            {
+                // Best-effort cleanup only.
+            }
             
             // Clean up worker if used
             if (_workerClient != null)

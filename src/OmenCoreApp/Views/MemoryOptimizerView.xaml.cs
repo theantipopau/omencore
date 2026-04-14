@@ -12,8 +12,10 @@ namespace OmenCore.Views
             InitializeComponent();
 
             // Update memory bar width when loaded and when data changes
-            Loaded += (_, _) => UpdateMemoryBar();
+            Loaded += (_, _) => { UpdateMemoryBar(); NotifyPageActive(true); };
+            Unloaded += (_, _) => NotifyPageActive(false);
             SizeChanged += (_, _) => UpdateMemoryBar();
+            IsVisibleChanged += (_, e) => NotifyPageActive((bool)e.NewValue);
 
             if (DataContext is ViewModels.MemoryOptimizerViewModel vm)
             {
@@ -36,6 +38,12 @@ namespace OmenCore.Views
                     UpdateMemoryBar();
                 }
             };
+        }
+
+        private void NotifyPageActive(bool active)
+        {
+            if (DataContext is ViewModels.MemoryOptimizerViewModel vm)
+                vm.SetPageActive(active);
         }
 
         private void UpdateMemoryBar()

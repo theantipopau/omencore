@@ -294,7 +294,7 @@ namespace OmenCore.Services.KeyboardLighting
                         
                     case KeyboardMethod.HidPerKey:
                         // TODO: Implement HID per-key backend
-                        _logging.Info("[KeyboardLightingV2] HID per-key backend not yet implemented");
+                        _logging.Warn("[KeyboardLightingV2] HID per-key backend not yet implemented. Built-in per-key keyboards will currently fall back to limited zone/light-bar control when available.");
                         return null;
                         
                     case KeyboardMethod.BacklightOnly:

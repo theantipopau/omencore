@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -376,21 +377,18 @@ namespace OmenCore
             var mainViewModel = _serviceProvider?.GetRequiredService<MainViewModel>();
             if (mainViewModel != null)
             {
-                // Subscribe to monitoring updates
-                if (mainViewModel.Dashboard != null)
+                // Subscribe to shared monitoring sample updates directly from MainViewModel.
+                mainViewModel.PropertyChanged += (s, e) =>
                 {
-                    mainViewModel.Dashboard.PropertyChanged += (s, e) =>
+                    if (e.PropertyName == nameof(MainViewModel.LatestMonitoringSample))
                     {
-                        if (e.PropertyName == nameof(DashboardViewModel.LatestMonitoringSample))
+                        var sample = mainViewModel.LatestMonitoringSample;
+                        if (sample != null)
                         {
-                            var sample = mainViewModel.Dashboard.LatestMonitoringSample;
-                            if (sample != null)
-                            {
-                                _trayIconService?.UpdateMonitoringSample(sample);
-                            }
+                            _trayIconService?.UpdateMonitoringSample(sample);
                         }
-                    };
-                }
+                    }
+                };
 
                 // Wire up tray quick actions to MainViewModel
                 _trayIconService.FanModeChangeRequested += mode =>
@@ -430,10 +428,15 @@ namespace OmenCore
                     if (e.PropertyName == nameof(MainViewModel.CurrentFanMode))
                     {
                         _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
+                        _trayIconService?.UpdateCurvePresetName(mainViewModel.ActiveCurvePresetName);
                     }
                     else if (e.PropertyName == nameof(MainViewModel.CurrentPerformanceMode))
                     {
                         _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
+                    }
+                    else if (e.PropertyName == nameof(MainViewModel.ActiveCurvePresetName))
+                    {
+                        _trayIconService?.UpdateCurvePresetName(mainViewModel.ActiveCurvePresetName);
                     }
                     else if (e.PropertyName == nameof(MainViewModel.IsFanPerformanceLinked))
                     {
@@ -456,6 +459,7 @@ namespace OmenCore
                 
                 // Now sync to tray with actual values
                 _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
+                _trayIconService?.UpdateCurvePresetName(mainViewModel.ActiveCurvePresetName);
                 _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
                 _trayIconService?.UpdateLinkedMode(mainViewModel.IsFanPerformanceLinked);
                 _trayIconService?.UpdateMonitoringHealth(mainViewModel.HardwareMonitoringService.HealthStatus);
@@ -619,6 +623,15 @@ namespace OmenCore
 
         private static IEnumerable<string> EnumerateHardwareWorkerCandidates(string appDir)
         {
+            // Check the directory of the running exe first — most reliable for single-file self-contained
+            // builds where AppDomain.CurrentDomain.BaseDirectory may differ from the exe's location.
+            var processDir = Path.GetDirectoryName(Environment.ProcessPath);
+            if (!string.IsNullOrEmpty(processDir) &&
+                !string.Equals(processDir, appDir, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return Path.Combine(processDir, "OmenCore.HardwareWorker.exe");
+            }
+
             yield return Path.Combine(appDir, "OmenCore.HardwareWorker.exe");
 
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
@@ -1007,7 +1020,11 @@ namespace OmenCore
                 && comEx.HResult == UCEERR_RENDERTHREADFAILURE)
             {
                 e.Handled = true;
-                Logging.Error("Render-thread failure (UCEERR_RENDERTHREADFAILURE) — likely caused by RTSS/D3D overlay hooks", e.Exception);
+                Logging.ErrorWithContext(
+                    component: "App",
+                    operation: "DispatcherUnhandledException.RenderThreadFailure",
+                    message: "Render-thread failure (UCEERR_RENDERTHREADFAILURE) — likely caused by RTSS/D3D overlay hooks",
+                    ex: e.Exception);
 
                 // Activate software rendering for the remainder of this session so the crash stops.
                 try { EnableSoftwareRendering(); } catch { }
@@ -1030,7 +1047,11 @@ namespace OmenCore
                 return;
             }
 
-            Logging.Error("Unhandled UI thread exception", e.Exception);
+            Logging.ErrorWithContext(
+                component: "App",
+                operation: "DispatcherUnhandledException",
+                message: "Unhandled UI thread exception",
+                ex: e.Exception);
             e.Handled = true;
             ShowFatalDialog(e.Exception, false);
         }
@@ -1047,11 +1068,19 @@ namespace OmenCore
                 
                 if (isNvmlCrash)
                 {
-                    Logging.Error("NVIDIA NVML driver crash detected! This is a known driver issue during high GPU load. Try updating your NVIDIA drivers.", ex);
+                    Logging.ErrorWithContext(
+                        component: "App",
+                        operation: "DomainUnhandledException.NvmlCrash",
+                        message: "NVIDIA NVML driver crash detected! This is a known driver issue during high GPU load. Try updating your NVIDIA drivers.",
+                        ex: ex);
                 }
                 else
                 {
-                    Logging.Error("Unhandled AppDomain exception", ex);
+                    Logging.ErrorWithContext(
+                        component: "App",
+                        operation: "DomainUnhandledException",
+                        message: "Unhandled AppDomain exception",
+                        ex: ex);
                 }
                 
                 ShowFatalDialog(ex, isNvmlCrash);
@@ -1060,28 +1089,81 @@ namespace OmenCore
 
         private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
         {
+            var flattened = e.Exception?.Flatten();
+
             // Log all unobserved task exceptions
-            Logging.Error("Unobserved task exception", e.Exception);
+            Logging.ErrorWithContext(
+                component: "App",
+                operation: "TaskScheduler.UnobservedTaskException",
+                message: "Unobserved task exception",
+                ex: flattened ?? e.Exception);
+
+            if (flattened != null)
+            {
+                foreach (var inner in flattened.InnerExceptions)
+                {
+                    Logging.Error($"Unobserved task inner exception: {inner.GetType().Name}: {inner.Message}", inner);
+                }
+            }
             
             // Mark as observed to prevent crash
             e.SetObserved();
             
             // Only show fatal dialog for truly fatal errors, not connection failures
-            var innerException = e.Exception?.InnerException;
-            if (innerException is System.Net.Sockets.SocketException ||
-                innerException is System.IO.IOException ||
-                innerException is System.TimeoutException ||
-                innerException is OperationCanceledException ||
-                innerException is TaskCanceledException)
+            bool IsNonFatalAsyncException(Exception? ex)
+            {
+                if (ex == null)
+                {
+                    return false;
+                }
+
+                if (ex is System.Net.Sockets.SocketException ||
+                    ex is System.IO.IOException ||
+                    ex is System.TimeoutException ||
+                    ex is OperationCanceledException ||
+                    ex is TaskCanceledException)
+                {
+                    return true;
+                }
+
+                // Startup fire-and-forget tasks can still report harmless cross-thread UI update races.
+                if (ex is InvalidOperationException invalidOp &&
+                    invalidOp.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            var innerExceptions = flattened?.InnerExceptions;
+            if (innerExceptions != null && innerExceptions.Count > 0)
+            {
+                if (innerExceptions.All(IsNonFatalAsyncException))
+                {
+                    Logging.Warn($"Non-fatal async error (suppressed): {string.Join(" | ", innerExceptions.Select(x => x.Message))}");
+                    return;
+                }
+            }
+
+            var innerException = flattened?.InnerException ?? e.Exception?.InnerException;
+            if (IsNonFatalAsyncException(innerException))
             {
                 // These are non-fatal connection/IO errors - just log them
-                Logging.Warn($"Non-fatal async error (suppressed): {innerException.Message}");
+                var suppressedMessage = innerException?.Message ?? "Unknown non-fatal async error";
+                Logging.Warn($"Non-fatal async error (suppressed): {suppressedMessage}");
                 return;
             }
             
             // Show dialog for other serious errors
-            if (e.Exception != null)
+            if (flattened != null)
+            {
+                ShowFatalDialog(flattened, false);
+            }
+            else if (e.Exception != null)
+            {
                 ShowFatalDialog(e.Exception, false);
+            }
         }
 
         private static void ShowFatalDialog(Exception ex, bool isNvmlCrash = false)

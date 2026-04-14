@@ -30,6 +30,14 @@ namespace OmenCore.Services
         [DllImport("user32.dll")]
         private static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
 
+        [DllImport("user32.dll", CharSet = CharSet.Ansi)]
+        private static extern int ChangeDisplaySettingsEx(
+            string? lpszDeviceName,
+            ref DEVMODE lpDevMode,
+            IntPtr hwnd,
+            int dwflags,
+            IntPtr lParam);
+
         [DllImport("user32.dll")]
         private static extern int EnumDisplayDevices(string? lpDevice, uint iDevNum, ref DISPLAY_DEVICE lpDisplayDevice, uint dwFlags);
 
@@ -44,6 +52,8 @@ namespace OmenCore.Services
         private const int CDS_TEST = 0x02;
         private const int DISP_CHANGE_SUCCESSFUL = 0;
         private const int DISP_CHANGE_RESTART = 1;
+        private const int DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x1;
+        private const int DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
         private const int SC_MONITORPOWER = 0xF170;
         private const int WM_SYSCOMMAND = 0x0112;
         private const int MONITOR_OFF = 2;
@@ -108,6 +118,15 @@ namespace OmenCore.Services
         /// </summary>
         public int GetCurrentRefreshRate()
         {
+            return GetCurrentRefreshRate(null);
+        }
+
+        /// <summary>
+        /// Get the current refresh rate for a specific display device.
+        /// Pass null to query the primary display.
+        /// </summary>
+        public int GetCurrentRefreshRate(string? deviceName)
+        {
             try
             {
                 var dm = new DEVMODE
@@ -115,14 +134,14 @@ namespace OmenCore.Services
                     dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
                 };
 
-                if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) != 0)
+                if (EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref dm) != 0)
                 {
                     return dm.dmDisplayFrequency;
                 }
             }
             catch (Exception ex)
             {
-                _logging.Warn($"Failed to get refresh rate: {ex.Message}");
+                _logging.Warn($"Failed to get refresh rate for '{deviceName ?? "primary"}': {ex.Message}");
             }
             return 0;
         }
@@ -131,6 +150,15 @@ namespace OmenCore.Services
         /// Get all available refresh rates for the current resolution.
         /// </summary>
         public List<int> GetAvailableRefreshRates()
+        {
+            return GetAvailableRefreshRates(null);
+        }
+
+        /// <summary>
+        /// Get all available refresh rates for a display at its current resolution.
+        /// Pass null to query the primary display.
+        /// </summary>
+        public List<int> GetAvailableRefreshRates(string? deviceName)
         {
             var refreshRates = new HashSet<int>();
             
@@ -142,7 +170,7 @@ namespace OmenCore.Services
                 };
 
                 // Get current resolution
-                if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) == 0)
+                if (EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref dm) == 0)
                     return refreshRates.ToList();
                     
                 int currentWidth = dm.dmPelsWidth;
@@ -151,7 +179,7 @@ namespace OmenCore.Services
 
                 // Enumerate all modes and find those matching current resolution
                 int modeNum = 0;
-                while (EnumDisplaySettings(null, modeNum++, ref dm) != 0)
+                while (EnumDisplaySettings(deviceName, modeNum++, ref dm) != 0)
                 {
                     if (dm.dmPelsWidth == currentWidth && 
                         dm.dmPelsHeight == currentHeight && 
@@ -163,7 +191,7 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Warn($"Failed to enumerate refresh rates: {ex.Message}");
+                _logging.Warn($"Failed to enumerate refresh rates for '{deviceName ?? "primary"}': {ex.Message}");
             }
             
             return refreshRates.OrderBy(r => r).ToList();
@@ -176,6 +204,14 @@ namespace OmenCore.Services
         /// <returns>True if successful</returns>
         public bool SetRefreshRate(int refreshRate)
         {
+            return SetRefreshRate(refreshRate, null);
+        }
+
+        /// <summary>
+        /// Set refresh rate for a display device. Pass null for the primary display.
+        /// </summary>
+        public bool SetRefreshRate(int refreshRate, string? deviceName)
+        {
             try
             {
                 var dm = new DEVMODE
@@ -183,9 +219,9 @@ namespace OmenCore.Services
                     dmSize = (short)Marshal.SizeOf(typeof(DEVMODE))
                 };
 
-                if (EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm) == 0)
+                if (EnumDisplaySettings(deviceName, ENUM_CURRENT_SETTINGS, ref dm) == 0)
                 {
-                    _logging.Warn("Failed to get current display settings");
+                    _logging.Warn($"Failed to get current display settings for '{deviceName ?? "primary"}'");
                     return false;
                 }
 
@@ -197,7 +233,7 @@ namespace OmenCore.Services
                 int modeNum = 0;
                 bool found = false;
                 
-                while (EnumDisplaySettings(null, modeNum++, ref dm) != 0)
+                while (EnumDisplaySettings(deviceName, modeNum++, ref dm) != 0)
                 {
                     if (dm.dmPelsWidth == targetWidth && 
                         dm.dmPelsHeight == targetHeight && 
@@ -211,12 +247,14 @@ namespace OmenCore.Services
 
                 if (!found)
                 {
-                    _logging.Warn($"Refresh rate {refreshRate}Hz not available at current resolution");
+                    _logging.Warn($"Refresh rate {refreshRate}Hz not available at current resolution for '{deviceName ?? "primary"}'");
                     return false;
                 }
 
                 // Test the change first
-                int testResult = ChangeDisplaySettings(ref dm, CDS_TEST);
+                int testResult = string.IsNullOrWhiteSpace(deviceName)
+                    ? ChangeDisplaySettings(ref dm, CDS_TEST)
+                    : ChangeDisplaySettingsEx(deviceName, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
                 if (testResult != DISP_CHANGE_SUCCESSFUL)
                 {
                     _logging.Warn($"Display settings test failed: {testResult}");
@@ -224,10 +262,12 @@ namespace OmenCore.Services
                 }
 
                 // Apply the change
-                int result = ChangeDisplaySettings(ref dm, CDS_UPDATEREGISTRY);
+                int result = string.IsNullOrWhiteSpace(deviceName)
+                    ? ChangeDisplaySettings(ref dm, CDS_UPDATEREGISTRY)
+                    : ChangeDisplaySettingsEx(deviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero);
                 if (result == DISP_CHANGE_SUCCESSFUL || result == DISP_CHANGE_RESTART)
                 {
-                    _logging.Info($"✓ Refresh rate changed to {refreshRate}Hz");
+                    _logging.Info($"✓ Refresh rate changed to {refreshRate}Hz for '{deviceName ?? "primary"}'");
                     return true;
                 }
                 else
@@ -238,7 +278,7 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Error($"Failed to set refresh rate: {ex.Message}", ex);
+                _logging.Error($"Failed to set refresh rate for '{deviceName ?? "primary"}': {ex.Message}", ex);
                 return false;
             }
         }
@@ -249,8 +289,20 @@ namespace OmenCore.Services
         /// <returns>The new refresh rate, or 0 if failed</returns>
         public int ToggleRefreshRate()
         {
-            int current = GetCurrentRefreshRate();
-            var available = GetAvailableRefreshRates();
+            return ToggleRefreshRate(null);
+        }
+
+        /// <summary>
+        /// Toggle refresh rate for a specific display device.
+        /// </summary>
+        public int ToggleRefreshRate(string? deviceName)
+        {
+            int current = GetCurrentRefreshRate(deviceName);
+            var available = GetAvailableRefreshRates(deviceName);
+            if (!available.Any())
+            {
+                return 0;
+            }
             
             // Determine target rate
             int target;
@@ -265,11 +317,57 @@ namespace OmenCore.Services
                 target = available.Contains(HighRefreshRate) ? HighRefreshRate : available.Max();
             }
             
-            if (SetRefreshRate(target))
+            if (SetRefreshRate(target, deviceName))
             {
                 return target;
             }
             return 0;
+        }
+
+        /// <summary>
+        /// Enumerate active desktop displays for per-display refresh operations.
+        /// </summary>
+        public List<DisplayTarget> GetDisplayTargets()
+        {
+            var results = new List<DisplayTarget>();
+
+            try
+            {
+                uint index = 0;
+                while (true)
+                {
+                    var displayDevice = new DISPLAY_DEVICE
+                    {
+                        cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE))
+                    };
+
+                    if (EnumDisplayDevices(null, index, ref displayDevice, 0) == 0)
+                    {
+                        break;
+                    }
+
+                    if ((displayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0)
+                    {
+                        results.Add(new DisplayTarget
+                        {
+                            DeviceName = displayDevice.DeviceName,
+                            FriendlyName = string.IsNullOrWhiteSpace(displayDevice.DeviceString) ? displayDevice.DeviceName : displayDevice.DeviceString,
+                            IsPrimary = (displayDevice.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0
+                        });
+                    }
+
+                    index++;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to enumerate display targets: {ex.Message}");
+            }
+
+            return results
+                .OrderByDescending(display => display.IsPrimary)
+                .ThenBy(display => display.FriendlyName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         /// <summary>
@@ -389,5 +487,12 @@ namespace OmenCore.Services
         public int BitsPerPixel { get; set; }
 
         public override string ToString() => $"{Width}x{Height} @ {RefreshRate}Hz";
+    }
+
+    public class DisplayTarget
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FriendlyName { get; set; } = string.Empty;
+        public bool IsPrimary { get; set; }
     }
 }

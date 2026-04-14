@@ -25,6 +25,12 @@ namespace OmenCore.Razer
         private string? _sessionUri;
         private int _heartbeatInterval = 1000; // ms
         private System.Timers.Timer? _heartbeatTimer;
+
+        // Reconnect back-off: 1 s → 2 s → 5 s → 30 s → 5 min
+        private static readonly int[] _reconnectDelays = [1_000, 2_000, 5_000, 30_000, 300_000];
+        private int _reconnectAttempts;
+        private volatile bool _isReconnecting;
+        private System.Threading.Timer? _reconnectTimer;
         
         // Chroma SDK endpoints
         private const string CHROMA_SDK_URL = "http://localhost:54235/razer/chromasdk";
@@ -45,6 +51,8 @@ namespace OmenCore.Razer
         {
             _logging = logging;
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            _reconnectTimer = new System.Threading.Timer(ReconnectTimerCallback, null,
+                System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
             _logging.Info("RazerService created");
         }
 
@@ -187,12 +195,65 @@ namespace OmenCore.Razer
                 var response = await _httpClient.PutAsync($"{_sessionUri}/heartbeat", null);
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logging.Warn("Chroma SDK heartbeat failed");
+                    _logging.Warn("Chroma SDK heartbeat failed — session may have expired");
+                    OnSessionLost();
+                }
+                else
+                {
+                    _reconnectAttempts = 0;
                 }
             }
             catch
             {
-                // Silently ignore heartbeat failures
+                OnSessionLost();
+            }
+        }
+
+        private void OnSessionLost()
+        {
+            _sessionUri = null;
+            if (!_isReconnecting && IsAvailable)
+                ScheduleReconnect();
+        }
+
+        private void ScheduleReconnect()
+        {
+            if (_isReconnecting) return;
+            _isReconnecting = true;
+            int delay = _reconnectDelays[Math.Min(_reconnectAttempts, _reconnectDelays.Length - 1)];
+            _logging.Info($"Scheduling Chroma SDK reconnect in {delay / 1000}s (attempt {_reconnectAttempts + 1})");
+            _reconnectTimer?.Change(delay, System.Threading.Timeout.Infinite);
+        }
+
+        private void ReconnectTimerCallback(object? state)
+            => _ = TryReconnectAsync();
+
+        private async Task TryReconnectAsync()
+        {
+            try
+            {
+                _logging.Info($"Attempting Chroma SDK reconnect (attempt {_reconnectAttempts + 1})...");
+                var success = await InitializeSessionAsync();
+                if (success)
+                {
+                    _reconnectAttempts = 0;
+                    _isReconnecting = false;
+                    StartHeartbeat();
+                    _logging.Info("Chroma SDK session re-established via back-off reconnect");
+                }
+                else
+                {
+                    _reconnectAttempts++;
+                    _isReconnecting = false;
+                    if (IsAvailable) ScheduleReconnect();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Chroma SDK reconnect attempt failed: {ex.Message}");
+                _reconnectAttempts++;
+                _isReconnecting = false;
+                if (IsAvailable) ScheduleReconnect();
             }
         }
 
@@ -675,6 +736,10 @@ namespace OmenCore.Razer
             
             _heartbeatTimer?.Stop();
             _heartbeatTimer?.Dispose();
+
+            _reconnectTimer?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+            _reconnectTimer?.Dispose();
+            _isReconnecting = false;
             
             // Close SDK session
             if (IsSessionActive)

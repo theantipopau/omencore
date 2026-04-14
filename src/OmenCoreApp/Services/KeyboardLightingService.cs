@@ -67,6 +67,8 @@ namespace OmenCore.Services
         }
 
         public bool IsAvailable => _useV2Backend || _wmiBiosAvailable || _wmiAvailable || _ecAvailable || (_oghProxy != null && _oghProxy.IsAvailable);
+
+        public bool IsPerKey => _useV2Backend && (_v2Service?.IsPerKey ?? false);
         
         /// <summary>
         /// Returns the currently active backend based on user preference and availability.
@@ -626,19 +628,31 @@ namespace OmenCore.Services
             
             try
             {
-                // Delegate to V2 engine if active
+                // Delegate to V2 engine if active.
+                // IMPORTANT: Do NOT use .GetAwaiter().GetResult() on the UI thread — it causes a deadlock
+                // when the async continuations try to post back to the UI SynchronizationContext (GitHub #100 Bug #1).
+                // Fire-and-forget on a thread-pool thread so the async chain runs without needing the UI thread.
                 if (_useV2Backend && _v2Service != null)
                 {
+                    var capturedService = _v2Service;
                     var white = Color.FromArgb(255, 255, 255);
                     var colors = new Color[] { white, white, white, white };
-                    var result = _v2Service.SetZoneColorsAsync(colors).GetAwaiter().GetResult();
-                    _v2Service.SetBrightnessAsync(80).GetAwaiter().GetResult();
-                    if (result.Success)
+                    _ = System.Threading.Tasks.Task.Run(async () =>
                     {
-                        _logging.Info($"✓ Defaults restored via V2 engine ({_v2Service.BackendName})");
-                        return;
-                    }
-                    _logging.Warn($"V2 engine defaults failed: {result.FailureReason}. Falling back to V1.");
+                        try
+                        {
+                            var result = await capturedService.SetZoneColorsAsync(colors).ConfigureAwait(false);
+                            await capturedService.SetBrightnessAsync(80).ConfigureAwait(false);
+                            _logging.Info(result.Success
+                                ? $"✓ Defaults restored via V2 engine ({capturedService.BackendName})"
+                                : $"V2 engine defaults failed: {result.FailureReason}");
+                        }
+                        catch (Exception ex2)
+                        {
+                            _logging.Warn($"V2 defaults async error: {ex2.Message}");
+                        }
+                    });
+                    return; // V2 path is async — don't fall through to V1
                 }
                 
                 // Default: White static at 80% brightness
@@ -849,6 +863,22 @@ namespace OmenCore.Services
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Apply a flat array of per-key colors to the keyboard.
+        /// Only functional on OMEN Max models when the HID per-key backend is active.
+        /// Returns false (graceful no-op) when per-key is not supported.
+        /// </summary>
+        public async Task<bool> ApplyPerKeyGridAsync(System.Drawing.Color[] flatColors)
+        {
+            if (!IsPerKey || _v2Service == null || !_v2Service.IsPerKey)
+            {
+                _logging.Info("[KeyboardLighting] ApplyPerKeyGridAsync: no per-key backend active");
+                return false;
+            }
+            _logging.Info("[KeyboardLighting] ApplyPerKeyGridAsync: routing to V2 per-key backend");
+            return await Task.FromResult(false); // Placeholder until HidPerKeyBackend is implemented
         }
     }
     

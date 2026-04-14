@@ -8,118 +8,9 @@
              Background="Transparent">
 
     <UserControl.Resources>
-        <!-- Toggle Switch Style -->
-        <Style x:Key="OptimizationToggle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="50"/>
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Grid>
-                            <Border x:Name="Background" 
-                                    CornerRadius="13" 
-                                    Background="#3A3F5C"
-                                    BorderThickness="0"/>
-                            <Border x:Name="Thumb" 
-                                    Width="22" Height="22" 
-                                    CornerRadius="11" 
-                                    Background="#6B7280"
-                                    HorizontalAlignment="Left"
-                                    Margin="2,2,2,2"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Background" Property="Background" Value="#00C8C8"/>
-                                <Setter TargetName="Thumb" Property="Background" Value="White"/>
-                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.5"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Card Style -->
-        <Style x:Key="OptimizationCard" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="16,12"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-
-        <!-- Section Header Style -->
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Margin" Value="0,16,0,8"/>
-        </Style>
-
-
-        <!-- Preset Button Style -->
-        <Style x:Key="PresetButton" TargetType="Button">
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Padding" Value="20,0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="#252A40"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" 
-                                Background="{TemplateBinding Background}" 
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#353B55"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="#454B65"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.5"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource PresetButton}">
-            <Setter Property="Background" Value="#00C8C8"/>
-            <Setter Property="Foreground" Value="#0F111C"/>
-        </Style>
-
-        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource PresetButton}">
-            <Setter Property="Background" Value="#FF005C"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-
-        <!-- Risk Badge Template -->
-        <DataTemplate x:Key="RiskBadge">
-            <Border CornerRadius="4" 
-                    Padding="6,2" 
-                    Background="{Binding RiskColor}"
-                    Opacity="0.2">
-                <TextBlock Text="{Binding RiskText}" 
-                           FontSize="10" 
-                           Foreground="{Binding RiskColor}"/>
-            </Border>
-        </DataTemplate>
-
         <!-- Optimization Item Template -->
         <DataTemplate x:Key="OptimizationItemTemplate">
-            <Border Style="{StaticResource OptimizationCard}">
+            <Border Style="{StaticResource Omen.Card.Optimizer}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -178,10 +69,55 @@
                                    Foreground="{StaticResource WarningBrush}"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <Expander Margin="0,10,0,0"
+                                  IsExpanded="{Binding IsDetailsExpanded, Mode=TwoWay}"
+                                  Visibility="{Binding HasDetails, Converter={StaticResource BoolToVisibility}}">
+                            <Expander.Header>
+                                <TextBlock Text="What changes" FontSize="11" Foreground="{StaticResource AccentBlueBrush}"/>
+                            </Expander.Header>
+                            <StackPanel Margin="0,10,0,0">
+                                <TextBlock Text="{Binding DetailedDescription}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasDetailedDescription, Converter={StaticResource BoolToVisibility}}"/>
+
+                                <StackPanel Margin="0,8,0,0"
+                                            Visibility="{Binding HasRegistryPreview, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Registry keys" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                    <ItemsControl ItemsSource="{Binding AffectedRegistryKeys}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Margin="0,8,0,0"
+                                            Visibility="{Binding HasServicePreview, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Services or commands" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                    <ItemsControl ItemsSource="{Binding ServiceNamesAffected}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <StackPanel Margin="0,8,0,0"
+                                            Visibility="{Binding HasUndoInstructions, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Manual undo" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                    <TextBlock Text="{Binding UndoInstructions}" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <ToggleButton Style="{StaticResource OptimizationToggle}"
+                        <ToggleButton Style="{StaticResource Omen.Toggle.Switch.Wide}"
                                       IsChecked="{Binding IsEnabled, Mode=OneWay}"
                                       IsEnabled="{Binding IsApplying, Converter={StaticResource InverseBooleanConverter}}"
                                       Click="OnToggleClicked"
@@ -202,20 +138,32 @@
     <Grid>
         <!-- Loading Overlay -->
         <Border x:Name="LoadingOverlay" 
-                Background="#CC0F111C" 
+                Style="{StaticResource Omen.Busy.Overlay}"
                 Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"
                 Panel.ZIndex="100">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <ProgressBar IsIndeterminate="True" Width="180" Height="3"
-                             Margin="0,0,0,12"
-                             Background="{StaticResource SurfaceMediumBrush}"
-                             Foreground="{StaticResource AccentBlueBrush}"
-                             BorderThickness="0"/>
-                <TextBlock Text="{Binding StatusMessage}" 
-                           Foreground="{StaticResource TextSecondaryBrush}" 
-                           HorizontalAlignment="Center"
-                           Margin="0,4,0,0"/>
-            </StackPanel>
+            <Border Style="{StaticResource Omen.Busy.Panel}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <ProgressBar Style="{StaticResource Omen.Busy.Progress}"
+                                 IsIndeterminate="True"
+                                 Margin="0,0,0,10"
+                                 Visibility="{Binding HasOperationProgress, Converter={StaticResource InverseBooleanConverter}}"/>
+                    <ProgressBar Style="{StaticResource Omen.Busy.Progress}"
+                                 Value="{Binding OperationProgressValue, Mode=OneWay}"
+                                 Maximum="{Binding OperationProgressMaximum}"
+                                 Margin="0,0,0,10"
+                                 Visibility="{Binding HasOperationProgress, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding StatusMessage}" 
+                               Foreground="{StaticResource TextSecondaryBrush}" 
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding OperationProgressText}"
+                               Foreground="{StaticResource TextTertiaryBrush}"
+                               FontSize="11"
+                               Margin="0,6,0,0"
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding HasOperationProgress, Converter={StaticResource BoolToVisibility}}"/>
+                </StackPanel>
+            </Border>
         </Border>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -262,10 +210,42 @@
                                        FontSize="12" 
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding LastVerifiedText}"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       Margin="0,6,0,0"/>
+                            <Border Style="{StaticResource Omen.Toast}" Margin="0,8,0,0" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding VerificationSummary}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </Border>
+                            <Border Background="#4A3A00"
+                                    CornerRadius="8"
+                                    Padding="10,6"
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding HasStateDrift, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="External changes were detected during verification. Review the affected toggles below."
+                                           FontSize="11"
+                                           Foreground="#FFD166"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+                            <StackPanel Margin="0,10,0,0"
+                                        Visibility="{Binding HasOperationProgress, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="{Binding OperationProgressLabel}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextTertiaryBrush}"/>
+                                <ProgressBar Style="{StaticResource Omen.Busy.Progress}"
+                                             Value="{Binding OperationProgressValue, Mode=OneWay}"
+                                             Maximum="{Binding OperationProgressMaximum}"
+                                             Margin="0,6,0,0"/>
+                                <TextBlock Text="{Binding OperationProgressText}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <Button Style="{StaticResource AccentButton}"
+                                <Button Style="{StaticResource Omen.Button.Toolbar.Accent}"
                                     Command="{Binding ApplyGamingMaxCommand}"
                                     Margin="0,0,8,0"
                                     ToolTip="Apply all optimizations for maximum gaming performance">
@@ -274,7 +254,7 @@
                                     <TextBlock Text="Gaming Max" FontSize="13" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource PresetButton}"
+                                <Button Style="{StaticResource Omen.Button.Toolbar}"
                                     Command="{Binding ApplyBalancedCommand}"
                                     Margin="0,0,8,0"
                                     ToolTip="Apply recommended optimizations only">
@@ -283,7 +263,7 @@
                                     <TextBlock Text="Balanced" FontSize="13" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource DangerButton}"
+                                <Button Style="{StaticResource Omen.Button.Toolbar.Danger}"
                                     Command="{Binding RevertAllCommand}"
                                     ToolTip="Restore all settings to Windows defaults">
                                 <StackPanel Orientation="Horizontal">
@@ -306,26 +286,53 @@
                     <!-- Left Column -->
                     <StackPanel Grid.Column="0">
                         <!-- Power Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Power &amp; Performance" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Power &amp; Performance" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyPowerCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding PowerOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Service Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconSettings}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Windows Services" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconSettings}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Windows Services" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyServicesCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding ServiceOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Network Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconNetwork}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Network &amp; Latency" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconNetwork}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Network &amp; Latency" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyNetworkCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding NetworkOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
                     </StackPanel>
@@ -333,26 +340,53 @@
                     <!-- Right Column -->
                     <StackPanel Grid.Column="2">
                         <!-- Input Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconMouse}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Input &amp; Gaming" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconMouse}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Input &amp; Gaming" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyInputCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding InputOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Visual Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconEye}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Visual Effects" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconEye}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Visual Effects" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyVisualCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding VisualOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
 
                         <!-- Storage Optimizations -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,8">
-                            <Path Data="{StaticResource IconStorage}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Storage &amp; Disk" Style="{StaticResource SectionHeader}" Margin="0"/>
-                        </StackPanel>
+                        <Grid Margin="0,16,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" Grid.Column="0">
+                                <Path Data="{StaticResource IconStorage}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Text="Storage &amp; Disk" Style="{StaticResource Omen.Text.Section.Utility}" Margin="0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Command="{Binding ApplyStorageCommand}" Padding="8,4">
+                                <TextBlock Text="Apply All" FontSize="10"/>
+                            </Button>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding StorageOptimizations}" 
                                       ItemTemplate="{StaticResource OptimizationItemTemplate}"/>
                     </StackPanel>

@@ -2,6 +2,7 @@ using OmenCore.Hardware;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -13,6 +14,7 @@ namespace OmenCore.Services
     {
         private readonly LoggingService _logging;
         private readonly FanService _fanService;
+        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
         private readonly object _stateLock = new();
 
         private Timer? _watchdogTimer;
@@ -32,10 +34,11 @@ namespace OmenCore.Services
         private const int FailsafeFanPercent = 90;
         private const int ResumeGraceSeconds = 120; // Ignore freeze detection briefly after wake while sensors reattach
 
-        public HardwareWatchdogService(LoggingService logging, FanService fanService)
+        public HardwareWatchdogService(LoggingService logging, FanService fanService, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
         {
             _logging = logging;
             _fanService = fanService;
+            _resumeDiagnostics = resumeDiagnostics;
         }
 
         /// <summary>
@@ -47,6 +50,12 @@ namespace OmenCore.Services
 
             _logging.Info("🐕 Hardware watchdog started");
             _watchdogTimer = new Timer(CheckWatchdog, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(WatchdogIntervalMs));
+            BackgroundTimerRegistry.Register(
+                "HardwareWatchdog",
+                "HardwareWatchdogService",
+                "Monitors for frozen temperature sensors; triggers failsafe fan speeds",
+                WatchdogIntervalMs,
+                BackgroundTimerTier.Critical);
         }
 
         /// <summary>
@@ -54,6 +63,7 @@ namespace OmenCore.Services
         /// </summary>
         public void Stop()
         {
+            BackgroundTimerRegistry.Unregister("HardwareWatchdog");
             _watchdogTimer?.Dispose();
             _watchdogTimer = null;
             _logging.Info("🐕 Hardware watchdog stopped");
@@ -114,6 +124,7 @@ namespace OmenCore.Services
             }
 
             _logging.Info("WATCHDOG: Suspended freeze detection for system sleep");
+            _resumeDiagnostics?.RecordStep("watchdog", "Freeze detection suspended for sleep");
         }
 
         /// <summary>
@@ -134,6 +145,20 @@ namespace OmenCore.Services
             }
 
             _logging.Info($"WATCHDOG: Resumed after sleep — freeze detection delayed for {ResumeGraceSeconds}s while monitoring recovers");
+            _resumeDiagnostics?.RecordStep("watchdog", $"Resume grace window started ({ResumeGraceSeconds}s)");
+
+            if (_resumeDiagnostics != null)
+            {
+                var cycleId = _resumeDiagnostics.CurrentCycleId;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(ResumeGraceSeconds));
+                    if (_resumeDiagnostics.CurrentCycleId == cycleId)
+                    {
+                        _resumeDiagnostics.RecordStep("watchdog", "Resume grace window ended");
+                    }
+                });
+            }
         }
 
         /// <summary>

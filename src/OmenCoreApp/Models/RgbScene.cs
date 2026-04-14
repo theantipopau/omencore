@@ -157,6 +157,9 @@ namespace OmenCore.Models
         /// <summary>Ambient - samples screen colors.</summary>
         Ambient,
 
+        /// <summary>Audio reactive - pulses with system output audio.</summary>
+        AudioReactive,
+
         /// <summary>Turn off all lighting.</summary>
         Off
     }

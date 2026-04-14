@@ -646,24 +646,16 @@
                     <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 <!-- Tab indices: General(0), OMEN(1), Tuning(2), Diagnostics(3), Monitoring(4), Optimizer(5), Memory(6), Bloatware(7), RGB(8), Settings(9), Games(10) -->
                 <!-- General Tab: Performance + Fan Profiles (Paired) -->
-                <TabItem Header="General">
-                    <views:GeneralView DataContext="{Binding General}" />
-                </TabItem>
+                <TabItem x:Name="GeneralTabItem" Header="General" />
                 
                 <!-- OMEN Tab: HP OMEN-specific features -->
-                <TabItem Header="OMEN">
-                    <views:AdvancedView DataContext="{Binding}" />
-                </TabItem>
+                <TabItem x:Name="OmenTabItem" Header="OMEN" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
-                <TabItem Header="Tuning">
-                    <views:TuningView DataContext="{Binding}" />
-                </TabItem>
+                <TabItem x:Name="TuningTabItem" Header="Tuning" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->
-                <TabItem Header="Diagnostics">
-                    <views:DiagnosticsView DataContext="{Binding}" />
-                </TabItem>
+                <TabItem x:Name="DiagnosticsTabItem" Header="Diagnostics" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Monitoring Tab with Hardware Monitoring Dashboard -->
                 <TabItem Header="Monitoring" x:Name="MonitoringTabItem">
@@ -671,34 +663,22 @@
                 </TabItem>
                 
                 <!-- System Optimizer Tab - Windows Gaming Tweaks -->
-                <TabItem Header="Optimizer">
-                    <views:SystemOptimizerView DataContext="{Binding SystemOptimizer}" />
-                </TabItem>
+                <TabItem x:Name="OptimizerTabItem" Header="Optimizer" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
-                <TabItem Header="Memory">
-                    <views:MemoryOptimizerView DataContext="{Binding MemoryOptimizer}" />
-                </TabItem>
+                <TabItem x:Name="MemoryTabItem" Header="Memory" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Bloatware Manager Tab -->
-                <TabItem Header="Bloatware">
-                    <views:BloatwareManagerView DataContext="{Binding BloatwareManager}" />
-                </TabItem>
+                <TabItem x:Name="BloatwareTabItem" Header="Bloatware" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Peripherals Tab with Lighting View -->
-                <TabItem Header="RGB" Visibility="{Binding Lighting, Converter={StaticResource NullToVisibilityConverter}}">
-                    <views:LightingView DataContext="{Binding Lighting}" />
-                </TabItem>
+                <TabItem x:Name="RgbTabItem" Header="RGB" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}" />
                 
                 <!-- Settings Tab -->
-                <TabItem Header="Settings">
-                    <views:SettingsView DataContext="{Binding Settings}" />
-                </TabItem>
+                <TabItem x:Name="SettingsTabItem" Header="Settings" />
                 
                 <!-- Game Library Tab -->
-                <TabItem Header="Games">
-                    <views:GameLibraryView DataContext="{Binding GameLibrary}" />
-                </TabItem>
+                <TabItem x:Name="GamesTabItem" Header="Games" />
             </TabControl>
 
             <!-- Footer: Recent Activity and System Log (GitHub #48 - its-urbi: Collapsible logs) -->

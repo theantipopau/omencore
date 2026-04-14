@@ -136,7 +136,8 @@ namespace OmenCore.ViewModels
             get => _cpuTemp;
             set
             {
-                _cpuTemp = value;
+                var sanitized = double.IsFinite(value) ? Math.Max(0, Math.Min(125, value)) : _cpuTemp;
+                _cpuTemp = sanitized;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CpuTempDisplay));
                 OnPropertyChanged(nameof(IsCpuTempAvailable));
@@ -148,7 +149,8 @@ namespace OmenCore.ViewModels
             get => _gpuTemp;
             set
             {
-                _gpuTemp = value;
+                var sanitized = double.IsFinite(value) ? Math.Max(0, Math.Min(125, value)) : _gpuTemp;
+                _gpuTemp = sanitized;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(GpuTempDisplay));
                 OnPropertyChanged(nameof(IsGpuTempAvailable));
@@ -183,13 +185,23 @@ namespace OmenCore.ViewModels
         public double CpuLoad
         {
             get => _cpuLoad;
-            set { _cpuLoad = value; OnPropertyChanged(); }
+            set
+            {
+                var sanitized = double.IsFinite(value) ? Math.Max(0, Math.Min(100, value)) : _cpuLoad;
+                _cpuLoad = sanitized;
+                OnPropertyChanged();
+            }
         }
         
         public double GpuLoad
         {
             get => _gpuLoad;
-            set { _gpuLoad = value; OnPropertyChanged(); }
+            set
+            {
+                var sanitized = double.IsFinite(value) ? Math.Max(0, Math.Min(100, value)) : _gpuLoad;
+                _gpuLoad = sanitized;
+                OnPropertyChanged();
+            }
         }
         
         public double GpuPowerWatts
@@ -490,8 +502,19 @@ namespace OmenCore.ViewModels
             
             try
             {
-                CpuTemp = sample.CpuTemperatureC;
-                GpuTemp = sample.GpuTemperatureC;
+                if (sample.CpuTemperatureState == TelemetryDataState.Valid ||
+                    sample.CpuTemperatureState == TelemetryDataState.Stale)
+                {
+                    CpuTemp = sample.CpuTemperatureC;
+                }
+
+                if (sample.GpuTemperatureState == TelemetryDataState.Valid ||
+                    sample.GpuTemperatureState == TelemetryDataState.Stale ||
+                    sample.GpuTemperatureState == TelemetryDataState.Inactive)
+                {
+                    GpuTemp = sample.GpuTemperatureC;
+                }
+
                 CpuLoad = sample.CpuLoadPercent;
                 GpuLoad = sample.GpuLoadPercent;
                 GpuPowerWatts = sample.GpuPowerWatts;

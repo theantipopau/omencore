@@ -27,12 +27,56 @@
                         ToolTip="System power profile affects CPU/GPU performance limits and power consumption">
                     <StackPanel>
                         <TextBlock Text="PERFORMANCE PROFILE" Style="{StaticResource Label}" Margin="0,0,0,8"/>
-                        <TextBlock Text="Performance Mode" Style="{StaticResource Heading3}" Margin="0,0,0,8"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Performance Mode" Style="{StaticResource Heading3}" Margin="0,0,10,0"/>
+                            <Border Background="#1A1A1E" CornerRadius="12" Padding="10,5" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding FanPerformanceLinkBadgeText}" FontSize="10" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </StackPanel>
                         
                         <TextBlock Text="Control system performance profile and power settings." 
                                    Style="{StaticResource Caption}"
                                    FontSize="13"
                                    Margin="0,0,0,20"/>
+
+                        <Border Style="{StaticResource PremiumInfoBannerCard}" Padding="14" Margin="0,0,0,16"
+                                Visibility="{Binding ShowFanPerformanceInfoBanner, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Performance modes no longer replace your fan curve by default" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding PerformanceModeFanPolicyHint}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Command="{Binding DismissFanPerformanceInfoBannerCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0">
+                                    <TextBlock Text="Dismiss" FontSize="10"/>
+                                </Button>
+                            </Grid>
+                        </Border>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -63,6 +107,11 @@
                                    FontSize="12" 
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,12,0,0" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="{Binding PerformanceModeFanPolicyHint}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -70,8 +119,43 @@
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
                         ToolTip="Reduce CPU voltage to lower temperatures and power consumption. Start conservative (-60mV) and test stability.">
                     <StackPanel>
-                        <TextBlock Text="CPU Undervolting" FontSize="20" FontWeight="SemiBold" 
+                        <TextBlock Text="{Binding UndervoltSectionTitle}" FontSize="20" FontWeight="SemiBold" 
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="{Binding UndervoltBackendText}" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+
+                        <Border Background="#1F2D1F" BorderBrush="#4CAF50" BorderThickness="1"
+                                CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                            <TextBlock Text="{Binding UndervoltLastActionText}" FontSize="12"
+                                       Foreground="{Binding UndervoltLastActionColor}" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <Border Background="#1F1F2D" BorderBrush="#4C6CFF" BorderThickness="1"
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <TextBlock Text="{Binding UndervoltGuidanceText}" FontSize="12"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <Border Background="#2D1F1F"
+                                BorderBrush="#F44336"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                Margin="0,0,0,16">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsUndervoltSupported}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding UndervoltNotSupportedReason}" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                        </Border>
                         
                         <Border Background="{StaticResource SurfaceDarkBrush}" 
                                 CornerRadius="8" Padding="12" Margin="0,0,0,16"
@@ -224,8 +308,8 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="1" 
-                                    Content="Apply Undervolt" 
+                                <Button Grid.Column="1" 
+                                    Content="{Binding UndervoltActionLabel}" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ApplyUndervoltCommand}"
                                     Padding="16,8" Margin="0,0,8,0"/>
@@ -525,7 +609,7 @@
 
                 <!-- AMD Power/Temperature Controls (Ryzen) -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
-                        Visibility="{Binding IsAmdCpu, Converter={StaticResource BoolToVisibility}}"
+                    Visibility="{Binding AmdPowerLimitsAvailable, Converter={StaticResource BoolToVisibility}}"
                         ToolTip="Control AMD Ryzen power limits (STAPM) and temperature throttle point (Tctl) via SMU.">
                     <StackPanel>
                         <TextBlock Text="AMD Power/Temperature Controls" FontSize="20" FontWeight="SemiBold" 
@@ -639,16 +723,28 @@
                                     Content="Apply Settings" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ApplyAmdPowerLimitsCommand}"
-                                    IsEnabled="{Binding IsAmdCpu}"
+                                    IsEnabled="{Binding AmdPowerLimitsAvailable}"
                                     Padding="16,8" Margin="0,0,8,0"/>
                             
                             <Button Grid.Column="2" 
                                     Content="Reset to Default" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ResetAmdPowerLimitsCommand}"
-                                    IsEnabled="{Binding IsAmdCpu}"
+                                    IsEnabled="{Binding AmdPowerLimitsAvailable}"
                                     Padding="16,8"/>
                         </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        Visibility="{Binding ShowAmdPowerUnavailableMessage, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="AMD Power/Temperature Controls" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                        <TextBlock Text="{Binding AmdPowerLimitsStatus}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -854,21 +950,44 @@
                         <Border Background="{StaticResource SurfaceDarkBrush}" 
                                 CornerRadius="8" Padding="12" Margin="0,0,0,20"
                                 BorderBrush="#4CAF50" BorderThickness="2">
-                            <TextBlock FontSize="12" 
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       TextWrapping="Wrap">
-                                <Run Text="🎯 GPU TUNING GUIDE" FontWeight="Bold" Foreground="#4CAF50" FontSize="13"/>
-                                <LineBreak/><LineBreak/>
-                                <Run Text="• Core Clock: GPU shader frequency offset (+100 to +150 typical OC)"/>
-                                <LineBreak/>
-                                <Run Text="• Memory Clock: VRAM frequency offset (+200 to +500 typical OC)"/>
-                                <LineBreak/>
-                                <Run Text="• Power Limit: Max power % (higher = more boost headroom)"/>
-                                <LineBreak/>
-                                <Run Text="• Voltage: Core voltage offset (negative = cooler, less power)"/>
-                                <LineBreak/><LineBreak/>
-                                <Run Text="💡 Tip: Start small (+50 core, +100 memory) and test stability with games/benchmarks."/>
-                            </TextBlock>
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock FontSize="12" 
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap">
+                                        <Run Text="🎯 GPU TUNING GUIDE" FontWeight="Bold" Foreground="#4CAF50" FontSize="13"/>
+                                    </TextBlock>
+                                    <Border Grid.Column="1"
+                                            Background="#153322"
+                                            CornerRadius="4"
+                                            Padding="8,3"
+                                            VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding GpuOcCapabilityBadgeText}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="#7EE2A8"/>
+                                    </Border>
+                                </Grid>
+                                <TextBlock Text="{Binding GpuOcDetectedLimitHeadline}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="{Binding GpuOcCapabilityDescription}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="{Binding GpuOcRecommendationText}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
                         </Border>
 
                         <!-- Clock Offsets Section -->
@@ -891,9 +1010,14 @@
                                     
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="🔧" FontSize="14" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Core Clock" FontSize="14" 
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"/>
+                                        <StackPanel>
+                                            <TextBlock Text="Core Clock" FontSize="14" 
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding GpuCoreOffsetRangeText}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                     
                                     <Slider Grid.Column="1"
@@ -926,9 +1050,14 @@
                                     
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="💾" FontSize="14" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Memory Clock" FontSize="14" 
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"/>
+                                        <StackPanel>
+                                            <TextBlock Text="Memory Clock" FontSize="14" 
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding GpuMemoryOffsetRangeText}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                     
                                     <Slider Grid.Column="1"
@@ -972,9 +1101,14 @@
                                     
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="⚡" FontSize="14" Margin="0,0,6,0"/>
-                                        <TextBlock Text="Power Limit" FontSize="14" 
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"/>
+                                        <StackPanel>
+                                            <TextBlock Text="Power Limit" FontSize="14" 
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding GpuPowerLimitRangeText}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                     
                                     <Slider Grid.Column="1"
@@ -1110,21 +1244,51 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                   Text="{Binding GpuOcTestActionText}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"
+                                   TextWrapping="Wrap"/>
                             
                             <Button Grid.Column="1" 
+                                Content="Test Apply"
+                                Style="{StaticResource SecondaryButton}"
+                                Command="{Binding TestGpuOcCommand}"
+                                Padding="16,8"
+                                Margin="0,0,12,0"/>
+
+                            <Button Grid.Column="2"
+                                Content="Keep"
+                                Style="{StaticResource ModernButton}"
+                                Command="{Binding ConfirmGpuOcTestCommand}"
+                                Padding="16,8"
+                                Margin="0,0,12,0"/>
+
+                            <Button Grid.Column="3" 
                                     Content="Reset" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ResetGpuOcCommand}"
                                     Padding="16,8"
                                     Margin="0,0,12,0"/>
                             
-                            <Button Grid.Column="2" 
+                            <Button Grid.Column="4" 
                                     Content="Apply" 
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ApplyGpuOcCommand}"
                                     Padding="16,8"/>
                         </Grid>
+
+                        <TextBlock Text="{Binding GpuOcTestStatusText}"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,12,0,0"/>
 
                         <TextBlock Text="⚠ WARNING: GPU overclocking can cause crashes, artifacts, or system instability. Settings persist after OmenCore restart but reset after Windows reboot." 
                                    FontSize="11" 

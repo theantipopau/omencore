@@ -12,11 +12,40 @@ namespace OmenCore.Services.Rgb
         private readonly LoggingService _logging;
         private LogitechDeviceService? _service;
 
+        // Lazy connection-health check: re-discover devices if last check was > 30 s ago
+        private DateTime _lastHealthCheck = DateTime.MinValue;
+        private const int HealthCheckIntervalSeconds = 30;
+        private bool _reconnectInProgress;
+
         public string ProviderName => "Logitech";
         public string ProviderId => "logitech";
         public bool IsAvailable { get; private set; } = false;
         public bool IsConnected => IsAvailable && (_service?.Devices.Count ?? 0) > 0;
         public int DeviceCount => _service?.Devices.Count ?? 0;
+        private bool _initFailed;
+        private string _initError = string.Empty;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (_initFailed) return RgbProviderConnectionStatus.Error;
+                if (!IsAvailable) return RgbProviderConnectionStatus.Disabled;
+                if (DeviceCount == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (_initFailed) return _initError;
+                if (!IsAvailable) return "Logitech G HUB not detected";
+                if (DeviceCount == 0) return "G HUB running, no devices found";
+                return $"{DeviceCount} device(s) connected";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects { get; } = new[]
         {
@@ -44,12 +73,14 @@ namespace OmenCore.Services.Rgb
             {
                 _logging.Warn($"LogitechRgbProvider init failed: {ex.Message}");
                 IsAvailable = false;
+                _initFailed = true;
+                _initError = ex.Message;
             }
         }
 
         public async Task ApplyEffectAsync(string effectId)
         {
-            if (!IsAvailable || _service == null)
+            if (!await EnsureConnectionAsync() || _service == null)
                 return;
 
             if (string.IsNullOrWhiteSpace(effectId))
@@ -104,7 +135,7 @@ namespace OmenCore.Services.Rgb
         
         public async Task SetStaticColorAsync(Color color)
         {
-            if (!IsAvailable || _service == null)
+            if (!await EnsureConnectionAsync() || _service == null)
                 return;
                 
             var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
@@ -116,7 +147,7 @@ namespace OmenCore.Services.Rgb
         
         public async Task SetBreathingEffectAsync(Color color)
         {
-            if (!IsAvailable || _service == null)
+            if (!await EnsureConnectionAsync() || _service == null)
                 return;
                 
             var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
@@ -128,7 +159,7 @@ namespace OmenCore.Services.Rgb
         
         public async Task SetSpectrumEffectAsync()
         {
-            if (!IsAvailable || _service == null)
+            if (!await EnsureConnectionAsync() || _service == null)
                 return;
                 
             foreach (var dev in _service.Devices)
@@ -139,13 +170,50 @@ namespace OmenCore.Services.Rgb
         
         public async Task TurnOffAsync()
         {
-            if (!IsAvailable || _service == null)
+            if (!await EnsureConnectionAsync() || _service == null)
                 return;
                 
             foreach (var dev in _service.Devices)
             {
                 await _service.ApplyStaticColorAsync(dev, "#000000", 0);
             }
+        }
+
+        /// <summary>
+        /// Checks whether the Logitech service still has live devices.
+        /// If the device list is empty (G HUB may have restarted), attempts one re-initialization.
+        /// Rate-limited to once every <see cref="HealthCheckIntervalSeconds"/> seconds.
+        /// </summary>
+        private async Task<bool> EnsureConnectionAsync()
+        {
+            if (!IsAvailable || _service == null)
+                return false;
+
+            var now = DateTime.UtcNow;
+            if (_reconnectInProgress ||
+                (now - _lastHealthCheck).TotalSeconds < HealthCheckIntervalSeconds)
+                return IsAvailable && DeviceCount > 0;
+
+            _lastHealthCheck = now;
+
+            // Re-discover; if all devices disappeared, try a full re-init
+            await _service.DiscoverAsync();
+
+            if (_service.Devices.Count == 0)
+            {
+                _logging.Warn("LogitechRgbProvider: all devices lost — attempting service reconnect");
+                _reconnectInProgress = true;
+                try
+                {
+                    await InitializeAsync();
+                }
+                finally
+                {
+                    _reconnectInProgress = false;
+                }
+            }
+
+            return IsAvailable && DeviceCount > 0;
         }
     }
 }

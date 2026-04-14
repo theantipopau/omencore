@@ -327,6 +327,174 @@
                                 </Border>
                             </Grid>
                         </Border>
+
+                        <Border Margin="0,12,0,0" Padding="16" CornerRadius="8"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Post-Resume Recovery" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding ResumeRecoverySummary}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding ResumeRecoveryLastUpdated}" FontSize="11"
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               Margin="0,4,0,0"/>
+                                    <TextBox Text="{Binding ResumeRecoveryTimeline}"
+                                             Margin="0,10,0,0"
+                                             IsReadOnly="True"
+                                             TextWrapping="Wrap"
+                                             AcceptsReturn="True"
+                                             MinHeight="96"
+                                             FontFamily="Consolas"
+                                             Background="{StaticResource SurfaceDarkBrush}"
+                                             Foreground="{StaticResource TextSecondaryBrush}"
+                                             BorderBrush="{StaticResource BorderBrush}"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Background="#1A4CAF50" CornerRadius="4" Padding="12,6" VerticalAlignment="Top" Margin="16,0,0,0">
+                                    <TextBlock Text="{Binding ResumeRecoveryStatus}"
+                                               FontSize="12" FontWeight="Bold"
+                                               Foreground="{StaticResource SuccessBrush}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Margin="0,12,0,0" Padding="16" CornerRadius="8"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Model Identity Resolution" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding ModelIdentitySummary}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap" Margin="0,4,0,0"/>
+
+                                    <Border Margin="0,10,0,0" Padding="12" CornerRadius="6"
+                                            Background="#1400C8C8"
+                                            BorderBrush="#3000C8C8"
+                                            BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Resolved Model" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,12,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ModelIdentityResolvedModel}" FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock Text="Resolution Source" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding ModelIdentityResolutionSource}" FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Confidence" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding ModelIdentityConfidence}" FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock Text="Keyboard Profile" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding ModelIdentityKeyboardModel}" FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Keyboard Source" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiaryBrush}"/>
+                                            <TextBlock Text="{Binding ModelIdentityKeyboardSource}" FontSize="12"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,0"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding ModelIdentityKeyboardConfidence}" FontSize="11"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Border Margin="0,10,0,0" Padding="10" CornerRadius="6"
+                                            BorderThickness="1"
+                                            Visibility="{Binding ModelIdentityHasWarning, Converter={StaticResource BoolToVisibility}}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#1AFFD93D"/>
+                                                <Setter Property="BorderBrush" Value="#40FFD93D"/>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding ModelIdentityWarningText}" FontSize="11"
+                                                   Foreground="{StaticResource WarningBrush}"
+                                                   TextWrapping="Wrap"/>
+                                    </Border>
+
+                                    <TextBlock Text="{Binding ModelIdentityRawSummary}" FontSize="11"
+                                               Foreground="{StaticResource TextTertiaryBrush}"
+                                               FontFamily="Consolas"
+                                               TextWrapping="Wrap" Margin="0,10,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Top">
+                                    <Border CornerRadius="4" Padding="12,6">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#1AFFD93D"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ModelIdentityBadgeTone}" Value="success">
+                                                        <Setter Property="Background" Value="#1A4CAF50"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding ModelIdentityBadgeTone}" Value="error">
+                                                        <Setter Property="Background" Value="#1AF44336"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding ModelIdentityBadgeText}" FontSize="12" FontWeight="Bold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ModelIdentityBadgeTone}" Value="success">
+                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ModelIdentityBadgeTone}" Value="error">
+                                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                    <Button Content="Copy Summary"
+                                            Style="{StaticResource ModernButton}"
+                                            Command="{Binding CopyModelIdentitySummaryCommand}"
+                                            Padding="12,6" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                         
                         <!-- PawnIO-Only Mode Toggle (v2.7.0) -->
                         <Border Margin="0,12,0,0" Padding="16" CornerRadius="8" 
@@ -454,6 +622,25 @@
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding StartMinimized}"/>
+                        </Grid>
+
+                        <!-- Lite Mode -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Lite mode (beginner UI)" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Hides advanced tabs by default. You can disable this anytime to restore full controls."
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding LiteModeEnabled, Mode=TwoWay}"/>
                         </Grid>
 
                         <!-- Headless Mode -->
@@ -2004,6 +2191,31 @@
                                               ItemsSource="{Binding OsdPositionOptions}"/>
                                 </Grid>
 
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Target Monitor" FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedItem="{Binding OsdMonitorTarget, Mode=TwoWay}"
+                                              ItemsSource="{Binding OsdMonitorTargetOptions}"/>
+                                </Grid>
+
+                                <!-- Density -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Overlay Density" FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Column="1"
+                                              SelectedItem="{Binding OsdDensityMode, Mode=TwoWay}"
+                                              ItemsSource="{Binding OsdDensityModeOptions}"/>
+                                </Grid>
+
                                 <!-- Hotkey -->
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
@@ -2071,6 +2283,26 @@
                                 <!-- Metrics Selection -->
                                 <TextBlock Text="Metrics to Display" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,8"/>
+
+                                <TextBlock Text="Metric Groups" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                <WrapPanel Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Thermals" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowThermalsGroup}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Performance" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowPerformanceGroup}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="Network" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowNetworkGroup}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                        <TextBlock Text="System" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <ToggleButton Style="{StaticResource ModernToggleButton}" IsChecked="{Binding OsdShowSystemGroup}"/>
+                                    </StackPanel>
+                                </WrapPanel>
                                 
                                 <!-- Temperature & Load -->
                                 <TextBlock Text="Temperature &amp; Load" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
@@ -2832,6 +3064,145 @@
                                 <Button Content="+ Add Rule" Command="{Binding AddScheduleRuleCommand}"
                                         Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left"
                                         Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SurfaceCard}" Padding="24">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Automation Rules" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        <TextBlock Text="Promoted triggers for shipped automation: time window, battery threshold, and AC power state." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="+ Add Automation Rule" Command="{Binding AddAutomationRuleCommand}"
+                                            Style="{StaticResource SecondaryButton}" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding AutomationRules}" Margin="0,16,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SurfaceCard}" Padding="16" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="110"/>
+                                                            <ColumnDefinition Width="130"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <CheckBox Grid.Column="0" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                                                        <TextBox Grid.Column="1" Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Style="{StaticResource ModernTextBox}" Padding="8,4" Margin="0,0,10,0"/>
+
+                                                        <ComboBox Grid.Column="2" ItemsSource="{Binding SupportedTriggerTypes}" SelectedItem="{Binding Trigger, Mode=TwoWay}"
+                                                                  Style="{StaticResource ModernComboBox}" Margin="0,0,10,0"/>
+
+                                                        <TextBox Grid.Column="3" Text="{Binding Priority, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Style="{StaticResource ModernTextBox}" Padding="8,4" Margin="0,0,10,0" ToolTip="Lower numbers run first"/>
+
+                                                        <Button Grid.Column="4" Content="✕" Style="{StaticResource DangerButton}"
+                                                                Width="32" Height="32" Padding="0"
+                                                                Command="{Binding DataContext.RemoveAutomationRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,0,0,12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsTimeTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Start time" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <TextBox Text="{Binding StartTimeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Padding="8,4"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsTimeTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="End time" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <TextBox Text="{Binding EndTimeText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Padding="8,4"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsBatteryTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Battery threshold" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <TextBox Text="{Binding BatteryThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Padding="8,4"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsBatteryTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Battery condition" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding BatteryConditions}" SelectedItem="{Binding BatteryCondition, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsACPowerTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="AC power state" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding AcPowerStates}" SelectedItem="{Binding AcPowerState, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,0,0,10">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                            <TextBlock Text="Fan preset action" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding FanPresetOptions}" SelectedItem="{Binding FanPreset, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1">
+                                                            <TextBlock Text="Performance mode action" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding PerformanceModeOptions}" SelectedItem="{Binding PerformanceMode, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <Border Padding="10,8" CornerRadius="6" BorderThickness="1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="#1AF44336"/>
+                                                                <Setter Property="BorderBrush" Value="#33F44336"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ValidationMessage}" Value="Ready">
+                                                                        <Setter Property="Background" Value="#1A4CAF50"/>
+                                                                        <Setter Property="BorderBrush" Value="#334CAF50"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding ValidationMessage}" FontSize="11" TextWrapping="Wrap">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ValidationMessage}" Value="Ready">
+                                                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                     </StackPanel>

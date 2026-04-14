@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
@@ -19,11 +20,13 @@ namespace OmenCore.Services.Diagnostics
     {
         private readonly LoggingService _logging;
         private readonly string _logsDirectory;
+        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
 
-        public DiagnosticExportService(LoggingService logging, string logsDirectory)
+        public DiagnosticExportService(LoggingService logging, string logsDirectory, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
         {
             _logging = logging;
             _logsDirectory = logsDirectory;
+            _resumeDiagnostics = resumeDiagnostics;
         }
 
         /// <summary>
@@ -49,10 +52,13 @@ namespace OmenCore.Services.Diagnostics
                 {
                     CollectLogsAsync(exportPath),
                     CollectSystemInfoAsync(exportPath),
+                    CollectRuntimePerformanceSnapshotAsync(exportPath),
+                    CollectBackgroundTimerSnapshotAsync(exportPath),
                     CollectModelIdentityTraceAsync(exportPath),
                     CollectEcStateAsync(exportPath, ecAccess),
                     CollectHardwareInfoAsync(exportPath, hwMonitor),
-                    CollectWmiCommandHistoryAsync(exportPath, wmiController)
+                    CollectWmiCommandHistoryAsync(exportPath, wmiController),
+                    CollectResumeRecoveryDiagnosticsAsync(exportPath)
                 };
 
                 await Task.WhenAll(tasks);
@@ -65,7 +71,11 @@ namespace OmenCore.Services.Diagnostics
             }
             catch (Exception ex)
             {
-                _logging.Error($"Failed to export diagnostics: {ex.Message}", ex);
+                _logging.ErrorWithContext(
+                    component: "DiagnosticExportService",
+                    operation: "CollectAndExportAsync",
+                    message: "Failed to export diagnostics",
+                    ex: ex);
                 throw;
             }
         }
@@ -106,7 +116,11 @@ namespace OmenCore.Services.Diagnostics
             }
             catch (Exception ex)
             {
-                _logging.Warn($"Failed to collect logs: {ex.Message}");
+                _logging.WarnWithContext(
+                    component: "DiagnosticExportService",
+                    operation: "CollectLogsAsync",
+                    message: "Failed to collect logs",
+                    ex: ex);
             }
         }
 
@@ -146,7 +160,168 @@ namespace OmenCore.Services.Diagnostics
             }
             catch (Exception ex)
             {
-                _logging.Warn($"Failed to collect system info: {ex.Message}");
+                _logging.WarnWithContext(
+                    component: "DiagnosticExportService",
+                    operation: "CollectSystemInfoAsync",
+                    message: "Failed to collect system info",
+                    ex: ex);
+            }
+        }
+
+        private async Task CollectResumeRecoveryDiagnosticsAsync(string exportPath)
+        {
+            try
+            {
+                var report = _resumeDiagnostics?.BuildExportReport() ?? "Resume recovery diagnostics service not available";
+                File.WriteAllText(Path.Combine(exportPath, "resume-recovery.txt"), report);
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect resume recovery diagnostics: {ex.Message}");
+            }
+        }
+
+        private async Task CollectRuntimePerformanceSnapshotAsync(string exportPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== RUNTIME PERFORMANCE SNAPSHOT ===");
+                sb.AppendLine($"Captured: {DateTime.Now:O}");
+                sb.AppendLine();
+
+                var current = Process.GetCurrentProcess();
+                using (current)
+                {
+                    sb.AppendLine("[Current Process]");
+                    sb.AppendLine($"Name: {current.ProcessName}");
+                    sb.AppendLine($"PID: {current.Id}");
+                    sb.AppendLine($"StartTime: {SafeGet(() => current.StartTime.ToString("O"), "Unavailable")}");
+                    sb.AppendLine($"TotalProcessorTime: {SafeGet(() => current.TotalProcessorTime.ToString(), "Unavailable")}");
+                    sb.AppendLine($"Threads: {SafeGet(() => current.Threads.Count.ToString(), "Unavailable")}");
+                    sb.AppendLine($"Handles: {SafeGet(() => current.HandleCount.ToString(), "Unavailable")}");
+                    sb.AppendLine($"WorkingSetMB: {SafeGet(() => (current.WorkingSet64 / 1024d / 1024d).ToString("F1"), "Unavailable")}");
+                    sb.AppendLine($"PrivateMemoryMB: {SafeGet(() => (current.PrivateMemorySize64 / 1024d / 1024d).ToString("F1"), "Unavailable")}");
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("[GC]");
+                sb.AppendLine($"TotalManagedMemoryMB: {GC.GetTotalMemory(false) / 1024d / 1024d:F1}");
+                sb.AppendLine($"Gen0Collections: {GC.CollectionCount(0)}");
+                sb.AppendLine($"Gen1Collections: {GC.CollectionCount(1)}");
+                sb.AppendLine($"Gen2Collections: {GC.CollectionCount(2)}");
+                var gcInfo = GC.GetGCMemoryInfo();
+                sb.AppendLine($"HeapSizeBytes: {gcInfo.HeapSizeBytes}");
+                sb.AppendLine($"MemoryLoadBytes: {gcInfo.MemoryLoadBytes}");
+                sb.AppendLine($"HighMemoryLoadThresholdBytes: {gcInfo.HighMemoryLoadThresholdBytes}");
+                sb.AppendLine();
+
+                sb.AppendLine("[ThreadPool]");
+                ThreadPool.GetMinThreads(out var workerMin, out var ioMin);
+                ThreadPool.GetMaxThreads(out var workerMax, out var ioMax);
+                ThreadPool.GetAvailableThreads(out var workerAvail, out var ioAvail);
+                sb.AppendLine($"WorkerThreads: available={workerAvail}, min={workerMin}, max={workerMax}");
+                sb.AppendLine($"IOThreads: available={ioAvail}, min={ioMin}, max={ioMax}");
+                sb.AppendLine();
+
+                sb.AppendLine("[Omen-Related Processes]");
+                var omenProcesses = Process.GetProcesses()
+                    .Where(p => p.ProcessName.Contains("omen", StringComparison.OrdinalIgnoreCase)
+                             || p.ProcessName.Contains("hardwareworker", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(p => p.ProcessName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (!omenProcesses.Any())
+                {
+                    sb.AppendLine("No Omen-related processes detected.");
+                }
+                else
+                {
+                    foreach (var proc in omenProcesses)
+                    {
+                        using (proc)
+                        {
+                            var cpuTime = SafeGet(() => proc.TotalProcessorTime.ToString(), "Unavailable");
+                            var wsMb = SafeGet(() => (proc.WorkingSet64 / 1024d / 1024d).ToString("F1"), "Unavailable");
+                            sb.AppendLine($"{proc.ProcessName} (PID {proc.Id}) | CPU {cpuTime} | WS {wsMb} MB");
+                        }
+                    }
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "runtime-performance.txt"), sb.ToString());
+                _logging.Info("Collected runtime performance snapshot");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect runtime performance snapshot: {ex.Message}");
+            }
+        }
+
+        private async Task CollectBackgroundTimerSnapshotAsync(string exportPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== BACKGROUND TIMER REGISTRY SNAPSHOT ===");
+                sb.AppendLine($"Captured: {DateTime.UtcNow:O}");
+                sb.AppendLine();
+
+                var timers = BackgroundTimerRegistry.GetAll();
+
+                if (!timers.Any())
+                {
+                    sb.AppendLine("No timers currently registered.");
+                }
+                else
+                {
+                    sb.AppendLine($"Active background loops: {timers.Count}");
+                    sb.AppendLine();
+
+                    foreach (var t in timers)
+                    {
+                        var runningFor = DateTime.UtcNow - t.RegisteredUtc;
+                        sb.AppendLine($"[{t.Name}]");
+                        sb.AppendLine($"  Owner:       {t.OwnerService}");
+                        sb.AppendLine($"  Tier:        {t.Tier}");
+                        sb.AppendLine($"  Description: {t.Description}");
+                        sb.AppendLine($"  Interval:    {FormatTimerInterval(t.IntervalMs)}");
+                        sb.AppendLine($"  RunningFor:  {FormatTimerAge(runningFor)}");
+                        sb.AppendLine();
+                    }
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "background-timers.txt"), sb.ToString());
+                _logging.Info($"Collected background timer snapshot ({timers.Count} registered)");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect background timer snapshot: {ex.Message}");
+            }
+        }
+
+        private static string FormatTimerInterval(int ms) =>
+            ms >= 3_600_000 ? $"{ms / 3_600_000.0:F1}h" :
+            ms >= 60_000    ? $"{ms / 60_000.0:F1}min" :
+            ms >= 1_000     ? $"{ms / 1_000.0:F1}s" :
+            $"{ms}ms";
+
+        private static string FormatTimerAge(TimeSpan age) =>
+            age.TotalHours >= 1   ? $"{age.TotalHours:F1}h" :
+            age.TotalMinutes >= 1 ? $"{age.TotalMinutes:F1}min" :
+            $"{age.TotalSeconds:F0}s";
+
+        private static string SafeGet(Func<string> getter, string fallback)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return fallback;
             }
         }
 
@@ -154,91 +329,9 @@ namespace OmenCore.Services.Diagnostics
         {
             try
             {
-                var sb = new StringBuilder();
-                sb.AppendLine("=== MODEL IDENTITY RESOLUTION TRACE ===");
-                sb.AppendLine($"Captured: {DateTime.Now:O}");
-                sb.AppendLine();
-
                 var systemInfo = new SystemInfoService(_logging).GetSystemInfo();
-
-                sb.AppendLine("Raw System Identity Inputs:");
-                sb.AppendLine($"  Manufacturer: {systemInfo.Manufacturer}");
-                sb.AppendLine($"  WMI Model: {systemInfo.Model}");
-                sb.AppendLine($"  Baseboard ProductName: {systemInfo.ProductName}");
-                sb.AppendLine($"  System SKU: {systemInfo.SystemSku}");
-                sb.AppendLine($"  BIOS Version: {systemInfo.BiosVersion}");
-                sb.AppendLine();
-
-                using var capabilityService = new CapabilityDetectionService(_logging);
-                var capabilities = capabilityService.DetectCapabilities();
-
-                sb.AppendLine("Capability Detection Output:");
-                sb.AppendLine($"  ProductId: {capabilities.ProductId}");
-                sb.AppendLine($"  ModelName: {capabilities.ModelName}");
-                sb.AppendLine($"  ModelFamily: {capabilities.ModelFamily}");
-                sb.AppendLine($"  IsKnownModel: {capabilities.IsKnownModel}");
-                sb.AppendLine();
-
-                var modelNameMatch = ModelCapabilityDatabase.GetCapabilitiesByModelName(capabilities.ModelName);
-                var productIdMatch = ModelCapabilityDatabase.IsKnownModel(capabilities.ProductId)
-                    ? ModelCapabilityDatabase.GetCapabilities(capabilities.ProductId)
-                    : null;
-                var resolvedModel = capabilities.ModelConfig;
-
-                sb.AppendLine("Model Capability Database Resolution:");
-                sb.AppendLine($"  Name-pattern candidate: {(modelNameMatch != null ? modelNameMatch.ModelName + " (" + modelNameMatch.ProductId + ")" : "none")}");
-                sb.AppendLine($"  ProductId candidate: {(productIdMatch != null ? productIdMatch.ModelName + " (" + productIdMatch.ProductId + ")" : "none")}");
-                sb.AppendLine($"  Effective resolved model: {(resolvedModel != null ? resolvedModel.ModelName + " (" + resolvedModel.ProductId + ")" : "none")}");
-
-                if (resolvedModel != null)
-                {
-                    string resolutionPath;
-                    if (modelNameMatch != null && string.Equals(resolvedModel.ProductId, modelNameMatch.ProductId, StringComparison.OrdinalIgnoreCase))
-                        resolutionPath = "Matched by model-name pattern";
-                    else if (productIdMatch != null && string.Equals(resolvedModel.ProductId, productIdMatch.ProductId, StringComparison.OrdinalIgnoreCase))
-                        resolutionPath = "Matched by ProductId";
-                    else if (resolvedModel.ProductId.StartsWith("FAMILY_", StringComparison.OrdinalIgnoreCase))
-                        resolutionPath = "Family fallback";
-                    else if (string.Equals(resolvedModel.ProductId, ModelCapabilityDatabase.DefaultCapabilities.ProductId, StringComparison.OrdinalIgnoreCase))
-                        resolutionPath = "Default capabilities fallback";
-                    else
-                        resolutionPath = "Resolved by runtime fallback path";
-
-                    sb.AppendLine($"  Resolution path: {resolutionPath}");
-                    sb.AppendLine($"  User-verified profile: {(resolvedModel.UserVerified ? "yes" : "no")}");
-                    if (!string.IsNullOrWhiteSpace(resolvedModel.Notes))
-                        sb.AppendLine($"  Profile notes: {resolvedModel.Notes}");
-                }
-
-                sb.AppendLine();
-
-                var keyboardProductIdCandidate = !string.IsNullOrWhiteSpace(systemInfo.ProductName)
-                    ? systemInfo.ProductName.Trim()
-                    : systemInfo.SystemSku?.Trim() ?? string.Empty;
-                var keyboardConfig = KeyboardModelDatabase.GetConfig(keyboardProductIdCandidate, systemInfo.Model);
-
-                sb.AppendLine("Keyboard Model Resolution:");
-                sb.AppendLine($"  ProductId candidate: {keyboardProductIdCandidate}");
-                sb.AppendLine($"  ProductId ambiguous: {(KeyboardModelDatabase.IsAmbiguousProductId(keyboardProductIdCandidate) ? "yes" : "no")}");
-                sb.AppendLine($"  WMI Model context: {systemInfo.Model}");
-
-                if (keyboardConfig != null)
-                {
-                    sb.AppendLine($"  Effective keyboard model: {keyboardConfig.ModelName} ({keyboardConfig.ProductId})");
-                    sb.AppendLine($"  Keyboard type: {keyboardConfig.KeyboardType}");
-                    sb.AppendLine($"  Preferred method: {keyboardConfig.PreferredMethod}");
-                    sb.AppendLine($"  User-verified profile: {(keyboardConfig.UserVerified ? "yes" : "no")}");
-                    if (!string.IsNullOrWhiteSpace(keyboardConfig.ModelNamePattern))
-                        sb.AppendLine($"  Disambiguation pattern: {keyboardConfig.ModelNamePattern}");
-                    if (!string.IsNullOrWhiteSpace(keyboardConfig.Notes))
-                        sb.AppendLine($"  Notes: {keyboardConfig.Notes}");
-                }
-                else
-                {
-                    sb.AppendLine("  Effective keyboard model: none (no direct match)");
-                }
-
-                File.WriteAllText(Path.Combine(exportPath, "identity-resolution-trace.txt"), sb.ToString());
+                var summary = ModelIdentityResolutionService.Build(systemInfo, capabilities: null, logging: _logging);
+                File.WriteAllText(Path.Combine(exportPath, "identity-resolution-trace.txt"), summary.TraceText);
                 _logging.Info("Collected model identity resolution trace");
                 await Task.CompletedTask;
             }

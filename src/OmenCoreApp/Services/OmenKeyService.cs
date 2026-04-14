@@ -690,7 +690,15 @@ namespace OmenCore.Services
             // Check virtual key codes commonly used for OMEN key
             if (vkCode == VK_LAUNCH_APP2)
             {
-                // VK_LAUNCH_APP2 is shared with Calculator key on some keyboards
+                // VK_LAUNCH_APP2 is shared with Calculator key on some keyboards.
+                // Scan code 0xE046 (extended Scroll Lock) must be excluded: on HP OMEN 16 xd0xxx
+                // (AMD), Fn+brightness keys emit VK_LAUNCH_APP2 with this scan code, falsely
+                // triggering OmenCore to open (GitHub #100 Bug #2).
+                if (scanCode == 0xE046)
+                {
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-scan-e046");
+                    return false;
+                }
                 // Only treat as OMEN key if scan code matches known OMEN scan codes
                 foreach (var omenScan in OmenScanCodes)
                 {
@@ -715,9 +723,16 @@ namespace OmenCore.Services
             
             // Some newer OMEN models use VK_LAUNCH_APP1 (0xB6)
             // IMPORTANT: Require OMEN-specific scan code validation to avoid false positives
-            // from Remote Desktop, media apps, and other software that uses VK_LAUNCH_APP1
+            // from Remote Desktop, media apps, and other software that uses VK_LAUNCH_APP1.
+            // Scan code 0xE046 is excluded: on HP OMEN 16 xd0xxx (AMD), Fn+brightness keys
+            // can emit VK_LAUNCH_APP1 with this scan code, falsely opening OmenCore (GitHub #100 Bug #2).
             if (vkCode == VK_LAUNCH_APP1)
             {
+                if (scanCode == 0xE046)
+                {
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-scan-e046");
+                    return false;
+                }
                 foreach (var omenScan in OmenScanCodes)
                 {
                     if (scanCode == omenScan)

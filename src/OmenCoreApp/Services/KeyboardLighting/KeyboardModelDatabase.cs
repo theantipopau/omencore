@@ -280,8 +280,9 @@ namespace OmenCore.Services.KeyboardLighting
             
             AddModel(new KeyboardModelConfig
             {
-                ProductId = "ah0097nr",
+                ProductId = "OMENMAX16",
                 ModelName = "OMEN Max 16 (2025)",
+                ModelNamePattern = "max 16",
                 KeyboardType = KeyboardType.PerKeyRgb,
                 PreferredMethod = KeyboardMethod.HidPerKey,
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023 },
@@ -510,6 +511,15 @@ namespace OmenCore.Services.KeyboardLighting
                 return null;
             
             var lowerName = modelName.ToLowerInvariant();
+
+            // Try explicit model-name pattern matches first (used by virtual entries
+            // where the HP baseboard product ID may not uniquely identify the keyboard).
+            var patternMatch = _knownModels.Values.FirstOrDefault(c =>
+                !string.IsNullOrEmpty(c.ModelNamePattern) &&
+                lowerName.Contains(c.ModelNamePattern.ToLowerInvariant()));
+
+            if (patternMatch != null)
+                return patternMatch;
             
             // Try exact containment match first (original behavior)
             var exactMatch = _knownModels.Values.FirstOrDefault(c => 

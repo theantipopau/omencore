@@ -330,17 +330,37 @@ namespace OmenCore.Services.Corsair
                     return;
                 }
 
-                // Parse hex color string
-                var hex = preset.PrimaryColor.TrimStart('#');
-                var r = Convert.ToByte(hex.Substring(0, 2), 16);
-                var g = Convert.ToByte(hex.Substring(2, 2), 16);
-                var b = Convert.ToByte(hex.Substring(4, 2), 16);
-                var color = new Color(r, g, b);
-                
-                // Apply color to all LEDs
-                foreach (var led in rgbDevice)
+                var primary = ParseHexColor(preset.PrimaryColor, new Color(255, 255, 255));
+                var secondary = ParseHexColor(preset.SecondaryColor, primary);
+
+                switch (preset.Effect)
                 {
-                    led.Color = color;
+                    case LightingEffectType.Off:
+                        foreach (var led in rgbDevice)
+                        {
+                            led.Color = new Color(0, 0, 0);
+                        }
+                        break;
+
+                    case LightingEffectType.Wave:
+                        ApplyGradient(rgbDevice, primary, secondary);
+                        break;
+
+                    case LightingEffectType.Breathing:
+                        ApplyAlternating(rgbDevice, primary, secondary);
+                        break;
+
+                    case LightingEffectType.ColorCycle:
+                        ApplySpectrumGradient(rgbDevice);
+                        break;
+
+                    case LightingEffectType.Static:
+                    default:
+                        foreach (var led in rgbDevice)
+                        {
+                            led.Color = primary;
+                        }
+                        break;
                 }
 
                 _surface.Update();
@@ -352,6 +372,104 @@ namespace OmenCore.Services.Corsair
             }
 
             await Task.CompletedTask;
+        }
+
+        private static Color ParseHexColor(string? hexColor, Color fallback)
+        {
+            if (string.IsNullOrWhiteSpace(hexColor))
+            {
+                return fallback;
+            }
+
+            try
+            {
+                var hex = hexColor.Trim().TrimStart('#');
+                if (hex.Length != 6)
+                {
+                    return fallback;
+                }
+
+                var r = Convert.ToByte(hex.Substring(0, 2), 16);
+                var g = Convert.ToByte(hex.Substring(2, 2), 16);
+                var b = Convert.ToByte(hex.Substring(4, 2), 16);
+                return new Color(r, g, b);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static void ApplyGradient(IRGBDevice rgbDevice, Color primary, Color secondary)
+        {
+            var leds = rgbDevice.ToList();
+            if (leds.Count == 0)
+            {
+                return;
+            }
+
+            if (leds.Count == 1)
+            {
+                leds[0].Color = primary;
+                return;
+            }
+
+            for (var i = 0; i < leds.Count; i++)
+            {
+                var t = i / (double)(leds.Count - 1);
+                var r = (byte)Math.Round(primary.R + ((secondary.R - primary.R) * t));
+                var g = (byte)Math.Round(primary.G + ((secondary.G - primary.G) * t));
+                var b = (byte)Math.Round(primary.B + ((secondary.B - primary.B) * t));
+                leds[i].Color = new Color(r, g, b);
+            }
+        }
+
+        private static void ApplyAlternating(IRGBDevice rgbDevice, Color primary, Color secondary)
+        {
+            var index = 0;
+            foreach (var led in rgbDevice)
+            {
+                led.Color = (index++ % 2 == 0) ? primary : secondary;
+            }
+        }
+
+        private static void ApplySpectrumGradient(IRGBDevice rgbDevice)
+        {
+            var leds = rgbDevice.ToList();
+            if (leds.Count == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < leds.Count; i++)
+            {
+                var hue = i / (double)leds.Count;
+                leds[i].Color = ColorFromHsv(hue, 1.0, 1.0);
+            }
+        }
+
+        private static Color ColorFromHsv(double hue, double saturation, double value)
+        {
+            hue = (hue % 1.0 + 1.0) % 1.0;
+            var h = hue * 6.0;
+            var c = value * saturation;
+            var x = c * (1 - Math.Abs((h % 2) - 1));
+            var m = value - c;
+
+            var (r1, g1, b1) = h switch
+            {
+                < 1 => (c, x, 0.0),
+                < 2 => (x, c, 0.0),
+                < 3 => (0.0, c, x),
+                < 4 => (0.0, x, c),
+                < 5 => (x, 0.0, c),
+                _ => (c, 0.0, x)
+            };
+
+            var r = (byte)Math.Round((r1 + m) * 255);
+            var g = (byte)Math.Round((g1 + m) * 255);
+            var b = (byte)Math.Round((b1 + m) * 255);
+            return new Color(r, g, b);
         }
 
         public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)

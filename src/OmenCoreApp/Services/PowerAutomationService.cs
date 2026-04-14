@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -298,30 +299,13 @@ namespace OmenCore.Services
                 _lastKnownAcState = stableState;
                 _logging.Info($"Power state verified ({reason}): {(stableState ? "AC Connected" : "On Battery")}");
 
-                // Raise event for UI updates - marshal to UI thread if needed
-                try
-                {
-                    if (System.Windows.Application.Current?.Dispatcher != null)
-                    {
-                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
-                        {
-                            PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(stableState));
-                        });
-                    }
-                    else
-                    {
-                        PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(stableState));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logging.Warn($"Failed to raise PowerStateChanged event: {ex.Message}");
-                }
+                // Raise event for UI updates with guarded callback execution.
+                RaisePowerStateChangedSafe(stableState, reason);
 
                 if (_isEnabled)
                 {
                     _logging.Info("Power automation is enabled, applying verified profile...");
-                    ApplyPowerProfile(stableState);
+                    ApplyPowerProfile(stableState, reason);
                 }
                 else
                 {
@@ -349,26 +333,79 @@ namespace OmenCore.Services
             }
         }
 
+        private void RaisePowerStateChangedSafe(bool isOnAc, string source)
+        {
+            try
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                {
+                    _ = dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(isOnAc));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logging.Warn($"PowerStateChanged subscriber threw during {source}: {ex.Message}");
+                        }
+                    }));
+                    return;
+                }
+
+                PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(isOnAc));
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to raise PowerStateChanged event ({source}): {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Apply the appropriate power profile based on AC/Battery state.
         /// </summary>
-        public void ApplyPowerProfile(bool isOnAc)
+        public void ApplyPowerProfile(bool isOnAc, string transitionContext = "manual")
         {
-            _logging.Info($"Applying {(isOnAc ? "AC" : "Battery")} power profile...");
+            var targetLabel = isOnAc ? "AC" : "Battery";
+            var transitionId = Guid.NewGuid().ToString("N")[..8];
+            var previousFanPreset = _fanService.ActivePresetName;
+            var previousPerformanceMode = _performanceModeService.GetCurrentMode();
+            var failures = new List<string>();
+
+            _logging.Info($"Applying {targetLabel} power profile [{transitionId}] (source={transitionContext})...");
 
             try
             {
                 // Apply fan preset - look up from saved presets first to preserve curves
                 var fanPresetName = isOnAc ? AcFanPreset : BatteryFanPreset;
-                var preset = LookupFanPreset(fanPresetName);
-                _fanService.ApplyPreset(preset);
-                _logging.Info($"  Fan preset: {fanPresetName}" + (preset.Curve?.Any() == true ? $" ({preset.Curve.Count} curve points)" : ""));
+                try
+                {
+                    var preset = LookupFanPreset(fanPresetName);
+                    _fanService.ApplyPreset(preset);
+                    _logging.Info($"  [{transitionId}] Fan preset: {fanPresetName}" + (preset.Curve?.Any() == true ? $" ({preset.Curve.Count} curve points)" : ""));
+                }
+                catch (Exception fanEx)
+                {
+                    failures.Add($"fan:{fanEx.Message}");
+                    _logging.Warn($"  [{transitionId}] Fan preset apply failed ({fanPresetName}): {fanEx.Message}");
+                    TryRollbackFanPreset(previousFanPreset, transitionId);
+                }
 
                 // Apply performance mode
                 var perfMode = isOnAc ? AcPerformanceMode : BatteryPerformanceMode;
-                var mode = new PerformanceMode { Name = perfMode };
-                _performanceModeService.Apply(mode);
-                _logging.Info($"  Performance mode: {perfMode}");
+                try
+                {
+                    var mode = new PerformanceMode { Name = perfMode };
+                    _performanceModeService.Apply(mode);
+                    _logging.Info($"  [{transitionId}] Performance mode: {perfMode}");
+                }
+                catch (Exception perfEx)
+                {
+                    failures.Add($"performance:{perfEx.Message}");
+                    _logging.Warn($"  [{transitionId}] Performance mode apply failed ({perfMode}): {perfEx.Message}");
+                    TryRollbackPerformanceMode(previousPerformanceMode, transitionId);
+                }
 
                 // Apply GPU mode (if service available and supported)
                 if (_gpuSwitchService != null && _gpuSwitchService.IsSupported)
@@ -376,14 +413,60 @@ namespace OmenCore.Services
                     var gpuMode = isOnAc ? AcGpuMode : BatteryGpuMode;
                     // Note: GPU mode switching typically requires restart
                     // This just queues the change for next boot
-                    _logging.Info($"  GPU mode (next boot): {gpuMode}");
+                    _logging.Info($"  [{transitionId}] GPU mode (next boot): {gpuMode}");
                 }
 
-                _logging.Info($"✓ {(isOnAc ? "AC" : "Battery")} power profile applied");
+                if (failures.Count == 0)
+                {
+                    _logging.Info($"✓ {targetLabel} power profile applied [{transitionId}]");
+                }
+                else
+                {
+                    _logging.Warn($"{targetLabel} power profile applied with recoverable failures [{transitionId}]: {string.Join(" | ", failures)}");
+                }
             }
             catch (Exception ex)
             {
-                _logging.Error($"Failed to apply power profile: {ex.Message}", ex);
+                _logging.Error($"Failed to apply power profile [{transitionId}]: {ex.Message}", ex);
+            }
+        }
+
+        private void TryRollbackFanPreset(string? previousPresetName, string transitionId)
+        {
+            if (string.IsNullOrWhiteSpace(previousPresetName))
+            {
+                _logging.Warn($"  [{transitionId}] Fan rollback skipped (no previous preset snapshot)");
+                return;
+            }
+
+            try
+            {
+                var rollbackPreset = LookupFanPreset(previousPresetName);
+                _fanService.ApplyPreset(rollbackPreset);
+                _logging.Info($"  [{transitionId}] Fan rollback restored preset: {previousPresetName}");
+            }
+            catch (Exception rollbackEx)
+            {
+                _logging.Warn($"  [{transitionId}] Fan rollback failed ({previousPresetName}): {rollbackEx.Message}");
+            }
+        }
+
+        private void TryRollbackPerformanceMode(string? previousModeName, string transitionId)
+        {
+            if (string.IsNullOrWhiteSpace(previousModeName))
+            {
+                _logging.Warn($"  [{transitionId}] Performance rollback skipped (no previous mode snapshot)");
+                return;
+            }
+
+            try
+            {
+                _performanceModeService.Apply(new PerformanceMode { Name = previousModeName });
+                _logging.Info($"  [{transitionId}] Performance rollback restored mode: {previousModeName}");
+            }
+            catch (Exception rollbackEx)
+            {
+                _logging.Warn($"  [{transitionId}] Performance rollback failed ({previousModeName}): {rollbackEx.Message}");
             }
         }
 
@@ -474,7 +557,7 @@ namespace OmenCore.Services
         {
             if (_isEnabled)
             {
-                ApplyPowerProfile(_lastKnownAcState);
+                ApplyPowerProfile(_lastKnownAcState, "manual-sync");
             }
         }
 

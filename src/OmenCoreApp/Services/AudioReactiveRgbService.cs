@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using OmenCore.Services;
+using NAudio.Wave;
 using OmenCore.Services.Rgb;
 
 namespace OmenCore.Services
@@ -16,6 +15,7 @@ namespace OmenCore.Services
     public class AudioReactiveRgbService : IDisposable
     {
         private readonly LoggingService _logging;
+        private readonly KeyboardLightingService? _keyboardLightingService;
         private readonly List<IRgbProvider> _rgbProviders = new();
         private bool _disposed;
         private bool _isRunning;
@@ -101,9 +101,10 @@ namespace OmenCore.Services
 
         #endregion
 
-        public AudioReactiveRgbService(LoggingService logging)
+        public AudioReactiveRgbService(LoggingService logging, KeyboardLightingService? keyboardLightingService = null)
         {
             _logging = logging;
+            _keyboardLightingService = keyboardLightingService;
         }
 
         /// <summary>
@@ -477,7 +478,7 @@ namespace OmenCore.Services
         /// </summary>
         private async Task ApplyToLightingAsync()
         {
-            if (_rgbProviders.Count == 0) return;
+            if (_rgbProviders.Count == 0 && _keyboardLightingService?.IsAvailable != true) return;
 
             try
             {
@@ -488,6 +489,11 @@ namespace OmenCore.Services
                     {
                         await provider.SetStaticColorAsync(color);
                     }
+                }
+
+                if (_keyboardLightingService?.IsAvailable == true)
+                {
+                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
                 }
             }
             catch (Exception ex)
@@ -591,21 +597,14 @@ namespace OmenCore.Services
     public class WasapiLoopbackCapture : IAudioCapture
     {
         private readonly LoggingService _logging;
-#pragma warning disable CS0169 // Reserved for future WASAPI implementation
-        private IntPtr _audioClient;
-        private IntPtr _captureClient;
-#pragma warning restore CS0169
+        private NAudio.Wave.WasapiLoopbackCapture? _capture;
+        private BufferedWaveProvider? _bufferedProvider;
+        private ISampleProvider? _sampleProvider;
+        private System.Threading.Timer? _readTimer;
+        private readonly float[] _sampleReadBuffer = new float[2048];
         private bool _isCapturing;
-        private Thread? _captureThread;
 
         public event EventHandler<AudioDataEventArgs>? DataAvailable;
-
-        // WASAPI COM interfaces
-        [DllImport("ole32.dll")]
-        private static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
-
-        [DllImport("ole32.dll")]
-        private static extern void CoUninitialize();
 
         public WasapiLoopbackCapture(LoggingService logging)
         {
@@ -616,12 +615,18 @@ namespace OmenCore.Services
         {
             try
             {
-                // Initialize COM
-                CoInitializeEx(IntPtr.Zero, 0); // COINIT_MULTITHREADED
+                _capture = new NAudio.Wave.WasapiLoopbackCapture();
+                _bufferedProvider = new BufferedWaveProvider(_capture.WaveFormat)
+                {
+                    DiscardOnBufferOverflow = true,
+                    BufferDuration = TimeSpan.FromSeconds(2)
+                };
+                _sampleProvider = _bufferedProvider.ToSampleProvider();
 
-                // Note: Full WASAPI implementation requires significant COM interop
-                // For now, use a simplified approach or NAudio library
-                _logging.Info("WasapiLoopbackCapture: Initialized (stub - use NAudio for full implementation)");
+                _capture.DataAvailable += OnCaptureDataAvailable;
+                _capture.RecordingStopped += (_, _) => _isCapturing = false;
+
+                _logging.Info($"WasapiLoopbackCapture: Initialized ({_capture.WaveFormat.SampleRate} Hz, {_capture.WaveFormat.Channels} ch)");
                 return true;
             }
             catch (Exception ex)
@@ -633,56 +638,78 @@ namespace OmenCore.Services
 
         public void Start()
         {
-            if (_isCapturing) return;
+            if (_isCapturing || _capture == null) return;
 
             _isCapturing = true;
-            _captureThread = new Thread(CaptureLoop) { IsBackground = true };
-            _captureThread.Start();
+            _capture.StartRecording();
+            _readTimer = new System.Threading.Timer(ReadBufferedSamples, null, 0, 33);
         }
 
         public void Stop()
         {
             _isCapturing = false;
-            _captureThread?.Join(1000);
+
+            _readTimer?.Dispose();
+            _readTimer = null;
+
+            try
+            {
+                _capture?.StopRecording();
+            }
+            catch
+            {
+                // Best effort stop.
+            }
         }
 
-        private void CaptureLoop()
+        private void OnCaptureDataAvailable(object? sender, WaveInEventArgs e)
         {
-            var random = new Random();
-            var buffer = new float[2048];
+            if (!_isCapturing || _bufferedProvider == null || e.BytesRecorded <= 0)
+                return;
 
-            while (_isCapturing)
+            _bufferedProvider.AddSamples(e.Buffer, 0, e.BytesRecorded);
+        }
+
+        private void ReadBufferedSamples(object? state)
+        {
+            if (!_isCapturing || _sampleProvider == null)
+                return;
+
+            try
             {
-                try
+                var read = _sampleProvider.Read(_sampleReadBuffer, 0, _sampleReadBuffer.Length);
+                if (read <= 0)
                 {
-                    // Simulate audio data for testing (replace with real WASAPI capture)
-                    // In production, use NAudio or direct WASAPI COM interop
-                    for (int i = 0; i < buffer.Length; i++)
-                    {
-                        // Generate test signal with some bass pulses
-                        double t = (DateTime.UtcNow.Ticks / 10000000.0) * 10 + i * 0.01;
-                        buffer[i] = (float)(
-                            Math.Sin(t * 2 * Math.PI * 60) * 0.3 + // Bass
-                            Math.Sin(t * 2 * Math.PI * 200) * 0.2 + // Low-mid
-                            Math.Sin(t * 2 * Math.PI * 1000) * 0.1 + // Mid
-                            (random.NextDouble() - 0.5) * 0.1 // Noise
-                        );
-                    }
+                    return;
+                }
 
-                    DataAvailable?.Invoke(this, new AudioDataEventArgs(buffer, 0.5f, new float[8]));
-                    Thread.Sleep(33); // ~30 FPS
-                }
-                catch (Exception ex)
+                if (read < _sampleReadBuffer.Length)
                 {
-                    _logging.Error($"WasapiLoopbackCapture: Capture error: {ex.Message}");
+                    Array.Clear(_sampleReadBuffer, read, _sampleReadBuffer.Length - read);
                 }
+
+                var snapshot = new float[_sampleReadBuffer.Length];
+                Array.Copy(_sampleReadBuffer, snapshot, _sampleReadBuffer.Length);
+                DataAvailable?.Invoke(this, new AudioDataEventArgs(snapshot, 0f, Array.Empty<float>()));
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"WasapiLoopbackCapture: Read error: {ex.Message}");
             }
         }
 
         public void Dispose()
         {
             Stop();
-            CoUninitialize();
+            if (_capture != null)
+            {
+                _capture.DataAvailable -= OnCaptureDataAvailable;
+                _capture.Dispose();
+                _capture = null;
+            }
+
+            _bufferedProvider = null;
+            _sampleProvider = null;
         }
     }
 }

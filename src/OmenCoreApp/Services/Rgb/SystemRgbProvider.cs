@@ -20,6 +20,26 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable { get; private set; } = false;
         public bool IsConnected => _manager.HasAnyProvider;
         public int DeviceCount => _manager.TotalDeviceCount;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (!IsAvailable) return RgbProviderConnectionStatus.Disabled;
+                if (DeviceCount == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (!IsAvailable) return "No RGB providers available";
+                if (DeviceCount == 0) return "Providers ready, no devices found";
+                return $"{DeviceCount} total device(s) across all providers";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects { get; } = new[]
         {

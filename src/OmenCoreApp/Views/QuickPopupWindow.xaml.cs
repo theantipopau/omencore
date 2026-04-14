@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,8 +21,11 @@ namespace OmenCore.Views
         
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
+        private string? _curvePresetName;
         private string _monitoringHealth = "Unknown";
         private bool _isFanPerformanceLinked;
+        private List<DisplayTarget> _displayTargets = new();
+        private int _activeDisplayTargetIndex;
         
         /// <summary>
         /// Raised when user requests a fan mode change.
@@ -38,7 +42,8 @@ namespace OmenCore.Views
             InitializeComponent();
             
             _displayService = new DisplayService(App.Logging);
-            
+
+            RefreshDisplayTargets();
             // Update display info
             UpdateRefreshRateDisplay();
             
@@ -93,6 +98,20 @@ namespace OmenCore.Views
         }
 
         /// <summary>
+        /// Update the Curve button tooltip with the active preset name so users know
+        /// which saved fan curve will be applied when they click Curve.
+        /// </summary>
+        public void UpdateCurvePresetName(string? presetName)
+        {
+            _curvePresetName = presetName;
+            var tooltip = string.IsNullOrWhiteSpace(presetName)
+                ? "Apply saved fan curve"
+                : $"Curve: {presetName}";
+            FanCustomBtn.ToolTip = tooltip;
+            UpdatePerformanceModeTooltips();
+        }
+
+        /// <summary>
         /// Update the current performance mode display.
         /// </summary>
         public void UpdatePerformanceMode(string mode)
@@ -117,10 +136,14 @@ namespace OmenCore.Views
         public void UpdateLinkedMode(bool linked)
         {
             _isFanPerformanceLinked = linked;
-            LinkModeText.Text = linked ? "Fan/Perf: Linked" : "Fan/Perf: Decoupled";
+            UpdateLinkModeText();
             LinkModeText.Foreground = linked
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x00, 0xC8, 0xC8))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x9C, 0xA3, 0xAF));
+            LinkModeText.ToolTip = linked
+                ? "Linked mode is enabled. Performance changes may also rewrite fan policy."
+                : "Decoupled mode is enabled. Performance changes leave your current fan preset or curve untouched.";
+            UpdatePerformanceModeTooltips();
         }
 
         private void UpdateDisplay(object? sender, EventArgs e)
@@ -133,7 +156,29 @@ namespace OmenCore.Views
             CpuLoadText.Text = $"{_latestSample.CpuLoadPercent:0}%";
             GpuLoadText.Text = $"{_latestSample.GpuLoadPercent:0}%";
             HealthStatusText.Text = $"Monitoring: {_monitoringHealth}";
-            LinkModeText.Text = _isFanPerformanceLinked ? "Fan/Perf: Linked" : "Fan/Perf: Decoupled";
+            UpdateLinkModeText();
+        }
+
+        private void UpdateLinkModeText()
+        {
+            LinkModeText.Text = _isFanPerformanceLinked
+                ? "Fan/Perf: Linked"
+                : "Fan/Perf: Decoupled - fan stays";
+        }
+
+        private void UpdatePerformanceModeTooltips()
+        {
+            var preservedFanText = string.IsNullOrWhiteSpace(_curvePresetName)
+                ? "your current fan preset"
+                : $"the active curve preset '{_curvePresetName}'";
+
+            var tooltip = _isFanPerformanceLinked
+                ? "Apply this performance mode. Linked mode can also update fan policy."
+                : $"Apply this performance mode. Decoupled mode keeps {preservedFanText} active.";
+
+            PerfQuietBtn.ToolTip = tooltip;
+            PerfBalancedBtn.ToolTip = tooltip;
+            PerfPerformanceBtn.ToolTip = tooltip;
         }
 
         private void UpdateFanModeButtons()
@@ -194,8 +239,47 @@ namespace OmenCore.Views
 
         private void UpdateRefreshRateDisplay()
         {
-            int currentRate = _displayService.GetCurrentRefreshRate();
-            RefreshRateText.Text = currentRate > 0 ? $"{currentRate}Hz" : "N/A";
+            var target = GetActiveDisplayTarget();
+            int currentRate = _displayService.GetCurrentRefreshRate(target?.DeviceName);
+
+            if (target == null)
+            {
+                RefreshRateText.Text = currentRate > 0 ? $"{currentRate}Hz" : "N/A";
+                RefreshRateBtn.ToolTip = "Toggle refresh rate";
+                return;
+            }
+
+            var targetLabel = $"D{_activeDisplayTargetIndex + 1}";
+            RefreshRateText.Text = currentRate > 0 ? $"{targetLabel} {currentRate}Hz" : $"{targetLabel} N/A";
+            RefreshRateBtn.ToolTip = $"Toggle refresh rate for {target.FriendlyName}. Click again to move to the next display.";
+        }
+
+        private void RefreshDisplayTargets()
+        {
+            _displayTargets = _displayService.GetDisplayTargets();
+            if (_displayTargets.Count == 0)
+            {
+                _activeDisplayTargetIndex = 0;
+                return;
+            }
+
+            var primaryIndex = _displayTargets.FindIndex(target => target.IsPrimary);
+            _activeDisplayTargetIndex = primaryIndex >= 0 ? primaryIndex : 0;
+        }
+
+        private DisplayTarget? GetActiveDisplayTarget()
+        {
+            if (_displayTargets.Count == 0)
+            {
+                return null;
+            }
+
+            if (_activeDisplayTargetIndex < 0 || _activeDisplayTargetIndex >= _displayTargets.Count)
+            {
+                _activeDisplayTargetIndex = 0;
+            }
+
+            return _displayTargets[_activeDisplayTargetIndex];
         }
 
         private void FanMode_Click(object sender, RoutedEventArgs e)
@@ -225,10 +309,16 @@ namespace OmenCore.Views
 
         private void RefreshRate_Click(object sender, RoutedEventArgs e)
         {
-            int newRate = _displayService.ToggleRefreshRate();
+            var target = GetActiveDisplayTarget();
+            int newRate = _displayService.ToggleRefreshRate(target?.DeviceName);
             if (newRate > 0)
             {
-                RefreshRateText.Text = $"{newRate}Hz";
+                if (_displayTargets.Count > 1)
+                {
+                    _activeDisplayTargetIndex = (_activeDisplayTargetIndex + 1) % _displayTargets.Count;
+                }
+
+                UpdateRefreshRateDisplay();
             }
         }
 

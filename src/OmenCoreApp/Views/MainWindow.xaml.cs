@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,6 +13,7 @@ namespace OmenCore.Views
     public partial class MainWindow : Window
     {
         private bool _forceClose = false; // Flag for actual shutdown vs hide-to-tray
+        private readonly HashSet<TabItem> _initializedTabs = new();
         
         public MainWindow(MainViewModel viewModel)
         {
@@ -20,6 +22,7 @@ namespace OmenCore.Views
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
             StateChanged += MainWindow_StateChanged;
+            TabControlMain.SelectionChanged += TabControlMain_SelectionChanged;
             SystemParameters.StaticPropertyChanged += SystemParametersOnStaticPropertyChanged;
             
             // Apply Stay on Top setting from config
@@ -98,6 +101,7 @@ namespace OmenCore.Views
                     if (this.TabControlMain != null)
                     {
                         this.TabControlMain.SelectedIndex = 0;
+                        EnsureTabContentCreated(this.GeneralTabItem);
                         this.TabControlMain.UpdateLayout();
                         App.Logging.Info("[MainWindow] Set TabControl.SelectedIndex = 0 (General tab) and called UpdateLayout()");
                     }
@@ -127,8 +131,152 @@ namespace OmenCore.Views
             }
             
             // Actual close - clean up
+            TabControlMain.SelectionChanged -= TabControlMain_SelectionChanged;
             SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
             (DataContext as MainViewModel)?.Dispose();
+        }
+
+        private void TabControlMain_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!ReferenceEquals(sender, TabControlMain))
+            {
+                return;
+            }
+
+            if (TabControlMain.SelectedItem is TabItem tab)
+            {
+                EnsureTabContentCreated(tab);
+            }
+        }
+
+        private void EnsureTabContentCreated(TabItem? tab)
+        {
+            if (tab == null || _initializedTabs.Contains(tab))
+            {
+                return;
+            }
+
+            if (ReferenceEquals(tab, MonitoringTabItem))
+            {
+                if (tab.Content != null)
+                {
+                    _initializedTabs.Add(tab);
+                }
+
+                return;
+            }
+
+            try
+            {
+                var content = CreateTabContent(tab);
+                if (content != null)
+                {
+                    tab.Content = content;
+                }
+
+                _initializedTabs.Add(tab);
+            }
+            catch (Exception ex)
+            {
+                App.Logging.Error($"[MainWindow] Failed to create tab '{tab.Header}': {ex}");
+                tab.Content = BuildTabLoadFailureContent(tab.Header?.ToString() ?? "Unknown", ex);
+                _initializedTabs.Add(tab);
+            }
+        }
+
+        private FrameworkElement? CreateTabContent(TabItem tab)
+        {
+            if (DataContext is not MainViewModel viewModel)
+            {
+                return null;
+            }
+
+            if (ReferenceEquals(tab, GeneralTabItem))
+            {
+                return new GeneralView { DataContext = viewModel.General };
+            }
+
+            if (ReferenceEquals(tab, OmenTabItem))
+            {
+                return new AdvancedView { DataContext = viewModel };
+            }
+
+            if (ReferenceEquals(tab, TuningTabItem))
+            {
+                return new TuningView { DataContext = viewModel };
+            }
+
+            if (ReferenceEquals(tab, DiagnosticsTabItem))
+            {
+                return new DiagnosticsView { DataContext = viewModel };
+            }
+
+            if (ReferenceEquals(tab, OptimizerTabItem))
+            {
+                return new SystemOptimizerView { DataContext = viewModel.SystemOptimizer };
+            }
+
+            if (ReferenceEquals(tab, MemoryTabItem))
+            {
+                return new MemoryOptimizerView { DataContext = viewModel.MemoryOptimizer };
+            }
+
+            if (ReferenceEquals(tab, BloatwareTabItem))
+            {
+                return new BloatwareManagerView { DataContext = viewModel.BloatwareManager };
+            }
+
+            if (ReferenceEquals(tab, RgbTabItem))
+            {
+                return new LightingView { DataContext = viewModel.Lighting };
+            }
+
+            if (ReferenceEquals(tab, SettingsTabItem))
+            {
+                return new SettingsView { DataContext = viewModel.Settings };
+            }
+
+            if (ReferenceEquals(tab, GamesTabItem))
+            {
+                return new GameLibraryView { DataContext = viewModel.GameLibrary };
+            }
+
+            return null;
+        }
+
+        private static FrameworkElement BuildTabLoadFailureContent(string tabName, Exception ex)
+        {
+            var message = ex.GetBaseException().Message;
+
+            return new Border
+            {
+                Margin = new Thickness(24),
+                Padding = new Thickness(16),
+                CornerRadius = new CornerRadius(10),
+                Background = new SolidColorBrush(Color.FromRgb(0x1D, 0x1F, 0x27)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xE6, 0x00, 0x2E)),
+                BorderThickness = new Thickness(1),
+                Child = new StackPanel
+                {
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = $"Failed to load the {tabName} tab.",
+                            FontSize = 15,
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = Brushes.White,
+                            Margin = new Thickness(0, 0, 0, 8)
+                        },
+                        new TextBlock
+                        {
+                            Text = message,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = new SolidColorBrush(Color.FromRgb(0xD0, 0xD4, 0xDC))
+                        }
+                    }
+                }
+            };
         }
 
         private void SystemParametersOnStaticPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -148,6 +296,7 @@ namespace OmenCore.Views
             }
             // Note: We no longer hide to tray on minimize - that was causing Issue #20
             // Minimize now properly minimizes to taskbar
+            (DataContext as MainViewModel)?.Lighting?.NotifyHostMinimized(WindowState == WindowState.Minimized);
         }
 
         private void UpdateMaximizeButtonGlyph()

@@ -17,6 +17,7 @@ namespace OmenCore.Services.SystemOptimizer
         private readonly LoggingService _logger;
         private readonly RegistryBackupService _backupService;
         private readonly Func<bool> _isAdminChecker;
+        private readonly OptimizationVerifier _verifier;
         
         // Individual optimizers
         private readonly PowerOptimizer _powerOptimizer;
@@ -34,7 +35,7 @@ namespace OmenCore.Services.SystemOptimizer
             _logger = logger;
             _isAdminChecker = isAdminChecker ?? IsRunningAsAdmin;
             _backupService = new RegistryBackupService(logger);
-            _ = new OptimizationVerifier(logger);
+            _verifier = new OptimizationVerifier(logger);
             
             // Initialize all optimizers
             _powerOptimizer = new PowerOptimizer(logger, _backupService);
@@ -43,6 +44,56 @@ namespace OmenCore.Services.SystemOptimizer
             _inputOptimizer = new InputOptimizer(logger, _backupService);
             _visualOptimizer = new VisualEffectsOptimizer(logger, _backupService);
             _storageOptimizer = new StorageOptimizer(logger, _backupService);
+        }
+
+        /// <summary>
+        /// Performs an authoritative verification pass against the live system state.
+        /// </summary>
+        public async Task<OptimizationState> VerifyStateAsync()
+        {
+            try
+            {
+                StatusChanged?.Invoke("Verifying optimization state...");
+                var state = await _verifier.VerifyAllAsync();
+                state.LastChecked = DateTime.Now;
+                StatusChanged?.Invoke($"Verification complete: {state.ActiveCount}/{state.TotalCount} optimizations active");
+                return state;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Failed to verify optimization state: {ex.Message}");
+                return new OptimizationState { LastChecked = DateTime.Now };
+            }
+        }
+
+        /// <summary>
+        /// Re-applies a small set of low-risk service toggles if they drift away from the expected state.
+        /// </summary>
+        public async Task<List<OptimizationResult>> CorrectMinorDriftAsync(OptimizationState expectedState, OptimizationState actualState)
+        {
+            var results = new List<OptimizationResult>();
+
+            if (!_isAdminChecker())
+            {
+                return results;
+            }
+
+            if (expectedState.Services.SysMainDisabled && !actualState.Services.SysMainDisabled)
+            {
+                results.Add(await ApplyOptimizationAsync("service_sysmain"));
+            }
+
+            if (expectedState.Services.SearchIndexingDisabled && !actualState.Services.SearchIndexingDisabled)
+            {
+                results.Add(await ApplyOptimizationAsync("service_search"));
+            }
+
+            if (expectedState.Services.DiagTrackDisabled && !actualState.Services.DiagTrackDisabled)
+            {
+                results.Add(await ApplyOptimizationAsync("service_diagtrack"));
+            }
+
+            return results;
         }
 
         /// <summary>
@@ -174,7 +225,7 @@ namespace OmenCore.Services.SystemOptimizer
         /// <summary>
         /// Reverts all optimizations to Windows defaults.
         /// </summary>
-        public async Task<List<OptimizationResult>> RevertAllAsync()
+        public async Task<List<OptimizationResult>> RevertAllAsync(System.Threading.CancellationToken cancellationToken = default)
         {
             var results = new List<OptimizationResult>();
 
@@ -194,20 +245,116 @@ namespace OmenCore.Services.SystemOptimizer
             }
             
             _logger.Info("Reverting all optimizations to defaults...");
-            StatusChanged?.Invoke("Reverting optimizations...");
-            
-            results.AddRange(await _powerOptimizer.RevertAllAsync());
-            results.AddRange(await _serviceOptimizer.RevertAllAsync());
-            results.AddRange(await _networkOptimizer.RevertAllAsync());
-            results.AddRange(await _inputOptimizer.RevertAllAsync());
-            results.AddRange(await _visualOptimizer.RevertAllAsync());
-            results.AddRange(await _storageOptimizer.RevertAllAsync());
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Stage 1-2 are kept sequential because they are the heaviest and can affect
+            // downstream command execution behavior.
+            results.AddRange(await RunRevertStageSafeAsync(
+                stageId: "revert_power",
+                stageName: "power settings",
+                stageIndex: 1,
+                stageTotal: 6,
+                revertAction: () => _powerOptimizer.RevertAllAsync(),
+                cancellationToken: cancellationToken));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            results.AddRange(await RunRevertStageSafeAsync(
+                stageId: "revert_services",
+                stageName: "services",
+                stageIndex: 2,
+                stageTotal: 6,
+                revertAction: () => _serviceOptimizer.RevertAllAsync(),
+                cancellationToken: cancellationToken));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Stage 3-6 are compatible and can safely run in parallel.
+            StatusChanged?.Invoke("[3-6/6] Reverting network, input, visual, and storage settings in parallel...");
+
+            var parallelStages = new[]
+            {
+                RunRevertStageSafeAsync(
+                    stageId: "revert_network",
+                    stageName: "network tweaks",
+                    stageIndex: 3,
+                    stageTotal: 6,
+                    revertAction: () => _networkOptimizer.RevertAllAsync(),
+                    cancellationToken: cancellationToken),
+                RunRevertStageSafeAsync(
+                    stageId: "revert_input",
+                    stageName: "input settings",
+                    stageIndex: 4,
+                    stageTotal: 6,
+                    revertAction: () => _inputOptimizer.RevertAllAsync(),
+                    cancellationToken: cancellationToken),
+                RunRevertStageSafeAsync(
+                    stageId: "revert_visual",
+                    stageName: "visual effects",
+                    stageIndex: 5,
+                    stageTotal: 6,
+                    revertAction: () => _visualOptimizer.RevertAllAsync(),
+                    cancellationToken: cancellationToken),
+                RunRevertStageSafeAsync(
+                    stageId: "revert_storage",
+                    stageName: "storage settings",
+                    stageIndex: 6,
+                    stageTotal: 6,
+                    revertAction: () => _storageOptimizer.RevertAllAsync(),
+                    cancellationToken: cancellationToken)
+            };
+
+            var parallelResults = await Task.WhenAll(parallelStages);
+            foreach (var stageResults in parallelResults)
+            {
+                results.AddRange(stageResults);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             
             var successCount = results.FindAll(r => r.Success).Count;
             _logger.Info($"Revert complete: {successCount}/{results.Count} settings restored");
             StatusChanged?.Invoke($"Revert complete: {successCount}/{results.Count} settings restored");
             
             return results;
+        }
+
+        private async Task<List<OptimizationResult>> RunRevertStageSafeAsync(
+            string stageId,
+            string stageName,
+            int stageIndex,
+            int stageTotal,
+            Func<Task<List<OptimizationResult>>> revertAction,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                StatusChanged?.Invoke($"[{stageIndex}/{stageTotal}] Reverting {stageName}...");
+                var stageResults = await revertAction();
+                cancellationToken.ThrowIfCancellationRequested();
+                return stageResults;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Failed to revert {stageName}: {ex.Message}", ex);
+                StatusChanged?.Invoke($"[{stageIndex}/{stageTotal}] Failed to revert {stageName}: {ex.Message}");
+                return new List<OptimizationResult>
+                {
+                    new OptimizationResult
+                    {
+                        Id = stageId,
+                        Name = $"Revert {stageName}",
+                        Success = false,
+                        ErrorMessage = ex.Message
+                    }
+                };
+            }
         }
 
         /// <summary>

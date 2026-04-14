@@ -187,28 +187,29 @@
             <!-- Fan Mode Section -->
             <TextBlock Grid.Row="2" Text="Fan Mode" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
             <UniformGrid Grid.Row="3" Rows="1" Margin="0,0,0,12">
-                <Button x:Name="FanAutoBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Auto">
-                    <StackPanel>
-                        <TextBlock Text="⚡" FontSize="18" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Auto" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="FanMaxBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Max">
-                    <StackPanel>
-                        <TextBlock Text="🔥" FontSize="18" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Max" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Button>
                 <Button x:Name="FanQuietBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Quiet">
                     <StackPanel>
                         <TextBlock Text="🤫" FontSize="18" HorizontalAlignment="Center"/>
                         <TextBlock Text="Quiet" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="FanCustomBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Custom">
+                <Button x:Name="FanAutoBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Auto">
+                    <StackPanel>
+                        <TextBlock Text="⚡" FontSize="18" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Auto" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="FanCustomBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Custom"
+                        ToolTipService.ShowOnDisabled="True">
                     <StackPanel>
                         <TextBlock Text="🎛️" FontSize="18" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Custom" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        <TextBlock Text="Curve" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="FanMaxBtn" Style="{StaticResource ModeButtonStyle}" Click="FanMode_Click" Tag="Max">
+                    <StackPanel>
+                        <TextBlock Text="🔥" FontSize="18" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Max" FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Button>
             </UniformGrid>

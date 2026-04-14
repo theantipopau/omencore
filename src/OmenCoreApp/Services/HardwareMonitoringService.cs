@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using OmenCore.Hardware;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -22,6 +23,8 @@ namespace OmenCore.Services
         private readonly int _history;
         private TimeSpan _baseInterval;
         private TimeSpan _lowOverheadInterval;
+        private readonly TimeSpan _activeCadenceInterval = TimeSpan.FromSeconds(1);
+        private readonly TimeSpan _idleCadenceInterval = TimeSpan.FromSeconds(5);
         private CancellationTokenSource? _cts;
         private volatile bool _lowOverheadMode; // volatile for thread-safe reads from monitor loop
         private MonitoringSample? _lastSample;
@@ -31,6 +34,7 @@ namespace OmenCore.Services
         private volatile bool _isPaused; // For S0 Modern Standby support (volatile for thread-safety)
         private readonly object _pauseLock = new();
         private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
+        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
 
         // New fields for dashboard functionality
         private readonly List<HardwareMetrics> _metricsHistory = new();
@@ -62,6 +66,7 @@ namespace OmenCore.Services
         private int _consecutiveZeroTempReadings = 0;        // Track sustained zero-temp data quality failures
         private const int ZeroTempDegradedThreshold = 10;    // Mark degraded after 10 consecutive 0°C readings (~10s)
         private bool _gpuFreezeWarningLogged = false;        // v2.8.6: Only log GPU freeze warning once per freeze event
+        private TimeSpan? _lastAppliedCadence;
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
@@ -71,10 +76,11 @@ namespace OmenCore.Services
         /// </summary>
         public event EventHandler<MonitoringHealthStatus>? HealthStatusChanged;
 
-        public HardwareMonitoringService(IHardwareMonitorBridge bridge, LoggingService logging, MonitoringPreferences preferences)
+        public HardwareMonitoringService(IHardwareMonitorBridge bridge, LoggingService logging, MonitoringPreferences preferences, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
         {
             _bridge = bridge;
             _logging = logging;
+            _resumeDiagnostics = resumeDiagnostics;
             _history = Math.Max(30, preferences.HistoryCount);
             _baseInterval = TimeSpan.FromMilliseconds(Math.Clamp(preferences.PollIntervalMs, 500, 5000));
             // Low overhead mode: poll every 5 seconds instead of 1 second
@@ -133,6 +139,43 @@ namespace OmenCore.Services
             _logging.Info($"Hardware monitoring base poll interval updated: {_baseInterval.TotalMilliseconds}ms (low-overhead: {_lowOverheadInterval.TotalMilliseconds}ms)");
         }
 
+        private TimeSpan GetEffectiveCadenceInterval()
+        {
+            if (_lowOverheadMode)
+            {
+                return _idleCadenceInterval;
+            }
+
+            var window = Application.Current?.MainWindow;
+            if (window == null)
+            {
+                return _activeCadenceInterval;
+            }
+
+            var isUiActive = window.IsVisible && window.WindowState != WindowState.Minimized;
+            return isUiActive ? _activeCadenceInterval : _idleCadenceInterval;
+        }
+
+        private void UpdateCadenceTelemetry(TimeSpan cadence)
+        {
+            if (_lastAppliedCadence.HasValue && _lastAppliedCadence.Value == cadence)
+            {
+                return;
+            }
+
+            _lastAppliedCadence = cadence;
+            BackgroundTimerRegistry.Unregister("HardwareMonitorLoop");
+            BackgroundTimerRegistry.Register(
+                "HardwareMonitorLoop",
+                "HardwareMonitoringService",
+                cadence == _activeCadenceInterval
+                    ? "Unified monitoring pipeline (active cadence)"
+                    : "Unified monitoring pipeline (idle cadence)",
+                (int)cadence.TotalMilliseconds,
+                BackgroundTimerTier.Critical);
+            _logging.Info($"[MonitorLoop] Cadence switched to {(int)cadence.TotalMilliseconds}ms");
+        }
+
         /// <summary>
         /// Set MSR access for enhanced throttling detection on LibreHardwareMonitor.
         /// </summary>
@@ -168,6 +211,7 @@ namespace OmenCore.Services
                 {
                     _isPaused = true;
                     _logging.Info("Hardware monitoring paused (system entering standby)");
+                    _resumeDiagnostics?.RecordStep("monitoring", "Monitoring paused for suspend");
                 }
             }
         }
@@ -187,6 +231,7 @@ namespace OmenCore.Services
                     _consecutiveZeroTempReadings = 0;
                     _lastSuccessfulSampleTime = DateTime.Now;
                     _logging.Info("Hardware monitoring resumed (system waking from standby)");
+                    _resumeDiagnostics?.RecordStep("monitoring", "Monitoring resumed after standby");
 
                     // Some sensor stacks return stale data after sleep until reinitialized.
                     // Trigger a best-effort bridge refresh so users do not need to restart OmenCore.
@@ -202,6 +247,8 @@ namespace OmenCore.Services
             Stop();
             _cts = new CancellationTokenSource();
             _ = Task.Run(() => MonitorLoopAsync(_cts.Token));
+            var initialCadence = GetEffectiveCadenceInterval();
+            UpdateCadenceTelemetry(initialCadence);
         }
 
         public void Stop()
@@ -210,6 +257,7 @@ namespace OmenCore.Services
             {
                 return;
             }
+            BackgroundTimerRegistry.Unregister("HardwareMonitorLoop");
             _cts.Cancel();
             _cts.Dispose();
             _cts = null;
@@ -342,9 +390,26 @@ namespace OmenCore.Services
                     // The history must be populated even when UI updates are skipped
                     UpdateDashboardMetrics(sample);
 
-                    // Always publish a sample heartbeat so downstream services (watchdog,
-                    // thermal automation) can track liveness even when UI deltas are small.
-                    SampleUpdated?.Invoke(this, sample);
+                    // Fan-out delivery model: one shared sample source broadcasts to all
+                    // subscribers, so consumers do not perform duplicate sensor reads.
+                    // Invoke each subscriber in isolation so one faulty consumer cannot
+                    // break the monitoring loop or watchdog heartbeat updates.
+                    var sampleHandlers = SampleUpdated;
+                    if (sampleHandlers != null)
+                    {
+                        foreach (EventHandler<MonitoringSample> handler in sampleHandlers.GetInvocationList())
+                        {
+                            try
+                            {
+                                handler(this, sample);
+                            }
+                            catch (Exception subscriberEx)
+                            {
+                                var targetName = handler.Target?.GetType().Name ?? "static";
+                                _logging.Error($"[MonitorLoop] SampleUpdated subscriber failed ({targetName}.{handler.Method.Name})", subscriberEx);
+                            }
+                        }
+                    }
                     
                     // Change detection optimization - only update UI if values changed significantly
                     var shouldUpdate = ShouldUpdateUI(sample);
@@ -406,8 +471,9 @@ namespace OmenCore.Services
 
                 try
                 {
-                    // Adaptive polling - significantly slower in low overhead mode
-                    var delay = _lowOverheadMode ? _lowOverheadInterval : _baseInterval;
+                    // Unified cadence policy for all monitoring consumers.
+                    var delay = GetEffectiveCadenceInterval();
+                    UpdateCadenceTelemetry(delay);
                     await Task.Delay(delay, token);
                 }
                 catch (OperationCanceledException)
@@ -995,16 +1061,19 @@ namespace OmenCore.Services
                 if (restarted)
                 {
                     _logging.Info("[MonitorLoop] Bridge refresh successful after system resume");
+                    _resumeDiagnostics?.RecordStep("monitoring", "Bridge refresh succeeded after resume");
                     UpdateHealthStatus(MonitoringHealthStatus.Healthy);
                 }
                 else
                 {
                     _logging.Warn("[MonitorLoop] Bridge refresh after resume did not report success; monitoring will continue and self-recover");
+                    _resumeDiagnostics?.RecordStep("monitoring", "Bridge refresh after resume reported incomplete recovery");
                 }
             }
             catch (Exception ex)
             {
                 _logging.Warn($"[MonitorLoop] Bridge refresh after resume failed: {ex.Message}");
+                _resumeDiagnostics?.RecordStep("monitoring", $"Bridge refresh after resume failed: {ex.Message}");
             }
             finally
             {

@@ -18,6 +18,30 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable { get; private set; } = false;
         public bool IsConnected => IsAvailable && (_service?.Devices.Count ?? 0) > 0;
         public int DeviceCount => _service?.Devices.Count ?? 0;
+        private bool _initFailed;
+        private string _initError = string.Empty;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (_initFailed) return RgbProviderConnectionStatus.Error;
+                if (!IsAvailable) return RgbProviderConnectionStatus.Disabled;
+                if (DeviceCount == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (_initFailed) return _initError;
+                if (!IsAvailable) return "iCUE not detected";
+                if (DeviceCount == 0) return "iCUE running, no devices found";
+                return $"{DeviceCount} device(s) connected";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects { get; } = new[]
         {
@@ -48,6 +72,8 @@ namespace OmenCore.Services.Rgb
             {
                 _logging.Warn($"CorsairRgbProvider init failed: {ex.Message}");
                 IsAvailable = false;
+                _initFailed = true;
+                _initError = ex.Message;
             }
         }
 

@@ -66,7 +66,8 @@ namespace OmenCore.Services
             catch (Exception ex)
             {
                 _logging.Error("Failed to apply undervolt", ex);
-                UpdateStatus(UndervoltStatus.CreateUnknown("Undervolt apply failed"));
+                UpdateStatus(UndervoltStatus.CreateError(ex.Message));
+                throw;
             }
         }
 
@@ -81,7 +82,8 @@ namespace OmenCore.Services
             catch (Exception ex)
             {
                 _logging.Error("Failed to reset undervolt", ex);
-                UpdateStatus(UndervoltStatus.CreateUnknown("Reset failed"));
+                UpdateStatus(UndervoltStatus.CreateError(ex.Message));
+                throw;
             }
         }
 

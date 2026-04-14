@@ -19,24 +19,34 @@
     
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <LinearGradientBrush x:Key="OsdBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#F0141416" Offset="0"/>
+            <GradientStop Color="#F01A1A20" Offset="1"/>
+        </LinearGradientBrush>
+        <Style x:Key="MetricRowGridStyle" TargetType="Grid">
+            <Setter Property="Margin" Value="{Binding MetricRowMargin}"/>
+        </Style>
     </Window.Resources>
     
     <!-- Improved contrast and sizing for high-DPI (1440p+) displays -->
         <Border x:Name="RootBorder"
-            Background="#DD0A0A14" 
-            BorderBrush="#88FF005C" 
-            BorderThickness="2" 
-            CornerRadius="8"
-            Padding="16,12"
-            Margin="6"
+            Background="{StaticResource OsdBackgroundBrush}"
+            BorderBrush="#BBFF005C"
+            BorderThickness="1.5"
+            CornerRadius="10"
+            Padding="{Binding OverlayPadding}"
+            Margin="8"
             MinWidth="220"
             MaxWidth="900"
             MaxHeight="900">
         <Border.Effect>
-            <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="10" ShadowDepth="2"/>
+            <DropShadowEffect Color="Black" Opacity="0.65" BlurRadius="24" ShadowDepth="4" Direction="270"/>
         </Border.Effect>
         
         <StackPanel x:Name="MainPanel" Grid.IsSharedSizeScope="True">
+            <StackPanel.LayoutTransform>
+                <ScaleTransform ScaleX="{Binding OverlayScale}" ScaleY="{Binding OverlayScale}"/>
+            </StackPanel.LayoutTransform>
             <!-- Clock Time -->
             <TextBlock Text="{Binding ClockTime}" 
                        FontSize="13" 
@@ -45,11 +55,11 @@
                        HorizontalAlignment="Center"
                        Margin="0,0,0,6"
                        FontFamily="Segoe UI"
-                       Visibility="{Binding ShowTime, Converter={StaticResource BoolToVisibility}}"/>
+                       Visibility="{Binding ShowClockTimeRow, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- Current Mode Header (if enabled) -->
             <Border Background="#33FF005C" CornerRadius="4" Padding="8,4" Margin="0,0,0,8"
-                    Visibility="{Binding ShowCurrentMode, Converter={StaticResource BoolToVisibility}}">
+                    Visibility="{Binding ShowCurrentModeRow, Converter={StaticResource BoolToVisibility}}">
                 <TextBlock Text="{Binding CurrentMode}" 
                            FontSize="12" 
                            FontWeight="Bold" 
@@ -58,7 +68,7 @@
             </Border>
             
             <!-- Performance Mode -->
-            <Grid Margin="0,3" Visibility="{Binding ShowPerformanceMode, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowPerformanceModeRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -69,7 +79,7 @@
             </Grid>
             
             <!-- Fan Mode -->
-            <Grid Margin="0,3" Visibility="{Binding ShowFanMode, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowFanModeRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -80,11 +90,11 @@
             </Grid>
             
             <!-- Separator -->
-            <Border Height="1" Background="#44FFFFFF" Margin="0,6" 
+                <Border Height="1" Background="#44FFFFFF" Margin="{Binding SeparatorMargin}" 
                     Visibility="{Binding ShowSeparator1, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- CPU Stats -->
-            <Grid Margin="0,3" Visibility="{Binding ShowCpuTemp, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowCpuTempRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -103,7 +113,7 @@
             </Grid>
             
             <!-- CPU Clock Speed -->
-            <Grid Margin="0,3" Visibility="{Binding ShowCpuClock, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowCpuClockRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -114,7 +124,7 @@
             </Grid>
             
             <!-- GPU Stats -->
-            <Grid Margin="0,3" Visibility="{Binding ShowGpuTemp, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowGpuTempRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -133,7 +143,7 @@
             </Grid>
             
             <!-- GPU Clock Speed -->
-            <Grid Margin="0,3" Visibility="{Binding ShowGpuClock, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowGpuClockRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -144,7 +154,7 @@
             </Grid>
             
             <!-- GPU Hotspot Temperature -->
-            <Grid Margin="0,3" Visibility="{Binding ShowGpuHotspot, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowGpuHotspotRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -155,7 +165,7 @@
             </Grid>
             
             <!-- VRAM Usage -->
-            <Grid Margin="0,3" Visibility="{Binding ShowVramUsage, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowVramUsageRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -166,7 +176,7 @@
             </Grid>
             
             <!-- Package Power (CPU+GPU) -->
-            <Grid Margin="0,3" Visibility="{Binding ShowPackagePower, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowPackagePowerRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -177,7 +187,7 @@
             </Grid>
             
             <!-- Fan Speed -->
-            <Grid Margin="0,3" Visibility="{Binding ShowFanSpeed, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowFanSpeedRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -188,7 +198,7 @@
             </Grid>
             
             <!-- RAM Usage -->
-            <Grid Margin="0,3" Visibility="{Binding ShowRamUsage, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowRamUsageRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -199,7 +209,7 @@
             </Grid>
             
             <!-- Battery -->
-            <Grid Margin="0,3" Visibility="{Binding ShowBattery, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowBatteryRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -210,11 +220,11 @@
             </Grid>
             
             <!-- Separator -->
-            <Border Height="1" Background="#44FFFFFF" Margin="0,6" 
+                <Border Height="1" Background="#44FFFFFF" Margin="{Binding SeparatorMargin}" 
                     Visibility="{Binding ShowSeparator2, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- FPS/GPU Activity (prominent display) -->
-            <Grid Margin="0,4" Visibility="{Binding ShowFps, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowFpsRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -225,7 +235,7 @@
             </Grid>
             
             <!-- Frametime -->
-            <Grid Margin="0,3" Visibility="{Binding ShowFrametime, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowFrametimeRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -236,7 +246,7 @@
             </Grid>
             
             <!-- Network Latency -->
-            <Grid Margin="0,3" Visibility="{Binding ShowNetworkLatency, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowNetworkLatencyRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -247,7 +257,7 @@
             </Grid>
             
             <!-- Network Upload Speed -->
-            <Grid Margin="0,3" Visibility="{Binding ShowNetworkUpload, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowNetworkUploadRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
@@ -261,7 +271,7 @@
             </Grid>
             
             <!-- Network Download Speed -->
-            <Grid Margin="0,3" Visibility="{Binding ShowNetworkDownload, Converter={StaticResource BoolToVisibility}}">
+            <Grid Style="{StaticResource MetricRowGridStyle}" Visibility="{Binding ShowNetworkDownloadRow, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="MetricLabel"/>
                     <ColumnDefinition Width="12"/>
