@@ -196,6 +196,15 @@ namespace OmenCore.ViewModels
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        public void Cleanup()
+        {
+            _calibrationService.CalibrationStepCompleted -= OnCalibrationStepCompleted;
+            _calibrationService.CalibrationCompleted -= OnCalibrationCompleted;
+            _calibrationService.CalibrationError -= OnCalibrationError;
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
     }
 
     /// <summary>

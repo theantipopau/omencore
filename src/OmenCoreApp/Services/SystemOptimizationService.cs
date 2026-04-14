@@ -56,7 +56,8 @@ namespace OmenCore.Services
             {
                 FileName = "powershell.exe",
                 Arguments = $"-Command \"Start-Process cmd -ArgumentList '/c {cmd}' -Verb runAs\"",
-                UseShellExecute = false
+                UseShellExecute = false,
+                CreateNoWindow = true
             });
             _logging.Info(enable ? "Scheduler tweaks enabled" : "Scheduler tweaks restored");
         }

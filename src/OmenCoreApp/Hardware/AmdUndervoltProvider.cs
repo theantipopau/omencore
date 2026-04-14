@@ -46,8 +46,9 @@ namespace OmenCore.Hardware
             // Convert Intel-style mV offset to Curve Optimizer units
             // CO is roughly 3-5mV per count, we'll approximate
             int coCounts = (int)(offset.CoreMv / 4.0);
-            
-            return ApplyRyzenOffsetAsync(coCounts, 0, token);
+            int igpuCoCounts = SupportsIgpu ? (int)(offset.CacheMv / 4.0) : 0;
+
+            return ApplyRyzenOffsetAsync(coCounts, igpuCoCounts, token);
         }
 
         /// <summary>

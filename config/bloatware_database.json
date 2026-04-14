@@ -1,0 +1,156 @@
+{
+  "signatures": [
+    {
+      "pattern": "AD2F1837.OMENCommandCenter",
+      "match": "Contains",
+      "friendlyName": "OMEN Gaming Hub",
+      "category": "OemSoftware",
+      "description": "HP OMEN Gaming Hub - redundant if you use OmenCore instead.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OMEN Gaming Hub",
+      "match": "Contains",
+      "friendlyName": "OMEN Gaming Hub",
+      "category": "OemSoftware",
+      "description": "HP OMEN Gaming Hub - redundant if you use OmenCore instead.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OMEN Hub",
+      "match": "Contains",
+      "friendlyName": "OMEN Hub",
+      "category": "OemSoftware",
+      "description": "Legacy HP OMEN control software that overlaps with OmenCore.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "AD2F1837.OMENCommandCenterDev",
+      "match": "Contains",
+      "friendlyName": "OMEN Gaming Hub (Dev)",
+      "category": "OemSoftware",
+      "description": "Developer build of OMEN Gaming Hub - redundant if you use OmenCore.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "AD2F1837.OMENCommandCenter_Beta",
+      "match": "Contains",
+      "friendlyName": "OMEN Gaming Hub (Beta)",
+      "category": "OemSoftware",
+      "description": "Beta build of OMEN Gaming Hub - redundant if you use OmenCore.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OMENLightStudio",
+      "match": "Contains",
+      "friendlyName": "OMEN Light Studio",
+      "category": "OemSoftware",
+      "description": "Optional OMEN lighting companion app. Safe to remove if OmenCore handles your lighting.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OMEN Light Studio",
+      "match": "Contains",
+      "friendlyName": "OMEN Light Studio",
+      "category": "OemSoftware",
+      "description": "Optional OMEN lighting companion app. Safe to remove if OmenCore handles your lighting.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OmenInstallMonitor",
+      "match": "Contains",
+      "friendlyName": "OMEN Install Monitor",
+      "category": "OemSoftware",
+      "description": "OMEN companion background monitor component. Optional on systems managed by OmenCore.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "OmenCap",
+      "match": "Contains",
+      "friendlyName": "OMEN Capability Service",
+      "category": "OemSoftware",
+      "description": "OMEN capability service component associated with OMEN companion tooling.",
+      "risk": "Medium"
+    },
+    {
+      "pattern": "HPSystemOptimizer",
+      "match": "Contains",
+      "friendlyName": "HP System Optimizer",
+      "category": "OemSoftware",
+      "description": "HP optimization companion service that overlaps with OmenCore optimization workflows.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "HP Analytics",
+      "match": "Contains",
+      "friendlyName": "HP Analytics",
+      "category": "Telemetry",
+      "description": "HP analytics and usage telemetry component.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "HP Touchpoint",
+      "match": "Contains",
+      "friendlyName": "HP Touchpoint Analytics",
+      "category": "Telemetry",
+      "description": "HP telemetry and diagnostics collector.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "HP Wolf Security",
+      "match": "Contains",
+      "friendlyName": "HP Wolf Security",
+      "category": "OemSoftware",
+      "description": "HP endpoint security suite - optional if you already use another security stack.",
+      "risk": "Medium"
+    },
+    {
+      "pattern": "HP Sure Click",
+      "match": "Contains",
+      "friendlyName": "HP Sure Click",
+      "category": "OemSoftware",
+      "description": "HP browser isolation/security layer that some users may not need.",
+      "risk": "Medium"
+    },
+    {
+      "pattern": "Microsoft.GetHelp",
+      "match": "Contains",
+      "friendlyName": "Get Help",
+      "category": "WindowsApps",
+      "description": "Windows help app and support shortcuts.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "Microsoft.Print3D",
+      "match": "Contains",
+      "friendlyName": "Print 3D",
+      "category": "WindowsApps",
+      "description": "3D printing companion app that is rarely needed on gaming laptops.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "Microsoft.OneConnect",
+      "match": "Contains",
+      "friendlyName": "OneConnect",
+      "category": "WindowsApps",
+      "description": "Legacy Microsoft mobile companion app.",
+      "risk": "Low"
+    },
+    {
+      "pattern": "Microsoft.GamingApp",
+      "match": "Contains",
+      "friendlyName": "Xbox Gaming App",
+      "category": "WindowsApps",
+      "description": "Xbox app - optional unless you use Xbox services or Game Pass.",
+      "risk": "Medium"
+    },
+    {
+      "pattern": "GamingApp",
+      "match": "Contains",
+      "friendlyName": "Xbox Gaming App",
+      "category": "WindowsApps",
+      "description": "Xbox app - optional unless you use Xbox services or Game Pass.",
+      "risk": "Medium"
+    }
+  ]
+}

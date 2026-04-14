@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 
@@ -25,6 +26,8 @@ namespace OmenCore.Services
         private Thread? _writerThread;
         private bool _disposed;
         private readonly bool _fileLoggingEnabled; // allow disabling file logging via env var (useful for tests)
+        private string _defaultDeviceModel = "unknown";
+        private string _defaultOsVersion = Environment.OSVersion.VersionString;
         
         /// <summary>
         /// Current log verbosity level. Can be changed at runtime.
@@ -102,8 +105,63 @@ namespace OmenCore.Services
         
         /// <summary>
         /// Log an error message, optionally with exception details.
+        /// Exception logs automatically include structured telemetry context.
         /// </summary>
-        public void Error(string message, Exception? ex = null) => Enqueue("ERROR", ex is null ? message : $"{message}: {ex}", LogLevel.Error);
+        public void Error(
+            string message,
+            Exception? ex = null,
+            [CallerMemberName] string operation = "unknown",
+            [CallerFilePath] string filePath = "")
+        {
+            if (ex is null)
+            {
+                Enqueue("ERROR", message, LogLevel.Error);
+                return;
+            }
+
+            var component = GetComponentFromFilePath(filePath);
+            var payload = BuildContextPayload(component, operation, message, ex, null, null);
+            Enqueue("ERROR", payload, LogLevel.Error);
+        }
+
+        /// <summary>
+        /// Sets default telemetry context appended by context-aware logging methods.
+        /// </summary>
+        public void SetDefaultTelemetryContext(string? deviceModel, string? osVersion = null)
+        {
+            _defaultDeviceModel = string.IsNullOrWhiteSpace(deviceModel) ? "unknown" : deviceModel.Trim();
+            _defaultOsVersion = string.IsNullOrWhiteSpace(osVersion) ? Environment.OSVersion.VersionString : osVersion.Trim();
+        }
+
+        /// <summary>
+        /// Log a warning with structured telemetry context.
+        /// </summary>
+        public void WarnWithContext(
+            string component,
+            string operation,
+            string message,
+            Exception? ex = null,
+            string? deviceModel = null,
+            string? osVersion = null)
+        {
+            var payload = BuildContextPayload(component, operation, message, ex, deviceModel, osVersion);
+            Enqueue("WARN", payload, LogLevel.Warning);
+        }
+
+        /// <summary>
+        /// Log an error with structured telemetry context.
+        /// </summary>
+        public void ErrorWithContext(
+            string component,
+            string operation,
+            string message,
+            Exception? ex = null,
+            string? deviceModel = null,
+            string? osVersion = null)
+        {
+            var payload = BuildContextPayload(component, operation, message, ex, deviceModel, osVersion);
+            Enqueue("ERROR", payload, LogLevel.Error);
+        }
 
         /// <summary>
         /// Log a debug/verbose message. Only shown when Level is Debug.
@@ -121,6 +179,40 @@ namespace OmenCore.Services
             var line = $"{DateTime.Now:O} [{level}] {message}";
             _queue.Add(line);
             Dispatch(line);
+        }
+
+        private string BuildContextPayload(
+            string component,
+            string operation,
+            string message,
+            Exception? ex,
+            string? deviceModel,
+            string? osVersion)
+        {
+            var safeComponent = string.IsNullOrWhiteSpace(component) ? "unknown" : component.Trim();
+            var safeOperation = string.IsNullOrWhiteSpace(operation) ? "unknown" : operation.Trim();
+            var safeDeviceModel = string.IsNullOrWhiteSpace(deviceModel) ? _defaultDeviceModel : deviceModel.Trim();
+            var safeOsVersion = string.IsNullOrWhiteSpace(osVersion) ? _defaultOsVersion : osVersion.Trim();
+            var exceptionPart = ex is null ? string.Empty : $" | exception={ex.GetType().Name}: {ex.Message}";
+            return $"telemetry component={safeComponent} operation={safeOperation} model={safeDeviceModel} os={safeOsVersion} | {message}{exceptionPart}";
+        }
+
+        private static string GetComponentFromFilePath(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return "unknown";
+            }
+
+            try
+            {
+                var fileName = Path.GetFileNameWithoutExtension(filePath);
+                return string.IsNullOrWhiteSpace(fileName) ? "unknown" : fileName;
+            }
+            catch
+            {
+                return "unknown";
+            }
         }
 
         private void Dispatch(string entry) => LogEmitted?.Invoke(entry);

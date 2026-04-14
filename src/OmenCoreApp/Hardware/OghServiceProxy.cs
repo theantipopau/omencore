@@ -32,6 +32,10 @@ namespace OmenCore.Hardware
         private readonly Dictionary<string, DateTime> _lastErrorLog = new();
         private readonly Dictionary<string, int> _errorCounts = new();
         private const int ErrorLogIntervalSeconds = 60; // Only log same error every 60 seconds
+        // Commands that have failed enough times to be considered permanently unsupported on this model.
+        // Once silenced, only Debug-level output is produced so logs stay clean over long sessions.
+        private readonly HashSet<string> _permanentlySilencedCommands = new(StringComparer.OrdinalIgnoreCase);
+        private const int ErrorCountBeforeSilence = 5; // silence after 5 throttled occurrences (≥5 min of failures)
         
         // Known OGH service names
         private static readonly string[] OghServiceNames = new[]
@@ -323,9 +327,18 @@ namespace OmenCore.Hardware
         
         /// <summary>
         /// Log errors with throttling to prevent log spam during repeated failures.
+        /// After ErrorCountBeforeSilence throttled occurrences the command is permanently
+        /// silenced to Debug — it is clearly unsupported on this model.
         /// </summary>
         private void LogThrottledWarning(string command, string message)
         {
+            // Already proven unsupported — emit Debug only so long sessions stay clean.
+            if (_permanentlySilencedCommands.Contains(command))
+            {
+                _logging?.Debug($"[OGH] {message} (suppressed — unsupported on this model)");
+                return;
+            }
+
             var key = $"{command}:{message}";
             var now = DateTime.Now;
             
@@ -348,6 +361,20 @@ namespace OmenCore.Hardware
                 }
                 _lastErrorLog[key] = now;
                 _errorCounts[key] = 0;
+
+                // Track throttled occurrences; silence permanently after threshold.
+                if (!_permanentlySilencedCommands.Contains(command))
+                {
+                    var throttledKey = $"__throttle_count:{command}";
+                    if (!_errorCounts.ContainsKey(throttledKey))
+                        _errorCounts[throttledKey] = 0;
+                    _errorCounts[throttledKey]++;
+                    if (_errorCounts[throttledKey] >= ErrorCountBeforeSilence)
+                    {
+                        _permanentlySilencedCommands.Add(command);
+                        _logging?.Info($"[OGH] Command '{command}' has failed {ErrorCountBeforeSilence} times — silencing WARN to Debug for this session (unsupported on this model)");
+                    }
+                }
             }
         }
 
@@ -412,7 +439,7 @@ namespace OmenCore.Hardware
                     var returnCode = (uint)outParams["ReturnCode"];
                     if (returnCode == 0)
                     {
-                        _logging?.Info($"OGH command '{command}' executed successfully");
+                        _logging?.Debug($"OGH command '{command}' executed successfully");
                         return true;
                     }
                     else

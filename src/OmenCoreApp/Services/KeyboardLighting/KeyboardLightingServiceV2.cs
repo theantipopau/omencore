@@ -204,7 +204,7 @@ namespace OmenCore.Services.KeyboardLighting
                 
                 if (!string.IsNullOrEmpty(productId))
                 {
-                    var config = KeyboardModelDatabase.GetConfig(productId);
+                        var config = KeyboardModelDatabase.GetConfig(productId, systemInfo?.Model);
                     if (config != null)
                     {
                         _logging.Info($"[KeyboardLightingV2] Matched by product ID: {productId} → {config.ModelName}");
@@ -294,7 +294,7 @@ namespace OmenCore.Services.KeyboardLighting
                         
                     case KeyboardMethod.HidPerKey:
                         // TODO: Implement HID per-key backend
-                        _logging.Info("[KeyboardLightingV2] HID per-key backend not yet implemented");
+                        _logging.Warn("[KeyboardLightingV2] HID per-key backend not yet implemented. Built-in per-key keyboards will currently fall back to limited zone/light-bar control when available.");
                         return null;
                         
                     case KeyboardMethod.BacklightOnly:

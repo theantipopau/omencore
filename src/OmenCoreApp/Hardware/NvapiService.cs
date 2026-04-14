@@ -1281,6 +1281,23 @@ namespace OmenCore.Hardware
                 }
                 catch { }
 
+                // GPU Temperature — ThermalSensors read is safe alongside Afterburner
+                // and is always current regardless of Afterburner's shared-memory poll rate.
+                try
+                {
+                    foreach (var sensor in _primaryGpu.ThermalInformation.ThermalSensors)
+                    {
+                        if (sensor.Target == NvAPIWrapper.Native.GPU.ThermalSettingsTarget.GPU)
+                        {
+                            sample.GpuTemperatureC = sensor.CurrentTemperature;
+                            break;
+                        }
+                        if (sample.GpuTemperatureC == 0)
+                            sample.GpuTemperatureC = sensor.CurrentTemperature;
+                    }
+                }
+                catch { }
+
                 // VRAM — lightweight call, reads driver-cached memory counters
                 try
                 {

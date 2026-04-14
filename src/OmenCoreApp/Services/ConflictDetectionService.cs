@@ -42,9 +42,9 @@ namespace OmenCore.Services
             {
                 Name = "RivaTuner Statistics Server",
                 ProcessNames = new[] { "RTSS", "RTSSHooksLoader", "RTSSHooksLoader64" },
-                Impact = ConflictSeverity.Low,
-                Description = "Generally compatible, but may cause minor FPS measurement conflicts",
-                Mitigation = "Usually no action needed"
+                Impact = ConflictSeverity.High,
+                Description = "RTSS injects D3D/DXGI hooks that corrupt WPF's render channel and can cause repeated UCEERR_RENDERTHREADFAILURE crashes",
+                Mitigation = "Close RTSS, or enable Software Rendering in OmenCore Settings → General to avoid render-thread conflicts"
             },
             ["OmenHub"] = new ConflictInfo
             {
@@ -220,6 +220,8 @@ namespace OmenCore.Services
         /// <summary>
         /// Read GPU data from MSI Afterburner shared memory.
         /// </summary>
+        private bool _mahmDumpLogged = false;
+
         public AfterburnerGpuData? ReadAfterburnerGpuData()
         {
             if (!IsMsiAfterburnerSharedMemoryAvailable || _mabAccessor == null)
@@ -240,11 +242,17 @@ namespace OmenCore.Services
                 
                 if (header.dwSignature != 0x4D41484D || header.dwNumEntries == 0)
                     return null;
-                
+
+                if (!_mahmDumpLogged)
+                    _logging.Info($"[MAHM] Header: version={header.dwVersion}, headerSize={header.dwHeaderSize}, numEntries={header.dwNumEntries}, entrySize={header.dwEntrySize}");
+
                 var result = new AfterburnerGpuData();
                 
-                // Read entries
-                int entryOffset = Marshal.SizeOf<MAHMSharedMemoryHeader>();
+                // Use dwHeaderSize from the file as the authoritative entry array offset,
+                // fallback to our struct size if it's clearly wrong (0 or absurdly large).
+                int entryOffset = (header.dwHeaderSize >= 16 && header.dwHeaderSize <= 512)
+                    ? (int)header.dwHeaderSize
+                    : Marshal.SizeOf<MAHMSharedMemoryHeader>();
                 int entrySize = (int)header.dwEntrySize;
                 
                 // MAHM v2 entry layout:
@@ -256,39 +264,70 @@ namespace OmenCore.Services
                 //   dwSrcFlags                = offset 1044 (4 bytes)
                 //   data (float)              = offset 1048 (4 bytes)
                 // For older v1 format (no localized names): data at offset 528
-                int dataOffset = entrySize >= 1072 ? 1048 : 528;
+                // MAHM v2 (entrySize ~1072): 4 * MAX_PATH(260) + 8 = offset 1048
+                // MAHM v3 (entrySize ~1324): 5 * MAX_PATH(260) + 8 = offset 1308
+                int dataOffset = entrySize >= 1300 ? 1308 :
+                                 entrySize >= 1072 ? 1048 : 528;
                 
                 for (int i = 0; i < header.dwNumEntries && i < 256; i++)
                 {
                     int offset = entryOffset + (i * entrySize);
                     
-                    // Read source name (first 260 chars)
+                    // Read source name + units (first 2 x MAX_PATH chars)
                     byte[] nameBytes = new byte[260];
                     _mabAccessor.ReadArray(offset, nameBytes, 0, 260);
                     string name = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+
+                    byte[] unitBytes = new byte[260];
+                    _mabAccessor.ReadArray(offset + 260, unitBytes, 0, 260);
+                    string units = System.Text.Encoding.ASCII.GetString(unitBytes).TrimEnd('\0');
                     
                     // Read data value at the correct offset within the entry
                     float value = _mabAccessor.ReadSingle(offset + dataOffset);
                     
-                    // Map known values from MAHM shared memory entries
-                    if (name.Contains("GPU temperature", StringComparison.OrdinalIgnoreCase))
+                    // Strip any GPU index prefix wherever it appears in the name so both
+                    // "GPU temperature" and "GPU1 temperature" / "    0   GPU1 temperature"
+                    // all normalise to "GPU temperature" for matching.
+                    var normName = System.Text.RegularExpressions.Regex
+                        .Replace(name, @"(?i)GPU\d+\s+", "GPU ").Trim();
+
+                    // First-time diagnostic: dump a subset of MAHM entries so logs stay readable.
+                    if (!_mahmDumpLogged && i < 24)
+                        _logging.Info($"[MAHM] Entry[{i}] raw='{name}' norm='{normName}' val={value:F1} (entrySize={entrySize}, dataOffset={dataOffset})");
+
+                    if (normName.Contains("GPU temperature", StringComparison.OrdinalIgnoreCase) && !normName.Contains("limit", StringComparison.OrdinalIgnoreCase))
                         result.GpuTemperature = value;
-                    else if (name.Contains("GPU usage", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("GPU usage", StringComparison.OrdinalIgnoreCase) &&
+                             !normName.Contains("FB usage", StringComparison.OrdinalIgnoreCase) &&
+                             !normName.Contains("VID usage", StringComparison.OrdinalIgnoreCase) &&
+                             !normName.Contains("BUS usage", StringComparison.OrdinalIgnoreCase))
                         result.GpuLoadPercent = value;
-                    else if (name.Contains("Memory usage", StringComparison.OrdinalIgnoreCase) && !name.Contains("GPU", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("GPU memory usage", StringComparison.OrdinalIgnoreCase))
                         result.VramUsedPercent = value;
-                    else if (name.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && name.Contains("RPM", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("Memory usage", StringComparison.OrdinalIgnoreCase) && !normName.Contains("GPU", StringComparison.OrdinalIgnoreCase))
+                        result.VramUsedPercent = value; // fallback for older format
+                    else if (normName.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && normName.Contains("RPM", StringComparison.OrdinalIgnoreCase))
                         result.FanSpeedRpm = (int)value;
-                    else if (name.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && name.Contains("%", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("GPU fan", StringComparison.OrdinalIgnoreCase) && normName.Contains("%", StringComparison.OrdinalIgnoreCase))
                         result.FanSpeedPercent = value;
-                    else if (name.Contains("GPU power", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("GPU power", StringComparison.OrdinalIgnoreCase) && !normName.Contains("limit", StringComparison.OrdinalIgnoreCase))
+                    {
                         result.GpuPower = value;
-                    else if (name.Contains("GPU clock", StringComparison.OrdinalIgnoreCase) || name.Contains("Core clock", StringComparison.OrdinalIgnoreCase))
+                        result.GpuPowerUnit = units;
+                    }
+                    else if (normName.Contains("GPU core clock", StringComparison.OrdinalIgnoreCase) || normName.Contains("Core clock", StringComparison.OrdinalIgnoreCase))
                         result.CoreClockMhz = value;
-                    else if (name.Contains("Memory clock", StringComparison.OrdinalIgnoreCase))
+                    else if (normName.Contains("Memory clock", StringComparison.OrdinalIgnoreCase))
                         result.MemoryClockMhz = value;
                 }
-                
+
+                if (!_mahmDumpLogged)
+                {
+                    string powerUnit = string.IsNullOrWhiteSpace(result.GpuPowerUnit) ? "(unit unknown)" : result.GpuPowerUnit;
+                    _logging.Info($"[MAHM] First-read result: GpuTemp={result.GpuTemperature:F1}°C, Load={result.GpuLoadPercent:F0}%, Clock={result.CoreClockMhz:F0}MHz, Power={result.GpuPower:F1} {powerUnit}");
+                    _mahmDumpLogged = true;
+                }
+
                 result.Timestamp = DateTime.Now;
                 return result;
             }
@@ -422,6 +461,7 @@ namespace OmenCore.Services
         public int FanSpeedRpm { get; set; }
         public float FanSpeedPercent { get; set; }
         public float GpuPower { get; set; }
+        public string GpuPowerUnit { get; set; } = string.Empty;
         public float CoreClockMhz { get; set; }
         public float MemoryClockMhz { get; set; }
         public int GpuId { get; set; }

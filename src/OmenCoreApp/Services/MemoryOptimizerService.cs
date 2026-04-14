@@ -2,14 +2,25 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
+    public enum MemoryAutoCleanProfile
+    {
+        Aggressive,
+        Balanced,
+        Conservative,
+        OffPeakOnly,
+        Manual
+    }
+
     /// <summary>
     /// Safe memory optimizer using Windows Native API (NtSetSystemInformation).
     /// Cleans working sets, standby lists, modified page lists, file cache, and more.
@@ -23,10 +34,21 @@ namespace OmenCore.Services
         private Timer? _intervalCleanTimer;
         private bool _autoCleanEnabled;
         private int _autoCleanThresholdPercent = 80;
+        private int _autoCleanCheckSeconds = 30;
+        private MemoryAutoCleanProfile _autoCleanProfile = MemoryAutoCleanProfile.Balanced;
         private bool _intervalCleanEnabled;
         private int _intervalCleanMinutes = 10;
         private readonly object _cleanLock = new();
         private bool _isCleaning;
+        private readonly HashSet<string> _excludedProcessNames = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "svchost",
+            "dwm",
+            "explorer",
+            "MsMpEng",
+            "OmenCommandCenterBackground",
+            "OmenCap"
+        };
 
         public event Action<string>? StatusChanged;
         public event Action<MemoryCleanResult>? CleanCompleted;
@@ -54,6 +76,16 @@ namespace OmenCore.Services
             NativeMethods.GetPerformanceInfo(out perfInfo, perfInfo.cb);
 
             var pageSize = (long)perfInfo.PageSize;
+            var standbyReserveBytes = TryReadMemoryCounterBytes("Standby Cache Reserve Bytes");
+            var standbyNormalBytes = TryReadMemoryCounterBytes("Standby Cache Normal Priority Bytes");
+            var standbyCoreBytes = TryReadMemoryCounterBytes("Standby Cache Core Bytes");
+            var modifiedPageBytes = TryReadMemoryCounterBytes("Modified Page List Bytes");
+            var compressedPageCount = TryReadMemoryCounterValue("Compressed Page Count");
+            long? compressedMemoryMB = null;
+            if (compressedPageCount.HasValue)
+            {
+                compressedMemoryMB = (long)Math.Round((compressedPageCount.Value * Environment.SystemPageSize) / 1048576d);
+            }
 
             return new MemoryInfo
             {
@@ -73,6 +105,10 @@ namespace OmenCore.Services
                 CommitTotalMB = (long)perfInfo.CommitTotal * pageSize / 1048576,
                 CommitLimitMB = (long)perfInfo.CommitLimit * pageSize / 1048576,
                 CommitPeakMB = (long)perfInfo.CommitPeak * pageSize / 1048576,
+
+                StandbyListMB = (standbyReserveBytes + standbyNormalBytes + standbyCoreBytes) / 1048576,
+                ModifiedPageListMB = modifiedPageBytes / 1048576,
+                CompressedMemoryMB = compressedMemoryMB,
 
                 ProcessCount = (int)perfInfo.ProcessCount,
                 ThreadCount = (int)perfInfo.ThreadCount,
@@ -98,7 +134,9 @@ namespace OmenCore.Services
                         {
                             return new ProcessMemoryInfo
                             {
+                                ProcessId = p.Id,
                                 ProcessName = p.ProcessName,
+                                ExecutablePath = TryGetExecutablePath(p),
                                 WorkingSetMB = p.WorkingSet64 / 1048576,
                                 PrivateMemoryMB = p.PrivateMemorySize64 / 1048576,
                                 MemoryPercent = (p.WorkingSet64 / 1024.0 / 1024.0 / totalMB) * 100.0
@@ -123,6 +161,36 @@ namespace OmenCore.Services
                 _logger.Warn($"Failed to get top memory hogs: {ex.Message}");
                 return Array.Empty<ProcessMemoryInfo>();
             }
+        }
+
+        private static string? TryGetExecutablePath(Process process)
+        {
+            try
+            {
+                return process.MainModule?.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private double? TryReadMemoryCounterValue(string counterName)
+        {
+            try
+            {
+                using var counter = new PerformanceCounter("Memory", counterName, readOnly: true);
+                return counter.NextValue();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private long TryReadMemoryCounterBytes(string counterName)
+        {
+            return (long)Math.Max(0, Math.Round(TryReadMemoryCounterValue(counterName) ?? 0));
         }
 
         /// <summary>
@@ -346,6 +414,11 @@ namespace OmenCore.Services
         {
             try
             {
+                if (_excludedProcessNames.Count > 0)
+                {
+                    return EmptyWorkingSetsWithExclusions();
+                }
+
                 int command = (int)NativeMethods.SYSTEM_MEMORY_LIST_COMMAND.MemoryEmptyWorkingSets;
                 int status = NativeMethods.NtSetSystemInformation(
                     NativeMethods.SYSTEM_INFORMATION_CLASS.SystemMemoryListInformation,
@@ -359,6 +432,53 @@ namespace OmenCore.Services
                 _logger.Error($"EmptyWorkingSets failed: {ex.Message}");
                 return false;
             }
+        }
+
+        private bool EmptyWorkingSetsWithExclusions()
+        {
+            var trimmed = 0;
+            var failed = 0;
+            var skipped = 0;
+
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    var processName = process.ProcessName?.Trim();
+                    if (string.IsNullOrWhiteSpace(processName))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    if (_excludedProcessNames.Contains(processName) ||
+                        string.Equals(processName, Process.GetCurrentProcess().ProcessName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    if (NativeMethods.EmptyWorkingSet(process.Handle))
+                    {
+                        trimmed++;
+                    }
+                    else
+                    {
+                        failed++;
+                    }
+                }
+                catch
+                {
+                    failed++;
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+
+            _logger.Info($"Working set trim with exclusions complete: trimmed={trimmed}, skipped={skipped}, failed={failed}");
+            return trimmed > 0 && failed < Math.Max(10, trimmed);
         }
 
         /// <summary>
@@ -528,17 +648,53 @@ namespace OmenCore.Services
 
             if (enabled)
             {
+                BackgroundTimerRegistry.Unregister("MemoryAutoClean");
                 _autoCleanTimer?.Dispose();
-                // Check every 30 seconds
-                _autoCleanTimer = new Timer(AutoCleanCallback, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-                _logger.Info($"Auto-clean enabled at {_autoCleanThresholdPercent}% threshold");
+                var interval = TimeSpan.FromSeconds(_autoCleanCheckSeconds);
+                _autoCleanTimer = new Timer(AutoCleanCallback, null, interval, interval);
+                BackgroundTimerRegistry.Register(
+                    "MemoryAutoClean",
+                    "MemoryOptimizerService",
+                    "Checks memory usage and triggers auto-clean when threshold exceeded",
+                    (int)TimeSpan.FromSeconds(_autoCleanCheckSeconds).TotalMilliseconds,
+                    BackgroundTimerTier.Optional);
+                _logger.Info($"Auto-clean enabled at {_autoCleanThresholdPercent}% threshold (check every {_autoCleanCheckSeconds}s)");
             }
             else
             {
+                BackgroundTimerRegistry.Unregister("MemoryAutoClean");
                 _autoCleanTimer?.Dispose();
                 _autoCleanTimer = null;
                 _logger.Info("Auto-clean disabled");
             }
+        }
+
+        public void SetAutoCleanProfile(MemoryAutoCleanProfile profile)
+        {
+            _autoCleanProfile = profile;
+
+            var (checkSeconds, thresholdPercent) = profile switch
+            {
+                MemoryAutoCleanProfile.Aggressive => (10, 75),
+                MemoryAutoCleanProfile.Balanced => (30, 80),
+                MemoryAutoCleanProfile.Conservative => (60, 85),
+                MemoryAutoCleanProfile.OffPeakOnly => (300, 90),
+                _ => (_autoCleanCheckSeconds, _autoCleanThresholdPercent)
+            };
+
+            _autoCleanCheckSeconds = Math.Clamp(checkSeconds, 10, 600);
+
+            if (profile != MemoryAutoCleanProfile.Manual)
+            {
+                _autoCleanThresholdPercent = Math.Clamp(thresholdPercent, 50, 95);
+            }
+
+            if (_autoCleanEnabled)
+            {
+                SetAutoClean(true, _autoCleanThresholdPercent);
+            }
+
+            _logger.Info($"Auto-clean profile set: {profile} (threshold={_autoCleanThresholdPercent}%, check every {_autoCleanCheckSeconds}s)");
         }
 
         /// <summary>
@@ -551,13 +707,21 @@ namespace OmenCore.Services
 
             if (enabled)
             {
+                BackgroundTimerRegistry.Unregister("MemoryIntervalClean");
                 _intervalCleanTimer?.Dispose();
                 var interval = TimeSpan.FromMinutes(_intervalCleanMinutes);
                 _intervalCleanTimer = new Timer(IntervalCleanCallback, null, interval, interval);
+                BackgroundTimerRegistry.Register(
+                    "MemoryIntervalClean",
+                    "MemoryOptimizerService",
+                    "Periodically cleans memory on a fixed schedule",
+                    (int)TimeSpan.FromMinutes(_intervalCleanMinutes).TotalMilliseconds,
+                    BackgroundTimerTier.Optional);
                 _logger.Info($"Interval clean enabled every {_intervalCleanMinutes} minute(s)");
             }
             else
             {
+                BackgroundTimerRegistry.Unregister("MemoryIntervalClean");
                 _intervalCleanTimer?.Dispose();
                 _intervalCleanTimer = null;
                 _logger.Info("Interval clean disabled");
@@ -616,14 +780,154 @@ namespace OmenCore.Services
 
         public bool AutoCleanEnabled => _autoCleanEnabled;
         public int AutoCleanThreshold => _autoCleanThresholdPercent;
+        public int AutoCleanCheckSeconds => _autoCleanCheckSeconds;
+        public MemoryAutoCleanProfile AutoCleanProfile => _autoCleanProfile;
+        public IReadOnlyCollection<string> ExcludedProcessNames => _excludedProcessNames;
         public bool IntervalCleanEnabled => _intervalCleanEnabled;
         public int IntervalCleanMinutes => _intervalCleanMinutes;
         public bool IsCleaning => _isCleaning;
 
+        public bool? GetMemoryCompressionEnabled()
+        {
+            try
+            {
+                using var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = "-NoProfile -Command \"$m=Get-MMAgent -ErrorAction Stop; if ($m.MemoryCompression) { 'True' } else { 'False' }\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                if (process == null)
+                {
+                    return null;
+                }
+
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+
+                if (string.Equals(output, "True", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (string.Equals(output, "False", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to query memory compression state: {ex.Message}");
+                return null;
+            }
+        }
+
+        public bool SetMemoryCompressionEnabled(bool enabled)
+        {
+            try
+            {
+                var command = enabled ? "Enable-MMAgent -MemoryCompression" : "Disable-MMAgent -MemoryCompression";
+                using var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -Command \"{command} -ErrorAction Stop\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+
+                if (process == null)
+                {
+                    return false;
+                }
+
+                process.WaitForExit();
+                if (process.ExitCode != 0)
+                {
+                    var err = process.StandardError.ReadToEnd();
+                    _logger.Warn($"Failed to set memory compression ({enabled}): {err}");
+                    return false;
+                }
+
+                _logger.Info($"Memory compression {(enabled ? "enabled" : "disabled")}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to set memory compression: {ex.Message}");
+                return false;
+            }
+        }
+
+        public void SetExcludedProcessNames(IEnumerable<string>? processNames)
+        {
+            _excludedProcessNames.Clear();
+            if (processNames == null)
+            {
+                return;
+            }
+
+            foreach (var name in processNames)
+            {
+                var normalized = NormalizeProcessName(name);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    _excludedProcessNames.Add(normalized);
+                }
+            }
+        }
+
+        public bool AddExcludedProcessName(string processName)
+        {
+            var normalized = NormalizeProcessName(processName);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return false;
+            }
+
+            return _excludedProcessNames.Add(normalized);
+        }
+
+        public bool RemoveExcludedProcessName(string processName)
+        {
+            var normalized = NormalizeProcessName(processName);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return false;
+            }
+
+            return _excludedProcessNames.Remove(normalized);
+        }
+
+        private static string NormalizeProcessName(string? processName)
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+            {
+                return string.Empty;
+            }
+
+            var normalized = processName.Trim();
+            if (normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized[..^4];
+            }
+
+            return normalized;
+        }
+
         public void Dispose()
         {
+            BackgroundTimerRegistry.Unregister("MemoryAutoClean");
             _autoCleanTimer?.Dispose();
             _autoCleanTimer = null;
+            BackgroundTimerRegistry.Unregister("MemoryIntervalClean");
             _intervalCleanTimer?.Dispose();
             _intervalCleanTimer = null;
         }
@@ -669,6 +973,10 @@ namespace OmenCore.Services
             public static extern bool GetPerformanceInfo(
                 out PERFORMANCE_INFORMATION pPerformanceInformation,
                 uint cb);
+
+            [DllImport("psapi.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool EmptyWorkingSet(IntPtr hProcess);
 
             // ===== advapi32.dll (Privilege management) =====
 
@@ -817,6 +1125,10 @@ namespace OmenCore.Services
         public long CommitLimitMB { get; set; }
         public long CommitPeakMB { get; set; }
 
+        public long StandbyListMB { get; set; }
+        public long ModifiedPageListMB { get; set; }
+        public long? CompressedMemoryMB { get; set; }
+
         public int ProcessCount { get; set; }
         public int ThreadCount { get; set; }
         public int HandleCount { get; set; }
@@ -842,10 +1154,15 @@ namespace OmenCore.Services
     /// </summary>
     public class ProcessMemoryInfo
     {
+        public int ProcessId { get; set; }
         public string ProcessName { get; set; } = "";
+        public string? ExecutablePath { get; set; }
         public long WorkingSetMB { get; set; }
         public long PrivateMemoryMB { get; set; }
         public double MemoryPercent { get; set; }
+        public string WorkingSetText => $"{WorkingSetMB} MB";
+        public string PrivateMemoryText => $"{PrivateMemoryMB} MB";
+        public string MemoryPercentText => $"{MemoryPercent:F1}%";
     }
 
     /// <summary>

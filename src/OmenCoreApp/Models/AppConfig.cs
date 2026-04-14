@@ -74,10 +74,39 @@ namespace OmenCore.Models
         public bool StayOnTop { get; set; } = false;
         
         /// <summary>
+        /// When true, switching performance modes also writes a fan policy (legacy coupled behavior).
+        /// Default is false — performance mode switches only affect power plan and EC power limits;
+        /// fan presets or curves set by the user are preserved across profile switches.
+        /// </summary>
+        public bool LinkFanToPerformanceMode { get; set; } = false;
+
+        /// <summary>
+        /// Hides the one-time explainer that fan control is decoupled from performance mode by default.
+        /// </summary>
+        public bool DismissedFanPerformanceDecouplingNotice { get; set; } = false;
+
+        /// <summary>
+        /// Enables beginner-friendly Lite Mode by hiding advanced tabs and controls.
+        /// </summary>
+        public bool LiteModeEnabled { get; set; } = false;
+
+        /// <summary>
         /// Last applied performance mode name (e.g., "Balanced", "Performance", "Quiet")
         /// Restored on startup.
         /// </summary>
         public string? LastPerformanceModeName { get; set; }
+
+        /// <summary>
+        /// Safety switch: when false (default), OmenCore will NOT auto-reapply BIOS/EC power settings at startup.
+        /// Users can still apply Performance mode / GPU Power Boost manually from UI.
+        /// </summary>
+        public bool EnableStartupHardwareRestore { get; set; } = false;
+
+        /// <summary>
+        /// Extra guardrail for models with reported firmware instability.
+        /// When false (default), startup hardware restore remains blocked on OMEN 16 / Victus class devices.
+        /// </summary>
+        public bool AllowStartupRestoreOnOmen16OrVictus { get; set; } = false;
         
         /// <summary>
         /// Last applied GPU Power Boost level ("Minimum", "Medium", "Maximum").
@@ -172,6 +201,14 @@ namespace OmenCore.Models
         
         /// <summary>Whether to block the key (true) or let it pass through (false)</summary>
         public bool OmenKeyIntercept { get; set; } = true;
+
+        /// <summary>
+        /// When true (default), VK_F24 and VK_OMEN_157 are only accepted as the OMEN key if their
+        /// scan code is also in the known OMEN scan code set. This prevents games or apps that
+        /// happen to send F24 (vkCode 0x87) from accidentally triggering OmenCore actions.
+        /// Set to false only if your hardware model's OMEN key is not recognised in strict mode.
+        /// </summary>
+        public bool StrictOmenKeyMode { get; set; } = true;
         
         /// <summary>Action to perform when OMEN key is pressed</summary>
         public string OmenKeyAction { get; set; } = "ToggleOmenCore";
@@ -238,6 +275,16 @@ namespace OmenCore.Models
         /// Persisted so it survives app restarts. Range: 50-95, default: 80.
         /// </summary>
         public int MemoryAutoCleanThreshold { get; set; } = 80;
+
+        /// <summary>
+        /// Memory optimizer auto-clean profile: Aggressive, Balanced, Conservative, OffPeakOnly, or Manual.
+        /// </summary>
+        public string MemoryAutoCleanProfile { get; set; } = "Balanced";
+
+        /// <summary>
+        /// Process names excluded from memory working-set trimming (without .exe).
+        /// </summary>
+        public List<string> MemoryExcludedProcesses { get; set; } = new();
         
         /// <summary>
         /// Hardware worker: whether orphan timeout is enabled (worker exits after parent dies with no reconnection).
@@ -255,7 +302,15 @@ namespace OmenCore.Models
         /// Useful for servers or when only fan/performance control is needed. Default: false.
         /// </summary>
         public bool HeadlessMode { get; set; } = false;
-        
+
+        /// <summary>
+        /// Force WPF into software rendering mode (RenderMode.SoftwareOnly).
+        /// Prevents UCEERR_RENDERTHREADFAILURE crashes caused by RTSS/MSI Afterburner D3D hooks.
+        /// OmenCore also enables this automatically when RTSS is detected at startup.
+        /// Default: false. Enable this if you see repeated render-thread crash dialogs.
+        /// </summary>
+        public bool UseSoftwareRendering { get; set; } = false;
+
         /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
         /// </summary>
@@ -399,6 +454,9 @@ namespace OmenCore.Models
         
         /// <summary>Position: TopLeft, TopCenter, TopRight, BottomLeft, BottomCenter, BottomRight</summary>
         public string Position { get; set; } = "TopRight";
+
+        /// <summary>Which monitor to target: Primary, ActiveWindow, or MouseCursor.</summary>
+        public string MonitorTarget { get; set; } = "ActiveWindow";
         
         /// <summary>Opacity 0.0-1.0 (lower = more transparent)</summary>
         public double Opacity { get; set; } = 0.6;
@@ -477,6 +535,21 @@ namespace OmenCore.Models
         
         /// <summary>Layout orientation: Vertical or Horizontal</summary>
         public string Layout { get; set; } = "Vertical";
+
+        /// <summary>Overlay density: Compact, Balanced, Comfortable</summary>
+        public string DensityMode { get; set; } = "Balanced";
+
+        /// <summary>Show thermal-focused metric group.</summary>
+        public bool ShowThermalsGroup { get; set; } = true;
+
+        /// <summary>Show performance-focused metric group.</summary>
+        public bool ShowPerformanceGroup { get; set; } = true;
+
+        /// <summary>Show network-focused metric group.</summary>
+        public bool ShowNetworkGroup { get; set; } = true;
+
+        /// <summary>Show system-focused metric group.</summary>
+        public bool ShowSystemGroup { get; set; } = true;
         
         /// <summary>Show network upload speed in Mbps</summary>
         public bool ShowNetworkUpload { get; set; } = false;
@@ -580,6 +653,9 @@ namespace OmenCore.Models
         
         /// <summary>Power limit percentage</summary>
         public int PowerLimitPercent { get; set; } = 100;
+
+        /// <summary>GPU voltage offset in mV</summary>
+        public int VoltageOffsetMv { get; set; } = 0;
         
         /// <summary>Optional description or notes</summary>
         public string? Description { get; set; }

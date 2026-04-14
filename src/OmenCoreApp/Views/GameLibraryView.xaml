@@ -104,6 +104,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Search Box -->
@@ -165,10 +166,22 @@
             <Button Grid.Column="2" 
                     Command="{Binding ScanLibraryCommand}"
                     Style="{StaticResource ActionButtonStyle}"
-                    ToolTip="Rescan all game platforms">
+                    ToolTip="Rescan all game platforms"
+                    Margin="0,0,8,0">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="🔄" Margin="0,0,6,0"/>
                     <TextBlock Text="Scan"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Add Manual Game Button -->
+            <Button Grid.Column="3"
+                    Command="{Binding AddGameCommand}"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    ToolTip="Manually add a game executable">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📌" Margin="0,0,6,0"/>
+                    <TextBlock Text="Add Game"/>
                 </StackPanel>
             </Button>
         </Grid>

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OmenCore.Avalonia.Services;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 
 namespace OmenCore.Avalonia.ViewModels;
@@ -36,7 +37,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string _fanMode = "Auto";
 
     [ObservableProperty]
-    private string _appVersion = "3.1.0";
+    private string _appVersion = "3.3.0";
 
     // Navigation state
     [ObservableProperty]
@@ -46,10 +47,52 @@ public partial class MainWindowViewModel : ObservableObject
     private bool _isFanControlActive;
 
     [ObservableProperty]
+    private bool _showFanControlNavigation = true;
+
+    [ObservableProperty]
+    private string _fanControlCapabilityReason = string.Empty;
+
+    [ObservableProperty]
     private bool _isSystemControlActive;
 
     [ObservableProperty]
     private bool _isSettingsActive;
+
+    // Renderer fallback banner — shown when GPU rendering failed and software mode was auto-selected
+    [ObservableProperty]
+    private bool _showRenderFallbackBanner;
+
+    [RelayCommand]
+    private void DismissRenderFallbackBanner() => ShowRenderFallbackBanner = false;
+
+    [RelayCommand]
+    private void PersistSoftwareRenderMode()
+    {
+        try
+        {
+            var configRoot = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var statePath = Path.Combine(configRoot, "OmenCore", "render-startup-state.json");
+            var dir = Path.GetDirectoryName(statePath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            var state = new
+            {
+                LastKnownGoodRenderMode = "software",
+                ConsecutiveRendererStartupFailures = 0,
+                LastFailureUtc = (DateTimeOffset?)null
+            };
+            var json = System.Text.Json.JsonSerializer.Serialize(state,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(statePath, json);
+        }
+        catch
+        {
+            // Best-effort only
+        }
+
+        ShowRenderFallbackBanner = false;
+    }
 
     public DashboardViewModel DashboardVm { get; }
     public FanControlViewModel FanControlVm { get; }
@@ -81,6 +124,11 @@ public partial class MainWindowViewModel : ObservableObject
         }
         
         Initialize();
+
+        // Show renderer fallback banner if we're running in software mode after a GPU render failure
+        ShowRenderFallbackBanner = OperatingSystem.IsLinux()
+            && string.Equals(Environment.GetEnvironmentVariable("OMENCORE_GUI_RENDER_RETRY"), "1",
+                             StringComparison.Ordinal);
     }
 
     private async void Initialize()
@@ -90,7 +138,15 @@ public partial class MainWindowViewModel : ObservableObject
             await _configService.LoadAsync();
             var capabilities = await _hardwareService.GetCapabilitiesAsync();
             ModelName = capabilities.ModelName;
-            StatusText = "Connected";
+            ShowFanControlNavigation = capabilities.SupportsFanControl;
+            FanControlCapabilityReason = capabilities.FanControlCapabilityReason;
+            StatusText = capabilities.FanControlCapabilityClass switch
+            {
+                "full-control" => "Connected",
+                "profile-only" => "Connected - profile-only fan support",
+                "telemetry-only" => "Connected - telemetry-only fan support",
+                _ => "Connected - control limited"
+            };
             IsConnected = true;
 
             // Get current modes

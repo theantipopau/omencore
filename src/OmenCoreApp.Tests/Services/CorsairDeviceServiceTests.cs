@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Moq;
+using OmenCore.Corsair;
+using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Services.Corsair;
 using Xunit;
@@ -88,6 +90,64 @@ namespace OmenCoreApp.Tests.Services
                 // Otherwise direct HID likely worked and devices (at least one) should be present
                 svc.Devices.Should().NotBeEmpty("direct HID available or fallback to iCUE allowed");
             }
+        }
+
+        [Fact]
+        public async Task ApplyPerformanceModePatternAsync_UsesWaveForKeyboardAndStaticForNonKeyboard()
+        {
+            // Arrange
+            var logging = new LoggingService();
+            var sdk = new Mock<ICorsairSdkProvider>(MockBehavior.Strict);
+
+            var keyboard = new CorsairDevice
+            {
+                DeviceId = "kbd-1",
+                Name = "K70",
+                DeviceType = CorsairDeviceType.Keyboard
+            };
+
+            var mouse = new CorsairDevice
+            {
+                DeviceId = "mouse-1",
+                Name = "M65",
+                DeviceType = CorsairDeviceType.Mouse
+            };
+
+            sdk.Setup(s => s.DiscoverDevicesAsync())
+                .ReturnsAsync(new[] { keyboard, mouse });
+
+            sdk.Setup(s => s.ApplyLightingAsync(
+                    keyboard,
+                    It.Is<CorsairLightingPreset>(p =>
+                        p.Effect == LightingEffectType.Wave
+                        && p.Name == "Performance Gradient"
+                        && p.PrimaryColor == "#FF0000"
+                        && p.SecondaryColor != "#FF0000")))
+                .Returns(Task.CompletedTask)
+                .Verifiable();
+
+            sdk.Setup(s => s.ApplyLightingAsync(
+                    mouse,
+                    It.Is<CorsairLightingPreset>(p =>
+                        p.Effect == LightingEffectType.Static
+                        && p.Name == "Performance Static"
+                        && p.PrimaryColor == "#FF0000")))
+                .Returns(Task.CompletedTask)
+                .Verifiable();
+
+            var service = new CorsairDeviceService(sdk.Object, logging);
+
+            var initField = typeof(CorsairDeviceService).GetField("_initialized", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new System.Exception("_initialized field not found");
+            initField.SetValue(service, true);
+
+            await service.DiscoverAsync();
+
+            // Act
+            await service.ApplyPerformanceModePatternAsync("Performance", "#FF0000");
+
+            // Assert
+            sdk.Verify();
         }
     }
 }

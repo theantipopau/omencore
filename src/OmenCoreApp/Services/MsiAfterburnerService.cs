@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -118,6 +119,12 @@ namespace OmenCore.Services
 
                     // Start monitoring timer
                     _monitoringTimer = new Timer(MonitorAfterburner, null, 1000, 2000); // Check every 2 seconds
+                    BackgroundTimerRegistry.Register(
+                        "MsiAfterburnerMonitor",
+                        "MsiAfterburnerService",
+                        "Reads GPU stats from MSI Afterburner shared memory",
+                        2000,
+                        BackgroundTimerTier.VisibleOnly);
 
                     return true;
                 }
@@ -372,6 +379,7 @@ namespace OmenCore.Services
         {
             lock (_lock)
             {
+                BackgroundTimerRegistry.Unregister("MsiAfterburnerMonitor");
                 _monitoringTimer?.Dispose();
                 _monitoringTimer = null;
 

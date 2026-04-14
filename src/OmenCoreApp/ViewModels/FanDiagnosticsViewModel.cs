@@ -319,6 +319,7 @@ namespace OmenCore.ViewModels
                 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"=== DIAGNOSTIC COMPLETE: {(overallPassed ? "✅ PASS" : "❌ FAIL")} ===");
+                summary.AppendLine($"Backend: {_fanService.Backend} | RPM source: {RpmSourceDisplay}");
                 summary.AppendLine($"Tests: {passCount}/{totalTests} passed | Overall Score: {avgScore}/100 ({overallRating})");
                 summary.AppendLine();
                 

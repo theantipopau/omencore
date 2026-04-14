@@ -149,30 +149,7 @@ public class LinuxHwMonController
     /// </summary>
     public int? GetCpuTemperature()
     {
-        // Rescan if it's been a while
-        if (DateTime.Now - _lastFullScan > _rescanInterval)
-        {
-            DiscoverSensors();
-        }
-        
-        foreach (var path in _cpuSensorPaths)
-        {
-            if (ShouldSkipSensor(path))
-                continue;
-                
-            var temp = ReadTemperatureFile(path);
-            if (temp.HasValue)
-            {
-                ResetSensorFailure(path);
-                return temp;
-            }
-            else
-            {
-                RecordSensorFailure(path);
-            }
-        }
-        
-        return null;
+        return GetCpuTemperatureReading()?.Temperature;
     }
     
     /// <summary>
@@ -180,29 +157,69 @@ public class LinuxHwMonController
     /// </summary>
     public int? GetGpuTemperature()
     {
-        foreach (var path in _gpuSensorPaths)
-        {
-            if (ShouldSkipSensor(path))
-                continue;
-                
-            var temp = ReadTemperatureFile(path);
-            if (temp.HasValue)
-            {
-                ResetSensorFailure(path);
-                return temp;
-            }
-            else
-            {
-                RecordSensorFailure(path);
-            }
-        }
-        
-        return null;
+        return GetGpuTemperatureReading()?.Temperature;
+    }
+
+    public LinuxTemperatureReading? GetCpuTemperatureReading()
+    {
+        return GetTemperatureReading(_cpuSensorPaths);
+    }
+
+    public LinuxTemperatureReading? GetGpuTemperatureReading()
+    {
+        return GetTemperatureReading(_gpuSensorPaths);
     }
     
     private bool ShouldSkipSensor(string path)
     {
         return _sensorFailureCount.TryGetValue(path, out var count) && count >= _maxFailuresBeforeSkip;
+    }
+
+    private LinuxTemperatureReading? GetTemperatureReading(List<string> sensorPaths)
+    {
+        if (DateTime.Now - _lastFullScan > _rescanInterval)
+        {
+            DiscoverSensors();
+        }
+
+        foreach (var path in sensorPaths)
+        {
+            if (ShouldSkipSensor(path))
+            {
+                continue;
+            }
+
+            var temp = ReadTemperatureFile(path);
+            if (temp.HasValue)
+            {
+                ResetSensorFailure(path);
+                return new LinuxTemperatureReading
+                {
+                    Temperature = temp.Value,
+                    Source = GetSensorSource(path),
+                    Path = path
+                };
+            }
+
+            RecordSensorFailure(path);
+        }
+
+        return null;
+    }
+
+    private static string GetSensorSource(string path)
+    {
+        if (path.StartsWith(HWMON_PATH, StringComparison.Ordinal))
+        {
+            return "hwmon";
+        }
+
+        if (path.StartsWith(THERMAL_ZONE_PATH, StringComparison.Ordinal))
+        {
+            return "thermal-zone";
+        }
+
+        return "sysfs";
     }
     
     private void RecordSensorFailure(string path)

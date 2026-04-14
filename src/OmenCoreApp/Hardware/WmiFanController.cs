@@ -172,6 +172,24 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Normalize raw LibreHardwareMonitor fan sensor names to user-friendly display labels.
+        /// LHM can return raw EC-internal names like "G", "GP", "#1 Fan", "THRM - Fan1" etc.
+        /// depending on the hardware platform. On AMD OMEN laptops (Ryzen AI / Strix Point),
+        /// sensors may appear as "G" (GPU die fan) and "GP" (GPU Package fan) from ACPI tables.
+        /// We map the first fan to "CPU Fan" and the second to "GPU Fan" for consistent display.
+        /// </summary>
+        private static string NormalizeFanName(string rawName, int index)
+        {
+            // Already a clean display name — keep as-is
+            if (rawName.Equals("CPU Fan", StringComparison.OrdinalIgnoreCase) ||
+                rawName.Equals("GPU Fan", StringComparison.OrdinalIgnoreCase))
+                return rawName;
+
+            // Use position-based naming: slot 0 = CPU fan, slot 1 = GPU fan
+            return index == 0 ? "CPU Fan" : "GPU Fan";
+        }
+
+        /// <summary>
         /// Apply a fan preset using WMI BIOS commands.
         /// For Max preset: Sets Performance mode AND enables max fan speed for immediate 100% fan.
         /// For other presets: Sets the appropriate thermal policy via WMI BIOS.
@@ -295,6 +313,8 @@ namespace OmenCore.Hardware
                 
                 if (_wmiBios.SetFanMode(mode))
                 {
+                    // Capture previous mode before overwriting — used below for the V1 kick.
+                    var previousMode = _lastMode;
                     _lastMode = mode;
                     IsManualControlActive = false;
                     _isMaxModeActive = false;          // Clear max mode flag
@@ -305,6 +325,42 @@ namespace OmenCore.Hardware
                     {
                         // Auto/Default mode - stop countdown extension, let BIOS handle it
                         StopCountdownExtension();
+
+                        // V1 transition kick (GitHub #102 — OMEN 17-ck1xxx fans stay at 100% after
+                        // switching from Performance to Balanced/Quiet):
+                        // On V1 systems (MaxFanLevel=55, krpm scale), some BIOS versions accept
+                        // SetFanMode(Default) without actually reducing the fan hardware state from
+                        // a prior Performance command. Sending an explicit SetFanLevel(20,20) —
+                        // the same transition hint used in ResetFromMaxMode() — gives the EC a
+                        // concrete duty-cycle target to ramp from, forcing the state change.
+                        // Only applied when we were actually in Performance mode; skipped on V2
+                        // systems where SetFanLevel uses percentage scale and 20% is a real target.
+                        bool wasPerformanceMode = previousMode == HpWmiBios.FanMode.Performance ||
+                                                  previousMode == HpWmiBios.FanMode.LegacyPerformance;
+                        if (wasPerformanceMode && _maxFanLevel < 100)
+                        {
+                            System.Threading.Thread.Sleep(25);
+                            if (_wmiBios.SetFanLevel(20, 20))
+                            {
+                                _logging?.Info("  V1 transition kick: SetFanLevel(20, 20) issued after Performance→Default switch to unblock BIOS fan ramp-down");
+                            }
+                        }
+
+                        // V1 auto-mode floor clear (GitHub #100 Bug #4 — OMEN 16 xd0xxx fans
+                        // remain at 200-300 RPM minimum in auto mode):
+                        // After SetFanMode(Default), BIOS auto control is active, but the last
+                        // manual fan level may still act as a floor. Sending SetFanLevel(0,0)
+                        // explicitly clears this, allowing the BIOS thermal curve to spin down
+                        // fans to 0 RPM at idle. Safe to send after SetFanMode(Default) since
+                        // BIOS auto mode is already active — this is not a hard-stop command.
+                        if (_maxFanLevel < 100)
+                        {
+                            System.Threading.Thread.Sleep(wasPerformanceMode ? 50 : 25);
+                            if (_wmiBios.SetFanLevel(0, 0))
+                            {
+                                _logging?.Info("  V1 auto-mode floor cleared: SetFanLevel(0, 0) — BIOS can now spin fans to 0 RPM at idle");
+                            }
+                        }
                     }
                     else
                     {
@@ -738,6 +794,18 @@ namespace OmenCore.Hardware
                     _isMaxModeActive = false;
                     _lastManualFanPercent = -1;
                     _lastMode = HpWmiBios.FanMode.Default;
+
+                    // V1 auto-mode floor clear (GitHub #100 Bug #4):
+                    // Explicitly clear the manual fan level register so BIOS thermal
+                    // management can drop fans to 0 RPM at idle. Safe here since
+                    // SetFanMode(Default) already put BIOS in auto-control mode.
+                    if (_maxFanLevel < 100)
+                    {
+                        System.Threading.Thread.Sleep(25);
+                        _wmiBios.SetFanLevel(0, 0);
+                        _logging?.Info("  V1 auto-mode floor cleared: SetFanLevel(0, 0) — BIOS can now reach 0 RPM at idle");
+                    }
+
                     _logging?.Info("✓ Restored automatic fan control");
                     return true;
                 }
@@ -974,7 +1042,10 @@ namespace OmenCore.Hardware
 
                 fans.Add(new FanTelemetry
                 {
-                    Name = name,
+                    // Normalize LibreHardwareMonitor's raw sensor names (which can appear as
+                    // "G", "GP", "#1 Fan", or other EC-internal abbreviations on AMD OMEN laptops)
+                    // to display-friendly labels. Index 0 = CPU/first fan, index 1 = GPU/second fan.
+                    Name = NormalizeFanName(name, index),
                     SpeedRpm = validatedRpm,
                     DutyCyclePercent = Math.Clamp(levelPercent, 0, 100),
                     Temperature = index == 0 ? GetCpuTemperature() : GetGpuTemperature()

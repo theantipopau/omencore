@@ -9,7 +9,43 @@
         MinWidth="800" MinHeight="500"
         WindowStartupLocation="CenterScreen">
     
-    <Grid ColumnDefinitions="240,*">
+    <DockPanel>
+        <!-- Renderer fallback notification banner (shown when GPU rendering failed on Linux) -->
+        <Border DockPanel.Dock="Top"
+                Background="#4D2800"
+                BorderBrush="#FF9800"
+                BorderThickness="0,0,0,1"
+                Padding="16,10"
+                IsVisible="{Binding ShowRenderFallbackBanner}">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="⚠️" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="GPU rendering failed — running in software mode" 
+                               FontSize="13" FontWeight="SemiBold" Foreground="#FF9800"/>
+                    <TextBlock Text="Performance may be reduced. Click 'Persist' to always start in software mode."
+                               FontSize="11" Foreground="#FFCC80" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Button Grid.Column="2"
+                        Content="Persist software mode"
+                        Command="{Binding PersistSoftwareRenderModeCommand}"
+                        Background="#FF9800" Foreground="Black"
+                        BorderThickness="0"
+                        Padding="12,6"
+                        Margin="12,0,8,0"
+                        VerticalAlignment="Center"
+                        CornerRadius="4"/>
+                <Button Grid.Column="3"
+                        Content="✕"
+                        Command="{Binding DismissRenderFallbackBannerCommand}"
+                        Background="Transparent" Foreground="#FF9800"
+                        BorderThickness="1" BorderBrush="#FF9800"
+                        Padding="8,6"
+                        VerticalAlignment="Center"
+                        CornerRadius="4"/>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="240,*">
         
         <!-- Navigation Sidebar -->
         <Border Grid.Column="0" Background="#0F0F0F" Padding="0">
@@ -111,7 +147,9 @@
                         </Button>
                         
                         <Button Classes="navButton" Command="{Binding NavigateToFanControlCommand}"
-                                Classes.active="{Binding IsFanControlActive}">
+                                Classes.active="{Binding IsFanControlActive}"
+                                IsVisible="{Binding ShowFanControlNavigation}"
+                                ToolTip.Tip="{Binding FanControlCapabilityReason}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="🌀" FontSize="16" />
                                 <TextBlock Text="Fan Control" VerticalAlignment="Center" FontSize="13" />
@@ -174,4 +212,5 @@
             </ContentControl>
         </Border>
     </Grid>
+    </DockPanel>
 </Window>

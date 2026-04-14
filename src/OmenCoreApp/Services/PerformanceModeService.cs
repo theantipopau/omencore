@@ -17,6 +17,13 @@ namespace OmenCore.Services
         private PerformanceMode? _currentMode;
 
         /// <summary>
+        /// When false (default), switching performance modes does NOT write fan policy.
+        /// Users who manage fan curves or presets manually are unaffected by profile switches.
+        /// Set to true to restore legacy coupled behavior where each profile also sets a fan policy.
+        /// </summary>
+        public bool LinkFanToPerformanceMode { get; set; } = false;
+
+        /// <summary>
         /// Event raised when a performance mode is applied (for UI synchronization).
         /// </summary>
         public event EventHandler<string>? ModeApplied;
@@ -101,28 +108,38 @@ namespace OmenCore.Services
                 _logging.Info("ℹ️ EC power limit control not available - using Windows power plan only");
             }
             
-            // Step 3: Adjust fan curve based on power profile
-            if (_fanController.IsAvailable)
+            // Step 3: Adjust fan curve based on power profile.
+            // Only runs when LinkFanToPerformanceMode is true (opt-in, default off).
+            // By default, performance mode switches only affect power plan and EC power limits;
+            // existing fan presets or curves set by the user are left untouched.
+            if (LinkFanToPerformanceMode)
             {
-                // Try to set performance mode via WMI BIOS first
-                if (_fanController.SetPerformanceMode(mode.Name))
+                if (_fanController.IsAvailable)
                 {
-                    _logging.Info($"🌀 Fan mode set to '{mode.Name}' via {_fanController.Backend}");
+                    // Try to set performance mode via WMI BIOS first
+                    if (_fanController.SetPerformanceMode(mode.Name))
+                    {
+                        _logging.Info($"🌀 Fan mode set to '{mode.Name}' via {_fanController.Backend}");
+                    }
+                    else
+                    {
+                        // Fallback to custom curve
+                        var fanPercent = Math.Max(20, mode.CpuPowerLimitWatts / 2);
+                        _fanController.ApplyCustomCurve(new[]
+                        {
+                            new FanCurvePoint { TemperatureC = 0, FanPercent = fanPercent }
+                        });
+                        _logging.Info($"🌀 Fan speed set to {fanPercent}% for '{mode.Name}' mode");
+                    }
                 }
                 else
                 {
-                    // Fallback to custom curve
-                    var fanPercent = Math.Max(20, mode.CpuPowerLimitWatts / 2);
-                    _fanController.ApplyCustomCurve(new[]
-                    {
-                        new FanCurvePoint { TemperatureC = 0, FanPercent = fanPercent }
-                    });
-                    _logging.Info($"🌀 Fan speed set to {fanPercent}% for '{mode.Name}' mode");
+                    _logging.Warn("⚠️ Fan control unavailable");
                 }
             }
             else
             {
-                _logging.Warn("⚠️ Fan control unavailable");
+                _logging.Info("ℹ️ Fan policy unchanged — LinkFanToPerformanceMode is off");
             }
             
             _logging.Info($"✓ Performance mode '{mode.Name}' applied successfully");

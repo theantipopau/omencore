@@ -37,12 +37,17 @@ namespace OmenCore.ViewModels
         private readonly PowerAutomationService? _powerAutomationService;
         private readonly ProfileExportService _profileExportService;
         private readonly DiagnosticExportService _diagnosticsExportService;
+        private readonly ResumeRecoveryDiagnosticsService? _resumeRecoveryDiagnostics;
+        private readonly Hardware.DeviceCapabilities? _detectedCapabilities;
         
         private bool _startWithWindows;
         private bool _startMinimized;
         private bool _minimizeToTrayOnClose = true;
         private bool _stayOnTop;
         private bool _headlessMode;
+        private bool _liteModeEnabled;
+        private bool _linkFanToPerformanceMode;
+        private bool _useSoftwareRendering;
         private string _pollingProfile = "Balanced";
         private bool _suppressPollingProfileSync;
         private int _pollingIntervalMs = 2000;
@@ -84,6 +89,23 @@ namespace OmenCore.ViewModels
         private bool _secureBootEnabled;
         private bool _pawnIOAvailable;
         private bool _oghInstalled;
+        private string _resumeRecoveryStatus = "No recent resume activity";
+        private string _resumeRecoverySummary = "No suspend/resume recovery timeline recorded yet.";
+        private string _resumeRecoveryTimeline = "No timeline recorded yet.";
+        private string _resumeRecoveryLastUpdated = "No recent resume event";
+        private string _modelIdentitySummary = "Model identity has not been analyzed yet.";
+        private string _modelIdentityResolvedModel = "Unknown";
+        private string _modelIdentityResolutionSource = "Unknown";
+        private string _modelIdentityConfidence = "Unknown";
+        private string _modelIdentityBadgeText = "Unknown";
+        private string _modelIdentityBadgeTone = "warning";
+        private string _modelIdentityWarningText = "";
+        private bool _modelIdentityHasWarning;
+        private string _modelIdentityKeyboardModel = "Unknown";
+        private string _modelIdentityKeyboardSource = "Unknown";
+        private string _modelIdentityKeyboardConfidence = "Unknown";
+        private string _modelIdentityRawSummary = "";
+        private string _modelIdentityCopySummary = "";
         
         // BIOS update fields
         private string _systemModel = "";
@@ -115,7 +137,9 @@ namespace OmenCore.ViewModels
             OsdService? osdService = null,
             HardwareMonitoringService? hardwareMonitoringService = null,
             PowerAutomationService? powerAutomationService = null,
-            FanService? fanService = null)
+            FanService? fanService = null,
+            ResumeRecoveryDiagnosticsService? resumeRecoveryDiagnostics = null,
+            Hardware.DeviceCapabilities? detectedCapabilities = null)
         {
             _logging = logging;
             _configService = configService;
@@ -131,9 +155,20 @@ namespace OmenCore.ViewModels
             _powerAutomationService = powerAutomationService;
             _profileExportService = profileExportService;
             _diagnosticsExportService = diagnosticsExportService;
+            _resumeRecoveryDiagnostics = resumeRecoveryDiagnostics;
+            _detectedCapabilities = detectedCapabilities;
 
             // Load saved settings
             LoadSettings();
+
+            if (_resumeRecoveryDiagnostics != null)
+            {
+                _resumeRecoveryDiagnostics.Updated += (_, _) =>
+                {
+                    Application.Current?.Dispatcher?.BeginInvoke(new Action(RefreshResumeRecoveryStatus));
+                };
+                RefreshResumeRecoveryStatus();
+            }
             
             // Initialize power status
             RefreshPowerStatus();
@@ -162,6 +197,7 @@ namespace OmenCore.ViewModels
             ExportProfileCommand = new AsyncRelayCommand(async _ => await ExportProfileAsync());
             ExportDiagnosticsCommand = new AsyncRelayCommand(async _ => await ExportDiagnosticsAsync());
             RefreshBiosReliabilityCommand = new RelayCommand(_ => RefreshBiosReliability());
+            CopyModelIdentitySummaryCommand = new RelayCommand(_ => CopyModelIdentitySummary());
 
             // Scheduler commands
             AddScheduleRuleCommand = new RelayCommand(_ =>
@@ -180,9 +216,32 @@ namespace OmenCore.ViewModels
                 }
             });
 
+            AddAutomationRuleCommand = new RelayCommand(_ =>
+            {
+                var item = new AutomationRuleEditorItem();
+                AttachAutomationRule(item);
+                AutomationRules.Add(item);
+                PersistAutomationRules();
+            });
+            RemoveAutomationRuleCommand = new RelayCommand(param =>
+            {
+                if (param is AutomationRuleEditorItem rule)
+                {
+                    AutomationRules.Remove(rule);
+                    PersistAutomationRules();
+                }
+            });
+
             // Load schedule rules from config
             foreach (var rule in _config.ScheduleRules)
                 ScheduleRules.Add(rule);
+
+            foreach (var rule in _config.AutomationRules)
+            {
+                var item = AutomationRuleEditorItem.FromAutomationRule(rule);
+                AttachAutomationRule(item);
+                AutomationRules.Add(item);
+            }
 
             // Start schedule enforcement timer (fires every 30 s, enforces once per HH:mm)
             _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -197,6 +256,7 @@ namespace OmenCore.ViewModels
             
             // Load system status for Settings page
             LoadSystemStatus();
+            RefreshModelIdentityStatus();
             
             // Load system info for BIOS
             LoadSystemInfo();
@@ -241,6 +301,60 @@ namespace OmenCore.ViewModels
                 {
                     _headlessMode = value;
                     OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public bool LiteModeEnabled
+        {
+            get => _liteModeEnabled;
+            set
+            {
+                if (_liteModeEnabled != value)
+                {
+                    _liteModeEnabled = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ShowAdvancedControls));
+                    SaveSettings();
+                    LiteModeChanged?.Invoke(this, !_liteModeEnabled);
+                }
+            }
+        }
+
+        public bool ShowAdvancedControls => !_liteModeEnabled;
+
+        public bool LinkFanToPerformanceMode
+        {
+            get => _linkFanToPerformanceMode;
+            set
+            {
+                if (_linkFanToPerformanceMode != value)
+                {
+                    _linkFanToPerformanceMode = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+
+                    // Keep runtime behavior in sync immediately; do not require restart.
+                    if (Application.Current?.MainWindow?.DataContext is MainViewModel mainViewModel)
+                    {
+                        mainViewModel.RefreshLinkFanState();
+                    }
+                }
+            }
+        }
+
+        public bool UseSoftwareRendering
+        {
+            get => _useSoftwareRendering;
+            set
+            {
+                if (_useSoftwareRendering != value)
+                {
+                    _useSoftwareRendering = value;
+                    OnPropertyChanged();
+                    if (value)
+                        App.EnableSoftwareRendering();
                     SaveSettings();
                 }
             }
@@ -374,6 +488,7 @@ namespace OmenCore.ViewModels
         /// Event raised when low overhead mode changes, so MainViewModel can update UI
         /// </summary>
         public event EventHandler<bool>? LowOverheadModeChanged;
+        public event EventHandler<bool>? LiteModeChanged;
 
         #endregion
 
@@ -1270,6 +1385,60 @@ namespace OmenCore.ViewModels
 
         public string[] OsdPositionOptions => new[] { "TopLeft", "TopCenter", "TopRight", "BottomLeft", "BottomCenter", "BottomRight" };
 
+        public string OsdMonitorTarget
+        {
+            get => _config.Osd?.MonitorTarget ?? "ActiveWindow";
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+
+                var normalized = string.IsNullOrWhiteSpace(value) ? "ActiveWindow" : value.Trim();
+                if (!normalized.Equals("Primary", StringComparison.OrdinalIgnoreCase) &&
+                    !normalized.Equals("ActiveWindow", StringComparison.OrdinalIgnoreCase) &&
+                    !normalized.Equals("MouseCursor", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized = "ActiveWindow";
+                }
+
+                if (!_config.Osd.MonitorTarget.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config.Osd.MonitorTarget = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public string[] OsdMonitorTargetOptions => new[] { "Primary", "ActiveWindow", "MouseCursor" };
+
+        public string OsdDensityMode
+        {
+            get => _config.Osd?.DensityMode ?? "Balanced";
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Balanced" : value.Trim();
+                if (!normalized.Equals("Compact", StringComparison.OrdinalIgnoreCase) &&
+                    !normalized.Equals("Balanced", StringComparison.OrdinalIgnoreCase) &&
+                    !normalized.Equals("Comfortable", StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized = "Balanced";
+                }
+
+                if (!_config.Osd.DensityMode.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config.Osd.DensityMode = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    NotifyOsdSettingsChanged();
+                }
+            }
+        }
+
+        public string[] OsdDensityModeOptions => new[] { "Compact", "Balanced", "Comfortable" };
+
         public string OsdHotkey
         {
             get => _config.Osd?.ToggleHotkey ?? "Ctrl+Shift+F12";
@@ -1381,6 +1550,58 @@ namespace OmenCore.ViewModels
             {
                 if (_config.Osd == null) _config.Osd = new OsdSettings();
                 _config.Osd.ShowCpuTemp = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowThermalsGroup
+        {
+            get => _config.Osd?.ShowThermalsGroup ?? true;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowThermalsGroup = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowPerformanceGroup
+        {
+            get => _config.Osd?.ShowPerformanceGroup ?? true;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowPerformanceGroup = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowNetworkGroup
+        {
+            get => _config.Osd?.ShowNetworkGroup ?? true;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowNetworkGroup = value;
+                OnPropertyChanged();
+                SaveSettings();
+                NotifyOsdSettingsChanged();
+            }
+        }
+
+        public bool OsdShowSystemGroup
+        {
+            get => _config.Osd?.ShowSystemGroup ?? true;
+            set
+            {
+                if (_config.Osd == null) _config.Osd = new OsdSettings();
+                _config.Osd.ShowSystemGroup = value;
                 OnPropertyChanged();
                 SaveSettings();
                 NotifyOsdSettingsChanged();
@@ -1982,8 +2203,11 @@ namespace OmenCore.ViewModels
         public ICommand ExportProfileCommand { get; }
         public ICommand ExportDiagnosticsCommand { get; }
         public ICommand RefreshBiosReliabilityCommand { get; }
+        public ICommand CopyModelIdentitySummaryCommand { get; }
         public ICommand AddScheduleRuleCommand { get; }
         public ICommand RemoveScheduleRuleCommand { get; }
+        public ICommand AddAutomationRuleCommand { get; }
+        public ICommand RemoveAutomationRuleCommand { get; }
 
         #endregion
 
@@ -2021,6 +2245,8 @@ namespace OmenCore.ViewModels
             ("gpu", "Advanced", "GPU overclocking and power boost"),
             ("lighting", "Lighting", "Keyboard 4-zone RGB lighting"),
             ("schedule", "Scheduler", "Time-of-day automation rules"),
+            ("automation", "Scheduler", "Battery and AC-based automation rules"),
+            ("lite", "General", "Beginner-friendly UI mode that hides advanced tabs"),
             ("driver", "Status", "PawnIO driver status"),
             ("bios", "Status", "BIOS version and update check"),
             ("log", "General", "Log verbosity and diagnostics"),
@@ -2049,6 +2275,18 @@ namespace OmenCore.ViewModels
         #region Scheduler
 
         public ObservableCollection<ScheduleRule> ScheduleRules { get; } = new();
+        public ObservableCollection<AutomationRuleEditorItem> AutomationRules { get; } = new();
+
+        private void AttachAutomationRule(AutomationRuleEditorItem item)
+        {
+            item.PropertyChanged += (_, _) => PersistAutomationRules();
+        }
+
+        private void PersistAutomationRules()
+        {
+            _config.AutomationRules = AutomationRules.Select(r => r.ToAutomationRule()).ToList();
+            _configService.Save(_config);
+        }
 
         private void EnforceScheduleRules(object? sender, EventArgs e)
         {
@@ -2120,6 +2358,112 @@ namespace OmenCore.ViewModels
             get => _oghInstalled;
             set { _oghInstalled = value; OnPropertyChanged(); }
         }
+
+        public string ResumeRecoveryStatus
+        {
+            get => _resumeRecoveryStatus;
+            set { _resumeRecoveryStatus = value; OnPropertyChanged(); }
+        }
+
+        public string ResumeRecoverySummary
+        {
+            get => _resumeRecoverySummary;
+            set { _resumeRecoverySummary = value; OnPropertyChanged(); }
+        }
+
+        public string ResumeRecoveryTimeline
+        {
+            get => _resumeRecoveryTimeline;
+            set { _resumeRecoveryTimeline = value; OnPropertyChanged(); }
+        }
+
+        public string ResumeRecoveryLastUpdated
+        {
+            get => _resumeRecoveryLastUpdated;
+            set { _resumeRecoveryLastUpdated = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentitySummary
+        {
+            get => _modelIdentitySummary;
+            set { _modelIdentitySummary = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityResolvedModel
+        {
+            get => _modelIdentityResolvedModel;
+            set { _modelIdentityResolvedModel = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityResolutionSource
+        {
+            get => _modelIdentityResolutionSource;
+            set { _modelIdentityResolutionSource = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityConfidence
+        {
+            get => _modelIdentityConfidence;
+            set { _modelIdentityConfidence = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityBadgeText
+        {
+            get => _modelIdentityBadgeText;
+            set { _modelIdentityBadgeText = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityBadgeTone
+        {
+            get => _modelIdentityBadgeTone;
+            set { _modelIdentityBadgeTone = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityWarningText
+        {
+            get => _modelIdentityWarningText;
+            set { _modelIdentityWarningText = value; OnPropertyChanged(); }
+        }
+
+        public bool ModelIdentityHasWarning
+        {
+            get => _modelIdentityHasWarning;
+            set { _modelIdentityHasWarning = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityKeyboardModel
+        {
+            get => _modelIdentityKeyboardModel;
+            set { _modelIdentityKeyboardModel = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityKeyboardSource
+        {
+            get => _modelIdentityKeyboardSource;
+            set { _modelIdentityKeyboardSource = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityKeyboardConfidence
+        {
+            get => _modelIdentityKeyboardConfidence;
+            set { _modelIdentityKeyboardConfidence = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityRawSummary
+        {
+            get => _modelIdentityRawSummary;
+            set { _modelIdentityRawSummary = value; OnPropertyChanged(); }
+        }
+
+        public string ModelIdentityCopySummary
+        {
+            get => _modelIdentityCopySummary;
+            set
+            {
+                _modelIdentityCopySummary = value;
+                OnPropertyChanged();
+            }
+        }
         
         private string _oghDetectionDetail = "";
         public string OghDetectionDetail
@@ -2178,6 +2522,87 @@ namespace OmenCore.ViewModels
                 StandaloneStatus = "Error";
                 StandaloneStatusColor = "#FF6B6B";
                 StandaloneStatusSummary = $"Audit failed: {ex.Message}";
+            }
+        }
+
+        public void RefreshResumeRecoveryStatus()
+        {
+            if (_resumeRecoveryDiagnostics == null)
+            {
+                return;
+            }
+
+            ResumeRecoveryStatus = _resumeRecoveryDiagnostics.Status;
+            ResumeRecoverySummary = _resumeRecoveryDiagnostics.Summary;
+            ResumeRecoveryTimeline = _resumeRecoveryDiagnostics.TimelineText;
+            ResumeRecoveryLastUpdated = _resumeRecoveryDiagnostics.LastUpdatedText;
+        }
+
+        public void RefreshModelIdentityStatus()
+        {
+            try
+            {
+                var systemInfo = _systemInfoService.GetSystemInfo();
+                var summary = ModelIdentityResolutionService.Build(systemInfo, _detectedCapabilities, _logging);
+
+                ModelIdentitySummary = summary.Summary;
+                ModelIdentityResolvedModel = summary.ResolvedModel;
+                ModelIdentityResolutionSource = summary.ResolutionSource;
+                ModelIdentityConfidence = summary.Confidence;
+                ModelIdentityBadgeText = summary.BadgeText;
+                ModelIdentityBadgeTone = summary.BadgeTone;
+                ModelIdentityKeyboardModel = summary.KeyboardModel;
+                ModelIdentityKeyboardSource = summary.KeyboardResolutionSource;
+                ModelIdentityKeyboardConfidence = summary.KeyboardConfidence;
+                ModelIdentityRawSummary = summary.RawIdentitySummary;
+                ModelIdentityCopySummary = summary.ClipboardSummary;
+
+                var warningParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(summary.WarningText))
+                {
+                    warningParts.Add(summary.WarningText);
+                }
+                if (!string.IsNullOrWhiteSpace(summary.KeyboardWarningText))
+                {
+                    warningParts.Add(summary.KeyboardWarningText);
+                }
+
+                ModelIdentityWarningText = string.Join(Environment.NewLine, warningParts);
+                ModelIdentityHasWarning = warningParts.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to build model identity summary: {ex.Message}");
+                ModelIdentitySummary = "Model identity analysis failed.";
+                ModelIdentityResolvedModel = "Unknown";
+                ModelIdentityResolutionSource = "Unavailable";
+                ModelIdentityConfidence = "Unknown";
+                ModelIdentityBadgeText = "Unavailable";
+                ModelIdentityBadgeTone = "error";
+                ModelIdentityKeyboardModel = "Unknown";
+                ModelIdentityKeyboardSource = "Unavailable";
+                ModelIdentityKeyboardConfidence = "Unknown";
+                ModelIdentityWarningText = ex.Message;
+                ModelIdentityHasWarning = true;
+                ModelIdentityRawSummary = string.Empty;
+                ModelIdentityCopySummary = string.Empty;
+            }
+        }
+
+        private void CopyModelIdentitySummary()
+        {
+            if (string.IsNullOrWhiteSpace(ModelIdentityCopySummary))
+            {
+                return;
+            }
+
+            try
+            {
+                Clipboard.SetText(ModelIdentityCopySummary);
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to copy model identity summary: {ex.Message}");
             }
         }
         
@@ -2355,6 +2780,9 @@ namespace OmenCore.ViewModels
             _minimizeToTrayOnClose = _config.Monitoring.MinimizeToTrayOnClose;
             _stayOnTop = _config.StayOnTop;
             _headlessMode = _config.HeadlessMode;
+            _liteModeEnabled = _config.LiteModeEnabled;
+            _linkFanToPerformanceMode = _config.LinkFanToPerformanceMode;
+            _useSoftwareRendering = _config.UseSoftwareRendering;
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -2396,6 +2824,9 @@ namespace OmenCore.ViewModels
             _config.Monitoring.MinimizeToTrayOnClose = _minimizeToTrayOnClose;
             _config.StayOnTop = _stayOnTop;
             _config.HeadlessMode = _headlessMode;
+            _config.LiteModeEnabled = _liteModeEnabled;
+            _config.LinkFanToPerformanceMode = _linkFanToPerformanceMode;
+            _config.UseSoftwareRendering = _useSoftwareRendering;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -2725,7 +3156,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to modify startup settings", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "SetStartWithWindows",
+                    message: "Failed to modify startup settings",
+                    ex: ex);
             }
         }
         
@@ -2766,7 +3201,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to open config folder", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "OpenConfigFolder",
+                    message: "Failed to open config folder",
+                    ex: ex);
             }
         }
 
@@ -2781,7 +3220,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to open log folder", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "OpenLogFolder",
+                    message: "Failed to open log folder",
+                    ex: ex);
             }
         }
 
@@ -2793,7 +3236,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error($"Failed to open URL: {url}", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "OpenUrl",
+                    message: $"Failed to open URL: {url}",
+                    ex: ex);
             }
         }
 
@@ -2873,7 +3320,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Fan cleaning failed", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "StartFanCleaningAsync",
+                    message: "Fan cleaning failed",
+                    ex: ex);
                 MessageBox.Show($"Fan cleaning failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -2931,7 +3382,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to reset settings", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ResetToDefaults",
+                    message: "Failed to reset settings",
+                    ex: ex);
                 MessageBox.Show($"Failed to reset settings: {ex.Message}", 
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -3170,7 +3625,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error($"EC reset failed: {ex.Message}", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ResetEcToDefaults",
+                    message: "EC reset failed",
+                    ex: ex);
                 MessageBox.Show(
                     $"Failed to reset EC: {ex.Message}",
                     "EC Reset Failed",
@@ -3206,13 +3665,29 @@ namespace OmenCore.ViewModels
                 });
                 
                 // Refresh status after install attempt
-                Task.Delay(5000).ContinueWith(_ => 
-                    Application.Current.Dispatcher.Invoke(CheckDriverStatus));
+                _ = RefreshDriverStatusAfterInstallAsync();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to open browser: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task RefreshDriverStatusAfterInstallAsync()
+        {
+            try
+            {
+                await Task.Delay(5000);
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                {
+                    await dispatcher.InvokeAsync(CheckDriverStatus);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to refresh driver status after install prompt: {ex.Message}");
             }
         }
         
@@ -3324,7 +3799,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to load system info for BIOS display", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "LoadSystemInfo",
+                    message: "Failed to load system info for BIOS display",
+                    ex: ex);
                 SystemModel = "Unable to detect";
                 CurrentBiosVersion = "Unable to detect";
                 BiosCheckStatus = "Could not read system information";
@@ -3368,7 +3847,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to check for BIOS updates", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "CheckBiosUpdatesAsync",
+                    message: "Failed to check for BIOS updates",
+                    ex: ex);
                 BiosCheckStatus = $"Error: {ex.Message}";
                 BiosStatusColor = new SolidColorBrush(Color.FromRgb(239, 83, 80)); // Red
             }
@@ -3394,7 +3877,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to open BIOS download URL", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "DownloadBiosUpdate",
+                    message: "Failed to open BIOS download URL",
+                    ex: ex);
                 // Fallback to HP support page
                 Process.Start(new ProcessStartInfo
                 {
@@ -3544,7 +4031,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to scan for bloatware", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ScanBloatwareAsync",
+                    message: "Failed to scan for bloatware",
+                    ex: ex);
                 BloatwareList = $"❌ Scan failed: {ex.Message}";
             }
             finally
@@ -3717,7 +4208,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to remove bloatware", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "RemoveBloatwareAsync",
+                    message: "Failed to remove bloatware",
+                    ex: ex);
                 BloatwareList = $"❌ Removal failed: {ex.Message}";
                 MessageBox.Show($"Failed to remove bloatware: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -3790,7 +4285,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to import profile", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ImportProfileAsync",
+                    message: "Failed to import profile",
+                    ex: ex);
                 MessageBox.Show($"Failed to import profile: {ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -3824,7 +4323,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to export profile", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ExportProfileAsync",
+                    message: "Failed to export profile",
+                    ex: ex);
                 MessageBox.Show($"Failed to export profile: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -3866,7 +4369,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to export diagnostics", ex);
+                _logging.ErrorWithContext(
+                    component: "SettingsViewModel",
+                    operation: "ExportDiagnosticsAsync",
+                    message: "Failed to export diagnostics",
+                    ex: ex);
                 MessageBox.Show($"Failed to export diagnostics: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -3889,6 +4396,133 @@ namespace OmenCore.ViewModels
                 uint dwCreationDisposition,
                 uint dwFlagsAndAttributes,
                 IntPtr hTemplateFile);
+        }
+
+        public class AutomationRuleEditorItem : ViewModelBase
+        {
+            private string _id = Guid.NewGuid().ToString();
+            private string _name = "New automation rule";
+            private bool _enabled = true;
+            private int _priority = 50;
+            private TriggerType _trigger = TriggerType.Time;
+            private string _startTimeText = "18:00";
+            private string _endTimeText = "23:00";
+            private int _batteryThreshold = 30;
+            private string _batteryCondition = "Below";
+            private string _acPowerState = "Connected";
+            private string _fanPreset = string.Empty;
+            private string _performanceMode = string.Empty;
+
+            public IEnumerable<TriggerType> SupportedTriggerTypes => AutomationRuleSchemaValidator.SupportedTriggerTypes;
+            public IEnumerable<string> BatteryConditions { get; } = new[] { "Below", "Above" };
+            public IEnumerable<string> AcPowerStates { get; } = new[] { "Connected", "Disconnected" };
+            public IEnumerable<string> FanPresetOptions { get; } = new[] { string.Empty, "Auto", "Silent", "Gaming", "Extreme", "Max" };
+            public IEnumerable<string> PerformanceModeOptions { get; } = new[] { string.Empty, "Balanced", "Performance", "Quiet" };
+
+            public string Id { get => _id; set => SetProperty(ref _id, value); }
+            public string Name { get => _name; set => UpdateField(ref _name, value); }
+            public bool Enabled { get => _enabled; set => UpdateField(ref _enabled, value); }
+            public int Priority { get => _priority; set => UpdateField(ref _priority, Math.Clamp(value, 1, 999)); }
+
+            public TriggerType Trigger
+            {
+                get => _trigger;
+                set
+                {
+                    if (SetProperty(ref _trigger, value))
+                    {
+                        OnPropertyChanged(nameof(IsTimeTrigger));
+                        OnPropertyChanged(nameof(IsBatteryTrigger));
+                        OnPropertyChanged(nameof(IsACPowerTrigger));
+                        OnPropertyChanged(nameof(ValidationMessage));
+                    }
+                }
+            }
+
+            public bool IsTimeTrigger => Trigger == TriggerType.Time;
+            public bool IsBatteryTrigger => Trigger == TriggerType.Battery;
+            public bool IsACPowerTrigger => Trigger == TriggerType.ACPower;
+
+            public string StartTimeText { get => _startTimeText; set => UpdateField(ref _startTimeText, value); }
+            public string EndTimeText { get => _endTimeText; set => UpdateField(ref _endTimeText, value); }
+            public int BatteryThreshold { get => _batteryThreshold; set => UpdateField(ref _batteryThreshold, Math.Clamp(value, 1, 100)); }
+            public string BatteryCondition { get => _batteryCondition; set => UpdateField(ref _batteryCondition, value); }
+            public string AcPowerState { get => _acPowerState; set => UpdateField(ref _acPowerState, value); }
+            public string FanPreset { get => _fanPreset; set => UpdateField(ref _fanPreset, value); }
+            public string PerformanceMode { get => _performanceMode; set => UpdateField(ref _performanceMode, value); }
+
+            public string ValidationMessage =>
+                AutomationRuleSchemaValidator.TryValidate(ToAutomationRule(), out var error)
+                    ? "Ready"
+                    : error;
+
+            public AutomationRule ToAutomationRule()
+            {
+                var triggerData = new TriggerConfig();
+                switch (Trigger)
+                {
+                    case TriggerType.Time:
+                        triggerData.StartTime = TimeSpan.TryParse(StartTimeText, out var start) ? start : null;
+                        triggerData.EndTime = TimeSpan.TryParse(EndTimeText, out var end) ? end : null;
+                        break;
+                    case TriggerType.Battery:
+                        triggerData.BatteryThreshold = BatteryThreshold;
+                        triggerData.BatteryCondition = BatteryCondition;
+                        break;
+                    case TriggerType.ACPower:
+                        triggerData.ACConnected = string.Equals(AcPowerState, "Connected", StringComparison.OrdinalIgnoreCase);
+                        break;
+                }
+
+                var actions = new List<RuleAction>();
+                if (!string.IsNullOrWhiteSpace(FanPreset))
+                {
+                    actions.Add(new RuleAction { Type = ActionType.SetFanPreset, Parameter = FanPreset });
+                }
+
+                if (!string.IsNullOrWhiteSpace(PerformanceMode))
+                {
+                    actions.Add(new RuleAction { Type = ActionType.SetPerformanceMode, Parameter = PerformanceMode });
+                }
+
+                return new AutomationRule
+                {
+                    Id = Id,
+                    Name = Name,
+                    Enabled = Enabled,
+                    Priority = Priority,
+                    Trigger = Trigger,
+                    TriggerData = triggerData,
+                    Actions = actions
+                };
+            }
+
+            public static AutomationRuleEditorItem FromAutomationRule(AutomationRule rule)
+            {
+                return new AutomationRuleEditorItem
+                {
+                    Id = string.IsNullOrWhiteSpace(rule.Id) ? Guid.NewGuid().ToString() : rule.Id,
+                    Name = string.IsNullOrWhiteSpace(rule.Name) ? "Imported automation rule" : rule.Name,
+                    Enabled = rule.Enabled,
+                    Priority = rule.Priority,
+                    Trigger = AutomationRuleSchemaValidator.IsSupportedTriggerType(rule.Trigger) ? rule.Trigger : TriggerType.Time,
+                    StartTimeText = rule.TriggerData.StartTime?.ToString(@"hh\:mm") ?? "18:00",
+                    EndTimeText = rule.TriggerData.EndTime?.ToString(@"hh\:mm") ?? "23:00",
+                    BatteryThreshold = rule.TriggerData.BatteryThreshold ?? 30,
+                    BatteryCondition = string.IsNullOrWhiteSpace(rule.TriggerData.BatteryCondition) ? "Below" : rule.TriggerData.BatteryCondition,
+                    AcPowerState = rule.TriggerData.ACConnected == false ? "Disconnected" : "Connected",
+                    FanPreset = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetFanPreset)?.Parameter ?? string.Empty,
+                    PerformanceMode = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetPerformanceMode)?.Parameter ?? string.Empty
+                };
+            }
+
+            private void UpdateField<T>(ref T field, T value)
+            {
+                if (SetProperty(ref field, value))
+                {
+                    OnPropertyChanged(nameof(ValidationMessage));
+                }
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -63,6 +64,12 @@ namespace OmenCore.Services
 
             _isMonitoring = true;
             _monitorTimer = new Timer(CheckThermalHealth, null, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(MonitorIntervalMs));
+            BackgroundTimerRegistry.Register(
+                "CurveRecovery",
+                "CurveRecoveryService",
+                "Monitors thermal health to recover stuck overclocking curves",
+                MonitorIntervalMs,
+                BackgroundTimerTier.Critical);
             _logging.Debug("Curve recovery monitoring started");
         }
 
@@ -72,6 +79,7 @@ namespace OmenCore.Services
         public void StopMonitoring()
         {
             _isMonitoring = false;
+            BackgroundTimerRegistry.Unregister("CurveRecovery");
             _monitorTimer?.Dispose();
             _monitorTimer = null;
             _logging.Debug("Curve recovery monitoring stopped");

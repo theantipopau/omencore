@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Microsoft.Win32;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Utils;
@@ -25,6 +27,7 @@ namespace OmenCore.ViewModels
         private string _searchFilter = string.Empty;
         private GamePlatformFilter _platformFilter = GamePlatformFilter.All;
         private GameLibraryItem? _selectedGame;
+        private readonly List<GameLibraryItem> _manualGames = new();
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -39,6 +42,7 @@ namespace OmenCore.ViewModels
 
             // Initialize commands
             ScanLibraryCommand = new AsyncRelayCommand(async _ => await ScanLibraryAsync(), _ => !IsScanning);
+            AddGameCommand = new RelayCommand(AddGameManually, _ => !IsScanning);
             CreateProfileCommand = new RelayCommand(CreateProfile, _ => SelectedGame != null && !SelectedGame.HasProfile);
             EditProfileCommand = new RelayCommand(EditProfile, _ => SelectedGame?.HasProfile == true);
             LaunchGameCommand = new RelayCommand(LaunchGame, _ => SelectedGame != null);
@@ -64,6 +68,8 @@ namespace OmenCore.ViewModels
                     _isScanning = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(ScanStatusText));
+                    (ScanLibraryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    (AddGameCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -127,6 +133,7 @@ namespace OmenCore.ViewModels
         #region Commands
 
         public ICommand ScanLibraryCommand { get; }
+        public ICommand AddGameCommand { get; }
         public ICommand CreateProfileCommand { get; }
         public ICommand EditProfileCommand { get; }
         public ICommand LaunchGameCommand { get; }
@@ -173,19 +180,22 @@ namespace OmenCore.ViewModels
                         LaunchCommand = game.GetLaunchCommand()
                     };
 
-                    // Check if profile exists
-                    var existingProfile = _profileService.Profiles.FirstOrDefault(p => 
-                        string.Equals(p.ExecutableName, game.ExecutableName, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(p.ExecutablePath, game.ExecutablePath, StringComparison.OrdinalIgnoreCase));
-
-                    if (existingProfile != null)
-                    {
-                        item.HasProfile = true;
-                        item.Profile = existingProfile;
-                        item.ProfileName = existingProfile.Name;
-                    }
+                    AttachProfileInfo(item);
 
                     Games.Add(item);
+                }
+
+                // Preserve manually-added games across rescans.
+                foreach (var manual in _manualGames)
+                {
+                    if (!string.IsNullOrWhiteSpace(manual.ExecutablePath) &&
+                        Games.Any(g => string.Equals(g.ExecutablePath, manual.ExecutablePath, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    AttachProfileInfo(manual);
+                    Games.Add(manual);
                 }
 
                 ApplyFilters();
@@ -199,6 +209,76 @@ namespace OmenCore.ViewModels
             {
                 IsScanning = false;
             }
+        }
+
+        private void AddGameManually(object? _)
+        {
+            try
+            {
+                var dialog = new OpenFileDialog
+                {
+                    Title = "Select game executable",
+                    Filter = "Executable Files (*.exe)|*.exe|All Files (*.*)|*.*",
+                    Multiselect = true,
+                    CheckFileExists = true
+                };
+
+                if (dialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                var addedCount = 0;
+                foreach (var path in dialog.FileNames)
+                {
+                    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    {
+                        continue;
+                    }
+
+                    if (Games.Any(g => string.Equals(g.ExecutablePath, path, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    var item = new GameLibraryItem
+                    {
+                        Name = Path.GetFileNameWithoutExtension(path),
+                        Platform = GamePlatform.Manual,
+                        InstallPath = Path.GetDirectoryName(path),
+                        ExecutablePath = path,
+                        ExecutableName = Path.GetFileName(path),
+                        LaunchCommand = path
+                    };
+
+                    AttachProfileInfo(item);
+                    _manualGames.Add(item);
+                    Games.Add(item);
+                    SelectedGame = item;
+                    addedCount++;
+                }
+
+                if (addedCount > 0)
+                {
+                    ApplyFilters();
+                    _logging.Info($"Manually added {addedCount} game(s) to library");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to add game manually: {ex.Message}", ex);
+            }
+        }
+
+        private void AttachProfileInfo(GameLibraryItem item)
+        {
+            var existingProfile = _profileService.Profiles.FirstOrDefault(p =>
+                string.Equals(p.ExecutableName, item.ExecutableName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.ExecutablePath, item.ExecutablePath, StringComparison.OrdinalIgnoreCase));
+
+            item.HasProfile = existingProfile != null;
+            item.Profile = existingProfile;
+            item.ProfileName = existingProfile?.Name;
         }
 
         /// <summary>
@@ -423,6 +503,7 @@ namespace OmenCore.ViewModels
             GamePlatform.Ubisoft => "🔷",
             GamePlatform.EA => "⚡",
             GamePlatform.BattleNet => "❄️",
+            GamePlatform.Manual => "📌",
             _ => "📁"
         };
 
@@ -440,7 +521,8 @@ namespace OmenCore.ViewModels
         GOG = 3,
         Xbox = 4,
         Ubisoft = 5,
-        EA = 6
+        EA = 6,
+        Manual = 7
     }
 
     public class ProfileEventArgs : EventArgs

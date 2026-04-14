@@ -2,6 +2,7 @@ using OmenCore.Hardware;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -13,6 +14,8 @@ namespace OmenCore.Services
     {
         private readonly LoggingService _logging;
         private readonly FanService _fanService;
+        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
+        private readonly object _stateLock = new();
 
         private Timer? _watchdogTimer;
         private DateTime _lastTempUpdate = DateTime.Now;
@@ -20,18 +23,22 @@ namespace OmenCore.Services
         private double _lastGpuTemp = 0;
         private bool _isWatchdogArmed = true;
         private bool _failsafeActive;
+        private bool _suspendActive;
         private int _consecutiveFreezeBreaches;
         private bool _disposed;
+        private DateTime _resumeGraceUntilUtc = DateTime.MinValue;
 
         private const int WatchdogIntervalMs = 10000; // Check every 10 seconds
         private const int FreezeThresholdSeconds = 90; // Require longer stall to reduce false positives
         private const int FreezeBreachConfirmations = 2; // Require two consecutive breaches before failsafe
         private const int FailsafeFanPercent = 90;
+        private const int ResumeGraceSeconds = 120; // Ignore freeze detection briefly after wake while sensors reattach
 
-        public HardwareWatchdogService(LoggingService logging, FanService fanService)
+        public HardwareWatchdogService(LoggingService logging, FanService fanService, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
         {
             _logging = logging;
             _fanService = fanService;
+            _resumeDiagnostics = resumeDiagnostics;
         }
 
         /// <summary>
@@ -43,6 +50,12 @@ namespace OmenCore.Services
 
             _logging.Info("🐕 Hardware watchdog started");
             _watchdogTimer = new Timer(CheckWatchdog, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(WatchdogIntervalMs));
+            BackgroundTimerRegistry.Register(
+                "HardwareWatchdog",
+                "HardwareWatchdogService",
+                "Monitors for frozen temperature sensors; triggers failsafe fan speeds",
+                WatchdogIntervalMs,
+                BackgroundTimerTier.Critical);
         }
 
         /// <summary>
@@ -50,6 +63,7 @@ namespace OmenCore.Services
         /// </summary>
         public void Stop()
         {
+            BackgroundTimerRegistry.Unregister("HardwareWatchdog");
             _watchdogTimer?.Dispose();
             _watchdogTimer = null;
             _logging.Info("🐕 Hardware watchdog stopped");
@@ -60,17 +74,27 @@ namespace OmenCore.Services
         /// </summary>
         public void UpdateTemperature(double cpuTemp, double gpuTemp)
         {
-            // Receiving ANY call means the monitoring pipeline is alive — update the heartbeat
-            // unconditionally. Stable idle temps are normal and must not trigger a false alarm.
-            _lastTempUpdate = DateTime.Now;
-            _lastCpuTemp = cpuTemp;
-            _lastGpuTemp = gpuTemp;
-            _consecutiveFreezeBreaches = 0;
+            bool shouldRestoreAuto = false;
 
-            if (_failsafeActive)
+            lock (_stateLock)
             {
-                _failsafeActive = false;
-                _isWatchdogArmed = true;
+                // Receiving ANY call means the monitoring pipeline is alive — update the heartbeat
+                // unconditionally. Stable idle temps are normal and must not trigger a false alarm.
+                _lastTempUpdate = DateTime.Now;
+                _lastCpuTemp = cpuTemp;
+                _lastGpuTemp = gpuTemp;
+                _consecutiveFreezeBreaches = 0;
+
+                if (_failsafeActive)
+                {
+                    _failsafeActive = false;
+                    _isWatchdogArmed = true;
+                    shouldRestoreAuto = true;
+                }
+            }
+
+            if (shouldRestoreAuto)
+            {
                 _logging.Warn("WATCHDOG: Monitoring heartbeat recovered — attempting to restore BIOS auto fan control");
                 try
                 {
@@ -80,6 +104,60 @@ namespace OmenCore.Services
                 {
                     _logging.Warn($"WATCHDOG: Recovery restore auto control failed: {ex.Message}");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Pause watchdog freeze detection while the system is suspended.
+        /// Long sleep intervals must not be treated as frozen monitoring.
+        /// </summary>
+        public void HandleSystemSuspend()
+        {
+            lock (_stateLock)
+            {
+                _suspendActive = true;
+                _isWatchdogArmed = false;
+                _failsafeActive = false;
+                _consecutiveFreezeBreaches = 0;
+                _lastTempUpdate = DateTime.Now;
+                _resumeGraceUntilUtc = DateTime.MinValue;
+            }
+
+            _logging.Info("WATCHDOG: Suspended freeze detection for system sleep");
+            _resumeDiagnostics?.RecordStep("watchdog", "Freeze detection suspended for sleep");
+        }
+
+        /// <summary>
+        /// Resume watchdog monitoring after wake with a short grace period for sensor stack recovery.
+        /// </summary>
+        public void HandleSystemResume()
+        {
+            var nowUtc = DateTime.UtcNow;
+
+            lock (_stateLock)
+            {
+                _suspendActive = false;
+                _failsafeActive = false;
+                _isWatchdogArmed = true;
+                _consecutiveFreezeBreaches = 0;
+                _lastTempUpdate = DateTime.Now;
+                _resumeGraceUntilUtc = nowUtc.AddSeconds(ResumeGraceSeconds);
+            }
+
+            _logging.Info($"WATCHDOG: Resumed after sleep — freeze detection delayed for {ResumeGraceSeconds}s while monitoring recovers");
+            _resumeDiagnostics?.RecordStep("watchdog", $"Resume grace window started ({ResumeGraceSeconds}s)");
+
+            if (_resumeDiagnostics != null)
+            {
+                var cycleId = _resumeDiagnostics.CurrentCycleId;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(ResumeGraceSeconds));
+                    if (_resumeDiagnostics.CurrentCycleId == cycleId)
+                    {
+                        _resumeDiagnostics.RecordStep("watchdog", "Resume grace window ended");
+                    }
+                });
             }
         }
 
@@ -104,18 +182,51 @@ namespace OmenCore.Services
 
         private void CheckWatchdog(object? state)
         {
-            if (!_isWatchdogArmed || _disposed) return;
+            TimeSpan timeSinceLastUpdate;
+
+            lock (_stateLock)
+            {
+                if (_disposed || !_isWatchdogArmed || _suspendActive)
+                {
+                    return;
+                }
+
+                if (DateTime.UtcNow < _resumeGraceUntilUtc)
+                {
+                    return;
+                }
+
+                timeSinceLastUpdate = DateTime.Now - _lastTempUpdate;
+            }
 
             try
             {
-                var timeSinceLastUpdate = DateTime.Now - _lastTempUpdate;
-
                 if (timeSinceLastUpdate.TotalSeconds > FreezeThresholdSeconds)
                 {
-                    _consecutiveFreezeBreaches++;
-                    if (_consecutiveFreezeBreaches < FreezeBreachConfirmations)
+                    bool shouldApplyFailsafe = false;
+                    int currentBreaches;
+
+                    lock (_stateLock)
                     {
-                        _logging.Warn($"WATCHDOG: Potential monitoring stall ({timeSinceLastUpdate.TotalSeconds:F0}s, confirmation {_consecutiveFreezeBreaches}/{FreezeBreachConfirmations})");
+                        if (_disposed || !_isWatchdogArmed || _suspendActive || _failsafeActive)
+                        {
+                            return;
+                        }
+
+                        _consecutiveFreezeBreaches++;
+                        currentBreaches = _consecutiveFreezeBreaches;
+
+                        if (_consecutiveFreezeBreaches >= FreezeBreachConfirmations)
+                        {
+                            _failsafeActive = true;
+                            _isWatchdogArmed = false;
+                            shouldApplyFailsafe = true;
+                        }
+                    }
+
+                    if (!shouldApplyFailsafe)
+                    {
+                        _logging.Warn($"WATCHDOG: Potential monitoring stall ({timeSinceLastUpdate.TotalSeconds:F0}s, confirmation {currentBreaches}/{FreezeBreachConfirmations})");
                         return;
                     }
 
@@ -126,8 +237,6 @@ namespace OmenCore.Services
                     {
                         try
                         {
-                            _failsafeActive = true;
-                            _isWatchdogArmed = false;
                             _fanService.ForceSetFanSpeed(FailsafeFanPercent);
                             _logging.Warn($"Fans set to {FailsafeFanPercent}% due to frozen temperature monitoring");
 

@@ -441,6 +441,8 @@ class Program
                 
                 LogToFile($"[{DateTime.Now:O}] [CPU Detected] {hw.Name}\n");
                 LogToFile($"  Temp sensors ({tempSensors.Count}): [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
+                LogToFile($"  Load sensors ({loadSensors.Count}): [{string.Join(", ", loadSensors.Select(s => $"{s.Name}={s.Value:F0}%"))}]\n");
+                LogToFile($"  Power sensors ({powerSensors.Count}): [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]\n");
                 
                 if (tempSensors.Count == 0)
                 {
@@ -478,6 +480,8 @@ class Program
                 // Also log to file
                 LogToFile($"[{DateTime.Now:O}] [GPU Detected] {gpuType}: {hw.Name}\n");
                 LogToFile($"  Temp sensors: [{string.Join(", ", tempSensors.Select(s => $"{s.Name}={s.Value:F0}°C"))}]\n");
+                LogToFile($"  Load sensors: [{string.Join(", ", loadSensors.Select(s => $"{s.Name}={s.Value:F0}%"))}]\n");
+                LogToFile($"  Power sensors: [{string.Join(", ", powerSensors.Select(s => $"{s.Name}={s.Value:F1}W"))}]\n");
             }
         }
         
@@ -818,7 +822,8 @@ class Program
         switch (hardware.HardwareType)
         {
             case HardwareType.Cpu:
-                var cpuLoad = GetSensorValue(hardware, SensorType.Load, "CPU Total");
+                var cpuLoad = GetSensorValueMulti(hardware, SensorType.Load,
+                    "CPU Total", "Total CPU Usage", "CPU Package", "CPU Package Total", "Total");
 
                 // CPU Temperature - apply model/vendor-aware sensor ranking.
                 // This avoids selecting low individual-core sensors on some Ryzen systems.
@@ -936,7 +941,8 @@ class Program
                 // Always update hotspot, even if 0
                 sample.GpuHotspot = gpuHotspot;
                 
-                var gpuLoad = GetSensorValueMulti(hardware, SensorType.Load, "GPU Core");
+                var gpuLoad = GetSensorValueMulti(hardware, SensorType.Load,
+                    "GPU Core", "D3D 3D", "3D", "GPU", "Graphics", "Compute");
                 // Always assign load - 0 is a valid idle reading
                 sample.GpuLoad = gpuLoad;
                 
@@ -1298,6 +1304,12 @@ class Program
                     if (int.TryParse(pidStr, out var newPid) && newPid > 0)
                     {
                         var oldPid = _parentProcessId;
+                        if (oldPid == newPid && _parentAlive)
+                        {
+                            response = "OK";
+                        }
+                        else
+                        {
                         _parentProcessId = newPid;
                         _parentAlive = true;
                         
@@ -1308,6 +1320,7 @@ class Program
                         _ = Task.Run(MonitorParentProcess);
                         
                         response = "OK";
+                        }
                     }
                     else
                     {

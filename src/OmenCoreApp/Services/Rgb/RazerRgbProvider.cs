@@ -17,6 +17,30 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable { get; private set; } = false;
         public bool IsConnected => _razerService.IsSessionActive;
         public int DeviceCount => _razerService.Devices.Count;
+        private bool _initFailed;
+        private string _initError = string.Empty;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (_initFailed) return RgbProviderConnectionStatus.Error;
+                if (!IsAvailable) return RgbProviderConnectionStatus.Disabled;
+                if (DeviceCount == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (_initFailed) return _initError;
+                if (!IsAvailable) return "Razer Synapse not detected";
+                if (DeviceCount == 0) return "Synapse running, no devices found";
+                return $"{DeviceCount} device(s) connected";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects { get; } = new[]
         {
@@ -53,6 +77,8 @@ namespace OmenCore.Services.Rgb
             {
                 _logging.Warn($"RazerRgbProvider init failed: {ex.Message}");
                 IsAvailable = false;
+                _initFailed = true;
+                _initError = ex.Message;
             }
 
             return Task.CompletedTask;

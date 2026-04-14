@@ -27,7 +27,7 @@
 
 ### 🎯 Quick Links
 
-[![Version](https://img.shields.io/badge/version-3.2.1-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+[![Version](https://img.shields.io/badge/version-3.3.0-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -43,7 +43,7 @@
 
 ### Windows
 
-1. Download `OmenCoreSetup-3.2.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.2.1)
+1. Download `OmenCoreSetup-3.3.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
 2. Run as Administrator
 3. Launch OmenCore from the Start Menu
 
@@ -53,9 +53,9 @@
 
 ```bash
 # Download & Extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.2.1/OmenCore-3.2.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.2.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -68,51 +68,78 @@ sudo ./omencore-gui
 
 → **[Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
 
-## 🔥 **What's New in v3.2.1**
+### Linux issue reporting (one-command triage bundle)
 
-v3.2.1 is a major hotfix rollup focused on reliability, telemetry accuracy, and UI polish.
+When reporting Linux model support issues (for example missing `hp-wmi` fan interfaces), run:
 
-### Reliability and telemetry
+```bash
+./qa/collect-linux-triage.sh
+```
 
-- Reduced false thermal alerts with stronger sensor sanity and persistence checks
-- Improved sleep/resume monitoring recovery behavior and fan-state reapplication
-- Hardened CPU temperature source fallback logic to prevent 32C/70C source oscillation on affected sessions
-- Reduced fallback log noise for portable mode and CIM to legacy WMI transitions
+This generates a timestamped folder with:
+- `omencore-linux-triage.txt` (kernel/OS, CLI status/diagnose output, sysfs snapshots)
+- optional `acpidump.dat` when `acpidump` is available
 
-### Fan and power behavior
+Attach those files to your GitHub issue for faster triage.
 
-- Improved fan safety around mode transitions and low-duty edge cases
-- Better handling of transient AC/battery state glitches in automation paths
-- Improved fan diagnostic scoring for Victus-class hardware characteristics
+## 🔥 **What's New in v3.3.0**
 
-### UX polish
+v3.3.0 is the largest stability-and-polish release since v3.1.0 — 80 items shipped across fan-curve stability, sleep recovery, monitoring reliability, Bloatware Manager usability, OSD, RGB subsystem hardening, AMD power tuning, Lite Mode, and dozens of community-reported fixes.
 
-- Hotkey OSD visual upgrades with configurable duration, size, accent themes, and compact mode
-- Premium surface styling pass across key dashboard and fan-control areas
+### Critical Fixes
 
-→ **[Full Changelog](docs/CHANGELOG_v3.2.1.md)**
+- **Fan curve no longer self-destructs** — Root-cause fixed: presets became permanently broken after first apply when OGH was running or fans were already at-target speed (Ryua report)
+- **Restore Defaults no longer freezes OmenCore** — Eliminated a UI-thread deadlock in `KeyboardLightingService.RestoreDefaults()` on V2 keyboards (GitHub #100 Bug #1)
+- **Fan preset switching no longer stalls the UI** — All `ApplyPreset()` calls moved off the WPF UI thread via `Task.Run`
+- **Hardware monitoring halt / watchdog failsafe fans fixed** — Cross-thread dispatcher exception in `LightingViewModel` starved the monitoring heartbeat, triggering fail-safe 100% fans. Fixed with dispatcher marshal + subscriber isolation + extended CPU fallback read timeout
+- **Bloatware Manager Remove/Restore buttons now functional** — `SelectedApp` setter was raising `PropertyChanged` instead of `CanExecuteChanged`; buttons were permanently disabled after scan
+
+### Thermal Fixes
+
+- **CPU temperature stays current after sleep** — Hardware worker and fallback monitor properly restarted on resume; no more frozen 44°C post-wakeup (GitHub #102)
+- **V1 BIOS fans now reach 0 RPM at idle** — Residual duty-floor from the Performance→Default kick cleared so BIOS EC can regulate freely (GitHub #100 Bug #4)
+- **V1 BIOS fans no longer stick at 100%** after exiting Performance preset (GitHub #102)
+
+### UI and UX
+
+- **OSD DPI fix** — All six anchor positions land correctly at 125%, 150%, and 175% DPI scaling
+- **Quick Access reordered** — Quiet → Auto → Curve → Max; “Curve” applies saved fan preset with active-curve tooltip
+- **Fan/performance decoupling badges** — Visible `Fan independent` / `Fan linked` state in Fan Control, System Control, and Quick Access
+- **AMD CPU power tuning** — STAPM/Tctl controls promoted to first-class tuning surface with PawnIO/admin capability gating
+- **Lite Mode** — Persisted beginner-UI toggle hides advanced tabs; settings-search indexed
+- **All disabled buttons now show tooltips** — `ToolTipService.ShowOnDisabled` applied globally on `ModernButton` and `PresetButton` base styles; no more invisible why-is-this-grey mystery
+- **OGH unsupported-command log noise eliminated** — WARN permanently silenced to Debug after 5 occurrences; logs are no longer flooded on OGH-adjacent hardware
+- **Startup hardware restore safety guardrails** — `EnableStartupHardwareRestore` disabled by default; blocked on OMEN 16 and Victus models where CMOS state loss has been observed
+- **MSI Afterburner coexistence fix** — Stale GPU load/clock cache no longer reused across monitoring intervals; GPU engine counter summing corrected so Afterburner's shared counter doesn't push readings above 100%
+
+### Platform and Subsystems
+
+- **Audio-reactive RGB** — Real WASAPI loopback capture; Audio Reactive scene registered across all active providers
+- **Per-key keyboard lighting** — Interactive 84-cell OMEN Max grid editor wired to V2 HID backend
+- **Full RGB provider hardening** — Razer back-off reconnect, Logitech health-check, Corsair mode-synced gradients, two-phase commit sync (#13–#18)
+- **Unified monitoring pipeline + timer governance** — 1 s active / 5 s idle cadence, Critical/VisibleOnly/Optional tier registry, coalesced dispatcher fan-out (#25–#31)
+
+→ **[Full Changelog](docs/CHANGELOG_v3.3.0.md)**
 
 ---
 
 ## 📦 **Downloads & Artifacts**
 
-**Version:** v3.2.1 | **Build Date:** 2026-03-24 | **Status:** Released
+**Version:** v3.3.0 | **Status:** Released
 
 | Download | Platform | Details |
-|----------|----------|---------|
-| **OmenCoreSetup-3.2.1.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
-| **OmenCore-3.2.1-win-x64.zip** | Windows | Portable — Extract and run, no installation |
-| **OmenCore-3.2.1-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
+|----------|----------|----------|
+| **OmenCoreSetup-3.3.0.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
+| **OmenCore-3.3.0-win-x64.zip** | Windows | Portable — Extract and run, no installation |
+| **OmenCore-3.3.0-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
 
 ### SHA256
 
 ```text
-3EB2BCC82A001FA408AF79031C74F8813F1E6F56429F323E5BDC4F97525FD907  OmenCoreSetup-3.2.1.exe
-ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695  OmenCore-3.2.1-win-x64.zip
-344EA6C5BD4394B574939F2693B9842E6720475A6805357A058E68B4286FC1BA  OmenCore-3.2.1-linux-x64.zip
+(SHA256 hashes are published on the [v3.3.0 GitHub Release page](https://github.com/theantipopau/omencore/releases/tag/v3.3.0))
 ```
 
-> Security: release hashes are also published on the [v3.2.1 release page](https://github.com/theantipopau/omencore/releases/tag/v3.2.1).
+> Security: release hashes are documented in [CHANGELOG_v3.3.0.md](docs/CHANGELOG_v3.3.0.md) and the [v3.3.0 release page](https://github.com/theantipopau/omencore/releases/tag/v3.3.0).
 
 ---
 
@@ -133,7 +160,7 @@ ED0A3A95B99B487D6905690EB12C79D8623CAE90743E2811EFF4A81DA632E695  OmenCore-3.2.1
 ### Performance Control
 
 - CPU undervolting via Intel MSR with independent core/cache offset sliders (typical safe range: -80 to -125 mV)
-- Performance modes (Balanced, Performance, Turbo) — CPU/GPU wattage envelope management
+- Performance modes (Quiet, Balanced, Performance, Turbo) — CPU/GPU wattage envelope management (decoupled from fan mode in v3.3.0)
 - GPU Power Boost — +15W Dynamic Boost (PPAB)
 - GPU mux switching — Hybrid, Discrete (dGPU), and Integrated (iGPU)
 - Per-game profiles — auto-switch on game process detection
@@ -256,7 +283,7 @@ OmenCore/
 ├── installer/                    # Inno Setup script
 ├── config/                       # default_config.json
 ├── docs/                         # Changelogs, audit reports, guides
-└── VERSION.txt                   # Current: 3.2.1
+└── VERSION.txt                   # Current: 3.3.0
 ```
 
 **Principles:** Safety-first EC write allowlist · Async by default · Telemetry change-detection (0.5°/0.5%) · Graceful per-service degradation · Out-of-process crash isolation
@@ -287,8 +314,9 @@ cd src\OmenCoreApp\bin\Release\net8.0-windows10.0.19041.0
 ### Build Installer
 
 ```powershell
-pwsh ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
-# Outputs: artifacts/OmenCoreSetup-3.2.1.exe and artifacts/OmenCore-3.2.1-win-x64.zip
+pwsh ./build-installer.ps1
+# Optional: -Configuration Release -Runtime win-x64 (these are the defaults)
+# Outputs: artifacts/OmenCoreSetup-3.3.0.exe and artifacts/OmenCore-3.3.0-win-x64.zip
 ```
 
 ### Tests
@@ -296,6 +324,14 @@ pwsh ./build-installer.ps1 -Configuration Release -Runtime win-x64 -SingleFile
 ```powershell
 dotnet test OmenCore.sln
 dotnet test OmenCore.sln --collect:"XPlat Code Coverage"
+```
+
+### Linux triage bundle (maintainers/reporters)
+
+```bash
+./qa/collect-linux-triage.sh [output_dir] [bin_dir]
+# Example:
+./qa/collect-linux-triage.sh ./triage ./
 ```
 
 ### Release Process
@@ -330,6 +366,8 @@ Detailed logs are in `%LOCALAPPDATA%\OmenCore\`. On Linux, use `sudo omencore-cl
 
 | Version | Key Changes |
 |---------|------------|
+| **v3.3.0** | Fan curve stability, sleep recovery, OSD DPI/visual, RGB hardening, AMD power tuning, Lite Mode (74 items) |
+| **v3.2.5** | Worker reconnect fix, fan/performance decoupling, 8BB1 model support, Quick Access improvements |
 | **v3.2.1** | 23-fix hotfix rollup: telemetry hardening, OSD/premium UI polish, portable log hygiene, CPU temp oscillation guard |
 | **v3.2.0** | Dashboard row fix, fan 0% safety, frozen temp watchdog, Avalonia preset save, Linux RGB detection |
 | **v3.1.1** | CPU temp regression (17-ck1xxx), fan 0-RPM guard, worker crash on GPU driver install, PE header validation |
@@ -350,7 +388,7 @@ Older release notes: [docs/](docs/)
 - [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) — Antivirus false positive handling
 - [docs/DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md) — Windows Defender exclusion steps
 - [docs/WINRING0_SETUP.md](docs/WINRING0_SETUP.md) — WinRing0 driver setup
-- [docs/CHANGELOG_v3.2.1.md](docs/CHANGELOG_v3.2.1.md) — Current release notes
+- [docs/CHANGELOG_v3.3.0.md](docs/CHANGELOG_v3.3.0.md) — Current release notes
 
 ---
 

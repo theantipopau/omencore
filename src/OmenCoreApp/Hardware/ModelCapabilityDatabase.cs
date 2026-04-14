@@ -457,12 +457,51 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers."
             });
-            
-            // ═══════════════════════════════════════════════════════════════════════════════════
+            // -----------------------------------------------------------------------------------
             // OMEN 17 Series (17.3" laptops)
-            // ═══════════════════════════════════════════════════════════════════════════════════
-            
-AddModel(new ModelCapabilities
+            // -----------------------------------------------------------------------------------
+
+            // OMEN 17 (2021) Intel — product ID 8BB1 is also shared with Victus 15-fa1xxx;
+            // the Victus disambiguation entry (8BB1-VICTUS15) is resolved first via
+            // ModelNamePattern matching in CapabilityDetectionService.LoadModelCapabilities().
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BB1",
+                ModelName = "OMEN 17 (2021) Intel",
+                ModelYear = 2021,
+                Family = OmenModelFamily.OMEN17,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "8BB1 is shared with Victus 15-fa1xxx; OMEN 17 profile selected when model name lacks 15-fa1 substring"
+            });
+
+            // Virtual product ID resolved via ModelNamePattern before ProductId lookup.
+            // Matches WMI model names containing "15-fa1" (e.g., HP Victus 15-fa1xxx).
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BB1-VICTUS15",
+                ModelName = "HP Victus 15-fa1xxx (2022)",
+                ModelNamePattern = "15-fa1",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "Victus 15-fa1xxx — single-color backlight; shares 8BB1 product ID with OMEN 17 (2021)"
+            });
+
+            AddModel(new ModelCapabilities
             {
                 ProductId = "8B9D",
                 ModelName = "OMEN 17 (2023) Intel",
@@ -476,31 +515,28 @@ AddModel(new ModelCapabilities
                 HasLightBar = true,
                 UserVerified = true
             });
-            
-            // OMEN 17-ck2xxx (2023) - 13th gen Intel, RTX 4080/4090
-            // Note: ProductId 8BAD is shared with OMEN 15 (2021), but 17-ck2 model name takes precedence
-            // BUG FIX v2.7.1: WMI commands return success but don't actually change fan speed on 17-ck2
-            // Similar to Transcend models - requires OGH proxy or direct EC access
+
+            // OMEN 17-ck2xxx (2023) — WMI fans non-functional, use EC or OGH proxy
             AddModel(new ModelCapabilities
             {
-                ProductId = "17CK2", // Virtual ID for model name matching
+                ProductId = "17CK2",
                 ModelName = "OMEN 17-ck2xxx (2023)",
-                ModelNamePattern = "17-ck2", // For model name matching
+                ModelNamePattern = "17-ck2",
                 ModelYear = 2023,
                 Family = OmenModelFamily.OMEN17,
-                SupportsFanControlWmi = false, // WMI returns success but fans don't respond - needs OGH proxy
+                SupportsFanControlWmi = false,
                 SupportsFanControlEc = true,
                 SupportsFanCurves = true,
                 SupportsIndependentFanCurves = true,
-                HasMuxSwitch = true, // 17-ck2 with RTX 4090 has MUX
+                HasMuxSwitch = true,
                 SupportsGpuPowerBoost = true,
                 SupportsAdvancedOptimus = true,
                 HasFourZoneRgb = true,
-                SupportsUndervolt = true, // 13th gen Intel supports undervolt
+                SupportsUndervolt = true,
                 UserVerified = true,
-                Notes = "OMEN 17-ck2 series (2023) - WMI ineffective, use OGH proxy or EC access"
+                Notes = "OMEN 17-ck2 series (2023) � WMI ineffective, use OGH proxy or EC access"
             });
-            
+
             AddModel(new ModelCapabilities
             {
                 ProductId = "8B9E",
@@ -515,6 +551,7 @@ AddModel(new ModelCapabilities
                 HasLightBar = true,
                 UserVerified = true
             });
+
             
             // ═══════════════════════════════════════════════════════════════════════════════════
             // OMEN Transcend Series (ultrabook-style, 2023+)

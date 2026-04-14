@@ -24,8 +24,11 @@ namespace OmenCore.ViewModels
         private bool _monitoringLowOverhead;
         private string _currentPerformanceMode = "Auto";
         private string _currentFanMode = "Auto";
+        private string _modeLinkStatus = "Decoupled fan/perf";
         private bool _disposed;
         private volatile bool _pendingUIUpdate; // Throttle BeginInvoke backlog
+        private readonly object _sampleUpdateLock = new();
+        private MonitoringSample? _queuedSample;
         
         // Session tracking (v2.2)
         private readonly DateTime _sessionStartTime = DateTime.Now;
@@ -106,6 +109,19 @@ namespace OmenCore.ViewModels
                 if (_currentFanMode != value)
                 {
                     _currentFanMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string ModeLinkStatus
+        {
+            get => _modeLinkStatus;
+            set
+            {
+                if (_modeLinkStatus != value)
+                {
+                    _modeLinkStatus = value;
                     OnPropertyChanged();
                 }
             }
@@ -468,53 +484,92 @@ namespace OmenCore.ViewModels
 
         private void OnSampleUpdated(object? sender, MonitoringSample sample)
         {
-            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, 
-                () => LatestMonitoringSample = sample);
-            
-            // Throttle UI updates to prevent Dispatcher backlog during heavy load
-            if (!_pendingUIUpdate)
+            lock (_sampleUpdateLock)
             {
-                _pendingUIUpdate = true;
-                // Marshal to UI thread for ObservableCollection updates
-                System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+                _queuedSample = sample;
+                if (_pendingUIUpdate)
                 {
-                    // Convert to ThermalSample for temperature charts
-                    _thermalSamples.Add(new ThermalSample
-                    {
-                        Timestamp = sample.Timestamp,
-                        CpuCelsius = sample.CpuTemperatureC,
-                        GpuCelsius = sample.GpuTemperatureC
-                    });
-                    
-                    // Trim to max history size - remove excess items in one pass
-                    var excessCount = _thermalSamples.Count - MaxThermalSampleHistory;
-                    for (int i = 0; i < excessCount; i++)
-                    {
-                        _thermalSamples.RemoveAt(0);
-                    }
-                    RebuildFilteredSamples();
-                    
-                    // Update fan curve points for visualization
-                    UpdateFanCurvePoints(sample);
-                    
-                    // Update sparkline data properties
-                    OnPropertyChanged(nameof(RecentCpuTemps));
-                    OnPropertyChanged(nameof(RecentGpuTemps));
-                    OnPropertyChanged(nameof(RecentRamUsage));
-                    OnPropertyChanged(nameof(HasSparklineData));
-                    
-                    _pendingUIUpdate = false;
-                });
+                    return;
+                }
+
+                _pendingUIUpdate = true;
             }
-            
-            // Notify property changes for new monitoring features
-            OnPropertyChanged(nameof(PowerConsumptionSummary));
-            OnPropertyChanged(nameof(PowerEfficiencySummary));
-            OnPropertyChanged(nameof(BatteryHealthSummary));
-            OnPropertyChanged(nameof(FanCurveSummary));
-            OnPropertyChanged(nameof(HasHistoricalData));
-            OnPropertyChanged(nameof(HasLiveData));
-            OnPropertyChanged(nameof(MonitoringSourceText));
+
+            // Marshal a single coalesced update to the UI thread.
+            System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        MonitoringSample? latest;
+                        lock (_sampleUpdateLock)
+                        {
+                            latest = _queuedSample;
+                            _queuedSample = null;
+                        }
+
+                        if (latest == null)
+                        {
+                            lock (_sampleUpdateLock)
+                            {
+                                _pendingUIUpdate = false;
+                                if (_queuedSample == null)
+                                {
+                                    return;
+                                }
+
+                                _pendingUIUpdate = true;
+                            }
+
+                            continue;
+                        }
+
+                        LatestMonitoringSample = latest;
+
+                        // Convert to ThermalSample for temperature charts
+                        _thermalSamples.Add(new ThermalSample
+                        {
+                            Timestamp = latest.Timestamp,
+                            CpuCelsius = latest.CpuTemperatureC,
+                            GpuCelsius = latest.GpuTemperatureC
+                        });
+
+                        // Trim to max history size - remove excess items in one pass
+                        var excessCount = _thermalSamples.Count - MaxThermalSampleHistory;
+                        for (int i = 0; i < excessCount; i++)
+                        {
+                            _thermalSamples.RemoveAt(0);
+                        }
+                        RebuildFilteredSamples();
+
+                        // Update fan curve points for visualization
+                        UpdateFanCurvePoints(latest);
+
+                        // Update sparkline data properties
+                        OnPropertyChanged(nameof(RecentCpuTemps));
+                        OnPropertyChanged(nameof(RecentGpuTemps));
+                        OnPropertyChanged(nameof(RecentRamUsage));
+                        OnPropertyChanged(nameof(HasSparklineData));
+
+                        // Notify coalesced derived summaries
+                        OnPropertyChanged(nameof(PowerConsumptionSummary));
+                        OnPropertyChanged(nameof(PowerEfficiencySummary));
+                        OnPropertyChanged(nameof(BatteryHealthSummary));
+                        OnPropertyChanged(nameof(FanCurveSummary));
+                        OnPropertyChanged(nameof(HasHistoricalData));
+                        OnPropertyChanged(nameof(HasLiveData));
+                        OnPropertyChanged(nameof(MonitoringSourceText));
+                    }
+                }
+                finally
+                {
+                    lock (_sampleUpdateLock)
+                    {
+                        _pendingUIUpdate = false;
+                    }
+                }
+            });
         }
         
         private void UpdateFanCurvePoints(MonitoringSample sample)

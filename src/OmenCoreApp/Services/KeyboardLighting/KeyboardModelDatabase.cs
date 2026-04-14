@@ -36,6 +36,12 @@ namespace OmenCore.Services.KeyboardLighting
         /// <summary>Notes about this model's quirks.</summary>
         public string? Notes { get; set; }
         
+        /// <summary>
+        /// Model name pattern used to disambiguate when multiple models share the same product ID.
+        /// If set, the lookup will prefer this entry when the WMI model name contains this substring.
+        /// </summary>
+        public string? ModelNamePattern { get; set; }
+        
         /// <summary>Verified by users (false = theoretical/untested).</summary>
         public bool UserVerified { get; set; }
         
@@ -50,6 +56,17 @@ namespace OmenCore.Services.KeyboardLighting
     public static class KeyboardModelDatabase
     {
         private static readonly Dictionary<string, KeyboardModelConfig> _knownModels = new(StringComparer.OrdinalIgnoreCase);
+        
+            /// <summary>
+            /// Product IDs known to be shared across different model families.
+            /// When a product ID is in this set, model-name disambiguation is attempted before
+            /// returning the product-ID-matched config.
+            /// </summary>
+            private static readonly HashSet<string> _ambiguousProductIds = new(StringComparer.OrdinalIgnoreCase)
+            {
+                // 8BB1 is used by both OMEN 17 (2021) Intel and Victus 15-fa1xxx (2022)
+                "8BB1",
+            };
         
         static KeyboardModelDatabase()
         {
@@ -111,21 +128,8 @@ namespace OmenCore.Services.KeyboardLighting
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════
-            // OMEN 17 Series
+            // OMEN 16 Series (16.1" laptops)
             // ═══════════════════════════════════════════════════════════════════════════════════
-
-            // OMEN 17-ck2xxx (2023 Intel, 13th Gen) — verified by user (Product ID 8BAD shared with OMEN 15)
-            AddModel(new KeyboardModelConfig
-            {
-                ProductId = "17CK2",  // Virtual ID — matched via model name pattern, not product ID
-                ModelName = "OMEN 17-ck2xxx (2023)",
-                KeyboardType = KeyboardType.FourZoneTkl,
-                PreferredMethod = KeyboardMethod.ColorTable2020,
-                FallbackMethods = new[] { KeyboardMethod.EcDirect },
-                EcColorRegisters = new byte[] { 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xBB, 0xBC },
-                EcBrightnessRegister = 0xBD,
-                ModelYear = 2023
-            });
             
             AddModel(new KeyboardModelConfig
             {
@@ -207,6 +211,10 @@ namespace OmenCore.Services.KeyboardLighting
             // OMEN 17 Series (17.3" laptops)
             // ═══════════════════════════════════════════════════════════════════════════════════
             
+            // ═══════════════════════════════════════════════════════════════════════════════════
+            // OMEN 17 Series (17.3" laptops)
+            // ═══════════════════════════════════════════════════════════════════════════════════
+            
             AddModel(new KeyboardModelConfig
             {
                 ProductId = "8A22",
@@ -217,6 +225,8 @@ namespace OmenCore.Services.KeyboardLighting
                 ModelYear = 2020
             });
             
+            // OMEN 17 (2021) Intel — product ID 8BB1 is also shared with Victus 15-fa1xxx.
+            // The Victus entry (8BB1-VICTUS15) is resolved first via ModelNamePattern matching.
             AddModel(new KeyboardModelConfig
             {
                 ProductId = "8BB1",
@@ -225,6 +235,21 @@ namespace OmenCore.Services.KeyboardLighting
                 PreferredMethod = KeyboardMethod.ColorTable2020,
                 FallbackMethods = new[] { KeyboardMethod.EcDirect },
                 ModelYear = 2021
+            });
+            
+            // Victus 15-fa1xxx shares product ID 8BB1 with OMEN 17 (2021) Intel.
+            // Stored under a virtual key; resolved by model-name pattern during ambiguous lookup.
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8BB1-VICTUS15",
+                ModelName = "HP Victus 15-fa1xxx (2022)",
+                ModelNamePattern = "fa1",
+                KeyboardType = KeyboardType.BacklightOnly,
+                PreferredMethod = KeyboardMethod.BacklightOnly,
+                FallbackMethods = Array.Empty<KeyboardMethod>(),
+                ModelYear = 2022,
+                UserVerified = false,
+                Notes = "Victus 15-fa1xxx — single-color backlight; 8BB1 product ID shared with OMEN 17 (2021)"
             });
             
             AddModel(new KeyboardModelConfig
@@ -255,8 +280,9 @@ namespace OmenCore.Services.KeyboardLighting
             
             AddModel(new KeyboardModelConfig
             {
-                ProductId = "ah0097nr",
+                ProductId = "OMENMAX16",
                 ModelName = "OMEN Max 16 (2025)",
+                ModelNamePattern = "max 16",
                 KeyboardType = KeyboardType.PerKeyRgb,
                 PreferredMethod = KeyboardMethod.HidPerKey,
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023 },
@@ -417,13 +443,34 @@ namespace OmenCore.Services.KeyboardLighting
         /// Get configuration for a specific product ID.
         /// </summary>
         public static KeyboardModelConfig? GetConfig(string productId)
+            {
+                return GetConfig(productId, wmiModelName: null);
+            }
+        
+            /// <summary>
+            /// Get configuration for a specific product ID, with optional model-name disambiguation.
+            /// When the product ID is in the ambiguous set and <paramref name="wmiModelName"/> is
+            /// provided, entries whose <see cref="KeyboardModelConfig.ModelNamePattern"/> matches the
+            /// model name take priority over the plain product-ID hit.
+            /// </summary>
+            public static KeyboardModelConfig? GetConfig(string productId, string? wmiModelName)
         {
             if (string.IsNullOrEmpty(productId))
                 return null;
                 
             // Try exact match first
             if (_knownModels.TryGetValue(productId, out var config))
-                return config;
+                {
+                    // If the product ID is ambiguous and we have a model name, check for a more
+                    // specific override entry via its ModelNamePattern field.
+                    if (!string.IsNullOrEmpty(wmiModelName) && _ambiguousProductIds.Contains(productId))
+                    {
+                        var disamb = TryDisambiguateByModelName(productId, wmiModelName);
+                        if (disamb != null)
+                            return disamb;
+                    }
+                    return config;
+                }
             
             // Try partial match (some product IDs are truncated)
             var partialMatch = _knownModels.Values
@@ -432,6 +479,25 @@ namespace OmenCore.Services.KeyboardLighting
             
             return partialMatch;
         }
+        
+            /// <summary>Returns true if this product ID is shared across different model families.</summary>
+            public static bool IsAmbiguousProductId(string productId) =>
+                !string.IsNullOrEmpty(productId) && _ambiguousProductIds.Contains(productId);
+        
+            /// <summary>
+            /// Scans all models whose ProductId starts with the given prefix (virtual disambiguation
+            /// keys such as "8BB1-VICTUS15") and returns the first one whose ModelNamePattern is a
+            /// case-insensitive substring of <paramref name="wmiModelName"/>.
+            /// </summary>
+            private static KeyboardModelConfig? TryDisambiguateByModelName(string productId, string wmiModelName)
+            {
+                var lowerModel = wmiModelName.ToLowerInvariant();
+                var prefix = productId + "-";
+                return _knownModels.Values.FirstOrDefault(c =>
+                    c.ProductId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrEmpty(c.ModelNamePattern) &&
+                    lowerModel.Contains(c.ModelNamePattern.ToLowerInvariant()));
+            }
         
         /// <summary>
         /// Get configuration based on model name (fuzzy match).
@@ -445,6 +511,15 @@ namespace OmenCore.Services.KeyboardLighting
                 return null;
             
             var lowerName = modelName.ToLowerInvariant();
+
+            // Try explicit model-name pattern matches first (used by virtual entries
+            // where the HP baseboard product ID may not uniquely identify the keyboard).
+            var patternMatch = _knownModels.Values.FirstOrDefault(c =>
+                !string.IsNullOrEmpty(c.ModelNamePattern) &&
+                lowerName.Contains(c.ModelNamePattern.ToLowerInvariant()));
+
+            if (patternMatch != null)
+                return patternMatch;
             
             // Try exact containment match first (original behavior)
             var exactMatch = _knownModels.Values.FirstOrDefault(c => 

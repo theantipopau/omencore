@@ -57,29 +57,32 @@
                            FontSize="28" FontWeight="Bold" 
                            Foreground="{StaticResource TextPrimaryBrush}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <!-- Connection Status Badges -->
-                    <Border Background="#1A4CAF50" BorderBrush="#4CAF50" BorderThickness="1" 
+                    <!-- Connection Status Badges — shown for all enabled providers with status-aware color -->
+                    <Border Background="#0D000000" BorderBrush="{Binding CorsairStatusBrush}" BorderThickness="1" 
                             CornerRadius="10" Padding="10,4" Margin="0,0,8,0"
-                            Visibility="{Binding IsCorsairConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            ToolTip="{Binding CorsairStatusDetail}"
+                            Visibility="{Binding IsCorsairEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Fill="#4CAF50" Style="{StaticResource ConnectionIndicator}"/>
-                            <TextBlock Text="Corsair" FontSize="11" Foreground="#4CAF50"/>
+                            <Ellipse Fill="{Binding CorsairStatusBrush}" Style="{StaticResource ConnectionIndicator}"/>
+                            <TextBlock Text="Corsair" FontSize="11" Foreground="{Binding CorsairStatusBrush}"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="#1A45C7FF" BorderBrush="#45C7FF" BorderThickness="1" 
+                    <Border Background="#0D000000" BorderBrush="{Binding LogitechStatusBrush}" BorderThickness="1" 
                             CornerRadius="10" Padding="10,4" Margin="0,0,8,0"
-                            Visibility="{Binding IsLogitechConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            ToolTip="{Binding LogitechStatusDetail}"
+                            Visibility="{Binding IsLogitechEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Fill="#45C7FF" Style="{StaticResource ConnectionIndicator}"/>
-                            <TextBlock Text="Logitech" FontSize="11" Foreground="#45C7FF"/>
+                            <Ellipse Fill="{Binding LogitechStatusBrush}" Style="{StaticResource ConnectionIndicator}"/>
+                            <TextBlock Text="Logitech" FontSize="11" Foreground="{Binding LogitechStatusBrush}"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="#1A44D62C" BorderBrush="#44D62C" BorderThickness="1" 
+                    <Border Background="#0D000000" BorderBrush="{Binding RazerStatusBrush}" BorderThickness="1" 
                             CornerRadius="10" Padding="10,4" Margin="0,0,8,0"
-                            Visibility="{Binding IsRazerConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            ToolTip="{Binding RazerStatusDetail}"
+                            Visibility="{Binding IsRazerEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Fill="#44D62C" Style="{StaticResource ConnectionIndicator}"/>
-                            <TextBlock Text="Razer" FontSize="11" Foreground="#44D62C"/>
+                            <Ellipse Fill="{Binding RazerStatusBrush}" Style="{StaticResource ConnectionIndicator}"/>
+                            <TextBlock Text="Razer" FontSize="11" Foreground="{Binding RazerStatusBrush}"/>
                         </StackPanel>
                     </Border>
                     <Border Background="#1AE6002E" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" 
@@ -209,6 +212,47 @@
                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsAmbientModeActive, Mode=TwoWay}"
                                           Style="{StaticResource ToggleButtonStyle}"/>
                         </Grid>
+
+                        <!-- Audio Reactive Toggle -->
+                        <Grid Margin="0,12,0,0"
+                              Visibility="{Binding IsAudioReactiveModeAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Audio Reactive Lighting" FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Pulses with system audio output via WASAPI loopback" FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding AudioReactiveLevelText}" FontSize="11"
+                                           Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" IsChecked="{Binding IsAudioReactiveModeActive, Mode=TwoWay}"
+                                          Style="{StaticResource ToggleButtonStyle}"/>
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0"
+                              Visibility="{Binding IsAudioReactiveModeAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="220"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Mode" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding AudioVisualizationModes}"
+                                      SelectedItem="{Binding SelectedAudioVisualizationMode, Mode=TwoWay}"
+                                      Style="{StaticResource ModernComboBox}"/>
+
+                            <TextBlock Grid.Column="3" Text="Sensitivity" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                            <Slider Grid.Column="4" Minimum="0.1" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                    Value="{Binding AudioReactiveSensitivity, Mode=TwoWay}"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
                 
@@ -220,9 +264,13 @@
                             <Image Source="pack://application:,,,/Assets/corsair.png" Width="28" Height="28" Margin="0,0,12,0"/>
                             <TextBlock Text="Corsair Devices" FontSize="20" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            <Border Background="#1AFFCC00" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
-                                    Visibility="{Binding IsCorsairConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="iCUE Connected" FontSize="10" Foreground="#FFCC00"/>
+                            <Border Background="#0D000000" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    BorderBrush="{Binding CorsairStatusBrush}" BorderThickness="1"
+                                    ToolTip="{Binding CorsairStatusDetail}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Fill="{Binding CorsairStatusBrush}" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                    <TextBlock Text="{Binding CorsairStatusDetail}" FontSize="10" Foreground="{Binding CorsairStatusBrush}"/>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                         
@@ -458,9 +506,13 @@
                             <Image Source="pack://application:,,,/Assets/logitechg.png" Width="28" Height="28" Margin="0,0,12,0"/>
                             <TextBlock Text="Logitech Devices" FontSize="20" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            <Border Background="#1A45C7FF" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
-                                    Visibility="{Binding IsLogitechConnected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="G HUB Connected" FontSize="10" Foreground="#45C7FF"/>
+                            <Border Background="#0D000000" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    BorderBrush="{Binding LogitechStatusBrush}" BorderThickness="1"
+                                    ToolTip="{Binding LogitechStatusDetail}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Fill="{Binding LogitechStatusBrush}" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                    <TextBlock Text="{Binding LogitechStatusDetail}" FontSize="10" Foreground="{Binding LogitechStatusBrush}"/>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
 
@@ -610,9 +662,13 @@
                             </Border>
                             <TextBlock Text="Razer Devices" FontSize="20" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            <Border Background="#1A44D62C" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
-                                    Visibility="{Binding IsRazerAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="Synapse Connected" FontSize="10" Foreground="#44D62C"/>
+                            <Border Background="#0D000000" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center"
+                                    BorderBrush="{Binding RazerStatusBrush}" BorderThickness="1"
+                                    ToolTip="{Binding RazerStatusDetail}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Fill="{Binding RazerStatusBrush}" Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                    <TextBlock Text="{Binding RazerStatusDetail}" FontSize="10" Foreground="{Binding RazerStatusBrush}"/>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                         
@@ -1159,6 +1215,99 @@
                                               Style="{StaticResource ModernToggleButton}"
                                               VerticalAlignment="Center"/>
                             </Grid>
+                        </Border>
+
+                        <!-- Per-Key Lighting Section -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="8"
+                                Margin="0,12,0,0" Padding="16">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="Per-Key RGB" FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <Border Background="#1A8B5CF6" CornerRadius="6" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="OMEN Max" FontSize="10" Foreground="#8B5CF6"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Explanation card when per-key not available -->
+                                <Border Background="#12FFFFFF" CornerRadius="6" Padding="12"
+                                        Visibility="{Binding IsPerKeyLightingAvailable, Converter={StaticResource InverseBoolToVisibility}}">
+                                    <TextBlock Text="{Binding PerKeyCapabilitySummary}"
+                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                </Border>
+
+                                <!-- Per-key editor when supported -->
+                                <StackPanel Visibility="{Binding IsPerKeyLightingAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <!-- Brush color row -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Brush:" FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <Border Grid.Column="1" Width="26" Height="26" CornerRadius="4"
+                                                Background="{Binding SelectedPerKeyColorBrush}"
+                                                BorderBrush="#444" BorderThickness="1" Margin="0,0,8,0"/>
+                                        <TextBox Grid.Column="2" Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding SelectedPerKeyColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 MaxLength="7" Width="72" Margin="0,0,12,0"/>
+                                        <Button Grid.Column="4" Content="Fill All" Style="{StaticResource ModernButton}"
+                                                Command="{Binding FillAllPerKeyCommand}" Padding="12,6" Margin="0,0,8,0"/>
+                                        <Button Grid.Column="5" Content="Apply to Keyboard"
+                                                Style="{StaticResource ModernButton}"
+                                                Command="{Binding ApplyPerKeyLightingCommand}" Padding="16,6"/>
+                                    </Grid>
+                                    <!-- Key grid -->
+                                    <Border Background="#0D0D0D" CornerRadius="8" Padding="8"
+                                            BorderBrush="#333" BorderThickness="1.5">
+                                        <ItemsControl ItemsSource="{Binding PerKeyGrid}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Rows="6" Columns="14"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="1" CornerRadius="3" Height="28"
+                                                            Background="{Binding KeyBrush}"
+                                                            BorderBrush="#444" BorderThickness="1"
+                                                            ToolTip="{Binding KeyName}">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Cursor" Value="Hand"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                        <Setter Property="Background" Value="Transparent"/>
+                                                                        <Setter Property="BorderBrush" Value="Transparent"/>
+                                                                        <Setter Property="IsHitTestVisible" Value="False"/>
+                                                                        <Setter Property="Cursor" Value="Arrow"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Border.InputBindings>
+                                                            <MouseBinding MouseAction="LeftClick"
+                                                                          Command="{Binding DataContext.PaintKeyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                          CommandParameter="{Binding}"/>
+                                                        </Border.InputBindings>
+                                                        <TextBlock Text="{Binding KeyLabel}" FontSize="7"
+                                                                   Foreground="White" Opacity="0.7"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   TextWrapping="NoWrap"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </Border>

@@ -39,6 +39,30 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable => _isConnected && _devices.Count > 0;
         public bool IsConnected => _isConnected;
         public int DeviceCount => _devices.Count;
+        private bool _initFailed;
+        private string _initError = string.Empty;
+
+        public RgbProviderConnectionStatus ConnectionStatus
+        {
+            get
+            {
+                if (_initFailed) return RgbProviderConnectionStatus.Error;
+                if (!_isConnected) return RgbProviderConnectionStatus.Disabled;
+                if (_devices.Count == 0) return RgbProviderConnectionStatus.NoDevices;
+                return RgbProviderConnectionStatus.Connected;
+            }
+        }
+
+        public string StatusDetail
+        {
+            get
+            {
+                if (_initFailed) return _initError;
+                if (!_isConnected) return $"OpenRGB server not reachable at {_host}:{_port}";
+                if (_devices.Count == 0) return "Connected, no devices found";
+                return $"{_devices.Count} device(s) connected";
+            }
+        }
         
         public IReadOnlyList<RgbEffectType> SupportedEffects => new[]
         {
@@ -71,6 +95,8 @@ namespace OmenCore.Services.Rgb
                 _logging.Warn($"[OpenRGB] Failed to connect to OpenRGB server: {ex.Message}");
                 _logging.Info("[OpenRGB] Make sure OpenRGB is running with SDK Server enabled (SDK Server tab → Start Server)");
                 _isConnected = false;
+                _initFailed = true;
+                _initError = ex.Message;
             }
         }
         

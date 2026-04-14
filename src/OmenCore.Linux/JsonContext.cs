@@ -27,6 +27,10 @@ public class SystemStatus
     public TemperatureInfo Temperatures { get; set; } = new();
     public FanInfo Fans { get; set; } = new();
     public PerformanceInfo Performance { get; set; } = new();
+    public string CapabilityClass { get; set; } = "unsupported-control";
+    public string CapabilityReason { get; set; } = string.Empty;
+    public string GpuTelemetrySource { get; set; } = "unavailable";
+    public string GpuTelemetryPath { get; set; } = string.Empty;
     public long Timestamp { get; set; }
 }
 

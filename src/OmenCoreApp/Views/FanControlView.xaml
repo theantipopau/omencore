@@ -62,6 +62,31 @@
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="FAN &amp; THERMAL CONTROL" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                     <TextBlock Text="Customize fan curves and monitor cooling performance" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0"/>
+                    <Border Background="#1A1A1E" CornerRadius="12" Padding="10,5" Margin="0,8,0,0" HorizontalAlignment="Left">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding FanPerformanceLinkBadgeText}" FontSize="10" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Border>
                 </StackPanel>
                 
                 <!-- Active Mode Badge -->
@@ -78,8 +103,25 @@
             </Grid>
         </Border>
 
+        <Border Grid.Row="1" Style="{StaticResource PremiumInfoBannerCard}" Padding="16" Margin="0,0,0,16"
+                Visibility="{Binding ShowFanPerformanceInfoBanner, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Fan/performance decoupling is now the default" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="{Binding FanPerformanceLinkDescription}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button Grid.Column="1" Command="{Binding DismissFanPerformanceInfoBannerCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0">
+                    <TextBlock Text="Dismiss" FontSize="10"/>
+                </Button>
+            </Grid>
+        </Border>
+
         <!-- Fan Profile Selection - Redesigned -->
-        <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,0,16">
+        <Border Grid.Row="2" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,0,16">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -391,7 +433,8 @@
                     
                     <!-- Advanced Settings - Compact -->
                     <Border Grid.Column="2" Background="#0D0D0F" CornerRadius="8" Padding="12,8">
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
                             <!-- Immediate Apply -->
                             <CheckBox Content="Instant apply" 
                                       IsChecked="{Binding ImmediateApplyOnApply, Mode=TwoWay}" 
@@ -417,8 +460,34 @@
                             <!-- Independent Curves Toggle -->
                             <CheckBox Content="Independent CPU/GPU" 
                                       IsChecked="{Binding IndependentCurvesEnabled, Mode=TwoWay}" 
+                                      IsEnabled="{Binding IndependentCurvesFeatureAvailable}"
                                       FontSize="11"
-                                      ToolTip="Control each fan based on its respective component temperature"/>
+                                      ToolTip="GPU fan writes are model-dependent; unified curve mode remains the safe default"/>
+                            </StackPanel>
+
+                            <Border Background="#1A2A3A"
+                                    BorderBrush="{StaticResource AccentBlueBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,8"
+                                    Margin="0,8,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="GPU fan curve support status"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentBlueBrush}"/>
+                                    <TextBlock Text="{Binding GpuFanControlSupportSummary}"
+                                               Style="{StaticResource Caption}"
+                                               FontSize="10"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding GpuFanDutyRatioSummary}"
+                                               Style="{StaticResource Caption}"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -448,6 +517,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -554,9 +624,22 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"/>
                         </Border>
+
+                                <Border Grid.Row="4"
+                                    Background="#1A2A3A"
+                                    BorderBrush="{StaticResource AccentBlueBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8"
+                                    Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding CurveApplyStatus}"
+                                           FontSize="11"
+                                           Foreground="{StaticResource AccentBlueBrush}"
+                                           TextWrapping="Wrap"/>
+                                </Border>
                         
                         <!-- Current curve points summary -->
-                        <Border Grid.Row="4" 
+                                <Border Grid.Row="5" 
                                 Background="{StaticResource SurfaceDarkBrush}"
                                 CornerRadius="6"
                                 Padding="12"
@@ -802,6 +885,77 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
+
+                        <Border Background="#1A2A3A"
+                                BorderBrush="{StaticResource AccentBlueBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,0,0,12">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="CALIBRATION WIZARD"
+                                                   Style="{StaticResource Label}"
+                                                   Foreground="{StaticResource AccentBlueBrush}"/>
+                                        <TextBlock Text="{Binding FanCalibrationStatusText}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Command="{Binding OpenFanCalibrationWizardCommand}"
+                                            IsEnabled="{Binding IsFanCalibrationAvailable}"
+                                            Style="{StaticResource ModernButton}"
+                                            Padding="12,6"
+                                            Margin="12,0,0,0"
+                                            VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding FanCalibrationActionText}" FontSize="10"/>
+                                    </Button>
+                                </Grid>
+
+                                <TextBlock Text="{Binding FanCalibrationMapSummary}"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           Margin="0,8,0,0"/>
+
+                                <ItemsControl ItemsSource="{Binding FanCalibrationMapRows}"
+                                              Margin="0,10,0,0"
+                                              Visibility="{Binding HasFanCalibrationMap, Converter={StaticResource BoolToVisibility}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="60"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,0">
+                                                    <TextBlock Text="{Binding DutyPercent, StringFormat='{}{0}%'}" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center"/>
+                                                </Border>
+                                                <Border Grid.Column="1" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,0">
+                                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <Run Text="CPU: "/>
+                                                        <Run Text="{Binding CpuRpmText}" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    </TextBlock>
+                                                </Border>
+                                                <Border Grid.Column="2" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="4" Padding="8,4">
+                                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <Run Text="GPU: "/>
+                                                        <Run Text="{Binding GpuRpmText}" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
                         
                         <ItemsControl ItemsSource="{Binding FanTelemetry}">
                             <ItemsControl.ItemTemplate>

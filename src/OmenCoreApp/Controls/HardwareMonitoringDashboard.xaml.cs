@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
-using System.Windows.Threading;
 using OmenCore;
 using OmenCore.Services;
 using OmenCore.Models;
@@ -22,8 +22,6 @@ namespace OmenCore.Controls
     {
         private MainViewModel? _mainViewModel;
         private DashboardViewModel? _dashboardViewModel;
-        private readonly DispatcherTimer _updateTimer;
-        private readonly DispatcherTimer _chartUpdateTimer;
         private readonly ObservableCollection<SystemAlert> _alerts;
         private readonly Queue<double> _cpuTempHistory = new(60); // Last 60 data points
         private readonly Queue<double> _gpuTempHistory = new(60);
@@ -33,6 +31,20 @@ namespace OmenCore.Controls
         private bool _showingNoDataPlaceholders;
         private double _cachedBatteryHealth = -1; // Cached battery health (expensive to query)
         private DateTime _lastBatteryHealthCheck = DateTime.MinValue;
+        private bool _chartsSuppressed; // True when window is minimized or page is hidden
+        private DateTime _lastChartRefreshUtc = DateTime.MinValue;
+        private DateTime _lastAlertRefreshUtc = DateTime.MinValue;
+
+        private async Task RunOnUiAsync(Func<Task> action)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                await action();
+                return;
+            }
+
+            await Dispatcher.InvokeAsync(action).Task.Unwrap();
+        }
         
         /// <summary>
         /// Static reference to allow manual initialization from outside
@@ -48,24 +60,11 @@ namespace OmenCore.Controls
             _alerts = new ObservableCollection<SystemAlert>();
             AlertsListBox.ItemsSource = _alerts;
 
-            // Set up metrics update timer (fast for responsive UI)
-            _updateTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(2)
-            };
-            _updateTimer.Tick += UpdateTimer_Tick;
-
-            // Set up chart update timer (slower to reduce overhead)
-            _chartUpdateTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(5)
-            };
-            _chartUpdateTimer.Tick += ChartUpdateTimer_Tick;
-
             // Initialize data
             Loaded += HardwareMonitoringDashboard_Loaded;
             Unloaded += HardwareMonitoringDashboard_Unloaded;
             DataContextChanged += HardwareMonitoringDashboard_DataContextChanged;
+            IsVisibleChanged += HardwareMonitoringDashboard_IsVisibleChanged;
             
             App.Logging.Info("[Dashboard] Constructor completed, waiting for Loaded event and DataContext");
         }
@@ -95,7 +94,7 @@ namespace OmenCore.Controls
         {
             if (_isInitialized || _mainViewModel == null) return;
             
-            App.Logging.Info("[Dashboard] InitializeWithViewModel() called - starting timers and initial update");
+            App.Logging.Info("[Dashboard] InitializeWithViewModel() called - using shared monitoring sample stream");
             
             // Prefer subscribing to DashboardViewModel if available so the dashboard uses the same sample source as the tray
             if (_dashboardViewModel != null)
@@ -108,17 +107,13 @@ namespace OmenCore.Controls
                 _mainViewModel.PropertyChanged += MainViewModel_PropertyChanged;
             }
             
-            // Start timers
-            _updateTimer.Start();
-            _chartUpdateTimer.Start();
-            App.Logging.Info($"[Dashboard] Timers started: _updateTimer.IsEnabled={_updateTimer.IsEnabled}, _chartUpdateTimer.IsEnabled={_chartUpdateTimer.IsEnabled}");
             _isInitialized = true;
             
             // Perform initial update async
             _ = Task.Run(async () =>
             {
                 await Task.Delay(1000);  // Wait 1 second to allow service to send first sample
-                await Dispatcher.InvokeAsync(async () =>
+                await RunOnUiAsync(async () =>
                 {
                     await UpdateMetricsAsync();
                     await CheckForAlertsAsync();
@@ -130,8 +125,7 @@ namespace OmenCore.Controls
         {
             if (e.PropertyName == nameof(MainViewModel.LatestMonitoringSample))
             {
-                // Immediately update when new sample arrives (fallback)
-                await Dispatcher.InvokeAsync(async () => await UpdateMetricsAsync());
+                await RunOnUiAsync(HandleMonitoringSignalAsync);
                 return;
             }
 
@@ -159,7 +153,7 @@ namespace OmenCore.Controls
         {
             if (e.PropertyName == nameof(DashboardViewModel.LatestMonitoringSample))
             {
-                await Dispatcher.InvokeAsync(async () => await UpdateMetricsAsync());
+                await RunOnUiAsync(HandleMonitoringSignalAsync);
             }
         }
 
@@ -187,17 +181,39 @@ namespace OmenCore.Controls
             }
 
             // Draw charts
-            _ = Dispatcher.InvokeAsync(async () =>
+            _ = RunOnUiAsync(async () =>
             {
                 await Task.Delay(200);
                 await RefreshAllChartsAsync();
-            }, DispatcherPriority.Loaded);
+            });
+
+            // Subscribe to main window state changes for chart suppression
+            if (Application.Current?.MainWindow is Window mainWin)
+                mainWin.StateChanged += MainWindow_StateChanged;
+            UpdateChartSuppression();
+        }
+
+        private void HardwareMonitoringDashboard_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            UpdateChartSuppression();
+        }
+
+        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        {
+            UpdateChartSuppression();
+        }
+
+        private void UpdateChartSuppression()
+        {
+            var window = Application.Current?.MainWindow;
+            bool minimized = window?.WindowState == WindowState.Minimized;
+            _chartsSuppressed = minimized || !this.IsVisible;
         }
 
         private void HardwareMonitoringDashboard_Unloaded(object sender, RoutedEventArgs e)
         {
-            _updateTimer?.Stop();
-            _chartUpdateTimer?.Stop();
+            if (Application.Current?.MainWindow is Window w)
+                w.StateChanged -= MainWindow_StateChanged;
             
             // Unsubscribe from PropertyChanged to prevent memory leaks
             if (_mainViewModel != null)
@@ -206,24 +222,34 @@ namespace OmenCore.Controls
             }
         }
 
-        private async void UpdateTimer_Tick(object? sender, EventArgs e)
+        private async Task HandleMonitoringSignalAsync()
         {
             try
             {
-                // Log every tick (might be verbose)
-                // App.Logging.Debug("[Dashboard.UpdateTimer_Tick] Timer tick fired");
+                if (_chartsSuppressed)
+                {
+                    return;
+                }
+
                 await UpdateMetricsAsync();
-                await CheckForAlertsAsync();
+
+                var now = DateTime.UtcNow;
+                if ((now - _lastAlertRefreshUtc) >= TimeSpan.FromSeconds(2))
+                {
+                    _lastAlertRefreshUtc = now;
+                    await CheckForAlertsAsync();
+                }
+
+                if ((now - _lastChartRefreshUtc) >= TimeSpan.FromSeconds(5))
+                {
+                    _lastChartRefreshUtc = now;
+                    await RefreshAllChartsAsync();
+                }
             }
             catch (Exception ex)
             {
-                App.Logging.Error($"[Dashboard.UpdateTimer_Tick] ERROR: {ex.Message}");
+                App.Logging.Error($"[Dashboard.HandleMonitoringSignal] ERROR: {ex.Message}");
             }
-        }
-
-        private async void ChartUpdateTimer_Tick(object? sender, EventArgs e)
-        {
-            await RefreshAllChartsAsync();
         }
 
         private async Task UpdateMetricsAsync()

@@ -256,6 +256,107 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// Apply a performance-mode synchronized Corsair pattern.
+        /// Keyboards receive a wave/gradient pattern while other device types use static color.
+        /// </summary>
+        public async Task ApplyPerformanceModePatternAsync(string modeName, string primaryHex)
+        {
+            if (_devices.Count == 0)
+            {
+                return;
+            }
+
+            var normalizedPrimary = NormalizeHex(primaryHex, "#FFFFFF");
+            var secondaryHex = CreateDarkerGradientHex(normalizedPrimary, 0.45);
+            var speed = GetPatternSpeedForMode(modeName);
+
+            var keyboardPreset = new CorsairLightingPreset
+            {
+                Name = $"{modeName} Gradient",
+                Effect = LightingEffectType.Wave,
+                PrimaryColor = normalizedPrimary,
+                SecondaryColor = secondaryHex,
+                ColorHex = normalizedPrimary,
+                Speed = speed
+            };
+
+            var staticPreset = new CorsairLightingPreset
+            {
+                Name = $"{modeName} Static",
+                Effect = LightingEffectType.Static,
+                PrimaryColor = normalizedPrimary,
+                ColorHex = normalizedPrimary
+            };
+
+            foreach (var device in _devices)
+            {
+                try
+                {
+                    var preset = device.DeviceType == CorsairDeviceType.Keyboard ? keyboardPreset : staticPreset;
+                    await _sdk.ApplyLightingAsync(device, preset);
+                }
+                catch (Exception ex)
+                {
+                    _logging.Error($"Failed to apply mode-synced Corsair lighting to {device.Name}", ex);
+                }
+            }
+
+            _logging.Info($"Applied Corsair mode-synced pattern for '{modeName}' using {normalizedPrimary}/{secondaryHex} to {_devices.Count} device(s)");
+        }
+
+        private static string NormalizeHex(string? hex, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(hex))
+            {
+                return fallback;
+            }
+
+            var value = hex.Trim();
+            if (!value.StartsWith("#", StringComparison.Ordinal))
+            {
+                value = $"#{value}";
+            }
+
+            if (value.Length != 7)
+            {
+                return fallback;
+            }
+
+            return value;
+        }
+
+        private static string CreateDarkerGradientHex(string primaryHex, double factor)
+        {
+            try
+            {
+                var hex = primaryHex.TrimStart('#');
+                var r = Convert.ToInt32(hex.Substring(0, 2), 16);
+                var g = Convert.ToInt32(hex.Substring(2, 2), 16);
+                var b = Convert.ToInt32(hex.Substring(4, 2), 16);
+
+                var gradientR = (int)Math.Clamp(r * factor, 0, 255);
+                var gradientG = (int)Math.Clamp(g * factor, 0, 255);
+                var gradientB = (int)Math.Clamp(b * factor, 0, 255);
+                return $"#{gradientR:X2}{gradientG:X2}{gradientB:X2}";
+            }
+            catch
+            {
+                return "#222222";
+            }
+        }
+
+        private static double GetPatternSpeedForMode(string modeName)
+        {
+            var normalized = modeName?.Trim().ToLowerInvariant() ?? string.Empty;
+            return normalized switch
+            {
+                "performance" or "high performance" => 1.4,
+                "quiet" or "power saver" => 0.7,
+                _ => 1.0
+            };
+        }
+
+        /// <summary>
         /// Configure DPI stages for a mouse.
         /// </summary>
         public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)

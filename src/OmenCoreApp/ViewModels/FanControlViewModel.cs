@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
+using OmenCore.Controls;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Utils;
@@ -18,6 +22,8 @@ namespace OmenCore.ViewModels
         private readonly FanService _fanService;
         private readonly LoggingService _logging;
         private readonly ConfigurationService _configService;
+        private readonly IFanVerificationService? _fanVerificationService;
+        private readonly FanCalibrationStorageService _fanCalibrationStorage;
         private FanPreset? _selectedPreset;
         private string _customPresetName = "Custom";
         private double _currentTemperature;
@@ -25,9 +31,15 @@ namespace OmenCore.ViewModels
         private double _currentGpuTemperature;
         private bool _suppressApplyOnSelection;
         private IEnumerable<FanCurvePoint>? _hoveredPresetCurve;
+        private bool _isApplyingCustomCurve;
+        private volatile bool _isApplyingConstantSpeed;
+        private string _curveApplyStatus = "Ready to apply";
+        private string _fanCalibrationModelId = "unknown";
+        private string _fanCalibrationModelName = "Unknown Model";
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
+        public ObservableCollection<FanCalibrationMapRow> FanCalibrationMapRows { get; } = new();
         public ReadOnlyObservableCollection<ThermalSample> ThermalSamples => _fanService.ThermalSamples;
         public ReadOnlyObservableCollection<FanTelemetry> FanTelemetry => _fanService.FanTelemetry;
         
@@ -61,20 +73,16 @@ namespace OmenCore.ViewModels
             {
                 if (CustomFanCurve == null || CustomFanCurve.Count == 0)
                     return 0;
-                
+
                 var sorted = CustomFanCurve.OrderBy(p => p.TemperatureC).ToList();
                 var temp = CurrentTemperature;
-                
-                // Find the curve point for current temperature
-                // If temp is below all points, use lowest
+
                 if (temp <= sorted.First().TemperatureC)
                     return sorted.First().FanPercent;
-                
-                // If temp is above all points, use highest  
+
                 if (temp >= sorted.Last().TemperatureC)
                     return sorted.Last().FanPercent;
-                
-                // Interpolate between points
+
                 for (int i = 0; i < sorted.Count - 1; i++)
                 {
                     if (temp >= sorted[i].TemperatureC && temp <= sorted[i + 1].TemperatureC)
@@ -83,13 +91,11 @@ namespace OmenCore.ViewModels
                         var t2 = sorted[i + 1].TemperatureC;
                         var f1 = sorted[i].FanPercent;
                         var f2 = sorted[i + 1].FanPercent;
-                        
-                        // Linear interpolation
                         var ratio = (temp - t1) / (t2 - t1);
                         return (int)(f1 + (f2 - f1) * ratio);
                     }
                 }
-                
+
                 return sorted.Last().FanPercent;
             }
         }
@@ -325,6 +331,32 @@ namespace OmenCore.ViewModels
         /// </summary>
         public bool IsCurveActive => _fanService.IsCurveActive;
 
+        public bool IsApplyingCustomCurve
+        {
+            get => _isApplyingCustomCurve;
+            private set
+            {
+                if (_isApplyingCustomCurve != value)
+                {
+                    _isApplyingCustomCurve = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string CurveApplyStatus
+        {
+            get => _curveApplyStatus;
+            private set
+            {
+                if (_curveApplyStatus != value)
+                {
+                    _curveApplyStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string CustomPresetName
         {
             get => _customPresetName;
@@ -461,11 +493,36 @@ namespace OmenCore.ViewModels
             get => _independentCurvesEnabled;
             set
             {
-                if (_independentCurvesEnabled != value)
+                // Independent CPU/GPU curve UI remains intentionally disabled until
+                // model-level support detection is complete.
+                var requested = value && IndependentCurvesFeatureAvailable;
+                if (_independentCurvesEnabled != requested)
                 {
-                    _independentCurvesEnabled = value;
+                    _independentCurvesEnabled = requested;
                     OnPropertyChanged();
                 }
+            }
+        }
+
+        public bool IndependentCurvesFeatureAvailable => false;
+
+        public string GpuFanControlSupportSummary =>
+            "GPU fan curve write is model-dependent and currently not guaranteed. OmenCore applies a unified duty target and the GPU fan typically tracks CPU duty.";
+
+        public string GpuFanDutyRatioSummary
+        {
+            get
+            {
+                var cpu = FanTelemetry.FirstOrDefault(f => f.Name.Contains("CPU", StringComparison.OrdinalIgnoreCase));
+                var gpu = FanTelemetry.FirstOrDefault(f => f.Name.Contains("GPU", StringComparison.OrdinalIgnoreCase));
+
+                if (cpu == null || gpu == null || cpu.DutyCyclePercent <= 0)
+                {
+                    return "Observed GPU/CPU duty ratio: unavailable (insufficient telemetry).";
+                }
+
+                var ratio = (double)gpu.DutyCyclePercent / cpu.DutyCyclePercent;
+                return $"Observed GPU/CPU duty ratio: {ratio:P0} ({gpu.DutyCyclePercent}% GPU vs {cpu.DutyCyclePercent}% CPU).";
             }
         }
         
@@ -499,6 +556,52 @@ namespace OmenCore.ViewModels
         
         /// <summary>Shows which source is being used for RPM readings.</summary>
         public string RpmSourceDisplay => _fanService.Backend;
+
+        public bool IsFanCalibrationAvailable => _fanVerificationService?.IsAvailable == true;
+
+        public bool HasFanCalibrationData => _fanCalibrationStorage.HasCalibration(_fanCalibrationModelId);
+
+        public bool HasFanCalibrationMap => FanCalibrationMapRows.Count > 0;
+
+        public string FanCalibrationStatusText
+        {
+            get
+            {
+                if (!IsFanCalibrationAvailable)
+                {
+                    return "Calibration unavailable: fan verification service is not active on this system.";
+                }
+
+                var calibration = _fanCalibrationStorage.GetCalibration(_fanCalibrationModelId);
+                if (calibration == null)
+                {
+                    return $"No calibration data stored for {_fanCalibrationModelName}. Run the wizard to build a duty-to-RPM map.";
+                }
+
+                return $"Calibration available for {calibration.ModelName} from {calibration.CreatedDate:g}. {calibration.FanCalibrations.Count} fan map(s) stored.";
+            }
+        }
+
+        public string FanCalibrationActionText => HasFanCalibrationData ? "Recalibrate" : "Start Calibration";
+
+        public string FanCalibrationMapSummary => HasFanCalibrationMap
+            ? "Measured duty-to-RPM map from the latest calibration run."
+            : "No duty-to-RPM map available yet.";
+
+        public bool IsFanPerformanceLinked => _configService.Config.LinkFanToPerformanceMode;
+
+        public string FanPerformanceLinkBadgeText => IsFanPerformanceLinked
+            ? "Fan linked to performance"
+            : "Fan independent";
+
+        public string FanPerformanceLinkDescription => IsFanPerformanceLinked
+            ? "Performance-mode changes may also rewrite fan policy."
+            : "Changing performance mode will keep your current fan preset or custom curve in place.";
+
+        public bool ShowFanPerformanceInfoBanner => !IsFanPerformanceLinked && !_configService.Config.DismissedFanPerformanceDecouplingNotice;
+
+        public ICommand DismissFanPerformanceInfoBannerCommand { get; }
+        public ICommand OpenFanCalibrationWizardCommand { get; }
         
         // GPU curve editor commands (stubs - will use same curve for now)
         public ICommand AddGpuCurvePointCommand { get; }
@@ -508,17 +611,22 @@ namespace OmenCore.ViewModels
         
         #endregion
 
-        public FanControlViewModel(FanService fanService, ConfigurationService configService, LoggingService logging)
+        public FanControlViewModel(FanService fanService, ConfigurationService configService, LoggingService logging, IFanVerificationService? fanVerificationService = null)
         {
             _fanService = fanService;
             _configService = configService;
             _logging = logging;
+            _fanVerificationService = fanVerificationService;
+            _fanCalibrationStorage = new FanCalibrationStorageService(logging);
+
+            InitializeFanCalibrationContext();
+            RefreshFanCalibrationStatus();
             
             // Load hysteresis and transition settings from config
             _fanService.SetHysteresis(_configService.Config.FanHysteresis);
             ImmediateApplyOnApply = _configService.Config.FanTransition.ApplyImmediatelyOnUserAction;
             
-            ApplyCustomCurveCommand = new RelayCommand(_ => ApplyCustomCurve());
+            ApplyCustomCurveCommand = new AsyncRelayCommand(async _ => await ApplyCustomCurveAsync(), _ => !IsApplyingCustomCurve);
 
             // Initialize transition values from config
             SmoothingDurationMs = _configService.Config.FanTransition.SmoothingDurationMs;
@@ -547,6 +655,8 @@ namespace OmenCore.ViewModels
             ApplyGamingModeCommand = new RelayCommand(_ => ApplyGamingMode());
             ApplyConstantSpeedCommand = new RelayCommand(_ => ApplyConstantSpeed());
             ReapplySavedPresetCommand = new RelayCommand(async _ => await ReapplySavedPresetAsync());
+            OpenFanCalibrationWizardCommand = new RelayCommand(_ => OpenFanCalibrationWizard(), _ => IsFanCalibrationAvailable);
+            DismissFanPerformanceInfoBannerCommand = new RelayCommand(_ => DismissFanPerformanceInfoBanner());
             
             // Subscribe to thermal samples to update current temperature
             ((INotifyCollectionChanged)_fanService.ThermalSamples).CollectionChanged += ThermalSamples_CollectionChanged;
@@ -609,6 +719,136 @@ namespace OmenCore.ViewModels
             SelectedPreset = FanPresets.FirstOrDefault(p => p.Name == "Auto") ?? FanPresets[2]; // Default to Auto
             _suppressApplyOnSelection = false;
         }
+
+        public void RefreshFanLinkState()
+        {
+            OnPropertyChanged(nameof(IsFanPerformanceLinked));
+            OnPropertyChanged(nameof(FanPerformanceLinkBadgeText));
+            OnPropertyChanged(nameof(FanPerformanceLinkDescription));
+            OnPropertyChanged(nameof(ShowFanPerformanceInfoBanner));
+        }
+
+        private void InitializeFanCalibrationContext()
+        {
+            try
+            {
+                using var searcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem");
+                foreach (var obj in searcher.Get())
+                {
+                    var manufacturer = obj["Manufacturer"]?.ToString() ?? string.Empty;
+                    var model = obj["Model"]?.ToString() ?? string.Empty;
+                    _fanCalibrationModelName = string.Join(" ", new[] { manufacturer, model }.Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(_fanCalibrationModelName))
+                {
+                    _fanCalibrationModelName = "Unknown Model";
+                }
+
+                _fanCalibrationModelId = GenerateFanCalibrationModelId(_fanCalibrationModelName);
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to initialize fan calibration model context: {ex.Message}");
+                _fanCalibrationModelName = "Unknown Model";
+                _fanCalibrationModelId = "unknown";
+            }
+        }
+
+        private void RefreshFanCalibrationStatus()
+        {
+            FanCalibrationMapRows.Clear();
+
+            var calibration = _fanCalibrationStorage.GetCalibration(_fanCalibrationModelId);
+            if (calibration != null)
+            {
+                var cpuMap = calibration.FanCalibrations.FirstOrDefault(f => f.FanIndex == 0)?.CalibrationPoints;
+                var gpuMap = calibration.FanCalibrations.FirstOrDefault(f => f.FanIndex == 1)?.CalibrationPoints;
+                var percents = new HashSet<int>((cpuMap ?? Enumerable.Empty<FanCalibrationDataPoint>()).Select(p => p.Percent));
+
+                foreach (var percent in (gpuMap ?? Enumerable.Empty<FanCalibrationDataPoint>()).Select(p => p.Percent))
+                {
+                    percents.Add(percent);
+                }
+
+                foreach (var percent in percents.OrderBy(p => p))
+                {
+                    var cpu = cpuMap?.FirstOrDefault(p => p.Percent == percent)?.MeasuredRpm;
+                    var gpu = gpuMap?.FirstOrDefault(p => p.Percent == percent)?.MeasuredRpm;
+                    FanCalibrationMapRows.Add(new FanCalibrationMapRow
+                    {
+                        DutyPercent = percent,
+                        CpuRpmText = cpu.HasValue ? $"{cpu.Value} RPM" : "-",
+                        GpuRpmText = gpu.HasValue ? $"{gpu.Value} RPM" : "-"
+                    });
+                }
+            }
+
+            OnPropertyChanged(nameof(HasFanCalibrationData));
+            OnPropertyChanged(nameof(HasFanCalibrationMap));
+            OnPropertyChanged(nameof(FanCalibrationStatusText));
+            OnPropertyChanged(nameof(FanCalibrationActionText));
+            OnPropertyChanged(nameof(FanCalibrationMapSummary));
+        }
+
+        private void OpenFanCalibrationWizard()
+        {
+            if (!IsFanCalibrationAvailable)
+            {
+                CurveApplyStatus = "Calibration is unavailable because fan verification is not active.";
+                return;
+            }
+
+            try
+            {
+                var window = new Window
+                {
+                    Title = "Fan Calibration Wizard",
+                    Width = 920,
+                    Height = 760,
+                    MinWidth = 820,
+                    MinHeight = 640,
+                    Owner = Application.Current?.MainWindow,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Content = new FanCalibrationControl()
+                };
+
+                window.ShowDialog();
+                RefreshFanCalibrationStatus();
+                CurveApplyStatus = HasFanCalibrationData
+                    ? "Fan calibration map refreshed from the latest wizard run."
+                    : "Fan calibration wizard closed.";
+            }
+            catch (Exception ex)
+            {
+                CurveApplyStatus = $"Failed to open calibration wizard: {ex.Message}";
+                _logging.Error("Failed to open fan calibration wizard", ex);
+            }
+        }
+
+        private static string GenerateFanCalibrationModelId(string modelInfo)
+        {
+            return modelInfo.ToLowerInvariant()
+                .Replace(" ", "_")
+                .Replace("-", "_")
+                .Replace(".", string.Empty)
+                .Replace("(", string.Empty)
+                .Replace(")", string.Empty);
+        }
+
+        private void DismissFanPerformanceInfoBanner()
+        {
+            var config = _configService.Config;
+            if (config.DismissedFanPerformanceDecouplingNotice)
+            {
+                return;
+            }
+
+            config.DismissedFanPerformanceDecouplingNotice = true;
+            _configService.Save(config);
+            RefreshFanLinkState();
+        }
         
         private void ThermalSamples_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
@@ -619,6 +859,7 @@ namespace OmenCore.ViewModels
                 // Update dedicated per-sensor properties for independent curve editor
                 if (latest.CpuCelsius > 0) CurrentCpuTemperature = latest.CpuCelsius;
                 if (latest.GpuCelsius > 0) CurrentGpuTemperature = latest.GpuCelsius;
+                OnPropertyChanged(nameof(GpuFanDutyRatioSummary));
             }
         }
         
@@ -810,22 +1051,81 @@ namespace OmenCore.ViewModels
                 return;
             }
 
-            _fanService.ApplyPreset(preset);
-            
-            // Update UI state
-            ActiveFanMode = preset.Name switch
+            // Run the blocking WMI + verification calls on a background thread to avoid
+            // freezing the UI (WmiFanController has multiple Thread.Sleep calls, and the
+            // old VerificationPasses() had a 4×200ms polling loop on the calling thread).
+            _ = ApplyPresetAsync(preset);
+        }
+
+        private async Task ApplyPresetAsync(FanPreset preset)
+        {
+            try
             {
-                "Max" => "Max",
-                "Extreme" => "Extreme",
-                "Gaming" => "Gaming",
-                "Auto" => "Auto",
-                "Quiet" or "Silent" => "Silent",
-                _ => preset.Mode == FanMode.Manual ? "Custom" : "Auto"
-            };
-            
-            // Save last applied preset name to config for persistence across restarts
-            SaveLastPresetToConfig(preset.Name);
-            // FanService logs success/failure, no need to duplicate
+                await Task.Run(() => _fanService.ApplyPreset(preset));
+
+                var dispatcher = App.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    return;
+                }
+
+                await dispatcher.InvokeAsync(() =>
+                {
+                    // Update UI state
+                    ActiveFanMode = preset.Name switch
+                    {
+                        "Max" => "Max",
+                        "Extreme" => "Extreme",
+                        "Gaming" => "Gaming",
+                        "Auto" => "Auto",
+                        "Quiet" or "Silent" => "Silent",
+                        _ => preset.Mode == FanMode.Manual ? "Custom" : "Auto"
+                    };
+
+                    // Save last applied preset name to config for persistence across restarts
+                    SaveLastPresetToConfig(preset.Name);
+
+                    if (!preset.IsBuiltIn && preset.Mode == FanMode.Manual && preset.Curve != null && preset.Curve.Count > 0)
+                    {
+                        _ = VerifySavedPresetApplyAsync(preset);
+                    }
+                    else
+                    {
+                        CurveApplyStatus = $"Preset '{preset.Name}' applied";
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to apply preset '{preset.Name}': {ex.Message}");
+            }
+        }
+
+        private async Task VerifySavedPresetApplyAsync(FanPreset preset)
+        {
+            if (IsApplyingCustomCurve)
+            {
+                CurveApplyStatus = "Verification already in progress...";
+                return;
+            }
+
+            IsApplyingCustomCurve = true;
+            try
+            {
+                await RunCurveVerificationKickAsync(
+                    sourceLabel: $"Preset '{preset.Name}'",
+                    curvePoints: preset.Curve,
+                    reapplyCurveAction: () => _fanService.ApplyPreset(preset, ImmediateApplyOnApply));
+            }
+            catch (Exception ex)
+            {
+                CurveApplyStatus = $"Preset '{preset.Name}' apply failed: {ex.Message}";
+                _logging.Error($"Preset '{preset.Name}' verification kick failed", ex);
+            }
+            finally
+            {
+                IsApplyingCustomCurve = false;
+            }
         }
         
         /// <summary>
@@ -846,7 +1146,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private void ApplyCustomCurve()
+        private async Task ApplyCustomCurveAsync()
         {
             if (_fanService.IsDiagnosticModeActive)
             {
@@ -874,10 +1174,135 @@ namespace OmenCore.ViewModels
                 Curve = CustomFanCurve.ToList()
             };
 
-            _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply);
-            ActiveFanMode = "Custom";
-            OnPropertyChanged(nameof(CurrentFanModeName));
-            // FanService logs success/failure, no need to duplicate
+            IsApplyingCustomCurve = true;
+            try
+            {
+                CurveApplyStatus = "Applying custom curve...";
+                await Task.Run(() => _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply));
+                ActiveFanMode = "Custom";
+                OnPropertyChanged(nameof(CurrentFanModeName));
+
+                await RunCurveVerificationKickAsync(
+                    sourceLabel: "Custom curve",
+                    curvePoints: CustomFanCurve,
+                    reapplyCurveAction: () => _fanService.ApplyPreset(customPreset, ImmediateApplyOnApply));
+            }
+            catch (Exception ex)
+            {
+                CurveApplyStatus = $"Custom curve apply failed: {ex.Message}";
+                _logging.ErrorWithContext(
+                    component: "FanControlViewModel",
+                    operation: "ApplyCustomCurve",
+                    message: "Custom curve apply failed",
+                    ex: ex);
+            }
+            finally
+            {
+                IsApplyingCustomCurve = false;
+            }
+        }
+
+        private async Task RunCurveVerificationKickAsync(
+            string sourceLabel,
+            System.Collections.Generic.IEnumerable<FanCurvePoint> curvePoints,
+            Action reapplyCurveAction)
+        {
+            if (_fanVerificationService?.IsAvailable != true)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied";
+                return;
+            }
+
+            if (FanTelemetry.Count == 0)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied; verification skipped (no RPM telemetry)";
+                return;
+            }
+
+            var controlTemp = Math.Max(CurrentCpuTemperature, CurrentGpuTemperature);
+            if (controlTemp <= 0)
+                controlTemp = CurrentTemperature;
+
+            var targetPercent = EvaluateCurvePercent(curvePoints, controlTemp);
+            targetPercent = ApplySafetyFloor(targetPercent, controlTemp);
+
+            CurveApplyStatus = $"Verifying {sourceLabel.ToLowerInvariant()} at {controlTemp:F0}°C -> {targetPercent}%...";
+            _logging.Info($"[FanCurve] Running post-apply verification kick for {sourceLabel} at {controlTemp:F1}°C -> {targetPercent}%");
+
+            var fanCount = Math.Min(2, FanTelemetry.Count);
+            var results = new System.Collections.Generic.List<FanApplyResult>();
+
+            _fanService.EnterDiagnosticMode();
+            try
+            {
+                for (int fanIndex = 0; fanIndex < fanCount; fanIndex++)
+                {
+                    results.Add(await _fanVerificationService.ApplyAndVerifyFanSpeedAsync(fanIndex, targetPercent));
+                }
+            }
+            finally
+            {
+                _fanService.ExitDiagnosticMode();
+                reapplyCurveAction();
+            }
+
+            var passedCount = results.Count(r => r.VerificationPassed);
+            if (passedCount == results.Count)
+            {
+                CurveApplyStatus = results.Count == 1
+                    ? $"{sourceLabel} verified at {targetPercent}% ({results[0].ActualRpmAfter} RPM)"
+                    : $"{sourceLabel} verified on both fans at {targetPercent}%";
+            }
+            else if (passedCount > 0)
+            {
+                CurveApplyStatus = $"{sourceLabel} applied; verification partial ({passedCount}/{results.Count} fans passed)";
+            }
+            else
+            {
+                var firstFailure = results.FirstOrDefault(r => !r.VerificationPassed)?.ErrorMessage;
+                CurveApplyStatus = string.IsNullOrWhiteSpace(firstFailure)
+                    ? $"{sourceLabel} applied; verification did not confirm RPM change"
+                    : $"{sourceLabel} applied; verification warning: {firstFailure}";
+            }
+        }
+
+        private static int EvaluateCurvePercent(System.Collections.Generic.IEnumerable<FanCurvePoint> curve, double temp)
+        {
+            var points = curve.OrderBy(p => p.TemperatureC).ToList();
+            if (points.Count == 0)
+                return 0;
+
+            if (temp <= points[0].TemperatureC)
+                return points[0].FanPercent;
+
+            if (temp >= points[^1].TemperatureC)
+                return points[^1].FanPercent;
+
+            for (int i = 0; i < points.Count - 1; i++)
+            {
+                var left = points[i];
+                var right = points[i + 1];
+                if (temp < left.TemperatureC || temp > right.TemperatureC)
+                    continue;
+
+                var ratio = (temp - left.TemperatureC) / (right.TemperatureC - left.TemperatureC);
+                return (int)Math.Round(left.FanPercent + ((right.FanPercent - left.FanPercent) * ratio));
+            }
+
+            return points[^1].FanPercent;
+        }
+
+        private static int ApplySafetyFloor(int fanPercent, double temp)
+        {
+            if (temp >= 95)
+                return 100;
+            if (temp >= 90)
+                return Math.Max(fanPercent, 80);
+            if (temp >= 85)
+                return Math.Max(fanPercent, 60);
+            if (temp >= 80)
+                return Math.Max(fanPercent, 40);
+            return fanPercent;
         }
         
         /// <summary>
@@ -977,9 +1402,11 @@ namespace OmenCore.ViewModels
             // Persist to config file
             SavePresetsToConfig();
 
-            // Select and apply the newly saved preset immediately for better UX
+            // Select and apply the newly saved preset immediately for better UX.
+            // Setting SelectedPreset triggers ApplyPreset(value) → ApplyPresetAsync → Task.Run;
+            // do NOT call _fanService.ApplyPreset(preset) a second time here — it would block
+            // the UI thread AND race with the background apply already in flight.
             SelectedPreset = preset;
-            _fanService.ApplyPreset(preset);
             SaveLastPresetToConfig(preset.Name);
             
             // Notify UI that saved presets list changed
@@ -1031,7 +1458,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to save fan presets to config", ex);
+                _logging.ErrorWithContext(
+                    component: "FanControlViewModel",
+                    operation: "SavePresetsToConfig",
+                    message: "Failed to save fan presets to config",
+                    ex: ex);
             }
         }
 
@@ -1048,7 +1479,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to save GPU fan curve to config", ex);
+                _logging.ErrorWithContext(
+                    component: "FanControlViewModel",
+                    operation: "SaveGpuCurveToConfig",
+                    message: "Failed to save GPU fan curve to config",
+                    ex: ex);
             }
         }
         
@@ -1071,7 +1506,11 @@ namespace OmenCore.ViewModels
             }
             catch (Exception ex)
             {
-                _logging.Error("Failed to load fan presets from config", ex);
+                _logging.ErrorWithContext(
+                    component: "FanControlViewModel",
+                    operation: "LoadPresetsFromConfig",
+                    message: "Failed to load fan presets from config",
+                    ex: ex);
             }
         }
 
@@ -1172,55 +1611,56 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Re-apply the last saved fan preset from config. Useful as a manual "force reapply" button.
         /// </summary>
-        private Task ReapplySavedPresetAsync()
+        private async Task ReapplySavedPresetAsync()
         {
             var saved = _configService.Config.LastFanPresetName;
             if (string.IsNullOrEmpty(saved))
             {
                 System.Windows.MessageBox.Show("No saved fan preset found in configuration.", "Reapply Saved Preset",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
-                return Task.CompletedTask;
+                return;
             }
 
-            // First, see if it's a custom preset
+            // First, see if it's a custom preset.
+            // All fan service calls use Task.Run so the WMI + Thread.Sleep chain runs on a
+            // background thread and does not block the WPF UI thread.
             var preset = _configService.Config.FanPresets.FirstOrDefault(p => p.Name.Equals(saved, StringComparison.OrdinalIgnoreCase));
             if (preset != null)
             {
-                _fanService.ApplyPreset(preset);
+                await Task.Run(() => _fanService.ApplyPreset(preset));
                 SelectedPreset = FanPresets.FirstOrDefault(p => p.Name == preset.Name) ?? SelectedPreset;
                 SaveLastPresetToConfig(preset.Name);
                 _logging.Info($"Manually reapplied saved preset: {preset.Name}");
-                return Task.CompletedTask;
+                return;
             }
 
             // Handle built-in names
             var nameLower = saved.ToLowerInvariant();
             if (nameLower.Contains("max"))
             {
-                _fanService.ApplyMaxCooling();
+                await Task.Run(() => _fanService.ApplyMaxCooling());
                 _logging.Info($"Manually reapplied saved preset: {saved} (Max)");
-                return Task.CompletedTask;
+                return;
             }
 
             if (nameLower == "auto" || nameLower == "default")
             {
-                _fanService.ApplyAutoMode();
+                await Task.Run(() => _fanService.ApplyAutoMode());
                 _logging.Info($"Manually reapplied saved preset: {saved} (Auto)");
-                return Task.CompletedTask;
+                return;
             }
 
             if (nameLower == "quiet" || nameLower == "silent")
             {
-                _fanService.ApplyQuietMode();
+                await Task.Run(() => _fanService.ApplyQuietMode());
                 _logging.Info($"Manually reapplied saved preset: {saved} (Quiet)");
-                return Task.CompletedTask;
+                return;
             }
 
             // Fallback - attempt to apply by name
             var fallback = new FanPreset { Name = saved, Mode = FanMode.Performance };
-            _fanService.ApplyPreset(fallback);
+            await Task.Run(() => _fanService.ApplyPreset(fallback));
             _logging.Info($"Manually reapplied saved preset via fallback: {saved}");
-            return Task.CompletedTask;
         }
         
         private void ApplyQuietMode()
@@ -1261,10 +1701,30 @@ namespace OmenCore.ViewModels
                 return;
             }
 
-            _fanService.DisableCurve(); // Stop any active curve
-            _fanService.ForceSetFanSpeed(ConstantFanPercent);
+            // Snapshot the percent now (slider may move again before the Task runs)
+            var percent = ConstantFanPercent;
+
+            // Guard against overlapping WMI writes when the user drags the slider.
+            // If a write is already in flight, drop this tick — the caller will requeue
+            // when the slider settles (WPF fires PropertyChanged on every increment).
+            if (_isApplyingConstantSpeed)
+                return;
+
+            _isApplyingConstantSpeed = true;
             ActiveFanMode = "Constant";
-            _logging.Info($"Applied constant fan speed: {ConstantFanPercent}% (~{ConstantFanRpmEstimate} RPM)");
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    _fanService.DisableCurve();
+                    _fanService.ForceSetFanSpeed(percent);
+                    _logging.Info($"Applied constant fan speed: {percent}% (~{(int)(percent / 100.0 * 5500)} RPM)");
+                }
+                finally
+                {
+                    _isApplyingConstantSpeed = false;
+                }
+            });
         }
 
         /// <summary>
@@ -1399,6 +1859,13 @@ namespace OmenCore.ViewModels
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
+    }
+
+    public class FanCalibrationMapRow
+    {
+        public int DutyPercent { get; set; }
+        public string CpuRpmText { get; set; } = "-";
+        public string GpuRpmText { get; set; } = "-";
     }
 
     /// <summary>

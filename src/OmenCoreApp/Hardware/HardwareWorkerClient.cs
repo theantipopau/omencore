@@ -37,6 +37,7 @@ namespace OmenCore.Hardware
         private readonly Action<string>? _logger;
         private readonly bool _orphanTimeoutEnabled;
         private readonly int _orphanTimeoutMinutes;
+        private bool _ownsWorkerProcess;
         
         private HardwareSample _cachedSample = new();
         private DateTime _lastSuccessfulRead = DateTime.MinValue;
@@ -51,6 +52,7 @@ namespace OmenCore.Hardware
         private readonly Queue<string> _pendingCommands = new();
         private readonly object _commandQueueLock = new();
         private bool _replayingCommands = false;
+        private readonly string _workerSessionId = Guid.NewGuid().ToString("N")[..8];
         
         /// <summary>
         /// Whether the worker is currently connected and responding
@@ -140,13 +142,15 @@ namespace OmenCore.Hardware
         public async Task<bool> StartAsync()
         {
             if (!_enabled) return false;
+            var startupCorrelationId = CreateOperationCorrelationId("start");
+            LogWorker("Worker startup requested", startupCorrelationId);
             
             try
             {
                 // FIRST: Try to connect to an already-running worker (survives parent restarts)
-                if (await TryConnectToExistingWorkerAsync())
+                if (await TryConnectToExistingWorkerAsync(startupCorrelationId))
                 {
-                    _logger?.Invoke("[Worker] Connected to existing worker — no new process needed");
+                    LogWorker("Connected to existing worker; skipped process launch", startupCorrelationId);
                     return true;
                 }
                 
@@ -154,13 +158,13 @@ namespace OmenCore.Hardware
                 var workerPath = FindWorkerExecutable();
                 if (workerPath == null)
                 {
-                    _logger?.Invoke("[Worker] Hardware worker executable not found, falling back to in-process");
+                    LogWorker("Hardware worker executable not found; falling back to in-process monitoring", startupCorrelationId);
                     _enabled = false;
                     return false;
                 }
                 
                 // Start worker process
-                _logger?.Invoke($"[Worker] Starting hardware worker: {workerPath}");
+                LogWorker($"Starting hardware worker: {workerPath}", startupCorrelationId);
                 
                 // Pass our PID so worker can exit when we die
                 var currentPid = Environment.ProcessId;
@@ -178,11 +182,13 @@ namespace OmenCore.Hardware
                 _workerProcess = Process.Start(startInfo);
                 if (_workerProcess == null)
                 {
-                    _logger?.Invoke("[Worker] Failed to start worker process");
+                    LogWorker("Failed to start worker process", startupCorrelationId);
                     return false;
                 }
+
+                _ownsWorkerProcess = true;
                 
-                _logger?.Invoke($"[Worker] Worker started with PID {_workerProcess.Id}");
+                LogWorker($"Worker started with PID {_workerProcess.Id}", startupCorrelationId);
                 
                 // Wait for worker to initialize pipe server (longer delay for boot scenarios)
                 await Task.Delay(WorkerStartupDelayMs);
@@ -190,26 +196,32 @@ namespace OmenCore.Hardware
                 // Connect to worker with retries
                 for (int retry = 0; retry < MaxConnectionRetries; retry++)
                 {
-                    if (await ConnectAsync())
+                    if (await ConnectAsync(startupCorrelationId))
                     {
+                        if (_ownsWorkerProcess && _workerProcess?.HasExited == true)
+                        {
+                            LogWorker("Launched worker handle exited before connection completed; attached to existing worker instance", startupCorrelationId);
+                            ReleaseOwnedWorkerProcessHandle();
+                        }
+
                         // Register as new parent
-                        await RegisterAsParentAsync();
+                        await RegisterAsParentAsync(startupCorrelationId);
                         return true;
                     }
                     
                     if (retry < MaxConnectionRetries - 1)
                     {
-                        _logger?.Invoke($"[Worker] Connection attempt {retry + 1} failed, retrying...");
+                        LogWorker($"Connection attempt {retry + 1} failed, retrying", startupCorrelationId);
                         await Task.Delay(1000);
                     }
                 }
                 
-                _logger?.Invoke("[Worker] All connection attempts failed");
+                LogWorker("All connection attempts failed", startupCorrelationId);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger?.Invoke($"[Worker] Error starting worker: {ex.Message}");
+                LogWorker($"Error starting worker: {ex.Message}", startupCorrelationId);
                 return false;
             }
         }
@@ -218,7 +230,7 @@ namespace OmenCore.Hardware
         /// Try to connect to an already-running worker process (from a previous app session).
         /// This enables seamless temp readings across app restarts.
         /// </summary>
-        private async Task<bool> TryConnectToExistingWorkerAsync()
+        private async Task<bool> TryConnectToExistingWorkerAsync(string? correlationId = null)
         {
             try
             {
@@ -233,14 +245,16 @@ namespace OmenCore.Hardware
                 var response = await SendRequestAsync("PING");
                 if (response != "PONG")
                 {
-                    _logger?.Invoke($"[Worker] Existing worker ping failed: {response}");
+                    LogWorker($"Existing worker ping failed: {response}", correlationId);
                     _pipeClient?.Dispose();
                     _pipeClient = null;
                     return false;
                 }
                 
                 // Register ourselves as the new parent
-                await RegisterAsParentAsync();
+                await RegisterAsParentAsync(correlationId);
+
+                ReleaseOwnedWorkerProcessHandle();
                 
                 _restartAttempts = 0;
                 return true;
@@ -265,7 +279,7 @@ namespace OmenCore.Hardware
         /// Tell the worker to monitor our process as the new parent.
         /// This re-attaches the orphan watchdog to our PID.
         /// </summary>
-        private async Task RegisterAsParentAsync()
+        private async Task RegisterAsParentAsync(string? correlationId = null)
         {
             try
             {
@@ -273,16 +287,16 @@ namespace OmenCore.Hardware
                 var response = await SendRequestAsync($"SET_PARENT {pid}");
                 if (response == "OK")
                 {
-                    _logger?.Invoke($"[Worker] Registered as new parent (PID {pid})");
+                    LogWorker($"Registered as new parent (PID {pid})", correlationId);
                 }
                 else
                 {
-                    _logger?.Invoke($"[Worker] SET_PARENT response: {response}");
+                    LogWorker($"SET_PARENT response: {response}", correlationId);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Invoke($"[Worker] Failed to register as parent: {ex.Message}");
+                LogWorker($"Failed to register as parent: {ex.Message}", correlationId);
             }
         }
         
@@ -338,7 +352,7 @@ namespace OmenCore.Hardware
             return null;
         }
         
-        private async Task<bool> ConnectAsync()
+        private async Task<bool> ConnectAsync(string? correlationId = null)
         {
             try
             {
@@ -353,7 +367,7 @@ namespace OmenCore.Hardware
                 var response = await SendRequestAsync("PING");
                 if (response == "PONG")
                 {
-                    _logger?.Invoke("[Worker] Connected to hardware worker");
+                    LogWorker("Connected to hardware worker", correlationId);
                     _restartAttempts = 0;
                     
                     // Replay any queued commands after successful reconnection
@@ -362,17 +376,17 @@ namespace OmenCore.Hardware
                     return true;
                 }
                 
-                _logger?.Invoke($"[Worker] Unexpected ping response: {response}");
+                LogWorker($"Unexpected ping response: {response}", correlationId);
                 return false;
             }
             catch (OperationCanceledException)
             {
-                _logger?.Invoke("[Worker] Connection timeout");
+                LogWorker("Connection timeout", correlationId);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger?.Invoke($"[Worker] Connection error: {ex.Message}");
+                LogWorker($"Connection error: {ex.Message}", correlationId);
                 return false;
             }
         }
@@ -385,15 +399,16 @@ namespace OmenCore.Hardware
             if (!_enabled) return null;
             
             // Check if we need to restart worker
-            if (!IsConnected || (_workerProcess?.HasExited == true))
+            if (ShouldRecoverConnection(IsConnected, _ownsWorkerProcess, _workerProcess?.HasExited == true))
             {
+                var reconnectCorrelationId = CreateOperationCorrelationId("recover");
                 // Try connecting to an existing worker first (may have survived a parent restart)
-                if (await TryConnectToExistingWorkerAsync())
+                if (await TryConnectToExistingWorkerAsync(reconnectCorrelationId))
                 {
-                    _logger?.Invoke("[Worker] Reconnected to existing worker on demand");
+                    LogWorker("Reconnected to existing worker on demand", reconnectCorrelationId);
                     _restartAttempts = 0; // Reset on successful reconnect
                 }
-                else if (!await TryRestartWorkerAsync())
+                else if (!await TryRestartWorkerAsync(reconnectCorrelationId))
                 {
                     // Return cached sample if available
                     return SampleAge < TimeSpan.FromSeconds(10) ? _cachedSample : null;
@@ -431,6 +446,31 @@ namespace OmenCore.Hardware
                 return _cachedSample;
             }
         }
+
+        private static bool ShouldRecoverConnection(bool isConnected, bool ownsWorkerProcess, bool workerProcessExited)
+        {
+            if (!isConnected)
+            {
+                return true;
+            }
+
+            return ownsWorkerProcess && workerProcessExited;
+        }
+
+        private void ReleaseOwnedWorkerProcessHandle()
+        {
+            _ownsWorkerProcess = false;
+
+            try
+            {
+                _workerProcess?.Dispose();
+            }
+            catch
+            {
+            }
+
+            _workerProcess = null;
+        }
         
         private async Task<string> SendRequestAsync(string request)
         {
@@ -460,20 +500,20 @@ namespace OmenCore.Hardware
             }
         }
         
-        private async Task<bool> TryRestartWorkerAsync()
+        private async Task<bool> TryRestartWorkerAsync(string? correlationId = null)
         {
             // Check if we're in permanent disable cooldown
             if (!_enabled && DateTime.Now - _lastPermanentDisable < TimeSpan.FromMinutes(PermanentDisableCooldownMinutes))
             {
                 var remaining = TimeSpan.FromMinutes(PermanentDisableCooldownMinutes) - (DateTime.Now - _lastPermanentDisable);
-                _logger?.Invoke($"[Worker] In permanent disable cooldown. {remaining.TotalMinutes:F1} minutes remaining.");
+                LogWorker($"In permanent disable cooldown. {remaining.TotalMinutes:F1} minutes remaining.", correlationId);
                 return false;
             }
             
             // Re-enable if cooldown expired
             if (!_enabled && DateTime.Now - _lastPermanentDisable >= TimeSpan.FromMinutes(PermanentDisableCooldownMinutes))
             {
-                _logger?.Invoke($"[Worker] Permanent disable cooldown expired, re-enabling worker");
+                LogWorker("Permanent disable cooldown expired; re-enabling worker", correlationId);
                 _enabled = true;
                 _restartAttempts = 0; // Reset restart counter
             }
@@ -495,7 +535,7 @@ namespace OmenCore.Hardware
             {
                 if (_restartAttempts == MaxRestartAttempts)
                 {
-                    _logger?.Invoke($"[Worker] Max restart attempts ({MaxRestartAttempts}) reached, entering cooldown period");
+                    LogWorker($"Max restart attempts ({MaxRestartAttempts}) reached; entering cooldown period", correlationId);
                     _lastPermanentDisable = DateTime.Now;
                     _enabled = false;
                     _restartAttempts++;
@@ -505,7 +545,7 @@ namespace OmenCore.Hardware
             
             _restartAttempts++;
             _lastRestartAttempt = DateTime.Now;
-            _logger?.Invoke($"[Worker] Attempting restart ({_restartAttempts}/{MaxRestartAttempts})...");
+            LogWorker($"Attempting restart ({_restartAttempts}/{MaxRestartAttempts})", correlationId);
             
             // Kill existing process if still running
             try
@@ -515,13 +555,35 @@ namespace OmenCore.Hardware
                     _workerProcess.Kill();
                     _workerProcess.WaitForExit(1000);
                 }
+
+                ReleaseOwnedWorkerProcessHandle();
             }
             catch (Exception ex)
             {
-                _logger?.Invoke($"[Worker] Failed to kill existing process: {ex.Message}");
+                LogWorker($"Failed to kill existing process: {ex.Message}", correlationId);
             }
             
             return await StartAsync();
+        }
+
+        private string CreateOperationCorrelationId(string operation)
+        {
+            return $"{operation}-{Guid.NewGuid().ToString("N")[..8]}";
+        }
+
+        private void LogWorker(string message, string? correlationId = null)
+        {
+            _logger?.Invoke(FormatWorkerLog(message, correlationId));
+        }
+
+        private string FormatWorkerLog(string message, string? correlationId = null)
+        {
+            if (string.IsNullOrWhiteSpace(correlationId))
+            {
+                return $"[Worker][session={_workerSessionId}] {message}";
+            }
+
+            return $"[Worker][session={_workerSessionId}][correlation={correlationId}] {message}";
         }
         
         /// <summary>
@@ -549,6 +611,8 @@ namespace OmenCore.Hardware
                     _workerProcess.Kill();
                     _workerProcess.WaitForExit(1000);
                 }
+
+                ReleaseOwnedWorkerProcessHandle();
             }
             catch (Exception ex)
             {

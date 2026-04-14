@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Services.Rgb;
 
 namespace OmenCore.Services
@@ -21,6 +22,8 @@ namespace OmenCore.Services
         private readonly RgbManager _rgbManager;
         private readonly KeyboardLightingService? _keyboardLightingService;
         private readonly ConfigurationService? _configService;
+        private readonly ScreenSamplingService? _screenSamplingService;
+        private readonly AudioReactiveRgbService? _audioReactiveRgbService;
         private readonly List<RgbScene> _scenes = new();
         private readonly Timer? _scheduleTimer;
         private readonly SemaphoreSlim _applyLock = new(1, 1);
@@ -63,12 +66,16 @@ namespace OmenCore.Services
             LoggingService logging,
             RgbManager rgbManager,
             KeyboardLightingService? keyboardLightingService = null,
-            ConfigurationService? configService = null)
+            ConfigurationService? configService = null,
+            ScreenSamplingService? screenSamplingService = null,
+            AudioReactiveRgbService? audioReactiveRgbService = null)
         {
             _logging = logging;
             _rgbManager = rgbManager;
             _keyboardLightingService = keyboardLightingService;
             _configService = configService;
+            _screenSamplingService = screenSamplingService;
+            _audioReactiveRgbService = audioReactiveRgbService;
             
             // Initialize with built-in scenes
             InitializeBuiltInScenes();
@@ -78,6 +85,12 @@ namespace OmenCore.Services
             
             // Start schedule timer (checks every minute)
             _scheduleTimer = new Timer(CheckScheduledScenes, null, TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1));
+            BackgroundTimerRegistry.Register(
+                "RgbSceneSchedule",
+                "RgbSceneService",
+                "Checks for time-based scene schedule activations",
+                60000,
+                BackgroundTimerTier.Optional);
             
             _logging.Info($"RgbSceneService initialized with {_scenes.Count} scenes");
         }
@@ -171,6 +184,16 @@ namespace OmenCore.Services
                 Description = "Syncs with screen colors",
                 Icon = "✨",
                 Effect = RgbSceneEffect.Ambient,
+                Brightness = 100
+            });
+
+            _scenes.Add(new RgbScene
+            {
+                Id = "audio-reactive",
+                Name = "Audio Reactive",
+                Description = "Pulses with system audio output",
+                Icon = "🎵",
+                Effect = RgbSceneEffect.AudioReactive,
                 Brightness = 100
             });
             
@@ -295,6 +318,8 @@ namespace OmenCore.Services
             {
                 var previousScene = _currentScene;
                 _currentScene = scene;
+
+                await UpdateDynamicEffectsAsync(scene);
                 
                 var tasks = new List<Task<bool>>();
                 
@@ -430,6 +455,10 @@ namespace OmenCore.Services
                     case RgbSceneEffect.Ambient:
                         // Ambient is handled by ScreenSamplingService
                         break;
+
+                    case RgbSceneEffect.AudioReactive:
+                        // Audio reactive is handled by AudioReactiveRgbService
+                        break;
                         
                     default:
                         await _rgbManager.SyncStaticColorAsync(color);
@@ -442,6 +471,37 @@ namespace OmenCore.Services
             {
                 _logging.Warn($"Failed to apply scene to RGB manager: {ex.Message}");
                 return false;
+            }
+        }
+
+        private async Task UpdateDynamicEffectsAsync(RgbScene scene)
+        {
+            if (_screenSamplingService != null)
+            {
+                if (scene.Effect == RgbSceneEffect.Ambient)
+                {
+                    _screenSamplingService.Start();
+                }
+                else
+                {
+                    _screenSamplingService.Stop();
+                }
+            }
+
+            if (_audioReactiveRgbService != null)
+            {
+                if (scene.Effect == RgbSceneEffect.AudioReactive)
+                {
+                    var started = await _audioReactiveRgbService.StartAsync();
+                    if (!started)
+                    {
+                        _logging.Warn("Audio-reactive scene requested but audio capture could not start");
+                    }
+                }
+                else if (_audioReactiveRgbService.IsRunning)
+                {
+                    await _audioReactiveRgbService.StopAsync();
+                }
             }
         }
 
@@ -633,8 +693,22 @@ namespace OmenCore.Services
             if (_isDisposed) return;
             _isDisposed = true;
             
+            BackgroundTimerRegistry.Unregister("RgbSceneSchedule");
             _scheduleTimer?.Dispose();
             _applyLock.Dispose();
+
+            _screenSamplingService?.Stop();
+            if (_audioReactiveRgbService != null)
+            {
+                try
+                {
+                    _audioReactiveRgbService.StopAsync().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                    // Best effort shutdown.
+                }
+            }
             
             _logging.Info("RgbSceneService disposed");
         }

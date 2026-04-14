@@ -28,6 +28,7 @@ namespace OmenCore.Views
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
         private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
         
         [DllImport("user32.dll")]
@@ -39,6 +40,15 @@ namespace OmenCore.Views
         [DllImport("user32.dll")]
         private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
@@ -49,6 +59,13 @@ namespace OmenCore.Views
             public int Top;
             public int Right;
             public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
@@ -103,6 +120,11 @@ namespace OmenCore.Views
         private Brush _batteryColor = Brushes.White;
         private string _cpuClockSpeed = "-- MHz";
         private string _gpuClockSpeed = "-- MHz";
+        private string _osdDensityMode = "Balanced";
+        private double _overlayScale = 1.0;
+        private Thickness _metricRowMargin = new Thickness(0, 3, 0, 3);
+        private Thickness _separatorMargin = new Thickness(0, 6, 0, 6);
+        private Thickness _overlayPadding = new Thickness(16, 12, 16, 12);
         
         // Network traffic monitoring
         private NetworkInterface? _activeNetworkInterface;
@@ -167,6 +189,10 @@ namespace OmenCore.Views
         private bool _showBattery;
         private bool _showCpuClock;
         private bool _showGpuClock;
+        private bool _showThermalsGroup = true;
+        private bool _showPerformanceGroup = true;
+        private bool _showNetworkGroup = true;
+        private bool _showSystemGroup = true;
         
         public bool ShowCpuTemp { get => _showCpuTemp; set { _showCpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
         public bool ShowGpuTemp { get => _showGpuTemp; set { _showGpuTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); } }
@@ -191,10 +217,42 @@ namespace OmenCore.Views
         public bool ShowBattery { get => _showBattery; set { _showBattery = value; OnPropertyChanged(); } }
         public bool ShowCpuClock { get => _showCpuClock; set { _showCpuClock = value; OnPropertyChanged(); } }
         public bool ShowGpuClock { get => _showGpuClock; set { _showGpuClock = value; OnPropertyChanged(); } }
+
+        public bool ShowThermalsGroup { get => _showThermalsGroup; set { _showThermalsGroup = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); OnPropertyChanged(nameof(ShowSeparator2)); OnPropertyChanged(string.Empty); } }
+        public bool ShowPerformanceGroup { get => _showPerformanceGroup; set { _showPerformanceGroup = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); OnPropertyChanged(nameof(ShowSeparator2)); OnPropertyChanged(string.Empty); } }
+        public bool ShowNetworkGroup { get => _showNetworkGroup; set { _showNetworkGroup = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator2)); OnPropertyChanged(string.Empty); } }
+        public bool ShowSystemGroup { get => _showSystemGroup; set { _showSystemGroup = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowSeparator1)); OnPropertyChanged(nameof(ShowSeparator2)); OnPropertyChanged(string.Empty); } }
+
+        public bool ShowClockTimeRow => _showSystemGroup && _showTime;
+        public bool ShowCurrentModeRow => _showPerformanceGroup && _showCurrentMode;
+        public bool ShowPerformanceModeRow => _showPerformanceGroup && _showPerformanceMode;
+        public bool ShowFanModeRow => _showPerformanceGroup && _showFanMode;
+        public bool ShowCpuTempRow => _showThermalsGroup && _showCpuTemp;
+        public bool ShowCpuClockRow => _showPerformanceGroup && _showCpuClock;
+        public bool ShowGpuTempRow => _showThermalsGroup && _showGpuTemp;
+        public bool ShowGpuClockRow => _showPerformanceGroup && _showGpuClock;
+        public bool ShowGpuHotspotRow => _showThermalsGroup && _showGpuHotspot;
+        public bool ShowVramUsageRow => _showSystemGroup && _showVramUsage;
+        public bool ShowPackagePowerRow => _showThermalsGroup && _showPackagePower;
+        public bool ShowFanSpeedRow => _showThermalsGroup && _showFanSpeed;
+        public bool ShowRamUsageRow => _showSystemGroup && _showRamUsage;
+        public bool ShowBatteryRow => _showSystemGroup && _showBattery;
+        public bool ShowFpsRow => _showPerformanceGroup && _showFps;
+        public bool ShowFrametimeRow => _showPerformanceGroup && _showFrametime;
+        public bool ShowNetworkLatencyRow => _showNetworkGroup && _showNetworkLatency;
+        public bool ShowNetworkUploadRow => _showNetworkGroup && _showNetworkUpload;
+        public bool ShowNetworkDownloadRow => _showNetworkGroup && _showNetworkDownload;
+
+        public double OverlayScale { get => _overlayScale; private set { _overlayScale = value; OnPropertyChanged(); } }
+        public Thickness MetricRowMargin { get => _metricRowMargin; private set { _metricRowMargin = value; OnPropertyChanged(); } }
+        public Thickness SeparatorMargin { get => _separatorMargin; private set { _separatorMargin = value; OnPropertyChanged(); } }
+        public Thickness OverlayPadding { get => _overlayPadding; private set { _overlayPadding = value; OnPropertyChanged(); } }
         
         // Computed visibility for separators
-        public bool ShowSeparator1 => (_showPerformanceMode || _showFanMode) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
-        public bool ShowSeparator2 => (_showFps || _showFrametime || _showNetworkLatency || _showNetworkUpload || _showNetworkDownload) && (_showCpuTemp || _showGpuTemp || _showFanSpeed || _showRamUsage);
+        public bool ShowSeparator1 => (ShowPerformanceModeRow || ShowFanModeRow) &&
+                         (ShowCpuTempRow || ShowGpuTempRow || ShowCpuClockRow || ShowGpuClockRow || ShowGpuHotspotRow || ShowPackagePowerRow || ShowFanSpeedRow || ShowRamUsageRow || ShowBatteryRow || ShowVramUsageRow);
+        public bool ShowSeparator2 => (ShowFpsRow || ShowFrametimeRow || ShowNetworkLatencyRow || ShowNetworkUploadRow || ShowNetworkDownloadRow) &&
+                         (ShowCpuTempRow || ShowGpuTempRow || ShowCpuClockRow || ShowGpuClockRow || ShowGpuHotspotRow || ShowPackagePowerRow || ShowFanSpeedRow || ShowRamUsageRow || ShowBatteryRow || ShowVramUsageRow);
         
         public event PropertyChangedEventHandler? PropertyChanged;
         
@@ -253,6 +311,18 @@ namespace OmenCore.Views
             _settings = settings;
             ApplySettings(settings);
             Opacity = settings.Opacity;
+
+            var shouldPollNetwork = _showNetworkGroup && (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload);
+            if (shouldPollNetwork)
+            {
+                if (!_pingTimer.IsEnabled)
+                    _pingTimer.Start();
+            }
+            else
+            {
+                _pingTimer.Stop();
+            }
+
             PositionWindow();
         }
         
@@ -281,6 +351,12 @@ namespace OmenCore.Views
             ShowBattery = settings.ShowBattery;
             ShowCpuClock = settings.ShowCpuClock;
             ShowGpuClock = settings.ShowGpuClock;
+            ShowThermalsGroup = settings.ShowThermalsGroup;
+            ShowPerformanceGroup = settings.ShowPerformanceGroup;
+            ShowNetworkGroup = settings.ShowNetworkGroup;
+            ShowSystemGroup = settings.ShowSystemGroup;
+            _osdDensityMode = string.IsNullOrWhiteSpace(settings.DensityMode) ? "Balanced" : settings.DensityMode;
+            ApplyDensityLayout();
             
             // Apply layout orientation
             if (MainPanel != null)
@@ -294,6 +370,33 @@ namespace OmenCore.Views
             {
                 ApplyDpiAwareScale();
                 PositionWindow();
+            }
+
+            OnPropertyChanged(string.Empty);
+        }
+
+        private void ApplyDensityLayout()
+        {
+            switch (_osdDensityMode.Trim().ToLowerInvariant())
+            {
+                case "compact":
+                    OverlayScale = 0.93;
+                    MetricRowMargin = new Thickness(0, 2, 0, 2);
+                    SeparatorMargin = new Thickness(0, 5, 0, 5);
+                    OverlayPadding = new Thickness(14, 10, 14, 10);
+                    break;
+                case "comfortable":
+                    OverlayScale = 1.07;
+                    MetricRowMargin = new Thickness(0, 6, 0, 6);
+                    SeparatorMargin = new Thickness(0, 9, 0, 9);
+                    OverlayPadding = new Thickness(18, 14, 18, 14);
+                    break;
+                default:
+                    OverlayScale = 1.0;
+                    MetricRowMargin = new Thickness(0, 3, 0, 3);
+                    SeparatorMargin = new Thickness(0, 6, 0, 6);
+                    OverlayPadding = new Thickness(16, 12, 16, 12);
+                    break;
             }
         }
         
@@ -342,7 +445,7 @@ namespace OmenCore.Views
         public void StartUpdates()
         {
             _updateTimer.Start();
-            if (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload)
+            if (_showNetworkGroup && (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload))
                 _pingTimer.Start();
             
             // Initialize RTSS for real FPS data
@@ -372,10 +475,10 @@ namespace OmenCore.Views
         
         private void PingTimer_Tick(object? sender, EventArgs e)
         {
-            if (_showNetworkLatency)
+            if (_showNetworkGroup && _showNetworkLatency)
                 UpdateNetworkLatency();
             
-            if (_showNetworkUpload || _showNetworkDownload)
+            if (_showNetworkGroup && (_showNetworkUpload || _showNetworkDownload))
                 UpdateNetworkTraffic();
         }
         
@@ -488,7 +591,7 @@ namespace OmenCore.Views
             try
             {
                 // Update clock time
-                if (_showTime)
+                if (_showSystemGroup && _showTime)
                     ClockTime = DateTime.Now.ToString("HH:mm:ss");
                 
                 // Try to get data from monitoring sample first (more accurate)
@@ -525,12 +628,27 @@ namespace OmenCore.Views
                     else
                         PackagePower = "";
                     
-                    // GPU hotspot temperature (estimate from GPU temp + ~10-15°C typical delta)
-                    // Real hotspot would require LibreHardwareMonitor GPU junction temp sensor
-                    if (_showGpuHotspot && sample.GpuTemperatureC > 0)
-                        GpuHotspotTemp = sample.GpuTemperatureC + 12; // Estimated hotspot delta
+                    // GPU hotspot temperature: prefer real junction temp sensor when available.
+                    if (_showGpuHotspot)
+                    {
+                        if (sample.GpuHotspotTemperatureC > 0)
+                        {
+                            GpuHotspotTemp = sample.GpuHotspotTemperatureC;
+                        }
+                        else if (sample.GpuTemperatureC > 0)
+                        {
+                            // Fallback estimate when hotspot sensor is unavailable.
+                            GpuHotspotTemp = sample.GpuTemperatureC + 12;
+                        }
+                        else
+                        {
+                            GpuHotspotTemp = 0;
+                        }
+                    }
                     else
+                    {
                         GpuHotspotTemp = 0;
+                    }
                     
                     // FPS / GPU Activity display
                     if (_showFps || _showFrametime)
@@ -755,13 +873,7 @@ namespace OmenCore.Views
         {
             try
             {
-                var hwnd = new WindowInteropHelper(this).Handle;
-                if (hwnd == IntPtr.Zero)
-                {
-                    return SystemParameters.WorkArea;
-                }
-
-                var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                var monitor = ResolveTargetMonitor();
                 if (monitor == IntPtr.Zero)
                 {
                     return SystemParameters.WorkArea;
@@ -773,16 +885,63 @@ namespace OmenCore.Views
                     return SystemParameters.WorkArea;
                 }
 
+                // GetMonitorInfo returns physical pixels; WPF Left/Top are logical units.
+                // Divide by the per-monitor DPI scale so the window lands in the right place
+                // on displays with non-100% scaling (e.g. 1.5× = 150% DPI).
+                double dpiScaleX = 1.0;
+                double dpiScaleY = 1.0;
+                var source = PresentationSource.FromVisual(this);
+                if (source?.CompositionTarget != null)
+                {
+                    dpiScaleX = source.CompositionTarget.TransformToDevice.M11;
+                    dpiScaleY = source.CompositionTarget.TransformToDevice.M22;
+                }
+
                 return new Rect(
-                    monitorInfo.rcWork.Left,
-                    monitorInfo.rcWork.Top,
-                    Math.Max(1, monitorInfo.rcWork.Right - monitorInfo.rcWork.Left),
-                    Math.Max(1, monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top));
+                    monitorInfo.rcWork.Left / dpiScaleX,
+                    monitorInfo.rcWork.Top / dpiScaleY,
+                    Math.Max(1, (monitorInfo.rcWork.Right - monitorInfo.rcWork.Left) / dpiScaleX),
+                    Math.Max(1, (monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top) / dpiScaleY));
             }
             catch
             {
                 return SystemParameters.WorkArea;
             }
+        }
+
+        private IntPtr ResolveTargetMonitor()
+        {
+            var target = _settings.MonitorTarget?.Trim();
+
+            if (string.Equals(target, "Primary", StringComparison.OrdinalIgnoreCase))
+            {
+                return MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
+            }
+
+            if (string.Equals(target, "MouseCursor", StringComparison.OrdinalIgnoreCase))
+            {
+                if (GetCursorPos(out var point))
+                {
+                    return MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+                }
+            }
+
+            if (string.Equals(target, "ActiveWindow", StringComparison.OrdinalIgnoreCase))
+            {
+                var foreground = GetForegroundWindow();
+                if (foreground != IntPtr.Zero)
+                {
+                    return MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST);
+                }
+            }
+
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                return MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            }
+
+            return MonitorFromPoint(new POINT { X = 0, Y = 0 }, MONITOR_DEFAULTTOPRIMARY);
         }
 
         private void ApplyDpiAwareScale()

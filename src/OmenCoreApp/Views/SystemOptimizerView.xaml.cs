@@ -19,8 +19,11 @@ namespace OmenCore.Views
         {
             if (sender is ToggleButton toggle && toggle.Tag is OptimizationItem item)
             {
-                // The binding will update IsEnabled, but we need to trigger the async action
-                item.Toggle();
+                var desiredState = toggle.IsChecked == true;
+
+                // Keep the UI on the last authoritative state until the async apply/revert completes.
+                toggle.IsChecked = item.IsEnabled;
+                item.Toggle(desiredState);
             }
         }
     }

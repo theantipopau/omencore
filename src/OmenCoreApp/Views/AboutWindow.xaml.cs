@@ -72,7 +72,17 @@ namespace OmenCore.Views
                         }
                         else
                         {
-                            SetStatus("Download failed. Try again or grab it from GitHub releases.", "AccentBrush");
+                                SetStatus("Download failed. Open GitHub releases to install manually.", "AccentBrush");
+                                if (!string.IsNullOrWhiteSpace(latest.ChangelogUrl))
+                                {
+                                    var openGitHub = MessageBox.Show(
+                                        "The update could not be downloaded or verified.\n\nOpen GitHub releases to download manually?",
+                                        "Update Download Failed",
+                                        MessageBoxButton.YesNo,
+                                        MessageBoxImage.Warning);
+                                    if (openGitHub == MessageBoxResult.Yes)
+                                        OpenUrl(latest.ChangelogUrl);
+                                }
                         }
                     }
                 }

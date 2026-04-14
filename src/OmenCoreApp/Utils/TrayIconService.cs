@@ -39,6 +39,8 @@ namespace OmenCore.Utils
         private MonitoringSample? _latestSample;
         private string _currentFanMode = "Auto";
         private string _currentPerformanceMode = "Balanced";
+        private string? _curvePresetName;
+        private bool _linkFanToPerformanceMode;
         private string _monitoringHealth = "Unknown";
         private bool _disposed;
         private readonly ConfigurationService? _configService;
@@ -264,16 +266,16 @@ namespace OmenCore.Utils
             // Performance submenu
             _performanceModeMenuItem = new MenuItem { Header = "⚡ Power Profile ▶" };
             
+            _perfQuietMenuItem = new MenuItem { Header = "   🔋 Power Saver — Battery life" };
+            _perfQuietMenuItem.Click += (s, e) => SetPerformanceMode("Quiet");
             _perfBalancedMenuItem = new MenuItem { Header = "✓ ⚖️ Balanced — Default" };
             _perfBalancedMenuItem.Click += (s, e) => SetPerformanceMode("Balanced");
             _perfPerformanceMenuItem = new MenuItem { Header = "   🚀 Performance — Max power" };
             _perfPerformanceMenuItem.Click += (s, e) => SetPerformanceMode("Performance");
-            _perfQuietMenuItem = new MenuItem { Header = "   🔋 Power Saver — Battery life" };
-            _perfQuietMenuItem.Click += (s, e) => SetPerformanceMode("Quiet");
             
+            _performanceModeMenuItem.Items.Add(_perfQuietMenuItem);
             _performanceModeMenuItem.Items.Add(_perfBalancedMenuItem);
             _performanceModeMenuItem.Items.Add(_perfPerformanceMenuItem);
-            _performanceModeMenuItem.Items.Add(_perfQuietMenuItem);
             _performanceModeMenuItem.ItemContainerStyle = menuItemStyle;
             _performanceModeMenuItem.SubmenuOpened += (s, e) =>
             {
@@ -558,6 +560,7 @@ namespace OmenCore.Utils
                                        $"🎯 GPU: {gpuTempStr} @ {gpuLoad:F0}%{gpuPowerDisplay}\n" +
                                        $"💾 RAM: {memUsedGb:F1}/{memTotalGb:F1} GB ({memPercent:F0}%)\n" +
                                        $"{fanLine} | ⚡ {_currentPerformanceMode}\n" +
+                                       $"🔗 Fan/Perf: {(_linkFanToPerformanceMode ? "Linked" : "Decoupled")}\n" +
                                        (powerLine.Length > 0 ? $"{powerLine}\n" : "") +
                                        $"📈 Monitor: {_monitoringHealth}\n" +
                                        $"━━━━━━━━━━━━━━━━━━\n" +
@@ -871,8 +874,18 @@ namespace OmenCore.Utils
             {
                 if (_fanModeMenuItem != null)
                 {
-                    _fanModeMenuItem.Header = $"🌀 Fan Mode ▶ {mode}";
+                    var suffix = _linkFanToPerformanceMode ? " [linked]" : string.Empty;
+                    _fanModeMenuItem.Header = $"🌀 Fan Mode ▶ {mode}{suffix}";
                 }
+            });
+        }
+
+        public void UpdateCurvePresetName(string? presetName)
+        {
+            _curvePresetName = presetName;
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                _quickPopup?.UpdateCurvePresetName(presetName);
             });
         }
 
@@ -884,6 +897,24 @@ namespace OmenCore.Utils
                 if (_performanceModeMenuItem != null)
                 {
                     _performanceModeMenuItem.Header = $"⚡ Performance ▶ {mode}";
+                }
+            });
+        }
+
+        public void UpdateLinkedMode(bool linked)
+        {
+            _linkFanToPerformanceMode = linked;
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                if (_fanModeMenuItem != null)
+                {
+                    var suffix = linked ? " [linked]" : string.Empty;
+                    _fanModeMenuItem.Header = $"🌀 Fan Mode ▶ {_currentFanMode}{suffix}";
+                }
+
+                if (_quickPopup != null)
+                {
+                    _quickPopup.UpdateLinkedMode(linked);
                 }
             });
         }
@@ -935,7 +966,9 @@ namespace OmenCore.Utils
                 {
                     _quickPopup.PositionNearTray();
                     _quickPopup.UpdateFanMode(_currentFanMode);
+                    _quickPopup.UpdateCurvePresetName(_curvePresetName);
                     _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
+                    _quickPopup.UpdateLinkedMode(_linkFanToPerformanceMode);
                     _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
                     if (_latestSample != null)
                     {
@@ -964,7 +997,9 @@ namespace OmenCore.Utils
 
                 _quickPopup.PositionNearTray();
                 _quickPopup.UpdateFanMode(_currentFanMode);
+                _quickPopup.UpdateCurvePresetName(_curvePresetName);
                 _quickPopup.UpdatePerformanceMode(_currentPerformanceMode);
+                _quickPopup.UpdateLinkedMode(_linkFanToPerformanceMode);
                 _quickPopup.UpdateMonitoringHealth(_monitoringHealth);
                 if (_latestSample != null)
                 {

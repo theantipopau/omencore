@@ -70,6 +70,9 @@ namespace OmenCoreApp.Tests.ViewModels
             public bool IsConnected => IsAvailable;
             public int DeviceCount => IsAvailable ? 1 : 0;
             public IReadOnlyList<RgbEffectType> SupportedEffects => new[] { RgbEffectType.Static, RgbEffectType.Breathing, RgbEffectType.Spectrum };
+                        public RgbProviderConnectionStatus ConnectionStatus =>
+                            IsAvailable ? RgbProviderConnectionStatus.Connected : RgbProviderConnectionStatus.Disabled;
+                        public string StatusDetail => IsAvailable ? "1 device" : "Not available";
             public string? LastEffect { get; private set; }
 
             public Task InitializeAsync()

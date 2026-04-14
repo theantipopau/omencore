@@ -7,6 +7,7 @@
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Margin" Value="2"/>
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
         <Setter Property="Background" Value="#252A3D"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="BorderBrush" Value="#454B65"/>
@@ -70,6 +71,9 @@
     
     <!-- Export Icon -->
     <Geometry x:Key="IconExport">M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,19L8,15H10.5V12H13.5V15H16L12,19Z</Geometry>
+
+    <!-- Copy / Clipboard Icon -->
+    <Geometry x:Key="IconCopy">M16,1H6A2,2 0 0,0 4,3V15H6V3H16V1M19,5H10A2,2 0 0,0 8,7V21A2,2 0 0,0 10,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M19,21H10V7H19V21Z</Geometry>
     
     <!-- Import Icon -->
     <Geometry x:Key="IconImport">M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M12,12L16,16H13.5V19H10.5V16H8L12,12Z</Geometry>
@@ -502,6 +506,12 @@
         <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
+    <Style x:Key="UtilitySectionTitle" TargetType="TextBlock" BasedOn="{StaticResource Heading3}">
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style x:Key="Omen.Text.Section.Utility" TargetType="TextBlock" BasedOn="{StaticResource UtilitySectionTitle}" />
+
     <Style x:Key="BodyText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Normal" />
@@ -517,9 +527,22 @@
         <Setter Property="LineHeight" Value="16" />
     </Style>
 
+    <Style x:Key="UtilityMetricValue" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="Label" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="UtilityMetricLabel" TargetType="TextBlock" BasedOn="{StaticResource Label}">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
     </Style>
 
@@ -536,10 +559,22 @@
     </Style>
 
     <!-- Modern Button Style -->
+    <Style x:Key="Omen.FocusVisual" TargetType="Control">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="2" CornerRadius="8" Margin="-2" SnapsToDevicePixels="True"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="ModernButton" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource AccentBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Setter Property="Padding" Value="20,10" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Medium" />
@@ -601,10 +636,20 @@
         <Setter Property="Padding" Value="12,8" />
     </Style>
 
+    <Style x:Key="CompactIconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+    </Style>
+
+    <Style x:Key="Omen.Button.Icon.Compact" TargetType="Button" BasedOn="{StaticResource CompactIconButton}" />
+
     <!-- Link Button Style (Text-only, no background) -->
     <Style x:Key="LinkButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}" />
         <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Padding" Value="4,2" />
@@ -638,10 +683,47 @@
         <Setter Property="Padding" Value="12,8" />
     </Style>
 
+    <Style x:Key="UtilityActionButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Margin" Value="0,0,8,8" />
+    </Style>
+
+    <Style x:Key="Omen.Button.Utility" TargetType="Button" BasedOn="{StaticResource UtilityActionButton}" />
+
+    <Style x:Key="UtilityPrimaryActionButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style x:Key="Omen.Button.Utility.Primary" TargetType="Button" BasedOn="{StaticResource UtilityPrimaryActionButton}" />
+
+    <Style x:Key="Omen.Button.Toolbar" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Omen.Button.Toolbar.Accent" TargetType="Button" BasedOn="{StaticResource Omen.Button.Toolbar}">
+        <Setter Property="Background" Value="#00C8C8" />
+        <Setter Property="BorderBrush" Value="#00C8C8" />
+        <Setter Property="Foreground" Value="#0F111C" />
+    </Style>
+
+    <Style x:Key="Omen.Button.Toolbar.Danger" TargetType="Button" BasedOn="{StaticResource Omen.Button.Toolbar}">
+        <Setter Property="Background" Value="{StaticResource ErrorBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+
     <!-- Preset Card RadioButton Style (for fan profiles, etc.) -->
     <Style x:Key="PresetCardRadioButton" TargetType="RadioButton">
         <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Padding" Value="12,16" />
@@ -681,6 +763,7 @@
     <Style x:Key="PerformanceModeRadioStyle" TargetType="RadioButton">
         <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}" />
         <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Padding" Value="16,20" />
@@ -854,6 +937,7 @@
     <Style x:Key="ModernToggleButton" TargetType="ToggleButton">
         <Setter Property="Width" Value="44"/>
         <Setter Property="Height" Value="24"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -894,6 +978,80 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="Omen.Toggle.Switch" TargetType="ToggleButton" BasedOn="{StaticResource ModernToggleButton}" />
+
+    <Style x:Key="Omen.Toggle.Switch.Wide" TargetType="ToggleButton">
+        <Setter Property="Width" Value="50"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="FocusVisualStyle" Value="{StaticResource Omen.FocusVisual}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border x:Name="Track"
+                                Background="{StaticResource SurfaceHighlightBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="13"
+                                Width="50" Height="26"/>
+                        <Border x:Name="Thumb"
+                                Background="#FFFFFF"
+                                CornerRadius="11"
+                                Width="22" Height="22"
+                                HorizontalAlignment="Left"
+                                Margin="2,0,0,0">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="4" ShadowDepth="1" Direction="270"/>
+                            </Border.Effect>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="#00C8C8"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="#00C8C8"/>
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="#00C8C8"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="UtilityStatCard" TargetType="Border">
+        <Setter Property="Background" Value="#1A1D2E" />
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="BorderBrush" Value="#263047" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#000000" Opacity="0.08" BlurRadius="10" ShadowDepth="2" Direction="270" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Omen.Card.Utility" TargetType="Border" BasedOn="{StaticResource UtilityStatCard}" />
+
+    <Style x:Key="Omen.Card.Optimizer" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <!-- Modern GroupBox Style -->
@@ -1693,6 +1851,36 @@
     
     <Style x:Key="InfoBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
         <Setter Property="Background" Value="#1A00AAFF"/>
+    </Style>
+
+    <!-- Shared utility busy/feedback surfaces -->
+    <Style x:Key="Omen.Busy.Overlay" TargetType="Border">
+        <Setter Property="Background" Value="#AA0F111C"/>
+        <Setter Property="Panel.ZIndex" Value="100"/>
+    </Style>
+
+    <Style x:Key="Omen.Busy.Panel" TargetType="Border">
+        <Setter Property="Background" Value="#F01A1D2A"/>
+        <Setter Property="BorderBrush" Value="#334266"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="16,14"/>
+        <Setter Property="MinWidth" Value="280"/>
+    </Style>
+
+    <Style x:Key="Omen.Busy.Progress" TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
+        <Setter Property="Height" Value="4"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style x:Key="Omen.Toast" TargetType="Border">
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Background" Value="#D9222633"/>
+        <Setter Property="BorderBrush" Value="#334266"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
     
     <!-- Smooth hover effect for interactive elements -->

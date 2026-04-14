@@ -32,5 +32,11 @@ namespace OmenCore.Models
             Warning = message ?? "Awaiting undervolt telemetry...",
             ControlledByOmenCore = false
         };
+
+        public static UndervoltStatus CreateError(string? message = null) => new()
+        {
+            Error = message ?? "Undervolt operation failed.",
+            ControlledByOmenCore = false
+        };
     }
 }
