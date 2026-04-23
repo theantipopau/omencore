@@ -13,7 +13,7 @@ namespace OmenCoreApp.Tests.Services
         [InlineData("AMD Ryzen 9 7940HS", false)]
         [InlineData("", false)]
         [InlineData(null, false)]
-        public void IsStrixPointCpu_DetectsCorrectly(string name, bool expected)
+        public void IsStrixPointCpu_DetectsCorrectly(string? name, bool expected)
         {
             var result = SystemInfoService.IsStrixPointCpu(name ?? string.Empty);
             result.Should().Be(expected);

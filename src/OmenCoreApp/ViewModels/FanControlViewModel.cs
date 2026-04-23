@@ -1061,6 +1061,7 @@ namespace OmenCore.ViewModels
         {
             try
             {
+                CurveApplyStatus = $"Applying '{preset.Name}'… (transitioning)";
                 await Task.Run(() => _fanService.ApplyPreset(preset));
 
                 var dispatcher = App.Current?.Dispatcher;

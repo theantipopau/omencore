@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Management;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Runtime.Versioning;
 using System.Security.Principal;
@@ -418,22 +420,31 @@ namespace OmenCore.Services.BloatwareManager
         /// </summary>
         public async Task<bool> RemoveAppAsync(BloatwareApp app, CancellationToken cancellationToken = default)
         {
-            if (app.IsRemoved) return true;
+            if (app.IsRemoved)
+            {
+                const string alreadyRemoved = "Item was already removed in this session.";
+                SetRemovalOutcome(app, RemovalStatus.Skipped, alreadyRemoved, alreadyRemoved);
+                StatusChanged?.Invoke($"Skipped {app.Name}: {alreadyRemoved}");
+                RecordHistory(app, "remove", true, alreadyRemoved);
+                return true;
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
             if (!IsRunningAsAdmin)
             {
+                const string adminRequired = "Administrator privileges are required to remove applications.";
+                SetRemovalOutcome(app, RemovalStatus.Failed, adminRequired, adminRequired);
                 StatusChanged?.Invoke("Administrator privileges required. Please restart OmenCore as Administrator to remove applications.");
                 _logger.Warn($"Bloatware removal attempted without Administrator rights: {app.Name}");
+                RecordHistory(app, "remove", false, adminRequired);
                 return false;
             }
 
             StatusChanged?.Invoke($"Removing {app.Name}...");
             _logger.Info($"Attempting to remove bloatware: {app.Name} ({app.Type})");
 
-            app.LastRemovalStatus = RemovalStatus.Pending;
-            app.LastFailureReason = null;
+            SetRemovalOutcome(app, RemovalStatus.Pending, $"Removal started for {app.Name}.");
 
             try
             {
@@ -458,40 +469,63 @@ namespace OmenCore.Services.BloatwareManager
 
                 if (success)
                 {
+                    if (app.LastRemovalStatus == RemovalStatus.Skipped)
+                    {
+                        var skipDetail = string.IsNullOrWhiteSpace(app.LastRemovalDetail)
+                            ? "Removal was skipped (no state change required)."
+                            : app.LastRemovalDetail!;
+                        SetRemovalOutcome(app, RemovalStatus.Skipped, skipDetail, skipDetail);
+                        app.IsRemoved = true;
+                        AppRemoved?.Invoke(app);
+                        StatusChanged?.Invoke($"Skipped {app.Name}: {skipDetail}");
+                        RecordHistory(app, "remove", true, skipDetail);
+                        _logger.Info($"Skipped removal for {app.Name}: {skipDetail}");
+                        return true;
+                    }
+
+                    var successDetail = string.IsNullOrWhiteSpace(app.LastRemovalDetail)
+                        ? "Removal completed and verification confirmed the item is no longer detected."
+                        : app.LastRemovalDetail!;
+                    SetRemovalOutcome(app, RemovalStatus.VerifiedSuccess, successDetail);
                     app.IsRemoved = true;
-                    app.LastRemovalStatus = RemovalStatus.VerifiedSuccess;
                     AppRemoved?.Invoke(app);
-                    StatusChanged?.Invoke($"Successfully removed {app.Name}");
-                    RecordHistory(app, "remove", true, null);
+                    StatusChanged?.Invoke($"Removed {app.Name}: {successDetail}");
+                    RecordHistory(app, "remove", true, successDetail);
                     _logger.Info($"Successfully removed: {app.Name}");
                 }
                 else
                 {
-                    app.LastRemovalStatus = RemovalStatus.Failed;
-                    app.LastFailureReason = "Removal command completed but post-state verification detected the item is still present.";
-                    StatusChanged?.Invoke($"Failed to remove {app.Name}");
-                    RecordHistory(app, "remove", false, app.LastFailureReason);
-                    _logger.Warn($"Failed to remove: {app.Name}");
+                    var failureDetail = string.IsNullOrWhiteSpace(app.LastRemovalDetail)
+                        ? (!string.IsNullOrWhiteSpace(app.LastFailureReason)
+                            ? app.LastFailureReason!
+                            : "Removal command completed but post-state verification detected the item is still present.")
+                        : app.LastRemovalDetail!;
+                    var failureReason = string.IsNullOrWhiteSpace(app.LastFailureReason)
+                        ? failureDetail
+                        : app.LastFailureReason!;
+                    SetRemovalOutcome(app, RemovalStatus.Failed, failureDetail, failureReason);
+                    StatusChanged?.Invoke($"Failed to remove {app.Name}: {failureDetail}");
+                    RecordHistory(app, "remove", false, failureDetail);
+                    _logger.Warn($"Failed to remove {app.Name}: {failureDetail}");
                 }
 
                 return success;
             }
             catch (OperationCanceledException)
             {
-                app.LastRemovalStatus = RemovalStatus.Skipped;
-                app.LastFailureReason = "Canceled before removal completed.";
-                StatusChanged?.Invoke($"Canceled removing {app.Name}");
-                RecordHistory(app, "remove", false, app.LastFailureReason);
+                const string canceled = "Canceled before removal completed.";
+                SetRemovalOutcome(app, RemovalStatus.Skipped, canceled, canceled);
+                StatusChanged?.Invoke($"Skipped {app.Name}: {canceled}");
+                RecordHistory(app, "remove", false, canceled);
                 _logger.Warn($"Removal canceled for {app.Name}");
                 throw;
             }
             catch (Exception ex)
             {
-                app.LastRemovalStatus = RemovalStatus.Failed;
-                app.LastFailureReason = ex.Message;
+                SetRemovalOutcome(app, RemovalStatus.Failed, ex.Message, ex.Message);
                 _logger.Error($"Error removing {app.Name}: {ex.Message}");
                 StatusChanged?.Invoke($"Error removing {app.Name}: {ex.Message}");
-                RecordHistory(app, "remove", false, app.LastFailureReason);
+                RecordHistory(app, "remove", false, ex.Message);
                 return false;
             }
         }
@@ -550,6 +584,12 @@ namespace OmenCore.Services.BloatwareManager
 
                 if (removed)
                 {
+                    if (app.LastRemovalStatus == RemovalStatus.Skipped)
+                    {
+                        result.Skipped.Add(app);
+                        continue;
+                    }
+
                     result.Succeeded.Add(app);
                     removedBeforeFailure.Add(app);
                     continue;
@@ -640,6 +680,7 @@ namespace OmenCore.Services.BloatwareManager
                 {
                     _logger.Error($"Bulk restore exception for {app.Name}: {ex.Message}");
                     app.LastFailureReason = ex.Message;
+                    app.LastRemovalDetail = ex.Message;
                     result.Failed.Add(app);
                 }
             }
@@ -657,16 +698,25 @@ namespace OmenCore.Services.BloatwareManager
             // NOT PackageFullName (e.g. "Microsoft.BingWeather_4.53.52220.0_x64__8wekyb3d8bbwe").
             // Extract the Name portion from PackageFullName by splitting on '_'.
             var appxName = app.PackageId.Contains('_') ? app.PackageId.Split('_')[0] : app.PackageId;
+            var escapedAppxName = EscapePowerShellSingleQuotedString(appxName);
+
+            var beforeState = await GetAppxPresenceSnapshotAsync(appxName, cancellationToken);
+            if (beforeState != null && !beforeState.IsPresent)
+            {
+                var detail = "Package was already absent before removal attempt.";
+                SetRemovalOutcome(app, RemovalStatus.Skipped, detail, detail);
+                return true;
+            }
             
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"" +
-                    $"try {{ Get-AppxPackage '{appxName}' | Remove-AppxPackage -ErrorAction Stop; exit 0 }} " +
+                    $"try {{ Get-AppxPackage '{escapedAppxName}' | Remove-AppxPackage -ErrorAction Stop; exit 0 }} " +
                     $"catch {{ " +
-                    $"  try {{ Get-AppxPackage -AllUsers '{appxName}' | Remove-AppxPackage -AllUsers -ErrorAction Stop; exit 0 }} " +
+                    $"  try {{ Get-AppxPackage -AllUsers '{escapedAppxName}' | Remove-AppxPackage -AllUsers -ErrorAction Stop; exit 0 }} " +
                     $"  catch {{ " +
-                    $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -like '{appxName}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop; exit 0 }} " +
+                    $"    try {{ Get-AppxProvisionedPackage -Online | Where-Object {{ $_.DisplayName -like '{escapedAppxName}*' }} | Remove-AppxProvisionedPackage -Online -ErrorAction Stop; exit 0 }} " +
                     $"    catch {{ Write-Error $_.Exception.Message; exit 1 }} " +
                     $"  }} " +
                     $"}}\"",
@@ -696,18 +746,64 @@ namespace OmenCore.Services.BloatwareManager
 
                 app.LastFailureReason = reason;
             }
+
+            var afterState = await GetAppxPresenceSnapshotAsync(appxName, cancellationToken);
+            if (afterState == null)
+            {
+                var verificationFailure = process.ExitCode == 0
+                    ? "Removal command completed, but AppX presence verification failed."
+                    : app.LastFailureReason ?? "AppX removal failed and verification could not complete.";
+                app.LastFailureReason = verificationFailure;
+                app.LastRemovalDetail = verificationFailure;
+                return false;
+            }
+
+            if (afterState.IsPresent)
+            {
+                var scopeDescription = DescribeAppxPresence(afterState);
+                var detail = beforeState != null && AreAppxPresenceSnapshotsEqual(beforeState, afterState)
+                    ? $"Removal resulted in no state change; package is still present ({scopeDescription})."
+                    : $"Package is still present after removal attempt ({scopeDescription}).";
+
+                if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(app.LastFailureReason))
+                {
+                    detail = $"{detail} Command error: {app.LastFailureReason}";
+                }
+
+                app.LastFailureReason = detail;
+                app.LastRemovalDetail = detail;
+                return false;
+            }
+
+            app.LastFailureReason = null;
+            app.LastRemovalDetail = "AppX package removal verified across current user, all users, and provisioned scopes.";
             
-            return process.ExitCode == 0;
+            return true;
         }
 
         private async Task<bool> RemoveWin32AppAsync(BloatwareApp app, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(app.UninstallCommand)) return false;
+            if (string.IsNullOrEmpty(app.UninstallCommand))
+            {
+                const string missingCommand = "No uninstall command is registered for this Win32 application.";
+                app.LastFailureReason = missingCommand;
+                app.LastRemovalDetail = missingCommand;
+                return false;
+            }
+
+            if (!IsWin32AppStillInstalled(app))
+            {
+                const string alreadyAbsent = "Win32 uninstall entry was already absent before removal attempt.";
+                SetRemovalOutcome(app, RemovalStatus.Skipped, alreadyAbsent, alreadyAbsent);
+                return true;
+            }
 
             var (cmd, args) = ParseWin32UninstallCommand(app.UninstallCommand);
             if (string.IsNullOrWhiteSpace(cmd))
             {
                 _logger.Warn($"Could not parse Win32 uninstall command for {app.Name}: {app.UninstallCommand}");
+                app.LastFailureReason = "Could not parse Win32 uninstall command.";
+                app.LastRemovalDetail = app.LastFailureReason;
                 return false;
             }
 
@@ -734,9 +830,16 @@ namespace OmenCore.Services.BloatwareManager
                 if (!removed)
                 {
                     _logger.Warn($"Win32 app still detected after uninstall attempt: {app.Name}");
-                    app.LastFailureReason = process.ExitCode != 0
+                    var detail = process.ExitCode != 0
                         ? $"Uninstaller exited with code {process.ExitCode} and app is still present."
                         : "Uninstaller exited successfully but app was still detected after verification.";
+                    app.LastFailureReason = detail;
+                    app.LastRemovalDetail = detail;
+                }
+                else
+                {
+                    app.LastFailureReason = null;
+                    app.LastRemovalDetail = "Win32 app uninstall verified; registry no longer reports the app as installed.";
                 }
 
                 return removed;
@@ -745,6 +848,7 @@ namespace OmenCore.Services.BloatwareManager
             {
                 _logger.Warn($"Win32 uninstall failed for {app.Name}: {ex.Message}");
                 app.LastFailureReason = ex.Message;
+                app.LastRemovalDetail = ex.Message;
                 return false;
             }
         }
@@ -870,7 +974,9 @@ namespace OmenCore.Services.BloatwareManager
                 {
                     if (!File.Exists(app.StartupFilePath))
                     {
-                        return Task.FromResult(false);
+                        const string startupMissing = "Startup file was already absent before removal attempt.";
+                        SetRemovalOutcome(app, RemovalStatus.Skipped, startupMissing, startupMissing);
+                        return Task.FromResult(true);
                     }
 
                     var startupBackupDir = Path.Combine(_backupPath, "startup-items");
@@ -887,37 +993,79 @@ namespace OmenCore.Services.BloatwareManager
                         SaveBackups();
                     }
 
+                    app.LastRemovalDetail = "Startup file moved out of the startup folder successfully.";
+                    app.LastFailureReason = null;
+
                     return Task.FromResult(true);
                 }
 
                 var hive = app.RegistryHive == "HKCU" ? Registry.CurrentUser : Registry.LocalMachine;
                 using var key = hive.OpenSubKey(app.RegistryPath!, true);
-                if (key == null) return Task.FromResult(false);
+                if (key == null)
+                {
+                    app.LastFailureReason = "Startup registry key could not be opened for removal.";
+                    app.LastRemovalDetail = app.LastFailureReason;
+                    return Task.FromResult(false);
+                }
+
+                if (key.GetValue(app.Name) == null)
+                {
+                    const string startupValueMissing = "Startup registry value was already absent before removal attempt.";
+                    SetRemovalOutcome(app, RemovalStatus.Skipped, startupValueMissing, startupValueMissing);
+                    return Task.FromResult(true);
+                }
 
                 key.DeleteValue(app.Name, false);
+                app.LastRemovalDetail = "Startup registry entry removed successfully.";
+                app.LastFailureReason = null;
                 return Task.FromResult(true);
             }
-            catch
+            catch (Exception ex)
             {
+                app.LastFailureReason = ex.Message;
+                app.LastRemovalDetail = ex.Message;
                 return Task.FromResult(false);
             }
         }
 
         private async Task<bool> DisableScheduledTaskAsync(BloatwareApp app, CancellationToken cancellationToken)
         {
+            if (!await IsScheduledTaskPresentAsync(app.PackageId, cancellationToken))
+            {
+                const string taskMissing = "Scheduled task was already absent before disable attempt.";
+                SetRemovalOutcome(app, RemovalStatus.Skipped, taskMissing, taskMissing);
+                return true;
+            }
+
             var psi = new ProcessStartInfo
             {
                 FileName = "schtasks.exe",
                 Arguments = $"/change /tn \"{app.PackageId}\" /disable",
                 UseShellExecute = false,
+                RedirectStandardError = true,
                 CreateNoWindow = true
             };
 
             using var process = Process.Start(psi);
             if (process == null) return false;
 
+            var stderrTask = process.StandardError.ReadToEndAsync();
             await WaitForProcessExitAsync(process, app, $"Disabling scheduled task for {app.Name}", cancellationToken);
-            return process.ExitCode == 0;
+
+            var stderr = await stderrTask;
+            if (process.ExitCode != 0)
+            {
+                var reason = !string.IsNullOrWhiteSpace(stderr)
+                    ? stderr.Trim()
+                    : "schtasks.exe returned a non-zero exit code while disabling the task.";
+                app.LastFailureReason = reason;
+                app.LastRemovalDetail = reason;
+                return false;
+            }
+
+            app.LastFailureReason = null;
+            app.LastRemovalDetail = "Scheduled task disabled successfully.";
+            return true;
         }
 
         /// <summary>
@@ -1107,8 +1255,10 @@ namespace OmenCore.Services.BloatwareManager
             for (var index = remainingStartIndex; index < apps.Count; index++)
             {
                 var pendingApp = apps[index];
+                const string skippedReason = "Skipped because bulk removal was canceled before this item was processed.";
                 pendingApp.LastRemovalStatus = RemovalStatus.Skipped;
-                pendingApp.LastFailureReason = "Skipped because bulk removal was canceled before this item was processed.";
+                pendingApp.LastFailureReason = skippedReason;
+                pendingApp.LastRemovalDetail = skippedReason;
                 result.Skipped.Add(pendingApp);
             }
         }
@@ -1123,8 +1273,152 @@ namespace OmenCore.Services.BloatwareManager
             {
                 var pendingApp = apps[index];
                 pendingApp.LastFailureReason = "Skipped because bulk restore was canceled before this item was processed.";
+                pendingApp.LastRemovalDetail = pendingApp.LastFailureReason;
                 result.Skipped.Add(pendingApp);
             }
+        }
+
+        private static void SetRemovalOutcome(BloatwareApp app, RemovalStatus status, string detail, string? failureReason = null)
+        {
+            app.LastRemovalStatus = status;
+            app.LastRemovalDetail = detail;
+            app.LastFailureReason = failureReason;
+        }
+
+        private static string EscapePowerShellSingleQuotedString(string input)
+        {
+            return input.Replace("'", "''", StringComparison.Ordinal);
+        }
+
+        private async Task<AppxPresenceSnapshot?> GetAppxPresenceSnapshotAsync(string appxName, CancellationToken cancellationToken)
+        {
+            var escaped = EscapePowerShellSingleQuotedString(appxName);
+            var queryScript =
+                $"$name='{escaped}';" +
+                "$current=@(Get-AppxPackage -Name $name).Count -gt 0;" +
+                "$all=@(Get-AppxPackage -AllUsers -Name $name).Count -gt 0;" +
+                "$prov=@(Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like ($name + '*') }).Count -gt 0;" +
+                "[pscustomobject]@{CurrentUserInstalled=$current;AnyUserInstalled=$all;ProvisionedInstalled=$prov}|ConvertTo-Json -Compress";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{queryScript}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                return null;
+            }
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            var waitForExit = process.WaitForExitAsync(cancellationToken);
+            var timeout = Task.Delay(10000, cancellationToken);
+            var completed = await Task.WhenAny(waitForExit, timeout);
+            if (completed != waitForExit)
+            {
+                TryTerminateProcess(process);
+                return null;
+            }
+
+            await waitForExit;
+
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
+
+            if (process.ExitCode != 0)
+            {
+                _logger.Warn($"Failed to query AppX presence for {appxName}: {stderr}");
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(stdout))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<AppxPresenceSnapshot>(stdout, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch (JsonException ex)
+            {
+                _logger.Warn($"Failed to parse AppX presence JSON for {appxName}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static bool AreAppxPresenceSnapshotsEqual(AppxPresenceSnapshot left, AppxPresenceSnapshot right)
+        {
+            return left.CurrentUserInstalled == right.CurrentUserInstalled
+                && left.AnyUserInstalled == right.AnyUserInstalled
+                && left.ProvisionedInstalled == right.ProvisionedInstalled;
+        }
+
+        private static string DescribeAppxPresence(AppxPresenceSnapshot snapshot)
+        {
+            var scopes = new List<string>();
+            if (snapshot.CurrentUserInstalled)
+            {
+                scopes.Add("current user");
+            }
+
+            if (snapshot.AnyUserInstalled)
+            {
+                scopes.Add("all users");
+            }
+
+            if (snapshot.ProvisionedInstalled)
+            {
+                scopes.Add("provisioned image");
+            }
+
+            return scopes.Count == 0 ? "none" : string.Join(", ", scopes);
+        }
+
+        private async Task<bool> IsScheduledTaskPresentAsync(string taskName, CancellationToken cancellationToken)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "schtasks.exe",
+                Arguments = $"/query /tn \"{taskName}\"",
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                return false;
+            }
+
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            await WaitForProcessExitAsync(process, new BloatwareApp { Name = taskName }, $"Checking scheduled task {taskName}", cancellationToken);
+
+            if (process.ExitCode == 0)
+            {
+                return true;
+            }
+
+            var stderr = await stderrTask;
+            if (string.IsNullOrWhiteSpace(stderr))
+            {
+                return false;
+            }
+
+            return !stderr.Contains("cannot find the file", StringComparison.OrdinalIgnoreCase)
+                && !stderr.Contains("cannot find the task", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task BackupAppAsync(BloatwareApp app)
@@ -1973,7 +2267,11 @@ namespace OmenCore.Services.BloatwareManager
                 {
                     lines.AppendLine("SUCCEEDED:");
                     foreach (var a in succeeded)
+                    {
                         lines.AppendLine($"  ✓  [{a.Type,-13}] {a.Name} ({a.Category})");
+                        if (!string.IsNullOrWhiteSpace(a.LastRemovalDetail))
+                            lines.AppendLine($"       Detail: {a.LastRemovalDetail}");
+                    }
                     lines.AppendLine();
                 }
 
@@ -1983,8 +2281,11 @@ namespace OmenCore.Services.BloatwareManager
                     foreach (var a in failed)
                     {
                         lines.AppendLine($"  ✗  [{a.Type,-13}] {a.Name} ({a.Category})");
-                        if (!string.IsNullOrWhiteSpace(a.LastFailureReason))
-                            lines.AppendLine($"       Reason: {a.LastFailureReason}");
+                        var detail = !string.IsNullOrWhiteSpace(a.LastRemovalDetail)
+                            ? a.LastRemovalDetail
+                            : a.LastFailureReason;
+                        if (!string.IsNullOrWhiteSpace(detail))
+                            lines.AppendLine($"       Reason: {detail}");
                     }
                     lines.AppendLine();
                 }
@@ -1995,8 +2296,11 @@ namespace OmenCore.Services.BloatwareManager
                     foreach (var a in skipped)
                     {
                         lines.AppendLine($"  •  [{a.Type,-13}] {a.Name} ({a.Category})");
-                        if (!string.IsNullOrWhiteSpace(a.LastFailureReason))
-                            lines.AppendLine($"       Reason: {a.LastFailureReason}");
+                        var detail = !string.IsNullOrWhiteSpace(a.LastRemovalDetail)
+                            ? a.LastRemovalDetail
+                            : a.LastFailureReason;
+                        if (!string.IsNullOrWhiteSpace(detail))
+                            lines.AppendLine($"       Reason: {detail}");
                     }
                     lines.AppendLine();
                 }
@@ -2110,7 +2414,7 @@ namespace OmenCore.Services.BloatwareManager
 
     #region Supporting Types
 
-    public class BloatwareApp
+    public class BloatwareApp : INotifyPropertyChanged
     {
         public string Name { get; set; } = "";
         public string PackageId { get; set; } = "";
@@ -2120,15 +2424,58 @@ namespace OmenCore.Services.BloatwareManager
         public string Description { get; set; } = "";
         public RemovalRisk RemovalRisk { get; set; }
         public bool CanRestore { get; set; }
-        public bool IsRemoved { get; set; }
+        private bool _isRemoved;
+        public bool IsRemoved
+        {
+            get => _isRemoved;
+            set => SetField(ref _isRemoved, value);
+        }
         public string? UninstallCommand { get; set; }
         public string? RegistryPath { get; set; }
         public string? RegistryHive { get; set; }
         public string? StartupFilePath { get; set; }
         /// <summary>Result of the most recent removal attempt.</summary>
-        public RemovalStatus LastRemovalStatus { get; set; } = RemovalStatus.NotAttempted;
+        private RemovalStatus _lastRemovalStatus = RemovalStatus.NotAttempted;
+        public RemovalStatus LastRemovalStatus
+        {
+            get => _lastRemovalStatus;
+            set => SetField(ref _lastRemovalStatus, value);
+        }
+        /// <summary>Human-readable detail from the most recent removal attempt.</summary>
+        private string? _lastRemovalDetail;
+        public string? LastRemovalDetail
+        {
+            get => _lastRemovalDetail;
+            set => SetField(ref _lastRemovalDetail, value);
+        }
         /// <summary>Human-readable failure reason from the most recent removal attempt.</summary>
-        public string? LastFailureReason { get; set; }
+        private string? _lastFailureReason;
+        public string? LastFailureReason
+        {
+            get => _lastFailureReason;
+            set => SetField(ref _lastFailureReason, value);
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return;
+            }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    internal sealed class AppxPresenceSnapshot
+    {
+        public bool CurrentUserInstalled { get; set; }
+        public bool AnyUserInstalled { get; set; }
+        public bool ProvisionedInstalled { get; set; }
+        public bool IsPresent => CurrentUserInstalled || AnyUserInstalled || ProvisionedInstalled;
     }
 
     public class BloatwareBackup

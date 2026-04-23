@@ -16,6 +16,8 @@ namespace OmenCore.Linux.Hardware;
 /// </summary>
 public class LinuxEcController
 {
+    private static readonly object EcIoLock = new();
+
     // EC sysfs path
     private const string EC_PATH = "/sys/kernel/debug/ec/ec0/io";
     
@@ -366,10 +368,13 @@ public class LinuxEcController
         
         try
         {
-            using var fs = new FileStream(EC_PATH, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            fs.Seek(address, SeekOrigin.Begin);
-            var value = fs.ReadByte();
-            return value >= 0 ? (byte)value : null;
+            lock (EcIoLock)
+            {
+                using var fs = new FileStream(EC_PATH, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                fs.Seek(address, SeekOrigin.Begin);
+                var value = fs.ReadByte();
+                return value >= 0 ? (byte)value : null;
+            }
         }
         catch
         {
@@ -398,11 +403,14 @@ public class LinuxEcController
         
         try
         {
-            using var fs = new FileStream(EC_PATH, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
-            fs.Seek(address, SeekOrigin.Begin);
-            fs.WriteByte(value);
-            fs.Flush();
-            return true;
+            lock (EcIoLock)
+            {
+                using var fs = new FileStream(EC_PATH, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+                fs.Seek(address, SeekOrigin.Begin);
+                fs.WriteByte(value);
+                fs.Flush();
+                return true;
+            }
         }
         catch
         {

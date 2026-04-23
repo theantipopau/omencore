@@ -345,9 +345,16 @@ namespace OmenCore.Services.KeyboardLighting
             
             var primaryColor = ParseHexColor(profile.PrimaryColorHex);
             var secondaryColor = ParseHexColor(profile.SecondaryColorHex);
+            var targetBrightness = Math.Clamp((int)profile.Brightness, 0, 100);
             
             // Map the effect type
             var effect = MapEffect(profile.Effect);
+
+            // Some BIOS revisions (notably on 8BCD/F.31 reports) can reset visible keyboard
+            // state when brightness is written after color-table updates. Apply brightness first,
+            // then write colors/effects as the final command.
+            await _activeBackend.SetBrightnessAsync(targetBrightness);
+            await Task.Delay(50);
             
             RgbApplyResult result;
             if (effect == KeyboardEffect.Static)
@@ -360,9 +367,6 @@ namespace OmenCore.Services.KeyboardLighting
             {
                 result = await _activeBackend.SetEffectAsync(effect, primaryColor, secondaryColor, (int)(profile.EffectSpeed * 100));
             }
-            
-            // Set brightness if supported
-            await _activeBackend.SetBrightnessAsync((int)profile.Brightness);
             
             TrackResult(result);
             return result;
@@ -548,7 +552,10 @@ namespace OmenCore.Services.KeyboardLighting
                         Convert.ToInt32(hex.Substring(4, 2), 16));
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[KeyboardLightingV2] ParseHexColor failed for '{hex}': {ex.Message}");
+            }
             
             return Color.White;
         }

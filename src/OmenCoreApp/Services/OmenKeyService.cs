@@ -64,9 +64,14 @@ namespace OmenCore.Services
         private const int VK_SCROLL_LOCK = 0x91;      // Scroll Lock - scan code 0x46 conflicts with OMEN
         private const int VK_PAUSE = 0x13;            // Pause/Break key
         private const int VK_NUM_LOCK = 0x90;         // Num Lock
+        private const int VK_SNAPSHOT = 0x2C;         // Print Screen - must never be intercepted (Windows 11 Snipping Tool activation)
 
         // HP OMEN-specific scan codes (varies by model)
         private static readonly int[] OmenScanCodes = { 0xE045, 0xE046, 0x0046, 0x009D };
+        // LaunchApp VK events are shared with non-OMEN Fn/media keys on many HP models.
+        // Keep a narrow allow-list so brightness keys (Fn+F2/F3) cannot toggle OmenCore.
+        private static readonly int[] OmenLaunchAppScanCodes = { 0xE045 };
+        private static readonly int[] BrightnessConflictScanCodes = { 0xE046, 0x0046, 0x009D };
         
         // Excluded scan codes (Calculator, standard media keys that conflict)
         private static readonly int[] ExcludedScanCodes = { 0x0021 }; // Calculator key scan code
@@ -366,7 +371,10 @@ namespace OmenCore.Services
                     }
                     _logging.Debug($"WMI event properties: {string.Join(", ", props)}");
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"WMI event property dump failed: {ex.Message}");
+                }
                 
                 // Try to extract eventId and eventData from the WMI event
                 int? eventId = null;
@@ -690,25 +698,20 @@ namespace OmenCore.Services
             // Check virtual key codes commonly used for OMEN key
             if (vkCode == VK_LAUNCH_APP2)
             {
-                // VK_LAUNCH_APP2 is shared with Calculator key on some keyboards.
-                // Scan code 0xE046 (extended Scroll Lock) must be excluded: on HP OMEN 16 xd0xxx
-                // (AMD), Fn+brightness keys emit VK_LAUNCH_APP2 with this scan code, falsely
-                // triggering OmenCore to open (GitHub #100 Bug #2).
-                if (scanCode == 0xE046)
+                // VK_LAUNCH_APP2 is shared with Calculator/media/Fn brightness events.
+                // Reject known conflict scans and only allow a dedicated OMEN launch scan.
+                if (BrightnessConflictScanCodes.Contains((int)scanCode))
                 {
-                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-scan-e046");
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-launch-app-scan");
                     return false;
                 }
-                // Only treat as OMEN key if scan code matches known OMEN scan codes
-                foreach (var omenScan in OmenScanCodes)
+
+                if (OmenLaunchAppScanCodes.Contains((int)scanCode))
                 {
-                    if (scanCode == omenScan)
-                    {
-                        _logging.Debug($"VK_LAUNCH_APP2 with OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
-                        return true;
-                    }
+                    _logging.Debug($"VK_LAUNCH_APP2 with dedicated OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
+                    return true;
                 }
-                
+
                 // Log unrecognized scan codes for debugging (but don't treat as OMEN key)
                 LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "vk-launch-app2-scan-mismatch");
                 return false;
@@ -721,26 +724,22 @@ namespace OmenCore.Services
                 return true;
             }
             
-            // Some newer OMEN models use VK_LAUNCH_APP1 (0xB6)
-            // IMPORTANT: Require OMEN-specific scan code validation to avoid false positives
-            // from Remote Desktop, media apps, and other software that uses VK_LAUNCH_APP1.
-            // Scan code 0xE046 is excluded: on HP OMEN 16 xd0xxx (AMD), Fn+brightness keys
-            // can emit VK_LAUNCH_APP1 with this scan code, falsely opening OmenCore (GitHub #100 Bug #2).
+            // Some newer OMEN models use VK_LAUNCH_APP1 (0xB6).
+            // Like APP2, treat it as OMEN only for dedicated launch scan codes.
             if (vkCode == VK_LAUNCH_APP1)
             {
-                if (scanCode == 0xE046)
+                if (BrightnessConflictScanCodes.Contains((int)scanCode))
                 {
-                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-scan-e046");
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "brightness-key-conflict-launch-app-scan");
                     return false;
                 }
-                foreach (var omenScan in OmenScanCodes)
+
+                if (OmenLaunchAppScanCodes.Contains((int)scanCode))
                 {
-                    if (scanCode == omenScan)
-                    {
-                        _logging.Debug($"VK_LAUNCH_APP1 (0xB6) with OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
-                        return true;
-                    }
+                    _logging.Debug($"VK_LAUNCH_APP1 (0xB6) with dedicated OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
+                    return true;
                 }
+
                 LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "vk-launch-app1-scan-mismatch");
                 return false;
             }
@@ -838,6 +837,16 @@ namespace OmenCore.Services
             if (vkCode == VK_SCROLL_LOCK || vkCode == VK_PAUSE || vkCode == VK_NUM_LOCK)
             {
                 reason = "never-intercept-lock-key";
+                return true;
+            }
+
+            if (vkCode == VK_SNAPSHOT)
+            {
+                // Print Screen must never be intercepted. Windows 11 activates Snipping Tool
+                // on VK_SNAPSHOT via its own internal mechanism; any OmenCore-side processing
+                // of this key (including a stale WMI BIOS event that fires coincidentally) must
+                // be suppressed so the OS shortcut is not stolen. (HP #31)
+                reason = "never-intercept-printscreen";
                 return true;
             }
 

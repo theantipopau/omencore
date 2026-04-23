@@ -4,18 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       versionSuffix:
-        description: 'Optional suffix to append to release name (e.g., alpha, rc1)'
+        description: Optional suffix to append to release name (for example alpha or rc1)
         required: false
-        default: 'alpha'
+        default: alpha
+
+permissions:
+  contents: write
 
 jobs:
-  build-alpha:
+  build-windows:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
@@ -24,38 +28,124 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content VERSION.txt | Select-Object -First 1).Trim()
-          echo "value=$version" >> $env:GITHUB_OUTPUT
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "VERSION.txt must contain a version"
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Build portable Windows
+      - name: Build portable Windows alpha artifact
         shell: pwsh
         run: |
-          dotnet publish "src/OmenCoreApp/OmenCoreApp.csproj" -c Release -r win-x64 -p:PublishSingleFile=true -o artifacts/win-x64
-          Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
+          $version = "${{ steps.version.outputs.value }}"
+          $suffix = "${{ inputs.versionSuffix }}"
+          $parts = ($version -split '-')[0] -split '\.'
+          $assemblyVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
 
-      - name: Build Linux CLI (tar)
-        run: |
-          mkdir -p publish/linux-x64
-          cd src/OmenCore.Linux
-          dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -o ../../publish/linux-x64
-          cd ../../publish/linux-x64
-          tar -czvf ../../artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz .
+          dotnet publish "src/OmenCoreApp/OmenCoreApp.csproj" `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishTrimmed=false `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:IncludeAllContentForSelfExtract=true `
+            -p:Version=$version `
+            -p:AssemblyVersion=$assemblyVersion `
+            -p:FileVersion=$assemblyVersion `
+            -o artifacts/win-alpha
 
-      - name: Upload alpha artifacts
+          Compress-Archive `
+            -Path artifacts/win-alpha/* `
+            -DestinationPath "artifacts/OmenCore-$version-$suffix-win-x64.zip" `
+            -Force
+
+      - name: Upload Windows alpha artifact
         uses: actions/upload-artifact@v4
         with:
-          name: alpha-artifacts
-          path: |
-            artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
-            artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz
+          name: alpha-windows-artifacts
+          path: artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-win-x64.zip
 
-      - name: Create Draft Release (pre-release)
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Read VERSION
+        id: version
+        shell: bash
+        run: |
+          version=$(head -1 VERSION.txt | tr -d '\r\n ')
+          if [ -z "$version" ]; then
+            echo "VERSION.txt must contain a version" >&2
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build Linux alpha artifact
+        shell: pwsh
+        run: ./build-linux-package.ps1 -Configuration Release -Runtime linux-x64
+
+      - name: Rename Linux alpha artifact
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          suffix="${{ inputs.versionSuffix }}"
+          cp "artifacts/OmenCore-$version-linux-x64.zip" "artifacts/OmenCore-$version-$suffix-linux-x64.zip"
+          cp "artifacts/OmenCore-$version-linux-x64.zip.sha256" "artifacts/OmenCore-$version-$suffix-linux-x64.zip.sha256"
+
+      - name: Upload Linux alpha artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha-linux-artifacts
+          path: |
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-linux-x64.zip
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-linux-x64.zip.sha256
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read VERSION
+        id: version
+        shell: bash
+        run: |
+          version=$(head -1 VERSION.txt | tr -d '\r\n ')
+          if [ -z "$version" ]; then
+            echo "VERSION.txt must contain a version" >&2
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download Windows alpha artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: alpha-windows-artifacts
+          path: artifacts
+
+      - name: Download Linux alpha artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: alpha-linux-artifacts
+          path: artifacts
+
+      - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.version.outputs.value }}-alpha
-          name: ${{ steps.version.outputs.value }}-alpha
+          tag_name: v${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}
+          draft: true
           prerelease: true
           files: |
-            artifacts/OmenCore-${{ steps.version.outputs.value }}-alpha-win-x64.zip
-            artifacts/omencore-linux-${{ steps.version.outputs.value }}-alpha.tar.gz
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-win-x64.zip
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-linux-x64.zip
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-${{ inputs.versionSuffix }}-linux-x64.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

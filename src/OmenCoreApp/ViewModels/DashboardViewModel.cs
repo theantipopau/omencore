@@ -302,6 +302,8 @@ namespace OmenCore.ViewModels
         // Power consumption and efficiency properties
         public string PowerConsumptionSummary => LatestMonitoringSample == null 
             ? "Power telemetry unavailable"
+            : LatestMonitoringSample.GpuTemperatureState == TelemetryDataState.Inactive
+                ? $"CPU: {LatestMonitoringSample.CpuPowerWatts:F0}W • GPU: inactive (Optimus)"
             : LatestMonitoringSample.CpuPowerWatts > 0 || LatestMonitoringSample.GpuPowerWatts > 0
                 ? $"CPU: {LatestMonitoringSample.CpuPowerWatts:F0}W • GPU: {LatestMonitoringSample.GpuPowerWatts:F0}W • Total: {LatestMonitoringSample.CpuPowerWatts + LatestMonitoringSample.GpuPowerWatts:F0}W"
                 : "Power sensors unavailable";

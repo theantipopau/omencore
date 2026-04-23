@@ -852,9 +852,10 @@ namespace OmenCore.Hardware
                         // This commonly happens when drives sleep or hardware becomes temporarily unavailable
                         _logger?.Invoke($"[Hardware] Error updating {hardware.HardwareType} '{hardware.Name}': {ex.GetType().Name}: {ex.Message}");
                         
-                        // If this is a SafeFileHandle/ObjectDisposedException, it likely means drives slept
-                        // Continue to next hardware instead of failing completely
-                        if (ex is ObjectDisposedException || ex.Message.Contains("SafeFileHandle") || ex.Message.Contains("disposed"))
+                        // If this is a SafeFileHandle/ObjectDisposedException, it likely means drives slept.
+                        // ObjectDisposedException covers all SafeFileHandle disposals in .NET — the
+                        // string checks for "SafeFileHandle"/"disposed" were redundant and locale-dependent.
+                        if (ex is ObjectDisposedException)
                         {
                             _logger?.Invoke($"[Hardware] SafeFileHandle disposed - likely drive sleep. Skipping {hardware.Name} and using WMI BIOS fallback...");
                             // Use WMI BIOS as fallback for temperature when drives sleep
@@ -1734,31 +1735,36 @@ namespace OmenCore.Hardware
             {
                 if (_useWorker && _workerClient != null)
                 {
-                    // Request fresh sample from worker (fire-and-forget async but sync wait briefly)
+                    // Request fresh sample from worker with bounded wait to keep sync caller paths responsive.
                     try
                     {
-                        var task = _workerClient.GetSampleAsync();
-                        if (task.Wait(TimeSpan.FromMilliseconds(500)))
+                        var sample = _workerClient
+                            .GetSampleAsync()
+                            .WaitAsync(TimeSpan.FromMilliseconds(500))
+                            .GetAwaiter()
+                            .GetResult();
+
+                        if (sample != null)
                         {
-                            var sample = task.Result;
-                            if (sample != null)
+                            lock (_lock)
                             {
-                                lock (_lock)
-                                {
-                                    _cachedCpuTemp = sample.CpuTemperature;
-                                    _cachedGpuTemp = sample.GpuTemperature;
-                                    _cachedCpuLoad = sample.CpuLoad;
-                                    _cachedGpuLoad = sample.GpuLoad;
-                                    _cachedCpuPower = sample.CpuPower;
-                                    _cachedGpuPower = sample.GpuPower;
-                                    _lastUpdate = DateTime.Now;
-                                }
+                                _cachedCpuTemp = sample.CpuTemperature;
+                                _cachedGpuTemp = sample.GpuTemperature;
+                                _cachedCpuLoad = sample.CpuLoad;
+                                _cachedGpuLoad = sample.GpuLoad;
+                                _cachedCpuPower = sample.CpuPower;
+                                _cachedGpuPower = sample.GpuPower;
+                                _lastUpdate = DateTime.Now;
                             }
                         }
                     }
+                    catch (TimeoutException)
+                    {
+                        // Timeout - use cached value
+                    }
                     catch
                     {
-                        // Timeout or error - use cached value
+                        // Error - use cached value
                     }
                 }
                 else

@@ -208,6 +208,7 @@ namespace OmenCore.ViewModels
                 // Treat hard backend/capability failures as unsupported.
                 if (reason.Contains("not available") ||
                     reason.Contains("does not support") ||
+                    reason.Contains("not yet supported") ||
                     reason.Contains("unsupported") ||
                     reason.Contains("unavailable") ||
                     reason.Contains("service failed to initialize"))
@@ -3134,9 +3135,12 @@ namespace OmenCore.ViewModels
                     _logging.Info($"  → {gpu.Name} (Vendor: {gpu.Vendor}, Driver: {gpu.DriverVersion})");
                 }
                 
-                // Find first discrete GPU (prefer NVIDIA/AMD over Intel integrated)
-                var discreteGpu = systemInfo.Gpus.FirstOrDefault(g => 
-                    g.Vendor == "NVIDIA" || g.Vendor == "AMD") ?? systemInfo.Gpus[0];
+                // Find first discrete GPU (prefer NVIDIA/AMD > Intel > any known vendor > first entry)
+                var discreteGpu =
+                    systemInfo.Gpus.FirstOrDefault(g => g.Vendor == "NVIDIA" || g.Vendor == "AMD") ??
+                    systemInfo.Gpus.FirstOrDefault(g => g.Vendor == "Intel") ??
+                    systemInfo.Gpus.FirstOrDefault(g => g.Vendor != "Unknown") ??
+                    systemInfo.Gpus[0];
                 
                 GpuVendor = discreteGpu.Vendor;
                 GpuDisplayName = discreteGpu.Name;

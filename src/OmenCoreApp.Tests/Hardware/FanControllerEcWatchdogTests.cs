@@ -60,4 +60,53 @@ namespace OmenCoreApp.Tests.Hardware
             controller.EcWriteFailureCount.Should().Be(0);
         }
     }
+
+    /// <summary>
+    /// Validates STEP-02: AbandonedMutexException from EC reads is treated as contention
+    /// (same path as TimeoutException), not rethrown and not logged as a generic read failure.
+    /// Regression guard: this test would have failed before STEP-02 on non-English Windows
+    /// because the old ex.Message.Contains("mutex") check depended on English exception text.
+    /// </summary>
+    public class FanControllerEcContentionClassificationTests
+    {
+        private class AbandonedMutexEcAccess : IEcAccess
+        {
+            public bool Initialize(string devicePath) => true;
+            public bool IsAvailable => true;
+            public byte ReadByte(ushort address) =>
+                throw new AbandonedMutexException("EC mutex abandoned by previous holder (simulated)");
+            public void WriteByte(ushort address, byte value) { }
+            public void Dispose() { }
+        }
+
+        [Fact]
+        public void ReadActualFanRpm_AbandonedMutexException_DoesNotPropagate()
+        {
+            // AbandonedMutexException must be caught, not rethrown.
+            PawnIOEcAccess.EcContentionWarningLogged = false;
+            var controller = new FanController(new AbandonedMutexEcAccess(), new Dictionary<string, int>(), null);
+
+            var act = () => controller.ReadActualFanRpmPublic();
+
+            act.Should().NotThrow("AbandonedMutexException from an EC read must be handled as contention, not propagated");
+            PawnIOEcAccess.EcContentionWarningLogged = false; // cleanup shared state
+        }
+
+        [Fact]
+        public void ReadActualFanRpm_AbandonedMutexException_SetsContentionFlag()
+        {
+            // When AbandonedMutexException occurs, the EC contention warning should be logged
+            // (EcContentionWarningLogged = true), not the generic read-failure path.
+            PawnIOEcAccess.EcContentionWarningLogged = false;
+            var controller = new FanController(new AbandonedMutexEcAccess(), new Dictionary<string, int>(), null);
+
+            var (fan1, fan2) = controller.ReadActualFanRpmPublic();
+
+            fan1.Should().Be(0);
+            fan2.Should().Be(0);
+            PawnIOEcAccess.EcContentionWarningLogged.Should().BeTrue(
+                "AbandonedMutexException must be classified as EC contention and set the contention-warning flag");
+            PawnIOEcAccess.EcContentionWarningLogged = false; // cleanup shared state
+        }
+    }
 }

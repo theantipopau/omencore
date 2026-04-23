@@ -59,7 +59,7 @@ namespace OmenCore.Services.Rgb
             _logging = logging;
         }
 
-        public Task InitializeAsync()
+        public async Task InitializeAsync()
         {
             try
             {
@@ -68,7 +68,7 @@ namespace OmenCore.Services.Rgb
 
                 // Load common providers implicitly by enumerating (providers are loaded by NuGet packages)
                 // Give short time for device enumeration - non-blocking
-                Task.Delay(250).Wait();
+                await Task.Delay(250);
 
                 var count = _surface.Devices.Count();
                 IsAvailable = count > 0;
@@ -81,8 +81,6 @@ namespace OmenCore.Services.Rgb
                 _initFailed = true;
                 _initError = ex.Message;
             }
-
-            return Task.CompletedTask;
         }
 
         public Task ApplyEffectAsync(string effectId)

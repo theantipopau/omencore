@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Services
@@ -55,7 +56,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 
             // Configure smoothing to be short for test
             fanService.SetSmoothingSettings(new FanTransitionSettings { EnableSmoothing = true, SmoothingDurationMs = 300, SmoothingStepMs = 100 });
@@ -77,8 +78,10 @@ namespace OmenCoreApp.Tests.Services
 
             // Directly invoke the private ramp method to exercise smoothing (bypass hysteresis/timing)
             var rampMethod = typeof(FanService).GetMethod("RampFanToPercentAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var rampTask = (Task)rampMethod.Invoke(fanService, new object[] { 40, System.Threading.CancellationToken.None });
-            await rampTask.ConfigureAwait(false);
+            Assert.NotNull(rampMethod);
+            var rampTask = (Task?)rampMethod.Invoke(fanService, new object[] { 40, System.Threading.CancellationToken.None });
+            Assert.NotNull(rampTask);
+            await rampTask;
 
             // Verify controller recorded at least one SetFanSpeed call
             controller.SetCalls.Count.Should().BeGreaterThan(0, "there should be at least one fan write");
@@ -172,7 +175,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100, new ResumeRecoveryDiagnosticsService());
             fanService.Start();
             fanService.ForceFixedPollInterval(100);
 
@@ -240,7 +243,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             fanService.Start();
 
             try
@@ -285,7 +288,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 
             var presetA = new FanPreset { Name = "Balanced", Mode = FanMode.Performance };
             var presetB = new FanPreset { Name = "Max", Mode = FanMode.Max };
@@ -323,7 +326,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100, new ResumeRecoveryDiagnosticsService());
             fanService.Start();
             fanService.ForceFixedPollInterval(100);
 
@@ -399,7 +402,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 200);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 200, new ResumeRecoveryDiagnosticsService());
             fanService.Start();
 
             try

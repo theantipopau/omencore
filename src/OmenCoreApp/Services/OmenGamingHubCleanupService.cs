@@ -520,8 +520,8 @@ namespace OmenCore.Services
                         
                         if (await Task.WhenAny(Task.WhenAll(outputTask, errorTask), Task.Delay(TimeSpan.FromSeconds(5))) == Task.WhenAll(outputTask, errorTask))
                         {
-                            var output = outputTask.Result;
-                            var error = errorTask.Result;
+                            var output = await outputTask.ConfigureAwait(false);
+                            var error = await errorTask.ConfigureAwait(false);
                             
                             if (!string.IsNullOrWhiteSpace(output))
                             {

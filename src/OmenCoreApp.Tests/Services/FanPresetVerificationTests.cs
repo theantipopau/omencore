@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Services
@@ -80,7 +81,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 
             var presetA = new FanPreset { Name = "Balanced", Mode = FanMode.Performance };
             var presetB = new FanPreset { Name = "Turbo", Mode = FanMode.Max };
@@ -113,7 +114,7 @@ namespace OmenCoreApp.Tests.Services
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var notificationService = new NotificationService(logging);
 
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 
             var presetA = new FanPreset { Name = "Balanced", Mode = FanMode.Performance };
             var presetB = new FanPreset { Name = "Turbo", Mode = FanMode.Max };

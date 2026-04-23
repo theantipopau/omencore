@@ -1,6 +1,6 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "3.3.0"
+  #define MyAppVersion "3.4.0"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
@@ -29,7 +29,6 @@ PrivilegesRequired=admin
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 ; Modern look
-WizardResizable=no
 DisableWelcomePage=no
 LicenseFile=
 InfoBeforeFile=
@@ -51,10 +50,6 @@ Source: "..\\publish\\win-x64\\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Source: "PawnIO_setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Tasks: installpawnio; Check: PawnIOInstallerExists
 ; Default config
 Source: "..\\config\\default_config.json"; DestDir: "{app}\\config"; Flags: ignoreversion onlyifdoesntexist
-
-[Dirs]
-Name: "{app}\\logs"; Permissions: users-modify
-Name: "{app}\\config"; Permissions: users-modify
 
 [Icons]
 Name: "{autoprograms}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; WorkingDir: "{app}"
@@ -78,10 +73,7 @@ Filename: "taskkill"; Parameters: "/F /IM OmenCore.HardwareWorker.exe"; Flags: r
 Filename: "schtasks"; Parameters: "/delete /tn ""OmenCore"" /f"; Flags: runhidden; RunOnceId: "RemoveOmenCoreTask"
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{app}\\logs"
 Type: dirifempty; Name: "{app}"
-; Clean up user config to prevent stale settings (e.g., StartMinimized) after reinstall
-Type: filesandordirs; Name: "{userappdata}\\OmenCore"
 
 [Code]
 function PawnIOInstallerExists: Boolean;

@@ -21,27 +21,22 @@ if ([string]::IsNullOrWhiteSpace($version)) {
     throw "VERSION.txt must contain a semantic version string."
 }
 
+# Build assembly version (major.minor.patch.0) for embedding in Windows PE headers
+$versionParts = (($version -split '-')[0]) -split '\.'
+$assemblyVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2]).0"
+
 Write-Host "Building OmenCore $version ($Configuration/$Runtime)" -ForegroundColor Cyan
 
-# Download LibreHardwareMonitor for bundling
-Write-Host "Checking for LibreHardwareMonitor..." -ForegroundColor Cyan
-$librehwScript = Join-Path $root "installer\download-librehw.ps1"
-if (Test-Path $librehwScript) {
-    & $librehwScript
-} else {
-    Write-Host "LibreHardwareMonitor download script not found - installer will not include driver" -ForegroundColor Yellow
+# Linux packaging is handled by build-linux-package.ps1 so this script remains Windows-only.
+if ($Runtime -like "linux*") {
+    throw "Linux packaging is handled by build-linux-package.ps1. Use that script for linux runtimes."
 }
 
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 if (-not (Test-Path $publishRoot)) { New-Item $publishRoot -ItemType Directory | Out-Null }
 if (-not (Test-Path $artifactsDir)) { New-Item $artifactsDir -ItemType Directory | Out-Null }
 
-# Choose the appropriate project for the requested runtime (GUI is Windows-only; use CLI for Linux builds)
-if ($Runtime -like "linux*") {
-    $appProject = "src/OmenCore.Linux/OmenCore.Linux.csproj"
-} else {
-    $appProject = "src/OmenCoreApp/OmenCoreApp.csproj"
-}
+$appProject = "src/OmenCoreApp/OmenCoreApp.csproj"
 
 $publishArgs = @(
     $appProject,
@@ -53,6 +48,9 @@ $publishArgs = @(
     "-p:EnableCompressionInSingleFile=true",
     "-p:PublishSingleFile=true",
     "-p:IncludeAllContentForSelfExtract=true",
+    "-p:Version=$version",
+    "-p:AssemblyVersion=$assemblyVersion",
+    "-p:FileVersion=$assemblyVersion",
     "-o", $publishDir
 )
 
@@ -73,6 +71,9 @@ $workerPublishArgs = @(
     "--self-contained", "true",
     "-p:PublishTrimmed=false",
     "-p:PublishSingleFile=true",
+    "-p:Version=$version",
+    "-p:AssemblyVersion=$assemblyVersion",
+    "-p:FileVersion=$assemblyVersion",
     "-o", $publishDir
 )
 & dotnet publish @workerPublishArgs
@@ -80,32 +81,6 @@ if ($LASTEXITCODE -ne 0) {
     throw "Hardware worker publish failed with exit code $LASTEXITCODE"
 }
 Write-Host "Hardware worker built successfully" -ForegroundColor Green
-
-# Build Avalonia GUI for Linux platforms
-if ($Runtime -like "linux*") {
-    Write-Host "Building Avalonia GUI for Linux..." -ForegroundColor Yellow
-    $guiProject = "src/OmenCore.Avalonia/OmenCore.Avalonia.csproj"
-    if (Test-Path (Join-Path $root $guiProject)) {
-        $guiPublishArgs = @(
-            $guiProject,
-            "--configuration", $Configuration,
-            "-r", $Runtime,
-            "--self-contained", "true",
-            "-p:PublishTrimmed=false",
-            "-p:PublishSingleFile=true",
-            "-p:IncludeNativeLibrariesForSelfExtract=true",
-            "-p:IncludeAllContentForSelfExtract=true",
-            "-o", $publishDir
-        )
-        & dotnet publish @guiPublishArgs
-        if ($LASTEXITCODE -ne 0) {
-            throw "Avalonia GUI publish failed with exit code $LASTEXITCODE"
-        }
-        Write-Host "Avalonia GUI built successfully" -ForegroundColor Green
-    } else {
-        Write-Host "Avalonia GUI project not found at $guiProject - skipping GUI build" -ForegroundColor Yellow
-    }
-}
 
 $zipPath = Join-Path $artifactsDir "OmenCore-$version-$Runtime.zip"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }

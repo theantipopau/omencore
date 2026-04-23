@@ -479,6 +479,27 @@ namespace OmenCore
                 {
                     _trayIconService?.UpdateMonitoringHealth(health);
                 };
+
+                // Wire main-window visibility/state changes to the monitoring service so it can
+                // adapt its polling cadence without touching WPF objects off the UI thread.
+                // This is the companion to the thread-safety fix in GetEffectiveCadenceInterval().
+                var monSvc = mainViewModel.HardwareMonitoringService;
+                void UpdateMonitorCadence()
+                {
+                    var win = MainWindow;
+                    var active = win != null && win.IsVisible && win.WindowState != WindowState.Minimized;
+                    monSvc.SetUiWindowActive(active);
+                }
+                // Defer subscription until the window is actually created (it may not exist yet).
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (MainWindow is Window win)
+                    {
+                        win.IsVisibleChanged += (s, e) => UpdateMonitorCadence();
+                        win.StateChanged     += (s, e) => UpdateMonitorCadence();
+                        UpdateMonitorCadence(); // Sync initial state
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
             
             // Wire up Stay on Top toggle
@@ -960,7 +981,10 @@ namespace OmenCore
                 var mainViewModel = _serviceProvider?.GetService<MainViewModel>();
                 mainViewModel?.Dispose();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logging.Warn($"[App] OnExit: MainViewModel.Dispose() failed: {ex.Message}");
+            }
             
             // Release single instance mutex
             if (_singleInstanceMutex != null)
@@ -970,7 +994,10 @@ namespace OmenCore
                     _singleInstanceMutex.ReleaseMutex();
                     _singleInstanceMutex.Dispose();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logging.Warn($"[App] OnExit: single-instance mutex release failed: {ex.Message}");
+                }
             }
             
             Logging.Info("OmenCore shutdown complete");
@@ -1126,9 +1153,13 @@ namespace OmenCore
                     return true;
                 }
 
-                // Startup fire-and-forget tasks can still report harmless cross-thread UI update races.
-                if (ex is InvalidOperationException invalidOp &&
-                    invalidOp.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
+                // WPF cross-thread InvalidOperationExceptions are identified by stack trace and
+                // target-site type name — both locale-safe signals. The English string match
+                // ("different thread") was removed in STEP-03: it was locale-dependent and masked
+                // the root-cause bug on English Windows while crashing on all other locales (GH-#109).
+                if (ex is InvalidOperationException &&
+                    (ex.StackTrace?.Contains("System.Windows.Threading.Dispatcher", StringComparison.Ordinal) == true ||
+                     ex.TargetSite?.DeclaringType?.FullName?.StartsWith("System.Windows.", StringComparison.Ordinal) == true))
                 {
                     return true;
                 }

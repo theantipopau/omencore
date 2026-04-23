@@ -23,7 +23,7 @@
                     <TextBlock Classes="caption" Text="Select a performance profile to optimize for your workload" Margin="0,4,0,16" />
                     
                     <!-- Performance Mode Buttons -->
-                    <Grid ColumnDefinitions="*,*,*,*" Margin="0,0,0,12">
+                    <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,12">
                         <Border Grid.Column="0" Classes="cardInteractive" Margin="0,0,6,0">
                             <Button Classes="ghost" Command="{Binding SetPerformanceModeCommand}" CommandParameter="Quiet"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -44,23 +44,13 @@
                                 </StackPanel>
                             </Button>
                         </Border>
-                        <Border Grid.Column="2" Classes="cardInteractive" Margin="3,0">
+                        <Border Grid.Column="2" Classes="cardInteractive" Margin="6,0,0,0">
                             <Button Classes="ghost" Command="{Binding SetPerformanceModeCommand}" CommandParameter="Performance"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock Text="🚀" FontSize="24" HorizontalAlignment="Center" />
                                     <TextBlock Text="Performance" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,4,0,0" />
                                     <TextBlock Classes="caption" Text="Max power" HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </Border>
-                        <Border Grid.Column="3" Classes="cardInteractive" Margin="6,0,0,0">
-                            <Button Classes="ghost" Command="{Binding SetPerformanceModeCommand}" CommandParameter="Custom"
-                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                <StackPanel HorizontalAlignment="Center">
-                                    <TextBlock Text="🔧" FontSize="24" HorizontalAlignment="Center" />
-                                    <TextBlock Text="Custom" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,4,0,0" />
-                                    <TextBlock Classes="caption" Text="User defined" HorizontalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </Border>

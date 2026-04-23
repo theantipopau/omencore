@@ -47,6 +47,17 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _statusMessage = "";
 
+    [ObservableProperty]
+    private bool _canEditFanCurve = true;
+
+    [ObservableProperty]
+    private bool _showCapabilityWarning;
+
+    [ObservableProperty]
+    private string _capabilityWarningMessage = "";
+
+    public bool IsCurveEditorVisible => CanEditFanCurve && IsCustomCurveEnabled;
+
     public ObservableCollection<string> Presets { get; } = new();
     public ObservableCollection<FanCurvePointViewModel> CpuFanCurve { get; } = new();
     public ObservableCollection<FanCurvePointViewModel> GpuFanCurve { get; } = new();
@@ -73,6 +84,44 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
 
         // Load default curves
         LoadPreset("Balanced");
+
+        _ = InitializeCapabilitiesAsync();
+    }
+
+    private async Task InitializeCapabilitiesAsync()
+    {
+        try
+        {
+            var capabilities = await _hardwareService.GetCapabilitiesAsync();
+            CanEditFanCurve = capabilities.SupportsFanControl;
+
+            var capabilityClass = capabilities.FanControlCapabilityClass?.Trim().ToLowerInvariant() ?? "unsupported-control";
+            switch (capabilityClass)
+            {
+                case "profile-only":
+                    ShowCapabilityWarning = true;
+                    CapabilityWarningMessage = "This Linux system exposes thermal profiles but not direct fan-speed targets. Use System Control performance profiles for cooling behavior.";
+                    break;
+                case "telemetry-only":
+                    ShowCapabilityWarning = true;
+                    CapabilityWarningMessage = "Fan telemetry is available, but firmware does not expose writable fan control interfaces on this board/kernel.";
+                    break;
+                case "unsupported-control":
+                    ShowCapabilityWarning = true;
+                    CapabilityWarningMessage = "No supported Linux fan control interface was detected for this board/kernel combination.";
+                    break;
+                default:
+                    ShowCapabilityWarning = false;
+                    CapabilityWarningMessage = string.Empty;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowCapabilityWarning = true;
+            CapabilityWarningMessage = "Could not detect Linux fan-control capability. Curve controls may be unavailable on this system.";
+            System.Diagnostics.Debug.WriteLine($"Failed to initialize fan capability state: {ex.Message}");
+        }
     }
 
     private void OnStatusChanged(object? sender, HardwareStatus status)
@@ -92,8 +141,26 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
         if (!string.IsNullOrEmpty(value))
         {
             LoadPreset(value);
-            _ = ApplyCurve();
+            if (CanEditFanCurve)
+            {
+                _ = ApplyCurve();
+            }
         }
+    }
+
+    partial void OnIsCustomCurveEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsCurveEditorVisible));
+    }
+
+    partial void OnCanEditFanCurveChanged(bool value)
+    {
+        if (!value)
+        {
+            IsCustomCurveEnabled = false;
+        }
+
+        OnPropertyChanged(nameof(IsCurveEditorVisible));
     }
 
     [RelayCommand]
@@ -120,6 +187,12 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ApplyCurve()
     {
+        if (!CanEditFanCurve)
+        {
+            StatusMessage = "Manual fan curve control is unavailable on this system.";
+            return;
+        }
+
         try
         {
             // Update curves from view models
@@ -127,6 +200,7 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
             _fanCurveService.SetGpuFanCurve(GpuFanCurve.Select(vm => new FanCurvePoint(vm.Temperature, vm.FanSpeed)));
             
             await _fanCurveService.ApplyAsync();
+            StatusMessage = "Applied once using current CPU/GPU temperatures.";
         }
         catch (Exception ex)
         {

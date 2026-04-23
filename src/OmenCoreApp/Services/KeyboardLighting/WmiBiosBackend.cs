@@ -108,6 +108,12 @@ namespace OmenCore.Services.KeyboardLighting
                     $"Z1=#{zoneColors[1].R:X2}{zoneColors[1].G:X2}{zoneColors[1].B:X2}, " +
                     $"Z2=#{zoneColors[2].R:X2}{zoneColors[2].G:X2}{zoneColors[2].B:X2}, " +
                     $"Z3=#{zoneColors[3].R:X2}{zoneColors[3].G:X2}{zoneColors[3].B:X2}");
+
+                // Ensure keyboard backlight is enabled before writing color table.
+                // On some BIOS revisions, colors can be committed while remaining visually off
+                // unless backlight state is explicitly re-armed first.
+                _wmiBios.SetBacklight(true);
+                await Task.Delay(30);
                 
                 result.BackendReportedSuccess = _wmiBios.SetColorTable(colorTable);
                 

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using FluentAssertions;
 using OmenCore.Hardware;
 using OmenCore.Models;
@@ -165,6 +166,42 @@ namespace OmenCoreApp.Tests.Hardware
             controller.IsManualControlActive.Should().BeTrue();
         }
 
+        [Fact]
+        public void CountdownExtensionCallback_MaxMode_UsesKeepalive_WhenTelemetryHealthy()
+        {
+            var fake = new MaintenanceFakeWmiBios();
+            var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
+
+            controller.ApplyPreset(new FanPreset { Name = "Max" }).Should().BeTrue();
+            controller.StopCountdownExtension();
+
+            var maxCallsBefore = fake.SetFanMaxTrueCalls;
+            InvokeCountdownExtensionCallback(controller);
+
+            fake.ExtendCountdownCalls.Should().Be(1);
+            fake.SetFanMaxTrueCalls.Should().Be(maxCallsBefore);
+        }
+
+        [Fact]
+        public void CountdownExtensionCallback_MaxMode_ReappliesAfterSustainedDrop()
+        {
+            var fake = new MaintenanceFakeWmiBios();
+            var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
+
+            controller.ApplyPreset(new FanPreset { Name = "Max" }).Should().BeTrue();
+            controller.StopCountdownExtension();
+
+            var maxCallsBefore = fake.SetFanMaxTrueCalls;
+            fake.ForceLowTelemetry = true;
+
+            InvokeCountdownExtensionCallback(controller);
+            fake.SetFanMaxTrueCalls.Should().Be(maxCallsBefore);
+
+            SetPrivateField(controller, "_lastMaxModeMaintenanceUtc", System.DateTime.MinValue);
+            InvokeCountdownExtensionCallback(controller);
+            fake.SetFanMaxTrueCalls.Should().Be(maxCallsBefore + 1);
+        }
+
         // Fake implementation to simulate V2 BIOS that does not expose RPM but reports fan levels.
         private class FallbackFakeWmiBios : IHpWmiBios
         {
@@ -187,6 +224,76 @@ namespace OmenCoreApp.Tests.Hardware
             public bool SetGpuPower(HpWmiBios.GpuPowerLevel level) => true;
             public HpWmiBios.GpuMode? GetGpuMode() => null;
             public void Dispose() { }
+        }
+
+        private class MaintenanceFakeWmiBios : IHpWmiBios
+        {
+            private bool _maxEnabled;
+            public bool ForceLowTelemetry { get; set; }
+            public int SetFanMaxTrueCalls { get; private set; }
+            public int ExtendCountdownCalls { get; private set; }
+
+            public bool IsAvailable => true;
+            public string Status => "MaintenanceFake";
+            public HpWmiBios.ThermalPolicyVersion ThermalPolicy => HpWmiBios.ThermalPolicyVersion.V2;
+            public int FanCount => 2;
+            public int MaxFanLevel => 100;
+
+            public (int fan1Rpm, int fan2Rpm)? GetFanRpmDirect()
+            {
+                if (!_maxEnabled)
+                {
+                    return (500, 480);
+                }
+
+                return ForceLowTelemetry ? (900, 880) : (4300, 4200);
+            }
+
+            public (byte fan1, byte fan2)? GetFanLevel()
+            {
+                if (!_maxEnabled)
+                {
+                    return (8, 8);
+                }
+
+                return ForceLowTelemetry ? ((byte)15, (byte)14) : ((byte)92, (byte)90);
+            }
+
+            public bool SetFanMax(bool enabled)
+            {
+                _maxEnabled = enabled;
+                if (enabled)
+                {
+                    SetFanMaxTrueCalls++;
+                }
+
+                return true;
+            }
+
+            public bool SetFanLevel(byte fan1, byte fan2) => true;
+            public bool SetFanMode(HpWmiBios.FanMode mode) => true;
+            public double? GetTemperature() => 45.0;
+            public double? GetGpuTemperature() => 50.0;
+            public void ExtendFanCountdown() => ExtendCountdownCalls++;
+            public (bool customTgp, bool ppab, int dState)? GetGpuPower() => null;
+            public bool SetGpuPower(HpWmiBios.GpuPowerLevel level) => true;
+            public HpWmiBios.GpuMode? GetGpuMode() => null;
+            public void Dispose() { }
+        }
+
+        private static void InvokeCountdownExtensionCallback(WmiFanController controller)
+        {
+            SetPrivateField(controller, "_lastMaxModeMaintenanceUtc", System.DateTime.MinValue);
+            var callback = typeof(WmiFanController).GetMethod("CountdownExtensionCallback", BindingFlags.NonPublic | BindingFlags.Instance);
+            callback.Should().NotBeNull();
+            callback!.Invoke(controller, new object?[] { null });
+        }
+
+        private static void SetPrivateField(object instance, string fieldName, object value)
+        {
+            var field = instance.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            field.Should().NotBeNull();
+            field!.SetValue(instance, value);
         }
     }
 }

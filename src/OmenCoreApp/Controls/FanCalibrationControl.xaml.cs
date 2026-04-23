@@ -33,10 +33,9 @@ namespace OmenCore.Controls
             InitializeComponent();
 
             // Get services from dependency injection
-            var services = App.ServiceProvider ?? throw new InvalidOperationException("ServiceProvider not initialized");
-            _logging = services.GetService(typeof(LoggingService)) as LoggingService
-                      ?? throw new InvalidOperationException("LoggingService not available");
-            _fanVerifier = services.GetService(typeof(IFanVerificationService)) as IFanVerificationService
+            var services = App.ServiceProvider;
+            _logging = (services?.GetService(typeof(LoggingService)) as LoggingService) ?? App.Logging;
+            _fanVerifier = services?.GetService(typeof(IFanVerificationService)) as IFanVerificationService
                            ?? throw new InvalidOperationException("FanVerificationService not available");
             _calibrationStorage = new FanCalibrationStorageService(_logging);
 
@@ -66,7 +65,10 @@ namespace OmenCore.Controls
                             return $"{manufacturer} {model}".Trim();
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"[FanCalibrationControl] WMI model query failed: {ex.Message} — using fallback");
+                    }
                     return "Unknown Model";
                 });
 

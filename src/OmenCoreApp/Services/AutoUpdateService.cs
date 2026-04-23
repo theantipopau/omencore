@@ -29,6 +29,9 @@ namespace OmenCore.Services
     /// </summary>
     public class AutoUpdateService : IDisposable
     {
+        private static readonly TimeSpan DownloadRetention = TimeSpan.FromDays(14);
+        private const string PartialDownloadSuffix = ".partial";
+
         private readonly LoggingService _logging;
         private readonly HttpClient _httpClient;
         private readonly string _updateCheckUrl;
@@ -36,6 +39,8 @@ namespace OmenCore.Services
         private readonly string _downloadDirectory;
         private readonly Version _currentVersion;
         private readonly InstallationType _installationType;
+        private readonly SemaphoreSlim _scheduledCheckSemaphore = new(1, 1);
+        private readonly SemaphoreSlim _downloadSemaphore = new(1, 1);
         private System.Timers.Timer? _checkTimer;
         private UpdatePreferences? _preferences;
         private bool _disposed;
@@ -65,6 +70,7 @@ namespace OmenCore.Services
                 : "https://api.github.com/repos/theantipopau/omencore/releases?per_page=20";
             _downloadDirectory = Path.Combine(Path.GetTempPath(), "OmenCore", "Updates");
             Directory.CreateDirectory(_downloadDirectory);
+            CleanupStaleDownloads();
             _currentVersion = LoadCurrentVersion();
             _installationType = DetectInstallationType();
             _logging.Info($"Detected installation type: {_installationType}");
@@ -134,7 +140,7 @@ namespace OmenCore.Services
             {
                 var intervalMs = TimeSpan.FromHours(preferences.CheckIntervalHours).TotalMilliseconds;
                 _checkTimer = new System.Timers.Timer(intervalMs);
-                _checkTimer.Elapsed += async (s, e) => await OnTimerCheckAsync();
+                _checkTimer.Elapsed += CheckTimerElapsed;
                 _checkTimer.AutoReset = true;
                 _checkTimer.Start();
                 BackgroundTimerRegistry.Register(
@@ -150,6 +156,37 @@ namespace OmenCore.Services
             {
                 _checkTimer = null;
                 _logging.Info("Background update checks disabled");
+            }
+        }
+
+        private void CheckTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            _ = RunScheduledCheckSafelyAsync();
+        }
+
+        private async Task RunScheduledCheckSafelyAsync()
+        {
+            if (!await _scheduledCheckSemaphore.WaitAsync(0))
+            {
+                _logging.Debug("Skipping scheduled update check because another check is already running.");
+                return;
+            }
+
+            try
+            {
+                await OnTimerCheckAsync();
+            }
+            catch (Exception ex)
+            {
+                _logging.ErrorWithContext(
+                    component: "AutoUpdateService",
+                    operation: "RunScheduledCheckSafelyAsync",
+                    message: "Unhandled exception from update timer callback",
+                    ex: ex);
+            }
+            finally
+            {
+                _scheduledCheckSemaphore.Release();
             }
         }
         
@@ -394,14 +431,91 @@ namespace OmenCore.Services
 
             return await response.Content.ReadAsStringAsync();
         }
+
+        private void CleanupStaleDownloads(string? preservePath = null)
+        {
+            try
+            {
+                if (!Directory.Exists(_downloadDirectory))
+                {
+                    return;
+                }
+
+                var nowUtc = DateTime.UtcNow;
+                var removedCount = 0;
+                var preserveFullPath = string.IsNullOrWhiteSpace(preservePath)
+                    ? null
+                    : Path.GetFullPath(preservePath);
+
+                foreach (var filePath in Directory.EnumerateFiles(_downloadDirectory))
+                {
+                    try
+                    {
+                        var fullPath = Path.GetFullPath(filePath);
+                        if (!string.IsNullOrWhiteSpace(preserveFullPath) &&
+                            string.Equals(fullPath, preserveFullPath, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        var info = new FileInfo(fullPath);
+                        var age = nowUtc - info.LastWriteTimeUtc;
+                        var isPartial = info.Name.EndsWith(PartialDownloadSuffix, StringComparison.OrdinalIgnoreCase) ||
+                                        info.Extension.Equals(".tmp", StringComparison.OrdinalIgnoreCase);
+
+                        if (isPartial || age > DownloadRetention)
+                        {
+                            info.Delete();
+                            removedCount++;
+                        }
+                    }
+                    catch (Exception fileEx)
+                    {
+                        _logging.Debug($"Skipped update-cache cleanup for '{filePath}': {fileEx.Message}");
+                    }
+                }
+
+                if (removedCount > 0)
+                {
+                    _logging.Info($"Cleaned up {removedCount} stale update file(s) from {_downloadDirectory}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Update-cache cleanup failed: {ex.Message}");
+            }
+        }
+
+        private static void DeleteFileIfExists(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
         
         /// <summary>
         /// Download an update package
         /// </summary>
         public async Task<string?> DownloadUpdateAsync(VersionInfo versionInfo, CancellationToken cancellationToken = default)
         {
+            var lockTaken = false;
+            string? tempDownloadPath = null;
+
             try
             {
+                lockTaken = await _downloadSemaphore.WaitAsync(0, cancellationToken);
+                if (!lockTaken)
+                {
+                    _logging.Warn("Download request ignored because another update download is already in progress.");
+                    return null;
+                }
+
                 _logging.Info($"Downloading update {versionInfo.VersionString}...");
                 if (string.IsNullOrWhiteSpace(versionInfo.DownloadUrl))
                 {
@@ -409,36 +523,39 @@ namespace OmenCore.Services
                     return null;
                 }
 
-                    // Block download if no hash — we cannot verify integrity post-download
-                    if (string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
-                    {
-                        _logging.Warn("Download blocked: release notes do not include a SHA256 hash for this asset. Open GitHub releases to download manually.");
-                        return null;
-                    }
+                // Block download if no hash — we cannot verify integrity post-download
+                if (string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
+                {
+                    _logging.Warn("Download blocked: release notes do not include a SHA256 hash for this asset. Open GitHub releases to download manually.");
+                    return null;
+                }
 
-                    // Use actual asset filename from GitHub release, fallback to constructed name
+                CleanupStaleDownloads();
+
+                // Use actual asset filename from GitHub release, fallback to constructed name
                 var fileName = !string.IsNullOrWhiteSpace(versionInfo.AssetFileName) 
                     ? versionInfo.AssetFileName 
                     : $"OmenCoreSetup-{versionInfo.VersionString}.exe";
                 var downloadPath = Path.Combine(_downloadDirectory, fileName);
+                tempDownloadPath = downloadPath + PartialDownloadSuffix;
                 
-                // Delete existing file if present
-                if (File.Exists(downloadPath))
-                    File.Delete(downloadPath);
+                // Ensure stale destination artifacts cannot contaminate a new download.
+                DeleteFileIfExists(downloadPath);
+                DeleteFileIfExists(tempDownloadPath);
                 
                 using var response = await _httpClient.GetAsync(versionInfo.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
-                    // Log response diagnostics to aid troubleshooting asset-selection and redirect issues
-                    var contentType = response.Content.Headers.ContentType?.ToString() ?? "none";
-                    var actualUrl = response.RequestMessage?.RequestUri?.ToString() ?? versionInfo.DownloadUrl;
-                    _logging.Info($"Download response — Status: {(int)response.StatusCode}, Content-Type: {contentType}, URL: {actualUrl}");
-                    if (!contentType.Contains("octet-stream", StringComparison.OrdinalIgnoreCase) &&
-                        !contentType.Contains("application/", StringComparison.OrdinalIgnoreCase) &&
-                        !contentType.Contains("binary/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _logging.Warn($"Unexpected Content-Type '{contentType}' — may indicate an error page or redirect loop");
-                    }
+                // Log response diagnostics to aid troubleshooting asset-selection and redirect issues
+                var contentType = response.Content.Headers.ContentType?.ToString() ?? "none";
+                var actualUrl = response.RequestMessage?.RequestUri?.ToString() ?? versionInfo.DownloadUrl;
+                _logging.Info($"Download response — Status: {(int)response.StatusCode}, Content-Type: {contentType}, URL: {actualUrl}");
+                if (!contentType.Contains("octet-stream", StringComparison.OrdinalIgnoreCase) &&
+                    !contentType.Contains("application/", StringComparison.OrdinalIgnoreCase) &&
+                    !contentType.Contains("binary/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logging.Warn($"Unexpected Content-Type '{contentType}' — may indicate an error page or redirect loop");
+                }
                 
                 var totalBytes = response.Content.Headers.ContentLength ?? 0;
                 var downloadedBytes = 0L;
@@ -448,60 +565,61 @@ namespace OmenCore.Services
                 // Download to file - use explicit scope to ensure file handle is released
                 {
                     using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                    using var fileStream = new FileStream(downloadPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+                    using var fileStream = new FileStream(tempDownloadPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
                 
                     int bytesRead;
-                while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
-                {
-                    await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
-                    downloadedBytes += bytesRead;
-                    
-                    // Report progress every 100KB
-                    if (downloadedBytes % 102400 == 0 || downloadedBytes == totalBytes)
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
                     {
-                        var elapsed = stopwatch.Elapsed.TotalSeconds;
-                        var speedMbps = elapsed > 0 ? (downloadedBytes / elapsed) / (1024 * 1024) : 0;
-                        var remaining = speedMbps > 0 ? TimeSpan.FromSeconds((totalBytes - downloadedBytes) / (speedMbps * 1024 * 1024)) : TimeSpan.Zero;
+                        await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
+                        downloadedBytes += bytesRead;
                         
-                        var progress = new UpdateDownloadProgress
+                        // Report progress every 100KB
+                        if (downloadedBytes % 102400 == 0 || downloadedBytes == totalBytes)
                         {
-                            BytesDownloaded = downloadedBytes,
-                            TotalBytes = totalBytes,
-                            StatusMessage = $"Downloading {fileName}...",
-                            DownloadSpeedMbps = speedMbps,
-                            EstimatedTimeRemaining = remaining
-                        };
+                            var elapsed = stopwatch.Elapsed.TotalSeconds;
+                            var speedMbps = elapsed > 0 ? (downloadedBytes / elapsed) / (1024 * 1024) : 0;
+                            var remaining = speedMbps > 0 ? TimeSpan.FromSeconds((totalBytes - downloadedBytes) / (speedMbps * 1024 * 1024)) : TimeSpan.Zero;
+                            
+                            var progress = new UpdateDownloadProgress
+                            {
+                                BytesDownloaded = downloadedBytes,
+                                TotalBytes = totalBytes,
+                                StatusMessage = $"Downloading {fileName}...",
+                                DownloadSpeedMbps = speedMbps,
+                                EstimatedTimeRemaining = remaining
+                            };
                         
-                        DownloadProgressChanged?.Invoke(this, progress);
+                            DownloadProgressChanged?.Invoke(this, progress);
+                        }
                     }
                 }
-                } // End of explicit scope - file handle released here
+                // End of explicit scope - file handle released here
                 
                 // Small delay to ensure file handle is fully released by OS
                 await Task.Delay(100, cancellationToken);
                 
                 // Verify file hash if available (preferred for security)
                 // Hash guaranteed non-empty — pre-validated above before download started
-                var computedHash = ComputeSha256Hash(downloadPath);
+                var computedHash = ComputeSha256Hash(tempDownloadPath);
                 if (!computedHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
                 {
                     _logging.Error($"SHA256 verification failed! Expected: {versionInfo.Sha256Hash}, Computed: {computedHash}");
-                    File.Delete(downloadPath);
+                    DeleteFileIfExists(tempDownloadPath);
                     throw new System.Security.SecurityException($"Update package failed SHA256 verification. File may be corrupted or tampered with.");
                 }
                 _logging.Info($"✓ SHA256 hash verified successfully ({computedHash[..16]}...)");
                 
                 // Validate downloaded file before returning
-                var fileInfo = new System.IO.FileInfo(downloadPath);
-                if (fileInfo.Length < 100_000) // Less than 100KB is definitely not a valid installer or ZIP
+                var stagedFileInfo = new FileInfo(tempDownloadPath);
+                if (stagedFileInfo.Length < 100_000) // Less than 100KB is definitely not a valid installer or ZIP
                 {
-                    _logging.Error($"Downloaded file is suspiciously small ({fileInfo.Length} bytes) — likely an error page or corrupt download");
-                    File.Delete(downloadPath);
+                    _logging.Error($"Downloaded file is suspiciously small ({stagedFileInfo.Length} bytes) — likely an error page or corrupt download");
+                    DeleteFileIfExists(tempDownloadPath);
                     return null;
                 }
                 
                 // Validate file header — PE executable (MZ) or ZIP archive (PK)
-                using (var headerStream = new FileStream(downloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var headerStream = new FileStream(tempDownloadPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
                     var header = new byte[4];
                     await headerStream.ReadAsync(header, 0, 4, cancellationToken);
@@ -511,7 +629,7 @@ namespace OmenCore.Services
                     if (!isMZ && !isPK)
                     {
                         _logging.Error($"Downloaded file has invalid header (0x{header[0]:X2}{header[1]:X2}) — not a valid executable or archive. File may be an HTML error page.");
-                        File.Delete(downloadPath);
+                        DeleteFileIfExists(tempDownloadPath);
                         return null;
                     }
                     
@@ -519,13 +637,25 @@ namespace OmenCore.Services
                     if (fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !isMZ)
                     {
                         _logging.Error($"Downloaded file has .exe extension but is not a PE executable (header: 0x{header[0]:X2}{header[1]:X2})");
-                        File.Delete(downloadPath);
+                        DeleteFileIfExists(tempDownloadPath);
                         return null;
                     }
                 }
+
+                DeleteFileIfExists(downloadPath);
+                File.Move(tempDownloadPath, downloadPath);
+                CleanupStaleDownloads(downloadPath);
+
+                var fileInfo = new FileInfo(downloadPath);
                 
                 _logging.Info($"Update downloaded and validated successfully: {downloadPath} ({fileInfo.Length:N0} bytes)");
                 return downloadPath;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logging.Warn("Update download cancelled.");
+                DeleteFileIfExists(tempDownloadPath);
+                return null;
             }
             catch (Exception ex)
             {
@@ -534,7 +664,16 @@ namespace OmenCore.Services
                     operation: "DownloadUpdateAsync",
                     message: "Update download failed",
                     ex: ex);
+
+                DeleteFileIfExists(tempDownloadPath);
                 return null;
+            }
+            finally
+            {
+                if (lockTaken)
+                {
+                    _downloadSemaphore.Release();
+                }
             }
         }
         
@@ -1081,8 +1220,14 @@ namespace OmenCore.Services
             if (disposing)
             {
                 BackgroundTimerRegistry.Unregister("AutoUpdateCheck");
+                if (_checkTimer != null)
+                {
+                    _checkTimer.Elapsed -= CheckTimerElapsed;
+                }
                 _checkTimer?.Stop();
                 _checkTimer?.Dispose();
+                _scheduledCheckSemaphore.Dispose();
+                _downloadSemaphore.Dispose();
                 _httpClient?.Dispose();
             }
             

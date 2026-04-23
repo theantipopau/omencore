@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using OmenCore;
 using OmenCore.Hardware;
 using OmenCore.Models;
@@ -66,30 +67,16 @@ namespace OmenCore.Services
                     // Verify the power limits were applied correctly
                     if (_powerVerificationService != null && _powerVerificationService.IsAvailable)
                     {
-                        var verificationTask = _powerVerificationService.VerifyPowerLimitsAsync(mode);
-                        // Don't await to avoid blocking, but log result
-                        verificationTask.ContinueWith(t =>
-                        {
-                            if (t.IsFaulted)
-                            {
-                                _logging.Warn($"⚠️ Power limits verification threw: {t.Exception?.InnerException?.Message}");
-                                return;
-                            }
-                            if (t.Result)
-                            {
-                                _logging.Info("✓ Power limits verified successfully");
-                            }
-                            else
-                            {
-                                _logging.Warn("⚠️ Power limits verification failed - values may not have been applied");
-                            }
-                        }, TaskContinuationOptions.NotOnCanceled);
+                        _ = VerifyPowerLimitsAndLogAsync(mode);
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Only log EC power limits failure once per session if it's contention
-                    if (ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
+                    // Type-safe contention check: both TimeoutException (PawnIO mutex timeout) and
+                    // AbandonedMutexException (.NET mutex abandoned by dying thread) indicate EC
+                    // contention and should be treated identically. Do NOT use ex.Message.Contains
+                    // — exception messages are locale-dependent.
+                    if (ex is TimeoutException or AbandonedMutexException)
                     {
                         if (!Hardware.PawnIOEcAccess.EcContentionWarningLogged)
                         {
@@ -146,6 +133,31 @@ namespace OmenCore.Services
             
             // Raise event for UI synchronization (sidebar, tray, etc.)
             ModeApplied?.Invoke(this, mode.Name);
+        }
+
+        private async Task VerifyPowerLimitsAndLogAsync(PerformanceMode mode)
+        {
+            try
+            {
+                if (_powerVerificationService == null || !_powerVerificationService.IsAvailable)
+                {
+                    return;
+                }
+
+                var verified = await _powerVerificationService.VerifyPowerLimitsAsync(mode).ConfigureAwait(false);
+                if (verified)
+                {
+                    _logging.Info("✓ Power limits verified successfully");
+                }
+                else
+                {
+                    _logging.Warn("⚠️ Power limits verification failed - values may not have been applied");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"⚠️ Power limits verification threw: {ex.Message}");
+            }
         }
 
         /// <summary>

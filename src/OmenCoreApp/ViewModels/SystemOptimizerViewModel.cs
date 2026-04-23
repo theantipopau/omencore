@@ -1101,7 +1101,7 @@ namespace OmenCore.ViewModels
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        public async void Toggle(bool desiredState)
+        public async Task Toggle(bool desiredState)
         {
             try
             {

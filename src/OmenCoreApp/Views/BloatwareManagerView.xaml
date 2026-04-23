@@ -336,7 +336,7 @@
                             <GridViewColumn Header="Status" Width="70">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border HorizontalAlignment="Center">
+                                        <Border HorizontalAlignment="Center" ToolTip="{Binding LastRemovalDetail}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
                                                     <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}"/>
@@ -386,6 +386,26 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
+                            <GridViewColumn Header="Result Detail" Width="320">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding LastRemovalDetail, TargetNullValue=-}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   ToolTip="{Binding LastRemovalDetail}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding LastRemovalDetail}" Value="">
+                                                            <Setter Property="Text" Value="-"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
                             <GridViewColumn Header="Category" Width="120">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
@@ -427,7 +447,7 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Description" Width="300">
+                            <GridViewColumn Header="Description" Width="260">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Description}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextSecondaryBrush}" ToolTip="{Binding Description}"/>

@@ -1,7 +1,9 @@
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
-using System.Security;
+using System;
+using System.IO;
+using System.Reflection;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Services
@@ -71,6 +73,99 @@ Download the installer above.
             // This tests the private method indirectly via CheckForUpdatesAsync
             // In real implementation, hash extraction is tested through integration
             releaseBody.Should().Contain("SHA256:", "release notes should include hash for verification");
+        }
+
+        [Fact]
+        public void CleanupStaleDownloads_RemovesOldAndPartialFiles()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+            var service = new AutoUpdateService(logging);
+
+            try
+            {
+                var downloadDir = GetDownloadDirectory(service);
+                Directory.CreateDirectory(downloadDir);
+
+                var token = Guid.NewGuid().ToString("N");
+                var staleFile = Path.Combine(downloadDir, $"stale-{token}.exe");
+                var partialFile = Path.Combine(downloadDir, $"partial-{token}.partial");
+                var freshFile = Path.Combine(downloadDir, $"fresh-{token}.exe");
+
+                File.WriteAllText(staleFile, "stale");
+                File.SetLastWriteTimeUtc(staleFile, DateTime.UtcNow - TimeSpan.FromDays(30));
+                File.WriteAllText(partialFile, "partial");
+                File.WriteAllText(freshFile, "fresh");
+
+                InvokeCleanupStaleDownloads(service, null);
+
+                File.Exists(staleFile).Should().BeFalse("old update files should be pruned");
+                File.Exists(partialFile).Should().BeFalse("partial update files should always be pruned");
+                File.Exists(freshFile).Should().BeTrue("recent complete files should be preserved");
+
+                DeleteIfExists(freshFile);
+            }
+            finally
+            {
+                service.Dispose();
+                logging.Dispose();
+            }
+        }
+
+        [Fact]
+        public void CleanupStaleDownloads_PreservePath_KeepsMatchingFile()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+            var service = new AutoUpdateService(logging);
+
+            try
+            {
+                var downloadDir = GetDownloadDirectory(service);
+                Directory.CreateDirectory(downloadDir);
+
+                var token = Guid.NewGuid().ToString("N");
+                var preservedFile = Path.Combine(downloadDir, $"preserve-{token}.exe");
+
+                File.WriteAllText(preservedFile, "preserve");
+                File.SetLastWriteTimeUtc(preservedFile, DateTime.UtcNow - TimeSpan.FromDays(30));
+
+                InvokeCleanupStaleDownloads(service, preservedFile);
+
+                File.Exists(preservedFile).Should().BeTrue("the active downloaded package path should not be deleted during cleanup");
+
+                DeleteIfExists(preservedFile);
+            }
+            finally
+            {
+                service.Dispose();
+                logging.Dispose();
+            }
+        }
+
+        private static string GetDownloadDirectory(AutoUpdateService service)
+        {
+            var field = typeof(AutoUpdateService).GetField("_downloadDirectory", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("Could not access AutoUpdateService download directory field.");
+
+            return field.GetValue(service) as string
+                ?? throw new InvalidOperationException("AutoUpdateService download directory field was null.");
+        }
+
+        private static void InvokeCleanupStaleDownloads(AutoUpdateService service, string? preservePath)
+        {
+            var method = typeof(AutoUpdateService).GetMethod("CleanupStaleDownloads", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("Could not access CleanupStaleDownloads method.");
+
+            method.Invoke(service, new object?[] { preservePath });
+        }
+
+        private static void DeleteIfExists(string path)
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 }

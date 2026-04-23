@@ -286,6 +286,25 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 UserVerified = true
             });
+
+            // OMEN 16 (2022) - n0xxx series (AMD)
+            // GitHub Issue #112: Product ID 8A44 missing from capability database.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A44",
+                ModelName = "OMEN 16 (2022) n0xxx AMD",
+                ModelNamePattern = "16-n0",
+                ModelYear = 2022,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "GitHub #112 — OMEN 16-n0xxx. Capabilities inferred from adjacent OMEN 16 generations; needs user verification."
+            });
             
             // OMEN 16 (2023) - wf series
             AddModel(new ModelCapabilities
@@ -359,6 +378,54 @@ namespace OmenCore.Hardware
                 Notes = "2024 AMD model - V1 fan control, MaxFanLevel=55"
             });
             
+            // OMEN 16 (2025) - ap0xxx series (AMD Ryzen AI + RTX 50-series)
+            // Community report: Product ID 8D24, AMD Ryzen AI 9 365 + RTX 5060 Laptop GPU
+            // BIOS F.11, V1 ThermalPolicy, MaxFanLevel=55, 2 fans, Secure Boot enabled
+            // PawnIO: found in registry but driver init needs reboot after first install
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8D24",
+                ModelName = "OMEN 16 (2025) ap0xxx AMD",
+                ModelNamePattern = "16-ap0",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false, // EC layout unverified on this generation
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false, // AMD Ryzen AI — no Intel MSR undervolt
+                UserVerified = false,
+                Notes = "2025 AMD model (Ryzen AI 9 365 + RTX 5060). V1 fan control, MaxFanLevel=55. PawnIO requires reboot after first install to activate driver."
+            });
+
+            // OMEN 16 (2024) - am0xxx series (AMD Ryzen 7/8xxx + discrete GPU)
+            // GitHub Issue #111: ProductId 8D2F, WMI model "OMEN Gaming Laptop 16-am0xxx"
+            // Falls back to OMEN16 family defaults without a specific entry — add to give accurate capabilities.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8D2F",
+                ModelName = "OMEN 16 (2024) am0xxx AMD",
+                ModelNamePattern = "16-am0",
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false, // AMD — no Intel MSR undervolt
+                UserVerified = false,
+                Notes = "GitHub #111 — OMEN Gaming Laptop 16-am0xxx (2024 AMD). Capabilities inferred from 16-xd0 sibling; verify EC fan control before enabling."
+            });
+
             // ═══════════════════════════════════════════════════════════════════════════════════
             // OMEN MAX Series (2025+ flagship models)
             // ═══════════════════════════════════════════════════════════════════════════════════
@@ -456,6 +523,33 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // AMD Ryzen — Intel-style undervolt unsupported
                 UserVerified = false,
                 Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers."
+            });
+
+            // OMEN MAX 16 (2025) - ak0xxx family (GitHub #117 / Product ID 8D87)
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8D87",
+                ModelName = "OMEN MAX 16 (2025) ak0xxx AMD",
+                ModelNamePattern = "16-ak0",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN2024Plus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false, // MAX-series EC layout diverges from legacy mappings
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 100,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool", "L5P" },
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                SupportsAdvancedOptimus = true,
+                HasKeyboardBacklight = true,
+                HasPerKeyRgb = true,
+                SupportsUndervolt = false, // AMD Ryzen AI path does not use Intel MSR undervolt
+                UserVerified = false,
+                Notes = "GitHub #117 — OMEN MAX Gaming Laptop 16-ak0xxx, Product ID 8D87. Model profile inferred from adjacent MAX ak/ah generation; verify keyboard/fan behavior on real hardware."
             });
             // -----------------------------------------------------------------------------------
             // OMEN 17 Series (17.3" laptops)
@@ -589,6 +683,50 @@ namespace OmenCore.Hardware
                 HasPerKeyRgb = true,
                 Notes = "Transcend uses different WMI interface - may require OGH proxy for fan control"
             });
+
+            // OMEN Transcend 14 (2024) - fb1xxx series
+            // GitHub Issue #99 / Linux reports: board IDs 8C58 and 8E41 map to Transcend 14 family.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C58",
+                ModelName = "OMEN Transcend 14 (2024) fb1xxx",
+                ModelNamePattern = "14-fb1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Transcend,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = false,
+                HasPerKeyRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "Transcend 14 board family (8C58). Prefer hp-wmi/ACPI paths; direct legacy EC writes are unsafe on Linux and unverified on Windows."
+            });
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8E41",
+                ModelName = "OMEN Transcend 14 (2024) fb1xxx",
+                ModelNamePattern = "14-fb1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Transcend,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = false,
+                HasPerKeyRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #99 / Linux reports for 8E41 (Transcend 14-fb1xxx). Use profile-based control paths; avoid legacy EC writes."
+            });
             
             // ═══════════════════════════════════════════════════════════════════════════════════
             // HP Victus Series (entry-level gaming)
@@ -628,7 +766,71 @@ namespace OmenCore.Hardware
                 HasKeyboardBacklight = true,
                 Notes = "Victus has limited features compared to OMEN"
             });
+
+            // Victus 15 (2022) - fb0xxx series (AMD)
+            // GitHub Issue #105: Product ID 8A3E missing from capability database.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A3E",
+                ModelName = "HP Victus 15 (2022) fb0xxx AMD",
+                ModelNamePattern = "15-fb0",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                UserVerified = false,
+                Notes = "GitHub #105 — Victus 15-fb0xxx. Conservative Victus profile (single-zone backlight)."
+            });
+
+            // Victus 16 (2023/2024) - d1xxx series
+            // GitHub Issue #66: Product ID 8A26 requested for capability DB.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A26",
+                ModelName = "HP Victus 16 (2023/2024) d1xxx",
+                ModelNamePattern = "16-d1",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 2,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = true,
+                HasKeyboardBacklight = true,
+                UserVerified = false,
+                Notes = "GitHub #66 — Victus 16-d1xxx (8A26). Capabilities inferred from nearby Victus 16 entries; awaiting user confirmation."
+            });
             
+            // Victus 16 (2024+) Ryzen r0xxx series
+            // GitHub Issue #110: Victus by HP Gaming Laptop 16-r0xxx — model not in capability database
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C2F",
+                ModelName = "HP Victus 16 (2024+) Ryzen r0xxx",
+                ModelNamePattern = "16-r0",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false, // Ryzen AMD
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "GitHub #110 — Victus 16-r0xxx (Ryzen 2024+). Keyboard entry 8C2F already present in KeyboardModelDatabase."
+            });
+
             AddModel(new ModelCapabilities
             {
                 ProductId = "88DB",

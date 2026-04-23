@@ -52,10 +52,9 @@ public class SystemCapabilities
 /// </summary>
 public enum PerformanceMode
 {
-    Quiet,
-    Balanced,
-    Performance,
-    Custom
+    Quiet = 0,
+    Balanced = 1,
+    Performance = 2
 }
 
 /// <summary>

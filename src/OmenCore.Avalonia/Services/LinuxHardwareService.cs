@@ -9,6 +9,7 @@ namespace OmenCore.Avalonia.Services;
 public class LinuxHardwareService : IHardwareService, IDisposable
 {
     private readonly System.Timers.Timer _pollingTimer;
+    private readonly SemaphoreSlim _ioLock = new(1, 1);
     private HardwareStatus _lastStatus = new();
     private SystemCapabilities? _capabilities;
     private bool _disposed;
@@ -81,35 +82,38 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     public async Task<HardwareStatus> GetStatusAsync()
     {
-        var status = new HardwareStatus();
-
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             // Return mock data for testing on Windows
             return GetMockStatus();
         }
 
-        // Read CPU temperature from hwmon
-        status.CpuTemperature = await ReadTemperatureAsync("coretemp") / 1000.0;
-        
-        // Read GPU temperature (NVIDIA or AMD)
-        status.GpuTemperature = await ReadGpuTemperatureAsync() / 1000.0;
-        
-        // Read fan speeds
-        status.CpuFanRpm = await ReadFanRpmAsync("cpu");
-        status.GpuFanRpm = await ReadFanRpmAsync("gpu");
-        
-        // Read CPU/memory usage from /proc
-        status.CpuUsage = await ReadCpuUsageAsync();
-        var (memPercentage, memUsedGb, memTotalGb) = await ReadMemoryUsageAsync();
-        status.MemoryUsage = memPercentage;
-        status.MemoryUsedGb = memUsedGb;
-        status.MemoryTotalGb = memTotalGb;
-        
-        // Read battery status
-        (status.BatteryPercentage, status.IsOnBattery) = await ReadBatteryStatusAsync();
-        
-        return status;
+        return await ExecuteWithIoLockAsync(async () =>
+        {
+            var status = new HardwareStatus();
+
+            // Read CPU temperature from hwmon
+            status.CpuTemperature = await ReadTemperatureAsync("coretemp") / 1000.0;
+
+            // Read GPU temperature (NVIDIA or AMD)
+            status.GpuTemperature = await ReadGpuTemperatureAsync() / 1000.0;
+
+            // Read fan speeds
+            status.CpuFanRpm = await ReadFanRpmAsync("cpu");
+            status.GpuFanRpm = await ReadFanRpmAsync("gpu");
+
+            // Read CPU/memory usage from /proc
+            status.CpuUsage = await ReadCpuUsageAsync();
+            var (memPercentage, memUsedGb, memTotalGb) = await ReadMemoryUsageAsync();
+            status.MemoryUsage = memPercentage;
+            status.MemoryUsedGb = memUsedGb;
+            status.MemoryTotalGb = memTotalGb;
+
+            // Read battery status
+            (status.BatteryPercentage, status.IsOnBattery) = await ReadBatteryStatusAsync();
+
+            return status;
+        });
     }
 
     private static HardwareStatus GetMockStatus()
@@ -470,6 +474,11 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
+        await ExecuteWithIoLockAsync(() => SetPerformanceModeCoreAsync(mode));
+    }
+
+    private async Task SetPerformanceModeCoreAsync(PerformanceMode mode)
+    {
         var thermalPath = _resolvedThermalPath ?? ResolveThermalProfilePath();
         if (thermalPath == null)
         {
@@ -529,41 +538,44 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        int clamped = Math.Clamp(percentage, 0, 100);
-
-        await TryEnableManualFanOverrideAsync();
-
-        // Prefer direct hp-wmi fan output when exposed by kernel/firmware.
-        try
+        await ExecuteWithIoLockAsync(async () =>
         {
-            if (File.Exists(HP_WMI_FAN1_OUTPUT))
+            int clamped = Math.Clamp(percentage, 0, 100);
+
+            await TryEnableManualFanOverrideAsync();
+
+            // Prefer direct hp-wmi fan output when exposed by kernel/firmware.
+            try
             {
-                await File.WriteAllTextAsync(HP_WMI_FAN1_OUTPUT, clamped.ToString());
-                return;
+                if (File.Exists(HP_WMI_FAN1_OUTPUT))
+                {
+                    await File.WriteAllTextAsync(HP_WMI_FAN1_OUTPUT, clamped.ToString());
+                    return;
+                }
+
+                var fanTargetPath = ResolveHwmonFanTargetPath(1);
+                if (fanTargetPath != null)
+                {
+                    await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                    return;
+                }
+            }
+            catch
+            {
+                // Fall through to profile-based fallback.
             }
 
-            var fanTargetPath = ResolveHwmonFanTargetPath(1);
-            if (fanTargetPath != null)
+            // Fallback for hp_wmi-only boards that expose only thermal_profile:
+            // approximate requested fan intensity by switching platform performance profile.
+            var mode = clamped switch
             {
-                await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
-                return;
-            }
-        }
-        catch
-        {
-            // Fall through to profile-based fallback.
-        }
+                <= 35 => PerformanceMode.Quiet,
+                <= 70 => PerformanceMode.Balanced,
+                _ => PerformanceMode.Performance
+            };
 
-        // Fallback for hp_wmi-only boards that expose only thermal_profile:
-        // approximate requested fan intensity by switching platform performance profile.
-        var mode = clamped switch
-        {
-            <= 35 => PerformanceMode.Quiet,
-            <= 70 => PerformanceMode.Balanced,
-            _ => PerformanceMode.Performance
-        };
-
-        await ApplyFanFallbackProfileAsync(mode);
+            await ApplyFanFallbackProfileAsync(mode);
+        });
     }
 
     public async Task SetGpuFanSpeedAsync(int percentage)
@@ -571,38 +583,41 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        int clamped = Math.Clamp(percentage, 0, 100);
-
-        await TryEnableManualFanOverrideAsync();
-
-        try
+        await ExecuteWithIoLockAsync(async () =>
         {
-            if (File.Exists(HP_WMI_FAN2_OUTPUT))
+            int clamped = Math.Clamp(percentage, 0, 100);
+
+            await TryEnableManualFanOverrideAsync();
+
+            try
             {
-                await File.WriteAllTextAsync(HP_WMI_FAN2_OUTPUT, clamped.ToString());
-                return;
+                if (File.Exists(HP_WMI_FAN2_OUTPUT))
+                {
+                    await File.WriteAllTextAsync(HP_WMI_FAN2_OUTPUT, clamped.ToString());
+                    return;
+                }
+
+                var fanTargetPath = ResolveHwmonFanTargetPath(2);
+                if (fanTargetPath != null)
+                {
+                    await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                    return;
+                }
+            }
+            catch
+            {
+                // Fall through to profile-based fallback.
             }
 
-            var fanTargetPath = ResolveHwmonFanTargetPath(2);
-            if (fanTargetPath != null)
+            var mode = clamped switch
             {
-                await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
-                return;
-            }
-        }
-        catch
-        {
-            // Fall through to profile-based fallback.
-        }
+                <= 35 => PerformanceMode.Quiet,
+                <= 70 => PerformanceMode.Balanced,
+                _ => PerformanceMode.Performance
+            };
 
-        var mode = clamped switch
-        {
-            <= 35 => PerformanceMode.Quiet,
-            <= 70 => PerformanceMode.Balanced,
-            _ => PerformanceMode.Performance
-        };
-
-        await ApplyFanFallbackProfileAsync(mode);
+            await ApplyFanFallbackProfileAsync(mode);
+        });
     }
 
     private async Task ApplyFanFallbackProfileAsync(PerformanceMode mode)
@@ -612,7 +627,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         try
         {
-            await SetPerformanceModeAsync(mode);
+            await SetPerformanceModeCoreAsync(mode);
             _lastFanFallbackMode = mode;
         }
         catch
@@ -675,19 +690,22 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        var maxPath = Path.Combine(BACKLIGHT_PATH, "max_brightness");
-        var brightnessPath = Path.Combine(BACKLIGHT_PATH, "brightness");
+        await ExecuteWithIoLockAsync(async () =>
+        {
+            var maxPath = Path.Combine(BACKLIGHT_PATH, "max_brightness");
+            var brightnessPath = Path.Combine(BACKLIGHT_PATH, "brightness");
 
-        try
-        {
-            var maxBrightness = int.Parse(await File.ReadAllTextAsync(maxPath));
-            var scaledBrightness = (int)(brightness / 100.0 * maxBrightness);
-            await File.WriteAllTextAsync(brightnessPath, scaledBrightness.ToString());
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to set keyboard brightness: {ex.Message}");
-        }
+            try
+            {
+                var maxBrightness = int.Parse(await File.ReadAllTextAsync(maxPath));
+                var scaledBrightness = (int)(brightness / 100.0 * maxBrightness);
+                await File.WriteAllTextAsync(brightnessPath, scaledBrightness.ToString());
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to set keyboard brightness: {ex.Message}");
+            }
+        });
     }
 
     public async Task SetKeyboardColorAsync(byte r, byte g, byte b)
@@ -695,30 +713,59 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        var multiIntensityPath = Path.Combine(BACKLIGHT_PATH, "multi_intensity");
-        var colorPath = Path.Combine(BACKLIGHT_PATH, "color");
-
-        try
+        await ExecuteWithIoLockAsync(async () =>
         {
-            // Preferred for hp-wmi multicolor interface (used by custom driver): "R G B"
-            if (File.Exists(multiIntensityPath))
+            var multiIntensityPath = Path.Combine(BACKLIGHT_PATH, "multi_intensity");
+            var colorPath = Path.Combine(BACKLIGHT_PATH, "color");
+
+            try
             {
-                var rgbSpace = $"{r} {g} {b}";
-                await File.WriteAllTextAsync(multiIntensityPath, rgbSpace);
-                return;
-            }
+                // Preferred for hp-wmi multicolor interface (used by custom driver): "R G B"
+                if (File.Exists(multiIntensityPath))
+                {
+                    var rgbSpace = $"{r} {g} {b}";
+                    await File.WriteAllTextAsync(multiIntensityPath, rgbSpace);
+                    return;
+                }
 
-            // Legacy fallback used by some keyboard backlight drivers.
-            var colorValue = $"{r:X2}{g:X2}{b:X2}";
-            await File.WriteAllTextAsync(colorPath, colorValue);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to set keyboard color: {ex.Message}");
-        }
+                // Legacy fallback used by some keyboard backlight drivers.
+                var colorValue = $"{r:X2}{g:X2}{b:X2}";
+                await File.WriteAllTextAsync(colorPath, colorValue);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to set keyboard color: {ex.Message}");
+            }
+        });
     }
 
     #region Private Helpers
+
+    private async Task ExecuteWithIoLockAsync(Func<Task> operation)
+    {
+        await _ioLock.WaitAsync();
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            _ioLock.Release();
+        }
+    }
+
+    private async Task<T> ExecuteWithIoLockAsync<T>(Func<Task<T>> operation)
+    {
+        await _ioLock.WaitAsync();
+        try
+        {
+            return await operation();
+        }
+        finally
+        {
+            _ioLock.Release();
+        }
+    }
 
     private static async Task TryEnableManualFanOverrideAsync()
     {
@@ -1222,6 +1269,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         {
             _pollingTimer.Stop();
             _pollingTimer.Dispose();
+            _ioLock.Dispose();
             _disposed = true;
         }
     }

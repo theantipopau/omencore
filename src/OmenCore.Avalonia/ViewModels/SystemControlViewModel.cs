@@ -10,6 +10,7 @@ namespace OmenCore.Avalonia.ViewModels;
 public partial class SystemControlViewModel : ObservableObject
 {
     private readonly IHardwareService _hardwareService;
+    private bool _suppressPerformanceModeSelectionChange;
 
     // Performance Mode
     [ObservableProperty]
@@ -54,16 +55,16 @@ public partial class SystemControlViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    public string[] PerformanceModes { get; } = { "Quiet", "Balanced", "Performance", "Custom" };
+    public string[] PerformanceModes { get; } = { "Quiet", "Balanced", "Performance" };
     public string[] GpuModes { get; } = { "Hybrid", "Discrete", "Integrated" };
 
     public SystemControlViewModel(IHardwareService hardwareService)
     {
         _hardwareService = hardwareService;
-        Initialize();
+        _ = InitializeAsync();
     }
 
-    private async void Initialize()
+    private async Task InitializeAsync()
     {
         try
         {
@@ -73,8 +74,8 @@ public partial class SystemControlViewModel : ObservableObject
             HasGpuMuxSwitch = capabilities.HasGpuMuxSwitch;
 
             var mode = await _hardwareService.GetPerformanceModeAsync();
-            SelectedPerformanceModeIndex = (int)mode;
-            CurrentPerformanceMode = mode.ToString();
+            SetSelectedPerformanceModeIndex(mode);
+            CurrentPerformanceMode = GetPerformanceModeName(mode);
 
             CurrentGpuMode = await _hardwareService.GetGpuModeAsync();
         }
@@ -86,7 +87,18 @@ public partial class SystemControlViewModel : ObservableObject
 
     partial void OnSelectedPerformanceModeIndexChanged(int value)
     {
-        _ = SetPerformanceModeByIndexAsync((PerformanceMode)value);
+        if (_suppressPerformanceModeSelectionChange)
+        {
+            return;
+        }
+
+        if (!TryGetPerformanceModeFromIndex(value, out var mode))
+        {
+            StatusMessage = $"Unknown performance mode index: {value}";
+            return;
+        }
+
+        _ = SetPerformanceModeByIndexAsync(mode);
     }
 
     [RelayCommand]
@@ -95,14 +107,11 @@ public partial class SystemControlViewModel : ObservableObject
         if (IsPerformanceModeChanging)
             return;
 
-        var mode = modeName switch
+        if (!TryParsePerformanceModeName(modeName, out var mode))
         {
-            "Quiet" => PerformanceMode.Quiet,
-            "Balanced" => PerformanceMode.Balanced,
-            "Performance" => PerformanceMode.Performance,
-            "Custom" => PerformanceMode.Custom,
-            _ => PerformanceMode.Balanced
-        };
+            StatusMessage = $"Unsupported performance mode: {modeName}";
+            return;
+        }
 
         await SetPerformanceModeByIndexAsync(mode);
     }
@@ -117,8 +126,8 @@ public partial class SystemControlViewModel : ObservableObject
             IsPerformanceModeChanging = true;
             StatusMessage = $"Setting performance mode to {mode}...";
             await _hardwareService.SetPerformanceModeAsync(mode);
-            CurrentPerformanceMode = mode.ToString();
-            SelectedPerformanceModeIndex = (int)mode;
+            CurrentPerformanceMode = GetPerformanceModeName(mode);
+            SetSelectedPerformanceModeIndex(mode);
             StatusMessage = $"Performance mode set to {mode}";
         }
         catch (Exception ex)
@@ -203,5 +212,84 @@ public partial class SystemControlViewModel : ObservableObject
         };
 
         _ = ApplyKeyboardColor();
+    }
+
+    private static bool TryParsePerformanceModeName(string modeName, out PerformanceMode mode)
+    {
+        switch (modeName.Trim())
+        {
+            case "Quiet":
+                mode = PerformanceMode.Quiet;
+                return true;
+            case "Balanced":
+                mode = PerformanceMode.Balanced;
+                return true;
+            case "Performance":
+                mode = PerformanceMode.Performance;
+                return true;
+            default:
+                mode = PerformanceMode.Balanced;
+                return false;
+        }
+    }
+
+    private static bool TryGetPerformanceModeFromIndex(int index, out PerformanceMode mode)
+    {
+        switch (index)
+        {
+            case 0:
+                mode = PerformanceMode.Quiet;
+                return true;
+            case 1:
+                mode = PerformanceMode.Balanced;
+                return true;
+            case 2:
+                mode = PerformanceMode.Performance;
+                return true;
+            default:
+                mode = PerformanceMode.Balanced;
+                return false;
+        }
+    }
+
+    private static int GetPerformanceModeIndex(PerformanceMode mode)
+    {
+        return mode switch
+        {
+            PerformanceMode.Quiet => 0,
+            PerformanceMode.Balanced => 1,
+            PerformanceMode.Performance => 2,
+            _ => 1
+        };
+    }
+
+    private static string GetPerformanceModeName(PerformanceMode mode)
+    {
+        return mode switch
+        {
+            PerformanceMode.Quiet => "Quiet",
+            PerformanceMode.Balanced => "Balanced",
+            PerformanceMode.Performance => "Performance",
+            _ => "Balanced"
+        };
+    }
+
+    private void SetSelectedPerformanceModeIndex(PerformanceMode mode)
+    {
+        var index = GetPerformanceModeIndex(mode);
+        if (SelectedPerformanceModeIndex == index)
+        {
+            return;
+        }
+
+        _suppressPerformanceModeSelectionChange = true;
+        try
+        {
+            SelectedPerformanceModeIndex = index;
+        }
+        finally
+        {
+            _suppressPerformanceModeSelectionChange = false;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Management;
+using System.Text.RegularExpressions;
 using OmenCore.Models;
 
 namespace OmenCore.Hardware
@@ -62,6 +63,11 @@ namespace OmenCore.Hardware
         public static bool SupportsUndervolt()
         {
             if (!_initialized) Init();
+
+            if (IsRyzenAi9CurveOptimizerUnsupported())
+            {
+                return false;
+            }
             
             // Supported: Ryzen AI MAX, Ryzen AI 9, Ryzen 9 HX, Ryzen 8000/7000/6000/4000 H-series
             return CpuName.Contains("RYZEN AI MAX", StringComparison.OrdinalIgnoreCase) ||
@@ -115,6 +121,64 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = SupportsUndervolt(),
                 SupportsIgpuUndervolt = SupportsIgpuUndervolt()
             };
+        }
+
+        /// <summary>
+        /// Short-term guard for GitHub #103 / roadmap item #21.
+        /// Ryzen AI 9 (family 0x1A, model 0x40+) is treated as unsupported until a validated SMU path lands.
+        /// </summary>
+        public static bool IsRyzenAi9CurveOptimizerUnsupported()
+        {
+            if (!_initialized) Init();
+            return IsRyzenAi9CurveOptimizerUnsupported(CpuName, CpuModel);
+        }
+
+        private static bool IsRyzenAi9CurveOptimizerUnsupported(string cpuName, string cpuModel)
+        {
+            if (!cpuName.Contains("Ryzen AI 9", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!TryParseCpuFamilyAndModel(cpuModel, out var family, out var model))
+            {
+                return false;
+            }
+
+            return family == 0x1A && model >= 0x40;
+        }
+
+        private static bool TryParseCpuFamilyAndModel(string cpuModel, out int family, out int model)
+        {
+            family = -1;
+            model = -1;
+
+            if (string.IsNullOrWhiteSpace(cpuModel))
+            {
+                return false;
+            }
+
+            var familyMatch = Regex.Match(cpuModel, @"Family\s+(?<value>0x[0-9A-Fa-f]+|\d+)", RegexOptions.IgnoreCase);
+            var modelMatch = Regex.Match(cpuModel, @"Model\s+(?<value>0x[0-9A-Fa-f]+|\d+)", RegexOptions.IgnoreCase);
+
+            if (!familyMatch.Success || !modelMatch.Success)
+            {
+                return false;
+            }
+
+            return TryParseNumber(familyMatch.Groups["value"].Value, out family)
+                && TryParseNumber(modelMatch.Groups["value"].Value, out model);
+        }
+
+        private static bool TryParseNumber(string value, out int parsed)
+        {
+            parsed = 0;
+            if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                return int.TryParse(value[2..], System.Globalization.NumberStyles.HexNumber, null, out parsed);
+            }
+
+            return int.TryParse(value, out parsed);
         }
 
         /// <summary>

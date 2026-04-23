@@ -7,25 +7,125 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.3.1] - Unreleased - Telemetry Stabilization and Startup Safety Guardrails
+## [3.4.0] - TBD — Fan Curve Fix, Profile Selector, PrtSc Hook Guard, AV FAQ
+
+### Scope Freeze
+
+- v3.4.0 treats Bloatware Manager, Memory Optimizer, System Optimizer, and Game Library as bug-fix-only surfaces.
+- New feature work for those areas is deferred to post-3.4.0 planning.
 
 ### Fixed
-- **GPU/CPU load could appear frozen or under-reported while MSI Afterburner coexistence was active**: load collection now uses a stronger multi-source strategy in coexistence mode (NVAPI + Windows GPU Engine counters + fallback paths), widened near-zero recovery triggers, and removed stale load value reuse that could pin previously-cached percentages. Added source-aware periodic telemetry (`NVAPI`, `WinGpuEngine`, `PowerInferred`) to verify live data-path selection during troubleshooting.
-- **GPU load fallback could miss active workloads**: Windows GPU Engine fallback now prioritizes peak 3D/Compute/CUDA engine utilization instead of broad summed noise, reducing false low readings in synthetic/benchmark workloads where one engine dominates.
-- **GPU load could stay implausibly low during high-power operation**: added a power-informed minimum load inference safeguard when measured GPU power is clearly elevated but direct utilization counters are desynchronized.
 
-### Safety
-- **Startup hardware restore hardening (response to firmware-risk reports / community escalation)**: automatic startup reapply of hardware-affecting settings is now gated behind explicit config safety switches. By default, OmenCore no longer auto-reapplies startup BIOS/EC power settings unless the user opts in.
-- **Model-aware startup restore guardrail**: startup hardware restore is now blocked by default on OMEN 16 / Victus-class models unless explicitly overridden, to reduce risk while investigating CMOS checksum/firmware-loop reports.
+- **[HIGH] Custom fan curve locks CPU to ~25 W** (`WmiFanController.cs`) — `FanMode.Manual` fell through to `default` branch in `MapPresetToFanMode`, which selected `HpWmiBios.FanMode.Cool` for quiet curves, imposing a ~25 W TDP cap. Now maps explicitly to `FanMode.Default`.
+- **[HIGH] Fan profile selector (Max/Extreme/Gaming/Auto/Silent/Custom) hidden** (`FanControlView.xaml`) — Profile cards and curve editor both at `Grid.Row="2"` in a 3-row grid. Added 4th row; curve editor moved to Row 3.
+- **[HIGH] Fan curve drag crashes at temperature boundary** (`FanCurveEditor.xaml.cs`) — Snap before clamp caused rounding to exceed neighbour constraint, throwing `ArgumentException`. Fix: clamp first, then snap. Also added stale-index guard.
+- **[HIGH] Print Screen / STAMP key does not open Snipping Tool** (`OmenKeyService.cs`) — Added explicit `VK_SNAPSHOT` (0x2C) guard in `TryGetNeverInterceptReason` so the hook never interferes with the key and any coincident WMI BIOS event is suppressed.
+- **[HIGH] Fn+F2/F3 brightness keys can still toggle OmenCore on some models (GitHub #74)** (`OmenKeyService.cs`, `HotkeyAndMonitoringTests.cs`) — `VK_LAUNCH_APP1`/`VK_LAUNCH_APP2` detection now uses a strict dedicated scan whitelist (`0xE045`) and explicitly rejects known brightness-conflict scans (`0xE046`, `0x0046`, `0x009D`), with regression tests for both reject and allow paths.
+- **[HIGH] Bloatware removal could appear as a silent no-op on Victus models (GitHub #107)** (`BloatwareManagerService.cs`, `BloatwareManagerViewModel.cs`, `BloatwareManagerView.xaml`, `BloatwareManagerServiceTests.cs`, `BloatwareManagerViewModelOutcomeTests.cs`) — Removal now reports explicit per-item `removed`/`skipped`/`failed` outcomes with detail text, AppX removal verifies pre/post presence across current/all/provisioned scopes, no-op targets are surfaced as skipped instead of silent success, bulk summaries separate skipped items from true removals, and the UI now shows a visible per-item result detail column.
+- **[HIGH] Ryzen AI 9 undervolt path now fails safe with explicit unsupported messaging (GitHub #103)** (`RyzenControl.cs`, `AmdUndervoltProvider.cs`, `SystemControlViewModel.cs`, `RyzenControlTests.cs`) — Added family/model guard (`Family 0x1A`, `Model 0x40+`) for Ryzen AI 9 Curve Optimizer path, returns explicit "not yet supported" status, disables apply controls through capability gating, and adds regression coverage for decimal/hex CPU signature parsing.
+- **[HIGH] Max fan mode sawtooth RPM pattern reduced on affected firmware (GitHub #37)** (`WmiFanController.cs`, `FanService.cs`, `WmiV2VerificationTests.cs`) — Replaced timer-tick `SetFanMax(true)` spam with max-mode keepalive + sustained-drop detection; max is now re-applied only after confirmed low telemetry, and WMI max apply path no longer sends a redundant immediate `SetFanSpeed(100)` pulse.
+- **[MEDIUM] Quick Status Bar overlaps telemetry banner on Dashboard** (`DashboardView.xaml`) — Both at `Grid.Row="1"`; status bar moved to unused Row 2.
+- **[MEDIUM] `RgbNetSystemProvider.InitializeAsync` blocks thread** (`RgbNetSystemProvider.cs`) — `Task.Delay(250).Wait()` replaced with `await Task.Delay(250)`; method now truly `async Task`.
+- **[HIGH] OMEN 16-xd0xxx RGB turns off after applying presets** (`KeyboardLightingServiceV2.cs`, `WmiBiosBackend.cs`) — Keyboard apply sequence reordered (brightness first, colors last) and WMI backlight is now explicitly enabled before color-table writes.
+- **[HIGH] Hybrid iGPU+dGPU GPU power display corrected** (`WmiBiosMonitor.cs`, `DashboardViewModel.cs`) — Improved dGPU inactive detection on Optimus systems and explicit `GPU: inactive (Optimus)` dashboard messaging instead of misleading wattage.
+- **[MEDIUM] Additional sync-over-async hardening** (`PerformanceModeService.cs`, `ThermalSensorProvider.cs`, `LibreHardwareMonitorImpl.cs`, `WmiBiosMonitor.cs`, `OmenGamingHubCleanupService.cs`, `RazerService.cs`) plus dispose deadlock hardening in `AudioReactiveRgbService.cs` and `ScreenColorSamplingService.cs` — Removed `ContinueWith`/`t.Result` patterns, replaced more bounded `.Result` reads, and centralized timeout-safe async bridging for Razer effect/session paths.
+- **[QUALITY] Release-gate hygiene compliance maintained** (`KeyboardLightingServiceV2.cs`, `OmenKeyService.cs`, `WmiBiosMonitor.cs`) — Replaced bare `catch { }` with explicit exception handling/logging so `NoBareCatchBraces` gate remains green.
+- **[CRITICAL/CI] Release-gate baseline test failing** (`ReleaseGateCodeHygieneTests.cs`) — 8 stale line numbers in `KnownBareCatchViolations` updated after v3.3.1 line shifts.
+- **[HIGH] Model support matrix gaps (HP #3) closed** (`ModelCapabilityDatabase.cs`, `KeyboardModelDatabase.cs`) — Added missing Product IDs `8A44`, `8A3E`, `8A26`, `8C58`, `8E41` with conservative `UserVerified=false` profiles and regression tests.
+- **[HIGH] OMEN MAX 16-ak0xxx model/keyboard fallback (GitHub #117)** (`ModelCapabilityDatabase.cs`, `KeyboardModelDatabase.cs`, `ModelCapabilityDatabaseTests.cs`, `KeyboardModelDatabaseTests.cs`) — Added Product ID `8D87` mappings so model capability and keyboard profile selection no longer fall back to generic defaults on this platform.
 
-### Improved
-- **Faster troubleshooting signal in logs**: periodic telemetry cadence increased (from ~30s to ~10s) so users and maintainers can validate load-path behavior and recovery decisions more quickly during live tests.
+### Documentation
+
+- **AV FAQ** (`docs/ANTIVIRUS_FAQ.md`) — Added Bitdefender `Gen:Application.Venus.Cynthia.Winring` section with exclusion steps and false-positive submission link.
+- **README** (`README.md`) — Antivirus note expanded with Bitdefender detection name.
+- **README** (`README.md`) — Synced stale `3.3.0` release references to `3.4.0` in architecture/build/docs sections, and clarified wording as "No outbound telemetry".
+- **Release QA** (`qa/v3.4.0-checklist.md`) — Added a focused v3.4.0 manual checklist for core thermal/fan, telemetry, model identity, packaging, and updater safety validation.
+
+- **[HIGH] Dangerous default undervolt config** (`default_config.json`) — `coreMv`/`cacheMv` reset from `-90`/`-60` to `0`; `HP Omen Background` bloatware toggle disabled by default with corrected description (HP #18).
+- **[HIGH] Fan RPM drops to 0 during preset/mode switch** (`FanService.cs`, `FanControlViewModel.cs`) — Added 5-second transition window; monitor holds last non-zero RPM during BIOS handoff. `Dispatcher.Invoke` on startup changed to `BeginInvoke` (HP #27).
+- **[HIGH] `async void` non-event-handler methods crash process** (`MainViewModel.cs`, `SystemOptimizerViewModel.cs`, `GameProfileManagerViewModel.cs`, `LightingViewModel.cs`) — 8 `async void` methods converted to `async Task` + fire-and-forget or `AsyncRelayCommand` (HP #10).
+- **[MEDIUM] Dialog windows render un-themed** (`InputPromptWindow.xaml`, `GameProfileManagerView.xaml`, `GameLibraryView.xaml`) — All hardcoded hex colors replaced with `StaticResource` app theme brushes (HP #13).
+- **[CI] Release-gate baseline** (`ReleaseGateCodeHygieneTests.cs`) — `FanService.cs:1816` baseline entry updated to `1846` after HP #27 line shift.
+- **[MEDIUM] CI/CD pipeline fixes** (`ci.yml`, `release.yml`, `linux-qa.yml`, `alpha.yml`) — Stale `v2.0-dev` branch removed; `wmi-v2-tests` and `integration-tests` jobs now build independently to fix `--no-build` on fresh runners; `release.yml` Linux step now uses `build-linux-package.ps1` (version injection, SHA256, `.zip`); `linux-qa.yml` `PublishTrimmed` corrected to `false`; all actions updated from v3 to v4 (HP #14).
+- **[MEDIUM] Windows build version injection** (`build-installer.ps1`, `installer/OmenCoreInstaller.iss`) — Added `-p:Version`, `-p:AssemblyVersion`, `-p:FileVersion` to the Windows app and hardware-worker publish steps; ISS fallback version updated to `3.4.0` (HP #15).
+- **[MEDIUM] Avalonia/Linux performance-mode consistency** (`IHardwareService.cs`, `SystemControlViewModel.cs`, `SystemControlView.axaml`) — Removed unsupported `Custom` mode, replaced fragile index-to-enum cast with explicit mapping, and kept Linux low-power (`low-power`/`cool`/`quiet`) translation under `Quiet` (HP #16).
+- **[MEDIUM] Avalonia Linux fan-curve contract alignment** (`FanControlViewModel.cs`, `FanControlView.axaml`) — Fan-curve controls are now capability-gated, unsupported classes show explicit warnings, and apply action is labeled as one-shot (`Apply Once`) with tooltip guidance to avoid implying continuous control behavior (Critical #2 Option B).
+- **[HIGH] Linux EC/sysfs concurrency protection** (`LinuxEcController.cs`, `LinuxHardwareService.cs`) — Added synchronization for EC byte I/O and serialized Avalonia polling/control sysfs access to prevent overlapping read/write operations during fan/performance changes (HP #17).
+- **[HIGH] Auto-update download concurrency + cache cleanup hardening** (`AutoUpdateService.cs`, `AutoUpdateServiceTests.cs`) — Added serialized download/check guards, replaced async timer lambda with safe callback wrapping, introduced `.partial` staging + atomic finalize, cleanup of stale files under `%TEMP%\OmenCore\Updates`, and regression tests for stale-file/prune-preserve behavior (HP #13).
+- **[MEDIUM] Release packaging cleanup** (`VERSION.txt`, `OmenCoreApp.csproj`, `OmenCore.HardwareWorker.csproj`, `OmenCore.Linux.csproj`, `OmenCore.Avalonia.csproj`, `build-installer.ps1`, `OmenCoreInstaller.iss`, `src/OmenCore.Desktop/README.md`, `OmenCore.Desktop.csproj`) — Active version sources bumped to `3.4.0`; `build-installer.ps1` is now explicitly Windows-only; the empty `installer/download-librehw.ps1` helper was removed; obsolete Inno Setup directives and per-user uninstall cleanup were removed to match the current runtime storage model; desktop prototype scope is now explicitly marked archived and excluded from release-version maintenance.
+
+→ Full details: [docs/CHANGELOG_v3.4.0.md](docs/CHANGELOG_v3.4.0.md)
+
+---
+
+## [3.3.1] - 2026-04-16 — Hotfix: Background-Thread Crash, RGB Backlight, Model Support
+
+> **Hotfix for v3.3.0.** This release fixes the root cause of crashes introduced in 3.3.0
+> that affected all locales. Users on 3.3.0 should update immediately.
+
+### Fixed
+
+- **[CRITICAL] App crashes on startup on all Windows locales (GH #109, #110 — Italian, Korean confirmed; likely all non-English)**
+  Root cause was in `HardwareMonitoringService.GetEffectiveCadenceInterval()`, newly introduced in 3.3.0.
+  The method accessed `Application.Current.MainWindow.IsVisible` and `window.WindowState` — both WPF
+  `DependencyObject` properties that may only be read from the thread that owns them (the UI thread).
+  `GetEffectiveCadenceInterval()` was called from the background monitor loop (`Task.Run`), which runs on a
+  thread-pool thread. Accessing these properties from the wrong thread throws
+  `InvalidOperationException: The calling thread cannot access this object because a different thread owns it.`
+  On English Windows the unobserved-task-exception filter in `App.xaml.cs` suppressed it via a message
+  substring match (`"different thread owns it"`). On localised Windows (Italian, Korean, German, …) the
+  WPF exception message is translated, so the English-only filter never fired and the crash dialog appeared.
+  **Fix (root cause removed):** `GetEffectiveCadenceInterval()` no longer accesses WPF objects. A new
+  `volatile bool _uiWindowActive` field is written exclusively from the UI thread via a new
+  `SetUiWindowActive(bool)` method, which is wired to `MainWindow.IsVisibleChanged` and
+  `MainWindow.StateChanged` events in `App.xaml.cs`. The background thread reads only the primitive field —
+  no WPF thread-affinity violation. The English string match (`ex.Message.Contains("different thread")`)
+  in `OnUnobservedTaskException` was **removed** (STEP-03). Two locale-safe checks remain as the safety net:
+  a stack-trace check (`System.Windows.Threading.Dispatcher`) and a declaring-type check
+  (`ex.TargetSite?.DeclaringType?.FullName?.StartsWith("System.Windows.")`), both locale-independent.
+
+- **Calibration Wizard failed to open — "Failed to open calibration wizard: LoggingService not available"**
+  `FanCalibrationControl` resolved `LoggingService` exclusively from the DI container and threw
+  `InvalidOperationException` if the container returned null (startup-order regression from 3.3.0).
+  The control now falls back to `App.Logging` (the always-present static singleton) when DI resolution fails.
+
+- **RGB scene applied from the Lighting tab permanently turned off keyboard backlight**
+  `RgbSceneService.ApplyToOmenKeyboardAsync` mapped `scene.Brightness` (0–100 scale) through a 0–3 level
+  switch before calling `KeyboardLightingService.SetBrightness()`, which already expects 0–100 and performs
+  its own WMI range mapping internally. The double conversion meant a 100% scene passed `SetBrightness(3)`,
+  i.e. 3%, which the WMI backend translated to raw byte 103 — just above the OFF threshold of 100. Colours
+  were written correctly but the backlight was effectively dark. The 0–3 mapping is removed; `scene.Brightness`
+  (0–100) is now passed directly to `SetBrightness()`.
+
+### Added — Model Support
+
+| Product ID | Model | Note |
+|---|---|---|
+| `8D24` | OMEN 16-ap0xxx (2025) AMD — Ryzen AI 9 365 + RTX 5060 | GH community report |
+| `8D2F` | OMEN 16-am0xxx (2024) AMD — OMEN Gaming Laptop 16-am0xxx | GH #111 |
+| `8C2F` | Victus 16-r0xxx (2024+) Ryzen AMD | GH #110 (capability DB entry, keyboard DB already present) |
+
+*Models 8D24 and 8D2F are added to both `ModelCapabilityDatabase` and `KeyboardModelDatabase`.
+Model 8C2F is added to `ModelCapabilityDatabase` only (keyboard entry was already present from GH #89).*
 
 ### Issue Context
-- **GitHub #104**: ongoing responsiveness investigation; telemetry/update-path hardening in this release improves data freshness and reduces stale-value persistence under load.
-- **GitHub #105**: model support intake acknowledged (Product ID 8A3E); no functional regression fix was required in this telemetry/safety patch set.
-- **GitHub #106**: fan-control risk response included via startup safety guardrails and restore-path hardening while additional fan-specific diagnostics continue.
 
+| Issue | Status |
+|---|---|
+| **GH #108** — Linux black screen | Insufficient reproduction info; tracking for follow-up in 3.3.2 |
+| **GH #109** — Crash on Italian Windows (Victus 15-fa2xxx) | Fixed by root-cause fix above |
+| **GH #110** — Victus 16-r0xxx not in model database | Fixed — 8C2F added to capability DB |
+| **GH #111** — OMEN 16-am0xxx (8D2F) not in model database | Fixed — 8D2F added to both DBs |
+
+### Release Artifacts
+
+| File | SHA256 |
+|------|--------|
+| `OmenCoreSetup-3.3.1.exe` | `48BF5F11B30523BE4A39FFE47462A04A1844869B40DC7747143A9143C3C636B1` |
+| `OmenCore-3.3.1-win-x64.zip` | `8558E8E84868CE7AA381CA0B781B4600BB80AA4D4231E653E744670AF81A6FF2` |
+| `OmenCore-3.3.1-linux-x64.zip` | `7211703D295CBA08494D6F14D4930C3B71DFC0453B3CB7438D857F5187128894` |
+
+---
 ## [3.3.0] - 2026-04-09 - Fan Curve Stability, Thermal Recovery, and UI Responsiveness
 
 ### Fixed

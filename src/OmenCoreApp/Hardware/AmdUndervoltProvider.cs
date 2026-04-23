@@ -11,6 +11,7 @@ namespace OmenCore.Hardware
     /// </summary>
     public class AmdUndervoltProvider : ICpuUndervoltProvider, IDisposable
     {
+        private const string RyzenAi9UnsupportedMessage = "CPU Curve Optimizer is not yet supported on Ryzen AI 9 processors.";
         private readonly object _stateLock = new();
         private readonly RyzenSmu _smu;
         private readonly RyzenCpuInfo _cpuInfo;
@@ -59,6 +60,11 @@ namespace OmenCore.Hardware
             token.ThrowIfCancellationRequested();
             lock (_stateLock)
             {
+                if (RyzenControl.IsRyzenAi9CurveOptimizerUnsupported())
+                {
+                    throw new InvalidOperationException(RyzenAi9UnsupportedMessage);
+                }
+
                 if (!_smu.IsAvailable)
                 {
                     throw new InvalidOperationException("Ryzen SMU is not available. Install PawnIO driver.");
@@ -143,6 +149,11 @@ namespace OmenCore.Hardware
                 if (!_smu.IsAvailable)
                 {
                     status.Warning = "Ryzen SMU not available. Install PawnIO driver for AMD CPU undervolting.";
+                    status.ControlledByOmenCore = false;
+                }
+                else if (RyzenControl.IsRyzenAi9CurveOptimizerUnsupported())
+                {
+                    status.Warning = RyzenAi9UnsupportedMessage;
                     status.ControlledByOmenCore = false;
                 }
                 else if (!_cpuInfo.SupportsUndervolt)

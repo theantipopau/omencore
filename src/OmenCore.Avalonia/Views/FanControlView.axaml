@@ -12,6 +12,14 @@
                 <TextBlock Classes="pageHeader" Text="Fan Control" />
                 <TextBlock Classes="label" Text="Custom fan curves, presets, and real-time monitoring" Margin="0,4,0,0" />
             </StackPanel>
+
+            <!-- Capability Warning -->
+            <Border Classes="warningBanner" IsVisible="{Binding ShowCapabilityWarning}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="⚠️" FontSize="14" />
+                    <TextBlock Text="{Binding CapabilityWarningMessage}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
             
             <!-- Real-time Status Cards -->
             <Grid ColumnDefinitions="*,*,*,*">
@@ -50,7 +58,7 @@
             </Grid>
             
             <!-- Preset Selection Card -->
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding CanEditFanCurve}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <TextBlock Text="💨" FontSize="20" VerticalAlignment="Center" />
@@ -76,7 +84,7 @@
             </Border>
             
             <!-- Custom Fan Curve Controls -->
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding CanEditFanCurve}">
                 <StackPanel>
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
@@ -89,7 +97,7 @@
                                           OffContent="Disabled" />
                         </StackPanel>
                     </Grid>
-                    <TextBlock Classes="caption" Text="Define custom temperature-to-fan-speed mappings" Margin="0,4,0,0" />
+                    <TextBlock Classes="caption" Text="Apply curve targets once using the current CPU/GPU temperatures" Margin="0,4,0,0" />
                     
                     <!-- Curve Options -->
                     <Border Background="#141414" CornerRadius="6" Padding="12" Margin="0,12,0,0">
@@ -110,7 +118,7 @@
             </Border>
             
             <!-- Fan Curve Editor Grid -->
-            <Grid ColumnDefinitions="*,*" IsVisible="{Binding IsCustomCurveEnabled}">
+            <Grid ColumnDefinitions="*,*" IsVisible="{Binding IsCurveEditorVisible}">
                 
                 <!-- CPU Fan Curve -->
                 <Border Classes="card" Grid.Column="0" Margin="0,0,8,0">
@@ -211,13 +219,15 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     <Button Classes="danger" Content="Emergency Stop" 
                             Command="{Binding EmergencyStopCommand}"
+                        IsVisible="{Binding CanEditFanCurve}"
                             ToolTip.Tip="Set fans to maximum speed immediately" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" IsVisible="{Binding CanEditFanCurve}">
                     <Button Classes="secondary" Content="Reset to Default" 
                             Command="{Binding ResetToDefaultCommand}" />
-                    <Button Classes="primary" Content="Apply Fan Curve" 
-                            Command="{Binding ApplyCurveCommand}" />
+                    <Button Classes="primary" Content="Apply Once" 
+                        Command="{Binding ApplyCurveCommand}"
+                        ToolTip.Tip="Sets fan speeds once from current temperatures. Speeds will not auto-track temperature changes." />
                 </StackPanel>
             </Grid>
             

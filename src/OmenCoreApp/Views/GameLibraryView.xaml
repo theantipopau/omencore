@@ -5,20 +5,20 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="900"
-             Background="#1a1a1a">
+             Background="{StaticResource SurfaceDarkBrush}">
     
     <UserControl.Resources>
         <!-- Game Card Style -->
         <Style x:Key="GameCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#252525"/>
-            <Setter Property="BorderBrush" Value="#3a3a3a"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="12"/>
             <Setter Property="Margin" Value="4"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2d2d2d"/>
+                    <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}"/>
                     <Setter Property="BorderBrush" Value="#C4002A"/>
                 </Trigger>
             </Style.Triggers>

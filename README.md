@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <img src="docs/screenshots/githublogo.png" alt="OmenCore Logo" width="520" />
 
@@ -10,24 +10,24 @@
 
 ---
 
-**OmenCore** is a **complete, independent replacement** for HP OMEN Gaming Hub. No dependencies. No OGH services. No bloatware, telemetry, or ads. Built on .NET 8, it delivers professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
+**OmenCore** is a **complete, independent replacement** for HP OMEN Gaming Hub. No dependencies. No OGH services. No bloatware, outbound telemetry, or ads. Built on .NET 8, it delivers professional-grade hardware control using native WMI BIOS commands that work directly with your laptop's firmware.
 
-### ✨ Why OmenCore?
+### Why OmenCore?
 
 | Feature | Status |
 |---------|--------|
 | **100% OGH-Independent** | ✅ Works without OMEN Gaming Hub installed |
 | **Zero Bloatware** | ✅ Self-contained artifacts, no runtime installs |
-| **No Telemetry** | ✅ Your data stays on your machine |
+| **No Outbound Telemetry** | ✅ Diagnostics and config stay on your machine |
 | **Ad-Free** | ✅ Clean, focused interface |
 | **Offline Operation** | ✅ No sign-in required, fully local control |
 | **Cross-Platform** | ✅ Windows WPF + Linux CLI & Avalonia GUI |
 
 ---
 
-### 🎯 Quick Links
+### ⚡ Quick Links
 
-[![Version](https://img.shields.io/badge/version-3.3.0-red.svg?style=for-the-badge)](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
+[![Version](https://img.shields.io/badge/version-3.4.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v3.4.0.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -43,19 +43,20 @@
 
 ### Windows
 
-1. Download `OmenCoreSetup-3.3.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.0)
-2. Run as Administrator
-3. Launch OmenCore from the Start Menu
+1. Open the [Releases](https://github.com/theantipopau/omencore/releases) page
+2. Download the latest `OmenCoreSetup-<version>.exe` or `OmenCore-<version>-win-x64.zip`
+3. Run OmenCore as Administrator
 
-→ **[Full Installation Guide](INSTALL.md#-windows-installation)**
+See the [Full Installation Guide](INSTALL.md#-windows-installation).
 
 ### Linux (CachyOS • Arch • Ubuntu • Fedora)
 
 ```bash
-# Download & Extract
-wget https://github.com/theantipopau/omencore/releases/download/v3.3.0/OmenCore-3.3.0-linux-x64.zip
+# Replace VERSION with the published release you want to install.
+VERSION=<release-version>
+wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.3.0-linux-x64.zip -d OmenCore-linux-x64
+unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -66,7 +67,7 @@ sudo ./omencore-cli status
 sudo ./omencore-gui
 ```
 
-→ **[Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md)** | **[Quick Reference](INSTALL.md#-linux-installation)**
+See the [Complete Linux Guide](docs/LINUX_INSTALL_GUIDE.md) or the [Quick Reference](INSTALL.md#-linux-installation).
 
 ### Linux issue reporting (one-command triage bundle)
 
@@ -82,64 +83,59 @@ This generates a timestamped folder with:
 
 Attach those files to your GitHub issue for faster triage.
 
-## 🔥 **What's New in v3.3.0**
+## 🔥 **What's New in v3.4.0**
 
-v3.3.0 is the largest stability-and-polish release since v3.1.0 — 80 items shipped across fan-curve stability, sleep recovery, monitoring reliability, Bloatware Manager usability, OSD, RGB subsystem hardening, AMD power tuning, Lite Mode, and dozens of community-reported fixes.
+v3.4.0 is a targeted correctness and stability release — 30+ items shipped across fan-curve correctness, async reliability, UI theming, dangerous-defaults prevention, and model compatibility expansion.
 
-### Critical Fixes
+### Critical / High Fixes
 
-- **Fan curve no longer self-destructs** — Root-cause fixed: presets became permanently broken after first apply when OGH was running or fans were already at-target speed (Ryua report)
-- **Restore Defaults no longer freezes OmenCore** — Eliminated a UI-thread deadlock in `KeyboardLightingService.RestoreDefaults()` on V2 keyboards (GitHub #100 Bug #1)
-- **Fan preset switching no longer stalls the UI** — All `ApplyPreset()` calls moved off the WPF UI thread via `Task.Run`
-- **Hardware monitoring halt / watchdog failsafe fans fixed** — Cross-thread dispatcher exception in `LightingViewModel` starved the monitoring heartbeat, triggering fail-safe 100% fans. Fixed with dispatcher marshal + subscriber isolation + extended CPU fallback read timeout
-- **Bloatware Manager Remove/Restore buttons now functional** — `SelectedApp` setter was raising `PropertyChanged` instead of `CanExecuteChanged`; buttons were permanently disabled after scan
+- **Custom fan curve no longer locks CPU to ~25 W** — ``MapPresetToFanMode()`` fell through to a branch that applied the HP "Cool" thermal policy to all manual presets. Explicit ``FanMode.Manual`` case now returns ``HpWmiBios.FanMode.Default`` (Discord, April 2026)
+- **Fan RPM no longer drops to 0 during preset switch** — 5-second transition window holds last known RPM while BIOS handoff completes; UI shows "(transitioning)" status
+- **Fan profile selector visible again** — Profile cards were hidden behind the curve editor (shared ``Grid.Row="2"``); moved curve editor to new ``Grid.Row="3"``
+- **Fan curve drag no longer crashes at temperature boundary** — Snap-then-clamp ordering reversed to clamp-first-then-snap; stale-index guard prevents post-mouseup crash
+- **Print Screen / Snipping Tool works correctly** — Explicit ``VK_SNAPSHOT`` guard in ``OmenKeyService`` ensures OmenCore never interferes with Windows 11 Snipping Tool activation
+- **Dashboard GPU power no longer shows misleading values on Optimus** — Stronger discrete-activity signal required; zeroes stale metrics when dGPU is parked. Shows ``GPU: inactive (Optimus)`` explicitly
 
-### Thermal Fixes
+### Reliability / Async
 
-- **CPU temperature stays current after sleep** — Hardware worker and fallback monitor properly restarted on resume; no more frozen 44°C post-wakeup (GitHub #102)
-- **V1 BIOS fans now reach 0 RPM at idle** — Residual duty-floor from the Performance→Default kick cleared so BIOS EC can regulate freely (GitHub #100 Bug #4)
-- **V1 BIOS fans no longer stick at 100%** after exiting Performance preset (GitHub #102)
+- **Process-crashing async void eliminated** — 8 non-event-handler ``async void`` methods across 4 ViewModels converted to ``async Task`` + fire-and-forget or ``AsyncRelayCommand``
+- **Startup no longer blocked by Dispatcher.Invoke** — ``FanService.Start()`` initial telemetry population changed from blocking ``Dispatcher.Invoke`` to ``BeginInvoke``
+- **RgbNetSystemProvider no longer blocks thread** — ``Task.Delay(250).Wait()`` changed to ``await Task.Delay(250)``; sync-over-async deadlock risk eliminated
+- **Razer/Logitech/Corsair session paths hardened** — Repeated ``.Wait()`` / ``.Result`` wrappers replaced with timeout helpers across the RGB provider stack
 
-### UI and UX
+### UI and Defaults
 
-- **OSD DPI fix** — All six anchor positions land correctly at 125%, 150%, and 175% DPI scaling
-- **Quick Access reordered** — Quiet → Auto → Curve → Max; “Curve” applies saved fan preset with active-curve tooltip
-- **Fan/performance decoupling badges** — Visible `Fan independent` / `Fan linked` state in Fan Control, System Control, and Quick Access
-- **AMD CPU power tuning** — STAPM/Tctl controls promoted to first-class tuning surface with PawnIO/admin capability gating
-- **Lite Mode** — Persisted beginner-UI toggle hides advanced tabs; settings-search indexed
-- **All disabled buttons now show tooltips** — `ToolTipService.ShowOnDisabled` applied globally on `ModernButton` and `PresetButton` base styles; no more invisible why-is-this-grey mystery
-- **OGH unsupported-command log noise eliminated** — WARN permanently silenced to Debug after 5 occurrences; logs are no longer flooded on OGH-adjacent hardware
-- **Startup hardware restore safety guardrails** — `EnableStartupHardwareRestore` disabled by default; blocked on OMEN 16 and Victus models where CMOS state loss has been observed
-- **MSI Afterburner coexistence fix** — Stale GPU load/clock cache no longer reused across monitoring intervals; GPU engine counter summing corrected so Afterburner's shared counter doesn't push readings above 100%
+- **Dangerous default undervolt config prevented** — ``default_config.json`` had ``coreMv: -90``, ``cacheMv: -60`` as starting values; both reset to ``0``
+- **HP OMEN Background bloatware toggle off by default** — Was enabled with misleading "OEM telemetry" description; corrected to disabled and accurate label
+- **All dialog windows now match app dark theme** — InputPromptWindow, GameProfileManagerView, and GameLibraryView replaced hardcoded light-theme colours with app ``StaticResource`` brushes
 
-### Platform and Subsystems
+### Model Support
 
-- **Audio-reactive RGB** — Real WASAPI loopback capture; Audio Reactive scene registered across all active providers
-- **Per-key keyboard lighting** — Interactive 84-cell OMEN Max grid editor wired to V2 HID backend
-- **Full RGB provider hardening** — Razer back-off reconnect, Logitech health-check, Corsair mode-synced gradients, two-phase commit sync (#13–#18)
-- **Unified monitoring pipeline + timer governance** — 1 s active / 5 s idle cadence, Critical/VisibleOnly/Optional tier registry, coalesced dispatcher fan-out (#25–#31)
+- Added ``8A44`` (OMEN 16-n0xxx), ``8A3E`` (Victus 15-fb0xxx), ``8A26`` (Victus 16-d1xxx), ``8C58``/``8E41`` (OMEN Transcend 14) to model capability and keyboard databases — 12 regression tests added
 
-→ **[Full Changelog](docs/CHANGELOG_v3.3.0.md)**
+→ **[Full Changelog](docs/CHANGELOG_v3.4.0.md)**
 
 ---
 
 ## 📦 **Downloads & Artifacts**
 
-**Version:** v3.3.0 | **Status:** Released
+**Version:** v3.4.0 | **Status:** In development
+
+These are the planned artifact names for v3.4.0 once the release is published:
 
 | Download | Platform | Details |
 |----------|----------|----------|
-| **OmenCoreSetup-3.3.0.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
-| **OmenCore-3.3.0-win-x64.zip** | Windows | Portable — Extract and run, no installation |
-| **OmenCore-3.3.0-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
+| **OmenCoreSetup-3.4.0.exe** | Windows | Installer (Recommended) — Includes .NET 8 runtime |
+| **OmenCore-3.4.0-win-x64.zip** | Windows | Portable — Extract and run, no installation |
+| **OmenCore-3.4.0-linux-x64.zip** | Linux | CLI + Avalonia GUI, self-contained runtime |
 
 ### SHA256
 
 ```text
-(SHA256 hashes are published on the [v3.3.0 GitHub Release page](https://github.com/theantipopau/omencore/releases/tag/v3.3.0))
+(SHA256 hashes will be published on the [GitHub Releases page](https://github.com/theantipopau/omencore/releases) when v3.4.0 is published.)
 ```
 
-> Security: release hashes are documented in [CHANGELOG_v3.3.0.md](docs/CHANGELOG_v3.3.0.md) and the [v3.3.0 release page](https://github.com/theantipopau/omencore/releases/tag/v3.3.0).
+> Security: release hashes are documented in [CHANGELOG_v3.4.0.md](docs/CHANGELOG_v3.4.0.md) and on the [GitHub Releases page](https://github.com/theantipopau/omencore/releases) once the release is published.
 
 ---
 
@@ -200,7 +196,7 @@ v3.3.0 is the largest stability-and-polish release since v3.1.0 — 80 items shi
 
 ---
 
-## 🎯 HP Gaming Hub Feature Parity
+## 🎮 HP Gaming Hub Feature Parity
 
 OmenCore is designed to **completely replace** OMEN Gaming Hub.
 
@@ -214,15 +210,15 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub.
 | Hardware Monitoring | ✅ Full | LibreHardwareMonitor integration |
 | Gaming Mode | ✅ Full | Service/animation optimization |
 | Battery Care | ✅ Full | Adjustable 60–100% charge limit |
-| Peripheral Control | ⚠️ Beta | Corsair/Logitech/Razer hardware detection ready |
+| Peripheral Control | 🟡 Beta | Corsair/Logitech/Razer hardware detection ready |
 | Hub Cleanup | ✅ Exclusive | Safe OGH removal tool |
 | Per-Game Profiles | ✅ Full | Auto-switch on process detection |
 | In-Game Overlay | ✅ Full | Click-through OSD |
-| Network Booster | ❌ Out of scope | Use router/Windows QoS |
-| Game Library | ❌ Out of scope | Use Steam/Epic/Xbox app |
-| Omen Oasis | ❌ Out of scope | Cloud gaming out of scope |
+| Network Booster | ✅ Out of scope | Use router/Windows QoS |
+| Game Library | ✅ Out of scope | Use Steam/Epic/Xbox app |
+| Omen Oasis | ✅ Out of scope | Cloud gaming out of scope |
 
-**OmenCore covers 100% of essential Gaming Hub features** — with better performance, no telemetry, no ads, and full offline operation.
+**OmenCore covers 100% of essential Gaming Hub features** — with better performance, no outbound telemetry, no ads, and full offline operation.
 
 ---
 
@@ -240,10 +236,10 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub.
 
 - **CPU:** Intel 6th-gen+ for undervolting/TCC offset; AMD Ryzen supported for monitoring and fan control
 - **Laptop:** HP OMEN 15/16/17 series and HP Victus (2019–2025 models)
-  - ✅ Tested: OMEN 15-dh, 16-b, 16-k, 17-ck (2023/2024), Victus 15/16
-  - ✅ OMEN Max 16 (2025): per-key RGB, RTX 50-series, full support
-  - ✅ OMEN Transcend 14/16: WMI BIOS support
-  - ✅ 2023+ models: full WMI BIOS support, no OGH needed
+  - ? Tested: OMEN 15-dh, 16-b, 16-k, 17-ck (2023/2024), Victus 15/16
+  - ? OMEN Max 16 (2025): per-key RGB, RTX 50-series, full support
+  - ? OMEN Transcend 14/16: WMI BIOS support
+  - ? 2023+ models: full WMI BIOS support, no OGH needed
 - **Desktop:** HP OMEN 25L/30L/40L/45L (limited support; monitoring, profiles, and OGH cleanup functional)
 
 ### Fan Control Driver Priority
@@ -258,7 +254,7 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub.
 - **PawnIO** — recommended for advanced EC/MSR access (Secure Boot compatible)
 - **WinRing0 v1.2** — legacy kernel driver
 
-> **Antivirus note:** WinRing0 is flagged as `HackTool:Win64/WinRing0` by Windows Defender — this is a known false positive for hardware drivers. See [ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) and [DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md) for exclusion instructions.
+> **Antivirus note:** Some AV products flag OmenCore's kernel driver as suspicious — this is a known false positive for hardware utilities that use low-level driver access. Known detections: `HackTool:Win64/WinRing0` (Windows Defender), `Gen:Application.Venus.Cynthia.Winring` (Bitdefender). See [ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) for per-vendor exclusion steps and [DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md) for Windows Defender specifics.
 
 **Compatibility:**
 - HP Spectre: fan control and monitoring work; CPU/GPU power limits unavailable (different EC layout)
@@ -275,15 +271,15 @@ OmenCore is designed to **completely replace** OMEN Gaming Hub.
 
 ```
 OmenCore/
-├── src/OmenCoreApp/              # Windows WPF app (ViewModels, Views, Services, Controls)
-├── src/OmenCore.HardwareWorker/  # Out-of-process hardware worker — crash isolation
-├── src/OmenCore.Avalonia/        # Avalonia cross-platform UI (ViewModels, Services)
-├── src/OmenCore.Desktop/         # Avalonia desktop shell + settings persistence
-├── src/OmenCore.Linux/           # Linux hardware: hp-wmi, ec_sys, sysfs RGB probing
-├── installer/                    # Inno Setup script
-├── config/                       # default_config.json
-├── docs/                         # Changelogs, audit reports, guides
-└── VERSION.txt                   # Current: 3.3.0
++-- src/OmenCoreApp/              # Windows WPF app (ViewModels, Views, Services, Controls)
++-- src/OmenCore.HardwareWorker/  # Out-of-process hardware worker — crash isolation
++-- src/OmenCore.Avalonia/        # Avalonia cross-platform UI (ViewModels, Services)
++-- src/OmenCore.Desktop/         # Archived prototype (not part of OmenCore.sln shipping builds)
++-- src/OmenCore.Linux/           # Linux hardware: hp-wmi, ec_sys, sysfs RGB probing
++-- installer/                    # Inno Setup script
++-- config/                       # default_config.json
++-- docs/                         # Changelogs, audit reports, guides
++-- VERSION.txt                   # Current: 3.4.0
 ```
 
 **Principles:** Safety-first EC write allowlist · Async by default · Telemetry change-detection (0.5°/0.5%) · Graceful per-service degradation · Out-of-process crash isolation
@@ -316,7 +312,7 @@ cd src\OmenCoreApp\bin\Release\net8.0-windows10.0.19041.0
 ```powershell
 pwsh ./build-installer.ps1
 # Optional: -Configuration Release -Runtime win-x64 (these are the defaults)
-# Outputs: artifacts/OmenCoreSetup-3.3.0.exe and artifacts/OmenCore-3.3.0-win-x64.zip
+# Outputs: artifacts/OmenCoreSetup-3.4.0.exe and artifacts/OmenCore-3.4.0-win-x64.zip
 ```
 
 ### Tests
@@ -343,12 +339,12 @@ dotnet test OmenCore.sln --collect:"XPlat Code Coverage"
 
 ---
 
-## 🐛 Troubleshooting
+## 🔧 Troubleshooting
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
 | Fan control has no effect | WMI not supported on this model | Try PawnIO/ec_sys mode; check logs |
-| Access denied errors | Not running as Administrator | Right-click → Run as administrator |
+| Access denied errors | Not running as Administrator | Right-click ? Run as administrator |
 | WinRing0 not detected | Driver blocked by Secure Boot | Switch to PawnIO (Secure Boot compatible) |
 | Undervolting not working | MSR locked in BIOS | Check BIOS overclocking settings; verify with Intel XTU |
 | Auto-update fails | SHA256 missing from release notes | Download manually from the Releases page |
@@ -362,10 +358,11 @@ Detailed logs are in `%LOCALAPPDATA%\OmenCore\`. On Linux, use `sudo omencore-cl
 
 ---
 
-## 📖 Version History
+## 📜 Version History
 
 | Version | Key Changes |
 |---------|------------|
+| **v3.4.0** | Correctness and reliability sweep: fan/power fixes, update safety hardening, CI/package alignment, model/support matrix expansion |
 | **v3.3.0** | Fan curve stability, sleep recovery, OSD DPI/visual, RGB hardening, AMD power tuning, Lite Mode (74 items) |
 | **v3.2.5** | Worker reconnect fix, fan/performance decoupling, 8BB1 model support, Quick Access improvements |
 | **v3.2.1** | 23-fix hotfix rollup: telemetry hardening, OSD/premium UI polish, portable log hygiene, CPU temp oscillation guard |
@@ -388,7 +385,7 @@ Older release notes: [docs/](docs/)
 - [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) — Antivirus false positive handling
 - [docs/DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md) — Windows Defender exclusion steps
 - [docs/WINRING0_SETUP.md](docs/WINRING0_SETUP.md) — WinRing0 driver setup
-- [docs/CHANGELOG_v3.3.0.md](docs/CHANGELOG_v3.3.0.md) — Current release notes
+- [docs/CHANGELOG_v3.4.0.md](docs/CHANGELOG_v3.4.0.md) — Current release notes
 
 ---
 

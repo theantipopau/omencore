@@ -12,22 +12,22 @@ using OmenCore.Services;
 namespace OmenCore.Hardware
 {
     /// <summary>
-    /// Self-sustaining WMI BIOS + NVAPI hardware monitor — NO LHM/WinRing0 dependency.
-    /// 
+    /// Self-sustaining WMI BIOS + NVAPI hardware monitor - NO LHM/WinRing0 dependency.
+    ///
     /// This is OmenCore's PRIMARY monitoring bridge. It reads all sensor data using
-    /// native Windows APIs and NVIDIA's NVAPI — no external kernel drivers required.
-    /// 
+    /// native Windows APIs and NVIDIA's NVAPI - no external kernel drivers required.
+    ///
     /// Data Sources:
-    /// - CPU/GPU Temperature: HP WMI BIOS (command 0x23) — same as OmenMon
-    /// - Fan RPM: HP WMI BIOS (command 0x38) — hardware-accurate
+    /// - CPU/GPU Temperature: HP WMI BIOS (command 0x23) - same as OmenMon
+    /// - Fan RPM: HP WMI BIOS (command 0x38) - hardware-accurate
     /// - CPU Load: Windows PerformanceCounter
     /// - GPU Load/Temp/Clocks/VRAM/Power: NVAPI (via NvAPIWrapper)
     /// - CPU Throttling: PawnIO MSR 0x19C (if available)
     /// - RAM: WMI Win32_OperatingSystem / Win32_ComputerSystem
     /// - Battery: WMI Win32_Battery + SystemInformation.PowerStatus
     /// - SSD Temperature: WMI MSStorageDriver (if available)
-    /// 
-    /// PawnIO is used ONLY for MSR-based throttling detection — NOT for core monitoring.
+    ///
+    /// PawnIO is used ONLY for MSR-based throttling detection - NOT for core monitoring.
     /// </summary>
     public class WmiBiosMonitor : IHardwareMonitorBridge, IDisposable
     {
@@ -39,7 +39,7 @@ namespace OmenCore.Hardware
         private readonly bool _preferWorkerCpuTempForModel;
         private readonly bool _workerBackedCpuTempOverrideEnabled;
         private bool _disposed;
-        
+
         // Cached values for performance
         private double _cachedCpuTemp;
         private double _cachedGpuTemp;
@@ -48,7 +48,7 @@ namespace OmenCore.Hardware
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(500);
         private readonly SemaphoreSlim _updateGate = new(1, 1);
-        
+
         // CPU/GPU load
         private double _cachedCpuLoad;
         private double _cachedGpuLoad;
@@ -63,6 +63,9 @@ namespace OmenCore.Hardware
         // CPU temperature freeze detection (AMD WMI BIOS sensor sometimes stops updating)
         private double _lastCpuTempReading;
         private int _consecutiveIdenticalCpuTempReads;
+        // ACPI thermal zone freeze detection (for non-HP devices where WMI BIOS is unavailable)
+        private double _lastAcpiCpuTempReading;
+        private int _consecutiveIdenticalAcpiTempReads;
         private double _lastValidCpuTempBeforeFreeze;
         private const int MaxConsecutiveIdenticalTempReads = 20;
         private const int IdleConsecutiveIdenticalTempReads = 40;
@@ -326,7 +329,7 @@ namespace OmenCore.Hardware
             // to the newly-started worker on the next poll cycle.
             if (_tempFallbackMonitor != null)
             {
-                try { _tempFallbackMonitor.Dispose(); } catch { }
+                try { _tempFallbackMonitor.Dispose(); } catch { } // Intentional: dispose-path cleanup; swallowing prevents masking the outer exception
                 _tempFallbackMonitor = null;
                 _tempFallbackInitAttempted = false;
                 _modelCpuTempPreferenceLogged = false;
@@ -672,6 +675,39 @@ namespace OmenCore.Hardware
                             else
                             {
                                 _cachedCpuTemp = acpiTemp;
+
+                                // Freeze detection for ACPI-sourced temps (fires when WMI BIOS is
+                                // unavailable, e.g. non-HP devices with only ACPI thermal zones).
+                                var acpiFreezeThreshold = (_cachedCpuLoad < 20 && _cachedCpuPowerWatts <= 15)
+                                    ? IdleConsecutiveIdenticalTempReads
+                                    : MaxConsecutiveIdenticalTempReads;
+
+                                if (Math.Abs(acpiTemp - _lastAcpiCpuTempReading) < 0.1)
+                                {
+                                    _consecutiveIdenticalAcpiTempReads++;
+                                    if (_consecutiveIdenticalAcpiTempReads > acpiFreezeThreshold && !_cpuTempFrozen)
+                                    {
+                                        var nowUtc = DateTime.UtcNow;
+                                        if ((nowUtc - _lastCpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
+                                        {
+                                            _cpuTempFrozen = true;
+                                            _cpuTempFrozeAt = nowUtc;
+                                            _lastCpuFreezeWarnAt = nowUtc;
+                                            _logging?.Warn($"🥶 CPU temperature appears frozen at {acpiTemp:F1}°C for {_consecutiveIdenticalAcpiTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    _consecutiveIdenticalAcpiTempReads = 0;
+                                    if (_cpuTempFrozen)
+                                    {
+                                        TimeSpan frozenDuration = DateTime.UtcNow - _cpuTempFrozeAt;
+                                        _logging?.Info($"✓ CPU temperature sensor recovered after {frozenDuration.TotalSeconds:F0}s freeze");
+                                        _cpuTempFrozen = false;
+                                    }
+                                }
+                                _lastAcpiCpuTempReading = acpiTemp;
                             }
                         }
                     }
@@ -914,7 +950,7 @@ namespace OmenCore.Hardware
                     return;
                 }
 
-                double fallbackCpuTemp = fallbackTask.Result;
+                double fallbackCpuTemp = fallbackTask.GetAwaiter().GetResult();
                 if (fallbackCpuTemp > 0 && fallbackCpuTemp < 110)
                 {
                     _cpuFallbackTimeoutLogged = false;
@@ -1281,14 +1317,28 @@ namespace OmenCore.Hardware
 
         private void SanitizeGpuTelemetry()
         {
-            bool hasLiveGpuTelemetry = _cachedGpuTemp > 0 || _cachedGpuClockMhz >= 300.0 || _cachedGpuPowerWatts >= 3.0;
-            bool inactiveNow = !hasLiveGpuTelemetry && _cachedGpuLoad < 1.0;
+            // Hybrid iGPU+dGPU systems can surface a small non-zero GPU power value even when
+            // the discrete GPU is effectively inactive (Optimus power-saving path). Treat dGPU
+            // as active only when we see stronger discrete-activity signals.
+            bool hasDiscreteGpuActivity = _cachedGpuTemp > 0 ||
+                                          _cachedGpuClockMhz >= 300.0 ||
+                                          _cachedGpuMemClockMhz >= 500.0 ||
+                                          _cachedGpuLoad >= 3.0 ||
+                                          _cachedGpuVramUsedMb >= 128.0 ||
+                                          _cachedGpuPowerWatts >= 15.0;
+
+            bool inactiveNow = !hasDiscreteGpuActivity;
             _consecutiveGpuInactiveReads = inactiveNow ? _consecutiveGpuInactiveReads + 1 : 0;
             _gpuInactive = _consecutiveGpuInactiveReads >= 3;
 
             if (_gpuInactive)
             {
                 _cachedGpuTemp = 0;
+                _cachedGpuLoad = 0;
+                _cachedGpuPowerWatts = 0;
+                _cachedGpuClockMhz = 0;
+                _cachedGpuMemClockMhz = 0;
+                _cachedGpuVramUsedMb = 0;
                 return;
             }
 
@@ -1439,8 +1489,9 @@ namespace OmenCore.Hardware
                         orphanTimeoutMinutes = cfg.HardwareWorkerOrphanTimeoutMinutes;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logging?.Debug($"[WmiBiosMonitor] Using default worker orphan timeout settings due to config read failure: {ex.Message}");
                 }
 
                 var startInfo = new ProcessStartInfo
@@ -1482,8 +1533,9 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[WmiBiosMonitor] ResolveWorkerExecutablePath failed: {ex.Message}");
             }
 
             return null;
@@ -1530,8 +1582,9 @@ namespace OmenCore.Hardware
 
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[WmiBiosMonitor] IsLikelyPortableRuntime fallback due to exception: {ex.Message}");
                 return true;
             }
         }
@@ -1579,7 +1632,10 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // WMI query failed — return safe default; static method has no access to instance logger
+            }
             return 16; // Default assumption
         }
         
@@ -1599,7 +1655,10 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // WMI query failed — return safe default; static method has no access to instance logger
+            }
             return 8; // Default assumption
         }
         
@@ -1675,7 +1734,10 @@ namespace OmenCore.Hardware
                 var powerStatus = System.Windows.Forms.SystemInformation.PowerStatus;
                 return powerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] {nameof(IsOnAcPower)} SystemInformation query failed: {ex.Message}");
+            }
             
             try
             {
@@ -1690,7 +1752,10 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] {nameof(IsOnAcPower)} Win32_Battery query failed: {ex.Message}");
+            }
             return true; // Assume AC if we can't determine
         }
         
@@ -1751,7 +1816,10 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"[WmiBiosMonitor] {nameof(GetBatteryDischargeRate)} failed: {ex.Message}");
+            }
             return 0;
         }
         
@@ -1836,7 +1904,10 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // WMI query failed — return safe default; static method has no access to instance logger
+            }
             return 0;
         }
         

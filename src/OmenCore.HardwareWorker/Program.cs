@@ -494,11 +494,11 @@ class Program
                 var dataSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Data).ToList();
                 
                 Console.WriteLine($"[Memory Detected] {hw.Name}");
-                Console.WriteLine($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}MB"))}]");
+                Console.WriteLine($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}GB"))}]");
                 
                 // Also log to file
                 LogToFile($"[{DateTime.Now:O}] [Memory Detected] {hw.Name}\n");
-                LogToFile($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}MB"))}]\n");
+                LogToFile($"  Data sensors ({dataSensors.Count}): [{string.Join(", ", dataSensors.Select(s => $"{s.Name}={s.Value:F0}GB"))}]\n");
             }
         }
     }

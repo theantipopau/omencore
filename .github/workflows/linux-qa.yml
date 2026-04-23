@@ -28,27 +28,31 @@ jobs:
     
     - name: Build Linux CLI (self-contained x64)
       run: |
+        PUBLISH_DIR="$GITHUB_WORKSPACE/artifacts/linux-qa"
+        mkdir -p "$PUBLISH_DIR"
+        echo "PUBLISH_DIR=$PUBLISH_DIR" >> "$GITHUB_ENV"
         dotnet publish src/OmenCore.Linux/OmenCore.Linux.csproj \
           -c Release -r linux-x64 \
           --self-contained \
           -p:DebugType=none \
           -p:DebugSymbols=false \
-          -p:PublishTrimmed=true
+          -p:PublishTrimmed=false \
+          -o "$PUBLISH_DIR"
     
     - name: Verify Linux CLI executable
       run: |
-        chmod +x src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli
-        ls -lh src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli
-        file src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli
+        chmod +x "$PUBLISH_DIR/omencore-cli"
+        ls -lh "$PUBLISH_DIR/omencore-cli"
+        file "$PUBLISH_DIR/omencore-cli"
     
     - name: Run CLI Help & Version Tests
       run: |
-        ./src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli --help
-        ./src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli --version || true
+        "$PUBLISH_DIR/omencore-cli" --help
+        "$PUBLISH_DIR/omencore-cli" --version || true
     
     - name: Run Smoke Tests (Basic Functionality)
       run: |
-        CLI_PATH="./src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli"
+        CLI_PATH="$PUBLISH_DIR/omencore-cli"
         
         echo "=== Testing CLI Basic Commands ==="
         
@@ -73,7 +77,7 @@ jobs:
     
     - name: Test Error Messages & Kernel Detection
       run: |
-        CLI_PATH="./src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli"
+        CLI_PATH="$PUBLISH_DIR/omencore-cli"
         
         echo "=== Testing Error Messages ==="
         
@@ -93,7 +97,7 @@ jobs:
     
     - name: Test Configuration & Persistence
       run: |
-        CLI_PATH="./src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli"
+        CLI_PATH="$PUBLISH_DIR/omencore-cli"
         
         echo "=== Testing Configuration Handling ==="
         
@@ -115,7 +119,7 @@ jobs:
     
     - name: Generate SHA256 Checksums
       run: |
-        cd src/OmenCore.Linux/bin/Release/net8.0/linux-x64
+        cd "$PUBLISH_DIR"
         sha256sum omencore-cli > checksums.sha256
         echo "=== Generated Checksums ==="
         cat checksums.sha256
@@ -127,10 +131,10 @@ jobs:
         mkdir -p "dist/${ARTIFACT_DIR}"
         
         # Copy files
-        cp src/OmenCore.Linux/bin/Release/net8.0/linux-x64/omencore-cli "dist/${ARTIFACT_DIR}/"
+        cp "$PUBLISH_DIR/omencore-cli" "dist/${ARTIFACT_DIR}/"
         cp LICENSE "dist/${ARTIFACT_DIR}/"
         cp README.md "dist/${ARTIFACT_DIR}/"
-        cp src/OmenCore.Linux/bin/Release/net8.0/linux-x64/checksums.sha256 "dist/${ARTIFACT_DIR}/"
+        cp "$PUBLISH_DIR/checksums.sha256" "dist/${ARTIFACT_DIR}/"
         
         # Create tarball with checksums
         cd dist

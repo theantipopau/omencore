@@ -117,5 +117,57 @@ namespace OmenCore.Models
         /// Used to hide SSD widget when LibreHardwareMonitor can't read SMART data.
         /// </summary>
         public bool IsSsdDataAvailable => SsdTemperatureC > 0;
+
+        /// <summary>
+        /// Parameterless constructor. Preserved explicitly because adding the copy constructor
+        /// below suppresses the compiler-generated default.
+        /// </summary>
+        public MonitoringSample() { }
+
+        /// <summary>
+        /// Copy constructor. Creates an independent clone of <paramref name="source"/>.
+        /// Required by NormalizeMonitoringSample (STEP-08) so normalization returns a new
+        /// object rather than mutating the sample in place.
+        /// </summary>
+        public MonitoringSample(MonitoringSample source)
+        {
+            Timestamp                 = source.Timestamp;
+            CpuTemperatureC           = source.CpuTemperatureC;
+            CpuLoadPercent            = source.CpuLoadPercent;
+            CpuPowerWatts             = source.CpuPowerWatts;
+            CpuCoreClocksMhz          = new List<double>(source.CpuCoreClocksMhz);
+            GpuTemperatureC           = source.GpuTemperatureC;
+            GpuLoadPercent            = source.GpuLoadPercent;
+            GpuVramUsageMb            = source.GpuVramUsageMb;
+            RamUsageGb                = source.RamUsageGb;
+            RamTotalGb                = source.RamTotalGb;
+            FanRpm                    = source.FanRpm;
+            CpuTemperatureState       = source.CpuTemperatureState;
+            CpuPowerState             = source.CpuPowerState;
+            GpuTemperatureState       = source.GpuTemperatureState;
+            Fan1RpmState              = source.Fan1RpmState;
+            Fan2RpmState              = source.Fan2RpmState;
+            Fan1Rpm                   = source.Fan1Rpm;
+            Fan2Rpm                   = source.Fan2Rpm;
+            SsdTemperatureC           = source.SsdTemperatureC;
+            DiskUsagePercent          = source.DiskUsagePercent;
+            GpuPowerWatts             = source.GpuPowerWatts;
+            GpuClockMhz               = source.GpuClockMhz;
+            GpuMemoryClockMhz         = source.GpuMemoryClockMhz;
+            GpuVramTotalMb            = source.GpuVramTotalMb;
+            GpuFanPercent             = source.GpuFanPercent;
+            GpuHotspotTemperatureC    = source.GpuHotspotTemperatureC;
+            GpuName                   = source.GpuName;
+            GpuVoltageV               = source.GpuVoltageV;
+            GpuCurrentA               = source.GpuCurrentA;
+            BatteryChargePercent      = source.BatteryChargePercent;
+            IsOnAcPower               = source.IsOnAcPower;
+            BatteryDischargeRateW     = source.BatteryDischargeRateW;
+            BatteryTimeRemaining      = source.BatteryTimeRemaining;
+            IsCpuThermalThrottling    = source.IsCpuThermalThrottling;
+            IsCpuPowerThrottling      = source.IsCpuPowerThrottling;
+            IsGpuThermalThrottling    = source.IsGpuThermalThrottling;
+            IsGpuPowerThrottling      = source.IsGpuPowerThrottling;
+        }
     }
 }

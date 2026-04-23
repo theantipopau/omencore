@@ -381,15 +381,10 @@ namespace OmenCore.Services
                         return true;
                     }
                     
-                    // Apply brightness
-                    var brightnessLevel = scene.Brightness switch
-                    {
-                        0 => 0,
-                        <= 33 => 1,
-                        <= 66 => 2,
-                        _ => 3
-                    };
-                    await _keyboardLightingService.SetBrightness(brightnessLevel);
+                    // Apply brightness — scene.Brightness is already 0-100; SetBrightness() expects 0-100.
+                    // Do NOT map to a 0-3 scale here: passing 3 to SetBrightness() means 3% which makes
+                    // the keyboard appear off even though colors are correctly applied.
+                    await _keyboardLightingService.SetBrightness(scene.Brightness);
                     
                     // Apply colors
                     if (scene.ZoneColors.Count > 0)

@@ -3,6 +3,7 @@ using System.IO;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -57,7 +58,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
             var controller = new TestFanController();
             var notificationService = new NotificationService(logging);
-            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 
             var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging)
             {

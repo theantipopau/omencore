@@ -34,6 +34,7 @@ namespace OmenCore.Controls
         private bool _chartsSuppressed; // True when window is minimized or page is hidden
         private DateTime _lastChartRefreshUtc = DateTime.MinValue;
         private DateTime _lastAlertRefreshUtc = DateTime.MinValue;
+        private bool _stateChangeSubscribed; // Guard against duplicate StateChanged subscriptions on repeated Loaded events
 
         private async Task RunOnUiAsync(Func<Task> action)
         {
@@ -187,9 +188,14 @@ namespace OmenCore.Controls
                 await RefreshAllChartsAsync();
             });
 
-            // Subscribe to main window state changes for chart suppression
-            if (Application.Current?.MainWindow is Window mainWin)
+            // Subscribe to main window state changes for chart suppression.
+            // Guard with a flag — the Loaded event fires on every tab-show in a TabControl,
+            // and re-subscribing without unsubscribing would leak duplicate handlers.
+            if (!_stateChangeSubscribed && Application.Current?.MainWindow is Window mainWin)
+            {
                 mainWin.StateChanged += MainWindow_StateChanged;
+                _stateChangeSubscribed = true;
+            }
             UpdateChartSuppression();
         }
 

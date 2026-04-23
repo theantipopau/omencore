@@ -753,6 +753,9 @@ namespace OmenCore.Controls
         {
             if (!_isDragging || _draggedPoint == null || CurvePoints == null) return;
             
+            // Guard: index may be stale if collection was modified externally
+            if (_draggedPointIndex < 0 || _draggedPointIndex >= CurvePoints.Count) return;
+            
             var pos = e.GetPosition(ChartCanvas);
             var adjustedPos = new Point(pos.X - _dragStartOffset.X, pos.Y - _dragStartOffset.Y);
             
@@ -788,7 +791,8 @@ namespace OmenCore.Controls
             temp = Math.Clamp(temp, minTemp, maxTemp);
 
             // Quantize drag updates to reduce high-frequency UI churn while still feeling smooth.
-            temp = (int)Math.Round(temp / (double)DragTemperatureSnapStep) * DragTemperatureSnapStep;
+            // Clamp again after snap: rounding can push the value back outside the neighbor constraint.
+            temp = Math.Clamp((int)Math.Round(temp / (double)DragTemperatureSnapStep) * DragTemperatureSnapStep, minTemp, maxTemp);
             fan = (int)Math.Round(fan / (double)DragFanPercentSnapStep) * DragFanPercentSnapStep;
 
             var currentPoint = CurvePoints[_draggedPointIndex];

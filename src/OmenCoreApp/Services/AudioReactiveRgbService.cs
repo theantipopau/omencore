@@ -527,7 +527,16 @@ namespace OmenCore.Services
         {
             if (_disposed) return;
 
-            StopAsync().Wait(TimeSpan.FromSeconds(2));
+            // Stop on a thread-pool context to avoid UI-thread deadlock if Dispose is called
+            // while a synchronization context is active.
+            try
+            {
+                Task.Run(async () => await StopAsync().ConfigureAwait(false)).Wait(TimeSpan.FromSeconds(2));
+            }
+            catch
+            {
+                // Best-effort shutdown during dispose.
+            }
             _cts?.Dispose();
             _disposed = true;
         }

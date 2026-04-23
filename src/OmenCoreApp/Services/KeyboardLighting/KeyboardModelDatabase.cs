@@ -172,6 +172,19 @@ namespace OmenCore.Services.KeyboardLighting
                 ModelYear = 2022,
                 Notes = "Confirmed working by user reports"
             });
+
+            // OMEN 16 (2022) - n0xxx series
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8A44",
+                ModelName = "OMEN 16-n0xxx (2022) AMD",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
+                ModelYear = 2022,
+                UserVerified = false,
+                Notes = "GitHub #112 — inferred from adjacent OMEN 16 generations; verify on real hardware"
+            });
             
             // OMEN 16 (2023) - May use new interface
             AddModel(new KeyboardModelConfig
@@ -205,6 +218,45 @@ namespace OmenCore.Services.KeyboardLighting
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
                 ModelYear = 2024,
                 Notes = "Ryzen 7 7840HS - user reported AC detection issues"
+            });
+
+            // OMEN 16 (2024) - am0xxx series
+            // GitHub Issue #111: no keyboard match for 8D2F / OMEN Gaming Laptop 16-am0xxx
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8D2F",
+                ModelName = "OMEN 16-am0xxx (2024) AMD",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
+                ModelYear = 2024,
+                UserVerified = false,
+                Notes = "GitHub #111 — OMEN Gaming Laptop 16-am0xxx. Keyboard config mirrors xd0/ap0 sibling generation."
+            });
+
+            // OMEN 16 (2025) - ap0xxx series (AMD Ryzen AI + RTX 50-series)
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8D24",
+                ModelName = "OMEN 16-ap0xxx (2025) AMD",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
+                ModelYear = 2025,
+                Notes = "Ryzen AI 9 365 + RTX 5060 - V1 WMI keyboard interface"
+            });
+
+            // OMEN Transcend 14 (2024) - fb1xxx series
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8E41",
+                ModelName = "OMEN Transcend 14-fb1xxx (2024)",
+                KeyboardType = KeyboardType.PerKeyRgb,
+                PreferredMethod = KeyboardMethod.NewWmi2023,
+                FallbackMethods = new[] { KeyboardMethod.ColorTable2020, KeyboardMethod.EcDirect },
+                ModelYear = 2024,
+                UserVerified = false,
+                Notes = "GitHub #99 / Discord Linux reports — Transcend 14-fb1xxx; prefer newer WMI path"
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════
@@ -290,6 +342,20 @@ namespace OmenCore.Services.KeyboardLighting
                 Notes = "Per-key RGB, RTX 5080, Intel Core Ultra 9 275HX"
             });
 
+            // OMEN MAX 16 (2025) - ak0xxx family (GitHub #117)
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8D87",
+                ModelName = "OMEN MAX 16-ak0xxx (2025) AMD",
+                ModelNamePattern = "16-ak0",
+                KeyboardType = KeyboardType.PerKeyRgb,
+                PreferredMethod = KeyboardMethod.HidPerKey,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.ColorTable2020 },
+                ModelYear = 2025,
+                UserVerified = false,
+                Notes = "GitHub #117 — OMEN MAX Gaming Laptop 16-ak0xxx (Product ID 8D87). Keyboard profile inferred from MAX 16 generation; verify per-key behavior on hardware."
+            });
+
             // ═══════════════════════════════════════════════════════════════════════════════════
             // OMEN Desktop PCs (25L, 30L, 40L, 45L series)
             // ═══════════════════════════════════════════════════════════════════════════════════
@@ -349,6 +415,18 @@ namespace OmenCore.Services.KeyboardLighting
                 FallbackMethods = Array.Empty<KeyboardMethod>(),
                 ModelYear = 2021,
                 Notes = "Single-color backlight only, no RGB zones"
+            });
+
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8A3E",
+                ModelName = "HP Victus 15-fb0xxx (2022)",
+                KeyboardType = KeyboardType.BacklightOnly,
+                PreferredMethod = KeyboardMethod.BacklightOnly,
+                FallbackMethods = Array.Empty<KeyboardMethod>(),
+                ModelYear = 2022,
+                UserVerified = false,
+                Notes = "GitHub #105 — Victus 15-fb0xxx; conservative single-zone backlight profile"
             });
             
             AddModel(new KeyboardModelConfig

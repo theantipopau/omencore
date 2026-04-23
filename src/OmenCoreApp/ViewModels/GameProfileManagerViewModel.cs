@@ -114,11 +114,11 @@ namespace OmenCore.ViewModels
             // Initialize commands
             CreateProfileCommand = new RelayCommand(_ => CreateProfile());
             DuplicateProfileCommand = new RelayCommand(_ => DuplicateProfile(), _ => SelectedProfile != null);
-            DeleteProfileCommand = new RelayCommand(_ => DeleteProfile(), _ => SelectedProfile != null);
-            ImportProfilesCommand = new RelayCommand(_ => ImportProfiles());
-            ExportProfilesCommand = new RelayCommand(_ => ExportProfiles());
+            DeleteProfileCommand = new AsyncRelayCommand(_ => DeleteProfileAsync(), _ => SelectedProfile != null);
+            ImportProfilesCommand = new AsyncRelayCommand(_ => ImportProfilesAsync());
+            ExportProfilesCommand = new AsyncRelayCommand(_ => ExportProfilesAsync());
             BrowseExecutableCommand = new RelayCommand(_ => BrowseExecutable(), _ => SelectedProfile != null);
-            SaveCommand = new RelayCommand(_ => Save());
+            SaveCommand = new AsyncRelayCommand(_ => SaveAsync());
             CancelCommand = new RelayCommand(_ => Cancel());
 
             // Load profiles
@@ -228,7 +228,7 @@ namespace OmenCore.ViewModels
             _logging.Info($"Duplicated profile: {SelectedProfile.Name}");
         }
 
-        private async void DeleteProfile()
+        private async Task DeleteProfileAsync()
         {
             try
             {
@@ -256,7 +256,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async void ImportProfiles()
+        private async Task ImportProfilesAsync()
         {
             try
             {
@@ -281,7 +281,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async void ExportProfiles()
+        private async Task ExportProfilesAsync()
         {
             try
             {
@@ -324,7 +324,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async void Save()
+        private async Task SaveAsync()
         {
             try
             {

@@ -327,13 +327,15 @@ namespace OmenCore.ViewModels
                 await _service.RemoveAppAsync(app);
                 HasRemovalResults = true;
                 UpdateCounts();
+                ApplyFilter();
+                var outcomeMessage = BuildSingleRemovalOutcomeMessage(app);
                 if (app.LastRemovalStatus == RemovalStatus.Failed)
                 {
-                    SetStatusFailed($"{app.Name} removal failed");
+                    SetStatusFailed(outcomeMessage);
                 }
                 else
                 {
-                    SetStatusDone($"Removed {app.Name}");
+                    SetStatusDone(outcomeMessage);
                 }
 
                 GenerateAndStoreSessionReport();
@@ -359,6 +361,7 @@ namespace OmenCore.ViewModels
             var lowRiskApps = AllApps.Where(a => a.RemovalRisk == RemovalRisk.Low && !a.IsRemoved).ToList();
             if (!lowRiskApps.Any())
             {
+                SetStatusDone("No low-risk installed items are currently available for removal");
                 return;
             }
 
@@ -390,22 +393,28 @@ namespace OmenCore.ViewModels
                 {
                     var canceledAt = bulkResult.CanceledAt?.Name ?? "the current item";
                     SetStatusFailed(
-                        $"Bulk remove canceled at {canceledAt}. {bulkResult.Succeeded.Count} completed, {bulkResult.Skipped.Count} skipped. Export log for details.");
+                        $"Bulk remove canceled at {canceledAt}. {bulkResult.Succeeded.Count} removed, {bulkResult.Skipped.Count} skipped. Export log for details.");
                 }
                 else if (bulkResult.Completed)
                 {
-                    SetStatusDone($"Removed {bulkResult.Succeeded.Count}/{bulkResult.RequestedTotal} items successfully");
+                    SetStatusDone(BuildBulkRemovalCompletionMessage(bulkResult));
                 }
                 else
                 {
                     var failedName = bulkResult.FailedAt?.Name ?? "unknown item";
+                    var failedDetail = string.IsNullOrWhiteSpace(bulkResult.FailedAt?.LastRemovalDetail)
+                        ? string.IsNullOrWhiteSpace(bulkResult.FailedAt?.LastFailureReason)
+                            ? "No failure detail available"
+                            : bulkResult.FailedAt!.LastFailureReason!
+                        : bulkResult.FailedAt!.LastRemovalDetail!;
                     SetStatusFailed(
-                        $"Bulk remove stopped at {failedName}. Rollback restored {bulkResult.RollbackSucceeded.Count}, " +
+                        $"Bulk remove stopped at {failedName}: {failedDetail}. Rollback restored {bulkResult.RollbackSucceeded.Count}, " +
                         $"failed {bulkResult.RollbackFailed.Count}, skipped {bulkResult.RollbackSkipped.Count}. Export log for details.");
                 }
 
                 HasRemovalResults = true;
                 UpdateCounts();
+                ApplyFilter();
                 GenerateAndStoreSessionReport();
             }
             finally
@@ -417,6 +426,50 @@ namespace OmenCore.ViewModels
                 BulkRemoveTotal = 0;
                 OnPropertyChanged(nameof(BulkRemoveProgressText));
             }
+        }
+
+        private static string BuildSingleRemovalOutcomeMessage(BloatwareApp app)
+        {
+            var detail = string.IsNullOrWhiteSpace(app.LastRemovalDetail)
+                ? app.LastFailureReason
+                : app.LastRemovalDetail;
+
+            return app.LastRemovalStatus switch
+            {
+                RemovalStatus.VerifiedSuccess or RemovalStatus.Succeeded => string.IsNullOrWhiteSpace(detail)
+                    ? $"Removed {app.Name}"
+                    : $"Removed {app.Name}: {detail}",
+                RemovalStatus.Skipped => string.IsNullOrWhiteSpace(detail)
+                    ? $"Skipped {app.Name}: no state change was required"
+                    : $"Skipped {app.Name}: {detail}",
+                RemovalStatus.Failed => string.IsNullOrWhiteSpace(detail)
+                    ? $"{app.Name} removal failed"
+                    : $"{app.Name} removal failed: {detail}",
+                RemovalStatus.Pending => $"{app.Name} removal is still pending",
+                _ => string.IsNullOrWhiteSpace(detail)
+                    ? $"{app.Name} removal completed with an unknown status"
+                    : $"{app.Name} removal completed: {detail}"
+            };
+        }
+
+        private static string BuildBulkRemovalCompletionMessage(BulkRemovalResult result)
+        {
+            var summary = $"Bulk remove complete: {result.Succeeded.Count} removed";
+            if (result.Skipped.Count > 0)
+            {
+                summary += $", {result.Skipped.Count} skipped";
+            }
+
+            summary += $" out of {result.RequestedTotal}.";
+
+            var firstSkippedWithDetail = result.Skipped
+                .FirstOrDefault(app => !string.IsNullOrWhiteSpace(app.LastRemovalDetail));
+            if (firstSkippedWithDetail != null)
+            {
+                summary += $" Example skip: {firstSkippedWithDetail.Name} ({firstSkippedWithDetail.LastRemovalDetail})";
+            }
+
+            return summary;
         }
 
         private void BuildRemovalPreview(string title, List<BloatwareApp> candidates)

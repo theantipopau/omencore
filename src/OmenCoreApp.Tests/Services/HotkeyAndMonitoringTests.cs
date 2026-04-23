@@ -4,6 +4,7 @@ using FluentAssertions;
 using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Services
@@ -68,6 +69,46 @@ namespace OmenCoreApp.Tests.Services
             result.Should().BeFalse("software-generated F24 without an OMEN scan code must be rejected in strict mode");
         }
 
+        [Theory]
+        [InlineData(0xB7u, 0xE046u)]
+        [InlineData(0xB7u, 0x0046u)]
+        [InlineData(0xB7u, 0x009Du)]
+        [InlineData(0xB6u, 0xE046u)]
+        [InlineData(0xB6u, 0x0046u)]
+        [InlineData(0xB6u, 0x009Du)]
+        public void IsOmenKey_RejectsLaunchAppBrightnessConflictScanCodes(uint vkCode, uint scanCode)
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { vkCode, scanCode })!;
+
+            result.Should().BeFalse("LaunchApp VK events with known brightness-conflict scans must never trigger OMEN key actions");
+        }
+
+        [Theory]
+        [InlineData(0xB7u)]
+        [InlineData(0xB6u)]
+        public void IsOmenKey_AcceptsLaunchAppWithDedicatedOmenScan(uint vkCode)
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { vkCode, 0xE045u })!;
+
+            result.Should().BeTrue("the dedicated OMEN LaunchApp scan must remain recognized");
+        }
+
         [Fact]
         public void ShouldSuppressWmiEventFromRecentNeverInterceptKey_ReturnsTrue_ForRecentF11Activity()
         {
@@ -99,7 +140,7 @@ namespace OmenCoreApp.Tests.Services
 
             var bridge = new LibreHardwareMonitorBridge();
             var prefs = new MonitoringPreferences();
-            var svc = new HardwareMonitoringService(bridge, logging, prefs);
+            var svc = new HardwareMonitoringService(bridge, logging, prefs, new ResumeRecoveryDiagnosticsService());
 
             // Set a previous sample (private field) so ShouldUpdateUI compares against it
             var lastSample = new MonitoringSample
@@ -142,7 +183,7 @@ namespace OmenCoreApp.Tests.Services
 
             var bridge = new LibreHardwareMonitorBridge();
             var prefs = new MonitoringPreferences();
-            var svc = new HardwareMonitoringService(bridge, logging, prefs);
+            var svc = new HardwareMonitoringService(bridge, logging, prefs, new ResumeRecoveryDiagnosticsService());
 
             var lastSample = new MonitoringSample
             {

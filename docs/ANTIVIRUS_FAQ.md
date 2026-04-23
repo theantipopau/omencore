@@ -86,12 +86,42 @@ Common false positive detections:
 - `Riskware.WinRing0` - Legacy WinRing0 artifact detected as potentially unwanted
 - `HackTool.Win32` - MSR access flagged as "hacking tool"
 - `Trojan.Gen` / `Trojan detected` - Kernel driver / low-level hardware access (GitHub #90)
+- `Gen:Application.Venus.Cynthia.Winring` - Bitdefender heuristic for WinRing0-adjacent kernel drivers (see below)
 
 These are **false positives** caused by the legitimate low-level hardware access required for fan/thermal control.
 
-**GitHub #90: Defender detected a trojan in OmenCore**
-- This is a false positive due to the presence of kernel drivers
-- Solution: Whitelist the folder and rest assured OmenCore is safe and open-source
+---
+
+### Bitdefender: `Gen:Application.Venus.Cynthia.Winring`
+
+**Detection name**: `Gen:Application.Venus.Cynthia.Winring.17ay1@auVvKTci` (exact hash suffix varies by version)
+
+This is a heuristic rule Bitdefender applies to any kernel driver that resembles WinRing0 / PawnIO. OmenCore's `OmenCore.sys` (PawnIO) is flagged because:
+- It uses MSR and I/O port access at ring-0, which is the same pattern used by WinRing0 cheats/cryptominers
+- Bitdefender's `Venus.Cynthia.Winring` family targets the **access pattern**, not the binary itself
+
+**This is safe.** PawnIO is an open-source kernel driver with full source at https://github.com/ekknod/EC.
+
+#### Bitdefender Exclusion Steps
+
+1. Open **Bitdefender Security** (system tray icon → Open)
+2. Click **Protection** in the left sidebar
+3. Click **Antivirus** → **Settings**
+4. Scroll to **Exclusions** and click **Manage Exclusions**
+5. Click **+ Add an Exclusion** → **File/Folder**
+6. Browse to and select: `C:\Program Files\OmenCore\drivers\PawnIO\`
+7. Click **Save**
+
+Alternatively, add these individual files to exclusions:
+```
+C:\Program Files\OmenCore\drivers\PawnIO\PawnIO.sys
+C:\Program Files\OmenCore\drivers\PawnIO\PawnIO.exe
+C:\Program Files\OmenCore\OmenCore.HardwareWorker.exe
+```
+
+**Reporting to Bitdefender**: Submit a false positive report at https://www.bitdefender.com/submit/ — attach the flagged `.sys` file and describe it as a signed kernel driver for laptop hardware access.
+
+---
 
 ## Building from Source
 

@@ -2093,13 +2093,13 @@ namespace OmenCore.ViewModels
                 // Temperature-responsive lighting
                 if (TemperatureResponsiveLightingEnabled)
                 {
-                    ApplyTemperatureBasedLighting(sample);
+                    _ = ApplyTemperatureBasedLightingAsync(sample);
                 }
 
                 // Throttling indicators
                 if (ThrottlingIndicatorLightingEnabled && sample.IsThrottling)
                 {
-                    ApplyThrottlingLighting(sample);
+                    _ = ApplyThrottlingLightingAsync(sample);
                 }
             });
         }
@@ -2109,10 +2109,10 @@ namespace OmenCore.ViewModels
             if (!PerformanceModeSyncedLightingEnabled)
                 return;
             
-            ApplyPerformanceModeLighting(modeName);
+            _ = ApplyPerformanceModeLightingAsync(modeName);
         }
         
-        private async void ApplyTemperatureBasedLighting(MonitoringSample sample)
+        private async Task ApplyTemperatureBasedLightingAsync(MonitoringSample sample)
         {
             try
             {
@@ -2174,7 +2174,7 @@ namespace OmenCore.ViewModels
             }
         }
         
-        private async void ApplyThrottlingLighting(MonitoringSample sample)
+        private async Task ApplyThrottlingLightingAsync(MonitoringSample sample)
         {
             try
             {
@@ -2221,7 +2221,7 @@ namespace OmenCore.ViewModels
             }
         }
         
-        private async void ApplyPerformanceModeLighting(string modeName)
+        private async Task ApplyPerformanceModeLightingAsync(string modeName)
         {
             try
             {

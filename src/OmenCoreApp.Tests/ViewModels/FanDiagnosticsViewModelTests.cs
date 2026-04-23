@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Hardware;
 using OmenCore.ViewModels;
 using Xunit;
@@ -95,7 +96,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000);
+            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
@@ -120,7 +121,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000);
+            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
@@ -142,7 +143,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000);
+            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);

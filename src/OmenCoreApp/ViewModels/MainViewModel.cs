@@ -106,6 +106,11 @@ namespace OmenCore.ViewModels
         private readonly object _monitoringUpdateLock = new();
         private MonitoringSample? _queuedMonitoringSample;
         private bool _monitoringUiUpdateQueued;
+        // STEP-09 mitigation instrumentation — counts call-site entries and coalesced skips.
+        // Remove together with the inner lock when STEP-09 is executed.
+        private int _queueCallCount;
+        private int _queueCoalesceCount;
+        private System.Diagnostics.Stopwatch _queueInstrumentTimer = System.Diagnostics.Stopwatch.StartNew();
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
         private FanControlViewModel? _fanControl;
@@ -671,38 +676,42 @@ namespace OmenCore.ViewModels
                 return null;
             }
 
-            sample.CpuLoadPercent = SanitizeLoadPercent(sample.CpuLoadPercent, previous?.CpuLoadPercent ?? 0);
-            sample.GpuLoadPercent = SanitizeLoadPercent(sample.GpuLoadPercent, previous?.GpuLoadPercent ?? 0);
+            // Work on an independent copy so the original sample (already dispatched to
+            // other subscribers) is not mutated by normalization (STEP-08 / REGRESSION_MATRIX T4).
+            var result = new MonitoringSample(sample);
 
-            bool cpuTempStateValid = sample.CpuTemperatureState == TelemetryDataState.Valid ||
-                                     sample.CpuTemperatureState == TelemetryDataState.Stale;
+            result.CpuLoadPercent = SanitizeLoadPercent(result.CpuLoadPercent, previous?.CpuLoadPercent ?? 0);
+            result.GpuLoadPercent = SanitizeLoadPercent(result.GpuLoadPercent, previous?.GpuLoadPercent ?? 0);
+
+            bool cpuTempStateValid = result.CpuTemperatureState == TelemetryDataState.Valid ||
+                                     result.CpuTemperatureState == TelemetryDataState.Stale;
             if (!cpuTempStateValid && previous?.CpuTemperatureC > 0)
             {
-                sample.CpuTemperatureC = previous.CpuTemperatureC;
+                result.CpuTemperatureC = previous.CpuTemperatureC;
             }
-            sample.CpuTemperatureC = SanitizeRange(sample.CpuTemperatureC, previous?.CpuTemperatureC ?? 0, 0, 125);
+            result.CpuTemperatureC = SanitizeRange(result.CpuTemperatureC, previous?.CpuTemperatureC ?? 0, 0, 125);
 
-            bool gpuTempStateValid = sample.GpuTemperatureState == TelemetryDataState.Valid ||
-                                     sample.GpuTemperatureState == TelemetryDataState.Stale ||
-                                     sample.GpuTemperatureState == TelemetryDataState.Inactive;
+            bool gpuTempStateValid = result.GpuTemperatureState == TelemetryDataState.Valid ||
+                                     result.GpuTemperatureState == TelemetryDataState.Stale ||
+                                     result.GpuTemperatureState == TelemetryDataState.Inactive;
             if (!gpuTempStateValid && previous?.GpuTemperatureC > 0)
             {
-                sample.GpuTemperatureC = previous.GpuTemperatureC;
+                result.GpuTemperatureC = previous.GpuTemperatureC;
             }
-            sample.GpuTemperatureC = SanitizeRange(sample.GpuTemperatureC, previous?.GpuTemperatureC ?? 0, 0, 125);
+            result.GpuTemperatureC = SanitizeRange(result.GpuTemperatureC, previous?.GpuTemperatureC ?? 0, 0, 125);
 
             // When dGPU telemetry is marked inactive, avoid showing stale utilization/power/clock values.
-            if (sample.GpuTemperatureState == TelemetryDataState.Inactive)
+            if (result.GpuTemperatureState == TelemetryDataState.Inactive)
             {
-                sample.GpuLoadPercent = 0;
-                sample.GpuPowerWatts = 0;
-                sample.GpuClockMhz = 0;
-                sample.GpuMemoryClockMhz = 0;
+                result.GpuLoadPercent = 0;
+                result.GpuPowerWatts = 0;
+                result.GpuClockMhz = 0;
+                result.GpuMemoryClockMhz = 0;
             }
 
-            sample.RamUsageGb = SanitizeRange(sample.RamUsageGb, previous?.RamUsageGb ?? 0, 0, Math.Max(sample.RamTotalGb, previous?.RamTotalGb ?? sample.RamTotalGb));
+            result.RamUsageGb = SanitizeRange(result.RamUsageGb, previous?.RamUsageGb ?? 0, 0, Math.Max(result.RamTotalGb, previous?.RamTotalGb ?? result.RamTotalGb));
 
-            return sample;
+            return result;
         }
 
         private static double SanitizeRange(double candidate, double fallback, double min, double max)
@@ -1534,7 +1543,7 @@ namespace OmenCore.ViewModels
             }
             
             // Services initialized asynchronously
-            InitializeServicesAsync();
+            _ = InitializeServicesAsync();
 
             // Auto-detect CPU vendor (Intel/AMD) and create appropriate undervolt provider
             var undervoltProvider = CpuUndervoltProviderFactory.Create(out string undervoltBackend);
@@ -1754,7 +1763,7 @@ namespace OmenCore.ViewModels
             _automationService.Start();
             
             // Initialize game profile system
-            InitializeGameProfilesAsync();
+            _ = InitializeGameProfilesAsync();
         }
 
         private void OnSystemSuspending(object? sender, EventArgs e)
@@ -2006,7 +2015,7 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private async void InitializeGameProfilesAsync()
+        private async Task InitializeGameProfilesAsync()
         {
             try
             {
@@ -2837,6 +2846,20 @@ namespace OmenCore.ViewModels
 
         private void QueueMonitoringUiSample(MonitoringSample sample)
         {
+            // STEP-09 mitigation: count calls and coalesces; log rate every 30 calls.
+            var callCount = System.Threading.Interlocked.Increment(ref _queueCallCount);
+            if (callCount % 30 == 0)
+            {
+                var elapsedSec = _queueInstrumentTimer.Elapsed.TotalSeconds;
+                var coalesceCount = System.Threading.Interlocked.Exchange(ref _queueCoalesceCount, 0);
+                System.Threading.Interlocked.Exchange(ref _queueCallCount, 0);
+                _queueInstrumentTimer.Restart();
+                App.Logging.Debug(
+                    $"[STEP09-DIAG] QueueMonitoringUiSample: 30 calls in {elapsedSec:F1}s " +
+                    $"({30.0 / elapsedSec:F2} calls/s) | coalesced (skipped dispatch): {coalesceCount} " +
+                    $"| dispatched: {30 - coalesceCount}");
+            }
+
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null)
             {
@@ -2849,6 +2872,7 @@ namespace OmenCore.ViewModels
                 _queuedMonitoringSample = sample;
                 if (_monitoringUiUpdateQueued)
                 {
+                    System.Threading.Interlocked.Increment(ref _queueCoalesceCount);
                     return;
                 }
 
@@ -2958,7 +2982,7 @@ namespace OmenCore.ViewModels
             });
         }
 
-        private async void InitializeServicesAsync()
+        private async Task InitializeServicesAsync()
         {
             try
             {

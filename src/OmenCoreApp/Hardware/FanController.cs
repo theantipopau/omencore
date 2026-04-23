@@ -388,7 +388,11 @@ namespace OmenCore.Hardware
                 }
                 catch (Exception ex)
                 {
-                    if (ex is TimeoutException || ex.Message.Contains("mutex", StringComparison.OrdinalIgnoreCase))
+                    // Type-safe contention check: both TimeoutException (PawnIO mutex timeout) and
+                    // AbandonedMutexException (.NET mutex abandoned by dying thread) indicate EC
+                    // contention and should be treated identically. Do NOT use ex.Message.Contains
+                    // — exception messages are locale-dependent.
+                    if (ex is TimeoutException or AbandonedMutexException)
                     {
                         if (!PawnIOEcAccess.EcContentionWarningLogged)
                         {

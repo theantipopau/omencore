@@ -25,7 +25,7 @@ namespace OmenCore.Services
         private readonly ThermalSensorProvider _thermalProvider;
         private readonly LoggingService _logging;
         private readonly NotificationService _notificationService;
-        private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
+        private readonly ResumeRecoveryDiagnosticsService _resumeDiagnostics; // Always non-null; STEP-12 Option A
         private TimeSpan _monitorPollPeriod;
         private readonly ObservableCollection<ThermalSample> _thermalSamples = new();
         private readonly ObservableCollection<FanTelemetry> _fanTelemetry = new();
@@ -90,6 +90,14 @@ namespace OmenCore.Services
         // showing spurious transient readings (single-sample noise). Zero RPM is
         // accepted immediately so stopped-fan state is visible to users.
         private const int FanChangeConfirmRequiredCycles = 2;
+
+        // Fan-mode transition window: when a preset is being applied the BIOS briefly
+        // resets WMI fan registers, causing both RPM and duty-cycle to momentarily read 0.
+        // We hold the previous RPM during a short post-apply grace period instead of
+        // surfacing 0 RPM to the UI (which looks like a fan failure to the user).
+        private volatile bool _fanModeTransitioning;
+        private DateTime _fanTransitionUntil = DateTime.MinValue;
+        private const int FanTransitionHoldMs = 5000; // hold for up to 5 s after preset apply
         
         // Thermal protection - override Auto mode when temps get too high
         // v2.8.0: Raised thresholds — 80°C/85°C was too aggressive for gaming laptops
@@ -371,7 +379,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Create FanService with the new IFanController interface.
         /// </summary>
-        public FanService(IFanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
+        public FanService(IFanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService resumeDiagnostics)
         {
             _fanController = controller;
             _thermalProvider = thermalProvider;
@@ -388,7 +396,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Legacy constructor for compatibility with existing FanController.
         /// </summary>
-        public FanService(FanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService? resumeDiagnostics = null)
+        public FanService(FanController controller, ThermalSensorProvider thermalProvider, LoggingService logging, NotificationService notificationService, int pollMs, ResumeRecoveryDiagnosticsService resumeDiagnostics)
             : this(new EcFanControllerWrapper(controller, null!, logging), thermalProvider, logging, notificationService, pollMs, resumeDiagnostics)
         {
         }
@@ -409,9 +417,11 @@ namespace OmenCore.Services
                 _fanChangePendingRpms = new List<int>(_lastFanSpeeds);
 
                 // Update UI-bound collection only when a WPF dispatcher is available.
+                // Use BeginInvoke (fire-and-forget) to avoid a blocking cross-thread call
+                // during service startup, which could deadlock if Start() is called from the UI thread.
                 if (App.Current?.Dispatcher != null)
                 {
-                    App.Current.Dispatcher.Invoke(() =>
+                    App.Current.Dispatcher.BeginInvoke(() =>
                     {
                         _fanTelemetry.Clear();
                         foreach (var fan in fanSpeeds)
@@ -458,7 +468,12 @@ namespace OmenCore.Services
                 _logging.Warn($"Skipping preset '{preset.Name}' while in diagnostic mode");
                 return;
             }
-            
+
+            // Mark a transition window so the monitor loop holds the last-known-good RPM
+            // instead of surfacing the transient 0-RPM that the BIOS emits during mode handoff.
+            _fanModeTransitioning = true;
+            _fanTransitionUntil = DateTime.UtcNow.AddMilliseconds(FanTransitionHoldMs);
+
             // Apply the preset's thermal policy first
             if (_fanController.ApplyPreset(preset))
             {
@@ -968,6 +983,21 @@ namespace OmenCore.Services
 
                         if (newRpm == 0)
                         {
+                            // During a fan-mode transition the BIOS momentarily drives both RPM
+                            // and duty to 0 while the new WMI command is being processed.  Hold
+                            // the previous non-zero RPM for the duration of the transition window
+                            // so the UI never shows an alarming "0 RPM" flash on a mode switch.
+                            bool inTransitionWindow = _fanModeTransitioning && DateTime.UtcNow < _fanTransitionUntil;
+                            if (inTransitionWindow && lastRpm > 0)
+                            {
+                                displayRpms.Add(lastRpm);
+                                continue;
+                            }
+
+                            // Clear the transition flag once the window has expired.
+                            if (_fanModeTransitioning && !inTransitionWindow)
+                                _fanModeTransitioning = false;
+
                             if (duty == 0)
                             {
                                 displayRpms.Add(0);
@@ -1631,18 +1661,29 @@ namespace OmenCore.Services
             
             DisableCurve();
             _fanController.ApplyMaxCooling();
-            // Ensure the controller records the applied percent (defensive for various controller implementations)
-            try
+
+            // WMI max mode is maintained by controller-level keepalive logic. Re-sending an
+            // immediate SetFanSpeed(100) here can create an unnecessary re-apply pulse on
+            // some firmware. Keep the defensive write for non-WMI backends.
+            if (!Backend.Contains("WMI", StringComparison.OrdinalIgnoreCase))
             {
-                if (_fanController.SetFanSpeed(100))
+                try
                 {
-                    _lastAppliedFanPercent = 100;
+                    if (_fanController.SetFanSpeed(100))
+                    {
+                        _lastAppliedFanPercent = 100;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"SetFanSpeed(100) during ApplyMaxCooling threw: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+            else
             {
-                _logging.Warn($"SetFanSpeed(100) during ApplyMaxCooling threw: {ex.Message}");
+                _lastAppliedFanPercent = 100;
             }
+
             _currentFanMode = "Max";
             _logging.Info("Max cooling mode applied");
         }

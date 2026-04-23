@@ -230,6 +230,14 @@ namespace OmenCore.Hardware
                         return ecController;
                     }
                     break;
+
+                case FanControlMethod.MonitoringOnly:
+                case FanControlMethod.None:
+                    // Capability detection already determined no fan control is available.
+                    // Return the fallback controller directly without the misleading warning.
+                    ActiveBackend = "Monitoring Only";
+                    _logging?.Info("Fan control method is MonitoringOnly — skipping backend probes");
+                    return new FallbackFanController(_libreHwMonitor, _logging);
             }
             
             // If pre-detected method failed, fall back to auto-detection

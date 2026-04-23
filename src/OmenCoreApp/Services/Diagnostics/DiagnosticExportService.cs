@@ -399,7 +399,10 @@ namespace OmenCore.Services.Diagnostics
                         byte value = ecAccess.ReadByte((ushort)reg);
                         sb.AppendLine($"EC[0x{reg:X2}] = 0x{value:X2} ({value})");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"[DiagnosticExportService] {nameof(CollectEcStateAsync)} fan register 0x{reg:X2} read failed: {ex.Message}");
+                    }
                 }
 
                 sb.AppendLine();
@@ -413,7 +416,10 @@ namespace OmenCore.Services.Diagnostics
                         byte value = ecAccess.ReadByte((ushort)reg);
                         sb.AppendLine($"EC[0x{reg:X2}] = 0x{value:X2} ({value}°C raw)");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"[DiagnosticExportService] {nameof(CollectEcStateAsync)} temp register 0x{reg:X2} read failed: {ex.Message}");
+                    }
                 }
 
                 File.WriteAllText(Path.Combine(exportPath, "ec-state.txt"), sb.ToString());
@@ -585,7 +591,10 @@ namespace OmenCore.Services.Diagnostics
                     return value is int i ? (i == 1 ? "Enabled" : "Disabled") : "Unknown";
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetSecureBootStatus)} failed: {ex.Message}");
+            }
             return "Unknown";
         }
 
@@ -601,7 +610,10 @@ namespace OmenCore.Services.Diagnostics
                     return value is int i ? (i == 1 ? "Enabled" : "Disabled") : "Unknown";
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetHvciStatus)} failed: {ex.Message}");
+            }
             return "Not Configured";
         }
 
@@ -619,7 +631,10 @@ namespace OmenCore.Services.Diagnostics
                 if (File.Exists(tempPath))
                     return "Installed (temp)";
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetWinRing0Status)} failed: {ex.Message}");
+            }
             return "Not Found";
         }
 
@@ -642,7 +657,10 @@ namespace OmenCore.Services.Diagnostics
                     } : "Installed";
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetPawnIOStatus)} failed: {ex.Message}");
+            }
             return "Not Installed";
         }
 
@@ -664,7 +682,10 @@ namespace OmenCore.Services.Diagnostics
                 if (key != null)
                     return "Installed (Not Running)";
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetXtuServiceStatus)} failed: {ex.Message}");
+            }
             return "Not Installed";
         }
 
@@ -684,7 +705,10 @@ namespace OmenCore.Services.Diagnostics
                 if (File.Exists(Path.Combine(programFiles, "MSI Afterburner", "MSIAfterburner.exe")))
                     return "Installed (Not Running)";
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[DiagnosticExportService] {nameof(GetAfterburnerStatus)} failed: {ex.Message}");
+            }
             return "Not Installed";
         }
     }

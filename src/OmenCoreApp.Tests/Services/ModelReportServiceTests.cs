@@ -51,7 +51,7 @@ namespace OmenCoreApp.Tests.Services
 
             // cleanup
             try { File.Delete(path); } catch { }
-            try { File.Delete(path2); } catch { }
+            if (path2 != null) try { File.Delete(path2); } catch { }
         }
     }
 }

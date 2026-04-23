@@ -120,7 +120,7 @@
         </Border>
 
         <!-- Quick Status Bar (v2.2) -->
-        <Border Grid.Row="1" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16,12" Margin="0,0,0,12">
+        <Border Grid.Row="2" Style="{StaticResource PremiumPanelCardAnimated}" Padding="16,12" Margin="0,0,0,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

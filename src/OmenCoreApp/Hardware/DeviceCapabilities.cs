@@ -51,12 +51,18 @@ namespace OmenCore.Hardware
         public bool ShowMuxSwitch => HasMuxSwitch || (ModelConfig?.HasMuxSwitch ?? false);
         
         /// <summary>Whether to show GPU Power Boost controls in UI.</summary>
-        public bool ShowGpuPowerBoost => HasGpuPowerControl || (ModelConfig?.SupportsGpuPowerBoost ?? true);
+        /// Runtime detection wins; ModelConfig is only consulted for known models
+        /// to prevent unknown/non-OMEN devices from showing OMEN-specific controls.
+        public bool ShowGpuPowerBoost => HasGpuPowerControl ||
+                                          (IsKnownModel && (ModelConfig?.SupportsGpuPowerBoost ?? false));
         
         /// <summary>Whether to show RGB lighting controls in UI.</summary>
+        /// Runtime detection (HasZoneLighting/HasPerKeyLighting) always applies.
+        /// ModelConfig-derived RGB features are gated on IsKnownModel so unknown
+        /// devices don't show OMEN keyboard controls when runtime probing found none.
         public bool ShowRgbLighting => HasZoneLighting || HasPerKeyLighting || 
-                                        (ModelConfig?.HasFourZoneRgb ?? false) || 
-                                        (ModelConfig?.HasPerKeyRgb ?? false);
+                                        (IsKnownModel && ((ModelConfig?.HasFourZoneRgb ?? false) ||
+                                                          (ModelConfig?.HasPerKeyRgb ?? false)));
         
         /// <summary>Whether to show undervolt controls in UI.</summary>
         public bool ShowUndervolt => CanUndervolt && (ModelConfig?.SupportsUndervolt ?? true);

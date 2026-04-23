@@ -65,14 +65,18 @@ namespace OmenCore.Hardware
                     bool onUiThread = System.Windows.Application.Current?.Dispatcher?.CheckAccess() == true;
                     if (onUiThread)
                     {
-                        // Bound the wait on UI thread to keep UI responsive
-                        if (readTask.Wait(250))
+                        // Bound the wait on UI thread to keep UI responsive.
+                        // Use WaitAsync timeout rather than Wait()+Result to avoid sync-over-async deadlock patterns.
+                        try
                         {
-                            var sample = readTask.Result;
+                            var sample = readTask
+                                .WaitAsync(TimeSpan.FromMilliseconds(250))
+                                .GetAwaiter()
+                                .GetResult();
                             cpuTemp = sample.CpuTemperatureC;
                             gpuTemp = sample.GpuTemperatureC;
                         }
-                        else
+                        catch (TimeoutException)
                         {
                             // Timed out on UI thread — return cached/empty values to avoid freeze and log for diagnostics
                             try { App.Logging?.Warn("[ThermalSensorProvider] UI-thread ReadSampleAsync timed out (250ms)"); } catch { }

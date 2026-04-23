@@ -15,7 +15,7 @@ namespace OmenCore.Views
             InitializeComponent();
         }
 
-        private void OnToggleClicked(object sender, RoutedEventArgs e)
+        private async void OnToggleClicked(object sender, RoutedEventArgs e)
         {
             if (sender is ToggleButton toggle && toggle.Tag is OptimizationItem item)
             {
@@ -23,7 +23,7 @@ namespace OmenCore.Views
 
                 // Keep the UI on the last authoritative state until the async apply/revert completes.
                 toggle.IsChecked = item.IsEnabled;
-                item.Toggle(desiredState);
+                await item.Toggle(desiredState);
             }
         }
     }

@@ -39,6 +39,8 @@ namespace OmenCore.Razer
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = false 
         };
+        private static readonly TimeSpan SessionInitTimeout = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan EffectApplyTimeout = TimeSpan.FromSeconds(3);
 
         public bool IsAvailable { get; private set; }
         public bool IsSessionActive => !string.IsNullOrEmpty(_sessionUri);
@@ -89,10 +91,7 @@ namespace OmenCore.Razer
                 _logging.Info("Razer Synapse detected running");
                 
                 // Try to create a Chroma SDK session
-                var initTask = Task.Run(async () => await InitializeSessionAsync());
-                initTask.Wait(5000); // 5 second timeout
-                
-                if (initTask.IsCompletedSuccessfully && initTask.Result)
+                if (TryRunBoolWithTimeout(() => InitializeSessionAsync(), SessionInitTimeout, "InitializeSessionAsync"))
                 {
                     IsAvailable = true;
                     StartHeartbeat();
@@ -257,6 +256,26 @@ namespace OmenCore.Razer
             }
         }
 
+        private bool TryRunBoolWithTimeout(Func<Task<bool>> operation, TimeSpan timeout, string operationName)
+        {
+            try
+            {
+                // Run on thread-pool so async continuations don't depend on a UI synchronization context.
+                var task = Task.Run(operation);
+                return task.WaitAsync(timeout).GetAwaiter().GetResult();
+            }
+            catch (TimeoutException)
+            {
+                _logging.Warn($"Razer operation timed out after {timeout.TotalMilliseconds:F0}ms: {operationName}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Razer operation failed: {operationName} - {ex.Message}");
+                return false;
+            }
+        }
+
         /// <summary>
         /// Discover connected Razer devices.
         /// </summary>
@@ -350,10 +369,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplyStaticEffectAsync(r, g, b));
-                    task.Wait(3000);
-                    
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (TryRunBoolWithTimeout(() => ApplyStaticEffectAsync(r, g, b), EffectApplyTimeout, "ApplyStaticEffectAsync"))
                     {
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("static", r, g, b));
                         return true;
@@ -421,10 +437,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplyBreathingEffectAsync(r, g, b));
-                    task.Wait(3000);
-                    
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (TryRunBoolWithTimeout(() => ApplyBreathingEffectAsync(r, g, b), EffectApplyTimeout, "ApplyBreathingEffectAsync"))
                     {
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("breathing", r, g, b));
                         return true;
@@ -487,10 +500,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplySpectrumEffectAsync());
-                    task.Wait(3000);
-                    
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (TryRunBoolWithTimeout(() => ApplySpectrumEffectAsync(), EffectApplyTimeout, "ApplySpectrumEffectAsync"))
                     {
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("spectrum"));
                         return true;
@@ -551,10 +561,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplyWaveEffectAsync(rightToLeft));
-                    task.Wait(3000);
-                    
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (TryRunBoolWithTimeout(() => ApplyWaveEffectAsync(rightToLeft), EffectApplyTimeout, "ApplyWaveEffectAsync"))
                     {
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("wave"));
                         return true;
@@ -604,10 +611,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplyReactiveEffectAsync(r, g, b, duration));
-                    task.Wait(3000);
-                    
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (TryRunBoolWithTimeout(() => ApplyReactiveEffectAsync(r, g, b, duration), EffectApplyTimeout, "ApplyReactiveEffectAsync"))
                     {
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("reactive", r, g, b));
                         return true;
@@ -659,9 +663,7 @@ namespace OmenCore.Razer
             {
                 if (IsSessionActive)
                 {
-                    var task = Task.Run(async () => await ApplyCustomKeyboardEffectAsync(colors));
-                    task.Wait(3000);
-                    return task.IsCompletedSuccessfully && task.Result;
+                    return TryRunBoolWithTimeout(() => ApplyCustomKeyboardEffectAsync(colors), EffectApplyTimeout, "ApplyCustomKeyboardEffectAsync");
                 }
                 
                 return true;
@@ -746,10 +748,12 @@ namespace OmenCore.Razer
             {
                 try
                 {
-                    var task = CloseSessionAsync();
-                    task.Wait(2000);
+                    Task.Run(() => CloseSessionAsync()).WaitAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"[RazerService] Dispose: CloseSessionAsync failed: {ex.Message}");
+                }
             }
             
             _httpClient.Dispose();
