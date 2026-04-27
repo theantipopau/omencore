@@ -131,7 +131,31 @@ namespace OmenCore.Hardware
         
         /// <summary>Whether overboost (extreme performance) mode exists.</summary>
         public bool SupportsOverboost { get; set; } = false;
-        
+
+        // ═══════════════════════════════════════════════════════════════════════════════════
+        // Model-specific TDP overrides (null = use global config/default values)
+        // These are used by PerformanceModeService to scale PL1/PL2/GPU limits correctly
+        // for models whose firmware uses different power envelopes than the global defaults.
+        // ═══════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>CPU sustained PL1 watts for Performance mode. Null = use config default.</summary>
+        public int? PerformanceCpuPl1Watts { get; set; }
+
+        /// <summary>CPU boost PL2 watts for Performance mode. Null = use config default.</summary>
+        public int? PerformanceCpuPl2Watts { get; set; }
+
+        /// <summary>CPU sustained PL1 watts for Balanced mode. Null = use config default.</summary>
+        public int? BalancedCpuPl1Watts { get; set; }
+
+        /// <summary>CPU sustained PL1 watts for Eco/Quiet mode. Null = use config default.</summary>
+        public int? EcoCpuPl1Watts { get; set; }
+
+        /// <summary>GPU TGP watts for Performance mode. Null = use config default.</summary>
+        public int? PerformanceGpuTgpWatts { get; set; }
+
+        /// <summary>GPU TGP watts for Balanced mode. Null = use config default.</summary>
+        public int? BalancedGpuTgpWatts { get; set; }
+
         /// <summary>Notes about this model's quirks or limitations.</summary>
         public string? Notes { get; set; }
         
@@ -424,6 +448,40 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // AMD — no Intel MSR undervolt
                 UserVerified = false,
                 Notes = "GitHub #111 — OMEN Gaming Laptop 16-am0xxx (2024 AMD). Capabilities inferred from 16-xd0 sibling; verify EC fan control before enabling."
+            });
+
+            // OMEN 16 (2025) - am1xxx series (Intel i9-14900HX + RTX 5070 Ti and similar)
+            // Community report: OmenCore Performance mode applies 55W (Balanced level) instead of
+            // 90W sustained PL1. Model falls back to global defaults which lack the 90W PL1 for
+            // this generation. Product ID not yet confirmed — matched via ModelNamePattern until a
+            // user reports their Product ID via the diagnostics screen.
+            // Roadmap #26.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "am1xxx_unverified",
+                ModelName = "OMEN 16 (2025) am1xxx Intel",
+                ModelNamePattern = "16-am1",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = true, // Intel i9-14900HX supports MSR undervolt
+                // Model-aware TDP overrides (from OGH reference: 90W PL1 / 130W PL2 for Performance)
+                PerformanceCpuPl1Watts = 90,
+                PerformanceCpuPl2Watts = 130,
+                BalancedCpuPl1Watts = 55,
+                PerformanceGpuTgpWatts = 150,
+                BalancedGpuTgpWatts = 115,
+                UserVerified = false,
+                Notes = "Roadmap #26 — OMEN Gaming Laptop 16-am1xxx (2025 Intel, i9-14900HX + RTX 5070 Ti). " +
+                        "ProductId pending community confirmation. Performance mode TDP = 90W PL1 / 130W PL2 " +
+                        "per OGH reference behaviour. Set UserVerified=true once Product ID confirmed."
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════

@@ -95,12 +95,14 @@ v3.4.0 is a targeted correctness and stability release — 30+ items shipped acr
 - **Fan curve drag no longer crashes at temperature boundary** — Snap-then-clamp ordering reversed to clamp-first-then-snap; stale-index guard prevents post-mouseup crash
 - **Print Screen / Snipping Tool works correctly** — Explicit ``VK_SNAPSHOT`` guard in ``OmenKeyService`` ensures OmenCore never interferes with Windows 11 Snipping Tool activation
 - **Dashboard GPU power no longer shows misleading values on Optimus** — Stronger discrete-activity signal required; zeroes stale metrics when dGPU is parked. Shows ``GPU: inactive (Optimus)`` explicitly
+- **2025 OMEN 16-am1xxx Performance mode uses the correct power tier** — Model-aware PL1/PL2/GPU overrides carry the 90 W / 130 W OGH reference envelope through to the EC writer
 
 ### Reliability / Async
 
 - **Process-crashing async void eliminated** — 8 non-event-handler ``async void`` methods across 4 ViewModels converted to ``async Task`` + fire-and-forget or ``AsyncRelayCommand``
 - **Startup no longer blocked by Dispatcher.Invoke** — ``FanService.Start()`` initial telemetry population changed from blocking ``Dispatcher.Invoke`` to ``BeginInvoke``
 - **RgbNetSystemProvider no longer blocks thread** — ``Task.Delay(250).Wait()`` changed to ``await Task.Delay(250)``; sync-over-async deadlock risk eliminated
+- **Performance-mode verification no longer duplicates EC writes** — Read-back verification now checks the applied mode without re-applying power limits
 - **Razer/Logitech/Corsair session paths hardened** — Repeated ``.Wait()`` / ``.Result`` wrappers replaced with timeout helpers across the RGB provider stack
 
 ### UI and Defaults

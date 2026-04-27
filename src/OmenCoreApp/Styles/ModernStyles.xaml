@@ -420,6 +420,19 @@
         <Setter Property="BorderBrush" Value="#AA45C7FF"/>
     </Style>
 
+    <!-- Premium warning banner style for high-priority caution messages -->
+    <Style x:Key="PremiumDangerBannerCard" TargetType="Border" BasedOn="{StaticResource PremiumPanelCard}">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#33FFB300" Offset="0"/>
+                    <GradientStop Color="#26FF6F00" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush" Value="#CCFF9800"/>
+    </Style>
+
     <!-- Premium card with subtle entry transition for high-visibility sections -->
     <Style x:Key="PremiumPanelCardAnimated" TargetType="Border" BasedOn="{StaticResource PremiumPanelCard}">
         <Setter Property="Opacity" Value="0"/>

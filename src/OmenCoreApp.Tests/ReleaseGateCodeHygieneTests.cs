@@ -90,7 +90,7 @@ namespace OmenCoreApp.Tests
             "DiagnosticLoggingService.cs:97",
             "DiagnosticLoggingService.cs:333",
             "DiagnosticLoggingService.cs:336",
-            "FanService.cs:1857", // shifted from :1846 after max-mode apply write dedupe adjustments
+            "FanService.cs:2044", // shifted from :1983 after #25 RPM-state propagation + monitor-loop allocation cleanup
             "GameLibraryService.cs:269",
             "GameLibraryService.cs:335",
             "GameLibraryService.cs:392",

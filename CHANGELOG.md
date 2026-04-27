@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.4.0] - TBD — Fan Curve Fix, Profile Selector, PrtSc Hook Guard, AV FAQ
+## [3.4.0] - 2026-04-27 — Fan Curve Fix, Profile Selector, PrtSc Hook Guard, AV FAQ
 
 ### Scope Freeze
 
@@ -24,15 +24,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[HIGH] Bloatware removal could appear as a silent no-op on Victus models (GitHub #107)** (`BloatwareManagerService.cs`, `BloatwareManagerViewModel.cs`, `BloatwareManagerView.xaml`, `BloatwareManagerServiceTests.cs`, `BloatwareManagerViewModelOutcomeTests.cs`) — Removal now reports explicit per-item `removed`/`skipped`/`failed` outcomes with detail text, AppX removal verifies pre/post presence across current/all/provisioned scopes, no-op targets are surfaced as skipped instead of silent success, bulk summaries separate skipped items from true removals, and the UI now shows a visible per-item result detail column.
 - **[HIGH] Ryzen AI 9 undervolt path now fails safe with explicit unsupported messaging (GitHub #103)** (`RyzenControl.cs`, `AmdUndervoltProvider.cs`, `SystemControlViewModel.cs`, `RyzenControlTests.cs`) — Added family/model guard (`Family 0x1A`, `Model 0x40+`) for Ryzen AI 9 Curve Optimizer path, returns explicit "not yet supported" status, disables apply controls through capability gating, and adds regression coverage for decimal/hex CPU signature parsing.
 - **[HIGH] Max fan mode sawtooth RPM pattern reduced on affected firmware (GitHub #37)** (`WmiFanController.cs`, `FanService.cs`, `WmiV2VerificationTests.cs`) — Replaced timer-tick `SetFanMax(true)` spam with max-mode keepalive + sustained-drop detection; max is now re-applied only after confirmed low telemetry, and WMI max apply path no longer sends a redundant immediate `SetFanSpeed(100)` pulse.
+- **[HIGH] Fan safety disclaimer and RPM sanity-check warning added (GitHub #106)** (`FanControlView.xaml`, `FanControlViewModel.cs`, `FanService.cs`, `FanPresetVerificationTests.cs`) — Added firmware safety disclaimer in Fan Control header, plus post-apply sanity monitoring that raises a warning banner when duty remains active but RPM reads 0 for over 30 seconds.
+- **[HIGH] Linux GUI startup hardening for black/blank window cases (GitHub #108, #118)** (`OmenCore.Avalonia/Program.cs`) — Added pre-render X11 display retry path on `XOpenDisplay` failures (including alternate DISPLAY probing), improved sudo-session `XAUTHORITY` recovery, and expanded startup diagnostics with explicit `xauthority` logging.
+- **[HIGH] Broken fan RPM readback no longer shown as misleading `0 RPM` (GitHub #16, #55, #80)** (`FanTelemetry.cs`, `FanService.cs`, `DashboardViewModel.cs`, `FanControlView.xaml`) — Added sustained zero-RPM-with-duty detection and surfaced `RPM unavailable (fan responding)` state in fan telemetry cards and dashboard summaries. State-only changes now refresh the UI even when stabilized RPM is held, and sanity warnings use raw RPM rather than smoothed display RPM.
 - **[MEDIUM] Quick Status Bar overlaps telemetry banner on Dashboard** (`DashboardView.xaml`) — Both at `Grid.Row="1"`; status bar moved to unused Row 2.
 - **[MEDIUM] `RgbNetSystemProvider.InitializeAsync` blocks thread** (`RgbNetSystemProvider.cs`) — `Task.Delay(250).Wait()` replaced with `await Task.Delay(250)`; method now truly `async Task`.
 - **[HIGH] OMEN 16-xd0xxx RGB turns off after applying presets** (`KeyboardLightingServiceV2.cs`, `WmiBiosBackend.cs`) — Keyboard apply sequence reordered (brightness first, colors last) and WMI backlight is now explicitly enabled before color-table writes.
 - **[HIGH] Hybrid iGPU+dGPU GPU power display corrected** (`WmiBiosMonitor.cs`, `DashboardViewModel.cs`) — Improved dGPU inactive detection on Optimus systems and explicit `GPU: inactive (Optimus)` dashboard messaging instead of misleading wattage.
 - **[MEDIUM] Additional sync-over-async hardening** (`PerformanceModeService.cs`, `ThermalSensorProvider.cs`, `LibreHardwareMonitorImpl.cs`, `WmiBiosMonitor.cs`, `OmenGamingHubCleanupService.cs`, `RazerService.cs`) plus dispose deadlock hardening in `AudioReactiveRgbService.cs` and `ScreenColorSamplingService.cs` — Removed `ContinueWith`/`t.Result` patterns, replaced more bounded `.Result` reads, and centralized timeout-safe async bridging for Razer effect/session paths.
+- **[MEDIUM] Performance-mode TDP diagnostics expanded for 2025 model investigation** (`PerformanceModeService.cs`) — Added before/after/verify snapshots for PL1/PL2/GPU/mode-register values to identify cases where `Performance` applies balanced-like sustained limits (GitHub community report, OMEN 16-am1xxx class).
+- **[HIGH] Performance mode now applies correct sustained TDP on 2025 OMEN 16-am1xxx models** (`ModelCapabilityDatabase.cs`, `PerformanceModeService.cs`, `PowerLimitController.cs`, `MainViewModel.cs`) — Added model-specific TDP override fields to `ModelCapabilities` and 16-am1xxx database entry with OGH reference values (90W PL1 / 130W PL2 Performance, 55W Balanced). `PerformanceModeService` now resolves model-aware effective limits before any EC write, including explicit PL2 handoff, so global config defaults no longer apply the wrong power tier on affected models.
+- **[MEDIUM] Performance-mode verification no longer writes EC power limits twice** (`PowerVerificationService.cs`, `PowerLimitControllerTests.cs`) — `VerifyPowerLimitsAsync` now performs read-back comparison only. The explicit `ApplyAndVerifyPowerLimitsAsync` API still applies then verifies when that behavior is desired.
+- **[MEDIUM] Fan Calibration Save Results button now persists calibration data** (`FanCalibrationControl.xaml.cs`) — Replaced placeholder save message with real storage via `FanCalibrationStorageService`, and made Load Existing report the loaded model/fan profile count.
 - **[QUALITY] Release-gate hygiene compliance maintained** (`KeyboardLightingServiceV2.cs`, `OmenKeyService.cs`, `WmiBiosMonitor.cs`) — Replaced bare `catch { }` with explicit exception handling/logging so `NoBareCatchBraces` gate remains green.
 - **[CRITICAL/CI] Release-gate baseline test failing** (`ReleaseGateCodeHygieneTests.cs`) — 8 stale line numbers in `KnownBareCatchViolations` updated after v3.3.1 line shifts.
 - **[HIGH] Model support matrix gaps (HP #3) closed** (`ModelCapabilityDatabase.cs`, `KeyboardModelDatabase.cs`) — Added missing Product IDs `8A44`, `8A3E`, `8A26`, `8C58`, `8E41` with conservative `UserVerified=false` profiles and regression tests.
 - **[HIGH] OMEN MAX 16-ak0xxx model/keyboard fallback (GitHub #117)** (`ModelCapabilityDatabase.cs`, `KeyboardModelDatabase.cs`, `ModelCapabilityDatabaseTests.cs`, `KeyboardModelDatabaseTests.cs`) — Added Product ID `8D87` mappings so model capability and keyboard profile selection no longer fall back to generic defaults on this platform.
+- **[HIGH] OMEN tab failed to load due to missing style resource key** (`FanControlView.xaml`, `ModernStyles.xaml`) — Added missing `PremiumDangerBannerCard` style to shared styles so the OMEN tab no longer throws a `StaticResource` lookup exception during lazy tab creation.
+
+### Release Artifacts
+
+| File | SHA256 |
+|------|--------|
+| `OmenCoreSetup-3.4.0.exe` | `91F7032D6ECA31515261A8E8412039ACBDA25E672B0F2641DC34CD7AB03039EA` |
+| `OmenCore-3.4.0-win-x64.zip` | `55A26693471E0E16312EFDFDD4E6D89CD0475DB4168AF3F9C95B2F2CED8FB7B6` |
+| `OmenCore-3.4.0-linux-x64.zip` | `943928F2273FA6A4959AFC08AF57D3DE26F55222C8C793622D960DB01413BECC` |
 
 ### Documentation
 
@@ -45,7 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **[HIGH] Fan RPM drops to 0 during preset/mode switch** (`FanService.cs`, `FanControlViewModel.cs`) — Added 5-second transition window; monitor holds last non-zero RPM during BIOS handoff. `Dispatcher.Invoke` on startup changed to `BeginInvoke` (HP #27).
 - **[HIGH] `async void` non-event-handler methods crash process** (`MainViewModel.cs`, `SystemOptimizerViewModel.cs`, `GameProfileManagerViewModel.cs`, `LightingViewModel.cs`) — 8 `async void` methods converted to `async Task` + fire-and-forget or `AsyncRelayCommand` (HP #10).
 - **[MEDIUM] Dialog windows render un-themed** (`InputPromptWindow.xaml`, `GameProfileManagerView.xaml`, `GameLibraryView.xaml`) — All hardcoded hex colors replaced with `StaticResource` app theme brushes (HP #13).
-- **[CI] Release-gate baseline** (`ReleaseGateCodeHygieneTests.cs`) — `FanService.cs:1816` baseline entry updated to `1846` after HP #27 line shift.
+- **[CI] Release-gate baseline** (`ReleaseGateCodeHygieneTests.cs`) — `FanService.cs` known bare-catch baseline line updated from `1846` to `1944` after #24 RPM sanity-check additions.
+- **[CI] Release-gate baseline** (`ReleaseGateCodeHygieneTests.cs`) — `FanService.cs` known bare-catch baseline line updated from `1944` to `1983` after #25 telemetry-state additions.
+- **[CI] Release-gate baseline** (`ReleaseGateCodeHygieneTests.cs`) — `FanService.cs` known bare-catch baseline line updated from `1983` to `2044` after RPM-state propagation and monitor-loop allocation cleanup.
 - **[MEDIUM] CI/CD pipeline fixes** (`ci.yml`, `release.yml`, `linux-qa.yml`, `alpha.yml`) — Stale `v2.0-dev` branch removed; `wmi-v2-tests` and `integration-tests` jobs now build independently to fix `--no-build` on fresh runners; `release.yml` Linux step now uses `build-linux-package.ps1` (version injection, SHA256, `.zip`); `linux-qa.yml` `PublishTrimmed` corrected to `false`; all actions updated from v3 to v4 (HP #14).
 - **[MEDIUM] Windows build version injection** (`build-installer.ps1`, `installer/OmenCoreInstaller.iss`) — Added `-p:Version`, `-p:AssemblyVersion`, `-p:FileVersion` to the Windows app and hardware-worker publish steps; ISS fallback version updated to `3.4.0` (HP #15).
 - **[MEDIUM] Avalonia/Linux performance-mode consistency** (`IHardwareService.cs`, `SystemControlViewModel.cs`, `SystemControlView.axaml`) — Removed unsupported `Custom` mode, replaced fragile index-to-enum cast with explicit mapping, and kept Linux low-power (`low-power`/`cool`/`quiet`) translation under `Quiet` (HP #16).

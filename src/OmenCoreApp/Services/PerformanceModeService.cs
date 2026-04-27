@@ -15,6 +15,7 @@ namespace OmenCore.Services
         private readonly PowerLimitController? _powerLimitController;
         private readonly IPowerVerificationService? _powerVerificationService;
         private readonly LoggingService _logging;
+        private readonly ModelCapabilities? _modelCapabilities;
         private PerformanceMode? _currentMode;
 
         /// <summary>
@@ -34,40 +35,56 @@ namespace OmenCore.Services
             PowerPlanService powerPlanService, 
             PowerLimitController? powerLimitController,
             LoggingService logging,
-            IPowerVerificationService? powerVerificationService = null)
+            IPowerVerificationService? powerVerificationService = null,
+            ModelCapabilities? modelCapabilities = null)
         {
             _fanController = fanController;
             _powerPlanService = powerPlanService;
             _powerLimitController = powerLimitController;
             _powerVerificationService = powerVerificationService;
             _logging = logging;
+            _modelCapabilities = modelCapabilities;
         }
 
         public void Apply(PerformanceMode mode)
         {
             _currentMode = mode;
-            var modeInfo = $"⚡ Applying performance mode: '{mode.Name}'";
-            if (!string.IsNullOrEmpty(mode.LinkedPowerPlanGuid))
+            // Apply model-specific TDP overrides if the database has values for this model/mode.
+            var effectiveMode = ApplyModelCapabilityOverrides(mode);
+            var modeInfo = $"⚡ Applying performance mode: '{effectiveMode.Name}'";
+            if (!string.IsNullOrEmpty(effectiveMode.LinkedPowerPlanGuid))
             {
-                modeInfo += $" (Power Plan: {mode.LinkedPowerPlanGuid})";
+                modeInfo += $" (Power Plan: {effectiveMode.LinkedPowerPlanGuid})";
             }
             _logging.Info(modeInfo);
             
             // Step 1: Apply Windows power plan
-            _powerPlanService.Apply(mode);
+            _powerPlanService.Apply(effectiveMode);
             
             // Step 2: Apply EC-level power limits (CPU PL1/PL2, GPU TGP)
             if (_powerLimitController != null && _powerLimitController.IsAvailable)
             {
                 try
                 {
-                    _powerLimitController.ApplyPerformanceLimits(mode);
-                    _logging.Info($"⚡ Power limits applied: CPU={mode.CpuPowerLimitWatts}W, GPU={mode.GpuPowerLimitWatts}W");
+                    if (_powerVerificationService != null && _powerVerificationService.IsAvailable)
+                    {
+                        var before = _powerVerificationService.GetCurrentPowerLimits();
+                        _logging.Info($"⚡ Power limits before apply ({effectiveMode.Name}): PL1={before.cpuPl1}W, PL2={before.cpuPl2}W, GPU={before.gpuTgp}W, ModeReg={before.performanceMode}");
+                    }
+
+                    _powerLimitController.ApplyPerformanceLimits(effectiveMode);
+                    _logging.Info($"⚡ Power limits applied: CPU={effectiveMode.CpuPowerLimitWatts}W, GPU={effectiveMode.GpuPowerLimitWatts}W");
+
+                    if (_powerVerificationService != null && _powerVerificationService.IsAvailable)
+                    {
+                        var after = _powerVerificationService.GetCurrentPowerLimits();
+                        _logging.Info($"⚡ Power limits after apply ({effectiveMode.Name}): PL1={after.cpuPl1}W, PL2={after.cpuPl2}W, GPU={after.gpuTgp}W, ModeReg={after.performanceMode}");
+                    }
 
                     // Verify the power limits were applied correctly
                     if (_powerVerificationService != null && _powerVerificationService.IsAvailable)
                     {
-                        _ = VerifyPowerLimitsAndLogAsync(mode);
+                        _ = VerifyPowerLimitsAndLogAsync(effectiveMode);
                     }
                 }
                 catch (Exception ex)
@@ -104,19 +121,19 @@ namespace OmenCore.Services
                 if (_fanController.IsAvailable)
                 {
                     // Try to set performance mode via WMI BIOS first
-                    if (_fanController.SetPerformanceMode(mode.Name))
+                    if (_fanController.SetPerformanceMode(effectiveMode.Name))
                     {
-                        _logging.Info($"🌀 Fan mode set to '{mode.Name}' via {_fanController.Backend}");
+                        _logging.Info($"🌀 Fan mode set to '{effectiveMode.Name}' via {_fanController.Backend}");
                     }
                     else
                     {
                         // Fallback to custom curve
-                        var fanPercent = Math.Max(20, mode.CpuPowerLimitWatts / 2);
+                        var fanPercent = Math.Max(20, effectiveMode.CpuPowerLimitWatts / 2);
                         _fanController.ApplyCustomCurve(new[]
                         {
                             new FanCurvePoint { TemperatureC = 0, FanPercent = fanPercent }
                         });
-                        _logging.Info($"🌀 Fan speed set to {fanPercent}% for '{mode.Name}' mode");
+                        _logging.Info($"🌀 Fan speed set to {fanPercent}% for '{effectiveMode.Name}' mode");
                     }
                 }
                 else
@@ -129,10 +146,80 @@ namespace OmenCore.Services
                 _logging.Info("ℹ️ Fan policy unchanged — LinkFanToPerformanceMode is off");
             }
             
-            _logging.Info($"✓ Performance mode '{mode.Name}' applied successfully");
+            _logging.Info($"✓ Performance mode '{effectiveMode.Name}' applied successfully");
             
             // Raise event for UI synchronization (sidebar, tray, etc.)
-            ModeApplied?.Invoke(this, mode.Name);
+            ModeApplied?.Invoke(this, effectiveMode.Name);
+        }
+
+        /// <summary>
+        /// Returns a copy of <paramref name="mode"/> with TDP values overridden by model-specific
+        /// capability database entries when available.  Global config values are used as fallback
+        /// so existing behaviour is preserved for all other models.
+        /// </summary>
+        private PerformanceMode ApplyModelCapabilityOverrides(PerformanceMode mode)
+        {
+            return ResolveEffectiveMode(mode);
+        }
+
+        /// <summary>
+        /// Resolves the effective <see cref="PerformanceMode"/> that will actually be applied,
+        /// incorporating any model-specific TDP overrides from the capability database.
+        /// Exposed publicly for diagnostics and unit tests.
+        /// </summary>
+        public PerformanceMode ResolveEffectiveMode(PerformanceMode mode)
+        {
+            if (_modelCapabilities == null)
+            {
+                return mode;
+            }
+
+            var modeName = mode.Name.ToLowerInvariant().Trim();
+            int? cpuOverride = null;
+            int? boostOverride = null;
+            int? gpuOverride = null;
+
+            if (modeName is "performance" or "extreme" or "turbo")
+            {
+                cpuOverride = _modelCapabilities.PerformanceCpuPl1Watts;
+                boostOverride = _modelCapabilities.PerformanceCpuPl2Watts;
+                gpuOverride = _modelCapabilities.PerformanceGpuTgpWatts;
+            }
+            else if (modeName is "balanced" or "default" or "normal")
+            {
+                cpuOverride = _modelCapabilities.BalancedCpuPl1Watts;
+                gpuOverride = _modelCapabilities.BalancedGpuTgpWatts;
+            }
+            else if (modeName is "eco" or "quiet" or "silent" or "powersaver")
+            {
+                cpuOverride = _modelCapabilities.EcoCpuPl1Watts;
+            }
+
+            if (cpuOverride == null && gpuOverride == null)
+            {
+                return mode;
+            }
+
+            var overriddenCpu = cpuOverride ?? mode.CpuPowerLimitWatts;
+            var overriddenBoost = boostOverride ?? mode.CpuBoostPowerLimitWatts;
+            var overriddenGpu = gpuOverride ?? mode.GpuPowerLimitWatts;
+
+            _logging.Info(
+                $"⚡ Model capability override for '{mode.Name}': " +
+                $"CPU PL1 {mode.CpuPowerLimitWatts}W → {overriddenCpu}W, " +
+                $"CPU PL2 {(mode.CpuBoostPowerLimitWatts?.ToString() ?? "auto")}W → {(overriddenBoost?.ToString() ?? "auto")}W, " +
+                $"GPU {mode.GpuPowerLimitWatts}W → {overriddenGpu}W " +
+                $"(model: {_modelCapabilities.ModelName})");
+
+            return new PerformanceMode
+            {
+                Name = mode.Name,
+                CpuPowerLimitWatts = overriddenCpu,
+                CpuBoostPowerLimitWatts = overriddenBoost,
+                GpuPowerLimitWatts = overriddenGpu,
+                LinkedPowerPlanGuid = mode.LinkedPowerPlanGuid,
+                Description = mode.Description
+            };
         }
 
         private async Task VerifyPowerLimitsAndLogAsync(PerformanceMode mode)
@@ -153,6 +240,11 @@ namespace OmenCore.Services
                 {
                     _logging.Warn("⚠️ Power limits verification failed - values may not have been applied");
                 }
+
+                var observed = _powerVerificationService.GetCurrentPowerLimits();
+                _logging.Info(
+                    $"⚡ Power verify snapshot ({mode.Name}): ExpectedCPU={mode.CpuPowerLimitWatts}W, ExpectedGPU={mode.GpuPowerLimitWatts}W, " +
+                    $"ObservedPL1={observed.cpuPl1}W, ObservedPL2={observed.cpuPl2}W, ObservedGPU={observed.gpuTgp}W, ModeReg={observed.performanceMode}");
             }
             catch (Exception ex)
             {

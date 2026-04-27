@@ -85,7 +85,10 @@ namespace OmenCore.Services
         // When the candidate value changes (e.g. from 0-w-duty to a real RPM spike) the counter
         // must be reset so that we don't accidentally carry over counts from a different value.
         private List<int> _fanChangePendingRpms = new();
+        private List<DateTime> _zeroRpmDutySinceByFan = new();
+        private List<TelemetryDataState> _lastFanRpmStates = new();
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
+        private const int RpmReadbackUnavailableThresholdSeconds = 10;
         // Require two consecutive reads to accept a large non-zero RPM change to avoid
         // showing spurious transient readings (single-sample noise). Zero RPM is
         // accepted immediately so stopped-fan state is visible to users.
@@ -338,11 +341,91 @@ namespace OmenCore.Services
                 return (false, $"VerifyMaxApplied exception: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// Check RPM sanity: if duty > 0% but RPM = 0 for >30 seconds, raise a warning.
+        /// This indicates possible hardware fan failure or broken RPM readback.
+        /// Called periodically from the monitoring loop after preset applies.
+        /// </summary>
+        public void CheckRpmSanity(int dutyPercent, int rpmReading)
+        {
+            // Only track when duty > 0% (fans commanded to run)
+            if (dutyPercent > 0 && rpmReading == 0)
+            {
+                // Start the zero-RPM timer if not already started
+                if (_zeroRpmWithDutyStartTime == DateTime.MinValue)
+                {
+                    _zeroRpmWithDutyStartTime = DateTime.UtcNow;
+                    _logging.Warn($"RPM sanity check: zero RPM detected with {dutyPercent}% duty - monitoring for hardware issue");
+                }
+
+                // Check if we've exceeded the threshold
+                var elapsedSeconds = (DateTime.UtcNow - _zeroRpmWithDutyStartTime).TotalSeconds;
+                if (elapsedSeconds >= RpmSanityCheckThresholdSeconds && !_rpmSanityWarningRaised)
+                {
+                    _rpmSanityWarningRaised = true;
+                    var message = $"Fan hardware may be failing: duty cycle at {dutyPercent}% but RPM reads 0 for {(int)elapsedSeconds}+ seconds. " +
+                                  "This suggests either a fan hardware failure or broken RPM sensor. Run hardware diagnostics to verify fan operation.";
+                    _logging.Error(message);
+
+                    // Raise event for UI banner
+                    RpmSanityCheckWarning?.Invoke(this, new RpmSanityCheckEventArgs
+                    {
+                        DutyPercent = dutyPercent,
+                        RpmReading = rpmReading,
+                        DurationAtZero = TimeSpan.FromSeconds(elapsedSeconds),
+                        Message = message
+                    });
+                }
+            }
+            else if (dutyPercent > 0 && rpmReading > 0)
+            {
+                // RPM is healthy - clear the warning state
+                _zeroRpmWithDutyStartTime = DateTime.MinValue;
+                _rpmSanityWarningRaised = false;
+                if (_lastFanRpm == 0)
+                {
+                    _logging.Info($"RPM sanity check: recovered - RPM now reading {rpmReading} at {dutyPercent}% duty");
+                }
+            }
+            else if (dutyPercent == 0)
+            {
+                // Duty is off, reset the timer
+                _zeroRpmWithDutyStartTime = DateTime.MinValue;
+                _rpmSanityWarningRaised = false;
+            }
+
+            _lastFanDutyPercent = dutyPercent;
+            _lastFanRpm = rpmReading;
+        }
+        
+        /// <summary>
+        /// Public method to reset the RPM sanity warning (called when user dismisses the warning).
+        /// </summary>
+        public void DismissRpmSanityWarning()
+        {
+            _zeroRpmWithDutyStartTime = DateTime.MinValue;
+            _rpmSanityWarningRaised = false;
+            _logging.Info("RPM sanity warning dismissed by user");
+        }
         
         /// <summary>
         /// Event raised when a preset is applied (for UI synchronization).
         /// </summary>
         public event EventHandler<string>? PresetApplied;
+        
+        /// <summary>
+        /// Event raised when RPM sanity check detects zero RPM for >30s with active duty cycle.
+        /// </summary>
+        public event EventHandler<RpmSanityCheckEventArgs>? RpmSanityCheckWarning;
+        
+        // RPM sanity check state - monitor for broken RPM readback after preset applies
+        // If duty > 0% but RPM reads 0 for >30 seconds, likely indicates hardware issue
+        private DateTime _zeroRpmWithDutyStartTime = DateTime.MinValue;
+        private int _lastFanDutyPercent = -1;
+        private int _lastFanRpm = -1;
+        private bool _rpmSanityWarningRaised = false;
+        private const int RpmSanityCheckThresholdSeconds = 30;
         
         /// <summary>
         /// Enable/disable thermal protection override.
@@ -921,12 +1004,31 @@ namespace OmenCore.Services
                         continue;
                     }
 
-                    // Read temperatures
-                    var temps = _thermalProvider.ReadTemperatures().ToList();
-                    var cpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("CPU"))?.Celsius 
-                                  ?? temps.FirstOrDefault()?.Celsius ?? 0;
-                    var gpuTemp = temps.FirstOrDefault(t => t.Sensor.Contains("GPU"))?.Celsius 
-                                  ?? temps.Skip(1).FirstOrDefault()?.Celsius ?? 0;
+                    // Read temperatures. Avoid LINQ here; this loop runs continuously.
+                    double cpuTemp = 0;
+                    double gpuTemp = 0;
+                    double firstTemp = 0;
+                    double secondTemp = 0;
+                    int tempIndex = 0;
+                    foreach (var reading in _thermalProvider.ReadTemperatures())
+                    {
+                        if (tempIndex == 0) firstTemp = reading.Celsius;
+                        if (tempIndex == 1) secondTemp = reading.Celsius;
+
+                        if (cpuTemp <= 0 && reading.Sensor.Contains("CPU", StringComparison.OrdinalIgnoreCase))
+                        {
+                            cpuTemp = reading.Celsius;
+                        }
+                        else if (gpuTemp <= 0 && reading.Sensor.Contains("GPU", StringComparison.OrdinalIgnoreCase))
+                        {
+                            gpuTemp = reading.Celsius;
+                        }
+
+                        tempIndex++;
+                    }
+
+                    if (cpuTemp <= 0) cpuTemp = firstTemp;
+                    if (gpuTemp <= 0) gpuTemp = secondTemp;
                     
                     var sample = new ThermalSample
                     {
@@ -961,25 +1063,33 @@ namespace OmenCore.Services
 
                     // Prepare a stable "display" RPM list using confirmation counters to
                     // ignore single-sample spikes. Zero RPM is accepted immediately.
-                    var newRpms = fanSpeeds.Select(f => f.Rpm).ToList();
+                    var fanCount = fanSpeeds.Count;
+                    var primaryRawRpm = fanCount > 0 ? fanSpeeds[0].Rpm : 0;
 
                     // Resize/initialize confirmation counters when fan count changes
-                    if (_fanChangeConfirmCounters == null || _fanChangeConfirmCounters.Count != newRpms.Count)
+                    if (_fanChangeConfirmCounters == null || _fanChangeConfirmCounters.Count != fanCount)
                     {
-                        _fanChangeConfirmCounters = Enumerable.Repeat(0, newRpms.Count).ToList();
-                        _fanChangePendingRpms = Enumerable.Repeat(0, newRpms.Count).ToList();
+                        _fanChangeConfirmCounters = Enumerable.Repeat(0, fanCount).ToList();
+                        _fanChangePendingRpms = Enumerable.Repeat(0, fanCount).ToList();
+                        _zeroRpmDutySinceByFan = Enumerable.Repeat(DateTime.MinValue, fanCount).ToList();
+                        _lastFanRpmStates = Enumerable.Repeat(TelemetryDataState.Unknown, fanCount).ToList();
                     }
 
-                    var displayRpms = new List<int>(newRpms.Count);
-                    for (int i = 0; i < newRpms.Count; i++)
+                    var displayRpms = new List<int>(fanCount);
+                    var rpmStates = new List<TelemetryDataState>(fanCount);
+                    for (int i = 0; i < fanCount; i++)
                     {
-                        var newRpm = newRpms[i];
+                        var newRpm = fanSpeeds[i].Rpm;
                         var lastRpm = (i < _lastFanSpeeds.Count) ? _lastFanSpeeds[i] : 0;
 
                         // Accept zero immediately **only** when duty cycle also indicates stopped fans.
                         // If RPM==0 but duty-cycle > 0 we treat it as a readback glitch and DO NOT
                         // accept the zero (hold the previous value until duty indicates stopped).
                         var duty = (i < fanSpeeds.Count) ? fanSpeeds[i].DutyCyclePercent : 0;
+                        var rpmReadbackUnavailable = UpdateRpmReadbackUnavailableState(i, duty, newRpm);
+                        rpmStates.Add(rpmReadbackUnavailable
+                            ? TelemetryDataState.Unavailable
+                            : (newRpm > 0 ? TelemetryDataState.Valid : TelemetryDataState.Zero));
 
                         if (newRpm == 0)
                         {
@@ -1051,12 +1161,13 @@ namespace OmenCore.Services
                     }
 
                     // Determine whether the displayed RPMs differ from the last UI values
-                    bool fanSpeedsChanged = _lastFanSpeeds.Count != displayRpms.Count ||
-                                             displayRpms.Where((rpm, idx) => idx < _lastFanSpeeds.Count && rpm != _lastFanSpeeds[idx]).Any();
+                    bool fanSpeedsChanged = !IntListsEqual(_lastFanSpeeds, displayRpms);
+                    bool fanRpmStateChanged = !RpmStateListsEqual(_lastFanRpmStates, rpmStates);
 
                     // Update internal last-seen RPMs even when there's no UI dispatcher
                     // (keeps headless/unit-test scenarios deterministic)
-                    _lastFanSpeeds = displayRpms.ToList();
+                    _lastFanSpeeds = displayRpms;
+                    _lastFanRpmStates = rpmStates;
 
                     // Use BeginInvoke to avoid potential deadlocks
                     App.Current?.Dispatcher?.BeginInvoke(() =>
@@ -1069,7 +1180,7 @@ namespace OmenCore.Services
                         }
 
                         // Only update fan telemetry if values changed meaningfully
-                        if (fanSpeedsChanged)
+                        if (fanSpeedsChanged || fanRpmStateChanged)
                         {
                             _fanTelemetry.Clear();
                             for (int i = 0; i < fanSpeeds.Count; i++)
@@ -1077,11 +1188,21 @@ namespace OmenCore.Services
                                 var fan = fanSpeeds[i];
                                 // Show the stabilized RPM value instead of raw sensor noise
                                 fan.SpeedRpm = (i < displayRpms.Count) ? displayRpms[i] : fan.SpeedRpm;
+                                fan.RpmState = i < rpmStates.Count
+                                    ? rpmStates[i]
+                                    : (fan.SpeedRpm > 0 ? TelemetryDataState.Valid : TelemetryDataState.Zero);
                                 _fanTelemetry.Add(fan);
                             }
 
                             // Commit displayed RPMs as the last-seen UI state (already set above)
                             //_lastFanSpeeds = displayRpms.ToList();
+                        }
+                        
+                        // Check RPM sanity: if duty > 0% but RPM = 0, monitor for hardware failure
+                        if (fanSpeeds.Count > 0)
+                        {
+                            var primaryFan = fanSpeeds[0];
+                            CheckRpmSanity(primaryFan.DutyCyclePercent, primaryRawRpm);
                         }
                     });
                 }
@@ -1119,6 +1240,72 @@ namespace OmenCore.Services
             }
 
             _logging.Info("Fan monitor loop stopped");
+        }
+
+        private static bool IntListsEqual(List<int> left, List<int> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool RpmStateListsEqual(List<TelemetryDataState> left, List<TelemetryDataState> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool UpdateRpmReadbackUnavailableState(int fanIndex, int dutyPercent, int rawRpm)
+        {
+            if (fanIndex < 0)
+            {
+                return false;
+            }
+
+            if (_zeroRpmDutySinceByFan.Count <= fanIndex)
+            {
+                while (_zeroRpmDutySinceByFan.Count <= fanIndex)
+                {
+                    _zeroRpmDutySinceByFan.Add(DateTime.MinValue);
+                }
+            }
+
+            if (dutyPercent > 0 && rawRpm == 0)
+            {
+                if (_zeroRpmDutySinceByFan[fanIndex] == DateTime.MinValue)
+                {
+                    _zeroRpmDutySinceByFan[fanIndex] = DateTime.UtcNow;
+                    return false;
+                }
+
+                return (DateTime.UtcNow - _zeroRpmDutySinceByFan[fanIndex]).TotalSeconds >= RpmReadbackUnavailableThresholdSeconds;
+            }
+
+            _zeroRpmDutySinceByFan[fanIndex] = DateTime.MinValue;
+            return false;
         }
         
         /// <summary>
@@ -1899,5 +2086,17 @@ namespace OmenCore.Services
             DisableCurve();
             Stop();
         }
+    }
+
+    /// <summary>
+    /// Event arguments for RPM sanity check warnings.
+    /// Indicates that RPM reading is stuck at 0 while fans are commanded to run.
+    /// </summary>
+    public class RpmSanityCheckEventArgs : EventArgs
+    {
+        public int DutyPercent { get; set; }
+        public int RpmReading { get; set; }
+        public TimeSpan DurationAtZero { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 }

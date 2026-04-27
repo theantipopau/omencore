@@ -21,9 +21,9 @@ What remains for v3.4.0 is narrower than a typical audit would suggest:
 ## Validation Snapshot
 
 - Editor/compiler error check: **zero errors** across all inspected projects (12 analyzer warnings in test files were resolved on 2026-04-17).
-- Automated tests: **193 passed, 0 failed**.
+- Automated tests: **224 passed, 0 failed** as of the 2026-04-27 readiness sweep.
 - Release gate blocking test is now green after baseline refresh in `ReleaseGateCodeHygieneTests`.
-- Test trajectory: the suite grew from ~124 tests (pre-3.3.1) to 193 with subsequent reliability and regression additions.
+- Test trajectory: the suite grew from ~124 tests (pre-3.3.1) to 224 with subsequent reliability and regression additions.
 
 ## Critical (must fix before release)
 
@@ -35,7 +35,7 @@ Evidence:
 
 - `ReleaseGateCodeHygieneTests.NoBareCatchBraces_NewViolations_Blocking` was previously failing due to shifted baseline line numbers.
 - The baseline entries were refreshed and the gate is now passing again.
-- Current validation state is green (`193 passed, 0 failed`) with no new blocking bare-catch violations.
+- Current validation state is green (`224 passed, 0 failed`) with no new blocking bare-catch violations.
 
 #### Implemented
 
@@ -427,7 +427,7 @@ Files to modify:
 - Model capability database source file (add entry)
 - GitHub #113 (reply requesting diagnostics)
 
-### 1. Remove or quarantine remaining placeholder and dead product surfaces ✅ PARTIALLY FIXED (desktop prototype archived; placeholder copy cleanup pending)
+### 1. Remove or quarantine remaining placeholder and dead product surfaces ✅ FIXED (desktop prototype archived; release-facing placeholder copy removed)
 
 Area: UI/UX, Feature Completeness, Release Readiness
 
@@ -441,14 +441,14 @@ Context — what v3.3.0 already addressed:
 Remaining gaps:
 
 - `src/OmenCore.Desktop` is now explicitly marked archived/not-shipping, but not yet physically removed from the repo.
-- `LightingViewModel.cs` still explicitly logs that macro profiles are UI placeholders.
-- Any residual "coming soon" or placeholder copy in the Razer section of `LightingView.xaml` should be removed now that the Razer backend is functional.
+- `LightingViewModel.cs` still explicitly logs that macro profiles are UI placeholders, but this is diagnostics-only and not release-facing UI copy.
+- The stale Razer "coming soon / placeholder functionality" UI copy in `LightingView.xaml` has been replaced with limited-support wording that matches the current backend.
 - `SystemControlViewModel.cs` AMD GPU initialization is still a placeholder for future ADLX integration.
 
 Status update:
 
 - Added `src/OmenCore.Desktop/README.md` archive guidance and a matching archived-project marker comment in `OmenCore.Desktop.csproj`.
-- Remaining scope in this item is user-facing placeholder copy and unsupported AMD GPU tuning messaging cleanup.
+- Remaining non-release-facing notes are internal implementation comments or diagnostics, not user-visible placeholder surfaces.
 
 #### Plan
 
@@ -799,13 +799,14 @@ Status update:
 - QA checklist created at `qa/v3.4.0-checklist.md`.
 - Remaining work is process discipline during ongoing triage (defer non-core feature requests to post-v3.4 planning).
 
-### 9. Resolve GitHub #108 (Linux black screen) or document workaround
+### 9. Resolve GitHub #108 / #118 (Linux black screen / blank window) ✅ PARTIALLY FIXED (startup display fallback hardening shipped)
 
 Area: Linux, Release Readiness
 
 Evidence:
 
 - GitHub #108 is tracked as pending with no repro steps (v3.3.1 changelog).
+- GitHub #118 reports Ubuntu 24.04 X11 blank/black window on HP Victus (AMD 780M), with startup logs showing `XOpenDisplay failed` and session-display mismatch symptoms.
 - v3.3.0 shipped significant Linux GUI startup hardening: DBus recovery, AT-SPI bridge suppression, automatic software-render retry, persisted last-known-good render mode, and an in-app fallback banner.
 - The `OMENCORE_GUI_RENDER_MODE=software` workaround exists.
 
@@ -848,6 +849,17 @@ Files to modify:
 - `INSTALL.md`
 - `README.md`
 - Potentially `src/OmenCore.Avalonia/Program.cs` or `src/OmenCore.Avalonia/ViewModels/MainWindowViewModel.cs`
+
+#### Implementation update (2026-04-27)
+
+- Added Linux X11 startup retry path in `src/OmenCore.Avalonia/Program.cs` that detects `XOpenDisplay`/display-open failures, probes alternate local displays (`:1`, `:0`, `:2`, `:3`, plus `/tmp/.X11-unix` sockets), and retries startup automatically once.
+- Preserved existing renderer fallback sequence (GPU -> software) after display retry path.
+- Added sudo-session recovery hardening for missing `XAUTHORITY` (attempts `/run/user/$SUDO_UID/gdm/Xauthority` when available).
+- Added `xauthority=` field to GUI startup log for faster triage.
+- Validation: `dotnet build src/OmenCore.Avalonia/OmenCore.Avalonia.csproj -c Debug` succeeded.
+
+Remaining for full closure:
+- Reproduce and verify on Ubuntu 24.04 X11/Wayland hardware matrix before marking fully fixed.
 
 ### 10. Fix `async void` non-event-handler methods across ViewModels ✅ FIXED
 
@@ -921,7 +933,7 @@ Files to modify:
 - `src/OmenCore.Avalonia/ViewModels/MainWindowViewModel.cs`
 - `src/OmenCore.Avalonia/ViewModels/SystemControlViewModel.cs`
 
-### 11. Fix sync-over-async deadlock risks (`.Result` / `.Wait()`) ✅ PARTIALLY FIXED (RgbNetSystemProvider + continuation cleanup)
+### 11. Fix sync-over-async deadlock risks (`.Result` / `.Wait()`) ✅ PARTIALLY FIXED (RgbNetSystemProvider + verification-write cleanup)
 
 Area: Code Quality, Reliability, Deadlock Prevention
 
@@ -941,6 +953,12 @@ Evidence:
 - `ThermalSensorProvider.cs` / `LibreHardwareMonitorImpl.cs`: Convert the bounded `.Wait(ms)` + `.Result` pattern to `await` with `Task.WhenAny(task, Task.Delay(timeout))` or use `CancellationTokenSource` with timeout
 - `WmiBiosMonitor.cs:953`: Change to `var result = await fallbackTask` if the caller is async; otherwise use `Task.WhenAny` with timeout
 - For each fix, verify the caller chain supports async propagation; if a sync boundary is required (e.g., IDisposable.Dispose), document the reason
+
+#### Implementation update (2026-04-27 follow-up)
+
+- `PowerVerificationService.VerifyPowerLimitsAsync()` no longer delegates to the apply-and-verify path. It now waits for the EC settle window and performs read-back comparison only.
+- This removes an unnecessary second EC write during every `PerformanceModeService.Apply()` call after the mode was already applied.
+- Added `PowerLimitControllerTests.VerifyPowerLimitsAsync_ReadsBackOnly_DoesNotApplySecondEcWrite`.
 
 Files to modify:
 - `src/OmenCoreApp/Services/Rgb/RgbNetSystemProvider.cs`
@@ -1220,29 +1238,36 @@ Evidence: Fn+brightness (F2/F3) opens/hides OmenCore. v3.3.0 fixed Fn+F6/F7 (sca
 - In `OmenKeyService.IsOmenKey()`, hardened `VK_LAUNCH_APP1`/`VK_LAUNCH_APP2` handling to a narrow allow-list (`0xE045`) and rejected known brightness-conflict scans (`0xE046`, `0x0046`, `0x009D`).
 - Added regression tests for both LaunchApp virtual keys to ensure brightness-conflict scans are always rejected.
 - Added positive-path regression tests to preserve valid OMEN launch-scan detection.
-- Validation: `dotnet test` green with **193 passed, 0 failed**.
+- Validation: `dotnet test` green with **224 passed, 0 failed**.
 
 Files modified:
 - `src/OmenCoreApp/Services/OmenKeyService.cs`
 - `src/OmenCoreApp.Tests/Services/HotkeyAndMonitoringTests.cs`
 
-### 24. Add fan-related safety disclaimer and post-apply RPM sanity check (GitHub #106)
+### 24. Add fan-related safety disclaimer and post-apply RPM sanity check (GitHub #106) ✅ FIXED
 
 Area: Safety, UX
 
 Evidence: User reports permanent fan hardware failure after using OmenCore fan curves. While software WMI commands cannot damage fan hardware (this is a coincidental hardware failure), the perception creates liability risk.
 
-#### Plan
+#### Implementation
 
-- Add a visible disclaimer in Fan Control tab header or tooltip: "Fan control uses your laptop's standard firmware interface (WMI BIOS). These software commands cannot damage fan hardware."
-- Add a post-apply sanity check: if RPM reads 0 for >30 seconds while duty >0%, show a warning banner suggesting hardware diagnostics
-- Close #106 with explanation that WMI commands are firmware-mediated and cannot cause permanent motor failure
+- Added WMI BIOS disclaimer tooltip in Fan Control header clarifying that firmware-mediated software commands cannot damage fan hardware.
+- Added `CheckRpmSanity()` in `FanService` with `RpmSanityCheckWarning` event when duty is active but RPM remains 0 for over 30 seconds.
+- Added `RpmSanityCheckEventArgs` (`DutyPercent`, `RpmReading`, `DurationAtZero`, `Message`) for UI-safe warning payloads.
+- Added `ShowRpmSanityWarning` and `RpmSanityWarningMessage` in `FanControlViewModel` plus dismiss command wiring.
+- Added warning banner in `FanControlView.xaml` for post-apply RPM fault guidance with diagnostic recommendation.
+- Added 6 regression tests for warning trigger timing, one-shot behavior, healthy-state suppression, and recovery path.
+- Validation: `dotnet test` green with **224 passed, 0 failed**.
 
-Files to modify:
+Files modified:
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/ViewModels/FanControlViewModel.cs`
 - `src/OmenCoreApp/Views/FanControlView.xaml`
-- `src/OmenCoreApp/Services/FanService.cs` (post-apply RPM monitor)
+- `src/OmenCoreApp.Tests/Services/FanPresetVerificationTests.cs`
+- `src/OmenCoreApp.Tests/ReleaseGateCodeHygieneTests.cs`
 
-### 25. Fix 0 RPM fan display on models with broken RPM readback (GitHub #16, #55, #80)
+### 25. Fix 0 RPM fan display on models with broken RPM readback (GitHub #16, #55, #80) ✅ FIXED (RPM unavailable state surfaced across Fan Control and Dashboard)
 
 Area: Telemetry, UI
 
@@ -1250,64 +1275,104 @@ Evidence: Multiple models report fan speed showing 0 RPM in UI even when fans ar
 
 #### Plan
 
-- When RPM reads 0 but duty cycle >0% for >10 seconds, show "RPM unavailable (fan responding)" instead of "0 RPM" in dashboard and fan control views
-- Add a "RPM readback unavailable" telemetry state to the existing per-sensor state model (valid/zero/inactive/unavailable/stale/invalid)
-- For specific models like HP Omen 15 EN0037AX (#16): investigate whether a model-specific RPM source override (similar to the CPU temp source override pattern in WmiBiosMonitor) can surface correct RPM
+- When RPM reads 0 but duty cycle >0% for >10 seconds, show "RPM unavailable (fan responding)" instead of "0 RPM" in dashboard and fan control views.
+- Add `unavailable` telemetry state to the existing per-sensor state model (valid/zero/inactive/unavailable/stale/invalid).
+- Investigate model-specific RPM source override for known affected platforms (for example HP OMEN 15 EN0037AX) similar to existing CPU temp source overrides.
 
 Files to modify:
 - `src/OmenCoreApp/Hardware/WmiBiosMonitor.cs`
 - `src/OmenCoreApp/Services/HardwareMonitoringService.cs`
-- `src/OmenCoreApp/ViewModels/FanControlViewModel.cs` (display logic)
+- `src/OmenCoreApp/ViewModels/FanControlViewModel.cs`
 
-### 26. Fix Performance mode applying wrong sustained TDP on 2025 OMEN models (community report)
+#### Implementation update (2026-04-27)
+
+- Added per-fan sustained-zero-readback tracking in `FanService`: when duty > 0% and raw RPM remains 0 for over 10 seconds, telemetry is flagged as `TelemetryDataState.Unavailable`.
+- Extended `FanTelemetry` with `RpmState` and `DisplayRpmText`; unavailable-state now renders as `RPM unavailable (fan responding)`.
+- Updated Fan Control telemetry cards to bind RPM text to `DisplayRpmText`.
+- Updated Dashboard fan summaries to render unavailable-state text instead of showing misleading `0 RPM`.
+- `Fan1RpmState` / `Fan2RpmState` are already populated in `MonitoringSample` by `WmiBiosMonitor.GetRpmState()` and consumed by `MainViewModel` for tray and chart logic; threading `Unavailable` state through `MonitoringSample` would require circular cross-service dependency and is deferred as a v3.5 cleanup.
+- Validation: `dotnet test` green with **224 passed, 0 failed**.
+
+Files modified:
+- `src/OmenCoreApp/Models/FanTelemetry.cs`
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/ViewModels/DashboardViewModel.cs`
+- `src/OmenCoreApp/Views/FanControlView.xaml`
+
+### 26. Fix Performance mode applying wrong sustained TDP on 2025 OMEN models (community report) ✅ FIXED (model-aware TDP override + 16-am1xxx entry added)
 
 Area: Performance, Hardware Compatibility
 
 Evidence:
 
 Community report (HP OMEN 16-am1001nw, i9-14900HX + RTX 5070 Ti):
-- **OGH**: PL2 = 130W for ~2 minutes, then sustained PL1 = 90W — correct BIOS-specified limits
-- **OmenCore v3.2.5 Performance + Max fans**: PL2 = 130W for ~10 seconds, then drops to **55W sustained**
-- HWiNFO and ThrottleStop both confirm PKG Power locked at 54.9W while Performance mode is active
-- 55W is the **Balanced** mode TDP for this model family — OmenCore is applying the wrong power tier
+- **OGH**: PL2 = 130W for ~2 minutes, then sustained PL1 = 90W — correct BIOS-specified limits.
+- **OmenCore v3.2.5 Performance + Max fans**: PL2 = 130W for ~10 seconds, then drops to **55W sustained**.
+- HWiNFO and ThrottleStop both confirm PKG Power locked at 54.9W while Performance mode is active.
+- 55W is the **Balanced** mode TDP for this model family — OmenCore is applying the wrong power tier.
 
 Additional observations from screenshots:
-- CPU clocks drop from ~2860 MHz (without OmenCore) to ~2153 MHz (with OmenCore Performance mode)
-- ThrottleStop shows VID 0.8040V and PKG Power 54.9W with PROCHOT limit at 97°C — no thermal cause for the reduction
-- Model 16-am1xxx (RTX 5070 Ti, 2025) is likely not in the capability database; v3.3.1 only added 16-am0xxx (8D2F)
+- CPU clocks drop from ~2860 MHz (without OmenCore) to ~2153 MHz (with OmenCore Performance mode).
+- ThrottleStop shows VID 0.8040V and PKG Power 54.9W with PROCHOT limit at 97°C — no thermal cause for the reduction.
+- Model 16-am1xxx (RTX 5070 Ti, 2025) is likely not in the capability database; v3.3.1 only added 16-am0xxx (8D2F).
 
 Root cause hypotheses:
-1. **Missing model entry**: 16-am1xxx not in `ModelCapabilityDatabase` → falls back to family defaults with wrong TDP targets
-2. **Wrong performance mode TDP mapping**: The WMI thermal policy or EC power-limit write for `Performance` on this model family is writing a 55W PL1 instead of the correct 90W
-3. **Performance mode profile hardcoded TDP values** don't account for higher-TDP 2025 OMEN variants (i9-14900HX + RTX 5070 Ti chassis have higher thermal headroom than entry models)
+1. **Missing model entry**: 16-am1xxx not in `ModelCapabilityDatabase` falls back to defaults with wrong TDP targets.
+2. **Wrong performance mapping**: `Performance` policy path writes 55W PL1 instead of 90W on this family.
+3. **Hardcoded per-mode values**: profile mapping not using model-specific TDP for 2025 high-headroom chassis.
 
 #### Plan
 
-**Step 1 — Add 16-am1xxx to the model database**
+**Step 1 - Add 16-am1xxx model support**
 - File: `src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`
-- Add entry for the 16-am1xxx family (identify Product ID from a community diagnostic ZIP — request via GitHub issue)
-- Set `MaxTdp` / `PerformanceTdp` to 90W PL1 / 130W PL2 matching HP BIOS spec for this model
-- Tag as `UserVerified = false` pending confirmation
+- Add 16-am1xxx family entry (pending product ID confirmation from user diagnostics).
+- Set `MaxTdp` / `PerformanceTdp` to 90W PL1 / 130W PL2.
+- Mark `UserVerified = false` until confirmed.
 
-**Step 2 — Audit PerformanceModeService TDP writes**
+**Step 2 - Audit performance-mode TDP writes**
 - File: `src/OmenCoreApp/Services/PerformanceModeService.cs`
-- Trace what power limit values are written when switching to Performance mode
-- Verify that the WMI BIOS thermal policy (`SetSystemConfig` / `SetPowerConfig`) call for Performance mode uses model-specific TDP caps, not a global hardcoded value
-- If TDP caps are hardcoded per-mode rather than per-model, refactor to look up `ModelCapabilityDatabase.PerformanceTdp` / `BalancedTdp` for the current device
+- Trace written PL1/PL2 values during `Performance` transitions.
+- Ensure mapping uses model capability data rather than global constants.
 
-**Step 3 — Add TDP diagnostic logging**
-- Log the PL1/PL2 values being written (and read back) when a performance mode change occurs, so future reports have actionable data without needing ThrottleStop
+**Step 3 - Add diagnostic logging**
+- File: `src/OmenCoreApp/Services/HardwareMonitoringService.cs`
+- Log PL1/PL2 set/read-back values at mode switch boundaries.
 
-**Step 4 — Validate fix**
-- After applying the model entry + TDP mapping fix, PKG Power should sustain at ≥90W in Performance mode on 16-am1xxx
-- CineBench R23 multi-core score should be comparable to OGH Performance mode
+**Step 4 - Validate fix**
+- Sustained package power should remain at ≥90W in Performance mode for 16-am1xxx.
+- CineBench R23 multicore behavior should align with OGH performance profile.
 
-Note: User is on v3.2.5. Recommend updating to v3.3.1 first to rule out any overlap with the cross-thread crash fix, but the TDP bug is likely independent of that fix.
+Note: User report was on v3.2.5. Re-validate on latest branch after these changes.
 
 Files to modify:
 - `src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`
 - `src/OmenCoreApp/Services/PerformanceModeService.cs`
-- `src/OmenCoreApp/Services/HardwareMonitoringService.cs` (diagnostic logging)
+- `src/OmenCoreApp/Services/HardwareMonitoringService.cs`
+
+#### Implementation update (2026-04-27)
+
+**Phase 1 — Diagnostic logging**
+- Added pre-apply, post-apply, and verification-snapshot power-limit diagnostics in `PerformanceModeService` using `IPowerVerificationService.GetCurrentPowerLimits()`.
+- Logs include expected CPU/GPU targets and observed PL1/PL2/GPU/mode-register values for each performance-mode apply.
+
+**Phase 2 — Model-aware TDP routing**
+- Added per-mode TDP override fields to `ModelCapabilities`: `PerformanceCpuPl1Watts`, `PerformanceCpuPl2Watts`, `BalancedCpuPl1Watts`, `EcoCpuPl1Watts`, `PerformanceGpuTgpWatts`, `BalancedGpuTgpWatts`.
+- Added 16-am1xxx model entry in `ModelCapabilityDatabase` matched via `ModelNamePattern = "16-am1"` (product ID pending community confirmation; `UserVerified = false`). Set TDP values from OGH reference: 90W PL1 / 130W PL2 (Performance), 55W (Balanced), 150W GPU.
+- Added `ResolveEffectiveMode(PerformanceMode)` public method to `PerformanceModeService`; `Apply()` now calls it first so all downstream EC writes use model-aware values.
+- Added explicit `CpuBoostPowerLimitWatts` propagation so the 130W PL2 model override is carried to `PowerLimitController`; legacy modes still derive PL2 as 1.5x PL1 when no explicit boost value exists.
+- Model capability overrides are resolved in `MainViewModel` by passing `capabilities.ModelConfig` to `PerformanceModeService` at construction.
+- Validation: `dotnet test` green with **224 passed, 0 failed** (15 new regression tests covering DB entry, override logic, casing, mutation safety, and all mode aliases).
+
+Files modified:
+- `src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`
+- `src/OmenCoreApp/Hardware/PowerLimitController.cs`
+- `src/OmenCoreApp/Models/PerformanceMode.cs`
+- `src/OmenCoreApp/Services/PerformanceModeService.cs`
+- `src/OmenCoreApp/ViewModels/MainViewModel.cs`
+- `src/OmenCoreApp.Tests/Services/PerformanceModeServiceTdpOverrideTests.cs` (new)
+
+Remaining:
+- Set `UserVerified = true` and update `ProductId` once a 16-am1xxx user reports their product ID via the diagnostics screen.
 
 ### 27. Fix stale temperature display and UI pipeline slowdown during fan mode switches (GitHub #116) ✅ FIXED (RPM transition hold + Dispatcher.BeginInvoke)
 
@@ -1573,7 +1638,7 @@ Recommendation:
 
 - Wrap the FanControlView content in a ScrollViewer, keeping the curve editor in a fixed-height section if needed for mouse interaction
 
-### 9. Remove "coming soon" placeholder text from LightingView
+### 9. Remove "coming soon" placeholder text from LightingView ✅ FIXED
 
 Area: UI/UX, Release Readiness
 
@@ -1584,7 +1649,8 @@ Evidence:
 
 Recommendation:
 
-- Remove or update the placeholder text to match actual Razer capability status
+- Replaced the stale Razer placeholder copy with limited-support wording that matches the current backend.
+- Additional UI placeholder sweep fixed the Fan Calibration `Save Results` button so it now persists calibration data instead of showing a placeholder message.
 
 ### 10. Fix converter naming inconsistency across views
 

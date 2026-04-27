@@ -94,7 +94,8 @@ namespace OmenCore.Hardware
             // Convert watts to internal EC format (usually in 1/8 watt units)
             // Format varies by manufacturer - HP may use different encoding
             int cpuPl1 = mode.CpuPowerLimitWatts * 8;  // e.g., 45W = 360 units
-            int cpuPl2 = (int)(mode.CpuPowerLimitWatts * 1.5 * 8); // Burst = 1.5x sustained
+            int cpuPl2Watts = mode.CpuBoostPowerLimitWatts ?? (int)Math.Round(mode.CpuPowerLimitWatts * 1.5);
+            int cpuPl2 = cpuPl2Watts * 8; // Burst = explicit model value, or 1.5x sustained fallback
             int gpuTgp = mode.GpuPowerLimitWatts * 8;
 
             // Clamp values to reasonable ranges

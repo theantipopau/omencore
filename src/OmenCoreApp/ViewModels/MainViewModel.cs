@@ -1492,7 +1492,8 @@ namespace OmenCore.ViewModels
                 _logging.Info("⚠️ Experimental EC keyboard writes ENABLED (user opted in)");
             }
             
-            _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging)
+            _performanceModeService = new PerformanceModeService(fanController, powerPlanService, powerLimitController, _logging,
+                modelCapabilities: capabilities.ModelConfig)
             {
                 LinkFanToPerformanceMode = _config.LinkFanToPerformanceMode
             };

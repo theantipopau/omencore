@@ -51,16 +51,7 @@ namespace OmenCore.Services
                 result.EcWriteSucceeded = true;
 
                 // Determine expected performance mode value
-                result.AppliedPerformanceMode = mode.Name.ToLowerInvariant() switch
-                {
-                    "eco" => 0x00,
-                    "quiet" => 0x00,
-                    "balanced" => 0x01,
-                    "performance" => 0x02,
-                    "gaming" => 0x02,
-                    "turbo" => 0x03,
-                    _ => 0x01
-                };
+                result.AppliedPerformanceMode = GetExpectedPerformanceModeRegister(mode);
 
                 // Wait a bit for EC to process
                 await Task.Delay(500, ct);
@@ -123,8 +114,49 @@ namespace OmenCore.Services
 
         public async Task<bool> VerifyPowerLimitsAsync(PerformanceMode expectedMode, CancellationToken ct = default)
         {
-            var result = await ApplyAndVerifyPowerLimitsAsync(expectedMode, ct);
-            return result.Success;
+            if (!IsAvailable)
+            {
+                return false;
+            }
+
+            try
+            {
+                await Task.Delay(500, ct).ConfigureAwait(false);
+                var readBack = GetCurrentPowerLimits();
+                var expectedRegister = GetExpectedPerformanceModeRegister(expectedMode);
+                var verified = readBack.performanceMode == expectedRegister;
+
+                if (!verified)
+                {
+                    _logging.Warn(
+                        $"Power limits verification failed. Expected mode: 0x{expectedRegister:X}, got: 0x{readBack.performanceMode:X}");
+                }
+
+                return verified;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Power limits verification threw: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static int GetExpectedPerformanceModeRegister(PerformanceMode mode)
+        {
+            return mode.Name.ToLowerInvariant() switch
+            {
+                "eco" => 0x00,
+                "quiet" => 0x00,
+                "balanced" => 0x01,
+                "performance" => 0x02,
+                "gaming" => 0x02,
+                "turbo" => 0x03,
+                _ => 0x01
+            };
         }
 
         private int ReadWord(ushort lowAddr, ushort highAddr)

@@ -810,10 +810,10 @@
                                     Padding="16,8"/>
                         </Grid>
                         
-                        <!-- Note about preliminary support -->
+                        <!-- Note about limited Razer support -->
                         <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="4" 
                                 Padding="12" Margin="0,16,0,0">
-                            <TextBlock Text="Note: Full Razer Chroma SDK integration is coming soon. Currently showing placeholder functionality." 
+                            <TextBlock Text="Razer support is limited to detected-device status and validated lighting actions for supported hardware." 
                                        FontSize="12" 
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"/>

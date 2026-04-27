@@ -25,6 +25,7 @@ namespace OmenCore.Controls
         private CancellationTokenSource? _calibrationCts;
         private string _currentModelId = "";
         private int _selectedFanIndex = 0;
+        private FanCalibrationResult? _lastCalibrationResult;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -180,6 +181,7 @@ namespace OmenCore.Controls
 
                 // Show results
                 await DisplayCalibrationResultsAsync(calibrationResult);
+                _lastCalibrationResult = calibrationResult.Success ? calibrationResult : null;
 
                 // Enable save button if successful
                 if (calibrationResult.Success)
@@ -250,16 +252,42 @@ namespace OmenCore.Controls
         {
             UpdateCalibrationStatus();
             UpdateFanStatus();
-            MessageBox.Show("Calibration data loaded and applied to fan control.", "Calibration Loaded", MessageBoxButton.OK, MessageBoxImage.Information);
+            var calibration = _calibrationStorage.GetCalibration(_currentModelId);
+            var fanCount = calibration?.FanCalibrations.Count ?? 0;
+            MessageBox.Show(
+                $"Loaded calibration data for {_currentModelId} ({fanCount} fan profile{(fanCount == 1 ? "" : "s")}).",
+                "Calibration Loaded",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
-        private void SaveCalibrationButton_Click(object sender, RoutedEventArgs e)
+        private async void SaveCalibrationButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Note: In a real implementation, we'd get the calibration result from the last run
-                // For now, just show a placeholder
-                MessageBox.Show("Calibration data would be saved here for use in fan control.", "Calibration Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (_lastCalibrationResult == null || !_lastCalibrationResult.Success)
+                {
+                    MessageBox.Show(
+                        "No successful calibration result is available to save. Run calibration first.",
+                        "Nothing to Save",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                var calibration = _calibrationStorage.CreateCalibrationFromResults(
+                    _currentModelId,
+                    new List<FanCalibrationResult> { _lastCalibrationResult },
+                    _currentModelId);
+                await _calibrationStorage.StoreCalibrationAsync(_currentModelId, calibration);
+                UpdateCalibrationStatus();
+                SaveCalibrationButton.Visibility = Visibility.Collapsed;
+
+                MessageBox.Show(
+                    $"Calibration data saved for {_currentModelId}.",
+                    "Calibration Saved",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {

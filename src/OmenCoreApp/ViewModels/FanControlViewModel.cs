@@ -36,6 +36,8 @@ namespace OmenCore.ViewModels
         private string _curveApplyStatus = "Ready to apply";
         private string _fanCalibrationModelId = "unknown";
         private string _fanCalibrationModelName = "Unknown Model";
+        private bool _showRpmSanityWarning = false;
+        private string _rpmSanityWarningMessage = string.Empty;
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
@@ -601,6 +603,26 @@ namespace OmenCore.ViewModels
         public bool ShowFanPerformanceInfoBanner => !IsFanPerformanceLinked && !_configService.Config.DismissedFanPerformanceDecouplingNotice;
 
         public ICommand DismissFanPerformanceInfoBannerCommand { get; }
+        
+        /// <summary>
+        /// Whether to show the RPM sanity warning banner (zero RPM with active duty cycle for >30s).
+        /// </summary>
+        public bool ShowRpmSanityWarning
+        {
+            get => _showRpmSanityWarning;
+            set => SetProperty(ref _showRpmSanityWarning, value, nameof(ShowRpmSanityWarning));
+        }
+
+        /// <summary>
+        /// The message text to display in the RPM sanity warning banner.
+        /// </summary>
+        public string RpmSanityWarningMessage
+        {
+            get => _rpmSanityWarningMessage;
+            set => SetProperty(ref _rpmSanityWarningMessage, value, nameof(RpmSanityWarningMessage));
+        }
+
+        public ICommand DismissRpmSanityWarningCommand { get; }
         public ICommand OpenFanCalibrationWizardCommand { get; }
         
         // GPU curve editor commands (stubs - will use same curve for now)
@@ -657,6 +679,10 @@ namespace OmenCore.ViewModels
             ReapplySavedPresetCommand = new RelayCommand(async _ => await ReapplySavedPresetAsync());
             OpenFanCalibrationWizardCommand = new RelayCommand(_ => OpenFanCalibrationWizard(), _ => IsFanCalibrationAvailable);
             DismissFanPerformanceInfoBannerCommand = new RelayCommand(_ => DismissFanPerformanceInfoBanner());
+            DismissRpmSanityWarningCommand = new RelayCommand(_ => DismissRpmSanityWarning());
+            
+            // Subscribe to RPM sanity check events
+            _fanService.RpmSanityCheckWarning += FanService_RpmSanityCheckWarning;
             
             // Subscribe to thermal samples to update current temperature
             ((INotifyCollectionChanged)_fanService.ThermalSamples).CollectionChanged += ThermalSamples_CollectionChanged;
@@ -848,6 +874,26 @@ namespace OmenCore.ViewModels
             config.DismissedFanPerformanceDecouplingNotice = true;
             _configService.Save(config);
             RefreshFanLinkState();
+        }
+
+        /// <summary>
+        /// Event handler for RPM sanity check warnings from FanService.
+        /// </summary>
+        private void FanService_RpmSanityCheckWarning(object? sender, RpmSanityCheckEventArgs e)
+        {
+            ShowRpmSanityWarning = true;
+            RpmSanityWarningMessage = e.Message;
+            _logging.Warn($"RPM sanity check warning: {e.Message}");
+        }
+
+        /// <summary>
+        /// Dismiss the RPM sanity warning banner.
+        /// </summary>
+        private void DismissRpmSanityWarning()
+        {
+            ShowRpmSanityWarning = false;
+            RpmSanityWarningMessage = string.Empty;
+            _fanService.DismissRpmSanityWarning();
         }
         
         private void ThermalSamples_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

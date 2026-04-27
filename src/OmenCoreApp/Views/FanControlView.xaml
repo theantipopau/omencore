@@ -49,6 +49,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -61,7 +62,8 @@
                 </Grid.ColumnDefinitions>
                 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="FAN &amp; THERMAL CONTROL" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="FAN &amp; THERMAL CONTROL" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"
+                               ToolTip="Manage your laptop's cooling performance. All fan control uses your laptop's standard firmware interface (WMI BIOS). Software commands cannot damage hardware."/>
                     <TextBlock Text="Customize fan curves and monitor cooling performance" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0"/>
                     <Border Background="#1A1A1E" CornerRadius="12" Padding="10,5" Margin="0,8,0,0" HorizontalAlignment="Left">
                         <Border.Style>
@@ -121,8 +123,27 @@
             </Grid>
         </Border>
 
+        <!-- RPM Sanity Warning Banner -->
+        <Border Grid.Row="2" Style="{StaticResource PremiumDangerBannerCard}" Padding="16" Margin="0,0,0,16"
+                Visibility="{Binding ShowRpmSanityWarning, Converter={StaticResource BoolToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="⚠️  Possible Fan Hardware Issue Detected" FontSize="13" FontWeight="Bold" Foreground="{StaticResource WarningBrush}"/>
+                    <TextBlock Text="{Binding RpmSanityWarningMessage}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="OmenCore uses your laptop's standard firmware interface (WMI BIOS). Software commands cannot damage hardware. If the issue persists, contact HP support or check your fans physically." FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,8,0,0" TextWrapping="Wrap" FontStyle="Italic"/>
+                </StackPanel>
+                <Button Grid.Column="1" Command="{Binding DismissRpmSanityWarningCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0">
+                    <TextBlock Text="Dismiss" FontSize="10"/>
+                </Button>
+            </Grid>
+        </Border>
+
         <!-- Fan Profile Selection - Redesigned -->
-        <Border Grid.Row="2" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,0,16">
+        <Border Grid.Row="3" Style="{StaticResource PremiumPanelCardAnimated}" Padding="20" Margin="0,0,0,16">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -496,7 +517,7 @@
         </Border>
 
         <!-- Fan Curve Editor and Telemetry -->
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="450"/>
                 <ColumnDefinition Width="350" MinWidth="300"/>
@@ -988,7 +1009,7 @@
                                                                Margin="0,0,10,0"
                                                                VerticalAlignment="Center"/>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding SpeedRpm, StringFormat='{}{0} RPM'}" 
+                                                        <TextBlock Text="{Binding DisplayRpmText}" 
                                                                    FontSize="11" 
                                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                                         <Border Background="{StaticResource SurfaceMediumBrush}" CornerRadius="4" Padding="6,2" Margin="6,0,0,0">

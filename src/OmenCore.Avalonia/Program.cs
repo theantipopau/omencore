@@ -13,6 +13,7 @@ internal sealed class Program
 {
     private const string RenderModeEnvVar = "OMENCORE_GUI_RENDER_MODE";
     private const string RenderRetryEnvVar = "OMENCORE_GUI_RENDER_RETRY";
+    private const string DisplayRetryEnvVar = "OMENCORE_GUI_DISPLAY_RETRY";
 
     /// <summary>
     /// Initialization code - ensure it's called before any Avalonia functionality.
@@ -122,6 +123,17 @@ internal sealed class Program
             RecordRendererStartupSuccess(initialMode);
             return;
         }
+        catch (Exception ex) when (ShouldRetryWithAlternateDisplay(ex) && TryApplyAlternateDisplay(out var switchedDisplay))
+        {
+            Console.Error.WriteLine($"OmenCore: X11 display initialization failed, retrying with DISPLAY={switchedDisplay}.");
+            Environment.SetEnvironmentVariable(DisplayRetryEnvVar, "1");
+
+            BuildAvaloniaApp()
+                .StartWithClassicDesktopLifetime(args);
+
+            RecordRendererStartupSuccess(initialMode);
+            return;
+        }
         catch (Exception ex) when (ShouldRetryWithSoftware(ex, initialMode))
         {
             RecordRendererStartupFailure(ex, initialMode);
@@ -169,6 +181,89 @@ internal sealed class Program
         }
 
         return IsRendererStartupFailure(ex);
+    }
+
+    private static bool ShouldRetryWithAlternateDisplay(Exception ex)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return false;
+        }
+
+        if (string.Equals(Environment.GetEnvironmentVariable(DisplayRetryEnvVar), "1", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var text = ex.ToString();
+        return text.Contains("XOpenDisplay failed", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("cannot open display", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("failed to open display", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryApplyAlternateDisplay(out string selectedDisplay)
+    {
+        selectedDisplay = string.Empty;
+
+        var currentDisplay = Environment.GetEnvironmentVariable("DISPLAY")?.Trim() ?? string.Empty;
+        var candidates = BuildDisplayCandidates(currentDisplay);
+        foreach (var candidate in candidates)
+        {
+            if (string.Equals(candidate, currentDisplay, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            Environment.SetEnvironmentVariable("DISPLAY", candidate);
+            selectedDisplay = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<string> BuildDisplayCandidates(string currentDisplay)
+    {
+        var candidates = new List<string>();
+
+        // Prefer common local displays first; issue #118 commonly reports :1 sessions.
+        foreach (var known in new[] { ":1", ":0", ":2", ":3" })
+        {
+            if (!string.Equals(known, currentDisplay, StringComparison.Ordinal) && !candidates.Contains(known, StringComparer.Ordinal))
+            {
+                candidates.Add(known);
+            }
+        }
+
+        // Then probe active X sockets exposed by the system.
+        try
+        {
+            if (Directory.Exists("/tmp/.X11-unix"))
+            {
+                var sockets = Directory.GetFiles("/tmp/.X11-unix", "X*");
+                Array.Sort(sockets, StringComparer.Ordinal);
+                foreach (var socket in sockets)
+                {
+                    var name = Path.GetFileName(socket);
+                    if (string.IsNullOrWhiteSpace(name) || name.Length < 2)
+                    {
+                        continue;
+                    }
+
+                    var display = ":" + name.Substring(1);
+                    if (!string.Equals(display, currentDisplay, StringComparison.Ordinal) && !candidates.Contains(display, StringComparer.Ordinal))
+                    {
+                        candidates.Add(display);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Probe failure should not block startup fallback behavior.
+        }
+
+        return candidates;
     }
 
     private static bool IsRendererStartupFailure(Exception ex)
@@ -347,6 +442,12 @@ internal sealed class Program
             return;
         }
 
+        // Keep environment variables from the user's desktop session if sudo dropped them.
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY")))
+        {
+            Environment.SetEnvironmentVariable("DISPLAY", ":0");
+        }
+
         var dbusAddress = Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS");
         if (!string.IsNullOrWhiteSpace(dbusAddress))
         {
@@ -365,6 +466,15 @@ internal sealed class Program
                 if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR")) && Directory.Exists(runtimeDir))
                 {
                     Environment.SetEnvironmentVariable("XDG_RUNTIME_DIR", runtimeDir);
+                }
+
+                if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("XAUTHORITY")))
+                {
+                    var gdmAuth = Path.Combine(runtimeDir, "gdm", "Xauthority");
+                    if (File.Exists(gdmAuth))
+                    {
+                        Environment.SetEnvironmentVariable("XAUTHORITY", gdmAuth);
+                    }
                 }
 
                 Console.Error.WriteLine("OmenCore: recovered missing DBus session address from invoking user runtime (sudo launch detected).");
@@ -402,6 +512,7 @@ internal sealed class Program
                 $"sudo_uid={Environment.GetEnvironmentVariable("SUDO_UID") ?? string.Empty}",
                 $"session_type={Environment.GetEnvironmentVariable("XDG_SESSION_TYPE") ?? string.Empty}",
                 $"display={Environment.GetEnvironmentVariable("DISPLAY") ?? string.Empty}",
+                $"xauthority={Environment.GetEnvironmentVariable("XAUTHORITY") ?? string.Empty}",
                 $"wayland_display={Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") ?? string.Empty}",
                 $"xdg_runtime_dir={Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") ?? string.Empty}",
                 $"dbus_session_bus_address={Environment.GetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS") ?? string.Empty}",

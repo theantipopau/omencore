@@ -1,6 +1,6 @@
 ﻿# OmenCore Installation Guide
 
-Complete installation instructions for OmenCore v3.3.1 on Windows and Linux.
+Complete installation instructions for OmenCore v3.4.0 on Windows and Linux.
 
 ---
 
@@ -26,7 +26,7 @@ Complete installation instructions for OmenCore v3.3.1 on Windows and Linux.
 
 ### Option 1: Installer (Recommended)
 
-1. **Download** `OmenCoreSetup-3.3.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.1)
+1. **Download** `OmenCoreSetup-3.4.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.4.0)
 
 2. **Verify** the SHA256 hash published in the release notes before running (optional but recommended)
 
@@ -44,7 +44,7 @@ Complete installation instructions for OmenCore v3.3.1 on Windows and Linux.
 
 ### Option 2: Portable ZIP
 
-1. **Download** `OmenCore-3.3.1-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.3.1)
+1. **Download** `OmenCore-3.4.0-win-x64.zip` from [Releases](https://github.com/theantipopau/omencore/releases/tag/v3.4.0)
 
 2. **Verify SHA256** of the ZIP (hash published in GitHub Release notes)
 
@@ -61,7 +61,7 @@ Complete installation instructions for OmenCore v3.3.1 on Windows and Linux.
 - OmenCore auto-detects your laptop model and selects the best fan control method (WMI BIOS by default — no drivers needed for basic operation)
 - Use **Settings → OGH Cleanup** to safely remove OMEN Gaming Hub if desired
 
-> **Startup hardware restore (v3.3.1):** `EnableStartupHardwareRestore` is **disabled by default**. This feature applies saved hardware settings on every startup, but on OMEN 16 and Victus models it has been observed to cause CMOS state loss. Do **not** enable this option on those models unless you understand the risk and have a recovery plan.
+> **Startup hardware restore (v3.3.1+):** `EnableStartupHardwareRestore` is **disabled by default**. This feature applies saved hardware settings on every startup, but on OMEN 16 and Victus models it has been observed to cause CMOS state loss. Do **not** enable this option on those models unless you understand the risk and have a recovery plan.
 
 ---
 
@@ -71,11 +71,11 @@ Complete installation instructions for OmenCore v3.3.1 on Windows and Linux.
 
 ```bash
 # 1. Download the Linux release
-wget https://github.com/theantipopau/omencore/releases/download/v3.3.1/OmenCore-3.3.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.4.0/OmenCore-3.4.0-linux-x64.zip
 
 # 2. Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.3.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.4.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Make executables
@@ -92,7 +92,7 @@ chmod +x omencore-cli omencore-gui
 > sudo --preserve-env=DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS ./omencore-gui
 > ```
 
-> **Software rendering (v3.3.1):** OmenCore now automatically retries in software mode when GPU/GLX initialization fails. The choice is persisted in `render-startup-state.json` so subsequent launches skip the GPU attempt. You can also force it manually: `OMENCORE_GUI_RENDER_MODE=software ./omencore-gui`
+> **Software rendering (v3.3.1+):** OmenCore automatically retries in software mode when GPU/GLX initialization fails. The choice is persisted in `render-startup-state.json` so subsequent launches skip the GPU attempt. You can also force it manually: `OMENCORE_GUI_RENDER_MODE=software ./omencore-gui`
 
 > CachyOS / Arch / Fedora users: same steps. The build is self-contained and all .NET dependencies are bundled.
 
@@ -100,11 +100,11 @@ chmod +x omencore-cli omencore-gui
 
 ```bash
 # 1. Download
-wget https://github.com/theantipopau/omencore/releases/download/v3.3.1/OmenCore-3.3.1-linux-x64.zip
+wget https://github.com/theantipopau/omencore/releases/download/v3.4.0/OmenCore-3.4.0-linux-x64.zip
 
 # 2. Extract
 mkdir -p OmenCore-linux-x64
-unzip OmenCore-3.3.1-linux-x64.zip -d OmenCore-linux-x64
+unzip OmenCore-3.4.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 
 # 3. Install to system path (optional)
@@ -251,8 +251,8 @@ Notes:
 # Re-download fixed Linux package into a clean folder
 rm -rf OmenCore-linux-x64
 mkdir -p OmenCore-linux-x64
-wget https://github.com/theantipopau/omencore/releases/download/v3.3.1/OmenCore-3.3.1-linux-x64.zip
-unzip OmenCore-3.3.1-linux-x64.zip -d OmenCore-linux-x64
+wget https://github.com/theantipopau/omencore/releases/download/v3.4.0/OmenCore-3.4.0-linux-x64.zip
+unzip OmenCore-3.4.0-linux-x64.zip -d OmenCore-linux-x64
 cd OmenCore-linux-x64
 chmod +x omencore-cli omencore-gui
 
@@ -264,7 +264,7 @@ sudo ./omencore-cli status
 #### "Method not found: Boolean System.OperatingSystem.IsWindows()"
 
 ```bash
-# Fixed in v3.3.1 Linux GUI package
+# Fixed in v3.3.1+ Linux GUI package
 ./omencore-gui
 ```
 

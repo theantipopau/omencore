@@ -28,6 +28,7 @@ namespace OmenCore.Models
         private int _dutyCyclePercent;
         private double _temperature;
         private RpmSource _rpmSource = RpmSource.Unknown;
+        private TelemetryDataState _rpmState = TelemetryDataState.Unknown;
 
         public string Name { get; set; } = string.Empty;
 
@@ -53,6 +54,7 @@ namespace OmenCore.Models
                 {
                     _speedRpm = value;
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SpeedRpm)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayRpmText)));
                     // Also update Rpm for backward compatibility
                     Rpm = value;
                 }
@@ -85,6 +87,30 @@ namespace OmenCore.Models
             }
         }
         
+        /// <summary>
+        /// State of RPM telemetry quality for this fan.
+        /// </summary>
+        public TelemetryDataState RpmState
+        {
+            get => _rpmState;
+            set
+            {
+                if (_rpmState != value)
+                {
+                    _rpmState = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RpmState)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayRpmText)));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Human-readable RPM text with unavailable-state handling.
+        /// </summary>
+        public string DisplayRpmText => RpmState == TelemetryDataState.Unavailable
+            ? "RPM unavailable (fan responding)"
+            : $"{SpeedRpm} RPM";
+
         /// <summary>
         /// Source of the RPM reading.
         /// </summary>

@@ -1,8 +1,8 @@
 # OmenCore v3.4.0 — Release Notes
 
 **Version:** 3.4.0  
-**Release Date:** TBD  
-**Release Status:** 🚧 In development  
+**Release Date:** 2026-04-27  
+**Release Status:** ✅ Released  
 **Previous Release:** v3.3.1 (2026-04-16)  
 **Type:** Feature / Bug fix release
 
@@ -16,6 +16,7 @@ v3.4.0 delivers a collection of correctness fixes reported by the community via 
 - **Fan profile selector (Max/Extreme/Gaming/Auto/Silent/Custom) is visible again** — the six profile cards were rendered behind the curve editor since v3.3.x due to two UI elements sharing the same grid row.
 - **Print Screen / Snipping Tool now works correctly** — `VK_SNAPSHOT` is explicitly guarded in the low-level keyboard hook so OmenCore can never accidentally interfere with Windows 11's Snipping Tool activation.
 - **Fn+F2/F3 brightness keys no longer toggle OmenCore on affected models** — LaunchApp key detection now only accepts a dedicated OMEN scan signature and rejects known brightness-conflict scan patterns.
+- **Fan safety disclaimer and RPM sanity-check warning added** — fan-control UI now clarifies firmware mediation and surfaces a hardware-diagnostics warning when duty is active but RPM remains zero for an extended window.
 - **Fan curve drag no longer crashes on boundary temperatures** — the snap-then-clamp ordering was reversed, allowing rounding to push a temperature back out of its valid range.
 - **Bitdefender AV false positive documented** — FAQ and README updated with the specific `Gen:Application.Venus.Cynthia.Winring` detection name and per-vendor exclusion steps.
 
@@ -182,6 +183,73 @@ In WMI max mode, countdown-extension maintenance could repeatedly issue hard max
 - `src/OmenCoreApp/Hardware/WmiFanController.cs`
 - `src/OmenCoreApp/Services/FanService.cs`
 - `src/OmenCoreApp.Tests/Hardware/WmiV2VerificationTests.cs`
+
+---
+
+### Fan Safety Disclaimer and Post-apply RPM Sanity Warning (GitHub #106) ✅ Fixed
+**Severity:** High  
+**Affects:** Users troubleshooting suspected fan failure after fan-curve or preset changes  
+**Reported:** GitHub #106
+
+**Root cause:**  
+Fan-control paths had no direct in-product guidance clarifying that OmenCore writes through firmware-mediated WMI BIOS APIs, and no explicit post-apply warning when telemetry showed sustained zero RPM despite active duty. This made hardware faults or readback failures appear as if software had physically damaged fans.
+
+**Fixes:**
+1. Added Fan Control header disclaimer tooltip clarifying that commands are firmware-mediated and cannot directly damage hardware.
+2. Added `FanService.CheckRpmSanity()` monitor logic to track duty>0 and RPM=0 windows.
+3. Added `RpmSanityCheckWarning` event raised after 30+ seconds of sustained zero RPM under active duty.
+4. Added `FanControlViewModel` banner state/commands and UI wiring.
+5. Added Fan Control warning banner with guidance to run hardware diagnostics.
+6. Added 6 regression tests for threshold timing, one-shot firing, healthy suppression, and recovery behavior.
+7. Follow-up hardening: the sanity warning evaluates raw RPM readings, while the UI can still display stabilized RPM during sensor smoothing.
+
+**Files:**
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/ViewModels/FanControlViewModel.cs`
+- `src/OmenCoreApp/Views/FanControlView.xaml`
+- `src/OmenCoreApp.Tests/Services/FanPresetVerificationTests.cs`
+
+---
+
+### Linux GUI Black/Blank Startup on X11 Hardened (GitHub #108, #118) ✅ Improved
+**Severity:** High  
+**Affects:** Linux Avalonia GUI startup on systems where display/session variables mismatch the active desktop session  
+**Reported:** GitHub #108, GitHub #118 (Ubuntu 24.04 X11, HP Victus, AMD 780M)
+
+**Root cause:**  
+Startup diagnostics showed sessions where Avalonia X11 initialization could fail early (`XOpenDisplay failed`) despite user launches supplying alternate display values (for example `DISPLAY=:1`). Existing fallback logic focused on renderer backend fallback (EGL/GLX/software) but did not attempt an alternate-display retry before giving up that startup path.
+
+**Fixes:**
+1. Added Linux startup display retry path in `Program.cs` for X11 display-open failures.
+2. Added alternate-display probing (`:1`, `:0`, `:2`, `:3`, plus `/tmp/.X11-unix` sockets) and single retry guard.
+3. Kept renderer fallback pipeline intact after display retry.
+4. Added sudo-launch `XAUTHORITY` recovery probe (`/run/user/$SUDO_UID/gdm/Xauthority`) when missing.
+5. Added `xauthority` field to startup diagnostics log.
+
+**File:** `src/OmenCore.Avalonia/Program.cs`
+
+---
+
+### Fan RPM Readback Unavailable State Surfaced (GitHub #16, #55, #80) ✅ Improved
+**Severity:** High  
+**Affects:** Systems where fan duty responds but RPM readback remains 0 due to firmware/sensor limitations  
+**Reported:** GitHub #16, #55, #80
+
+**Root cause:**  
+Some models return persistent 0 RPM from readback paths even while fan duty control is active and fans audibly spin. UI summaries displayed this as literal `0 RPM`, making working fan control appear broken.
+
+**Fixes:**
+1. Added sustained readback detection in `FanService` (duty > 0 and raw RPM = 0 for >10s).
+2. Added `RpmState` (`TelemetryDataState`) and `DisplayRpmText` to `FanTelemetry`.
+3. Updated Fan Control telemetry cards to show `RPM unavailable (fan responding)` for affected fans.
+4. Updated dashboard fan summaries to propagate unavailable-state text.
+5. Follow-up hardening: RPM-state changes now refresh fan telemetry even when the smoothed/displayed RPM number does not change.
+
+**Files:**
+- `src/OmenCoreApp/Models/FanTelemetry.cs`
+- `src/OmenCoreApp/Services/FanService.cs`
+- `src/OmenCoreApp/ViewModels/DashboardViewModel.cs`
+- `src/OmenCoreApp/Views/FanControlView.xaml`
 
 ---
 
@@ -621,6 +689,97 @@ Three views were rendered without app theme resources:
 - `src/OmenCoreApp/Views/InputPromptWindow.xaml`
 - `src/OmenCoreApp/Views/GameProfileManagerView.xaml`
 - `src/OmenCoreApp/Views/GameLibraryView.xaml`
+
+---
+
+## Additional Release Hardening
+
+
+### Performance Mode Sustained TDP on 2025 OMEN 16-am1xxx ✅ Fixed
+**Severity:** High
+**Affects:** 2025 OMEN 16-am1xxx-class systems where Performance mode could behave like Balanced
+**Reported:** Community report, April 2026
+
+**Root cause:**
+The capability database did not carry a model-specific 2025 OMEN power envelope through the performance-mode apply path. The first implementation added the 90W PL1 / 130W PL2 reference values to the model database, but PL2 had no field on `PerformanceMode`, so `PowerLimitController` still derived boost power as 1.5x PL1.
+
+**Fixes:**
+1. Added 16-am1xxx model-pattern entry with OGH reference values: 90W PL1 / 130W PL2 / 150W GPU in Performance, 55W Balanced.
+2. Added model-aware override resolution in `PerformanceModeService`.
+3. Added explicit `CpuBoostPowerLimitWatts` propagation so the 130W PL2 value reaches the power-limit writer.
+4. Kept the old 1.5x PL2 derivation as fallback when a mode has no explicit boost limit.
+
+**Files:**
+- `src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`
+- `src/OmenCoreApp/Hardware/PowerLimitController.cs`
+- `src/OmenCoreApp/Models/PerformanceMode.cs`
+- `src/OmenCoreApp/Services/PerformanceModeService.cs`
+- `src/OmenCoreApp.Tests/Services/PerformanceModeServiceTdpOverrideTests.cs`
+
+---
+
+### Performance-mode Verification No Longer Re-applies EC Writes ✅ Fixed
+**Severity:** Medium
+**Affects:** Users switching performance modes on EC power-limit-capable systems
+**Reported:** Internal v3.4.0 release hardening
+
+**Root cause:**
+`PerformanceModeService.Apply()` wrote the requested power limits and then called `VerifyPowerLimitsAsync()`. That verification method delegated to `ApplyAndVerifyPowerLimitsAsync()`, causing a second EC write before read-back. This was unnecessary hardware I/O on every mode switch.
+
+**Fixes:**
+1. `VerifyPowerLimitsAsync()` now waits for the EC settle window and performs read-back comparison only.
+2. `ApplyAndVerifyPowerLimitsAsync()` remains available for callers that explicitly want apply-then-verify behavior.
+3. Added regression coverage proving verify-only calls do not write EC registers.
+
+**Files:**
+- `src/OmenCoreApp/Services/PowerVerificationService.cs`
+- `src/OmenCoreApp.Tests/Services/PowerLimitControllerTests.cs`
+
+---
+
+### Fan Calibration Save Results Button Persists Data ✅ Fixed
+**Severity:** Medium
+**Affects:** Users running the Fan Calibration wizard
+**Reported:** Internal UI placeholder sweep
+
+**Root cause:**
+The Fan Calibration control showed a "Save Results" button after successful calibration, but the click handler displayed placeholder text instead of persisting the last calibration result.
+
+**Fixes:**
+1. Stored the last successful `FanCalibrationResult` in the control.
+2. Wired Save Results to `FanCalibrationStorageService.CreateCalibrationFromResults()` and `StoreCalibrationAsync()`.
+3. Updated Load Existing to report the loaded model and fan-profile count instead of claiming a generic apply.
+
+**File:** `src/OmenCoreApp/Controls/FanCalibrationControl.xaml.cs`
+
+---
+
+### OMEN Tab Failed to Load Due to Missing Style Resource ✅ Fixed
+**Severity:** High
+**Affects:** Users attempting to open the OMEN/Advanced Controls tab
+**Reported:** Internal v3.4.0 validation (test build)
+
+**Root cause:**
+The `FanControlView.xaml` declared a `Border` with `Style="{StaticResource PremiumDangerBannerCard}"` for the RPM sanity-check warning banner. However, the `PremiumDangerBannerCard` style key was not defined in the shared `ModernStyles.xaml` style dictionary. When the tab was lazily created at runtime, the WPF XAML parser threw a `StaticResourceExtension` lookup failure: "Cannot find resource named 'PremiumDangerBannerCard'." The tab content failed to instantiate and the user saw an exception message instead of the OMEN controls.
+
+**Fixes:**
+1. Added missing `PremiumDangerBannerCard` style definition in `ModernStyles.xaml` alongside other premium banner styles (`PremiumInfoBannerCard`, `PremiumPanelCard`).
+2. Style uses a subtle orange-gradient background to distinguish warning/danger state from informational state.
+3. Inherits from `PremiumPanelCard` base style, maintaining consistent shadow and border properties.
+
+**Files:**
+- `src/OmenCoreApp/Styles/ModernStyles.xaml`
+- `src/OmenCoreApp/Views/FanControlView.xaml` (no changes, now loads cleanly)
+
+---
+
+## 📦 Release Artifacts
+
+| File | SHA256 |
+|------|--------|
+| `OmenCoreSetup-3.4.0.exe` | `91F7032D6ECA31515261A8E8412039ACBDA25E672B0F2641DC34CD7AB03039EA` |
+| `OmenCore-3.4.0-win-x64.zip` | `55A26693471E0E16312EFDFDD4E6D89CD0475DB4168AF3F9C95B2F2CED8FB7B6` |
+| `OmenCore-3.4.0-linux-x64.zip` | `943928F2273FA6A4959AFC08AF57D3DE26F55222C8C793622D960DB01413BECC` |
 
 ---
 

@@ -76,6 +76,25 @@ namespace OmenCore.ViewModels
                     _filteredThermalSamples.Add(s);
             }
         }
+
+        private void AddFilteredSample(ThermalSample sample)
+        {
+            var cutoff = DateTime.Now - TimeSpan.FromMinutes(_timeRangeMinutes);
+            while (_filteredThermalSamples.Count > 0 && _filteredThermalSamples[0].Timestamp < cutoff)
+            {
+                _filteredThermalSamples.RemoveAt(0);
+            }
+
+            if (sample.Timestamp >= cutoff)
+            {
+                _filteredThermalSamples.Add(sample);
+            }
+
+            while (_filteredThermalSamples.Count > MaxThermalSampleHistory)
+            {
+                _filteredThermalSamples.RemoveAt(0);
+            }
+        }
         
         /// <summary>
         /// Whether there is historical chart data available.
@@ -360,10 +379,10 @@ namespace OmenCore.ViewModels
                 var gpuTemp = LatestMonitoringSample?.GpuTemperatureC ?? 0;
                 var avgTemp = (cpuTemp + gpuTemp) / 2;
                 
-                var cpuFan = _fanService.FanTelemetry.Count > 0 ? _fanService.FanTelemetry[0].SpeedRpm : 0;
-                var gpuFan = _fanService.FanTelemetry.Count > 1 ? _fanService.FanTelemetry[1].SpeedRpm : 0;
+                var cpuFan = _fanService.FanTelemetry.Count > 0 ? FormatFanRpmForSummary(_fanService.FanTelemetry[0]) : "--";
+                var gpuFan = _fanService.FanTelemetry.Count > 1 ? FormatFanRpmForSummary(_fanService.FanTelemetry[1]) : "--";
                 
-                return $"{avgTemp:F0}°C → CPU: {cpuFan} RPM • GPU: {gpuFan} RPM";
+                return $"{avgTemp:F0}°C → CPU: {cpuFan} • GPU: {gpuFan}";
             }
         }
         
@@ -390,10 +409,20 @@ namespace OmenCore.ViewModels
                 if (telemetry == null || telemetry.Count == 0)
                     return "-- RPM";
                 
-                var fan1 = telemetry.Count > 0 ? telemetry[0].SpeedRpm : 0;
-                var fan2 = telemetry.Count > 1 ? telemetry[1].SpeedRpm : 0;
-                return $"CPU: {fan1} • GPU: {fan2} RPM";
+                var fan1 = telemetry.Count > 0 ? FormatFanRpmForSummary(telemetry[0]) : "--";
+                var fan2 = telemetry.Count > 1 ? FormatFanRpmForSummary(telemetry[1]) : "--";
+                return $"CPU: {fan1} • GPU: {fan2}";
             }
+        }
+
+        private static string FormatFanRpmForSummary(FanTelemetry telemetry)
+        {
+            if (telemetry.RpmState == TelemetryDataState.Unavailable)
+            {
+                return "RPM unavailable (fan responding)";
+            }
+
+            return $"{telemetry.SpeedRpm} RPM";
         }
 
         public DashboardViewModel(HardwareMonitoringService monitoringService, FanService? fanService = null)
@@ -530,12 +559,13 @@ namespace OmenCore.ViewModels
                         LatestMonitoringSample = latest;
 
                         // Convert to ThermalSample for temperature charts
-                        _thermalSamples.Add(new ThermalSample
+                        var thermalSample = new ThermalSample
                         {
                             Timestamp = latest.Timestamp,
                             CpuCelsius = latest.CpuTemperatureC,
                             GpuCelsius = latest.GpuTemperatureC
-                        });
+                        };
+                        _thermalSamples.Add(thermalSample);
 
                         // Trim to max history size - remove excess items in one pass
                         var excessCount = _thermalSamples.Count - MaxThermalSampleHistory;
@@ -543,7 +573,7 @@ namespace OmenCore.ViewModels
                         {
                             _thermalSamples.RemoveAt(0);
                         }
-                        RebuildFilteredSamples();
+                        AddFilteredSample(thermalSample);
 
                         // Update fan curve points for visualization
                         UpdateFanCurvePoints(latest);
