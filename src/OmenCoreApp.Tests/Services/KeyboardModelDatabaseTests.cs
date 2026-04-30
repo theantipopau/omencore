@@ -69,5 +69,17 @@ namespace OmenCoreApp.Tests.Services
             cfg.KeyboardType.Should().Be(KeyboardType.PerKeyRgb);
             cfg.UserVerified.Should().BeFalse();
         }
+
+        [Fact]
+        public void GetConfig_ReturnsConfig_For_ProductId_8787()
+        {
+            var cfg = KeyboardModelDatabase.GetConfig("8787");
+
+            cfg.Should().NotBeNull();
+            cfg!.ModelName.Should().Contain("15-en0038ur");
+            cfg.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
+            cfg.KeyboardType.Should().Be(KeyboardType.FourZoneTkl);
+            cfg.UserVerified.Should().BeFalse();
+        }
     }
 }

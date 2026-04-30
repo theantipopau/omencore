@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
+using OmenCore.Services;
 
 namespace OmenCore.Services.Rgb
 {
@@ -12,6 +13,12 @@ namespace OmenCore.Services.Rgb
     public class RgbManager
     {
         private readonly List<IRgbProvider> _providers = new();
+        private readonly LoggingService? _logging;
+
+        public RgbManager(LoggingService? logging = null)
+        {
+            _logging = logging;
+        }
         
         public event EventHandler<RgbSyncEventArgs>? SyncCompleted;
 
@@ -65,9 +72,9 @@ namespace OmenCore.Services.Rgb
             {
                 await provider.InitializeAsync();
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently ignore initialization failures
+                LogProviderWarning(provider, "initialize", ex);
             }
         }
 
@@ -84,29 +91,36 @@ namespace OmenCore.Services.Rgb
             await Task.WhenAll(available.Select(p => SafePrepareEffectAsync(p, effectId)));
 
             // Phase 2: commit — all providers begin their hardware/network write simultaneously
-            await Task.WhenAll(available.Select(p => SafeApplyEffectAsync(p, effectId)));
+            var results = await Task.WhenAll(available.Select(p => SafeApplyEffectAsync(p, effectId)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs(effectId, available.Count));
+            SyncCompleted?.Invoke(this, CreateSyncEvent(effectId, available.Count, results));
         }
         
-        private async Task SafePrepareEffectAsync(IRgbProvider provider, string effectId)
+        private async Task<bool> SafePrepareEffectAsync(IRgbProvider provider, string effectId)
         {
             try
             {
                 await provider.PrepareEffectAsync(effectId);
+                return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogProviderDebug(provider, $"prepare '{effectId}'", ex);
+                return false;
+            }
         }
         
-        private async Task SafeApplyEffectAsync(IRgbProvider provider, string effectId)
+        private async Task<bool> SafeApplyEffectAsync(IRgbProvider provider, string effectId)
         {
             try
             {
                 await provider.ApplyEffectAsync(effectId);
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently ignore apply failures
+                LogProviderWarning(provider, $"apply '{effectId}'", ex);
+                return false;
             }
         }
         
@@ -124,21 +138,22 @@ namespace OmenCore.Services.Rgb
             await Task.WhenAll(available.Select(p => SafePrepareEffectAsync(p, effectId)));
 
             // Phase 2: commit
-            var tasks = available.Select(p => SafeSetStaticColorAsync(p, color));
-            await Task.WhenAll(tasks);
+            var results = await Task.WhenAll(available.Select(p => SafeSetStaticColorAsync(p, color)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs(effectId, available.Count));
+            SyncCompleted?.Invoke(this, CreateSyncEvent(effectId, available.Count, results));
         }
         
-        private async Task SafeSetStaticColorAsync(IRgbProvider provider, Color color)
+        private async Task<bool> SafeSetStaticColorAsync(IRgbProvider provider, Color color)
         {
             try
             {
                 await provider.SetStaticColorAsync(color);
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently ignore apply failures
+                LogProviderWarning(provider, $"set static color #{color.R:X2}{color.G:X2}{color.B:X2}", ex);
+                return false;
             }
         }
         
@@ -148,20 +163,24 @@ namespace OmenCore.Services.Rgb
         public async Task SyncBreathingEffectAsync(Color color)
         {
             // Exclude "system" provider to avoid infinite recursion (it delegates back to this manager)
-            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Breathing));
-            var tasks = available.Select(p => SafeSetBreathingAsync(p, color));
-            await Task.WhenAll(tasks);
+            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Breathing)).ToList();
+            var results = await Task.WhenAll(available.Select(p => SafeSetBreathingAsync(p, color)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs("effect:breathing", available.Count()));
+            SyncCompleted?.Invoke(this, CreateSyncEvent("effect:breathing", available.Count, results));
         }
         
-        private async Task SafeSetBreathingAsync(IRgbProvider provider, Color color)
+        private async Task<bool> SafeSetBreathingAsync(IRgbProvider provider, Color color)
         {
             try
             {
                 await provider.SetBreathingEffectAsync(color);
+                return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogProviderWarning(provider, "set breathing effect", ex);
+                return false;
+            }
         }
         
         /// <summary>
@@ -170,20 +189,24 @@ namespace OmenCore.Services.Rgb
         public async Task SyncSpectrumEffectAsync()
         {
             // Exclude "system" provider to avoid infinite recursion (it delegates back to this manager)
-            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Spectrum));
-            var tasks = available.Select(p => SafeSetSpectrumAsync(p));
-            await Task.WhenAll(tasks);
+            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system" && p.SupportedEffects.Contains(RgbEffectType.Spectrum)).ToList();
+            var results = await Task.WhenAll(available.Select(p => SafeSetSpectrumAsync(p)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs("effect:spectrum", available.Count()));
+            SyncCompleted?.Invoke(this, CreateSyncEvent("effect:spectrum", available.Count, results));
         }
         
-        private async Task SafeSetSpectrumAsync(IRgbProvider provider)
+        private async Task<bool> SafeSetSpectrumAsync(IRgbProvider provider)
         {
             try
             {
                 await provider.SetSpectrumEffectAsync();
+                return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogProviderWarning(provider, "set spectrum effect", ex);
+                return false;
+            }
         }
         
         /// <summary>
@@ -192,20 +215,24 @@ namespace OmenCore.Services.Rgb
         public async Task TurnOffAllAsync()
         {
             // Exclude "system" provider to avoid infinite recursion (it delegates back to this manager)
-            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system");
-            var tasks = available.Select(p => SafeTurnOffAsync(p));
-            await Task.WhenAll(tasks);
+            var available = _providers.Where(p => p.IsAvailable && p.ProviderId != "system").ToList();
+            var results = await Task.WhenAll(available.Select(p => SafeTurnOffAsync(p)));
             
-            SyncCompleted?.Invoke(this, new RgbSyncEventArgs("off", available.Count()));
+            SyncCompleted?.Invoke(this, CreateSyncEvent("off", available.Count, results));
         }
         
-        private async Task SafeTurnOffAsync(IRgbProvider provider)
+        private async Task<bool> SafeTurnOffAsync(IRgbProvider provider)
         {
             try
             {
                 await provider.TurnOffAsync();
+                return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                LogProviderWarning(provider, "turn off RGB", ex);
+                return false;
+            }
         }
         
         /// <summary>
@@ -224,9 +251,34 @@ namespace OmenCore.Services.Rgb
                     ProviderName = p.ProviderName,
                     IsAvailable = p.IsAvailable,
                     IsConnected = p.IsConnected,
-                    DeviceCount = p.DeviceCount
+                    DeviceCount = p.DeviceCount,
+                    ConnectionStatus = p.ConnectionStatus,
+                    StatusDetail = p.StatusDetail
                 }).ToList()
             };
+        }
+
+        private RgbSyncEventArgs CreateSyncEvent(string effectId, int attempted, IReadOnlyCollection<bool> results)
+        {
+            var succeeded = results.Count(result => result);
+            var failed = attempted - succeeded;
+
+            if (failed > 0)
+            {
+                _logging?.Warn($"RGB sync '{effectId}' completed with {failed}/{attempted} provider failure(s)");
+            }
+
+            return new RgbSyncEventArgs(effectId, attempted, succeeded, failed);
+        }
+
+        private void LogProviderWarning(IRgbProvider provider, string action, Exception ex)
+        {
+            _logging?.Warn($"RGB provider '{provider.ProviderName}' failed to {action}: {ex.Message}");
+        }
+
+        private void LogProviderDebug(IRgbProvider provider, string action, Exception ex)
+        {
+            _logging?.Debug($"RGB provider '{provider.ProviderName}' failed to {action}: {ex.Message}");
         }
     }
     
@@ -237,11 +289,20 @@ namespace OmenCore.Services.Rgb
     {
         public string EffectId { get; }
         public int ProvidersAffected { get; }
+        public int ProvidersSucceeded { get; }
+        public int ProvidersFailed { get; }
         
         public RgbSyncEventArgs(string effectId, int providersAffected)
+            : this(effectId, providersAffected, providersAffected, 0)
+        {
+        }
+
+        public RgbSyncEventArgs(string effectId, int providersAffected, int providersSucceeded, int providersFailed)
         {
             EffectId = effectId;
             ProvidersAffected = providersAffected;
+            ProvidersSucceeded = providersSucceeded;
+            ProvidersFailed = providersFailed;
         }
     }
     
@@ -266,5 +327,7 @@ namespace OmenCore.Services.Rgb
         public bool IsAvailable { get; set; }
         public bool IsConnected { get; set; }
         public int DeviceCount { get; set; }
+        public RgbProviderConnectionStatus ConnectionStatus { get; set; }
+        public string StatusDetail { get; set; } = string.Empty;
     }
 }

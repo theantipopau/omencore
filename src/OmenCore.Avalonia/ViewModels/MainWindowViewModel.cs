@@ -37,7 +37,7 @@ public partial class MainWindowViewModel : ObservableObject
     private string _fanMode = "Auto";
 
     [ObservableProperty]
-    private string _appVersion = "3.3.1";
+    private string _appVersion = "3.4.1";
 
     // Navigation state
     [ObservableProperty]
@@ -58,7 +58,7 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSettingsActive;
 
-    // Renderer fallback banner — shown when GPU rendering failed and software mode was auto-selected
+    // Renderer fallback banner shown when GPU rendering failed and software mode was auto-selected.
     [ObservableProperty]
     private bool _showRenderFallbackBanner;
 

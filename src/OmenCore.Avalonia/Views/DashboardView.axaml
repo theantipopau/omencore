@@ -14,17 +14,17 @@
                     <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
                         <TextBlock Classes="caption" Text="Session:" />
                         <TextBlock Classes="caption" Text="{Binding SessionUptime}" Foreground="{DynamicResource OmenBlueBrush}" />
-                        <TextBlock Classes="caption" Text="•" Margin="8,0" />
+                        <TextBlock Classes="caption" Text="/" Margin="8,0" />
                         <TextBlock Classes="caption" Text="Peak:" />
                         <TextBlock Classes="caption" Text="CPU" Margin="4,0,0,0" />
                         <TextBlock Classes="caption" Text="{Binding PeakCpuTemp, StringFormat={}{0:F0}°C}" Foreground="{DynamicResource OmenRedBrush}" />
-                        <TextBlock Classes="caption" Text="•" Margin="8,0" />
+                        <TextBlock Classes="caption" Text="/" Margin="8,0" />
                         <TextBlock Classes="caption" Text="GPU" />
                         <TextBlock Classes="caption" Text="{Binding PeakGpuTemp, StringFormat={}{0:F0}°C}" Foreground="{DynamicResource OmenBlueBrush}" />
                     </StackPanel>
                 </StackPanel>
                 
-                <Button Grid.Column="1" Classes="secondary" Content="↻ Refresh"
+                <Button Grid.Column="1" Classes="secondary" Content="Refresh"
                         Command="{Binding RefreshCommand}" 
                         VerticalAlignment="Top" />
             </Grid>
@@ -34,7 +34,7 @@
                 <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                     <!-- Fan Status -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
-                        <TextBlock Text="🌀" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="F" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel>
                             <TextBlock Classes="caption" Text="FANS" />
                             <TextBlock Text="{Binding FanSummary}" FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}"/>
@@ -45,7 +45,7 @@
                     
                     <!-- Performance Mode -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <TextBlock Text="⚡" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="P" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel>
                             <TextBlock Classes="caption" Text="PERFORMANCE" />
                             <TextBlock Text="{Binding PerformanceMode}" FontSize="12" 
@@ -57,7 +57,7 @@
                     
                     <!-- Fan Mode -->
                     <StackPanel Grid.Column="4" Orientation="Horizontal">
-                        <TextBlock Text="💨" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="M" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel>
                             <TextBlock Classes="caption" Text="FAN MODE" />
                             <TextBlock Text="{Binding FanMode}" FontSize="12" 
@@ -69,7 +69,7 @@
                     
                     <!-- Power Source -->
                     <StackPanel Grid.Column="6" Orientation="Horizontal">
-                        <TextBlock Text="🔌" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="AC" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <StackPanel>
                             <TextBlock Classes="caption" Text="POWER" />
                             <TextBlock Text="{Binding PowerSource}" FontSize="12" 
@@ -82,7 +82,7 @@
             <!-- Throttling Warning Banner (conditional) -->
             <Border Classes="warningBanner" IsVisible="{Binding IsThrottling}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="⚠️" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="!" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding ThrottlingSummary, FallbackValue=System Throttling}" 
                                FontSize="13" FontWeight="SemiBold"
                                Foreground="#FF9800" VerticalAlignment="Center"/>
@@ -97,7 +97,7 @@
                 <Border Grid.Column="0" Classes="cardInteractive" Margin="0,0,8,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🔥" FontSize="18" />
+                            <TextBlock Text="CPU" FontSize="12" FontWeight="Bold" />
                             <TextBlock Classes="subsectionHeader" Text="CPU" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Classes="valueLarge" Text="{Binding CpuTemperature, StringFormat={}{0:F0}°}" 
@@ -118,7 +118,7 @@
                 <Border Grid.Column="1" Classes="cardInteractive" Margin="4,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🎮" FontSize="18" />
+                            <TextBlock Text="GPU" FontSize="12" FontWeight="Bold" />
                             <TextBlock Classes="subsectionHeader" Text="GPU" VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Classes="valueLarge" Text="{Binding GpuTemperature, StringFormat={}{0:F0}°}" 
@@ -132,7 +132,7 @@
                 <Border Grid.Column="2" Classes="cardInteractive" Margin="4,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🌀" FontSize="18" />
+                            <TextBlock Text="FAN" FontSize="12" FontWeight="Bold" />
                             <TextBlock Classes="subsectionHeader" Text="CPU Fan" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -149,7 +149,7 @@
                 <Border Grid.Column="3" Classes="cardInteractive" Margin="4,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🌀" FontSize="18" />
+                            <TextBlock Text="FAN" FontSize="12" FontWeight="Bold" />
                             <TextBlock Classes="subsectionHeader" Text="GPU Fan" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -166,7 +166,7 @@
                 <Border Grid.Column="4" Classes="cardInteractive" Margin="8,0,0,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="💾" FontSize="18" />
+                            <TextBlock Text="RAM" FontSize="12" FontWeight="Bold" />
                             <TextBlock Classes="subsectionHeader" Text="Memory" VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -219,7 +219,7 @@
                         <Border Background="#1A00BFFF" CornerRadius="4" Padding="12,8" Margin="0,8,0,12" 
                                 HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="⚡" FontSize="14" VerticalAlignment="Center" />
+                                <TextBlock Text="P" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding PerformanceMode}" FontWeight="SemiBold" 
                                            Foreground="{DynamicResource OmenBlueBrush}" />
                             </StackPanel>

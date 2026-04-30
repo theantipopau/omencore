@@ -17,7 +17,7 @@
             <Border Classes="card">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="⚡" FontSize="20" VerticalAlignment="Center" />
+                        <TextBlock Text="PWR" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                         <TextBlock Classes="sectionHeader" Text="Performance Mode" VerticalAlignment="Center" Margin="0" />
                     </StackPanel>
                     <TextBlock Classes="caption" Text="Select a performance profile to optimize for your workload" Margin="0,4,0,16" />
@@ -75,7 +75,7 @@
             <Border Classes="card" IsVisible="{Binding HasGpuMuxSwitch}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="🎮" FontSize="20" VerticalAlignment="Center" />
+                        <TextBlock Text="GPU" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                         <TextBlock Classes="sectionHeader" Text="GPU Mode" VerticalAlignment="Center" Margin="0" />
                     </StackPanel>
                     <TextBlock Classes="caption" Text="Switch between hybrid and discrete GPU modes. Requires system restart." Margin="0,4,0,16" />

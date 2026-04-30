@@ -94,6 +94,49 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                <Border Background="#14000000"
+                        BorderBrush="{Binding LastRgbSyncBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,8"
+                        Margin="0,12,24,0"
+                        ToolTip="{Binding LastRgbSyncDetail}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Ellipse Grid.Column="0"
+                                 Fill="{Binding LastRgbSyncBrush}"
+                                 Width="9"
+                                 Height="9"
+                                 VerticalAlignment="Center"
+                                 Margin="0,0,10,0"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding LastRgbSyncSummary}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding LastRgbSyncDetail}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Border Grid.Column="2"
+                                Background="#0DFFFFFF"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8,4"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding RgbSyncParticipantSummary}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </Border>
+                    </Grid>
+                </Border>
             </StackPanel>
             
             <!-- Sync All Button -->
@@ -838,7 +881,7 @@
                             </Border>
                         </StackPanel>
                         
-                        <TextBlock Text="Generic RGB control via OpenRGB server (motherboard, RAM, GPU, fans, strips, etc.)" 
+                        <TextBlock Text="Optional generic RGB control via OpenRGB server for motherboards, RAM, GPUs, fans, LED strips, and other peripherals."
                                    FontSize="12" 
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,16"/>

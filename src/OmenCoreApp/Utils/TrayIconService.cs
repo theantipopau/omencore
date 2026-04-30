@@ -99,7 +99,7 @@ namespace OmenCore.Utils
             _shutdownApp = shutdownApp;
             _displayService = new DisplayService(App.Logging);
             _configService = configService;
-            _appVersion = LoadAppVersion();
+            _appVersion = AppVersionProvider.GetVersionString();
 
             _baseIconSource = LoadBaseIcon();
             _trayIcon.IconSource = _baseIconSource;
@@ -114,28 +114,6 @@ namespace OmenCore.Utils
             _updateTimer.Start();
 
             UpdateTrayDisplay(null, EventArgs.Empty);
-        }
-
-        private static string LoadAppVersion()
-        {
-            try
-            {
-                var versionFile = Path.Combine(AppContext.BaseDirectory, "VERSION.txt");
-                if (File.Exists(versionFile))
-                {
-                    foreach (var line in File.ReadLines(versionFile))
-                    {
-                        var version = line.Trim();
-                        if (!string.IsNullOrEmpty(version))
-                            return version;
-                    }
-                }
-            }
-            catch { }
-            
-            // Fallback to assembly version
-            var asm = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return asm != null ? $"{asm.Major}.{asm.Minor}.{asm.Build}" : "3.2.0";
         }
 
         private void InitializeContextMenu()

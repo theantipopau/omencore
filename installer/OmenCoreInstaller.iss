@@ -1,10 +1,9 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "3.4.0"
+  #define MyAppVersion "3.4.1"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
-#define PawnIOInstallerUrl "https://pawnio.eu/PawnIO.exe"
 
 [Setup]
 AppId={{6F5B6F3F-8FAF-4FC8-A5E0-4E2C0E8F2E2B}}

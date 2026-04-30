@@ -94,7 +94,7 @@ namespace OmenCoreApp.Tests.Services
         [Theory]
         [InlineData(0xB7u)]
         [InlineData(0xB6u)]
-        public void IsOmenKey_AcceptsLaunchAppWithDedicatedOmenScan(uint vkCode)
+        public void IsOmenKey_RejectsAmbiguousLaunchAppWithDedicatedOmenScan_InStrictMode(uint vkCode)
         {
             var logging = new LoggingService();
             logging.Initialize();
@@ -106,7 +106,49 @@ namespace OmenCoreApp.Tests.Services
 
             var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { vkCode, 0xE045u })!;
 
-            result.Should().BeTrue("the dedicated OMEN LaunchApp scan must remain recognized");
+            result.Should().BeFalse("strict mode must not treat ambiguous LaunchApp events as OMEN because Fn brightness keys can emit the same path");
+        }
+
+        [Fact]
+        public void IsOmenKey_AcceptsF12WithDedicatedOmenScan()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { 0x7Bu, 0xE045u })!;
+
+            result.Should().BeTrue("Fn+F12 is the dedicated OMEN launch chord on Transcend 14-style keyboards");
+        }
+
+        [Theory]
+        [InlineData(0x71u)]
+        [InlineData(0x72u)]
+        public void IsOmenKey_RejectsBrightnessFunctionKeys_EvenWithDedicatedOmenScan(uint vkCode)
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var svc = new OmenKeyService(logging);
+            var isOmenKeyMethod = typeof(OmenKeyService).GetMethod("IsOmenKey", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            isOmenKeyMethod.Should().NotBeNull();
+
+            var result = (bool)isOmenKeyMethod!.Invoke(svc, new object[] { vkCode, 0xE045u })!;
+
+            result.Should().BeFalse("Fn+F2/F3 brightness keys must always pass through and never open OmenCore");
+        }
+
+        [Fact]
+        public void FeaturePreferences_EnablesFirmwareFnPProfileCycle_ByDefault()
+        {
+            var prefs = new FeaturePreferences();
+
+            prefs.EnableFirmwareFnPProfileCycle.Should().BeTrue("Fn+P profile cycling should work out of the box when firmware exposes the narrow WMI event");
         }
 
         [Fact]

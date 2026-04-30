@@ -267,16 +267,22 @@ namespace OmenCore.Services
                     GpuPowerLimitWatts = 140 
                 },
                 "quiet" or "silent" or "powersaver" => new PerformanceMode 
-                { 
-                    Name = "Quiet", 
-                    CpuPowerLimitWatts = 35, 
-                    GpuPowerLimitWatts = 60 
+                {
+                    Name = "Quiet",
+                    CpuPowerLimitWatts = 35,
+                    GpuPowerLimitWatts = 60
                 },
-                _ => new PerformanceMode 
-                { 
-                    Name = "Default", 
-                    CpuPowerLimitWatts = 65, 
-                    GpuPowerLimitWatts = 100 
+                "balanced" or "default" => new PerformanceMode
+                {
+                    Name = "Balanced",
+                    CpuPowerLimitWatts = 65,
+                    GpuPowerLimitWatts = 100
+                },
+                _ => new PerformanceMode
+                {
+                    Name = "Balanced",
+                    CpuPowerLimitWatts = 65,
+                    GpuPowerLimitWatts = 100
                 }
             };
             

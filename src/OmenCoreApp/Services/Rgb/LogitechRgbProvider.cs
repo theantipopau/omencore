@@ -60,11 +60,17 @@ namespace OmenCore.Services.Rgb
             _logging = logging;
         }
 
+        public LogitechRgbProvider(LoggingService logging, LogitechDeviceService service)
+            : this(logging)
+        {
+            _service = service;
+        }
+
         public async Task InitializeAsync()
         {
             try
             {
-                _service = await LogitechDeviceService.CreateAsync(_logging);
+                _service ??= await LogitechDeviceService.CreateAsync(_logging);
                 await _service.DiscoverAsync();
                 IsAvailable = _service.Devices.Any();
                 _logging.Info($"LogitechRgbProvider initialized, available={IsAvailable}, devices={DeviceCount}");

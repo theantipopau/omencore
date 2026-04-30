@@ -104,6 +104,21 @@ namespace OmenCore.Services.KeyboardLighting
                 EcBrightnessRegister = 0xBD,
                 ModelYear = 2020
             });
+
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8787",
+                ModelName = "OMEN 15-en0038ur (2020) AMD",
+                ModelNamePattern = "15-en",
+                KeyboardType = KeyboardType.FourZoneTkl,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.EcDirect },
+                EcColorRegisters = new byte[] { 0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xBB, 0xBC },
+                EcBrightnessRegister = 0xBD,
+                ModelYear = 2020,
+                UserVerified = false,
+                Notes = "GitHub #120 - 4-zone WMI BIOS ColorTable works; RPM/fan diagnostics pending verification"
+            });
             
             AddModel(new KeyboardModelConfig
             {

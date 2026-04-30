@@ -148,7 +148,6 @@ namespace OmenCore.Services.Logitech
             
             // Receivers (useful for detecting wireless devices)
             { 0xC539, ("Lightspeed Receiver", LogitechDeviceType.Mouse) },
-            { 0xC547, ("Lightspeed Receiver (2)", LogitechDeviceType.Mouse) },
         };
 
         public LogitechHidDirect(LoggingService logging)
@@ -232,7 +231,7 @@ namespace OmenCore.Services.Logitech
             }
             catch (Exception ex)
             {
-                _logging.Error($"Failed to initialize Logitech direct HID: {ex.Message}");
+                _logging.Warn($"Logitech direct HID unavailable: {ex.Message}");
                 return false;
             }
         }
@@ -266,7 +265,10 @@ namespace OmenCore.Services.Logitech
                 if (!string.IsNullOrEmpty(name))
                     return name;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Debug($"Unable to read Logitech product name for 0x{device.ProductID:X4}: {ex.Message}");
+            }
             
             return $"Logitech G Device (0x{device.ProductID:X4})";
         }
@@ -491,7 +493,10 @@ namespace OmenCore.Services.Logitech
                 {
                     await stream.WriteAsync(report10, 0, report10.Length);
                 }
-                catch { } // Ignore if device doesn't support 1.0
+                catch (Exception ex)
+                {
+                    _logging.Debug($"Logitech HID++ 1.0 static color fallback unsupported: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -538,7 +543,10 @@ namespace OmenCore.Services.Logitech
                     report10[6] = effectType; // Effect type in last byte
                     await stream.WriteAsync(report10, 0, report10.Length);
                 }
-                catch { } // Ignore if device doesn't support 1.0
+                catch (Exception ex)
+                {
+                    _logging.Debug($"Logitech HID++ 1.0 effect fallback unsupported: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Threading;
 using OmenCore.Avalonia.Services;
 using System.Diagnostics;
 
@@ -12,6 +13,7 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
 {
     private readonly IHardwareService _hardwareService;
     private readonly Stopwatch _sessionStopwatch = Stopwatch.StartNew();
+    private readonly DispatcherTimer _uptimeTimer;
     private bool _disposed;
 
     [ObservableProperty]
@@ -96,6 +98,14 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
     {
         _hardwareService = hardwareService;
         _hardwareService.StatusChanged += OnStatusChanged;
+        _uptimeTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _uptimeTimer.Tick += (_, _) =>
+        {
+            SessionUptime = _sessionStopwatch.Elapsed.ToString(@"h\:mm\:ss");
+        };
         
         Initialize();
         StartUptimeTimer();
@@ -124,19 +134,30 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
 
     private void StartUptimeTimer()
     {
-        Task.Run(async () =>
-        {
-            while (!_disposed)
-            {
-                await Task.Delay(1000);
-                SessionUptime = _sessionStopwatch.Elapsed.ToString(@"h\:mm\:ss");
-            }
-        });
+        _uptimeTimer.Start();
     }
 
     private void OnStatusChanged(object? sender, HardwareStatus status)
     {
-        UpdateStatus(status);
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            UpdateStatus(status);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_disposed)
+                {
+                    UpdateStatus(status);
+                }
+            });
+        }
     }
 
     private void UpdateStatus(HardwareStatus status)
@@ -196,6 +217,7 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
         if (!_disposed)
         {
             _hardwareService.StatusChanged -= OnStatusChanged;
+            _uptimeTimer.Stop();
             _disposed = true;
         }
     }

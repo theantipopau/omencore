@@ -16,7 +16,7 @@
             <!-- Capability Warning -->
             <Border Classes="warningBanner" IsVisible="{Binding ShowCapabilityWarning}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="⚠️" FontSize="14" />
+                    <TextBlock Text="!" FontSize="14" FontWeight="Bold" />
                     <TextBlock Text="{Binding CapabilityWarningMessage}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
@@ -33,7 +33,7 @@
                 </Border>
                 <Border Grid.Column="1" Classes="cardInteractive" Margin="3,0">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="🎮" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock Text="GPU" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" />
                         <TextBlock Classes="label" Text="GPU Temp" HorizontalAlignment="Center" Margin="0,4,0,0" />
                         <TextBlock Classes="value" Text="{Binding GpuTemperature, StringFormat={}{0:F0}°C}" 
                                    HorizontalAlignment="Center" Foreground="#45C7FF" />
@@ -41,7 +41,7 @@
                 </Border>
                 <Border Grid.Column="2" Classes="cardInteractive" Margin="3,0">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="🌀" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock Text="CPU" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" />
                         <TextBlock Classes="label" Text="CPU Fan" HorizontalAlignment="Center" Margin="0,4,0,0" />
                         <TextBlock Classes="value" Text="{Binding CpuFanRpm, StringFormat={}{0} RPM}" 
                                    HorizontalAlignment="Center" FontSize="16" />
@@ -49,7 +49,7 @@
                 </Border>
                 <Border Grid.Column="3" Classes="cardInteractive" Margin="6,0,0,0">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="🌀" FontSize="20" HorizontalAlignment="Center" />
+                        <TextBlock Text="GPU" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" />
                         <TextBlock Classes="label" Text="GPU Fan" HorizontalAlignment="Center" Margin="0,4,0,0" />
                         <TextBlock Classes="value" Text="{Binding GpuFanRpm, StringFormat={}{0} RPM}" 
                                    HorizontalAlignment="Center" FontSize="16" />
@@ -61,7 +61,7 @@
             <Border Classes="card" IsVisible="{Binding CanEditFanCurve}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="💨" FontSize="20" VerticalAlignment="Center" />
+                        <TextBlock Text="FAN" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                         <TextBlock Classes="sectionHeader" Text="Fan Presets" VerticalAlignment="Center" Margin="0" />
                     </StackPanel>
                     <TextBlock Classes="caption" Text="Quick presets for common usage scenarios" Margin="0,4,0,12" />
@@ -88,7 +88,7 @@
                 <StackPanel>
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="⚙️" FontSize="20" VerticalAlignment="Center" />
+                            <TextBlock Text="SET" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" />
                             <TextBlock Classes="sectionHeader" Text="Custom Fan Curve" VerticalAlignment="Center" Margin="0" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
@@ -124,7 +124,7 @@
                 <Border Classes="card" Grid.Column="0" Margin="0,0,8,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <TextBlock Text="🔥" FontSize="16" Margin="0,0,8,0" />
+                            <TextBlock Text="CPU" FontSize="12" FontWeight="Bold" Margin="0,0,8,0" />
                             <TextBlock Classes="sectionHeader" Text="CPU Fan Curve" Margin="0" />
                             <Button Classes="ghost" Content="+ Add Point" 
                                     Command="{Binding AddCpuPointCommand}"
@@ -150,7 +150,7 @@
                                                                Increment="5"
                                                                Margin="0,4,0,0" />
                                             </StackPanel>
-                                            <Button Grid.Column="2" Classes="iconButton" Content="✕" 
+                                            <Button Grid.Column="2" Classes="iconButton" Content="x"
                                                     VerticalAlignment="Bottom"
                                                     Command="{Binding $parent[ItemsControl].((vm:FanControlViewModel)DataContext).RemoveCpuPointCommand}"
                                                     CommandParameter="{Binding}" />
@@ -166,7 +166,7 @@
                 <Border Classes="card" Grid.Column="1" Margin="8,0,0,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <TextBlock Text="🎮" FontSize="16" Margin="0,0,8,0" />
+                            <TextBlock Text="GPU" FontSize="12" FontWeight="Bold" Margin="0,0,8,0" />
                             <TextBlock Classes="sectionHeader" Text="GPU Fan Curve" Margin="0" />
                             <Button Classes="ghost" Content="+ Add Point" 
                                     Command="{Binding AddGpuPointCommand}"
@@ -192,7 +192,7 @@
                                                                Increment="5"
                                                                Margin="0,4,0,0" />
                                             </StackPanel>
-                                            <Button Grid.Column="2" Classes="iconButton" Content="✕" 
+                                            <Button Grid.Column="2" Classes="iconButton" Content="x"
                                                     VerticalAlignment="Bottom"
                                                     Command="{Binding $parent[ItemsControl].((vm:FanControlViewModel)DataContext).RemoveGpuPointCommand}"
                                                     CommandParameter="{Binding}" />

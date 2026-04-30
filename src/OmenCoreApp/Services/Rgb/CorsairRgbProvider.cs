@@ -59,11 +59,17 @@ namespace OmenCore.Services.Rgb
             _configService = configService;
         }
 
+        public CorsairRgbProvider(LoggingService logging, ConfigurationService configService, CorsairDeviceService service)
+            : this(logging, configService)
+        {
+            _service = service;
+        }
+
         public async Task InitializeAsync()
         {
             try
             {
-                _service = await CorsairDeviceService.CreateAsync(_logging, _configService);
+                _service ??= await CorsairDeviceService.CreateAsync(_logging, _configService);
                 await _service.DiscoverAsync();
                 IsAvailable = _service.Devices.Any();
                 _logging.Info($"CorsairRgbProvider initialized, available={IsAvailable}, devices={DeviceCount}");

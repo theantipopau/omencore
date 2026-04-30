@@ -31,12 +31,17 @@ internal sealed class Program
 
         try
         {
+            WriteStartupTrace("main.enter");
             PrepareLinuxDesktopEnvironment();
+            WriteStartupTrace("desktop-environment.prepared");
             ApplyPersistedLinuxRenderMode();
+            WriteStartupTrace("render-mode.applied");
             StartWithLinuxFallback(args);
+            WriteStartupTrace("main.exit");
         }
         catch (Exception ex)
         {
+            WriteStartupTrace("main.failed", ex);
             ReportStartupFailure(ex);
             Environment.ExitCode = 1;
         }
@@ -115,6 +120,7 @@ internal sealed class Program
     private static void StartWithLinuxFallback(string[] args)
     {
         var initialMode = GetEffectiveRenderMode();
+        WriteStartupTrace($"start.initial-mode.{initialMode}");
 
         try
         {
@@ -389,6 +395,47 @@ internal sealed class Program
         catch
         {
             // Best-effort state persistence only.
+        }
+    }
+
+    internal static void WriteStartupTrace(string stage, Exception? exception = null)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        try
+        {
+            var configRoot = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (string.IsNullOrWhiteSpace(configRoot))
+            {
+                configRoot = Path.GetTempPath();
+            }
+
+            var logDirectory = Path.Combine(configRoot, "OmenCore", "logs");
+            Directory.CreateDirectory(logDirectory);
+
+            var logPath = Path.Combine(logDirectory, "gui-startup.log");
+            var version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
+            var line = string.Join(" | ", new[]
+            {
+                DateTimeOffset.UtcNow.ToString("O"),
+                $"stage={stage}",
+                $"version={version}",
+                $"session={Environment.GetEnvironmentVariable("XDG_SESSION_TYPE") ?? string.Empty}",
+                $"desktop={Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") ?? string.Empty}",
+                $"display={Environment.GetEnvironmentVariable("DISPLAY") ?? string.Empty}",
+                $"wayland={Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") ?? string.Empty}",
+                $"render={Environment.GetEnvironmentVariable(RenderModeEnvVar) ?? string.Empty}",
+                exception is null ? string.Empty : $"exception={exception.GetBaseException().Message}"
+            });
+
+            File.AppendAllText(logPath, line + Environment.NewLine);
+        }
+        catch
+        {
+            // Startup tracing must never block the UI from opening.
         }
     }
 

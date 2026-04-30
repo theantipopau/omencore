@@ -22,11 +22,15 @@ public partial class App : Application
     
     public override void Initialize()
     {
+        Program.WriteStartupTrace("app.initialize.start");
         AvaloniaXamlLoader.Load(this);
+        Program.WriteStartupTrace("app.initialize.loaded");
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
+        Program.WriteStartupTrace("app.framework-init.start");
+
         // Configure dependency injection
         var services = new ServiceCollection();
         ConfigureServices(services);
@@ -40,9 +44,11 @@ public partial class App : Application
             {
                 DataContext = mainViewModel
             };
+            Program.WriteStartupTrace("app.main-window.created");
         }
 
         base.OnFrameworkInitializationCompleted();
+        Program.WriteStartupTrace("app.framework-init.completed");
     }
 
     private static void ConfigureServices(IServiceCollection services)

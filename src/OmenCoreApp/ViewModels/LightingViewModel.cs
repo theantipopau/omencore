@@ -73,6 +73,20 @@ namespace OmenCore.ViewModels
         private string _tempMediumColorHex = "#FFFF00"; // Yellow
         private string _tempHighColorHex = "#FF0000"; // Red
         private string _throttlingColorHex = "#FF4500"; // Orange-Red
+        private DateTime _lastTemperatureLightingApplyUtc = DateTime.MinValue;
+        private DateTime _lastThrottlingLightingApplyUtc = DateTime.MinValue;
+        private string? _lastTemperatureLightingColorHex;
+        private bool _temperatureLightingApplyInFlight;
+        private bool _throttlingLightingApplyInFlight;
+        private const int TemperatureLightingMinIntervalSeconds = 5;
+        private const int TemperatureLightingSameColorRefreshSeconds = 30;
+        private const int ThrottlingLightingMinIntervalSeconds = 10;
+
+        // RGB sync trust signals
+        private string _lastRgbSyncSummary = "Ready to sync";
+        private string _lastRgbSyncDetail = "No sync has run this session.";
+        private System.Windows.Media.SolidColorBrush _lastRgbSyncBrush =
+            new(System.Windows.Media.Color.FromRgb(0x75, 0x75, 0x75));
         
         // Performance mode colors
         private string _balancedModeColorHex = "#0096FF"; // Blue
@@ -265,6 +279,38 @@ namespace OmenCore.ViewModels
 
         public System.Windows.Media.SolidColorBrush RazerStatusBrush => StatusToBrush(GetProviderStatus("razer"));
         public string RazerStatusDetail => _rgbManager?.GetProvider("razer")?.StatusDetail ?? "Razer Synapse not configured";
+
+        public int ActiveRgbTargetCount
+        {
+            get
+            {
+                var providerCount = _rgbManager?.AvailableProviders.Count(p => p.ProviderId != "system") ?? 0;
+                return providerCount + (IsKeyboardLightingAvailable ? 1 : 0);
+            }
+        }
+
+        public string RgbSyncParticipantSummary =>
+            ActiveRgbTargetCount == 1
+                ? "1 active lighting target"
+                : $"{ActiveRgbTargetCount} active lighting targets";
+
+        public string LastRgbSyncSummary
+        {
+            get => _lastRgbSyncSummary;
+            private set => SetProperty(ref _lastRgbSyncSummary, value);
+        }
+
+        public string LastRgbSyncDetail
+        {
+            get => _lastRgbSyncDetail;
+            private set => SetProperty(ref _lastRgbSyncDetail, value);
+        }
+
+        public System.Windows.Media.SolidColorBrush LastRgbSyncBrush
+        {
+            get => _lastRgbSyncBrush;
+            private set => SetProperty(ref _lastRgbSyncBrush, value);
+        }
         
         // Razer properties
         private readonly ObservableCollection<RazerDevice> _razerDevices = new();
@@ -1018,12 +1064,23 @@ namespace OmenCore.ViewModels
             
             // Get OpenRGB provider from RgbManager if available
             _openRgbProvider = rgbManager?.GetProvider("openrgb") as OmenCore.Services.Rgb.OpenRgbProvider;
+            if (_rgbManager != null)
+            {
+                _rgbManager.SyncCompleted += OnRgbSyncCompleted;
+            }
             
             // Load saved keyboard colors from config
             LoadKeyboardColorsFromConfig();
 
             // Initialize Corsair commands (only functional if service is available)
-            DiscoverCorsairDevicesCommand = new AsyncRelayCommand(async _ => { if (_corsairService != null) await _corsairService.DiscoverAsync(); });
+            DiscoverCorsairDevicesCommand = new AsyncRelayCommand(async _ =>
+            {
+                if (_corsairService != null)
+                {
+                    await _corsairService.DiscoverAsync();
+                    RefreshRgbStatus();
+                }
+            });
             ApplyCorsairLightingCommand = new AsyncRelayCommand(async _ => await ApplyCorsairLightingAsync(), _ => SelectedCorsairPreset != null && _corsairService != null);
             ApplyCorsairCustomColorCommand = new AsyncRelayCommand(async _ => await ApplyCorsairCustomColorAsync());
             ApplyCorsairDpiCommand = new AsyncRelayCommand(async _ => await ApplyCorsairDpiAsync());
@@ -1042,7 +1099,14 @@ namespace OmenCore.ViewModels
             SyncAllRgbCommand = new AsyncRelayCommand(async _ => await SyncAllRgbAsync());
             
             // Initialize Logitech commands (only functional if service is available)
-            DiscoverLogitechDevicesCommand = new AsyncRelayCommand(async _ => { if (_logitechService != null) await _logitechService.DiscoverAsync(); });
+            DiscoverLogitechDevicesCommand = new AsyncRelayCommand(async _ =>
+            {
+                if (_logitechService != null)
+                {
+                    await _logitechService.DiscoverAsync();
+                    RefreshRgbStatus();
+                }
+            });
             ApplyLogitechColorCommand = new AsyncRelayCommand(async _ => await ApplyLogitechColorAsync(), _ => SelectedLogitechDevice != null && _logitechService != null);
             LoadMacroProfileCommand = new AsyncRelayCommand(async _ => await LoadMacroProfileAsync());
             
@@ -1251,6 +1315,85 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(RazerColorHex));
         }
 
+        private void RefreshRgbStatus()
+        {
+            OnPropertyChanged(nameof(ActiveRgbTargetCount));
+            OnPropertyChanged(nameof(RgbSyncParticipantSummary));
+            OnPropertyChanged(nameof(CorsairStatusBrush));
+            OnPropertyChanged(nameof(CorsairStatusDetail));
+            OnPropertyChanged(nameof(LogitechStatusBrush));
+            OnPropertyChanged(nameof(LogitechStatusDetail));
+            OnPropertyChanged(nameof(RazerStatusBrush));
+            OnPropertyChanged(nameof(RazerStatusDetail));
+            OnPropertyChanged(nameof(OpenRgbStatusText));
+            OnPropertyChanged(nameof(OpenRgbDeviceCount));
+            OnPropertyChanged(nameof(HasOpenRgbDevices));
+        }
+
+        private void OnRgbSyncCompleted(object? sender, OmenCore.Services.Rgb.RgbSyncEventArgs e)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            void Update()
+            {
+                var totalSucceeded = e.ProvidersSucceeded;
+                var totalAttempted = e.ProvidersAffected;
+                if (e.ProvidersFailed == 0)
+                {
+                    LastRgbSyncSummary = totalAttempted == 1
+                        ? "Sync complete: 1 provider updated"
+                        : $"Sync complete: {totalAttempted} providers updated";
+                    LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.Connected);
+                }
+                else if (totalSucceeded > 0)
+                {
+                    LastRgbSyncSummary = $"Partial sync: {totalSucceeded}/{totalAttempted} providers updated";
+                    LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.NoDevices);
+                }
+                else
+                {
+                    LastRgbSyncSummary = "Sync failed: no providers updated";
+                    LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.Error);
+                }
+
+                LastRgbSyncDetail = $"{DateTime.Now:HH:mm:ss} - {e.EffectId}";
+                RefreshRgbStatus();
+            }
+
+            if (dispatcher?.CheckAccess() == true)
+                Update();
+            else
+                dispatcher?.BeginInvoke((Action)Update);
+        }
+
+        private void UpdateLastRgbSyncResult(string colorHex, int attempted, int succeeded, int failed)
+        {
+            if (attempted == 0)
+            {
+                LastRgbSyncSummary = "No RGB targets available";
+                LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.NoDevices);
+            }
+            else if (failed == 0)
+            {
+                LastRgbSyncSummary = attempted == 1
+                    ? "Sync complete: 1 target updated"
+                    : $"Sync complete: {attempted} targets updated";
+                LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.Connected);
+            }
+            else if (succeeded > 0)
+            {
+                LastRgbSyncSummary = $"Partial sync: {succeeded}/{attempted} targets updated";
+                LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.NoDevices);
+            }
+            else
+            {
+                LastRgbSyncSummary = "Sync failed: no targets updated";
+                LastRgbSyncBrush = StatusToBrush(OmenCore.Services.Rgb.RgbProviderConnectionStatus.Error);
+            }
+
+            LastRgbSyncDetail = $"{DateTime.Now:HH:mm:ss} - Static {colorHex}";
+            RefreshRgbStatus();
+        }
+
         #region Razer Methods
 
         private async Task DiscoverRazerDevicesAsync()
@@ -1269,6 +1412,7 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(RazerDevices));
                 OnPropertyChanged(nameof(HasRazerDevices));
                 OnPropertyChanged(nameof(RazerDeviceStatusText));
+                RefreshRgbStatus();
                 await Task.CompletedTask;
             }, "Discovering Razer devices...");
         }
@@ -1359,72 +1503,43 @@ namespace OmenCore.ViewModels
             
             await ExecuteWithLoadingAsync(async () =>
             {
-                int successCount = 0;
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && IsCorsairConnected && CorsairDevices.Count > 0)
+                var color = System.Drawing.ColorTranslator.FromHtml(syncColor);
+                var providerResult = new { Attempted = 0, Succeeded = 0, Failed = 0 };
+
+                if (_rgbManager != null)
                 {
+                    OmenCore.Services.Rgb.RgbSyncEventArgs? completed = null;
+                    void CaptureSyncResult(object? _, OmenCore.Services.Rgb.RgbSyncEventArgs args) => completed = args;
+
+                    _rgbManager.SyncCompleted += CaptureSyncResult;
                     try
                     {
-                        await _corsairService.ApplyLightingToAllAsync(syncColor);
-                        successCount++;
-                        _logging.Info($"Synced color {syncColor} to Corsair devices");
+                        await _rgbManager.SyncStaticColorAsync(color);
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        _logging.Warn($"Failed to sync to Corsair: {ex.Message}");
+                        _rgbManager.SyncCompleted -= CaptureSyncResult;
                     }
-                }
-                
-                // Apply to Logitech devices (apply to each device individually)
-                if (_logitechService != null && IsLogitechConnected)
-                {
-                    try
+
+                    if (completed != null)
                     {
-                        foreach (var device in LogitechDevices)
+                        providerResult = new
                         {
-                            await _logitechService.ApplyStaticColorAsync(device, syncColor, LogitechBrightness);
-                        }
-                        successCount++;
-                        _logging.Info($"Synced color {syncColor} to Logitech devices");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logging.Warn($"Failed to sync to Logitech: {ex.Message}");
+                            Attempted = completed.ProvidersAffected,
+                            Succeeded = completed.ProvidersSucceeded,
+                            Failed = completed.ProvidersFailed
+                        };
                     }
                 }
-                
-                // Apply to Razer devices (synchronous method, wrap in Task.Run)
-                if (IsRazerConnected && _razerService != null)
-                {
-                    try
-                    {
-                        await Task.Run(() =>
-                        {
-                            var color = System.Drawing.ColorTranslator.FromHtml(syncColor);
-                            _razerService.SetStaticColor(color.R, color.G, color.B);
-                        });
-                        successCount++;
-                        _logging.Info($"Synced color {syncColor} to Razer devices");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logging.Warn($"Failed to sync to Razer: {ex.Message}");
-                    }
-                }
-                
-                // Apply to HP OMEN keyboard (synchronous method, wrap in Task.Run)
+
+                var keyboardSucceeded = false;
                 if (IsKeyboardLightingAvailable && _keyboardLightingService != null)
                 {
                     try
                     {
-                        await Task.Run(async () =>
-                        {
-                            var color = System.Drawing.ColorTranslator.FromHtml(syncColor);
-                            var colors = new[] { color, color, color, color };
-                            await _keyboardLightingService.SetAllZoneColors(colors);
-                        });
-                        successCount++;
+                        var colors = new[] { color, color, color, color };
+                        await _keyboardLightingService.SetAllZoneColors(colors);
+                        keyboardSucceeded = true;
                         _logging.Info($"Synced color {syncColor} to OMEN keyboard");
                     }
                     catch (Exception ex)
@@ -1432,22 +1547,13 @@ namespace OmenCore.ViewModels
                         _logging.Warn($"Failed to sync to OMEN keyboard: {ex.Message}");
                     }
                 }
-                
-                // Use RgbManager for any other registered providers
-                if (_rgbManager != null)
-                {
-                    try
-                    {
-                        await _rgbManager.ApplyEffectToAllAsync($"color:{syncColor}");
-                        _logging.Info($"Synced color {syncColor} via RgbManager");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logging.Warn($"RgbManager sync failed: {ex.Message}");
-                    }
-                }
-                
-                _logging.Info($"RGB Sync complete: {successCount} device group(s) updated");
+
+                var totalAttempted = providerResult.Attempted + (IsKeyboardLightingAvailable ? 1 : 0);
+                var totalSucceeded = providerResult.Succeeded + (keyboardSucceeded ? 1 : 0);
+                var totalFailed = totalAttempted - totalSucceeded;
+
+                UpdateLastRgbSyncResult(syncColor, totalAttempted, totalSucceeded, totalFailed);
+                _logging.Info($"RGB Sync complete: {totalSucceeded}/{totalAttempted} target(s) updated");
             }, "Syncing color to all RGB devices...");
         }
 
@@ -2007,7 +2113,10 @@ namespace OmenCore.ViewModels
                         Convert.ToByte(hex.Substring(4, 2), 16));
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is FormatException || ex is OverflowException || ex is ArgumentOutOfRangeException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Invalid media color '{hex}': {ex.Message}");
+            }
             return System.Windows.Media.Colors.Red;
         }
         
@@ -2025,7 +2134,10 @@ namespace OmenCore.ViewModels
                         Convert.ToByte(hex.Substring(4, 2), 16));
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is FormatException || ex is OverflowException || ex is ArgumentOutOfRangeException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Invalid drawing color '{hex}': {ex.Message}");
+            }
             return System.Drawing.Color.Red;
         }
         
@@ -2093,11 +2205,15 @@ namespace OmenCore.ViewModels
                 // Temperature-responsive lighting
                 if (TemperatureResponsiveLightingEnabled)
                 {
-                    _ = ApplyTemperatureBasedLightingAsync(sample);
+                    var colorHex = GetTemperatureLightingColor(sample);
+                    if (ShouldApplyTemperatureLighting(colorHex))
+                    {
+                        _ = ApplyTemperatureBasedLightingAsync(colorHex);
+                    }
                 }
 
                 // Throttling indicators
-                if (ThrottlingIndicatorLightingEnabled && sample.IsThrottling)
+                if (ThrottlingIndicatorLightingEnabled && sample.IsThrottling && ShouldApplyThrottlingLighting())
                 {
                     _ = ApplyThrottlingLightingAsync(sample);
                 }
@@ -2109,30 +2225,61 @@ namespace OmenCore.ViewModels
             if (!PerformanceModeSyncedLightingEnabled)
                 return;
             
-            _ = ApplyPerformanceModeLightingAsync(modeName);
+            Application.Current?.Dispatcher?.BeginInvoke(() =>
+            {
+                _ = ApplyPerformanceModeLightingAsync(modeName);
+            });
         }
         
-        private async Task ApplyTemperatureBasedLightingAsync(MonitoringSample sample)
+        private string GetTemperatureLightingColor(MonitoringSample sample)
+        {
+            var maxTemp = Math.Max(sample.CpuTemperatureC, sample.GpuTemperatureC);
+
+            if (maxTemp >= Math.Max(CpuTempThresholdHigh, GpuTempThresholdHigh))
+                return TempHighColorHex;
+
+            if (maxTemp >= Math.Max(CpuTempThresholdMedium, GpuTempThresholdMedium))
+                return TempMediumColorHex;
+
+            return TempLowColorHex;
+        }
+
+        private bool ShouldApplyTemperatureLighting(string colorHex)
+        {
+            if (_temperatureLightingApplyInFlight)
+                return false;
+
+            var now = DateTime.UtcNow;
+            var colorChanged = !string.Equals(_lastTemperatureLightingColorHex, colorHex, StringComparison.OrdinalIgnoreCase);
+            var intervalSeconds = colorChanged ? TemperatureLightingMinIntervalSeconds : TemperatureLightingSameColorRefreshSeconds;
+
+            if ((now - _lastTemperatureLightingApplyUtc).TotalSeconds < intervalSeconds)
+                return false;
+
+            _lastTemperatureLightingApplyUtc = now;
+            _lastTemperatureLightingColorHex = colorHex;
+            _temperatureLightingApplyInFlight = true;
+            return true;
+        }
+
+        private bool ShouldApplyThrottlingLighting()
+        {
+            if (_throttlingLightingApplyInFlight)
+                return false;
+
+            var now = DateTime.UtcNow;
+            if ((now - _lastThrottlingLightingApplyUtc).TotalSeconds < ThrottlingLightingMinIntervalSeconds)
+                return false;
+
+            _lastThrottlingLightingApplyUtc = now;
+            _throttlingLightingApplyInFlight = true;
+            return true;
+        }
+
+        private async Task ApplyTemperatureBasedLightingAsync(string colorHex)
         {
             try
             {
-                // Determine color based on highest temperature (CPU or GPU)
-                var maxTemp = Math.Max(sample.CpuTemperatureC, sample.GpuTemperatureC);
-                string colorHex;
-                
-                if (maxTemp >= Math.Max(CpuTempThresholdHigh, GpuTempThresholdHigh))
-                {
-                    colorHex = TempHighColorHex;
-                }
-                else if (maxTemp >= Math.Max(CpuTempThresholdMedium, GpuTempThresholdMedium))
-                {
-                    colorHex = TempMediumColorHex;
-                }
-                else
-                {
-                    colorHex = TempLowColorHex;
-                }
-                
                 // Apply to keyboard lighting
                 if (_keyboardLightingService?.IsAvailable == true)
                 {
@@ -2171,6 +2318,10 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Error("Failed to apply temperature-based lighting", ex);
+            }
+            finally
+            {
+                _temperatureLightingApplyInFlight = false;
             }
         }
         
@@ -2218,6 +2369,10 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Error("Failed to apply throttling indicator lighting", ex);
+            }
+            finally
+            {
+                _throttlingLightingApplyInFlight = false;
             }
         }
         
@@ -2615,6 +2770,8 @@ namespace OmenCore.ViewModels
             }
             if (_screenSamplingService != null)
                 _screenSamplingService.ColorChanged -= OnAmbientColorChanged;
+            if (_rgbManager != null)
+                _rgbManager.SyncCompleted -= OnRgbSyncCompleted;
         }
     }
     

@@ -230,11 +230,11 @@ namespace OmenCore
 
                     if (secureBootEnabled || memoryIntegrityEnabled)
                     {
-                        Logging.Info("💡 Windows security features may block legacy drivers. Install PawnIO (Secure Boot compatible) from https://pawnio.eu/");
+                        Logging.Info("💡 Windows security features may block legacy drivers. Use the OmenCore installer bundled PawnIO option for Secure Boot compatible EC/MSR access.");
                     }
                     else
                     {
-                        Logging.Info("💡 Install PawnIO for full EC/MSR feature support.");
+                        Logging.Info("💡 Use the OmenCore installer bundled PawnIO option for full EC/MSR feature support.");
                     }
 
                     // Prompt user only on first startup if driver missing
@@ -804,7 +804,7 @@ namespace OmenCore
 
         private void PromptDriverInstallation()
         {
-            var recommendedBackend = "PawnIO (recommended)";
+            var recommendedBackend = "PawnIO (bundled with installer builds)";
 
             var result = MessageBox.Show(
                 "Some hardware-control features require a driver backend.\n\n" +
@@ -815,36 +815,16 @@ namespace OmenCore
                 "• Direct EC fan control (some models)\n" +
                 "• CPU undervolting and TCC offset (Intel MSR)\n\n" +
                 $"Recommended: {recommendedBackend}\n\n" +
-                "Click YES to open PawnIO download page\n" +
-                "Click NO to continue without driver-dependent features",
-                "Driver Required - OmenCore",
-                MessageBoxButton.YesNo,
+                "Use the OmenCore installer to add PawnIO, or continue without driver-dependent features.",
+                "Optional Driver Backend - OmenCore",
+                MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
             // Mark first run as completed after showing prompt
             Configuration.Config.FirstRunCompleted = true;
             Configuration.Save(Configuration.Config);
 
-            if (result == MessageBoxResult.Yes)
-            {
-                OpenPawnIODownloadPage();
-            }
-        }
-
-        private static void OpenPawnIODownloadPage()
-        {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "https://pawnio.eu/",
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-                // Ignore
-            }
+            _ = result;
         }
 
         private static bool IsSecureBootEnabled()
@@ -1054,7 +1034,14 @@ namespace OmenCore
                     ex: e.Exception);
 
                 // Activate software rendering for the remainder of this session so the crash stops.
-                try { EnableSoftwareRendering(); } catch { }
+                try
+                {
+                    EnableSoftwareRendering();
+                }
+                catch (Exception renderFallbackEx)
+                {
+                    Logging.Warn($"Failed to enable software rendering after render-thread failure: {renderFallbackEx.Message}");
+                }
 
                 bool rtssRunning = IsRtssRunning();
                 string detail = rtssRunning

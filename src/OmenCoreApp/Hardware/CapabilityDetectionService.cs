@@ -507,7 +507,7 @@ namespace OmenCore.Hardware
             }
             else if (Capabilities.SecureBootEnabled)
             {
-                Capabilities.DriverStatus = "No EC driver - Install PawnIO from pawnio.eu for Secure Boot compatible access";
+                Capabilities.DriverStatus = "No EC driver - install bundled PawnIO for Secure Boot compatible access";
             }
             else
             {
@@ -698,7 +698,7 @@ namespace OmenCore.Hardware
                 Capabilities.FanControl = FanControlMethod.MonitoringOnly;
                 Capabilities.CanSetFanSpeed = false;
                 Capabilities.CanReadRpm = true;
-                _logging?.Warn("  → Fan control unavailable. Install PawnIO from pawnio.eu for Secure Boot compatible EC access.");
+                _logging?.Warn("  → Fan control unavailable. Install the bundled PawnIO option for Secure Boot compatible EC access.");
             }
             else
             {

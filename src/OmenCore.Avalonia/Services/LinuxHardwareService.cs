@@ -13,6 +13,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     private HardwareStatus _lastStatus = new();
     private SystemCapabilities? _capabilities;
     private bool _disposed;
+    private bool _pollingInProgress;
     private PerformanceMode? _lastFanFallbackMode;
 
     // HP OMEN specific paths
@@ -25,7 +26,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     private const string HP_WMI_FAN_ALWAYS_ON = "/sys/devices/platform/hp-wmi/fan_always_on";
     private const string HP_WMI_HWMON_ROOT = "/sys/devices/platform/hp-wmi/hwmon";
     
-    // Thermal profile sysfs paths — checked in order of preference
+    // Thermal profile sysfs paths - checked in order of preference
     // The standard kernel platform_profile interface (kernel 5.18+) is most reliable.
     // HP-specific hp-wmi thermal_profile is a fallback for older kernels.
     private static readonly string[] ThermalProfilePaths = new[]
@@ -50,13 +51,29 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     public LinuxHardwareService()
     {
-        _pollingTimer = new System.Timers.Timer(1000);
-        _pollingTimer.Elapsed += async (s, e) => await PollHardwareAsync();
+        _pollingTimer = new System.Timers.Timer(2500)
+        {
+            AutoReset = false
+        };
+        _pollingTimer.Elapsed += async (s, e) =>
+        {
+            await PollHardwareAsync();
+            if (!_disposed)
+            {
+                _pollingTimer.Start();
+            }
+        };
         _pollingTimer.Start();
     }
 
     private async Task PollHardwareAsync()
     {
+        if (_pollingInProgress || _disposed)
+        {
+            return;
+        }
+
+        _pollingInProgress = true;
         try
         {
             var status = await GetStatusAsync();
@@ -69,6 +86,10 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         catch
         {
             // Ignore polling errors
+        }
+        finally
+        {
+            _pollingInProgress = false;
         }
     }
 
@@ -221,7 +242,8 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static bool DetectFourZoneRgbSupport()
     {
-        if (File.Exists("/sys/class/leds/hp::kbd_backlight/color"))
+        if (File.Exists("/sys/class/leds/hp::kbd_backlight/color") ||
+            File.Exists("/sys/class/leds/hp::kbd_backlight/multi_intensity"))
         {
             return true;
         }
@@ -233,13 +255,28 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 return false;
             }
 
-            var zoneMatches = Directory.EnumerateDirectories("/sys/class/leds", "hp::*zone*", SearchOption.TopDirectoryOnly).Any();
-            if (zoneMatches)
+            foreach (var ledPath in Directory.EnumerateDirectories("/sys/class/leds", "*", SearchOption.TopDirectoryOnly))
             {
-                return true;
+                var ledName = Path.GetFileName(ledPath);
+                if (string.IsNullOrWhiteSpace(ledName))
+                {
+                    continue;
+                }
+
+                if (ledName.Contains("zone", StringComparison.OrdinalIgnoreCase) ||
+                    ledName.Contains("multicolor", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (File.Exists(Path.Combine(ledPath, "multi_intensity")) ||
+                    File.Exists(Path.Combine(ledPath, "multi_index")))
+                {
+                    return true;
+                }
             }
 
-            return Directory.EnumerateFiles("/sys/class/leds", "*multicolor*", SearchOption.AllDirectories).Any();
+            return false;
         }
         catch
         {
@@ -505,32 +542,15 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         }
         catch (UnauthorizedAccessException)
         {
-            // Not running as root — try pkexec or tee fallback
+            // Not running with permission to write this sysfs control.
         }
         catch (IOException)
         {
-            // sysfs write failed — try shell fallback
+            // sysfs write failed.
         }
-
-        // Strategy 2: Use 'tee' via shell (handles sudo/pkexec elevation)
-        try
-        {
-            // Try direct shell write first (works if already root via sudo)
-            var result = await RunCommandWithExitCodeAsync("/bin/sh", $"-c \"echo {profile} | tee {thermalPath} > /dev/null\"");
-            if (result == 0) return;
-        }
-        catch { }
-
-        // Strategy 3: Use pkexec for GUI privilege escalation
-        try
-        {
-            var result = await RunCommandWithExitCodeAsync("pkexec", $"/bin/sh -c \"echo {profile} > {thermalPath}\"");
-            if (result == 0) return;
-        }
-        catch { }
 
         throw new InvalidOperationException(
-            $"Could not write to {thermalPath}. Try running with: sudo omencore, or ensure your user is in the 'omencore' group.");
+            $"Could not write to {thermalPath}. Start OmenCore with the required permissions or configure a distro policy rule for this sysfs path.");
     }
 
     public async Task SetCpuFanSpeedAsync(int percentage)
@@ -641,25 +661,16 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return "hybrid";
 
-        // Check for NVIDIA optimus/prime status
-        try
-        {
-            if (File.Exists("/proc/driver/nvidia/params"))
-            {
-                // Check PRIME profile
-                var primeProfile = await RunCommandAsync("prime-select", "query");
-                return primeProfile.Trim().ToLower() switch
-                {
-                    "nvidia" => "discrete",
-                    "intel" or "amd" => "integrated",
-                    "on-demand" => "hybrid",
-                    _ => "hybrid"
-                };
-            }
-        }
-        catch { }
+        var gpuVendors = await ReadDrmGpuVendorsAsync();
+        var hasDiscrete = gpuVendors.Any(v => IsDiscreteGpuVendor(v.vendorId));
+        var hasIntegrated = gpuVendors.Any(v => IsIntegratedGpuVendor(v.vendorId));
 
-        return "hybrid";
+        if (hasDiscrete && hasIntegrated)
+        {
+            return "hybrid";
+        }
+
+        return hasDiscrete ? "discrete" : "integrated";
     }
 
     public async Task SetGpuModeAsync(string mode)
@@ -667,22 +678,8 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             return;
 
-        var primeMode = mode.ToLower() switch
-        {
-            "discrete" => "nvidia",
-            "integrated" => "intel",
-            "hybrid" => "on-demand",
-            _ => "on-demand"
-        };
-
-        try
-        {
-            await RunCommandAsync("pkexec", $"prime-select {primeMode}");
-        }
-        catch
-        {
-            throw new InvalidOperationException("Failed to switch GPU mode. Please reboot and try again.");
-        }
+        await Task.CompletedTask;
+        throw new NotSupportedException("GPU mode switching is distro-specific and is not invoked through external tools by OmenCore. Use BIOS or your distro's GPU profile manager.");
     }
 
     public async Task SetKeyboardBrightnessAsync(int brightness)
@@ -885,17 +882,7 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static async Task<int> ReadGpuTemperatureAsync()
     {
-        // Try NVIDIA first via nvidia-smi
-        try
-        {
-            var nvidiaTemp = await RunCommandAsync("nvidia-smi", "--query-gpu=temperature.gpu --format=csv,noheader,nounits");
-            if (int.TryParse(nvidiaTemp.Trim(), out var temp) && temp > 0)
-                return temp * 1000;
-        }
-        catch { }
-
-        // Try AMD via hwmon
-        foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
+        foreach (var hwmon in SafeEnumerateDirectories(HWMON_BASE))
         {
             try
             {
@@ -903,10 +890,15 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 if (!File.Exists(namePath)) continue;
                 
                 var name = (await File.ReadAllTextAsync(namePath)).Trim().ToLower();
-                if (name == "amdgpu" || name.Contains("radeon") || name.Contains("gpu"))
+                if (name == "amdgpu" ||
+                    name == "nouveau" ||
+                    name.Contains("nvidia") ||
+                    name.Contains("radeon") ||
+                    name.Contains("gpu") ||
+                    name.Contains("i915") ||
+                    name.Contains("intel"))
                 {
-                    // Try different temperature files for AMD GPUs
-                    var tempFiles = new[] { "temp1_input", "temp2_input", "edge", "junction" };
+                    var tempFiles = new[] { "temp1_input", "temp2_input", "temp3_input", "edge", "junction" };
                     foreach (var tempFile in tempFiles)
                     {
                         var tempPath = Path.Combine(hwmon, tempFile);
@@ -916,29 +908,6 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                             if (int.TryParse(tempStr.Trim(), out var temp) && temp > 0)
                                 return temp;
                         }
-                    }
-                }
-            }
-            catch { }
-        }
-
-        // Try Intel integrated GPU
-        foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
-        {
-            try
-            {
-                var namePath = Path.Combine(hwmon, "name");
-                if (!File.Exists(namePath)) continue;
-                
-                var name = (await File.ReadAllTextAsync(namePath)).Trim().ToLower();
-                if (name.Contains("i915") || name.Contains("intel"))
-                {
-                    var tempPath = Path.Combine(hwmon, "temp1_input");
-                    if (File.Exists(tempPath))
-                    {
-                        var tempStr = await File.ReadAllTextAsync(tempPath);
-                        if (int.TryParse(tempStr.Trim(), out var temp) && temp > 0)
-                            return temp;
                     }
                 }
             }
@@ -1095,19 +1064,8 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static async Task<bool> HasDiscreteGpuAsync()
     {
-        // Check for NVIDIA
-        if (File.Exists("/proc/driver/nvidia/version"))
-            return true;
-
-        // Check for AMD discrete
-        try
-        {
-            var lspci = await RunCommandAsync("lspci", "-d ::0302");
-            return !string.IsNullOrWhiteSpace(lspci);
-        }
-        catch { }
-
-        return false;
+        var gpuVendors = await ReadDrmGpuVendorsAsync();
+        return gpuVendors.Any(v => IsDiscreteGpuVendor(v.vendorId));
     }
 
     private static async Task<string?> ReadDmiStringAsync(string field)
@@ -1139,126 +1097,97 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static async Task<string> ReadGpuNameAsync()
     {
-        // Try NVIDIA nvidia-smi
-        try
+        var gpuVendors = await ReadDrmGpuVendorsAsync();
+        var selected = gpuVendors.FirstOrDefault(v => IsDiscreteGpuVendor(v.vendorId));
+        if (string.IsNullOrWhiteSpace(selected.vendorId))
         {
-            var gpuName = await RunCommandAsync("nvidia-smi", "--query-gpu=gpu_name --format=csv,noheader");
-            if (!string.IsNullOrWhiteSpace(gpuName) && !gpuName.Contains("error", StringComparison.OrdinalIgnoreCase))
-                return gpuName.Trim();
+            selected = gpuVendors.FirstOrDefault();
         }
-        catch { }
 
-        // Try lspci for discrete GPUs (VGA compatible controller or 3D controller)
-        try
+        if (!string.IsNullOrWhiteSpace(selected.vendorId))
         {
-            // 0300 = VGA compatible controller, 0302 = 3D controller (discrete GPUs)
-            var lspciOutput = await RunCommandAsync("lspci", "");
-            var lines = lspciOutput.Split('\n');
-            
-            foreach (var line in lines)
-            {
-                var lower = line.ToLower();
-                // Look for NVIDIA or AMD discrete GPUs
-                if ((lower.Contains("vga") || lower.Contains("3d")) && 
-                    (lower.Contains("nvidia") || lower.Contains("radeon") || lower.Contains("amd")))
-                {
-                    // Extract GPU name from line like "01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [GeForce RTX 3070]"
-                    var colonIndex = line.IndexOf(':');
-                    if (colonIndex > 0 && colonIndex < line.Length - 1)
-                    {
-                        var colonIndex2 = line.IndexOf(':', colonIndex + 1);
-                        if (colonIndex2 > 0 && colonIndex2 < line.Length - 1)
-                        {
-                            return line.Substring(colonIndex2 + 1).Trim();
-                        }
-                    }
-                }
-            }
-            
-            // Fallback: Any VGA/3D device
-            foreach (var line in lines)
-            {
-                if (line.ToLower().Contains("vga") || line.ToLower().Contains("3d"))
-                {
-                    var colonIndex = line.IndexOf(':');
-                    if (colonIndex > 0)
-                    {
-                        var colonIndex2 = line.IndexOf(':', colonIndex + 1);
-                        if (colonIndex2 > 0)
-                            return line.Substring(colonIndex2 + 1).Trim();
-                    }
-                }
-            }
+            return FormatGpuName(selected.vendorId, selected.deviceId);
         }
-        catch { }
-
-        // Try reading from DRM subsystem
-        try
-        {
-            var drmPath = "/sys/class/drm";
-            if (Directory.Exists(drmPath))
-            {
-                var cards = Directory.GetDirectories(drmPath).Where(d => Path.GetFileName(d).StartsWith("card"));
-                foreach (var card in cards)
-                {
-                    var devicePath = Path.Combine(card, "device");
-                    if (Directory.Exists(devicePath))
-                    {
-                        // Try to read vendor/device info
-                        var vendorPath = Path.Combine(devicePath, "vendor");
-                        if (File.Exists(vendorPath))
-                        {
-                            var vendor = (await File.ReadAllTextAsync(vendorPath)).Trim();
-                            if (vendor == "0x10de") return "NVIDIA GPU";
-                            if (vendor == "0x1002") return "AMD Radeon GPU";
-                            if (vendor == "0x8086") return "Intel Integrated Graphics";
-                        }
-                    }
-                }
-            }
-        }
-        catch { }
 
         return "Unknown GPU";
     }
 
-    private static async Task<string> RunCommandAsync(string command, string args)
+    private static async Task<IReadOnlyList<(string vendorId, string deviceId)>> ReadDrmGpuVendorsAsync()
     {
-        using var process = new System.Diagnostics.Process();
-        process.StartInfo = new System.Diagnostics.ProcessStartInfo
+        var result = new List<(string vendorId, string deviceId)>();
+        const string drmPath = "/sys/class/drm";
+
+        foreach (var card in SafeEnumerateDirectories(drmPath))
         {
-            FileName = command,
-            Arguments = args,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
-        };
-        process.Start();
-        var output = await process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return output;
+            var cardName = Path.GetFileName(card);
+            if (string.IsNullOrWhiteSpace(cardName) ||
+                !cardName.StartsWith("card", StringComparison.Ordinal) ||
+                cardName.Contains("-", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var devicePath = Path.Combine(card, "device");
+            var vendorPath = Path.Combine(devicePath, "vendor");
+            if (!File.Exists(vendorPath))
+            {
+                continue;
+            }
+
+            try
+            {
+                var vendor = (await File.ReadAllTextAsync(vendorPath)).Trim().ToLowerInvariant();
+                var deviceFile = Path.Combine(devicePath, "device");
+                var device = File.Exists(deviceFile)
+                    ? (await File.ReadAllTextAsync(deviceFile)).Trim().ToLowerInvariant()
+                    : string.Empty;
+
+                result.Add((vendor, device));
+            }
+            catch
+            {
+                // Best-effort sysfs probing.
+            }
+        }
+
+        return result;
     }
 
-    /// <summary>
-    /// Run a command and return its exit code (for checking success/failure).
-    /// </summary>
-    private static async Task<int> RunCommandWithExitCodeAsync(string command, string args)
+    private static IEnumerable<string> SafeEnumerateDirectories(string path)
     {
-        using var process = new System.Diagnostics.Process();
-        process.StartInfo = new System.Diagnostics.ProcessStartInfo
+        try
         {
-            FileName = command,
-            Arguments = args,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
+            return Directory.Exists(path)
+                ? Directory.EnumerateDirectories(path).ToArray()
+                : Array.Empty<string>();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static bool IsDiscreteGpuVendor(string vendorId)
+    {
+        return string.Equals(vendorId, "0x10de", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(vendorId, "0x1002", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIntegratedGpuVendor(string vendorId)
+    {
+        return string.Equals(vendorId, "0x8086", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatGpuName(string vendorId, string deviceId)
+    {
+        var suffix = string.IsNullOrWhiteSpace(deviceId) ? string.Empty : $" ({deviceId})";
+        return vendorId.ToLowerInvariant() switch
+        {
+            "0x10de" => $"NVIDIA GPU{suffix}",
+            "0x1002" => $"AMD Radeon GPU{suffix}",
+            "0x8086" => $"Intel Integrated Graphics{suffix}",
+            _ => $"GPU {vendorId}{suffix}"
         };
-        process.Start();
-        await process.StandardOutput.ReadToEndAsync();
-        await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return process.ExitCode;
     }
 
     #endregion

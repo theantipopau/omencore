@@ -58,6 +58,7 @@ namespace OmenCore.Services
         private const int VK_F2 = 0x71;               // F2
         private const int VK_F3 = 0x72;               // F3
         private const int VK_F11 = 0x7A;              // F11 must never be intercepted
+        private const int VK_F12 = 0x7B;              // Fn+F12 is the OMEN launch key on some Transcend models
         private const int VK_F23 = 0x86;
         
         // Additional keys that must NEVER be treated as OMEN key (GitHub #46)
@@ -282,9 +283,12 @@ namespace OmenCore.Services
         /// </summary>
         private void StartWmiEventWatcher()
         {
-            // If the low-level keyboard hook is active, prefer it over WMI events to avoid
-            // duplicate/false-positive triggers (brightness keys, Fn combos, etc.).
-            if (IsHookActive)
+            // If the low-level keyboard hook is active, prefer it over WMI OMEN-launch events
+            // to avoid duplicate/false-positive triggers (brightness keys, Fn combos, etc.).
+            // Keep the narrow Fn+P firmware watcher available; that profile-cycle event has no
+            // reliable low-level-keyboard equivalent on affected Transcend models.
+            bool fnPEnabled = _configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true;
+            if (IsHookActive && !fnPEnabled)
             {
                 _logging.Info("Keyboard hook active - skipping WMI OMEN event watcher to avoid duplicate/false triggers");
                 return;
@@ -300,11 +304,13 @@ namespace OmenCore.Services
             // ALL BIOS events (fan changes, thermal events, power state changes) and
             // causes focus-stealing behavior where OmenCore repeatedly comes to front.
             
-            // If experimental firmware Fn+P is enabled, widen the query to also accept eventData=8614
-            bool fnPEnabled = _configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true;
-            var wmiQuery = fnPEnabled
-                ? "SELECT * FROM hpqBEvnt WHERE eventId = 29 AND (eventData = 8613 OR eventData = 8614)"
-                : "SELECT * FROM hpqBEvnt WHERE eventData = 8613 AND eventId = 29";
+            // If the hook is active, listen only for the narrow Fn+P profile-cycle event. If the
+            // hook is unavailable, also listen for the legacy OMEN-key WMI event.
+            var wmiQuery = fnPEnabled && IsHookActive
+                ? "SELECT * FROM hpqBEvnt WHERE eventId = 29 AND eventData = 8614"
+                : fnPEnabled
+                    ? "SELECT * FROM hpqBEvnt WHERE eventId = 29 AND (eventData = 8613 OR eventData = 8614)"
+                    : "SELECT * FROM hpqBEvnt WHERE eventData = 8613 AND eventId = 29";
 
             var wmiSources = new[]
             {
@@ -340,14 +346,6 @@ namespace OmenCore.Services
         {
             try
             {
-                // If a low-level keyboard hook is active prefer it and IGNORE WMI OMEN events.
-                // This prevents duplicate/false triggers (brightness Fn keys) when both paths are present.
-                if (IsHookActive)
-                {
-                    _logging.Debug("WMI OMEN event ignored because low-level keyboard hook is active");
-                    return;
-                }
-
                 // Check if we should suppress OMEN key during RDP sessions
                 if (ShouldSuppressForRdp())
                 {
@@ -396,6 +394,19 @@ namespace OmenCore.Services
                 
                 _logging.Debug($"WMI event received: class={className}, eventId={eventId}, eventData={eventData}");
 
+                bool isFirmwareFnPProfileCycle =
+                    _configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true &&
+                    eventId.HasValue && eventId.Value == 29 &&
+                    eventData.HasValue && eventData.Value == 8614;
+
+                // If a low-level keyboard hook is active, ignore normal WMI OMEN launch events
+                // and keep only the narrow Fn+P profile-cycle event.
+                if (IsHookActive && !isFirmwareFnPProfileCycle)
+                {
+                    _logging.Debug("WMI OMEN event ignored because low-level keyboard hook is active");
+                    return;
+                }
+
                 if (ShouldSuppressWmiEventFromRecentNeverInterceptKey())
                 {
                     return;
@@ -416,8 +427,7 @@ namespace OmenCore.Services
                 // Experimental firmware Fn+P path: some BIOS versions emit a dedicated hpqBEvnt
                 // code for profile-cycle hotkey. Keep this behind a config flag because event
                 // codes vary by model and may collide with unrelated firmware events.
-                if (_configService?.Config?.Features?.EnableFirmwareFnPProfileCycle == true &&
-                    eventData.HasValue && eventData.Value == 8614)
+                if (isFirmwareFnPProfileCycle)
                 {
                     _logging.Info("⌨️ Firmware Fn+P profile-cycle event detected (WMI eventData=8614)");
 
@@ -670,6 +680,12 @@ namespace OmenCore.Services
 
         private bool IsOmenKey(uint vkCode, uint scanCode)
         {
+            if (vkCode == VK_F12 && OmenLaunchAppScanCodes.Contains((int)scanCode))
+            {
+                _logging.Debug($"Fn+F12 with dedicated OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
+                return true;
+            }
+
             if (TryGetNeverInterceptReason(vkCode, scanCode, out var neverInterceptReason))
             {
                 LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, neverInterceptReason);
@@ -708,8 +724,15 @@ namespace OmenCore.Services
 
                 if (OmenLaunchAppScanCodes.Contains((int)scanCode))
                 {
-                    _logging.Debug($"VK_LAUNCH_APP2 with dedicated OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
-                    return true;
+                    bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
+                    if (!strictMode)
+                    {
+                        _logging.Debug($"VK_LAUNCH_APP2 with dedicated OMEN scan code 0x{scanCode:X4} accepted because strict OMEN key mode is disabled");
+                        return true;
+                    }
+
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "strict-mode-launch-app-ambiguous-use-f12-signature");
+                    return false;
                 }
 
                 // Log unrecognized scan codes for debugging (but don't treat as OMEN key)
@@ -736,8 +759,15 @@ namespace OmenCore.Services
 
                 if (OmenLaunchAppScanCodes.Contains((int)scanCode))
                 {
-                    _logging.Debug($"VK_LAUNCH_APP1 (0xB6) with dedicated OMEN scan code 0x{scanCode:X4} - OMEN key confirmed");
-                    return true;
+                    bool strictMode = _configService?.Config?.StrictOmenKeyMode ?? true;
+                    if (!strictMode)
+                    {
+                        _logging.Debug($"VK_LAUNCH_APP1 (0xB6) with dedicated OMEN scan code 0x{scanCode:X4} accepted because strict OMEN key mode is disabled");
+                        return true;
+                    }
+
+                    LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "strict-mode-launch-app-ambiguous-use-f12-signature");
+                    return false;
                 }
 
                 LogRejectedCandidate("keyboard-hook", vkCode, scanCode, null, "vk-launch-app1-scan-mismatch");

@@ -202,6 +202,31 @@ namespace OmenCoreApp.Tests.Hardware
             fake.SetFanMaxTrueCalls.Should().Be(maxCallsBefore + 1);
         }
 
+        [Fact]
+        public void RestoreAutoControl_V1_DoesNotWriteZeroFanLevel()
+        {
+            var fake = new V1AutoHandoffFakeWmiBios();
+            var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
+
+            controller.SetMaxFanSpeed(true).Should().BeTrue();
+            controller.RestoreAutoControl().Should().BeTrue();
+
+            fake.SetFanLevelCalls.Should().NotContain(call => call.fan1 == 0 && call.fan2 == 0,
+                "V1 auto handoff must not force a transient 0 RPM dip");
+        }
+
+        [Fact]
+        public void ApplyPreset_Auto_V1_DoesNotWriteZeroFanLevel()
+        {
+            var fake = new V1AutoHandoffFakeWmiBios();
+            var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
+
+            controller.ApplyPreset(new FanPreset { Name = "Auto", Mode = OmenCore.Models.FanMode.Auto }).Should().BeTrue();
+
+            fake.SetFanLevelCalls.Should().NotContain(call => call.fan1 == 0 && call.fan2 == 0,
+                "Auto preset should rely on SetFanMode(Default), not an explicit SetFanLevel(0,0)");
+        }
+
         // Fake implementation to simulate V2 BIOS that does not expose RPM but reports fan levels.
         private class FallbackFakeWmiBios : IHpWmiBios
         {
@@ -219,6 +244,32 @@ namespace OmenCoreApp.Tests.Hardware
 
             public double? GetTemperature() => 50.0;
             public double? GetGpuTemperature() => 50.0;
+            public void ExtendFanCountdown() { }
+            public (bool customTgp, bool ppab, int dState)? GetGpuPower() => null;
+            public bool SetGpuPower(HpWmiBios.GpuPowerLevel level) => true;
+            public HpWmiBios.GpuMode? GetGpuMode() => null;
+            public void Dispose() { }
+        }
+
+        private class V1AutoHandoffFakeWmiBios : IHpWmiBios
+        {
+            public List<(byte fan1, byte fan2)> SetFanLevelCalls { get; } = new();
+            private bool _maxEnabled;
+
+            public bool IsAvailable => true;
+            public string Status => "V1AutoHandoffFake";
+            public HpWmiBios.ThermalPolicyVersion ThermalPolicy => HpWmiBios.ThermalPolicyVersion.V1;
+            public int FanCount => 2;
+            public int MaxFanLevel => 55;
+
+            public (int fan1Rpm, int fan2Rpm)? GetFanRpmDirect() => _maxEnabled ? (4200, 4100) : (600, 580);
+            public (byte fan1, byte fan2)? GetFanLevel() => _maxEnabled ? ((byte)55, (byte)55) : ((byte)10, (byte)10);
+            public bool SetFanMax(bool enabled) { _maxEnabled = enabled; return true; }
+            public bool SetFanLevel(byte fan1, byte fan2) { SetFanLevelCalls.Add((fan1, fan2)); return true; }
+            public bool SetFanMode(HpWmiBios.FanMode mode) { _maxEnabled = false; return true; }
+
+            public double? GetTemperature() => 45.0;
+            public double? GetGpuTemperature() => 45.0;
             public void ExtendFanCountdown() { }
             public (bool customTgp, bool ppab, int dState)? GetGpuPower() => null;
             public bool SetGpuPower(HpWmiBios.GpuPowerLevel level) => true;

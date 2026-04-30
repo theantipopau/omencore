@@ -371,11 +371,7 @@ namespace OmenCore.Hardware
                         // BIOS auto mode is already active — this is not a hard-stop command.
                         if (_maxFanLevel < 100)
                         {
-                            System.Threading.Thread.Sleep(wasPerformanceMode ? 50 : 25);
-                            if (_wmiBios.SetFanLevel(0, 0))
-                            {
-                                _logging?.Info("  V1 auto-mode floor cleared: SetFanLevel(0, 0) — BIOS can now spin fans to 0 RPM at idle");
-                            }
+                            _logging?.Info("  V1 auto-mode handoff: skipped SetFanLevel(0, 0) to avoid transient 0 RPM drop; BIOS auto mode handles release");
                         }
                     }
                     else
@@ -845,9 +841,7 @@ namespace OmenCore.Hardware
                     // SetFanMode(Default) already put BIOS in auto-control mode.
                     if (_maxFanLevel < 100)
                     {
-                        System.Threading.Thread.Sleep(25);
-                        _wmiBios.SetFanLevel(0, 0);
-                        _logging?.Info("  V1 auto-mode floor cleared: SetFanLevel(0, 0) — BIOS can now reach 0 RPM at idle");
+                        _logging?.Info("  V1 auto-mode handoff: skipped SetFanLevel(0, 0) to avoid transient 0 RPM drop; BIOS auto mode handles release");
                     }
 
                     _logging?.Info("✓ Restored automatic fan control");

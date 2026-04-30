@@ -165,9 +165,12 @@ namespace OmenCore.ViewModels
                     );
                     _systemControl.PropertyChanged += (s, e) =>
                     {
-                        if (e.PropertyName == nameof(SystemControlViewModel.CurrentPerformanceModeName) && _dashboard != null)
+                        if (e.PropertyName == nameof(SystemControlViewModel.CurrentPerformanceModeName))
                         {
-                            _dashboard.CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
+                            if (_dashboard != null)
+                            {
+                                _dashboard.CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
+                            }
                             // Also sync to MainViewModel's CurrentPerformanceMode for tray menu
                             CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
                         }
@@ -3014,9 +3017,9 @@ namespace OmenCore.ViewModels
                     if (hasPeripherals || hasKeyboardLighting || hasRazer || hasOpenRgb)
                     {
                         // Initialize RGB manager and providers with priority: Corsair -> Logitech -> Razer -> OpenRGB -> SystemGeneric
-                        var rgbManager = new OmenCore.Services.Rgb.RgbManager();
-                        var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService);
-                        var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging);
+                        var rgbManager = new OmenCore.Services.Rgb.RgbManager(_logging);
+                        var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService, _corsairDeviceService);
+                        var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging, _logitechDeviceService);
                         rgbManager.RegisterProvider(corsairProvider);
                         rgbManager.RegisterProvider(logitechProvider);
 
@@ -3483,8 +3486,7 @@ namespace OmenCore.ViewModels
             EnqueueTrayActionLatest($"Performance:{mode}", async () =>
             {
                 var dispatcher = Application.Current?.Dispatcher;
-                var targetServiceMode = mode.Equals("Balanced", StringComparison.OrdinalIgnoreCase) ? "Default" : mode;
-                await Task.Run(() => _performanceModeService.SetPerformanceMode(targetServiceMode));
+                await Task.Run(() => _performanceModeService.SetPerformanceMode(mode));
 
                 if (dispatcher != null)
                 {
@@ -3529,7 +3531,7 @@ namespace OmenCore.ViewModels
                     case "balanced":
                         await Task.Run(() =>
                         {
-                            _performanceModeService.SetPerformanceMode("Default");
+                            _performanceModeService.SetPerformanceMode("Balanced");
                             _fanService.ApplyAutoMode();
                         });
                         performanceMode = "Balanced";

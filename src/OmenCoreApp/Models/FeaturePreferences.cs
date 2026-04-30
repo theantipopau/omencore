@@ -135,8 +135,8 @@ namespace OmenCore.Models
 
         /// <summary>
         /// Experimental: cycle performance profile when firmware emits Fn+P-like WMI event.
-        /// Disabled by default because event IDs vary across models/BIOS versions.
+        /// Enabled by default because the watcher listens only for the narrow known event.
         /// </summary>
-        public bool EnableFirmwareFnPProfileCycle { get; set; } = false;
+        public bool EnableFirmwareFnPProfileCycle { get; set; } = true;
     }
 }

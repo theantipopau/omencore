@@ -33,6 +33,10 @@ namespace OmenCore.Services.Rgb
         private const int PACKET_ID_RGBCONTROLLER_UPDATEZONELEDS = 1051;
         private const int PACKET_ID_RGBCONTROLLER_UPDATESINGLELED = 1052;
         private const int PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE = 1100;
+        private const int MAX_PACKET_DATA_LENGTH = 16 * 1024 * 1024;
+        private const int MAX_DISCOVERABLE_CONTROLLERS = 128;
+        private const int MAX_LED_UPDATE_COUNT = 2048;
+        private static readonly TimeSpan PacketIoTimeout = TimeSpan.FromSeconds(3);
         
         public string ProviderName => "OpenRGB";
         public string ProviderId => "openrgb";
@@ -41,6 +45,7 @@ namespace OmenCore.Services.Rgb
         public int DeviceCount => _devices.Count;
         private bool _initFailed;
         private string _initError = string.Empty;
+        private string _lastApplyError = string.Empty;
 
         public RgbProviderConnectionStatus ConnectionStatus
         {
@@ -60,6 +65,7 @@ namespace OmenCore.Services.Rgb
                 if (_initFailed) return _initError;
                 if (!_isConnected) return $"OpenRGB server not reachable at {_host}:{_port}";
                 if (_devices.Count == 0) return "Connected, no devices found";
+                if (!string.IsNullOrWhiteSpace(_lastApplyError)) return $"{_devices.Count} device(s) connected; last write failed: {_lastApplyError}";
                 return $"{_devices.Count} device(s) connected";
             }
         }
@@ -87,6 +93,8 @@ namespace OmenCore.Services.Rgb
                 if (_isConnected)
                 {
                     await DiscoverDevicesAsync();
+                    _initFailed = false;
+                    _initError = string.Empty;
                     _logging.Info($"[OpenRGB] Connected to OpenRGB server, found {_devices.Count} device(s)");
                 }
             }
@@ -166,7 +174,7 @@ namespace OmenCore.Services.Rgb
         {
             _devices.Clear();
             
-            int count = await GetControllerCountAsync();
+            int count = Math.Clamp(await GetControllerCountAsync(), 0, MAX_DISCOVERABLE_CONTROLLERS);
             _logging.Debug($"[OpenRGB] Found {count} controller(s)");
             
             for (int i = 0; i < count; i++)
@@ -193,7 +201,7 @@ namespace OmenCore.Services.Rgb
             await SendPacketAsync(PACKET_ID_REQUEST_CONTROLLER_DATA, indexBytes, deviceIndex);
             var response = await ReceivePacketAsync();
             
-            if (response.Data.Length < 100)
+            if (response.Data.Length < 8)
                 return null;
             
             return ParseControllerData(deviceIndex, response.Data);
@@ -216,30 +224,22 @@ namespace OmenCore.Services.Rgb
                 device.Type = (OpenRgbDeviceType)reader.ReadInt32();
                 
                 // Name (null-terminated string with 2-byte length prefix)
-                int nameLen = reader.ReadUInt16();
-                var nameBytes = reader.ReadBytes(nameLen);
-                device.Name = Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+                device.Name = ReadPrefixedString(reader, "name");
                 
                 // Vendor (null-terminated string with 2-byte length prefix)
-                int vendorLen = reader.ReadUInt16();
-                var vendorBytes = reader.ReadBytes(vendorLen);
-                device.Vendor = Encoding.ASCII.GetString(vendorBytes).TrimEnd('\0');
+                device.Vendor = ReadPrefixedString(reader, "vendor");
                 
                 // Description (null-terminated string with 2-byte length prefix)
-                int descLen = reader.ReadUInt16();
-                reader.ReadBytes(descLen); // Skip description
+                SkipPrefixedString(reader, "description");
                 
                 // Version (null-terminated string with 2-byte length prefix)
-                int verLen = reader.ReadUInt16();
-                reader.ReadBytes(verLen); // Skip version
+                SkipPrefixedString(reader, "version");
                 
                 // Serial (null-terminated string with 2-byte length prefix)
-                int serialLen = reader.ReadUInt16();
-                reader.ReadBytes(serialLen); // Skip serial
+                SkipPrefixedString(reader, "serial");
                 
                 // Location (null-terminated string with 2-byte length prefix)
-                int locLen = reader.ReadUInt16();
-                reader.ReadBytes(locLen); // Skip location
+                SkipPrefixedString(reader, "location");
                 
                 // Mode count (2 bytes)
                 int modeCount = reader.ReadUInt16();
@@ -262,6 +262,29 @@ namespace OmenCore.Services.Rgb
             }
             
             return device;
+        }
+
+        private static string ReadPrefixedString(BinaryReader reader, string fieldName)
+        {
+            EnsureBytesRemaining(reader, 2, fieldName);
+            var length = reader.ReadUInt16();
+            EnsureBytesRemaining(reader, length, fieldName);
+            var bytes = reader.ReadBytes(length);
+            return Encoding.ASCII.GetString(bytes).TrimEnd('\0');
+        }
+
+        private static void SkipPrefixedString(BinaryReader reader, string fieldName)
+        {
+            _ = ReadPrefixedString(reader, fieldName);
+        }
+
+        private static void EnsureBytesRemaining(BinaryReader reader, int requested, string fieldName)
+        {
+            var remaining = reader.BaseStream.Length - reader.BaseStream.Position;
+            if (requested > remaining)
+            {
+                throw new InvalidDataException($"OpenRGB {fieldName} field length exceeds remaining packet data");
+            }
         }
         
         private int EstimateLedCount(OpenRgbDeviceType type)
@@ -305,16 +328,29 @@ namespace OmenCore.Services.Rgb
         {
             if (!_isConnected) return;
             
+            var failedDevices = 0;
             foreach (var device in _devices)
             {
                 try
                 {
                     await SetDeviceColorAsync(device.Index, color, device.LedCount);
+                    device.CurrentColor = color;
                 }
                 catch (Exception ex)
                 {
+                    failedDevices++;
+                    _lastApplyError = ex.Message;
                     _logging.Debug($"[OpenRGB] Failed to set color on device {device.Index}: {ex.Message}");
                 }
+            }
+
+            if (failedDevices == 0)
+            {
+                _lastApplyError = string.Empty;
+            }
+            else
+            {
+                _logging.Warn($"[OpenRGB] Failed to update {failedDevices}/{_devices.Count} device(s)");
             }
         }
         
@@ -323,7 +359,8 @@ namespace OmenCore.Services.Rgb
             // Set device to direct/custom mode first
             await SendPacketAsync(PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE, Array.Empty<byte>(), deviceIndex);
             await Task.Delay(10); // Small delay for mode switch
-            
+            ledCount = Math.Clamp(ledCount, 1, MAX_LED_UPDATE_COUNT);
+
             // Build LED color array packet
             // Format: data_size (4) + led_count (2) + [r,g,b,padding] * led_count
             using var ms = new MemoryStream();
@@ -370,7 +407,9 @@ namespace OmenCore.Services.Rgb
         private async Task SendPacketAsync(int packetId, byte[] data, int deviceIndex = 0)
         {
             if (_stream == null) return;
-            
+            if (data.Length > MAX_PACKET_DATA_LENGTH)
+                throw new InvalidDataException($"OpenRGB packet payload too large: {data.Length} bytes");
+
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
             
@@ -391,8 +430,8 @@ namespace OmenCore.Services.Rgb
                 writer.Write(data);
             
             var packet = ms.ToArray();
-            await _stream.WriteAsync(packet, 0, packet.Length);
-            await _stream.FlushAsync();
+            await _stream.WriteAsync(packet, 0, packet.Length).WaitAsync(PacketIoTimeout);
+            await _stream.FlushAsync().WaitAsync(PacketIoTimeout);
         }
         
         private async Task<OpenRgbPacket> ReceivePacketAsync()
@@ -401,32 +440,25 @@ namespace OmenCore.Services.Rgb
                 return new OpenRgbPacket();
             
             var header = new byte[16];
-            int bytesRead = 0;
-            while (bytesRead < 16)
-            {
-                int read = await _stream.ReadAsync(header, bytesRead, 16 - bytesRead);
-                if (read == 0) throw new IOException("Connection closed");
-                bytesRead += read;
-            }
+            await ReadExactAsync(header, 16);
             
             // Parse header
-            // Skip magic (4 bytes)
+            var magic = Encoding.ASCII.GetString(header, 0, 4);
+            if (!string.Equals(magic, OPENRGB_MAGIC, StringComparison.Ordinal))
+                throw new InvalidDataException("Invalid OpenRGB packet header");
+
             int deviceIndex = BitConverter.ToInt32(header, 4);
             int packetId = BitConverter.ToInt32(header, 8);
             int dataLength = BitConverter.ToInt32(header, 12);
+            if (dataLength < 0 || dataLength > MAX_PACKET_DATA_LENGTH)
+                throw new InvalidDataException($"Invalid OpenRGB packet payload length: {dataLength}");
             
             // Read data
             byte[] data = Array.Empty<byte>();
             if (dataLength > 0)
             {
                 data = new byte[dataLength];
-                bytesRead = 0;
-                while (bytesRead < dataLength)
-                {
-                    int read = await _stream.ReadAsync(data, bytesRead, dataLength - bytesRead);
-                    if (read == 0) throw new IOException("Connection closed");
-                    bytesRead += read;
-                }
+                await ReadExactAsync(data, dataLength);
             }
             
             return new OpenRgbPacket
@@ -436,6 +468,24 @@ namespace OmenCore.Services.Rgb
                 Data = data
             };
         }
+
+        private async Task ReadExactAsync(byte[] buffer, int length)
+        {
+            if (_stream == null)
+                throw new IOException("OpenRGB stream not connected");
+
+            int bytesRead = 0;
+            while (bytesRead < length)
+            {
+                int read = await _stream
+                    .ReadAsync(buffer, bytesRead, length - bytesRead)
+                    .WaitAsync(PacketIoTimeout);
+                if (read == 0)
+                    throw new IOException("Connection closed");
+
+                bytesRead += read;
+            }
+        }
         
         public void Shutdown()
         {
@@ -444,7 +494,10 @@ namespace OmenCore.Services.Rgb
                 _stream?.Close();
                 _client?.Close();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Debug($"[OpenRGB] Shutdown cleanup failed: {ex.Message}");
+            }
             
             _stream = null;
             _client = null;

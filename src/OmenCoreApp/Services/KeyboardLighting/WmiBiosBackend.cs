@@ -123,19 +123,21 @@ namespace OmenCore.Services.KeyboardLighting
                     return result;
                 }
                 
-                // Verify by reading back
-                await Task.Delay(50); // Small delay for hardware to update
-                
+                // Verify by reading back. Some firmware revisions expose stale ColorTable
+                // data for a brief window after accepting the write, so retry once before
+                // declaring the apply failed.
+                await Task.Delay(75);
+
                 var readBack = await ReadZoneColorsAsync();
                 if (readBack != null)
                 {
-                    bool colorsMatch = true;
-                    for (int i = 0; i < 4 && colorsMatch; i++)
+                    var colorsMatch = ColorsMatch(readBack, zoneColors);
+
+                    if (!colorsMatch)
                     {
-                        // Allow small tolerance (some models round values)
-                        colorsMatch = Math.Abs(readBack[i].R - zoneColors[i].R) <= 5 &&
-                                     Math.Abs(readBack[i].G - zoneColors[i].G) <= 5 &&
-                                     Math.Abs(readBack[i].B - zoneColors[i].B) <= 5;
+                        await Task.Delay(150);
+                        readBack = await ReadZoneColorsAsync();
+                        colorsMatch = readBack != null && ColorsMatch(readBack, zoneColors);
                     }
                     
                     result.VerificationPassed = colorsMatch;
@@ -169,6 +171,22 @@ namespace OmenCore.Services.KeyboardLighting
             }
             
             return result;
+        }
+
+        private static bool ColorsMatch(Color[] readBack, Color[] expected)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                // Allow small tolerance (some models round values)
+                if (Math.Abs(readBack[i].R - expected[i].R) > 5 ||
+                    Math.Abs(readBack[i].G - expected[i].G) > 5 ||
+                    Math.Abs(readBack[i].B - expected[i].B) > 5)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
         
         public async Task<RgbApplyResult> SetZoneColorAsync(int zone, Color color)

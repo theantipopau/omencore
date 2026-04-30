@@ -109,6 +109,11 @@ if (-not $iscc) {
     throw "Inno Setup (iscc) not found. Install Inno Setup 6 to build the installer."
 }
 
+$pawnIoInstaller = Join-Path $root "installer\PawnIO_setup.exe"
+if (-not (Test-Path $pawnIoInstaller)) {
+    throw "PawnIO_setup.exe not found in installer\. Release installers must bundle PawnIO so users do not need an external runtime download."
+}
+
 $installer = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (Test-Path $installer) { Remove-Item $installer -Force }
 & $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version"

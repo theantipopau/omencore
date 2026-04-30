@@ -18,9 +18,9 @@
                 Padding="16,10"
                 IsVisible="{Binding ShowRenderFallbackBanner}">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                <TextBlock Grid.Column="0" Text="⚠️" FontSize="16" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock Grid.Column="0" Text="!" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="GPU rendering failed — running in software mode" 
+                    <TextBlock Text="GPU rendering failed - running in software mode"
                                FontSize="13" FontWeight="SemiBold" Foreground="#FF9800"/>
                     <TextBlock Text="Performance may be reduced. Click 'Persist' to always start in software mode."
                                FontSize="11" Foreground="#FFCC80" Margin="0,2,0,0"/>
@@ -35,7 +35,7 @@
                         VerticalAlignment="Center"
                         CornerRadius="4"/>
                 <Button Grid.Column="3"
-                        Content="✕"
+                        Content="x"
                         Command="{Binding DismissRenderFallbackBannerCommand}"
                         Background="Transparent" Foreground="#FF9800"
                         BorderThickness="1" BorderBrush="#FF9800"
@@ -81,7 +81,7 @@
                     <StackPanel Spacing="8">
                         <!-- Performance Mode -->
                         <Grid ColumnDefinitions="Auto,*">
-                            <TextBlock Grid.Column="0" Text="⚡" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="0" Text="P" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="PERFORMANCE" FontSize="8" FontWeight="SemiBold" Foreground="#666666" />
                                 <TextBlock Text="{Binding PerformanceMode, FallbackValue=Balanced}" 
@@ -94,7 +94,7 @@
                         
                         <!-- Fan Mode -->
                         <Grid ColumnDefinitions="Auto,*">
-                            <TextBlock Grid.Column="0" Text="🌀" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Grid.Column="0" Text="F" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="FAN MODE" FontSize="8" FontWeight="SemiBold" Foreground="#666666" />
                                 <TextBlock Text="{Binding FanMode, FallbackValue=Auto}" 
@@ -141,7 +141,7 @@
                         <Button Classes="navButton" Command="{Binding NavigateToDashboardCommand}"
                                 Classes.active="{Binding IsDashboardActive}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="📊" FontSize="16" />
+                                <TextBlock Text="D" FontSize="13" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="Dashboard" VerticalAlignment="Center" FontSize="13" />
                             </StackPanel>
                         </Button>
@@ -151,7 +151,7 @@
                                 IsVisible="{Binding ShowFanControlNavigation}"
                                 ToolTip.Tip="{Binding FanControlCapabilityReason}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="🌀" FontSize="16" />
+                                <TextBlock Text="F" FontSize="13" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="Fan Control" VerticalAlignment="Center" FontSize="13" />
                             </StackPanel>
                         </Button>
@@ -159,7 +159,7 @@
                         <Button Classes="navButton" Command="{Binding NavigateToSystemControlCommand}"
                                 Classes.active="{Binding IsSystemControlActive}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="⚡" FontSize="16" />
+                                <TextBlock Text="P" FontSize="13" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="System Control" VerticalAlignment="Center" FontSize="13" />
                             </StackPanel>
                         </Button>
@@ -167,7 +167,7 @@
                         <Button Classes="navButton" Command="{Binding NavigateToSettingsCommand}"
                                 Classes.active="{Binding IsSettingsActive}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="⚙️" FontSize="16" />
+                                <TextBlock Text="S" FontSize="13" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="Settings" VerticalAlignment="Center" FontSize="13" />
                             </StackPanel>
                         </Button>
@@ -176,14 +176,14 @@
                         
                         <Button Classes="navButton" Command="{Binding RefreshCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="🔄" FontSize="14" />
+                                <TextBlock Text="R" FontSize="12" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="Refresh Sensors" VerticalAlignment="Center" FontSize="12" />
                             </StackPanel>
                         </Button>
                         
                         <Button Classes="navButton" Command="{Binding OpenGitHubCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="📦" FontSize="14" />
+                                <TextBlock Text="GH" FontSize="11" FontWeight="Bold" Width="18" />
                                 <TextBlock Text="GitHub" VerticalAlignment="Center" FontSize="12" />
                             </StackPanel>
                         </Button>

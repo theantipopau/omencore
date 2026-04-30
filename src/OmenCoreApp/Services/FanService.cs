@@ -536,12 +536,12 @@ namespace OmenCore.Services
         /// <summary>
         /// Apply a preset and start continuous curve monitoring if it has a curve.
         /// </summary>
-        public void ApplyPreset(FanPreset preset, bool immediate = false)
+        public bool ApplyPreset(FanPreset preset, bool immediate = false)
         {
             if (!FanWritesAvailable)
             {
                 _logging.Warn($"Fan preset '{preset.Name}' skipped; fan control unavailable ({_fanController.Status})");
-                return;
+                return false;
             }
 
             // Do not allow external preset changes while in diagnostic mode — this prevents
@@ -549,7 +549,7 @@ namespace OmenCore.Services
             if (_diagnosticModeActive)
             {
                 _logging.Warn($"Skipping preset '{preset.Name}' while in diagnostic mode");
-                return;
+                return false;
             }
 
             // Mark a transition window so the monitor loop holds the last-known-good RPM
@@ -657,7 +657,7 @@ namespace OmenCore.Services
                     }
 
                     // Do not raise PresetApplied on verification failure
-                    return;
+                    return false;
                 }
 
                 // Verification succeeded — update UI-visible state and enable curve/mode as before
@@ -709,10 +709,12 @@ namespace OmenCore.Services
 
                 // Raise event for UI synchronization (sidebar, tray, etc.)
                 PresetApplied?.Invoke(this, preset.Name);
+                return true;
             }
             else
             {
                 _logging.Warn($"Fan preset '{preset.Name}' failed to apply via {Backend}");
+                return false;
             }
         }
 
@@ -2041,7 +2043,10 @@ namespace OmenCore.Services
                     return (int?)prop.GetValue(_fanController);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Debug($"Controller-reported fan setpoint unavailable: {ex.Message}");
+            }
             return null;
         }
 

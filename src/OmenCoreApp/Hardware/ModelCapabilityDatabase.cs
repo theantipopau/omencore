@@ -236,6 +236,32 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 UserVerified = true
             });
+
+            // GitHub #120: HP OMEN Laptop 15-en0038ur (2020 AMD, Ryzen 7 4800H + RTX 2060)
+            // Product/Baseboard ID 8787. Reporter confirmed WMI ColorTable lighting, accepted
+            // basic fan commands, MUX, and GPU power controls; fan RPM readback still reports 0.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8787",
+                ModelName = "OMEN 15-en0038ur (2020) AMD",
+                ModelNamePattern = "15-en",
+                ModelYear = 2020,
+                Family = OmenModelFamily.Legacy,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #120 - HP OMEN Laptop 15-en0038ur, ProductId 8787. Initial support from diagnostics; fan RPM readback remains pending verification."
+            });
             
             AddModel(new ModelCapabilities
             {

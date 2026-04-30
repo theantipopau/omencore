@@ -1108,7 +1108,13 @@ namespace OmenCore.ViewModels
             try
             {
                 CurveApplyStatus = $"Applying '{preset.Name}'… (transitioning)";
-                await Task.Run(() => _fanService.ApplyPreset(preset));
+                var applied = await Task.Run(() => _fanService.ApplyPreset(preset));
+                if (!applied)
+                {
+                    CurveApplyStatus = $"Preset '{preset.Name}' failed verification";
+                    _logging.Warn($"Preset '{preset.Name}' was not saved because fan service reported apply failure");
+                    return;
+                }
 
                 var dispatcher = App.Current?.Dispatcher;
                 if (dispatcher == null)

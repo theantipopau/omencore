@@ -25,6 +25,7 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData("8C58", OmenModelFamily.Transcend)]
         [InlineData("8E41", OmenModelFamily.Transcend)]
         [InlineData("8D87", OmenModelFamily.OMEN2024Plus)]
+        [InlineData("8787", OmenModelFamily.Legacy)]
         public void GetCapabilities_Returns_NewlyAdded_ModelEntries(string productId, OmenModelFamily expectedFamily)
         {
             var caps = ModelCapabilityDatabase.GetCapabilities(productId);
@@ -58,6 +59,21 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsFanControlEc.Should().BeFalse();
             caps.HasPerKeyRgb.Should().BeTrue();
             caps.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetCapabilities_8787_Omen15En0038ur_UsesReportedSafeCapabilities()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities("8787");
+
+            caps.ProductId.Should().Be("8787");
+            caps.ModelName.Should().Contain("15-en0038ur");
+            caps.HasFourZoneRgb.Should().BeTrue();
+            caps.HasMuxSwitch.Should().BeTrue();
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanControlEc.Should().BeFalse();
+            caps.SupportsRpmReadback.Should().BeFalse("GitHub #120 reports accepted fan commands but 0 RPM readback");
+            caps.MaxFanLevel.Should().Be(55);
         }
     }
 }
