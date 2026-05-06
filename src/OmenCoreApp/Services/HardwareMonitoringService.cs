@@ -154,13 +154,6 @@ namespace OmenCore.Services
             UpdateBridgeSamplingPolicy();
         }
 
-        public void SetPollingInterval(int intervalMs)
-        {
-            // Deprecated: cadence is now governed by _activeCadenceInterval / _idleCadenceInterval.
-            // This stub is retained so existing callers (e.g. SettingsViewModel) continue to compile.
-            _logging.Info($"SetPollingInterval({intervalMs}) called — cadence is now fixed; parameter ignored.");
-        }
-
         private TimeSpan GetEffectiveCadenceInterval()
         {
             // OSD overlay is latency-sensitive; keep active cadence while visible even in tray state.

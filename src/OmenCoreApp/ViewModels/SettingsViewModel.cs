@@ -440,7 +440,6 @@ namespace OmenCore.ViewModels
                 {
                     _pollingIntervalMs = value;
                     OnPropertyChanged();
-                    _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
                     UpdatePollingProfileFromCurrentSettings();
                     SaveSettings();
                 }
@@ -2754,7 +2753,6 @@ namespace OmenCore.ViewModels
             _pollingIntervalMs = _config.Monitoring.PollIntervalMs;
             _historyCount = _config.Monitoring.HistoryCount;
             _lowOverheadMode = _config.Monitoring.LowOverheadMode;
-            _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
             _autoCheckUpdates = _config.Updates?.AutoCheckEnabled ?? true;
             _includePreReleases = _config.Updates?.IncludePreReleases ?? false;
             // Map CheckIntervalHours to dropdown index: 0=Every startup, 1=Every 6 hours, 2=Daily(12h), 3=Weekly
@@ -2882,7 +2880,6 @@ namespace OmenCore.ViewModels
 
                 OnPropertyChanged(nameof(PollingIntervalMs));
                 OnPropertyChanged(nameof(LowOverheadMode));
-                _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
                 _hardwareMonitoringService?.SetLowOverheadMode(_lowOverheadMode);
                 LowOverheadModeChanged?.Invoke(this, _lowOverheadMode);
             }
