@@ -41,6 +41,37 @@ namespace OmenCoreApp.Tests.Services
             public void Dispose() { }
         }
 
+        private sealed class RecordingWmiFanController : IFanController
+        {
+            public bool IsAvailable => true;
+            public string Status => "ok";
+            public string Backend => "WMI BIOS";
+            public int SetPerformanceModeCallCount { get; private set; }
+            public string? LastPerformanceModeName { get; private set; }
+
+            public bool ApplyPreset(FanPreset preset) => false;
+            public bool ApplyCustomCurve(IEnumerable<FanCurvePoint> curve) => false;
+            public bool SetFanSpeed(int percent) => false;
+            public bool SetFanSpeeds(int cpu, int gpu) => false;
+            public bool SetMaxFanSpeed(bool enabled) => false;
+            public bool RestoreAutoControl() => false;
+            public IEnumerable<FanTelemetry> ReadFanSpeeds() => new[] { new FanTelemetry() };
+            public void ApplyMaxCooling() { }
+            public void ApplyAutoMode() { }
+            public void ApplyQuietMode() { }
+            public bool ResetEcToDefaults() => false;
+            public bool ApplyThrottlingMitigation() => false;
+            public bool VerifyMaxApplied(out string details) { details = ""; return false; }
+            public void Dispose() { }
+
+            public bool SetPerformanceMode(string modeName)
+            {
+                SetPerformanceModeCallCount++;
+                LastPerformanceModeName = modeName;
+                return true;
+            }
+        }
+
         // ─── helpers ──────────────────────────────────────────────────────────────────
 
         private static PerformanceModeService BuildService(ModelCapabilities? caps = null)
@@ -52,6 +83,13 @@ namespace OmenCoreApp.Tests.Services
             var fan = new NullFanController();
             var plan = new PowerPlanService(log);
             return new PerformanceModeService(fan, plan, null, log, modelCapabilities: caps);
+        }
+
+        private static PerformanceModeService BuildService(IFanController fanController, ModelCapabilities? caps = null)
+        {
+            var log = new LoggingService();
+            var plan = new PowerPlanService(log);
+            return new PerformanceModeService(fanController, plan, null, log, modelCapabilities: caps);
         }
 
         private static PerformanceMode MakePerformanceMode(int cpu = 65, int gpu = 150) =>
@@ -228,6 +266,43 @@ namespace OmenCoreApp.Tests.Services
 
             originalMode.CpuPowerLimitWatts.Should().Be(65,
                 "ResolveEffectiveMode() must not mutate the caller's PerformanceMode instance");
+        }
+
+        [Fact]
+        public void Apply_LinkDisabled_AndNoValidEcLimits_UsesWmiThermalPolicyFallback_ForPerformance()
+        {
+            var fan = new RecordingWmiFanController();
+            var service = BuildService(fan);
+
+            service.LinkFanToPerformanceMode = false;
+            service.Apply(new PerformanceMode
+            {
+                Name = "Performance",
+                CpuPowerLimitWatts = 0,
+                GpuPowerLimitWatts = 0
+            });
+
+            fan.SetPerformanceModeCallCount.Should().Be(1,
+                "WMI thermal policy hold is needed to maintain boost on affected systems when EC limits are unavailable");
+            fan.LastPerformanceModeName.Should().Be("Performance");
+        }
+
+        [Fact]
+        public void Apply_LinkDisabled_AndNoValidEcLimits_DoesNotUseWmiThermalPolicyFallback_ForBalanced()
+        {
+            var fan = new RecordingWmiFanController();
+            var service = BuildService(fan);
+
+            service.LinkFanToPerformanceMode = false;
+            service.Apply(new PerformanceMode
+            {
+                Name = "Balanced",
+                CpuPowerLimitWatts = 0,
+                GpuPowerLimitWatts = 0
+            });
+
+            fan.SetPerformanceModeCallCount.Should().Be(0,
+                "Balanced/Default should continue leaving the decoupled fan policy untouched");
         }
 
         // ─── aliases ("Extreme", "Turbo") map to Performance overrides ───────────────

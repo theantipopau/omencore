@@ -51,6 +51,9 @@ namespace OmenCore.Services
             _currentMode = mode;
             // Apply model-specific TDP overrides if the database has values for this model/mode.
             var effectiveMode = ApplyModelCapabilityOverrides(mode);
+            var hasValidCpuLimit = effectiveMode.CpuPowerLimitWatts > 0;
+            var hasValidGpuLimit = effectiveMode.GpuPowerLimitWatts > 0;
+            var hasAnyValidEcLimit = hasValidCpuLimit || hasValidGpuLimit;
             var modeInfo = $"⚡ Applying performance mode: '{effectiveMode.Name}'";
             if (!string.IsNullOrEmpty(effectiveMode.LinkedPowerPlanGuid))
             {
@@ -69,8 +72,6 @@ namespace OmenCore.Services
                     // Defensive guard: never push non-positive limits to EC.
                     // Misconfigured profiles or bad override data can produce 0W values,
                     // which may severely cap performance on some platforms.
-                    var hasValidCpuLimit = effectiveMode.CpuPowerLimitWatts > 0;
-                    var hasValidGpuLimit = effectiveMode.GpuPowerLimitWatts > 0;
                     if (!hasValidCpuLimit && !hasValidGpuLimit)
                     {
                         _logging.Warn($"⚠️ Skipping EC power-limit apply for '{effectiveMode.Name}' because both limits are non-positive (CPU={effectiveMode.CpuPowerLimitWatts}W, GPU={effectiveMode.GpuPowerLimitWatts}W)");
@@ -155,7 +156,32 @@ namespace OmenCore.Services
             }
             else
             {
-                _logging.Info("ℹ️ Fan policy unchanged — LinkFanToPerformanceMode is off");
+                // WMI BIOS thermal policy is not purely a fan concern on some OMEN models.
+                // When EC limits are unavailable/non-positive, the WMI Performance/Cool policy
+                // keepalive is the only path that holds the requested TDP/boost behavior.
+                // Preserve the user's decoupled fan preset model by using this only as a narrow
+                // fallback for non-auto modes when no valid EC limits exist.
+                var shouldUseWmiThermalPolicyFallback =
+                    _fanController.IsAvailable &&
+                    string.Equals(_fanController.Backend, "WMI BIOS", StringComparison.OrdinalIgnoreCase) &&
+                    !hasAnyValidEcLimit &&
+                    !FanModeNameResolver.IsAutoAlias(effectiveMode.Name);
+
+                if (shouldUseWmiThermalPolicyFallback)
+                {
+                    if (_fanController.SetPerformanceMode(effectiveMode.Name))
+                    {
+                        _logging.Info($"🌀 Applied decoupled WMI thermal policy hold for '{effectiveMode.Name}' because EC power limits are unavailable");
+                    }
+                    else
+                    {
+                        _logging.Warn($"⚠️ WMI thermal policy fallback failed for '{effectiveMode.Name}' while EC power limits were unavailable");
+                    }
+                }
+                else
+                {
+                    _logging.Info("ℹ️ Fan policy unchanged — LinkFanToPerformanceMode is off");
+                }
             }
             
             _logging.Info($"✓ Performance mode '{effectiveMode.Name}' applied successfully");

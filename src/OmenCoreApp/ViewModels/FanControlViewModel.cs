@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Management;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -38,6 +39,7 @@ namespace OmenCore.ViewModels
         private string _fanCalibrationModelName = "Unknown Model";
         private bool _showRpmSanityWarning = false;
         private string _rpmSanityWarningMessage = string.Empty;
+        private readonly SemaphoreSlim _fanApplySemaphore = new(1, 1);
 
         public ObservableCollection<FanPreset> FanPresets { get; } = new();
         public ObservableCollection<FanCurvePoint> CustomFanCurve { get; } = new();
@@ -1118,6 +1120,7 @@ namespace OmenCore.ViewModels
 
         private async Task ApplyPresetAsync(FanPreset preset)
         {
+            await _fanApplySemaphore.WaitAsync();
             try
             {
                 CurveApplyStatus = $"Applying '{preset.Name}'… (transitioning)";
@@ -1156,6 +1159,10 @@ namespace OmenCore.ViewModels
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to apply preset '{preset.Name}': {ex.Message}");
+            }
+            finally
+            {
+                _fanApplySemaphore.Release();
             }
         }
 
