@@ -108,6 +108,7 @@ namespace OmenCore.Services
         private readonly object _fanCommandHistoryLock = new();
         private readonly Queue<FanCommandHistoryEntry> _fanCommandHistory = new();
         private bool? _lastRecordedHoldActive;
+        private bool? _lastNotifiedCurveOrHoldActive;
         
         // Thermal protection - override Auto mode when temps get too high
         // v2.8.0: Raised thresholds — 80°C/85°C was too aggressive for gaming laptops
@@ -355,6 +356,7 @@ namespace OmenCore.Services
             };
 
             EnqueueFanCommandEntry(entry);
+            NotifyFanActivityStateChangedIfNeeded();
         }
 
         private void EnqueueFanCommandEntry(FanCommandHistoryEntry entry)
@@ -369,21 +371,33 @@ namespace OmenCore.Services
             }
         }
 
-            /// <summary>
-            /// Human-readable description of the current fan control state for diagnostics/UI.
-            /// Mirrors the implicit state machine: thermal > diagnostic > curve > preset > auto.
-            /// </summary>
-            public string FanControlStateDescription
+        private void NotifyFanActivityStateChangedIfNeeded()
+        {
+            var active = IsCurveOrHoldActive;
+            if (_lastNotifiedCurveOrHoldActive.HasValue && _lastNotifiedCurveOrHoldActive.Value == active)
             {
-                get
-                {
-                    if (_thermalProtectionActive) return "Thermal protection (overriding)";
-                    if (_diagnosticModeActive)    return "Diagnostic mode (curve suspended)";
-                    if (IsCurveActive)            return $"Fan curve active — {_activePreset?.Name ?? "custom"}";
-                    if (_activePreset != null)    return $"Preset: {_activePreset.Name}";
-                    return "BIOS auto control";
-                }
+                return;
             }
+
+            _lastNotifiedCurveOrHoldActive = active;
+            FanActivityStateChanged?.Invoke(this, active);
+        }
+
+        /// <summary>
+        /// Human-readable description of the current fan control state for diagnostics/UI.
+        /// Mirrors the implicit state machine: thermal > diagnostic > curve > preset > auto.
+        /// </summary>
+        public string FanControlStateDescription
+        {
+            get
+            {
+                if (_thermalProtectionActive) return "Thermal protection (overriding)";
+                if (_diagnosticModeActive)    return "Diagnostic mode (curve suspended)";
+                if (IsCurveActive)            return $"Fan curve active — {_activePreset?.Name ?? "custom"}";
+                if (_activePreset != null)    return $"Preset: {_activePreset.Name}";
+                return "BIOS auto control";
+            }
+        }
         
         /// <summary>
         /// Enter diagnostic mode - suspends curve engine to allow manual fan testing.
@@ -625,6 +639,13 @@ namespace OmenCore.Services
         /// Event raised when a preset is applied (for UI synchronization).
         /// </summary>
         public event EventHandler<string>? PresetApplied;
+
+        /// <summary>
+        /// Event raised when curve or backend hold activity changes.
+        /// Used by monitoring cadence wiring to keep tray-only mode lightweight
+        /// without dropping telemetry cadence while OmenCore owns fan state.
+        /// </summary>
+        public event EventHandler<bool>? FanActivityStateChanged;
         
         /// <summary>
         /// Event raised when RPM sanity check detects zero RPM for >30s with active duty cycle.
@@ -1051,6 +1072,8 @@ namespace OmenCore.Services
                 _lastCurveUpdate = DateTime.MinValue; // Force immediate update
                 _lastAppliedFanPercent = -1;
             }
+
+            NotifyFanActivityStateChangedIfNeeded();
         }
         
         /// <summary>
@@ -1069,6 +1092,8 @@ namespace OmenCore.Services
                 _lastAppliedCpuFanPercent = -1;
                 _lastAppliedGpuFanPercent = -1;
             }
+
+            NotifyFanActivityStateChangedIfNeeded();
         }
         
         /// <summary>
@@ -1101,7 +1126,9 @@ namespace OmenCore.Services
                 _lastAppliedCpuFanPercent = -1;
                 _lastAppliedGpuFanPercent = -1;
             }
-            
+
+            NotifyFanActivityStateChangedIfNeeded();
+
             _logging.Info($"Independent fan curves enabled - CPU: {_cpuCurve.Count} points, GPU: {_gpuCurve.Count} points");
         }
 

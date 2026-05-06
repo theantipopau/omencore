@@ -8,8 +8,33 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.ViewModels
 {
-    public class MainViewModelTests
+    [Collection("Config Isolation")]
+    public class MainViewModelTests : IDisposable
     {
+        private readonly string _tempDir;
+
+        public MainViewModelTests()
+        {
+            _tempDir = Path.Combine(Path.GetTempPath(), "OmenCoreTests", Guid.NewGuid().ToString());
+            Directory.CreateDirectory(_tempDir);
+            Environment.SetEnvironmentVariable("OMENCORE_CONFIG_DIR", _tempDir);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("OMENCORE_CONFIG_DIR", null);
+            try
+            {
+                if (Directory.Exists(_tempDir))
+                {
+                    Directory.Delete(_tempDir, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private class FakeTelemetry : ITelemetryService
         {
             public bool Called { get; private set; }

@@ -310,6 +310,55 @@ namespace OmenCoreApp.Tests.Services
 
             logging.Dispose();
         }
+
+        [Fact]
+        public void FanActivityStateChanged_Fires_WhenCustomCurveStartsAndStops()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController { IsHoldActive = false };
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var states = new List<bool>();
+            fanService.FanActivityStateChanged += (_, active) => states.Add(active);
+
+            fanService.ApplyCustomCurve(new[]
+            {
+                new FanCurvePoint { TemperatureC = 30, FanPercent = 30 },
+                new FanCurvePoint { TemperatureC = 80, FanPercent = 70 }
+            });
+            fanService.DisableCurve();
+
+            states.Should().ContainInOrder(true, false);
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void FanActivityStateChanged_Fires_WhenBackendHoldChangesBetweenCommands()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController { IsHoldActive = false };
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var states = new List<bool>();
+            fanService.FanActivityStateChanged += (_, active) => states.Add(active);
+
+            fanService.ForceSetFanSpeed(40);
+            controller.IsHoldActive = true;
+            fanService.ForceSetFanSpeed(41);
+            controller.IsHoldActive = false;
+            fanService.ForceSetFanSpeed(42);
+
+            states.Should().ContainInOrder(false, true, false);
+            logging.Dispose();
+        }
     }
 
     // ---------------------------------------------------------------------------

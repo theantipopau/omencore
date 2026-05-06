@@ -510,6 +510,17 @@ namespace OmenCore
                     }
                     monSvc.SetTrayOnlyMode(trayOnly);
                 }
+
+                if (mainViewModel.FanService != null)
+                {
+                    mainViewModel.FanService.FanActivityStateChanged += (s, active) =>
+                    {
+                        Dispatcher.InvokeAsync(
+                            UpdateMonitorCadence,
+                            System.Windows.Threading.DispatcherPriority.Background);
+                    };
+                }
+
                 // Defer subscription until the window is actually created (it may not exist yet).
                 Dispatcher.InvokeAsync(() =>
                 {
