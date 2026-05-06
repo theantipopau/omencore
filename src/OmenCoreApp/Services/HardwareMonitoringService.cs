@@ -76,6 +76,7 @@ namespace OmenCore.Services
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
+        public event EventHandler<MonitoringCadenceTransition>? CadenceChanged;
         
         /// <summary>
         /// Event fired when monitoring health status changes.
@@ -128,6 +129,13 @@ namespace OmenCore.Services
         /// Human-readable reason for the currently active monitoring cadence.
         /// </summary>
         public string CurrentCadenceReason => _lastCadenceReason;
+
+        /// <summary>
+        /// Current cadence interval in milliseconds. Returns 0 until cadence telemetry has initialized.
+        /// </summary>
+        public int CurrentCadenceIntervalMs => _lastAppliedCadence.HasValue
+            ? (int)_lastAppliedCadence.Value.TotalMilliseconds
+            : 0;
 
         /// <summary>
         /// Snapshot of recent cadence transitions with state flags for diagnostics export.
@@ -290,6 +298,7 @@ namespace OmenCore.Services
             }
 
             _logging.Info($"[MonitorLoop] Cadence switched to {(int)cadence.TotalMilliseconds}ms");
+            CadenceChanged?.Invoke(this, transition);
         }
 
         private string BuildCadenceReason(TimeSpan cadence)

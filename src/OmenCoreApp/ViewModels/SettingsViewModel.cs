@@ -155,6 +155,16 @@ namespace OmenCore.ViewModels
             _resumeRecoveryDiagnostics = resumeRecoveryDiagnostics;
             _detectedCapabilities = detectedCapabilities;
 
+            if (_hardwareMonitoringService != null)
+            {
+                _hardwareMonitoringService.CadenceChanged += (_, _) => RefreshMonitoringCadenceStatus();
+            }
+
+            if (_fanService != null)
+            {
+                _fanService.FanActivityStateChanged += (_, _) => RefreshMonitoringCadenceStatus();
+            }
+
             // Load saved settings
             LoadSettings();
 
@@ -254,6 +264,7 @@ namespace OmenCore.ViewModels
             // Load system status for Settings page
             LoadSystemStatus();
             RefreshModelIdentityStatus();
+            RefreshMonitoringCadenceStatus();
             
             // Load system info for BIOS
             LoadSystemInfo();
@@ -427,10 +438,86 @@ namespace OmenCore.ViewModels
                     
                     // Raise event for MainViewModel to update MonitoringGraphsVisible
                     LowOverheadModeChanged?.Invoke(this, value);
+                    RefreshMonitoringCadenceStatus();
                     
                     SaveSettings();
                 }
             }
+        }
+
+        public string MonitoringCadenceTier
+        {
+            get
+            {
+                var intervalMs = _hardwareMonitoringService?.CurrentCadenceIntervalMs ?? 0;
+                return intervalMs switch
+                {
+                    1000 => "Active (1s)",
+                    5000 => "Idle background (5s)",
+                    10000 => "Tray-only ultra-low (10s)",
+                    > 0 => $"Custom ({intervalMs} ms)",
+                    _ => "Initializing"
+                };
+            }
+        }
+
+        public string MonitoringCadenceReason => _hardwareMonitoringService?.CurrentCadenceReason ?? "Cadence unavailable";
+
+        public string MonitoringCadenceBlockers
+        {
+            get
+            {
+                var blockers = new List<string>();
+                var transition = _hardwareMonitoringService?.GetCadenceTransitionsSnapshot().LastOrDefault();
+                var lowOverheadEnabled = transition?.LowOverheadMode ?? _lowOverheadMode;
+
+                if (!lowOverheadEnabled)
+                {
+                    blockers.Add("Low overhead mode disabled");
+                }
+
+                if (transition != null)
+                {
+                    if (transition.UiWindowActive)
+                    {
+                        blockers.Add("Main window active");
+                    }
+
+                    if (transition.OverlayRealtimeMode)
+                    {
+                        blockers.Add("OSD visible");
+                    }
+                }
+
+                if (_fanService?.IsDiagnosticModeActive == true)
+                {
+                    blockers.Add("Fan diagnostics active");
+                }
+
+                if (_fanService?.IsCurveActive == true)
+                {
+                    blockers.Add("Fan curve active");
+                }
+
+                if (_fanService?.IsHoldActive == true)
+                {
+                    blockers.Add("Fan hold active");
+                }
+
+                return blockers.Count == 0
+                    ? "None - ultra-low cadence eligible when the app is hidden to tray"
+                    : string.Join(", ", blockers.Distinct(StringComparer.Ordinal));
+            }
+        }
+
+        private void RefreshMonitoringCadenceStatus()
+        {
+            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                OnPropertyChanged(nameof(MonitoringCadenceTier));
+                OnPropertyChanged(nameof(MonitoringCadenceReason));
+                OnPropertyChanged(nameof(MonitoringCadenceBlockers));
+            }));
         }
         
         /// <summary>

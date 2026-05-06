@@ -37,8 +37,9 @@ The first rule for this release is measurement before claims. Resource improveme
 - 3.6.0 optimization: Deferred conflict/tuning software scan loops until Monitoring, OMEN, Tuning, or Optimizer tabs are actually opened, avoiding unconditional startup scans for Afterburner/RTSS/XTU/FanControl detection.
 - 3.6.0 optimization: Added adaptive static-tray sampling so the shared monitoring pipeline can keep core telemetry alive while reducing expensive GPU telemetry refreshes during low-overhead tray-only sessions.
 - 3.6.0 cleanup: Removed the obsolete runtime polling-interval path and retired the old polling-profile / polling-interval settings UX. Settings now reflects the real automatic cadence policy while still normalizing legacy config fields for compatibility.
+- 3.6.0 diagnostics/UX: Settings now shows a live monitoring cadence card with the current tier, cadence reason, and the active blockers preventing tray-only ultra-low cadence, using the existing unified cadence telemetry instead of adding parallel state.
 - 3.6.0 regression coverage: Added/expanded tests across WMI verification, fan preset/Auto handoff behavior, fan smoothing/diagnostic mode state cleanup, fan command UI command-state requery, GPU power semantics, fan-level mapping, and monitoring cadence telemetry.
-- 3.6.0 regression coverage: Added tests for deferred conflict monitoring startup, adaptive static-tray sampling policy, and compatibility persistence for legacy monitoring config values after the settings cleanup.
+- 3.6.0 regression coverage: Added tests for deferred conflict monitoring startup, adaptive static-tray sampling policy, compatibility persistence for legacy monitoring config values after the settings cleanup, and the new live cadence tier/blocker summaries in Settings.
 
 ---
 
@@ -51,6 +52,7 @@ dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --filter
 dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --filter MainViewModelTests --verbosity quiet
 dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --filter "FanPresetVerificationTests|MainViewModelTests|DiagnosticExportSnapshotTests" --verbosity quiet
 dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --filter "MainViewModelTests|HotkeyAndMonitoringTests" --verbosity minimal
+dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --filter SettingsViewModelTests --verbosity quiet
 dotnet test src\OmenCoreApp.Tests\OmenCoreApp.Tests.csproj --no-restore --verbosity minimal
 dotnet build src\OmenCoreApp\OmenCoreApp.csproj -c Release --no-restore
 ```
@@ -60,6 +62,7 @@ Observed outcomes:
 - `MainViewModelTests`: PASS, 5/5.
 - Combined targeted 3.6 regression slice (`FanPresetVerificationTests|MainViewModelTests|DiagnosticExportSnapshotTests`): PASS, 20/20.
 - Focused optimization regression slice (`MainViewModelTests|HotkeyAndMonitoringTests`): PASS, 38/38.
+- `SettingsViewModelTests`: PASS, 6/6.
 - Full `OmenCoreApp.Tests` suite (`--no-restore`): PASS, 447/447.
 - Windows app Release build: PASS.
 

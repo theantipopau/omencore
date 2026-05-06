@@ -865,6 +865,28 @@
                                           IsChecked="{Binding LowOverheadMode}"/>
                         </Grid>
 
+                        <Border Margin="0,16,0,0" Padding="14" CornerRadius="10" Background="#141A20" BorderBrush="#22303C" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Live cadence status" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                    <Run Text="Current tier: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceTier}"/>
+                                </TextBlock>
+
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4">
+                                    <Run Text="Reason: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceReason}"/>
+                                </TextBlock>
+
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                    <Run Text="Ultra-low blockers: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceBlockers}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Startup Safe Mode Guard -->
                         <Grid Margin="0,16,0,0">
                             <Grid.ColumnDefinitions>

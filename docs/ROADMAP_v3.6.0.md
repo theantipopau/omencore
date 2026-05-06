@@ -64,8 +64,10 @@ This roadmap captures all forward-looking and deferred items moved out of the v3
   - Started by adding an adaptive bridge sampling policy: in low-overhead tray-only mode (without OSD), `HardwareMonitoringService` now requests static-tray sampling and `WmiBiosMonitor` reduces expensive GPU telemetry refreshes to a slower interval while keeping unified sample flow and fan/temperature telemetry alive.
   - Continued by deleting obsolete polling-interval runtime code paths (`SetPollingInterval` no-op and Settings call sites) so cadence ownership is now explicitly centralized in the unified active/idle/tray/overlay cadence policy.
   - Continued by removing the old polling-profile / polling-interval settings UX and normalizing legacy config values on save, so Settings now reflects the real automatic cadence model instead of exposing controls that no longer affect runtime behavior.
-- [ ] M5 - Regression guardrails: add tests for cadence blockers and diagnostic evidence, plus a release checklist row for CPU/RAM before/after measurements.
+- [~] M5 - Regression guardrails: add tests for cadence blockers and diagnostic evidence, plus a release checklist row for CPU/RAM before/after measurements.
   - Started by adding cadence guardrails for low-overhead + tray-only precedence and diagnostic reason text.
+  - Continued by surfacing live cadence tier, current cadence reason, and active ultra-low blockers in Settings so the automatic cadence policy is visible in the UI instead of only via logs/diagnostics export.
+  - Continued by adding `SettingsViewModelTests` coverage for tray-only ultra-low status visibility and blocker summaries.
 
 ### Fan and Performance Reliability
 - Expand readback-first verification for fan and power-limit paths.
