@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
 using OmenCore.Models;
@@ -55,6 +56,7 @@ namespace OmenCore.Services.KeyboardLighting
         private KeyboardModelConfig? _modelConfig;
         private KeyboardProbeResult? _lastProbeResult;
         private bool _disposed;
+        private readonly SemaphoreSlim _backendOperationLock = new(1, 1);
         
         // Telemetry
         private int _applySuccessCount = 0;
@@ -339,43 +341,49 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public async Task<RgbApplyResult> ApplyProfileAsync(LightingProfile profile)
         {
-            if (!IsAvailable || _activeBackend == null)
+            await _backendOperationLock.WaitAsync();
+            try
             {
-                return new RgbApplyResult
+                if (!IsAvailable || _activeBackend == null)
                 {
-                    FailureReason = "No keyboard backend available"
-                };
-            }
-            
-            _logging.Info($"[KeyboardLightingV2] Applying profile: {profile.Name} ({profile.Effect})");
-            
-            var primaryColor = ParseHexColor(profile.PrimaryColorHex);
-            var secondaryColor = ParseHexColor(profile.SecondaryColorHex);
-            var targetBrightness = Math.Clamp((int)profile.Brightness, 0, 100);
-            
-            // Map the effect type
-            var effect = MapEffect(profile.Effect);
+                    return new RgbApplyResult
+                    {
+                        FailureReason = "No keyboard backend available"
+                    };
+                }
 
-            // Some BIOS revisions (notably on 8BCD/F.31 reports) can reset visible keyboard
-            // state when brightness is written after color-table updates. Apply brightness first,
-            // then write colors/effects as the final command.
-            await _activeBackend.SetBrightnessAsync(targetBrightness);
-            await Task.Delay(50);
-            
-            RgbApplyResult result;
-            if (effect == KeyboardEffect.Static)
-            {
-                // For static, set all zones to primary color
-                var colors = new Color[] { primaryColor, primaryColor, primaryColor, primaryColor };
-                result = await _activeBackend.SetZoneColorsAsync(colors);
+                _logging.Info($"[KeyboardLightingV2] Applying profile: {profile.Name} ({profile.Effect})");
+
+                var targetBrightness = Math.Clamp((int)profile.Brightness, 0, 100);
+                var effect = MapEffect(profile.Effect);
+
+                var primaryColor = ParseHexColor(profile.PrimaryColorHex);
+                var secondaryColor = ParseHexColor(profile.SecondaryColorHex);
+
+                var result = await ApplyWithBackendFallbackAsync(async backend =>
+                {
+                    // Some BIOS revisions (notably on 8BCD/F.31 reports) can reset visible keyboard
+                    // state when brightness is written after color-table updates. Apply brightness first,
+                    // then write colors/effects as the final command.
+                    await backend.SetBrightnessAsync(targetBrightness);
+                    await Task.Delay(50);
+
+                    if (effect == KeyboardEffect.Static)
+                    {
+                        var colors = new Color[] { primaryColor, primaryColor, primaryColor, primaryColor };
+                        return await backend.SetZoneColorsAsync(colors);
+                    }
+
+                    return await backend.SetEffectAsync(effect, primaryColor, secondaryColor, (int)(profile.EffectSpeed * 100));
+                }, $"profile {profile.Name}");
+
+                TrackResult(result);
+                return result;
             }
-            else
+            finally
             {
-                result = await _activeBackend.SetEffectAsync(effect, primaryColor, secondaryColor, (int)(profile.EffectSpeed * 100));
+                _backendOperationLock.Release();
             }
-            
-            TrackResult(result);
-            return result;
         }
         
         /// <summary>
@@ -383,17 +391,27 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public async Task<RgbApplyResult> SetZoneColorsAsync(Color[] zoneColors)
         {
-            if (!IsAvailable || _activeBackend == null)
+            await _backendOperationLock.WaitAsync();
+            try
             {
-                return new RgbApplyResult
+                if (!IsAvailable || _activeBackend == null)
                 {
-                    FailureReason = "No keyboard backend available"
-                };
+                    return new RgbApplyResult
+                    {
+                        FailureReason = "No keyboard backend available"
+                    };
+                }
+
+                var result = await ApplyWithBackendFallbackAsync(
+                    backend => backend.SetZoneColorsAsync(zoneColors),
+                    "zone color apply");
+                TrackResult(result);
+                return result;
             }
-            
-            var result = await _activeBackend.SetZoneColorsAsync(zoneColors);
-            TrackResult(result);
-            return result;
+            finally
+            {
+                _backendOperationLock.Release();
+            }
         }
         
         /// <summary>
@@ -401,17 +419,27 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public async Task<RgbApplyResult> SetZoneColorAsync(int zone, Color color)
         {
-            if (!IsAvailable || _activeBackend == null)
+            await _backendOperationLock.WaitAsync();
+            try
             {
-                return new RgbApplyResult
+                if (!IsAvailable || _activeBackend == null)
                 {
-                    FailureReason = "No keyboard backend available"
-                };
+                    return new RgbApplyResult
+                    {
+                        FailureReason = "No keyboard backend available"
+                    };
+                }
+
+                var result = await ApplyWithBackendFallbackAsync(
+                    backend => backend.SetZoneColorAsync(zone, color),
+                    $"zone {zone} color apply");
+                TrackResult(result);
+                return result;
             }
-            
-            var result = await _activeBackend.SetZoneColorAsync(zone, color);
-            TrackResult(result);
-            return result;
+            finally
+            {
+                _backendOperationLock.Release();
+            }
         }
         
         /// <summary>
@@ -430,10 +458,9 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public Task<bool> SetBrightnessAsync(int brightness)
         {
-            if (!IsAvailable || _activeBackend == null)
-                return Task.FromResult(false);
-            
-            return _activeBackend.SetBrightnessAsync(brightness);
+            return ApplyBooleanWithBackendFallbackAsync(
+                backend => backend.SetBrightnessAsync(brightness),
+                $"brightness {Math.Clamp(brightness, 0, 100)}");
         }
         
         /// <summary>
@@ -441,10 +468,9 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public Task<bool> SetBacklightEnabledAsync(bool enabled)
         {
-            if (!IsAvailable || _activeBackend == null)
-                return Task.FromResult(false);
-            
-            return _activeBackend.SetBacklightEnabledAsync(enabled);
+            return ApplyBooleanWithBackendFallbackAsync(
+                backend => backend.SetBacklightEnabledAsync(enabled),
+                enabled ? "backlight enable" : "backlight disable");
         }
         
         /// <summary>
@@ -453,48 +479,60 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public async Task<RgbApplyResult> RunTestPatternAsync()
         {
-            if (!IsAvailable || _activeBackend == null)
+            await _backendOperationLock.WaitAsync();
+            try
             {
-                return new RgbApplyResult
+                if (!IsAvailable || _activeBackend == null)
                 {
-                    FailureReason = "No keyboard backend available"
-                };
-            }
-            
-            _logging.Info("[KeyboardLightingV2] Running test pattern...");
-            
-            // Store original colors if possible
-            var originalColors = await ReadZoneColorsAsync();
-            
-            // Apply test pattern: Red-Green-Blue-White
-            var testColors = new Color[]
-            {
-                Color.Red,
-                Color.Green,
-                Color.Blue,
-                Color.White
-            };
-            
-            var result = await _activeBackend.SetZoneColorsAsync(testColors);
-            
-            if (result.Success)
-            {
-                _logging.Info("[KeyboardLightingV2] Test pattern applied successfully");
-                
-                // Wait a bit then restore if we had original colors
-                if (originalColors != null)
-                {
-                    await Task.Delay(2000);
-                    await _activeBackend.SetZoneColorsAsync(originalColors);
-                    _logging.Info("[KeyboardLightingV2] Restored original colors");
+                    return new RgbApplyResult
+                    {
+                        FailureReason = "No keyboard backend available"
+                    };
                 }
-            }
-            else
-            {
-                _logging.Warn($"[KeyboardLightingV2] Test pattern failed: {result.FailureReason}");
-            }
             
-            return result;
+                _logging.Info("[KeyboardLightingV2] Running test pattern...");
+            
+                // Store original colors if possible
+                var originalColors = await ReadZoneColorsAsync();
+            
+                // Apply test pattern: Red-Green-Blue-White
+                var testColors = new Color[]
+                {
+                    Color.Red,
+                    Color.Green,
+                    Color.Blue,
+                    Color.White
+                };
+            
+                var result = await ApplyWithBackendFallbackAsync(
+                    backend => backend.SetZoneColorsAsync(testColors),
+                    "test pattern");
+            
+                if (result.Success)
+                {
+                    _logging.Info("[KeyboardLightingV2] Test pattern applied successfully");
+                
+                    // Wait a bit then restore if we had original colors
+                    if (originalColors != null)
+                    {
+                        await Task.Delay(2000);
+                        await ApplyWithBackendFallbackAsync(
+                            backend => backend.SetZoneColorsAsync(originalColors),
+                            "test pattern restore");
+                        _logging.Info("[KeyboardLightingV2] Restored original colors");
+                    }
+                }
+                else
+                {
+                    _logging.Warn($"[KeyboardLightingV2] Test pattern failed: {result.FailureReason}");
+                }
+            
+                return result;
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
         }
         
         /// <summary>
@@ -539,6 +577,119 @@ namespace OmenCore.Services.KeyboardLighting
                     _applySuccessCount++;
                 else
                     _applyFailureCount++;
+            }
+        }
+
+        private async Task<RgbApplyResult> ApplyWithBackendFallbackAsync(
+            Func<IKeyboardBackend, Task<RgbApplyResult>> applyAction,
+            string operationName)
+        {
+            if (!IsAvailable || _activeBackend == null)
+            {
+                return new RgbApplyResult
+                {
+                    FailureReason = "No keyboard backend available"
+                };
+            }
+
+            var activeBackend = _activeBackend;
+            var activeResult = await applyAction(activeBackend);
+            if (activeResult.Success)
+            {
+                return activeResult;
+            }
+
+            foreach (var method in GetFallbackMethods(activeBackend.Method))
+            {
+                var fallbackBackend = await TryInitializeBackend(method);
+                if (fallbackBackend == null)
+                {
+                    continue;
+                }
+
+                var fallbackResult = await applyAction(fallbackBackend);
+                if (fallbackResult.Success)
+                {
+                    _logging.Warn($"[KeyboardLightingV2] {operationName} succeeded via fallback backend {fallbackBackend.Name} after {activeBackend.Name} failed");
+                    _activeBackend = fallbackBackend;
+                    activeBackend.Dispose();
+                    return fallbackResult;
+                }
+
+                fallbackBackend.Dispose();
+            }
+
+            _logging.Warn($"[KeyboardLightingV2] {operationName} failed on active backend {activeBackend.Name}");
+            return activeResult;
+        }
+
+        private IEnumerable<KeyboardMethod> GetFallbackMethods(KeyboardMethod currentMethod)
+        {
+            var methods = new List<KeyboardMethod>();
+
+            if (_modelConfig?.FallbackMethods is { Length: > 0 })
+            {
+                methods.AddRange(_modelConfig.FallbackMethods);
+            }
+
+            if (_modelConfig?.KeyboardType is KeyboardType.FourZone or KeyboardType.FourZoneTkl or KeyboardType.Unknown)
+            {
+                methods.AddRange(new[]
+                {
+                    KeyboardMethod.NewWmi2023,
+                    KeyboardMethod.ColorTable2020,
+                    KeyboardMethod.EcDirect
+                });
+            }
+
+            return methods
+                .Where(method => method != currentMethod && method != KeyboardMethod.Unknown && method != KeyboardMethod.BacklightOnly)
+                .Distinct();
+        }
+
+        private async Task<bool> ApplyBooleanWithBackendFallbackAsync(
+            Func<IKeyboardBackend, Task<bool>> applyAction,
+            string operationName)
+        {
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                if (!IsAvailable || _activeBackend == null)
+                {
+                    return false;
+                }
+
+                var activeBackend = _activeBackend;
+                if (await applyAction(activeBackend))
+                {
+                    return true;
+                }
+
+                foreach (var method in GetFallbackMethods(activeBackend.Method))
+                {
+                    var fallbackBackend = await TryInitializeBackend(method);
+                    if (fallbackBackend == null)
+                    {
+                        continue;
+                    }
+
+                    if (await applyAction(fallbackBackend))
+                    {
+                        _logging.Warn($"[KeyboardLightingV2] {operationName} succeeded via fallback backend {fallbackBackend.Name} after {activeBackend.Name} failed");
+                        _activeBackend = fallbackBackend;
+                        activeBackend.Dispose();
+                        return true;
+                    }
+
+                    fallbackBackend.Dispose();
+                }
+
+                _logging.Warn($"[KeyboardLightingV2] {operationName} failed on active backend {activeBackend.Name}");
+                return false;
+            }
+            finally
+            {
+                _backendOperationLock.Release();
             }
         }
         
@@ -586,6 +737,7 @@ namespace OmenCore.Services.KeyboardLighting
             
             _activeBackend?.Dispose();
             _activeBackend = null;
+            _backendOperationLock.Dispose();
         }
     }
 }

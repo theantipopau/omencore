@@ -110,6 +110,12 @@
     
     <!-- Close / X Icon -->
     <Geometry x:Key="IconClose">M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z</Geometry>
+
+    <!-- Blocked / Stop Icon -->
+    <Geometry x:Key="IconBlocked">M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M4,12A8,8 0 0,1 12,4C13.85,4 15.55,4.63 16.9,5.69L5.69,16.9C4.63,15.55 4,13.85 4,12M12,20C10.15,20 8.45,19.37 7.1,18.31L18.31,7.1C19.37,8.45 20,10.15 20,12A8,8 0 0,1 12,20Z</Geometry>
+
+    <!-- Overwritten / External Owner Icon -->
+    <Geometry x:Key="IconOverwritten">M12,3C7,3 2.73,6.11 1,10.5C2.73,14.89 7,18 12,18C17,18 21.27,14.89 23,10.5C21.27,6.11 17,3 12,3M12,5C15.65,5 18.76,7.08 20.36,10.5C18.76,13.92 15.65,16 12,16C8.35,16 5.24,13.92 3.64,10.5C5.24,7.08 8.35,5 12,5M12,7A3.5,3.5 0 0,0 8.5,10.5A3.5,3.5 0 0,0 12,14A3.5,3.5 0 0,0 15.5,10.5A3.5,3.5 0 0,0 12,7M19,18H21V20H19V22H17V20H15V18H17V16H19V18Z</Geometry>
     
     <!-- Fan Preset Icons -->
     <Geometry x:Key="IconFire">M17.66,11.2C17.43,10.9 17.15,10.64 16.89,10.38C16.22,9.78 15.46,9.35 14.82,8.72C13.33,7.26 13,4.85 13.95,3C13,3.23 12.17,3.75 11.46,4.32C8.87,6.4 7.85,10.07 9.07,13.22C9.11,13.32 9.15,13.42 9.15,13.55C9.15,13.77 9,13.97 8.8,14.05C8.57,14.15 8.33,14.09 8.14,13.93C8.08,13.88 8.04,13.83 8,13.76C6.87,12.33 6.69,10.28 7.45,8.64C5.78,10 4.87,12.3 5,14.47C5.06,14.97 5.12,15.47 5.29,15.97C5.43,16.57 5.7,17.17 6,17.7C7.08,19.43 8.95,20.67 10.96,20.92C13.1,21.19 15.39,20.8 17.03,19.32C18.86,17.66 19.5,15 18.56,12.72L18.43,12.46C18.22,12 17.66,11.2 17.66,11.2M14.5,17.5C14.22,17.74 13.76,18 13.4,18.1C12.28,18.5 11.16,17.94 10.5,17.28C11.69,17 12.4,16.12 12.61,15.23C12.78,14.43 12.46,13.77 12.33,13C12.21,12.26 12.23,11.63 12.5,10.94C12.69,11.32 12.89,11.7 13.13,12C13.9,13 15.11,13.44 15.37,14.8C15.41,14.94 15.43,15.08 15.43,15.23C15.46,16.05 15.1,16.95 14.5,17.5H14.5Z</Geometry>
@@ -267,6 +273,7 @@
     <Color x:Key="WarningLight">#FFA726</Color>
     <Color x:Key="ErrorLight">#EF5350</Color>
     <Color x:Key="InfoLight">#42A5F5</Color>
+    <Color x:Key="OverwrittenAmber">#FFD166</Color>
     
     <!-- Focus Ring Color for Accessibility -->
     <Color x:Key="FocusRing">#7B68EE</Color>
@@ -305,6 +312,7 @@
     <SolidColorBrush x:Key="WarningLightBrush" Color="{StaticResource WarningLight}" />
     <SolidColorBrush x:Key="ErrorLightBrush" Color="{StaticResource ErrorLight}" />
     <SolidColorBrush x:Key="InfoLightBrush" Color="{StaticResource InfoLight}" />
+    <SolidColorBrush x:Key="OverwrittenBrush" Color="{StaticResource OverwrittenAmber}" />
     <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRing}" />
 
     <!-- ==================== STATUS BADGE STYLES ==================== -->
@@ -347,6 +355,84 @@
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="8,3"/>
         <Setter Property="HorizontalAlignment" Value="Left"/>
+    </Style>
+
+    <!-- Unified 3.6 state language: confirmed, degraded, blocked, overwritten. -->
+    <Style x:Key="StatusVisualBadge" TargetType="Border">
+        <Setter Property="Background" Value="#1A95A5A6"/>
+        <Setter Property="BorderBrush" Value="#95A5A6"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="confirmed">
+                <Setter Property="Background" Value="#1A4CAF50"/>
+                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="degraded">
+                <Setter Property="Background" Value="#1AFF9800"/>
+                <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="blocked">
+                <Setter Property="Background" Value="#1AF44336"/>
+                <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="overwritten">
+                <Setter Property="Background" Value="#1AFFD166"/>
+                <Setter Property="BorderBrush" Value="{StaticResource OverwrittenBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StatusVisualGlyph" TargetType="Path">
+        <Setter Property="Width" Value="12"/>
+        <Setter Property="Height" Value="12"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="Data" Value="{StaticResource IconAbout}"/>
+        <Setter Property="Fill" Value="{StaticResource TextTertiaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="confirmed">
+                <Setter Property="Data" Value="{StaticResource IconCheck}"/>
+                <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="degraded">
+                <Setter Property="Data" Value="{StaticResource IconWarning}"/>
+                <Setter Property="Fill" Value="{StaticResource WarningBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="blocked">
+                <Setter Property="Data" Value="{StaticResource IconBlocked}"/>
+                <Setter Property="Fill" Value="{StaticResource ErrorBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="overwritten">
+                <Setter Property="Data" Value="{StaticResource IconOverwritten}"/>
+                <Setter Property="Fill" Value="{StaticResource OverwrittenBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StatusVisualText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="confirmed">
+                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="degraded">
+                <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="blocked">
+                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="overwritten">
+                <Setter Property="Foreground" Value="{StaticResource OverwrittenBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ==================== CARD STYLES ==================== -->

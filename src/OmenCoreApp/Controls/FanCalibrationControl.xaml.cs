@@ -280,6 +280,22 @@ namespace OmenCore.Controls
             _calibrationCts?.Cancel();
         }
 
+        private void RestoreAutoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_fanVerifier == null)
+            {
+                MessageBox.Show("Fan verification service is unavailable.", "Restore Auto Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var restored = _fanVerifier.RestoreFanControlAfterCalibration();
+            ProgressText.Text = restored
+                ? "BIOS auto fan control restored"
+                : "Could not restore BIOS auto fan control from this backend";
+            ProgressGroup.Visibility = Visibility.Visible;
+            UpdateFanStatus();
+        }
+
         private void LoadCalibrationButton_Click(object sender, RoutedEventArgs e)
         {
             UpdateCalibrationStatus();

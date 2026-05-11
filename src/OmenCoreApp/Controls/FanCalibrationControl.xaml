@@ -96,6 +96,7 @@
                             <TextBlock Text="• Calibration may take 5-10 minutes per fan" Style="{StaticResource StatusTextStyle}"/>
                             <TextBlock Text="• Fans will run at various speeds - ensure proper ventilation" Style="{StaticResource StatusTextStyle}"/>
                             <TextBlock Text="• Do not interrupt the calibration process" Style="{StaticResource StatusTextStyle}"/>
+                            <TextBlock Text="• OmenCore restores BIOS auto fan control when calibration ends; use Restore Auto if fans still sound pinned high" Style="{StaticResource StatusTextStyle}"/>
                             <TextBlock Text="• Calibration data is stored locally and can be shared with the community" Style="{StaticResource StatusTextStyle}"/>
                         </StackPanel>
                     </Border>
@@ -111,6 +112,7 @@
                 <Button x:Name="StopCalibrationButton" Content="Stop" Style="{StaticResource CalibrationButtonStyle}" Background="{DynamicResource ErrorBrush}" Foreground="White" Click="StopCalibrationButton_Click" Visibility="Collapsed"/>
                 <Button x:Name="LoadCalibrationButton" Content="Load Existing" Style="{StaticResource CalibrationButtonStyle}" Click="LoadCalibrationButton_Click"/>
                 <Button x:Name="SaveCalibrationButton" Content="Save Results" Style="{StaticResource CalibrationButtonStyle}" Click="SaveCalibrationButton_Click" Visibility="Collapsed"/>
+                <Button x:Name="RestoreAutoButton" Content="Restore Auto" Style="{StaticResource CalibrationButtonStyle}" Click="RestoreAutoButton_Click" ToolTip="Release calibration/manual fan ownership and return fans to BIOS automatic control"/>
                 <Button x:Name="ClearCalibrationButton" Content="Clear Data" Style="{StaticResource CalibrationButtonStyle}" Background="{DynamicResource WarningBrush}" Foreground="White" Click="ClearCalibrationButton_Click"/>
             </StackPanel>
         </Border>

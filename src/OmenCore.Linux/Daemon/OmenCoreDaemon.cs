@@ -289,13 +289,17 @@ public class OmenCoreDaemon : IDisposable
         var desiredMode = ResolvePerformanceMode(_config.Performance.Mode);
         var currentMode = _ec.GetPerformanceMode();
 
-        if (currentMode != desiredMode)
+        if (!ArePerformanceModesEquivalent(currentMode, desiredMode))
         {
             Log($"[hold] Performance mode drift detected: current={currentMode}, desired={desiredMode}; re-applying");
             if (_ec.SetPerformanceMode(desiredMode))
                 Log($"[hold] Performance mode restored to: {_config.Performance.Mode}");
             else
                 Log($"[hold] Failed to restore performance mode: {_config.Performance.Mode}");
+        }
+        else if (_performanceHoldTick % 10 == 1)
+        {
+            Log($"[hold] Performance mode confirmed: {currentMode} (desired {_config.Performance.Mode})");
         }
 
         if (_config.Performance.ThermalPowerLimit.HasValue)
@@ -515,6 +519,17 @@ public class OmenCoreDaemon : IDisposable
             "cool" => PerformanceMode.Cool,
             _ => PerformanceMode.Default
         };
+    }
+
+    private static bool ArePerformanceModesEquivalent(PerformanceMode current, PerformanceMode desired)
+    {
+        if (current == desired)
+        {
+            return true;
+        }
+
+        return (current is PerformanceMode.Default or PerformanceMode.Balanced)
+            && (desired is PerformanceMode.Default or PerformanceMode.Balanced);
     }
     
     private void Log(string message)

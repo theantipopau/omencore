@@ -128,6 +128,17 @@ namespace OmenCore.Hardware
         /// </summary>
         public int VerifyFailCount => _commandVerifyFailCount;
 
+        public static byte MapFanPercentToWmiLevel(int percent, int maxFanLevel)
+        {
+            percent = Math.Clamp(percent, 0, 100);
+            if (percent >= 100)
+            {
+                return MaxFanLevelCeiling;
+            }
+
+            return (byte)(percent * Math.Clamp(maxFanLevel, 1, MaxFanLevelCeiling) / 100);
+        }
+
         public WmiFanController(LibreHardwareMonitorImpl? hwMonitor, LoggingService? logging = null, int maxFanLevelOverride = 0, IHpWmiBios? injectedWmiBios = null)
         {
             _hwMonitor = hwMonitor;
@@ -367,7 +378,7 @@ namespace OmenCore.Hardware
                     _lastManualFanPercent = -1;
                     
                     // Start/stop countdown extension based on mode
-                    if (isAutoPreset || mode == HpWmiBios.FanMode.Default || mode == HpWmiBios.FanMode.LegacyDefault)
+                    if (mode == HpWmiBios.FanMode.Default || mode == HpWmiBios.FanMode.LegacyDefault)
                     {
                         // Auto/Default mode - stop countdown extension, let BIOS handle it
                         StopCountdownExtension();
@@ -470,8 +481,7 @@ namespace OmenCore.Hardware
                     return RestoreAutoControl();
                 }
 
-                // Convert percentage to fan level (0-100% maps to 0-_maxFanLevel)
-                byte fanLevel = (byte)(targetPoint.FanPercent * _maxFanLevel / 100);
+                byte fanLevel = MapFanPercentToWmiLevel(targetPoint.FanPercent, _maxFanLevel);
 
                 if (_wmiBios.SetFanLevel(fanLevel, fanLevel))
                 {
@@ -557,8 +567,7 @@ namespace OmenCore.Hardware
                             _wmiBios.SetFanMax(false);
                         }
                         
-                        // Convert percentage to fan level
-                        byte fanLevel = (byte)(percent * _maxFanLevel / 100);
+                        byte fanLevel = MapFanPercentToWmiLevel(percent, _maxFanLevel);
                         success = _wmiBios.SetFanLevel(fanLevel, fanLevel);
                         
                         if (success)
@@ -696,9 +705,8 @@ namespace OmenCore.Hardware
                         }
                     }
                     
-                    // Convert percentages to fan levels (0-_maxFanLevel range)
-                    byte cpuLevel = (byte)(cpuPercent * _maxFanLevel / 100);
-                    byte gpuLevel = (byte)(gpuPercent * _maxFanLevel / 100);
+                    byte cpuLevel = MapFanPercentToWmiLevel(cpuPercent, _maxFanLevel);
+                    byte gpuLevel = MapFanPercentToWmiLevel(gpuPercent, _maxFanLevel);
                     
                     success = _wmiBios.SetFanLevel(cpuLevel, gpuLevel);
                     
@@ -1635,8 +1643,8 @@ namespace OmenCore.Hardware
                             return;
                         }
 
-                        // For custom fan curves, re-apply the last set percentage
-                        byte fanLevel = (byte)(_lastManualFanPercent * _maxFanLevel / 100);
+                        // For custom fan curves, re-apply the last set percentage.
+                        byte fanLevel = MapFanPercentToWmiLevel(_lastManualFanPercent, _maxFanLevel);
                         if (_wmiBios.SetFanLevel(fanLevel, fanLevel))
                         {
                             _lastManualModeReapplyUtc = nowUtc;

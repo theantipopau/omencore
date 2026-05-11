@@ -282,6 +282,16 @@ namespace OmenCore.Models
         public string MemoryAutoCleanProfile { get; set; } = "Balanced";
 
         /// <summary>
+        /// Memory optimizer: avoid full standby/cache purges while a fullscreen game is foreground unless memory pressure is critical.
+        /// </summary>
+        public bool MemoryGameAwareQuietWindowEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Memory optimizer: optional auto-clean cooldown override in minutes. 0 uses the selected profile default.
+        /// </summary>
+        public int MemoryAutoCleanCooldownMinutes { get; set; } = 0;
+
+        /// <summary>
         /// Process names excluded from memory working-set trimming (without .exe).
         /// </summary>
         public List<string> MemoryExcludedProcesses { get; set; } = new();

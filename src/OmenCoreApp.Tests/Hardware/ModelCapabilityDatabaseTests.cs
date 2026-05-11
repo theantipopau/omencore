@@ -96,5 +96,50 @@ namespace OmenCoreApp.Tests.Hardware
             caps.HasFourZoneRgb.Should().BeTrue();
             caps.UserVerified.Should().BeFalse();
         }
+
+        [Fact]
+        public void GetCapabilitiesByModelName_16Am0IntelFallback_DisablesDirectEc()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilitiesByModelName("OMEN Gaming Laptop 16-am0xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("am0xxx_intel_2025_unverified");
+            caps.Notes.Should().Contain("GitHub #124");
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanControlEc.Should().BeFalse();
+            caps.SupportsUndervolt.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetPreferredCapabilities_8D2F_StillUsesExactAmdProfile()
+        {
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities("8D2F", "OMEN Gaming Laptop 16-am0xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8D2F");
+            caps.ModelName.Should().Contain("AMD");
+        }
+
+        [Fact]
+        public void GetPreferredCapabilities_8A43_WithN0xxModel_PrefersExactProductIdOverSiblingPattern()
+        {
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities("8A43", "OMEN Gaming Laptop 16-n0xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8A43");
+            caps.Notes.Should().Contain("16-n0002ni");
+            caps.Notes.Should().Contain("6G103EA");
+        }
+
+        [Fact]
+        public void GetPreferredCapabilities_Ambiguous8Bb1_UsesModelNameDisambiguation()
+        {
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities("8BB1", "Victus by HP Gaming Laptop 15-fa1xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8BB1-VICTUS15");
+            caps.Family.Should().Be(OmenModelFamily.Victus);
+            ModelCapabilityDatabase.IsAmbiguousProductId("8BB1").Should().BeTrue();
+        }
     }
 }

@@ -22,13 +22,14 @@ namespace OmenCore.Utils
 
         public void RaiseCanExecuteChanged()
         {
-            if (System.Windows.Application.Current?.Dispatcher.CheckAccess() == true)
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
             {
                 CanExecuteChanged?.Invoke(this, EventArgs.Empty);
             }
             else
             {
-                System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+                dispatcher.BeginInvoke(() =>
                 {
                     CanExecuteChanged?.Invoke(this, EventArgs.Empty);
                 });

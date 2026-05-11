@@ -1,8 +1,10 @@
 using System;
 using System.Drawing;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -18,6 +20,10 @@ namespace OmenCore.Services
     /// </summary>
     public class TemperatureRgbService : IDisposable
     {
+        private const string MonitorTimerRegistryName = "TemperatureRgbMonitor";
+        private const int MonitorIntervalMs = 2000;
+        private const int ErrorBackoffMs = 5000;
+
         private readonly LoggingService _logging;
         private readonly KeyboardLightingService? _keyboardService;
         private readonly HpWmiBios? _wmiBios;
@@ -67,6 +73,12 @@ namespace OmenCore.Services
             _isRunning = true;
             
             _ = Task.Run(() => MonitorLoopAsync(_cts.Token));
+            BackgroundTimerRegistry.Register(
+                MonitorTimerRegistryName,
+                nameof(TemperatureRgbService),
+                "Temperature-reactive keyboard RGB polling",
+                MonitorIntervalMs,
+                BackgroundTimerTier.Optional);
             _logging.Info("Temperature-based RGB lighting started");
         }
         
@@ -77,7 +89,11 @@ namespace OmenCore.Services
         {
             _enabled = false;
             _isRunning = false;
-            _cts?.Cancel();
+            var cts = _cts;
+            _cts = null;
+            cts?.Cancel();
+            cts?.Dispose();
+            BackgroundTimerRegistry.Unregister(MonitorTimerRegistryName);
             _logging.Info("Temperature-based RGB lighting stopped");
         }
         
@@ -135,7 +151,7 @@ namespace OmenCore.Services
                     }
                     
                     // Poll every 2 seconds
-                    await Task.Delay(2000, ct);
+                    await Task.Delay(MonitorIntervalMs, ct);
                 }
                 catch (OperationCanceledException)
                 {
@@ -144,7 +160,7 @@ namespace OmenCore.Services
                 catch (Exception ex)
                 {
                     _logging.Warn($"Temperature RGB update error: {ex.Message}");
-                    await Task.Delay(5000, ct);
+                    await Task.Delay(ErrorBackoffMs, ct);
                 }
             }
         }
@@ -254,21 +270,16 @@ namespace OmenCore.Services
         private static Color ParseHexColor(string hex)
         {
             if (string.IsNullOrEmpty(hex)) return Color.Blue;
-            
-            try
+
+            hex = hex.Trim().TrimStart('#');
+            if (hex.Length == 6 &&
+                int.TryParse(hex.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) &&
+                int.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) &&
+                int.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
             {
-                hex = hex.TrimStart('#');
-                if (hex.Length == 6)
-                {
-                    return Color.FromArgb(
-                        Convert.ToInt32(hex.Substring(0, 2), 16),
-                        Convert.ToInt32(hex.Substring(2, 2), 16),
-                        Convert.ToInt32(hex.Substring(4, 2), 16)
-                    );
-                }
+                return Color.FromArgb(r, g, b);
             }
-            catch { }
-            
+
             return Color.Blue;
         }
         
@@ -278,7 +289,6 @@ namespace OmenCore.Services
             _disposed = true;
             
             Stop();
-            _cts?.Dispose();
         }
     }
 }

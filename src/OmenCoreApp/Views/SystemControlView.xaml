@@ -29,6 +29,15 @@
                         <TextBlock Text="PERFORMANCE PROFILE" Style="{StaticResource Label}" Margin="0,0,0,8"/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBlock Text="Performance Mode" Style="{StaticResource Heading3}" Margin="0,0,10,0"/>
+                            <Border Style="{StaticResource StatusVisualBadge}"
+                                    Tag="{Binding PerformanceModeVisualState}"
+                                    Padding="6,2"
+                                    Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding PerformanceModeVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding PerformanceModeVisualLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding PerformanceModeVisualState}"/>
+                                </StackPanel>
+                            </Border>
                             <Border Background="#1A1A1E" CornerRadius="12" Padding="10,5" VerticalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -843,9 +852,20 @@
                 <!-- GPU Power Boost Section -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,20">
                     <StackPanel>
-                        <TextBlock Text="GPU Power Boost (TGP/Dynamic Boost)" FontSize="20" FontWeight="SemiBold" 
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"
-                                   ToolTip="Control GPU Total Graphics Power (TGP) and Dynamic Boost. Higher levels allow more GPU wattage for better performance."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="GPU Power Boost (TGP/Dynamic Boost)" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       ToolTip="Control GPU Total Graphics Power (TGP) and Dynamic Boost. Higher levels allow more GPU wattage for better performance."/>
+                            <Border Style="{StaticResource StatusVisualBadge}"
+                                    Tag="{Binding GpuPowerBoostVisualState}"
+                                    Padding="6,2"
+                                    Margin="12,1,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding GpuPowerBoostVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                    <TextBlock Text="{Binding GpuPowerBoostVisualLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding GpuPowerBoostVisualState}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         
                         <TextBlock Text="Control GPU Total Graphics Power (TGP) and Dynamic Boost (PPAB). Higher settings enable more GPU wattage for better gaming performance. Extended option is for RTX 5080 and newer GPUs that may support +25W boost." 
                                    FontSize="12" 

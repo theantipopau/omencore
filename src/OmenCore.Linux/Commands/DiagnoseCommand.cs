@@ -1,7 +1,9 @@
 using System.CommandLine;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using OmenCore.Linux.Config;
 using OmenCore.Linux.Hardware;
 
 namespace OmenCore.Linux.Commands;
@@ -156,6 +158,8 @@ public static class DiagnoseCommand
         var ec = new LinuxEcController();
         var hwmon = new LinuxHwMonController();
         var gpuReading = LinuxTelemetryResolver.GetGpuTemperature(ec, hwmon);
+        info.Service = await CollectServiceDiagnosticsAsync();
+        info.KernelIssueHints = await CollectKernelIssueHintsAsync();
 
         // Detection (use current controller logic)
         info.DetectedAccessMethod = ec.AccessMethod;
@@ -236,6 +240,12 @@ public static class DiagnoseCommand
             info.Recommendations.Add("If fan*_target exists under hp-wmi/hwmon, test manual writes there first; otherwise use profile-based fallback only.");
             info.Recommendations.Add("For Transcend 14-fb1xxx (8E41), collect and attach full diagnose output plus ACPI dump when requesting kernel hp-wmi support updates.");
         }
+
+        if (string.Equals(info.BoardId, "8D41", StringComparison.OrdinalIgnoreCase))
+        {
+            info.Notes.Add("Board 8D41 detected (OMEN Max 16-ah0xxx): Linux GPU TGP may stay capped near base power if hp-wmi does not send the GPU thermal modes / Dynamic Boost unlock that Windows OGH sends.");
+            info.Recommendations.Add("If RTX 5080/5070-class TGP remains capped around 80W, attach `sudo omencore-cli diagnose --report`, `journalctl -u nvidia-powerd -b --no-pager`, and an ACPI dump to GitHub issue #123 or the upstream hp-wmi thread.");
+        }
         
         if (ec.IsUnsafeEcModel)
         {
@@ -259,6 +269,15 @@ public static class DiagnoseCommand
         info.Notes.Add($"Capability classification: {info.CapabilityClass}.");
         info.Notes.Add(info.CapabilityReason);
 
+        foreach (var hint in info.KernelIssueHints)
+        {
+            info.Notes.Add($"{hint.Severity}: {hint.Summary}");
+            if (!string.IsNullOrWhiteSpace(hint.Recommendation))
+            {
+                info.Recommendations.Add(hint.Recommendation);
+            }
+        }
+
         if (info.DetectedAccessMethod == "none")
         {
             info.Recommendations.Add("If you have a 2023+ OMEN (wf0000 / 13th gen HX), try hp-wmi: sudo modprobe hp-wmi");
@@ -272,7 +291,248 @@ public static class DiagnoseCommand
             info.Notes.Add("hp-wmi detected, but fan output controls are not present; fan control may be limited to thermal_profile only.");
         }
 
+        if (!info.Service.SystemdAvailable)
+        {
+            info.Notes.Add("systemd was not detected; daemon service commands may not apply on this distribution/session.");
+        }
+        else if (!info.Service.UnitInstalled)
+        {
+            info.Recommendations.Add("Install or refresh the Linux daemon service: sudo omencore-cli daemon --install");
+        }
+        else if (!string.Equals(info.Service.ActiveState, "active", StringComparison.OrdinalIgnoreCase))
+        {
+            info.Notes.Add($"OmenCore daemon service is installed but not active (state: {info.Service.ActiveState}).");
+        }
+
+        if (!info.Service.SystemConfigExists)
+        {
+            info.Recommendations.Add("Create the system daemon config with: sudo omencore-cli daemon --install");
+        }
+
+        if (info.Service.UnitInstalled && !info.Service.BundleExtractDirExists)
+        {
+            info.Notes.Add($"{info.Service.BundleExtractDir} is missing; the current generated service creates it at startup, but rerun `sudo omencore-cli daemon --install` if an older unit fails before startup.");
+        }
+
         return info;
+    }
+
+    private static async Task<LinuxServiceDiagnostics> CollectServiceDiagnosticsAsync()
+    {
+        var service = new LinuxServiceDiagnostics
+        {
+            SystemdAvailable = Directory.Exists("/run/systemd/system") ||
+                               File.Exists("/usr/bin/systemctl") ||
+                               File.Exists("/bin/systemctl"),
+            UnitInstalled = File.Exists(LinuxServiceDiagnostics.DefaultUnitPath),
+            SystemConfigExists = File.Exists(OmenCoreConfig.SystemConfigPath),
+            UserConfigExists = File.Exists(OmenCoreConfig.DefaultConfigPath),
+            BundleExtractDirExists = Directory.Exists(LinuxServiceDiagnostics.DefaultBundleExtractDir)
+        };
+
+        if (service.SystemdAvailable && service.UnitInstalled)
+        {
+            service.ActiveState = await TryRunCommandAllowFailureAsync("systemctl", "is-active omencore.service", timeoutMs: 1500)
+                                  ?? "unknown";
+        }
+
+        return service;
+    }
+
+    private static async Task<List<LinuxKernelIssueHint>> CollectKernelIssueHintsAsync()
+    {
+        var kernelLog = await ReadRecentKernelLogAsync();
+        var nvidiaPowerdLog = await TryRunCommandAsync("journalctl", "-u nvidia-powerd -b -n 120 --no-pager --output=short-iso", timeoutMs: 1800);
+        return AnalyzeKernelLog(string.Join('\n', kernelLog, nvidiaPowerdLog ?? string.Empty));
+    }
+
+    internal static List<LinuxKernelIssueHint> AnalyzeKernelLog(string kernelLog)
+    {
+        var hints = new List<LinuxKernelIssueHint>();
+        if (string.IsNullOrWhiteSpace(kernelLog))
+        {
+            return hints;
+        }
+
+        var lines = kernelLog
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var nvidiaSbiosLines = lines
+            .Where(line =>
+                line.Contains("NVRM:", StringComparison.OrdinalIgnoreCase) &&
+                line.Contains("PlatformRequestHandler", StringComparison.OrdinalIgnoreCase) &&
+                (line.Contains("SBIOS", StringComparison.OrdinalIgnoreCase) ||
+                 line.Contains("NV_ERR_INVALID_DATA", StringComparison.OrdinalIgnoreCase)))
+            .Take(4)
+            .ToList();
+
+        if (nvidiaSbiosLines.Count > 0)
+        {
+            hints.Add(new LinuxKernelIssueHint
+            {
+                Id = "nvidia-sbios-platform-request",
+                Severity = "Warning",
+                Summary = "NVIDIA driver is reporting invalid ACPI/SBIOS platform-request data.",
+                Evidence = string.Join(" | ", nvidiaSbiosLines),
+                Recommendation = "For GPU idle-after-poweroff or platform-power-mode bugs, attach `journalctl -k -b`, `sudo omencore-cli diagnose --report`, and an optional `sudo acpidump` to the issue. This points toward firmware/kernel/NVIDIA ACPI integration rather than a normal hp-wmi permission problem."
+            });
+        }
+
+        var nvidiaPowerdBoostLines = lines
+            .Where(line =>
+                line.Contains("nvidia-powerd", StringComparison.OrdinalIgnoreCase) &&
+                line.Contains("Dynamic Boost", StringComparison.OrdinalIgnoreCase) &&
+                line.Contains("disable", StringComparison.OrdinalIgnoreCase))
+            .Take(4)
+            .ToList();
+
+        if (nvidiaPowerdBoostLines.Count > 0)
+        {
+            hints.Add(new LinuxKernelIssueHint
+            {
+                Id = "nvidia-powerd-dynamic-boost-disabled",
+                Severity = "Warning",
+                Summary = "nvidia-powerd reports that firmware/SBIOS disabled Dynamic Boost control.",
+                Evidence = string.Join(" | ", nvidiaPowerdBoostLines),
+                Recommendation = "On OMEN Max 16 8D41 / RTX 50-series reports, this usually means the Linux hp-wmi path applied the thermal profile but did not unlock GPU thermal modes / PPAB. `nvidia-smi -pl` is expected to be blocked on these laptop GPUs; collect `journalctl -u nvidia-powerd -b`, `journalctl -k -b`, and ACPI tables for kernel-side hp-wmi follow-up."
+            });
+        }
+
+        var i2cGroupLines = lines
+            .Where(line =>
+                line.Contains("Failed to resolve group 'i2c'", StringComparison.OrdinalIgnoreCase) ||
+                (line.Contains("99-i2c.rules", StringComparison.OrdinalIgnoreCase) &&
+                 line.Contains("Unknown group", StringComparison.OrdinalIgnoreCase)))
+            .Take(3)
+            .ToList();
+
+        if (i2cGroupLines.Count > 0)
+        {
+            hints.Add(new LinuxKernelIssueHint
+            {
+                Id = "missing-i2c-group-udev-rule",
+                Severity = "Info",
+                Summary = "A udev rule references the `i2c` group, but that group does not exist.",
+                Evidence = string.Join(" | ", i2cGroupLines),
+                Recommendation = "Create the expected group (`sudo groupadd -r i2c`) or remove/update `/etc/udev/rules.d/99-i2c.rules`, then reload udev rules if you rely on i2c device access."
+            });
+        }
+
+        return hints;
+    }
+
+    private static async Task<string> ReadRecentKernelLogAsync()
+    {
+        var journal = await TryRunCommandAsync("journalctl", "-k -b -n 300 --no-pager --output=short-iso", timeoutMs: 2500);
+        if (!string.IsNullOrWhiteSpace(journal))
+        {
+            return journal;
+        }
+
+        return await TryRunCommandAsync("dmesg", "--color=never", timeoutMs: 2500) ?? string.Empty;
+    }
+
+    private static async Task<string?> TryRunCommandAsync(string fileName, string arguments, int timeoutMs)
+    {
+        Process? process = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(timeoutMs);
+            process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            if (!process.Start())
+            {
+                return null;
+            }
+
+            var outputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token);
+
+            return process.ExitCode == 0 ? await outputTask : null;
+        }
+        catch (Exception)
+        {
+            try
+            {
+                if (process?.HasExited == false)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception)
+            {
+                // Best effort only; diagnose must never fail because journal sampling failed.
+            }
+
+            return null;
+        }
+        finally
+        {
+            process?.Dispose();
+        }
+    }
+
+    private static async Task<string?> TryRunCommandAllowFailureAsync(string fileName, string arguments, int timeoutMs)
+    {
+        Process? process = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(timeoutMs);
+            process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            if (!process.Start())
+            {
+                return null;
+            }
+
+            var outputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token);
+
+            return (await outputTask).Trim();
+        }
+        catch (Exception)
+        {
+            try
+            {
+                if (process?.HasExited == false)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception)
+            {
+                // Best effort only; service detection should not break diagnose.
+            }
+
+            return null;
+        }
+        finally
+        {
+            process?.Dispose();
+        }
     }
 
     private static async Task<bool> IsDebugFsMountedAsync()
@@ -366,6 +626,8 @@ public static class DiagnoseCommand
         Console.WriteLine($"║  GPU Telem.: {Truncate($"{info.GpuTelemetrySource} {info.GpuTelemetryPath}".Trim(), 76),-76}║");
         Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-76}║");
         Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-76}║");
+        Console.WriteLine($"Service: systemd={(info.Service.SystemdAvailable ? "present" : "missing")}, unit={(info.Service.UnitInstalled ? info.Service.ActiveState : "not installed")}, system_config={(info.Service.SystemConfigExists ? "present" : "missing")}");
+
         if (info.IsUnsafeEcModel)
             Console.WriteLine($"║  EC Safety: {"⚠ Blocked (new model)",-76}║");
 
@@ -378,6 +640,19 @@ public static class DiagnoseCommand
                 foreach (var line in WrapText(note, innerWidth - 7)) // 7 = "║   - " + "║"
                 {
                     Console.WriteLine($"║   - {line,-(innerWidth - 5)}║");
+                }
+            }
+        }
+
+        if (info.KernelIssueHints.Count > 0)
+        {
+            Console.WriteLine(midBorder);
+            Console.WriteLine($"â•‘  {"Kernel Hints:",-86}â•‘");
+            foreach (var hint in info.KernelIssueHints.Take(4))
+            {
+                foreach (var line in WrapText($"{hint.Severity}: {hint.Summary}", innerWidth - 7))
+                {
+                    Console.WriteLine($"â•‘   - {line,-(innerWidth - 5)}â•‘");
                 }
             }
         }
@@ -471,6 +746,14 @@ public static class DiagnoseCommand
         Console.WriteLine($"| Fan 1 Target Control (`fan1_target`) | {(info.HpWmiFan1TargetExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine($"| Fan 2 Target Control (`fan2_target`) | {(info.HpWmiFan2TargetExists ? "✓ Present" : "✗ Missing")} |");
         Console.WriteLine();
+        Console.WriteLine("## Service / Packaging Diagnostics");
+        Console.WriteLine();
+        Console.WriteLine($"- **systemd Available:** {(info.Service.SystemdAvailable ? "Yes" : "No")}");
+        Console.WriteLine($"- **OmenCore Unit:** {(info.Service.UnitInstalled ? info.Service.ActiveState : "Not installed")}");
+        Console.WriteLine($"- **System Config:** {(info.Service.SystemConfigExists ? "Present" : "Missing")} (`{info.Service.SystemConfigPath}`)");
+        Console.WriteLine($"- **User Config:** {(info.Service.UserConfigExists ? "Present" : "Missing")} (`{info.Service.UserConfigPath}`)");
+        Console.WriteLine($"- **Bundle Extract Dir:** {(info.Service.BundleExtractDirExists ? "Present" : "Missing")} (`{info.Service.BundleExtractDir}`)");
+        Console.WriteLine();
         Console.WriteLine($"**Capability Classification:** `{info.CapabilityClass}`");
         Console.WriteLine();
         Console.WriteLine($"**Capability Reason:** {info.CapabilityReason}");
@@ -491,6 +774,25 @@ public static class DiagnoseCommand
             foreach (var note in info.Notes)
             {
                 Console.WriteLine($"- {note}");
+            }
+            Console.WriteLine();
+        }
+
+        if (info.KernelIssueHints.Count > 0)
+        {
+            Console.WriteLine("## Kernel / Firmware Hints");
+            Console.WriteLine();
+            foreach (var hint in info.KernelIssueHints)
+            {
+                Console.WriteLine($"- **{hint.Id} ({hint.Severity})**: {hint.Summary}");
+                if (!string.IsNullOrWhiteSpace(hint.Evidence))
+                {
+                    Console.WriteLine($"  - Evidence: `{hint.Evidence}`");
+                }
+                if (!string.IsNullOrWhiteSpace(hint.Recommendation))
+                {
+                    Console.WriteLine($"  - Recommendation: {hint.Recommendation}");
+                }
             }
             Console.WriteLine();
         }
@@ -573,12 +875,40 @@ public class DiagnoseInfo
     public bool SupportsTelemetry { get; set; }
     public string GpuTelemetrySource { get; set; } = "unavailable";
     public string GpuTelemetryPath { get; set; } = string.Empty;
+    public LinuxServiceDiagnostics Service { get; set; } = new();
     
     // ACPI platform_profile (2025+ models)
     public bool AcpiPlatformProfileExists { get; set; }
     public string? AcpiPlatformProfile { get; set; }
     public string? AcpiPlatformProfileChoices { get; set; }
 
+    public List<LinuxKernelIssueHint> KernelIssueHints { get; set; } = new();
     public List<string> Notes { get; set; } = new();
     public List<string> Recommendations { get; set; } = new();
+}
+
+public class LinuxServiceDiagnostics
+{
+    public const string DefaultUnitPath = "/etc/systemd/system/omencore.service";
+    public const string DefaultBundleExtractDir = "/var/tmp/omencore";
+
+    public bool SystemdAvailable { get; set; }
+    public bool UnitInstalled { get; set; }
+    public string UnitPath { get; set; } = DefaultUnitPath;
+    public string ActiveState { get; set; } = "not-installed";
+    public bool SystemConfigExists { get; set; }
+    public string SystemConfigPath { get; set; } = OmenCoreConfig.SystemConfigPath;
+    public bool UserConfigExists { get; set; }
+    public string UserConfigPath { get; set; } = OmenCoreConfig.DefaultConfigPath;
+    public bool BundleExtractDirExists { get; set; }
+    public string BundleExtractDir { get; set; } = DefaultBundleExtractDir;
+}
+
+public class LinuxKernelIssueHint
+{
+    public string Id { get; set; } = string.Empty;
+    public string Severity { get; set; } = "Info";
+    public string Summary { get; set; } = string.Empty;
+    public string Evidence { get; set; } = string.Empty;
+    public string Recommendation { get; set; } = string.Empty;
 }

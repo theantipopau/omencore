@@ -92,6 +92,133 @@ namespace OmenCoreApp.Tests.Services
             logging.Dispose();
         }
 
+        [Fact]
+        public async Task ExtremePreset_FollowsCurveInsteadOfForcingMaxAtModerateThermals()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new RecordingFanController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+
+            var extremePreset = new FanPreset
+            {
+                Name = "Extreme",
+                Mode = FanMode.Performance,
+                Curve = new List<FanCurvePoint>
+                {
+                    new FanCurvePoint { TemperatureC = 70, FanPercent = 82 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 94 },
+                    new FanCurvePoint { TemperatureC = 88, FanPercent = 100 }
+                }
+            };
+
+            fanService.ApplyPreset(extremePreset).Should().BeTrue();
+            await fanService.ForceApplyCurveNowAsync(cpuTemp: 76, gpuTemp: 0, immediate: true);
+
+            controller.SetCalls.Should().NotBeEmpty();
+            controller.SetCalls[^1].Should().BeLessThan(100,
+                "Extreme should follow its curve at moderate 70-80C temperatures; Max is the explicit 100% mode");
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public async Task CurveEngine_SendsWakeKick_WhenPositiveCurveCommandLeavesFanAtZeroRpm()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new RecordingFanController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            fanService.SetHysteresis(new FanHysteresisSettings { Enabled = false });
+
+            var curve = new List<FanCurvePoint>
+            {
+                new FanCurvePoint { TemperatureC = 40, FanPercent = 14 },
+                new FanCurvePoint { TemperatureC = 60, FanPercent = 20 },
+                new FanCurvePoint { TemperatureC = 70, FanPercent = 34 }
+            };
+
+            fanService.ApplyCustomCurve(curve, immediate: false);
+            await fanService.ForceApplyCurveNowAsync(cpuTemp: 63, gpuTemp: 0, immediate: true);
+
+            SetPrivateField(fanService, "_lastRawPrimaryFanRpm", 0);
+            SetPrivateField(fanService, "_lastReportedPrimaryFanDutyPercent", 0);
+            SetPrivateField(fanService, "_zeroRpmCurveCommandSince", DateTime.Now.AddSeconds(-15));
+            SetPrivateField(fanService, "_lastCurveUpdate", DateTime.Now.AddSeconds(-10));
+            SetPrivateField(fanService, "_lastCurveForceRefresh", DateTime.Now.AddSeconds(-40));
+
+            controller.SetCalls.Clear();
+
+            await fanService.ForceApplyCurveNowAsync(cpuTemp: 63, gpuTemp: 0, immediate: false);
+
+            controller.SetCalls.Should().ContainSingle();
+            controller.SetCalls[0].Should().Be(35,
+                "the curve engine should issue one bounded wake pulse when positive curve writes leave RPM at zero");
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public async Task CurveEngine_DoesNotWakeKick_WhenZeroRpmOccursAtCoolIdle()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new RecordingFanController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            fanService.SetHysteresis(new FanHysteresisSettings { Enabled = false });
+
+            var curve = new List<FanCurvePoint>
+            {
+                new FanCurvePoint { TemperatureC = 30, FanPercent = 10 },
+                new FanCurvePoint { TemperatureC = 50, FanPercent = 20 },
+                new FanCurvePoint { TemperatureC = 70, FanPercent = 40 }
+            };
+
+            fanService.ApplyCustomCurve(curve, immediate: false);
+            await fanService.ForceApplyCurveNowAsync(cpuTemp: 50, gpuTemp: 0, immediate: true);
+
+            SetPrivateField(fanService, "_lastRawPrimaryFanRpm", 0);
+            SetPrivateField(fanService, "_lastReportedPrimaryFanDutyPercent", 0);
+            SetPrivateField(fanService, "_zeroRpmCurveCommandSince", DateTime.Now.AddSeconds(-15));
+            SetPrivateField(fanService, "_lastCurveUpdate", DateTime.Now.AddSeconds(-10));
+            SetPrivateField(fanService, "_lastCurveForceRefresh", DateTime.Now.AddSeconds(-40));
+
+            controller.SetCalls.Clear();
+
+            await fanService.ForceApplyCurveNowAsync(cpuTemp: 50, gpuTemp: 0, immediate: false);
+
+            controller.SetCalls.Should().ContainSingle();
+            controller.SetCalls[0].Should().BeLessThan(35,
+                "cool idle zero-RPM readings should follow the curve target instead of triggering the warm wake pulse");
+
+            logging.Dispose();
+        }
+
+        private static void SetPrivateField<T>(object target, string fieldName, T value)
+        {
+            var field = target.GetType().GetField(
+                fieldName,
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            field.Should().NotBeNull($"test setup requires private field {fieldName}");
+            field!.SetValue(target, value);
+        }
+
         private class SequenceFanController : OmenCore.Hardware.IFanController
         {
             private readonly IList<IEnumerable<FanTelemetry>> _sequence;
@@ -185,6 +312,7 @@ namespace OmenCoreApp.Tests.Services
             try
             {
                 // Helper: poll until condition is met or timeout expires.
+                // Poll at 10ms to avoid missing short acceptance windows between service ticks.
                 async Task<bool> WaitFor(Func<List<int>, bool> condition, int timeoutMs = 3000)
                 {
                     var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -192,7 +320,7 @@ namespace OmenCoreApp.Tests.Services
                     {
                         var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
                         if (condition(rpms)) return true;
-                        await Task.Delay(50);
+                        await Task.Delay(10);
                     }
                     return false;
                 }
@@ -206,11 +334,13 @@ namespace OmenCoreApp.Tests.Services
                 }
 
                 // 2) After the second consecutive 1234 read, the value must be accepted.
-                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 1234, timeoutMs: 2000);
+                // Use a generous timeout and fast polling: the acceptance window is ~200ms wide
+                // (two 100ms service ticks) and can be missed under load with coarse polling.
+                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 1234, timeoutMs: 5000);
                 accepted.Should().BeTrue("second consecutive 1234 read must cause acceptance");
 
                 // 3) Accept zero immediately once fans stop (duty==0).
-                bool stoppedAndAccepted = await WaitFor(r => r.Count > 0 && r[0] == 0, timeoutMs: 2000);
+                bool stoppedAndAccepted = await WaitFor(r => r.Count > 0 && r[0] == 0, timeoutMs: 5000);
                 stoppedAndAccepted.Should().BeTrue("_lastFanSpeeds[0] should drop to 0 once the zero+duty==0 stage is reached");
             }
             finally
@@ -299,8 +429,15 @@ namespace OmenCoreApp.Tests.Services
 
             // Enter diagnostic mode and attempt to apply another preset - should be ignored
             fanService.EnterDiagnosticMode();
-            fanService.ApplyPreset(presetB);
-            fanService.ActivePresetName.Should().Be(presetA.Name);
+            try
+            {
+                fanService.ApplyPreset(presetB);
+                fanService.ActivePresetName.Should().Be(presetA.Name);
+            }
+            finally
+            {
+                fanService.ExitDiagnosticMode();
+            }
 
             logging.Dispose();
         }
@@ -340,7 +477,7 @@ namespace OmenCoreApp.Tests.Services
                 {
                     var rpms = (List<int>)lastRpmsField!.GetValue(fanService)!;
                     if (condition(rpms)) return true;
-                    await Task.Delay(30);
+                    await Task.Delay(10);
                 }
                 return false;
             }
@@ -348,7 +485,7 @@ namespace OmenCoreApp.Tests.Services
             try
             {
                 // Wait for the initial stable 2000rpm to be established
-                bool seeded = await WaitFor(r => r.Count > 0 && r[0] == 2000, timeoutMs: 1000);
+                bool seeded = await WaitFor(r => r.Count > 0 && r[0] == 2000, timeoutMs: 2000);
                 seeded.Should().BeTrue("initial stable RPM must be seeded");
 
                 // Rapidly apply presets (simulate user hammering quick-profile keys)
@@ -371,7 +508,7 @@ namespace OmenCoreApp.Tests.Services
                 }
 
                 // After sufficient poll cycles the inconsistent-zero stages drain and 3500 is confirmed.
-                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 3500, timeoutMs: 3000);
+                bool accepted = await WaitFor(r => r.Count > 0 && r[0] == 3500, timeoutMs: 5000);
                 accepted.Should().BeTrue("confirmed 3500rpm must be accepted once inconsistent-zero stages are exhausted");
             }
             finally

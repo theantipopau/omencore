@@ -830,8 +830,10 @@ namespace OmenCore.Services
             // Test speeds: 0%, 20%, 40%, 60%, 80%, 100%
             var testSpeeds = new[] { 0, 20, 40, 60, 80, 100 };
 
-            foreach (var speed in testSpeeds)
+            try
             {
+                foreach (var speed in testSpeeds)
+                {
                 if (ct.IsCancellationRequested)
                 {
                     calibrationResult.ErrorMessage = "Calibration cancelled";
@@ -881,6 +883,11 @@ namespace OmenCore.Services
                     };
                     calibrationResult.CalibrationPoints.Add(errorPoint);
                 }
+                }
+            }
+            finally
+            {
+                RestoreFanControlAfterCalibration(fanIndex);
             }
 
             calibrationResult.EndTime = DateTime.Now;
@@ -891,7 +898,42 @@ namespace OmenCore.Services
 
             return calibrationResult;
         }
-    }
+
+        public bool RestoreFanControlAfterCalibration()
+        {
+            return RestoreFanControlAfterCalibration(fanIndex: -1);
+        }
+
+        private bool RestoreFanControlAfterCalibration(int fanIndex)
+        {
+            try
+            {
+                var target = fanIndex >= 0 ? $"fan {fanIndex}" : "manual request";
+                if (_fanService != null)
+                {
+                    _fanService.RestoreAutoControl();
+                    _logging.Info($"Fan calibration cleanup restored BIOS auto control after {target}");
+                    return true;
+                }
+
+                if (_wmiBios?.IsAvailable == true)
+                {
+                    _wmiBios.SetFanMax(false);
+                    _wmiBios.SetFanMode(HpWmiBios.FanMode.Default);
+                    _logging.Info($"Fan calibration cleanup cleared max override and restored default fan mode after {target}");
+                    return true;
+                }
+
+                _logging.Warn("Fan calibration cleanup skipped: no fan service or WMI BIOS backend available");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Fan calibration cleanup failed after testing fan {fanIndex}: {ex.Message}");
+            }
+
+            return false;
+                }
+            }
 
     /// <summary>
     /// Result of a fan calibration operation.

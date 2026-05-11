@@ -192,6 +192,7 @@
                                    Text="{Binding LastCleanResult}" 
                                    FontSize="12" 
                                    Foreground="#6B7280"
+                                   TextWrapping="Wrap"
                                    VerticalAlignment="Center"
                                    Visibility="{Binding HasLastCleanResult, Converter={StaticResource BoolToVisibility}}"/>
                         <Button Grid.Column="1" ToolTip="Copy last result" Command="{Binding CopyLastCleanCommand}" 
@@ -276,6 +277,9 @@
                                                           CommandParameter="{Binding}"/>
                                                 <MenuItem Header="Open file location"
                                                           Command="{Binding PlacementTarget.Tag.OpenProcessLocationCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          CommandParameter="{Binding}"/>
+                                                <MenuItem Header="Add to working-set exclusions"
+                                                          Command="{Binding PlacementTarget.Tag.AddTopProcessToExclusionsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                           CommandParameter="{Binding}"/>
                                             </ContextMenu>
                                         </Setter.Value>
@@ -545,7 +549,51 @@
                                         TickFrequency="5" IsSnapToTickEnabled="True"
                                         Margin="0,4,0,0"/>
 
+                                <Grid Margin="0,12,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Minimum Gap Between Cleans" FontSize="12" Foreground="#9CA3AF"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding AutoCleanCooldownText}"
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#00C8C8"/>
+                                </Grid>
+                                <Slider Minimum="0" Maximum="60"
+                                        Value="{Binding AutoCleanCooldownMinutes, Mode=TwoWay}"
+                                        TickFrequency="5"
+                                        IsSnapToTickEnabled="True"
+                                        Margin="0,4,0,0"/>
+                                <TextBlock Text="Set to 0 to use the selected profile default cooldown."
+                                           FontSize="11"
+                                           Foreground="#6B7280"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"/>
+
                                 <TextBlock Text="{Binding AutoCleanCheckIntervalText}" FontSize="11" Foreground="#6B7280" Margin="0,8,0,0"/>
+
+                                <Border Background="#101827" BorderBrush="#24324A" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,12,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Game-aware quiet window"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            <TextBlock Text="{Binding GameAwareQuietWindowSummary}"
+                                                       FontSize="11"
+                                                       Foreground="#9CA3AF"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,3,12,0"/>
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="1"
+                                                      Style="{StaticResource Omen.Toggle.Switch}"
+                                                      IsChecked="{Binding GameAwareQuietWindowEnabled, Mode=TwoWay}"
+                                                      VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
 
                             <Rectangle Height="1" Fill="#374151" Margin="0,14,0,12"/>
@@ -590,7 +638,9 @@
                             <TextBlock Text="Working Set Exclusions"
                                        FontSize="14" FontWeight="SemiBold" Foreground="White"/>
                             <TextBlock Text="Excluded processes are skipped during working-set trimming (enter with or without .exe)."
-                                       FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,10"/>
+                                        FontSize="12" Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,4,0,10"/>
+                            <TextBlock Text="Tip: right-click a process in Top Memory Hogs to add games, capture tools, anti-cheat, or chat apps here before Smart Clean."
+                                       FontSize="11" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>

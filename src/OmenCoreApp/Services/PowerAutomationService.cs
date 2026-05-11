@@ -518,11 +518,11 @@ namespace OmenCore.Services
                 FanMode.Max => new() { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } },
                 FanMode.Performance => new()
                 {
-                    new FanCurvePoint { TemperatureC = 40, FanPercent = 40 },
-                    new FanCurvePoint { TemperatureC = 50, FanPercent = 50 },
-                    new FanCurvePoint { TemperatureC = 60, FanPercent = 65 },
-                    new FanCurvePoint { TemperatureC = 70, FanPercent = 80 },
-                    new FanCurvePoint { TemperatureC = 80, FanPercent = 95 },
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 35 },
+                    new FanCurvePoint { TemperatureC = 50, FanPercent = 45 },
+                    new FanCurvePoint { TemperatureC = 60, FanPercent = 58 },
+                    new FanCurvePoint { TemperatureC = 70, FanPercent = 72 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 88 },
                     new FanCurvePoint { TemperatureC = 90, FanPercent = 100 },
                 },
                 FanMode.Quiet => new()

@@ -45,6 +45,9 @@ namespace OmenCore.Services
         private HardwareMetrics? _lastMetrics;
         private const int ReadSampleTimeoutMs = 10000; // 10 second timeout for sample reads
         private int _consecutiveTimeouts = 0; // Track consecutive timeouts for diagnostics
+        private static readonly TimeSpan DashboardMetricsRetention = TimeSpan.FromHours(24);
+        private const int MaxDashboardMetricsHistory = 7200; // Keeps at least 2h at active 1s cadence.
+        private const int PowerTrendSampleCount = 5;
         
         // Monitoring health tracking (v2.7.0)
         private DateTime _lastSuccessfulSampleTime = DateTime.MinValue;
@@ -76,6 +79,7 @@ namespace OmenCore.Services
 
         public ReadOnlyObservableCollection<MonitoringSample> Samples { get; }
         public event EventHandler<MonitoringSample>? SampleUpdated;
+        public event EventHandler<MonitoringCadenceTransition>? CadenceChanged;
         
         /// <summary>
         /// Event fired when monitoring health status changes.
@@ -96,6 +100,8 @@ namespace OmenCore.Services
             {
                 lhwm.SetLowOverheadMode(_lowOverheadMode);
             }
+
+            UpdateBridgeSamplingPolicy();
         }
 
         public bool LowOverheadMode => _lowOverheadMode;
@@ -128,6 +134,13 @@ namespace OmenCore.Services
         public string CurrentCadenceReason => _lastCadenceReason;
 
         /// <summary>
+        /// Current cadence interval in milliseconds. Returns 0 until cadence telemetry has initialized.
+        /// </summary>
+        public int CurrentCadenceIntervalMs => _lastAppliedCadence.HasValue
+            ? (int)_lastAppliedCadence.Value.TotalMilliseconds
+            : 0;
+
+        /// <summary>
         /// Snapshot of recent cadence transitions with state flags for diagnostics export.
         /// </summary>
         public IReadOnlyList<MonitoringCadenceTransition> GetCadenceTransitionsSnapshot()
@@ -148,13 +161,8 @@ namespace OmenCore.Services
             {
                 lhwm.SetLowOverheadMode(enabled);
             }
-        }
 
-        public void SetPollingInterval(int intervalMs)
-        {
-            // Deprecated: cadence is now governed by _activeCadenceInterval / _idleCadenceInterval.
-            // This stub is retained so existing callers (e.g. SettingsViewModel) continue to compile.
-            _logging.Info($"SetPollingInterval({intervalMs}) called — cadence is now fixed; parameter ignored.");
+            UpdateBridgeSamplingPolicy();
         }
 
         private TimeSpan GetEffectiveCadenceInterval()
@@ -163,6 +171,11 @@ namespace OmenCore.Services
             if (_overlayRealtimeMode)
             {
                 return _activeCadenceInterval;
+            }
+
+            if (_lowOverheadMode && !_uiWindowActive && _trayOnlyMode)
+            {
+                return _trayOnlyCadenceInterval;
             }
 
             if (_lowOverheadMode)
@@ -192,6 +205,7 @@ namespace OmenCore.Services
         public void SetUiWindowActive(bool active)
         {
             _uiWindowActive = active;
+            UpdateBridgeSamplingPolicy();
         }
 
         /// <summary>
@@ -204,6 +218,7 @@ namespace OmenCore.Services
         public void SetTrayOnlyMode(bool trayOnly)
         {
             _trayOnlyMode = trayOnly;
+            UpdateBridgeSamplingPolicy();
         }
 
         /// <summary>
@@ -213,6 +228,18 @@ namespace OmenCore.Services
         public void SetOverlayRealtimeMode(bool enabled)
         {
             _overlayRealtimeMode = enabled;
+            UpdateBridgeSamplingPolicy();
+        }
+
+        private void UpdateBridgeSamplingPolicy()
+        {
+            if (_bridge is not IAdaptiveSamplingBridge adaptiveBridge)
+            {
+                return;
+            }
+
+            bool staticTrayMode = _lowOverheadMode && !_uiWindowActive && _trayOnlyMode && !_overlayRealtimeMode;
+            adaptiveBridge.SetStaticTraySamplingMode(staticTrayMode);
         }
 
         private void UpdateCadenceTelemetry(TimeSpan cadence)
@@ -274,6 +301,7 @@ namespace OmenCore.Services
             }
 
             _logging.Info($"[MonitorLoop] Cadence switched to {(int)cadence.TotalMilliseconds}ms");
+            CadenceChanged?.Invoke(this, transition);
         }
 
         private string BuildCadenceReason(TimeSpan cadence)
@@ -281,6 +309,11 @@ namespace OmenCore.Services
             if (_overlayRealtimeMode)
             {
                 return "overlay-realtime: OSD visible forces active 1s cadence";
+            }
+
+            if (_lowOverheadMode && !_uiWindowActive && _trayOnlyMode && cadence == _trayOnlyCadenceInterval)
+            {
+                return "low-overhead/tray-only: app minimized with no active fan curve/hold";
             }
 
             if (_lowOverheadMode)
@@ -838,28 +871,49 @@ namespace OmenCore.Services
 
             _logging.Debug($"UpdateDashboardMetrics: Created metrics - CPU: {metrics.CpuTemperature}°C, GPU: {metrics.GpuTemperature}°C, Power: {metrics.PowerConsumption}W");
 
-            // Calculate trend
-            if (_metricsHistory.Count >= 2)
-            {
-                var recentMetrics = _metricsHistory.TakeLast(5).ToList();
-                var avgPower = recentMetrics.Average(m => m.PowerConsumption);
-                metrics.PowerConsumptionTrend = metrics.PowerConsumption - avgPower;
-            }
-
             lock (_dashboardLock)
             {
+                PruneDashboardMetricHistory(metrics.Timestamp);
+
+                // Calculate trend without per-sample LINQ/list allocations in the monitor loop.
+                if (_metricsHistory.Count >= 2)
+                {
+                    var sumPower = 0.0;
+                    var count = 0;
+                    for (var i = _metricsHistory.Count - 1; i >= 0 && count < PowerTrendSampleCount; i--)
+                    {
+                        sumPower += _metricsHistory[i].PowerConsumption;
+                        count++;
+                    }
+
+                    if (count > 0)
+                    {
+                        metrics.PowerConsumptionTrend = metrics.PowerConsumption - (sumPower / count);
+                    }
+                }
+
                 _lastMetrics = metrics;
                 _metricsHistory.Add(metrics);
 
-                // Keep only last 24 hours of data
-                var cutoffTime = DateTime.Now.AddHours(-24);
-                _metricsHistory.RemoveAll(m => m.Timestamp < cutoffTime);
+                PruneDashboardMetricHistory(metrics.Timestamp);
 
                 // Check for alerts
                 CheckForAlerts(metrics);
             }
 
             _logging.Debug("UpdateDashboardMetrics: _lastMetrics updated successfully");
+        }
+
+        private void PruneDashboardMetricHistory(DateTime now)
+        {
+            var cutoffTime = now - DashboardMetricsRetention;
+            _metricsHistory.RemoveAll(m => m.Timestamp < cutoffTime);
+
+            var excessCount = _metricsHistory.Count - MaxDashboardMetricsHistory;
+            if (excessCount > 0)
+            {
+                _metricsHistory.RemoveRange(0, excessCount);
+            }
         }
 
         private double CalculateEstimatedPowerConsumption(MonitoringSample sample)

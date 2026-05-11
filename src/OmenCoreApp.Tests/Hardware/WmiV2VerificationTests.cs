@@ -340,7 +340,7 @@ namespace OmenCoreApp.Tests.Hardware
             SetPrivateStaticField(typeof(FanService), "_globalDiagnosticModeCount", 1);
             try
             {
-                InvokeCountdownExtensionCallback(controller);
+                InvokeCountdownExtensionCallback(controller, resetDiagnosticState: false);
             }
             finally
             {
@@ -469,23 +469,90 @@ namespace OmenCoreApp.Tests.Hardware
             var fake = new ModeCaptureFakeWmiBios();
             var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
 
-            controller.SetPerformanceMode("Performance").Should().BeTrue();
-            fake.LastSetFanMode.Should().Be(HpWmiBios.FanMode.Performance);
-
-            var preset = new FanPreset
+            try
             {
-                Name = "Auto",
-                Mode = OmenCore.Models.FanMode.Auto,
-                Curve = new List<FanCurvePoint>
-                {
-                    new() { TemperatureC = 40, FanPercent = 35 },
-                    new() { TemperatureC = 80, FanPercent = 80 }
-                }
-            };
+                controller.SetPerformanceMode("Performance").Should().BeTrue();
+                fake.LastSetFanMode.Should().Be(HpWmiBios.FanMode.Performance);
 
-            controller.ApplyPreset(preset).Should().BeTrue();
-            fake.LastSetFanMode.Should().Be(HpWmiBios.FanMode.Performance,
-                "Auto presets with explicit curve payload should preserve active thermal policy mode");
+                var preset = new FanPreset
+                {
+                    Name = "Auto",
+                    Mode = OmenCore.Models.FanMode.Auto,
+                    Curve = new List<FanCurvePoint>
+                    {
+                        new() { TemperatureC = 40, FanPercent = 35 },
+                        new() { TemperatureC = 80, FanPercent = 80 }
+                    }
+                };
+
+                controller.ApplyPreset(preset).Should().BeTrue();
+                fake.LastSetFanMode.Should().Be(HpWmiBios.FanMode.Performance,
+                    "Auto presets with explicit curve payload should preserve active thermal policy mode");
+                controller.CountdownExtensionEnabled.Should().BeTrue(
+                    "preserved non-default thermal policies still need WMI hold maintenance even when the preset label is Auto");
+            }
+            finally
+            {
+                controller.StopCountdownExtension();
+            }
+        }
+
+        [Theory]
+        [InlineData(HpWmiBios.GpuPowerLevel.Minimum, 0, 0)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Medium, 1, 0)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Maximum, 1, 1)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended3, 1, 2)]
+        public void BuildGpuPowerPayload_UsesDistinctTgpAndPpabBytes(
+            HpWmiBios.GpuPowerLevel level,
+            byte expectedCustomTgp,
+            byte expectedPpab)
+        {
+            var payload = HpWmiBios.BuildGpuPowerPayload(level);
+
+            payload.customTgp.Should().Be(expectedCustomTgp);
+            payload.ppab.Should().Be(expectedPpab);
+        }
+
+        [Theory]
+        [InlineData(HpWmiBios.GpuPowerLevel.Minimum, false, 0, true)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Medium, true, 0, true)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Maximum, true, 1, true)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended3, true, 2, true)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Maximum, true, 0, false)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended3, true, 1, false)]
+        public void IsGpuPowerReadbackMatch_DetectsIgnoredOrDowngradedWrites(
+            HpWmiBios.GpuPowerLevel level,
+            bool customTgp,
+            int ppabLevel,
+            bool expected)
+        {
+            HpWmiBios.IsGpuPowerReadbackMatch(level, customTgp, ppabLevel)
+                .Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData(50, 55, 27)]
+        [InlineData(100, 55, 100)]
+        [InlineData(100, 63, 100)]
+        public void MapFanPercentToWmiLevel_UsesProtocolCeilingForFullSpeed(int percent, int maxFanLevel, int expectedLevel)
+        {
+            WmiFanController.MapFanPercentToWmiLevel(percent, maxFanLevel)
+                .Should().Be((byte)expectedLevel);
+        }
+
+        [Fact]
+        public void ApplyCustomCurve_FullSpeed_UsesProtocolCeilingInsteadOfClassicMaxLevel()
+        {
+            var fake = new V1AutoHandoffFakeWmiBios();
+            var controller = new WmiFanController(null, null, 0, injectedWmiBios: fake);
+
+            controller.ApplyCustomCurve(new[]
+            {
+                new FanCurvePoint { TemperatureC = 30, FanPercent = 100 }
+            }).Should().BeTrue();
+
+            fake.SetFanLevelCalls.Should().Contain(call => call.fan1 == 100 && call.fan2 == 100,
+                "custom curve 100% should use the same protocol ceiling as Max mode so BIOS can clamp to the real hardware maximum");
         }
 
         // Fake implementation to simulate V2 BIOS that does not expose RPM but reports fan levels.
@@ -749,8 +816,13 @@ namespace OmenCoreApp.Tests.Hardware
             public void Dispose() { }
         }
 
-        private static void InvokeCountdownExtensionCallback(WmiFanController controller)
+        private static void InvokeCountdownExtensionCallback(WmiFanController controller, bool resetDiagnosticState = true)
         {
+            if (resetDiagnosticState)
+            {
+                SetPrivateStaticField(typeof(FanService), "_globalDiagnosticModeCount", 0);
+            }
+
             SetPrivateField(controller, "_lastMaxModeMaintenanceUtc", System.DateTime.MinValue);
             var callback = typeof(WmiFanController).GetMethod("CountdownExtensionCallback", BindingFlags.NonPublic | BindingFlags.Instance);
             callback.Should().NotBeNull();

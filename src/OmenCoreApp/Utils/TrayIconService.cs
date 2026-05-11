@@ -12,6 +12,7 @@ using Hardcodet.Wpf.TaskbarNotification;
 using OmenCore.Controls;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 using OmenCore.Views;
 
 namespace OmenCore.Utils
@@ -22,6 +23,8 @@ namespace OmenCore.Utils
     public class TrayIconService : IDisposable
     {
         private readonly TaskbarIcon _trayIcon;
+        private const string TrayRefreshTimerRegistryName = "TrayIconRefresh";
+        private const int TrayRefreshIntervalMs = 2000;
         private readonly DispatcherTimer _updateTimer;
         private readonly Action _showMainWindow;
         private readonly Action _shutdownApp;
@@ -45,6 +48,7 @@ namespace OmenCore.Utils
         private string _monitoringHealth = "Unknown";
         private bool _disposed;
         private readonly ConfigurationService? _configService;
+        private bool? _lastRegisteredTrayTempDisplayEnabled;
         
         // v2.6.1: Track fan menu items for checkmarks
         private MenuItem? _fanAutoMenuItem;
@@ -89,6 +93,7 @@ namespace OmenCore.Utils
         {
             Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
+                UpdateTrayRefreshTimerDescription(force: true);
                 UpdateTrayDisplay(null, EventArgs.Empty);
             });
         }
@@ -109,10 +114,11 @@ namespace OmenCore.Utils
 
             _updateTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(2)
+                Interval = TimeSpan.FromMilliseconds(TrayRefreshIntervalMs)
             };
             _updateTimer.Tick += UpdateTrayDisplay;
             _updateTimer.Start();
+            RegisterTrayRefreshTimer();
 
             UpdateTrayDisplay(null, EventArgs.Empty);
         }
@@ -590,6 +596,7 @@ namespace OmenCore.Utils
                 // Update tray icon with max temperature badge (shows highest of CPU/GPU)
                 // But only if tray temp display is enabled in settings
                 var showTempOnTray = _configService?.Config?.Features?.TrayTempDisplayEnabled ?? true;
+                UpdateTrayRefreshTimerDescription(showTempOnTray);
                 if (showTempOnTray)
                 {
                     var maxTemp = Math.Max(cpuTemp, gpuTemp);
@@ -1017,10 +1024,42 @@ namespace OmenCore.Utils
             {
                 _updateTimer.Stop();
                 _updateTimer.Tick -= UpdateTrayDisplay;
+                BackgroundTimerRegistry.Unregister(TrayRefreshTimerRegistryName);
                 _quickPopup?.Close();
                 _disposed = true;
             }
         }
+
+        private void RegisterTrayRefreshTimer()
+        {
+            var showTempOnTray = _configService?.Config?.Features?.TrayTempDisplayEnabled ?? true;
+            _lastRegisteredTrayTempDisplayEnabled = showTempOnTray;
+            BackgroundTimerRegistry.Register(
+                TrayRefreshTimerRegistryName,
+                nameof(TrayIconService),
+                BuildTrayRefreshTimerDescription(showTempOnTray),
+                TrayRefreshIntervalMs,
+                BackgroundTimerTier.Optional);
+        }
+
+        private void UpdateTrayRefreshTimerDescription(bool? showTempOnTray = null, bool force = false)
+        {
+            var enabled = showTempOnTray ?? (_configService?.Config?.Features?.TrayTempDisplayEnabled ?? true);
+            if (!force && _lastRegisteredTrayTempDisplayEnabled == enabled)
+            {
+                return;
+            }
+
+            _lastRegisteredTrayTempDisplayEnabled = enabled;
+            BackgroundTimerRegistry.UpdateDescription(
+                TrayRefreshTimerRegistryName,
+                BuildTrayRefreshTimerDescription(enabled));
+        }
+
+        private static string BuildTrayRefreshTimerDescription(bool showTempOnTray) =>
+            showTempOnTray
+                ? "Tray tooltip/menu refresh plus live temperature badge redraw"
+                : "Tray tooltip/menu refresh with static icon";
 
         private ImageSource? LoadBaseIcon()
         {
@@ -1031,8 +1070,9 @@ namespace OmenCore.Utils
                 bitmap.Freeze();
                 return bitmap;
             }
-            catch
+            catch (Exception ex)
             {
+                App.Logging.Debug($"Failed to load tray base icon from embedded assets: {ex.Message}");
                 return null;
             }
         }

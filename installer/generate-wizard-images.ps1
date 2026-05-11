@@ -15,7 +15,7 @@ if (Test-Path $versionPath) {
     $version = (Get-Content $versionPath -First 1).Trim()
     Write-Host "Version: v$version" -ForegroundColor Cyan
 } else {
-    $version = "2.3.1"
+    $version = "3.6.0"
     Write-Host "Warning: VERSION.txt not found, using default v$version" -ForegroundColor Yellow
 }
 
@@ -39,20 +39,29 @@ $largeGraphics = [System.Drawing.Graphics]::FromImage($largeBmp)
 $largeGraphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
 $largeGraphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAlias
 
-# Modern dark gradient background (OMEN style dark blue/purple)
+# Modern dark gradient background (OmenCore 3.6 red/blue control-suite style)
 $gradientBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
     (New-Object System.Drawing.Point 0, 0),
     (New-Object System.Drawing.Point 0, $largeHeight),
-    [System.Drawing.Color]::FromArgb(255, 18, 18, 32),    # Dark top
-    [System.Drawing.Color]::FromArgb(255, 32, 28, 58)     # Slightly purple bottom
+    [System.Drawing.Color]::FromArgb(255, 10, 14, 24),
+    [System.Drawing.Color]::FromArgb(255, 21, 30, 46)
 )
 $largeGraphics.FillRectangle($gradientBrush, 0, 0, $largeWidth, $largeHeight)
 
-# Subtle diagonal accent lines
-$accentPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(30, 138, 43, 226), 1)  # Faint purple
+# Subtle diagonal telemetry lines
+$accentPen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(42, 69, 199, 255), 1)
 for ($i = -50; $i -lt 400; $i += 25) {
     $largeGraphics.DrawLine($accentPen, 0, $i, $largeWidth, $i - 80)
 }
+
+# First-party red control rail
+$railBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+    (New-Object System.Drawing.Point 0, 0),
+    (New-Object System.Drawing.Point $largeWidth, 0),
+    [System.Drawing.Color]::FromArgb(210, 255, 0, 92),
+    [System.Drawing.Color]::FromArgb(90, 69, 199, 255)
+)
+$largeGraphics.FillRectangle($railBrush, 0, 0, $largeWidth, 5)
 
 # Logo or fallback
 if ($useLogo) {
@@ -63,9 +72,9 @@ if ($useLogo) {
     $largeGraphics.DrawImage($logo, $logoX, $logoY, $logoSize, $logoSize)
 } else {
     # Fallback: Draw stylized "O" icon
-    $circleBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 138, 43, 226))
+    $circleBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 255, 0, 92))
     $largeGraphics.FillEllipse($circleBrush, 50, 55, 64, 64)
-    $innerBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 18, 18, 32))
+    $innerBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 10, 14, 24))
     $largeGraphics.FillEllipse($innerBrush, 60, 65, 44, 44)
 }
 
@@ -86,14 +95,14 @@ $largeGraphics.DrawString("OmenCore", $titleFont, $titleBrush, $titleRect, $form
 # Tagline (moved up since version badge removed)
 $tagFont = New-Object System.Drawing.Font("Segoe UI", 9)
 $tagBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 160, 160, 180))
-$tagRect = New-Object System.Drawing.RectangleF(0, 185, $largeWidth, 20)  # Moved up from 210
-$largeGraphics.DrawString("Gaming Laptop Control", $tagFont, $tagBrush, $tagRect, $format)
+$tagRect = New-Object System.Drawing.RectangleF(0, 185, $largeWidth, 20)
+$largeGraphics.DrawString("Thermal Control Suite", $tagFont, $tagBrush, $tagRect, $format)
 
-# Feature icons (small text hints) - moved up
+# Feature chips
 $featureFont = New-Object System.Drawing.Font("Segoe UI", 8)
-$featureBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 120, 120, 140))
-$y = 220  # Moved up from 250
-$features = @("* Fan Control", "* Monitoring", "* Performance", "* RGB Lighting")
+$featureBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 180, 186, 205))
+$y = 220
+$features = @("Fan Control", "Monitoring", "Performance", "RGB Lighting")
 foreach ($feature in $features) {
     $featureRect = New-Object System.Drawing.RectangleF(0, $y, $largeWidth, 15)
     $largeGraphics.DrawString($feature, $featureFont, $featureBrush, $featureRect, $format)
@@ -116,10 +125,11 @@ $smallGraphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQua
 $smallGradient = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
     (New-Object System.Drawing.Point 0, 0),
     (New-Object System.Drawing.Point 0, $smallSize),
-    [System.Drawing.Color]::FromArgb(255, 18, 18, 32),
-    [System.Drawing.Color]::FromArgb(255, 32, 28, 58)
+    [System.Drawing.Color]::FromArgb(255, 10, 14, 24),
+    [System.Drawing.Color]::FromArgb(255, 21, 30, 46)
 )
 $smallGraphics.FillRectangle($smallGradient, 0, 0, $smallSize, $smallSize)
+$smallGraphics.FillRectangle((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 255, 0, 92))), 0, 0, $smallSize, 4)
 
 # Draw logo or fallback
 if ($useLogo) {
@@ -128,9 +138,9 @@ if ($useLogo) {
     $smallGraphics.DrawImage($logo, $padding, $padding, $smallSize - $padding * 2, $smallSize - $padding * 2)
 } else {
     # Fallback: Draw stylized "O" icon
-    $circleBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 138, 43, 226))
+    $circleBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 255, 0, 92))
     $smallGraphics.FillEllipse($circleBrush, 8, 8, 39, 39)
-    $innerBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 18, 18, 32))
+    $innerBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 10, 14, 24))
     $smallGraphics.FillEllipse($innerBrush, 14, 14, 27, 27)
 }
 

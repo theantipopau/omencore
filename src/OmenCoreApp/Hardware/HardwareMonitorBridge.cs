@@ -22,6 +22,15 @@ namespace OmenCore.Hardware
         string MonitoringSource { get; }
     }
 
+    /// <summary>
+    /// Optional bridge capability for adapting expensive sensor refresh behavior
+    /// when the app is in static tray-only mode.
+    /// </summary>
+    public interface IAdaptiveSamplingBridge
+    {
+        void SetStaticTraySamplingMode(bool enabled);
+    }
+
     public class LibreHardwareMonitorBridge : IHardwareMonitorBridge
     {
         private readonly Random _random = new();

@@ -108,8 +108,8 @@ namespace OmenCore.Models
         public string BiosVersion { get; set; } = string.Empty;
         public string BiosDate { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
-        public string SystemSku { get; set; } = string.Empty;  // HP Product ID (e.g., "6Y7K8PA#ABG")
-        public string ProductName { get; set; } = string.Empty; // Full product name from BIOS
+        public string SystemSku { get; set; } = string.Empty;  // HP support/catalog SKU (e.g., "6G103EA#ABU")
+        public string ProductName { get; set; } = string.Empty; // Baseboard ProductId used for capability lookup (e.g., "8A43")
         public string SystemFamily { get; set; } = string.Empty; // e.g., "OMEN by HP Laptop 16-wd0000"
     }
 }

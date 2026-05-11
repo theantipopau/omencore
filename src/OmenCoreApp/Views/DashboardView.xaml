@@ -91,12 +91,12 @@
                 <!-- Health -->
                 <Border Background="{StaticResource SurfaceLightBrush}" CornerRadius="4" Padding="8,4" Margin="0,0,8,4" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                         <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center">
-                             <Ellipse.Fill>
-                                 <SolidColorBrush Color="{Binding MonitoringHealthColor}" />
-                             </Ellipse.Fill>
-                         </Ellipse>
-                         <TextBlock Text="{Binding MonitoringHealthStatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                         <Border Style="{StaticResource StatusVisualBadge}" Tag="{Binding MonitoringVisualState}" Padding="6,2" Margin="0,0,6,0">
+                             <StackPanel Orientation="Horizontal">
+                                 <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding MonitoringVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                 <TextBlock Text="{Binding MonitoringHealthLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding MonitoringVisualState}"/>
+                             </StackPanel>
+                         </Border>
                          <TextBlock Text="{Binding MonitoringSourceText, StringFormat=' • Source: {0}'}" FontSize="11" Opacity="0.7" Foreground="{StaticResource TextSecondaryBrush}"/>
                          <TextBlock Text="{Binding LastSampleAge, StringFormat=' ({0})'}" FontSize="10" Opacity="0.5" VerticalAlignment="Center"/>
                     </StackPanel>
@@ -134,7 +134,7 @@
                 
                 <!-- Fan Status -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Text="🌀" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Path Data="{StaticResource IconFan}" Width="18" Height="18" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="FANS" Style="{StaticResource Label}" FontSize="10" Opacity="0.7"/>
                         <TextBlock Text="{Binding FanSummary}" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -145,7 +145,7 @@
                 
                 <!-- Current Profile -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <TextBlock Text="⚡" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Path Data="{StaticResource IconPerformance}" Width="18" Height="18" Fill="{StaticResource AccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="PERFORMANCE MODE" Style="{StaticResource Label}" FontSize="10" Opacity="0.7"/>
                         <TextBlock Text="{Binding CurrentPerformanceMode}" FontSize="12" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
@@ -156,7 +156,7 @@
                 
                 <!-- Fan Mode -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal">
-                    <TextBlock Text="💨" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Path Data="{StaticResource IconTune}" Width="18" Height="18" Fill="#45C7FF" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="FAN MODE" Style="{StaticResource Label}" FontSize="10" Opacity="0.7"/>
                         <TextBlock Text="{Binding CurrentFanMode}" FontSize="12" Foreground="#45C7FF" FontWeight="SemiBold"/>
@@ -168,7 +168,7 @@
                 
                 <!-- Power Source -->
                 <StackPanel Grid.Column="6" Orientation="Horizontal">
-                    <TextBlock Text="🔌" FontSize="16" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Path Data="{StaticResource IconUpdate}" Width="18" Height="18" Fill="{StaticResource SuccessBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="POWER" Style="{StaticResource Label}" FontSize="10" Opacity="0.7"/>
                         <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"

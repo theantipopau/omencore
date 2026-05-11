@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -92,7 +91,7 @@ namespace OmenCore.Controls
                 return;
             }
 
-            var snapshot = Samples?.ToList() ?? new List<MonitoringSample>();
+            var snapshot = GetSampleList(Samples);
             if (snapshot.Count < 2)
             {
                 ChartCanvas.Children.Clear();
@@ -164,6 +163,16 @@ namespace OmenCore.Controls
                 _cpuLine.Points.Add(new Point(x, cpuY));
                 _gpuLine.Points.Add(new Point(x, gpuY));
             }
+        }
+
+        private static IList<MonitoringSample> GetSampleList(IEnumerable<MonitoringSample>? samples)
+        {
+            if (samples == null)
+            {
+                return Array.Empty<MonitoringSample>();
+            }
+
+            return samples as IList<MonitoringSample> ?? new List<MonitoringSample>(samples);
         }
 
         private void ChartCanvasOnSizeChanged(object sender, SizeChangedEventArgs e) => Render();

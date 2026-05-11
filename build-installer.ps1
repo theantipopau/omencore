@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 $publishRoot = Join-Path $root "publish"
-$publishDir = Join-Path $publishRoot $Runtime
+$publishDir = Join-Path $publishRoot "$Runtime-build"
 $artifactsDir = Join-Path $root "artifacts"
 $versionFile = Join-Path $root "VERSION.txt"
 
@@ -32,6 +32,7 @@ if ($Runtime -like "linux*") {
     throw "Linux packaging is handled by build-linux-package.ps1. Use that script for linux runtimes."
 }
 
+# Use a dedicated staging folder so locked leftovers in publish\win-x64 do not block packaging.
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 if (-not (Test-Path $publishRoot)) { New-Item $publishRoot -ItemType Directory | Out-Null }
 if (-not (Test-Path $artifactsDir)) { New-Item $artifactsDir -ItemType Directory | Out-Null }
@@ -116,7 +117,7 @@ if (-not (Test-Path $pawnIoInstaller)) {
 
 $installer = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (Test-Path $installer) { Remove-Item $installer -Force }
-& $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version"
+& $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version" "/DMyPublishDir=$publishDir"
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup compile failed with exit code $LASTEXITCODE"
 }

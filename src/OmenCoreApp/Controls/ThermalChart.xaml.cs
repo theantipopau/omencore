@@ -2,7 +2,6 @@ using OmenCore.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -86,7 +85,7 @@ namespace OmenCore.Controls
         private void RenderChart()
         {
             ChartCanvas.Children.Clear();
-            var samplesList = Samples?.ToList() ?? new List<ThermalSample>();
+            var samplesList = GetSampleList(Samples);
             if (samplesList.Count < 2)
             {
                 EmptyStateText.Visibility = Visibility.Visible;
@@ -142,6 +141,16 @@ namespace OmenCore.Controls
 
             ChartCanvas.Children.Add(cpuPolyline);
             ChartCanvas.Children.Add(gpuPolyline);
+        }
+
+        private static IList<ThermalSample> GetSampleList(IEnumerable<ThermalSample>? samples)
+        {
+            if (samples == null)
+            {
+                return Array.Empty<ThermalSample>();
+            }
+
+            return samples as IList<ThermalSample> ?? new List<ThermalSample>(samples);
         }
 
         private void ChartCanvas_SizeChanged(object sender, SizeChangedEventArgs e)

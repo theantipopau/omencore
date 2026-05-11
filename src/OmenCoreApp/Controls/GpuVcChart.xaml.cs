@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -92,7 +91,7 @@ namespace OmenCore.Controls
                 return;
             }
 
-            var snapshot = Samples?.ToList() ?? new List<MonitoringSample>();
+            var snapshot = GetSampleList(Samples);
             if (snapshot.Count < 2)
             {
                 ChartCanvas.Children.Clear();
@@ -157,18 +156,35 @@ namespace OmenCore.Controls
             _currentLine.Points.Clear();
 
             // Find voltage/current ranges for scaling
-            var voltages = snapshot.Where(s => s.GpuVoltageV > 0).Select(s => s.GpuVoltageV).ToList();
-            var currents = snapshot.Where(s => s.GpuCurrentA > 0).Select(s => s.GpuCurrentA).ToList();
+            var minVoltage = double.MaxValue;
+            var maxVoltage = double.MinValue;
+            var minCurrent = double.MaxValue;
+            var maxCurrent = double.MinValue;
+            var hasVoltage = false;
+            var hasCurrent = false;
 
-            if (voltages.Count == 0 || currents.Count == 0)
+            for (var i = 0; i < snapshot.Count; i++)
+            {
+                var sample = snapshot[i];
+                if (sample.GpuVoltageV > 0)
+                {
+                    minVoltage = Math.Min(minVoltage, sample.GpuVoltageV);
+                    maxVoltage = Math.Max(maxVoltage, sample.GpuVoltageV);
+                    hasVoltage = true;
+                }
+
+                if (sample.GpuCurrentA > 0)
+                {
+                    minCurrent = Math.Min(minCurrent, sample.GpuCurrentA);
+                    maxCurrent = Math.Max(maxCurrent, sample.GpuCurrentA);
+                    hasCurrent = true;
+                }
+            }
+
+            if (!hasVoltage || !hasCurrent)
             {
                 return; // No data to display
             }
-
-            var minVoltage = voltages.Min();
-            var maxVoltage = voltages.Max();
-            var minCurrent = currents.Min();
-            var maxCurrent = currents.Max();
 
             // Use combined range for Y-axis scaling (voltage in volts, current in amps)
             var voltageRange = maxVoltage - minVoltage;
@@ -190,6 +206,16 @@ namespace OmenCore.Controls
                 if (snapshot[i].GpuCurrentA > 0)
                     _currentLine.Points.Add(new Point(x, currentY));
             }
+        }
+
+        private static IList<MonitoringSample> GetSampleList(IEnumerable<MonitoringSample>? samples)
+        {
+            if (samples == null)
+            {
+                return Array.Empty<MonitoringSample>();
+            }
+
+            return samples as IList<MonitoringSample> ?? new List<MonitoringSample>(samples);
         }
 
         private void ChartCanvasOnSizeChanged(object sender, SizeChangedEventArgs e) => Render();

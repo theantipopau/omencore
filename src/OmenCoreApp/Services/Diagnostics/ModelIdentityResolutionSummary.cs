@@ -12,6 +12,7 @@ namespace OmenCore.Services.Diagnostics
         public string RawWmiModel { get; set; } = "Unknown";
         public string RawBaseboardProduct { get; set; } = "Unknown";
         public string RawSystemSku { get; set; } = "Unknown";
+        public string HpSupportProductNumber { get; set; } = "Unknown";
         public string CapabilityProductId { get; set; } = "Unknown";
         public string CapabilityModelFamily { get; set; } = "Unknown";
         public string ResolvedModel { get; set; } = "Unknown";
@@ -56,6 +57,7 @@ namespace OmenCore.Services.Diagnostics
                 RawWmiModel = Clean(systemInfo.Model),
                 RawBaseboardProduct = Clean(systemInfo.ProductName),
                 RawSystemSku = Clean(systemInfo.SystemSku),
+                HpSupportProductNumber = ExtractHpSupportProductNumber(systemInfo.SystemSku),
                 CapabilityProductId = Clean(effectiveCapabilities.ProductId),
                 CapabilityModelFamily = effectiveCapabilities.ModelFamily.ToString(),
                 IsKnownModel = effectiveCapabilities.IsKnownModel
@@ -64,7 +66,7 @@ namespace OmenCore.Services.Diagnostics
             PopulateCapabilityResolution(summary, effectiveCapabilities);
             PopulateKeyboardResolution(summary, systemInfo);
 
-            summary.RawIdentitySummary = $"WMI Model: {summary.RawWmiModel} | Baseboard Product: {summary.RawBaseboardProduct} | System SKU: {summary.RawSystemSku}";
+            summary.RawIdentitySummary = $"WMI Model: {summary.RawWmiModel} | Baseboard ProductId: {summary.RawBaseboardProduct} | System SKU: {summary.RawSystemSku} | HP support product: {summary.HpSupportProductNumber}";
             summary.Summary = BuildShortSummary(summary);
             summary.ClipboardSummary = BuildClipboardSummary(summary);
             summary.TraceText = BuildTraceText(summary, systemInfo);
@@ -236,8 +238,9 @@ namespace OmenCore.Services.Diagnostics
             sb.AppendLine($"Confidence: {summary.Confidence}");
             sb.AppendLine($"Capability ProductId: {summary.CapabilityProductId}");
             sb.AppendLine($"WMI model: {summary.RawWmiModel}");
-            sb.AppendLine($"Baseboard product: {summary.RawBaseboardProduct}");
+            sb.AppendLine($"Baseboard ProductId: {summary.RawBaseboardProduct}");
             sb.AppendLine($"System SKU: {summary.RawSystemSku}");
+            sb.AppendLine($"HP support product number: {summary.HpSupportProductNumber}");
             sb.AppendLine($"Keyboard model: {summary.KeyboardModel}");
             sb.AppendLine($"Keyboard source: {summary.KeyboardResolutionSource}");
             sb.AppendLine($"Keyboard confidence: {summary.KeyboardConfidence}");
@@ -275,9 +278,11 @@ namespace OmenCore.Services.Diagnostics
             sb.AppendLine("Raw System Identity Inputs:");
             sb.AppendLine($"  Manufacturer: {Clean(systemInfo.Manufacturer)}");
             sb.AppendLine($"  WMI Model: {summary.RawWmiModel}");
-            sb.AppendLine($"  Baseboard ProductName: {summary.RawBaseboardProduct}");
+            sb.AppendLine($"  Baseboard ProductId: {summary.RawBaseboardProduct}");
             sb.AppendLine($"  System SKU: {summary.RawSystemSku}");
+            sb.AppendLine($"  HP support product number: {summary.HpSupportProductNumber}");
             sb.AppendLine($"  BIOS Version: {Clean(systemInfo.BiosVersion)}");
+            sb.AppendLine("  Note: Baseboard ProductId drives OmenCore capability lookup; HP support product number is the public support/catalog SKU.");
             sb.AppendLine();
 
             sb.AppendLine("Capability Detection Output:");
@@ -331,6 +336,16 @@ namespace OmenCore.Services.Diagnostics
         private static string Clean(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? "Unknown" : value.Trim();
+        }
+
+        private static string ExtractHpSupportProductNumber(string? systemSku)
+        {
+            if (string.IsNullOrWhiteSpace(systemSku))
+                return "Unknown";
+
+            var trimmed = systemSku.Trim();
+            var hashIndex = trimmed.IndexOf('#');
+            return hashIndex > 0 ? trimmed[..hashIndex] : trimmed;
         }
     }
 }

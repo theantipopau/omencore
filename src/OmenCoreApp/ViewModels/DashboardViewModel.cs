@@ -116,6 +116,7 @@ namespace OmenCore.ViewModels
                 {
                     _currentPerformanceMode = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(PerformanceVisualState));
                 }
             }
         }
@@ -129,6 +130,7 @@ namespace OmenCore.ViewModels
                 {
                     _currentFanMode = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(FanVisualState));
                 }
             }
         }
@@ -185,6 +187,8 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(IsThrottling));
                 OnPropertyChanged(nameof(IsSsdDataAvailable));
                 OnPropertyChanged(nameof(FanSummary));
+                OnPropertyChanged(nameof(FanVisualState));
+                OnPropertyChanged(nameof(PowerVisualState));
             }
         }
 
@@ -459,6 +463,30 @@ namespace OmenCore.ViewModels
             _ => "? Unknown"
         };
 
+        public string MonitoringVisualState => _monitoringService.HealthStatus switch
+        {
+            MonitoringHealthStatus.Healthy => "confirmed",
+            MonitoringHealthStatus.Degraded => "degraded",
+            MonitoringHealthStatus.Stale => "blocked",
+            _ => "degraded"
+        };
+
+        public string MonitoringHealthLabel => _monitoringService.HealthStatus switch
+        {
+            MonitoringHealthStatus.Healthy => "Healthy",
+            MonitoringHealthStatus.Degraded => "Degraded",
+            MonitoringHealthStatus.Stale => "Stale",
+            _ => "Unknown"
+        };
+
+        public string FanVisualState => _fanService?.FanTelemetry.Count > 0 ? "confirmed" : "degraded";
+
+        public string PerformanceVisualState => string.Equals(CurrentPerformanceMode, "Auto", StringComparison.OrdinalIgnoreCase)
+            ? "degraded"
+            : "confirmed";
+
+        public string PowerVisualState => LatestMonitoringSample == null ? "degraded" : "confirmed";
+
         /// <summary>
         /// Monitoring source label for UI display.
         /// </summary>
@@ -506,6 +534,8 @@ namespace OmenCore.ViewModels
             {
                 OnPropertyChanged(nameof(MonitoringHealthStatus));
                 OnPropertyChanged(nameof(MonitoringHealthStatusText));
+                OnPropertyChanged(nameof(MonitoringVisualState));
+                OnPropertyChanged(nameof(MonitoringHealthLabel));
                 OnPropertyChanged(nameof(MonitoringHealthColor));
                 OnPropertyChanged(nameof(MonitoringSourceText));
                 OnPropertyChanged(nameof(IsTelemetryStale));

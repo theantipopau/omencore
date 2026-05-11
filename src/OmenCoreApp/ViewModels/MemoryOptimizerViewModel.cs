@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
@@ -58,11 +59,13 @@ namespace OmenCore.ViewModels
         private bool _autoCleanEnabled;
         public ICommand CopyLastCleanCommand { get; }
         private int _autoCleanThreshold = 80;
+        private int _autoCleanCooldownMinutes;
         private int _autoCleanCheckIntervalSeconds = 30;
         private bool _intervalCleanEnabled;
         private int _cleanEveryMinutes = 10;
         private string _selectedProfile = "Balanced";
         private string _selectedAutoCleanProfile = "Balanced";
+        private bool _gameAwareQuietWindowEnabled = true;
         private bool _applyingAutoCleanProfile;
         private bool _memoryCompressionSupported = true;
         private bool _memoryCompressionEnabled;
@@ -91,7 +94,9 @@ namespace OmenCore.ViewModels
                     {
                         LastCleanResult = $"Freed {result.FreedMB} MB  •  {result.OperationsSucceeded} ops succeeded" +
                             (result.OperationsFailed > 0 ? $"  •  {result.OperationsFailed} failed" : "") +
-                            $"  •  {result.Timestamp:HH:mm:ss}";
+                            $"  •  {result.Timestamp:HH:mm:ss}" +
+                            Environment.NewLine +
+                            result.GetDeltaSummary();
                         SetStatusDone($"Freed {result.FreedMB} MB");
                     }
                     else
@@ -130,7 +135,14 @@ namespace OmenCore.ViewModels
             CopyProcessNameCommand = new RelayCommand(param => CopyProcessName(param as ProcessMemoryInfo),
                 param => param is ProcessMemoryInfo info && !string.IsNullOrWhiteSpace(info.ProcessName));
             OpenProcessLocationCommand = new RelayCommand(param => OpenProcessLocation(param as ProcessMemoryInfo),
-                param => param is ProcessMemoryInfo info && !string.IsNullOrWhiteSpace(info.ExecutablePath));
+                param => param is ProcessMemoryInfo info && info.ProcessId > 0);
+            AddTopProcessToExclusionsCommand = new RelayCommand(param => AddTopProcessToExclusions(param as ProcessMemoryInfo),
+                param => param is ProcessMemoryInfo info &&
+                    !string.IsNullOrWhiteSpace(info.ProcessName) &&
+                    !IsProcessExcluded(info.ProcessName));
+
+            TopProcesses.CollectionChanged += OnProcessCollectionsChanged;
+            ExcludedProcesses.CollectionChanged += OnProcessCollectionsChanged;
 
             CopyLastCleanCommand = new RelayCommand(_ =>
             {
@@ -179,6 +191,16 @@ namespace OmenCore.ViewModels
                     savedProfile = "Balanced";
                 }
                 SelectedAutoCleanProfile = savedProfile;
+
+                _gameAwareQuietWindowEnabled = config.MemoryGameAwareQuietWindowEnabled;
+                _memoryService.SetGameAwareQuietWindowEnabled(_gameAwareQuietWindowEnabled);
+                OnPropertyChanged(nameof(GameAwareQuietWindowEnabled));
+                OnPropertyChanged(nameof(GameAwareQuietWindowSummary));
+
+                _autoCleanCooldownMinutes = Math.Clamp(config.MemoryAutoCleanCooldownMinutes, 0, 60);
+                _memoryService.SetAutoCleanCooldownOverrideMinutes(_autoCleanCooldownMinutes);
+                OnPropertyChanged(nameof(AutoCleanCooldownMinutes));
+                OnPropertyChanged(nameof(AutoCleanCooldownText));
 
                 if (config.MemoryAutoCleanEnabled)
                 {
@@ -230,6 +252,8 @@ namespace OmenCore.ViewModels
             {
                 _logger.Warn($"Failed to restore memory optimizer settings: {ex.Message}");
             }
+
+            OnPropertyChanged(nameof(ExclusionGuidanceText));
         }
         
         /// <summary>
@@ -245,6 +269,8 @@ namespace OmenCore.ViewModels
                 config.MemoryAutoCleanEnabled = _autoCleanEnabled;
                 config.MemoryAutoCleanThreshold = _autoCleanThreshold;
                 config.MemoryAutoCleanProfile = _selectedAutoCleanProfile;
+                config.MemoryGameAwareQuietWindowEnabled = _gameAwareQuietWindowEnabled;
+                config.MemoryAutoCleanCooldownMinutes = _autoCleanCooldownMinutes;
                 config.MemoryIntervalCleanEnabled = _intervalCleanEnabled;
                 config.MemoryIntervalCleanMinutes = _cleanEveryMinutes;
                 config.MemoryExcludedProcesses = ExcludedProcesses.ToList();
@@ -478,6 +504,39 @@ namespace OmenCore.ViewModels
 
         public string AutoCleanThresholdText => $"{AutoCleanThreshold}%";
 
+        public int AutoCleanCooldownMinutes
+        {
+            get => _autoCleanCooldownMinutes;
+            set
+            {
+                var normalized = Math.Clamp(value, 0, 60);
+                if (_autoCleanCooldownMinutes == normalized)
+                {
+                    return;
+                }
+
+                _autoCleanCooldownMinutes = normalized;
+                _memoryService.SetAutoCleanCooldownOverrideMinutes(normalized);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AutoCleanCooldownText));
+                PersistSettings();
+            }
+        }
+
+        public string AutoCleanCooldownText
+        {
+            get
+            {
+                if (AutoCleanCooldownMinutes <= 0)
+                {
+                    var profile = ParseAutoCleanProfile(_selectedAutoCleanProfile);
+                    return $"Profile default ({GetAutoCleanCooldownMinutes(profile)} min)";
+                }
+
+                return $"{AutoCleanCooldownMinutes} min";
+            }
+        }
+
         public string[] AutoCleanProfileOptions => new[] { "Aggressive", "Balanced", "Conservative", "OffPeakOnly", "Manual" };
 
         public string SelectedAutoCleanProfile
@@ -499,6 +558,28 @@ namespace OmenCore.ViewModels
         }
 
         public string AutoCleanCheckIntervalText => $"Every {_autoCleanCheckIntervalSeconds} sec";
+
+        public bool GameAwareQuietWindowEnabled
+        {
+            get => _gameAwareQuietWindowEnabled;
+            set
+            {
+                if (_gameAwareQuietWindowEnabled == value)
+                {
+                    return;
+                }
+
+                _gameAwareQuietWindowEnabled = value;
+                _memoryService.SetGameAwareQuietWindowEnabled(value);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(GameAwareQuietWindowSummary));
+                PersistSettings();
+            }
+        }
+
+        public string GameAwareQuietWindowSummary => GameAwareQuietWindowEnabled
+            ? "On: fullscreen and borderless games get light working-set trims unless memory pressure is critical."
+            : "Off: Smart Clean can run the full safe cleanup profile while a game is in the foreground.";
 
         public bool MemoryCompressionSupported
         {
@@ -622,6 +703,30 @@ namespace OmenCore.ViewModels
             set { _cleanupPreviewText = value; OnPropertyChanged(); }
         }
 
+        public string ExclusionGuidanceText
+        {
+            get
+            {
+                var suggestions = TopProcesses
+                    .Where(p => !string.IsNullOrWhiteSpace(p.ProcessName) && !IsProcessExcluded(p.ProcessName))
+                    .OrderByDescending(p => p.WorkingSetMB)
+                    .Select(p => NormalizeProcessName(p.ProcessName))
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(3)
+                    .ToList();
+
+                if (suggestions.Count == 0)
+                {
+                    return ExcludedProcesses.Count == 0
+                        ? "Tip: exclude apps you keep open (games, capture, chat, anti-cheat). You can add from the top-process list or type a process name without .exe."
+                        : $"{ExcludedProcesses.Count} process exclusions active. Add more from the top-process list to avoid repeated working-set trims.";
+                }
+
+                return $"Suggested exclusions from current top processes: {string.Join(", ", suggestions)}.";
+            }
+        }
+
         // ========== COMMANDS ==========
 
         public ICommand CleanSafeCommand { get; }
@@ -637,6 +742,7 @@ namespace OmenCore.ViewModels
         public ICommand ToggleMemoryCompressionCommand { get; }
         public ICommand CopyProcessNameCommand { get; }
         public ICommand OpenProcessLocationCommand { get; }
+        public ICommand AddTopProcessToExclusionsCommand { get; }
 
         // ========== METHODS ==========
 
@@ -657,12 +763,12 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Updates the cleanup preview text based on the current profile selection.
         /// </summary>
-        private void UpdateCleanupPreview()
+        private void UpdateCleanupPreview(MemoryInfo? currentInfo = null)
         {
             try
             {
                 var flags = GetProfileFlags(_selectedProfile);
-                var preview = _memoryService.PreviewMemoryCleaning(flags);
+                var preview = _memoryService.PreviewMemoryCleaning(flags, currentInfo);
                 CleanupPreviewText = $"This profile will free approximately {preview.EstimatedFreeMB} MB";
             }
             catch (Exception ex)
@@ -702,6 +808,7 @@ namespace OmenCore.ViewModels
 
             _autoCleanCheckIntervalSeconds = checkSeconds;
             OnPropertyChanged(nameof(AutoCleanCheckIntervalText));
+            OnPropertyChanged(nameof(AutoCleanCooldownText));
 
             if (_autoCleanEnabled)
             {
@@ -721,6 +828,17 @@ namespace OmenCore.ViewModels
             };
         }
 
+        private static int GetAutoCleanCooldownMinutes(MemoryAutoCleanProfile profile)
+        {
+            return profile switch
+            {
+                MemoryAutoCleanProfile.Aggressive => 2,
+                MemoryAutoCleanProfile.Conservative => 10,
+                MemoryAutoCleanProfile.OffPeakOnly => 30,
+                _ => 5
+            };
+        }
+
         private static MemoryAutoCleanProfile ParseAutoCleanProfile(string profileName)
         {
             if (Enum.TryParse<MemoryAutoCleanProfile>(profileName, ignoreCase: true, out var parsed))
@@ -733,22 +851,50 @@ namespace OmenCore.ViewModels
 
         private void AddExcludedProcess()
         {
-            var normalized = NormalizeProcessName(NewExcludedProcessName);
-            if (string.IsNullOrWhiteSpace(normalized))
+            if (TryAddExcludedProcessName(NewExcludedProcessName))
+            {
+                NewExcludedProcessName = string.Empty;
+            }
+        }
+
+        private void AddTopProcessToExclusions(ProcessMemoryInfo? process)
+        {
+            if (process == null || string.IsNullOrWhiteSpace(process.ProcessName))
             {
                 return;
             }
 
-            if (ExcludedProcesses.Any(name => string.Equals(name, normalized, StringComparison.OrdinalIgnoreCase)))
+            if (TryAddExcludedProcessName(process.ProcessName))
             {
-                return;
+                SetStatusDone($"Excluded {NormalizeProcessName(process.ProcessName)} from working-set trims");
+            }
+        }
+
+        private bool TryAddExcludedProcessName(string? processName)
+        {
+            var normalized = NormalizeProcessName(processName);
+            if (string.IsNullOrWhiteSpace(normalized) || IsProcessExcluded(normalized))
+            {
+                return false;
             }
 
             ExcludedProcesses.Add(normalized);
             ResortExcludedProcesses();
             _memoryService.SetExcludedProcessNames(ExcludedProcesses);
-            NewExcludedProcessName = string.Empty;
             PersistSettings();
+            (AddTopProcessToExclusionsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            return true;
+        }
+
+        private bool IsProcessExcluded(string processName)
+        {
+            var normalized = NormalizeProcessName(processName);
+            return ExcludedProcesses.Any(name => string.Equals(name, normalized, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void OnProcessCollectionsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            OnPropertyChanged(nameof(ExclusionGuidanceText));
         }
 
         private void RemoveExcludedProcess()
@@ -763,6 +909,8 @@ namespace OmenCore.ViewModels
             SelectedExcludedProcess = null;
             _memoryService.SetExcludedProcessNames(ExcludedProcesses);
             PersistSettings();
+            (AddTopProcessToExclusionsCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(ExclusionGuidanceText));
         }
 
         private void ResortExcludedProcesses()
@@ -856,10 +1004,10 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(VirtualMemorySummary));
 
                 // Update top memory-consuming processes
-                UpdateTopMemoryHogs();
+                UpdateTopMemoryHogs(info.TotalPhysicalMB);
 
                 // Update cleanup preview
-                UpdateCleanupPreview();
+                UpdateCleanupPreview(info);
             }
             catch (Exception ex)
             {
@@ -894,17 +1042,17 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private void UpdateTopMemoryHogs()
+        private void UpdateTopMemoryHogs(long totalPhysicalMB)
         {
             try
             {
-                var hogs = _memoryService.GetTopMemoryHogs(10);
+                var hogs = _memoryService.GetTopMemoryHogs(10, totalPhysicalMB);
 
                 // Diff update: avoid clear-and-rebuild when the list is stable
                 // Remove stale entries
                 for (int i = TopProcesses.Count - 1; i >= 0; i--)
                 {
-                    if (!hogs.Any(h => h.ProcessName == TopProcesses[i].ProcessName))
+                    if (!hogs.Any(h => HasSameProcessIdentity(h, TopProcesses[i])))
                         TopProcesses.RemoveAt(i);
                 }
 
@@ -915,7 +1063,7 @@ namespace OmenCore.ViewModels
                     int existingIdx = -1;
                     for (int j = 0; j < TopProcesses.Count; j++)
                     {
-                        if (TopProcesses[j].ProcessName == hog.ProcessName)
+                        if (HasSameProcessIdentity(TopProcesses[j], hog))
                         { existingIdx = j; break; }
                     }
 
@@ -939,6 +1087,16 @@ namespace OmenCore.ViewModels
             {
                 _logger.Warn($"Failed to update top memory hogs: {ex.Message}");
             }
+        }
+
+        private static bool HasSameProcessIdentity(ProcessMemoryInfo left, ProcessMemoryInfo right)
+        {
+            if (left.ProcessId > 0 && right.ProcessId > 0)
+            {
+                return left.ProcessId == right.ProcessId;
+            }
+
+            return string.Equals(left.ProcessName, right.ProcessName, StringComparison.OrdinalIgnoreCase);
         }
 
         private void AddMemoryHistorySample(int memoryLoadPercent)
@@ -976,14 +1134,27 @@ namespace OmenCore.ViewModels
 
         private void OpenProcessLocation(ProcessMemoryInfo? process)
         {
-            if (process == null || string.IsNullOrWhiteSpace(process.ExecutablePath))
+            if (process == null)
             {
                 return;
             }
 
             try
             {
-                Process.Start("explorer.exe", $"/select,\"{process.ExecutablePath}\"");
+                var executablePath = process.ExecutablePath;
+                if (string.IsNullOrWhiteSpace(executablePath))
+                {
+                    executablePath = _memoryService.TryResolveExecutablePath(process.ProcessId);
+                    process.ExecutablePath = executablePath;
+                }
+
+                if (string.IsNullOrWhiteSpace(executablePath))
+                {
+                    SetStatusFailed("Process location unavailable");
+                    return;
+                }
+
+                Process.Start("explorer.exe", $"/select,\"{executablePath}\"");
             }
             catch (Exception ex)
             {

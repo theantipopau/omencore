@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "linux-x64",
+    [Alias("SkipBinaryExecution")]
     [switch]$SkipBinaryVersionCheck
 )
 

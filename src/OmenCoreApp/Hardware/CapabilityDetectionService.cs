@@ -91,22 +91,32 @@ namespace OmenCore.Hardware
             _logging?.Info("Phase 1.5: Loading model-specific capabilities...");
             
             var productId = Capabilities.ProductId;
-            
-// First try matching by WMI model name pattern (more accurate for shared ProductIds)
-            var modelNameMatch = ModelCapabilityDatabase.GetCapabilitiesByModelName(Capabilities.ModelName);
-            if (modelNameMatch != null)
+            var modelMatch = ModelCapabilityDatabase.GetPreferredCapabilities(productId, Capabilities.ModelName);
+            if (modelMatch != null)
             {
                 Capabilities.IsKnownModel = true;
-                Capabilities.ModelConfig = modelNameMatch;
-                _logging?.Info($"  ✓ Found model by name pattern: {Capabilities.ModelConfig.ModelName}");
+                Capabilities.ModelConfig = modelMatch;
+                var resolutionSource = ModelCapabilityDatabase.IsAmbiguousProductId(productId)
+                    ? "model-name disambiguation"
+                    : "ProductId";
+                _logging?.Info($"  ✓ Found model by {resolutionSource}: {Capabilities.ModelConfig.ModelName}");
                 _logging?.Info($"    Year: {Capabilities.ModelConfig.ModelYear}, Family: {Capabilities.ModelConfig.Family}");
                 
                 if (Capabilities.ModelConfig.UserVerified)
                 {
                     _logging?.Info($"    ✓ User-verified configuration");
                 }
-                
-                return; // Found by name pattern, skip ProductId lookup
+                else
+                {
+                    _logging?.Warn($"    ⚠ Configuration not yet verified by users");
+                }
+
+                if (!string.IsNullOrEmpty(Capabilities.ModelConfig.Notes))
+                {
+                    _logging?.Info($"    Note: {Capabilities.ModelConfig.Notes}");
+                }
+
+                return;
             }
             
             // Check if model is in the database by ProductId

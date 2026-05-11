@@ -29,6 +29,7 @@ namespace OmenCoreApp.Tests.Services
             public bool IsHoldActive { get; set; }
             public List<FanPreset> AppliedPresets { get; } = new();
             public int ApplyMaxCoolingCount { get; private set; }
+            public int RestoreAutoControlCount { get; private set; }
             public DateTime? LastMaxModeExternalResetUtc { get; set; }
             public string LastMaxModeExternalResetDetails { get; set; } = "No external Max-mode reset detected.";
 
@@ -43,7 +44,11 @@ namespace OmenCoreApp.Tests.Services
             public bool SetFanSpeeds(int cpuPercent, int gpuPercent) => true;
             public bool SetMaxFanSpeed(bool enabled) => true;
             public bool SetPerformanceMode(string modeName) => true;
-            public bool RestoreAutoControl() => true;
+            public bool RestoreAutoControl()
+            {
+                RestoreAutoControlCount++;
+                return true;
+            }
             public virtual IEnumerable<FanTelemetry> ReadFanSpeeds() => new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 1000, DutyCyclePercent = 40 } };
             public void ApplyMaxCooling() { ApplyMaxCoolingCount++; }
             public void ApplyAutoMode() { }
@@ -154,6 +159,43 @@ namespace OmenCoreApp.Tests.Services
             fanService.ActivePresetName.Should().Be(presetB.Name);
             fanService.GetCurrentFanMode().Should().Be("Max");
             controller.ApplyMaxCoolingCount.Should().Be(1);
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void ApplyPreset_AutoWithCurvePayload_DoesNotRestoreBiosDefaults()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+
+            var preset = new FanPreset
+            {
+                Name = "Auto",
+                Mode = FanMode.Auto,
+                Curve = new List<FanCurvePoint>
+                {
+                    new FanCurvePoint { TemperatureC = 45, FanPercent = 30 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 70 }
+                }
+            };
+
+            fanService.ApplyPreset(preset).Should().BeTrue();
+
+            controller.AppliedPresets.Should().ContainSingle(p => p.Name == "Auto");
+            controller.RestoreAutoControlCount.Should().Be(0,
+                "Auto presets with explicit curve payloads are already applied by the controller and must not drop the active thermal policy back to BIOS defaults");
+            fanService.ActivePresetName.Should().Be("Auto");
+            fanService.GetCurrentFanMode().Should().Be("Auto");
+            fanService.IsCurveActive.Should().BeTrue(
+                "explicit Auto curve payloads need a clear fan owner so fans can ramp down as the curve target drops");
 
             logging.Dispose();
         }
@@ -308,6 +350,55 @@ namespace OmenCoreApp.Tests.Services
             report.Should().Contain("HoldStateTransition");
             report.Should().Contain("curveOrHold=");
 
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void FanActivityStateChanged_Fires_WhenCustomCurveStartsAndStops()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController { IsHoldActive = false };
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var states = new List<bool>();
+            fanService.FanActivityStateChanged += (_, active) => states.Add(active);
+
+            fanService.ApplyCustomCurve(new[]
+            {
+                new FanCurvePoint { TemperatureC = 30, FanPercent = 30 },
+                new FanCurvePoint { TemperatureC = 80, FanPercent = 70 }
+            });
+            fanService.DisableCurve();
+
+            states.Should().ContainInOrder(true, false);
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void FanActivityStateChanged_Fires_WhenBackendHoldChangesBetweenCommands()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController { IsHoldActive = false };
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var states = new List<bool>();
+            fanService.FanActivityStateChanged += (_, active) => states.Add(active);
+
+            fanService.ForceSetFanSpeed(40);
+            controller.IsHoldActive = true;
+            fanService.ForceSetFanSpeed(41);
+            controller.IsHoldActive = false;
+            fanService.ForceSetFanSpeed(42);
+
+            states.Should().ContainInOrder(false, true, false);
             logging.Dispose();
         }
     }

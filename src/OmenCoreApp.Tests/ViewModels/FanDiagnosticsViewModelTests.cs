@@ -89,6 +89,8 @@ namespace OmenCoreApp.Tests.ViewModels
 
                 return Task.FromResult(result);
             }
+
+            public bool RestoreFanControlAfterCalibration() => true;
         }
 
         [Fact]

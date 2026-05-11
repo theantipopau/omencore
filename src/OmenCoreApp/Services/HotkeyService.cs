@@ -203,6 +203,24 @@ namespace OmenCore.Services
                 }
             }
 
+            // Skip if this action is already queued for delayed registration.
+            foreach (var pending in _pendingHotkeys)
+            {
+                if (pending.Action == action)
+                {
+                    _logging.Debug($"Hotkey {action} already queued — skipping duplicate");
+                    return true;
+                }
+            }
+
+            // Prevent conflicting registrations for the same key chord.
+            if (_registeredHotkeys.Values.Any(existing => existing.Modifiers == modifiers && existing.Key == key && existing.Action != action) ||
+                _pendingHotkeys.Any(existing => existing.Modifiers == modifiers && existing.Key == key && existing.Action != action))
+            {
+                _logging.Warn($"Failed to register hotkey: {modifiers}+{key} for {action}, chord is already bound to a different action");
+                return false;
+            }
+
             if (_windowHandle == IntPtr.Zero)
             {
                 // Queue for later registration

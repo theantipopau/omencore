@@ -35,6 +35,7 @@ namespace OmenCoreApp.Tests.Services
             cfg.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
             cfg.KeyboardType.Should().Be(KeyboardType.FourZone);
             cfg.UserVerified.Should().BeFalse();
+            cfg.Notes.Should().Contain("6G103EA");
         }
 
         [Fact]
@@ -90,6 +91,18 @@ namespace OmenCoreApp.Tests.Services
             cfg.PreferredMethod.Should().Be(KeyboardMethod.HidPerKey);
             cfg.KeyboardType.Should().Be(KeyboardType.PerKeyRgb);
             cfg.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetConfigByModelName_ReturnsIntelAm0Fallback_ForIssue124()
+        {
+            var cfg = KeyboardModelDatabase.GetConfigByModelName("OMEN Gaming Laptop 16-am0xxx");
+
+            cfg.Should().NotBeNull();
+            cfg!.ProductId.Should().Be("am0xxx_intel_2025_unverified");
+            cfg.KeyboardType.Should().Be(KeyboardType.FourZone);
+            cfg.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
+            cfg.Notes.Should().Contain("GitHub #124");
         }
 
         [Fact]

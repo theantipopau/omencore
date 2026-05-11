@@ -422,6 +422,21 @@ namespace OmenCore
                     mainViewModel.ToggleKeyboardBacklightFromTray();
                 };
 
+                SystemControlViewModel? attachedSystemControl = null;
+                void AttachSystemControlTraySync(SystemControlViewModel? systemControl)
+                {
+                    if (systemControl == null || ReferenceEquals(attachedSystemControl, systemControl))
+                        return;
+
+                    attachedSystemControl = systemControl;
+                    _trayIconService?.SetGpuPowerAvailable(systemControl.GpuPowerBoostAvailable);
+                    systemControl.PropertyChanged += (s, e) =>
+                    {
+                        if (e.PropertyName == nameof(SystemControlViewModel.GpuPowerBoostAvailable))
+                            _trayIconService?.SetGpuPowerAvailable(systemControl.GpuPowerBoostAvailable);
+                    };
+                }
+
                 // Subscribe to MainViewModel mode changes to update tray display
                 mainViewModel.PropertyChanged += (s, e) =>
                 {
@@ -450,30 +465,26 @@ namespace OmenCore
                     {
                         _trayIconService?.SetKeyboardBrightness(mainViewModel.CurrentKeyboardBrightness);
                     }
+                    else if (e.PropertyName == nameof(MainViewModel.LoadedSystemControl))
+                    {
+                        AttachSystemControlTraySync(mainViewModel.LoadedSystemControl);
+                    }
                 };
 
-                // Initial sync: force access to SystemControl/Dashboard to load saved modes,
-                // then sync to tray immediately AFTER subscriptions are set up
-                var _ = mainViewModel.Dashboard; // Trigger lazy load
-                var systemControl = mainViewModel.SystemControl; // Trigger lazy load (DetectGpuPowerBoost runs sync in ctor)
-                
-                // Now sync to tray with actual values
+                // Initial tray sync uses MainViewModel's lightweight state. Avoid forcing
+                // Dashboard/SystemControl construction here; those view-models perform
+                // heavier provider probes and should load on first UI/user action.
                 _trayIconService?.UpdateFanMode(mainViewModel.CurrentFanMode);
                 _trayIconService?.UpdateCurvePresetName(mainViewModel.ActiveCurvePresetName);
                 _trayIconService?.UpdatePerformanceMode(mainViewModel.CurrentPerformanceMode);
                 _trayIconService?.UpdateLinkedMode(mainViewModel.IsFanPerformanceLinked);
                 _trayIconService?.UpdateMonitoringHealth(mainViewModel.HardwareMonitoringService.HealthStatus);
                 
-                // Hide GPU Power tray submenu if not supported on this model (e.g., HP Victus)
-                _trayIconService?.SetGpuPowerAvailable(systemControl?.GpuPowerBoostAvailable ?? true);
-                if (systemControl != null)
-                {
-                    systemControl.PropertyChanged += (s, e) =>
-                    {
-                        if (e.PropertyName == nameof(SystemControlViewModel.GpuPowerBoostAvailable))
-                            _trayIconService?.SetGpuPowerAvailable(systemControl.GpuPowerBoostAvailable);
-                    };
-                }
+                // Hide GPU Power tray submenu when model capability data already says it is unsupported.
+                // Exact WMI/EC availability is still resolved when SystemControl is opened or a tray GPU
+                // power command explicitly needs that path.
+                _trayIconService?.SetGpuPowerAvailable(mainViewModel.IsGpuPowerTrayLikelyAvailable);
+                AttachSystemControlTraySync(mainViewModel.LoadedSystemControl);
 
                 mainViewModel.HardwareMonitoringService.HealthStatusChanged += (s, health) =>
                 {
@@ -499,6 +510,17 @@ namespace OmenCore
                     }
                     monSvc.SetTrayOnlyMode(trayOnly);
                 }
+
+                if (mainViewModel.FanService != null)
+                {
+                    mainViewModel.FanService.FanActivityStateChanged += (s, active) =>
+                    {
+                        Dispatcher.InvokeAsync(
+                            UpdateMonitorCadence,
+                            System.Windows.Threading.DispatcherPriority.Background);
+                    };
+                }
+
                 // Defer subscription until the window is actually created (it may not exist yet).
                 Dispatcher.InvokeAsync(() =>
                 {

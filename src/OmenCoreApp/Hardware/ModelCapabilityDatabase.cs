@@ -170,6 +170,12 @@ namespace OmenCore.Hardware
     public static class ModelCapabilityDatabase
     {
         private static readonly Dictionary<string, ModelCapabilities> _knownModels = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> _ambiguousProductIds = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // HP reuses 8BB1 across OMEN 17 and Victus 15-fa1xxx boards, so the WMI
+            // model name is required to select the safer capability profile.
+            "8BB1"
+        };
         
         /// <summary>
         /// Default capabilities used when model is not in the database.
@@ -371,7 +377,7 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false,
                 HasFourZoneRgb = true,
                 UserVerified = false,
-                Notes = "GitHub #121 — Hades 8A43 exact ProductId profile added to avoid model-name-pattern inference."
+                Notes = "GitHub #121 — Hades 8A43 exact ProductId profile added to avoid model-name-pattern inference. HP serial lookup reports OMEN Gaming Laptop 16-n0002ni / 6G103EA."
             });
             
             // OMEN 16 (2023) - wf series
@@ -502,7 +508,6 @@ namespace OmenCore.Hardware
             {
                 ProductId = "8D2F",
                 ModelName = "OMEN 16 (2024) am0xxx AMD",
-                ModelNamePattern = "16-am0",
                 ModelYear = 2024,
                 Family = OmenModelFamily.OMEN16,
                 SupportsFanControlWmi = true,
@@ -516,6 +521,31 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // AMD — no Intel MSR undervolt
                 UserVerified = false,
                 Notes = "GitHub #111 — OMEN Gaming Laptop 16-am0xxx (2024 AMD). Capabilities inferred from 16-xd0 sibling; verify EC fan control before enabling."
+            });
+
+            // OMEN 16 (2025) - am0xxx Intel Core Ultra H + RTX 50-series
+            // GitHub Issue #124: HP Omen 16-am0168ng (Core Ultra 7-255H + RTX 5070)
+            // reports legacy fallback / erratic fans when ProductId is not yet known.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "am0xxx_intel_2025_unverified",
+                ModelName = "OMEN 16 (2025) am0xxx Intel Core Ultra",
+                ModelNamePattern = "16-am0",
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #124 - OMEN Gaming Laptop 16-am0168ng / 16-am0xxx (Intel Core Ultra 7-255H + RTX 5070). ProductId pending; direct EC writes disabled until real hardware confirms register layout."
             });
 
             // OMEN 16 (2025) - am1xxx series (Intel i9-14900HX + RTX 5070 Ti and similar)
@@ -681,9 +711,9 @@ namespace OmenCore.Hardware
             // OMEN 17 Series (17.3" laptops)
             // -----------------------------------------------------------------------------------
 
-            // OMEN 17 (2021) Intel — product ID 8BB1 is also shared with Victus 15-fa1xxx;
-            // the Victus disambiguation entry (8BB1-VICTUS15) is resolved first via
-            // ModelNamePattern matching in CapabilityDetectionService.LoadModelCapabilities().
+            // OMEN 17 (2021) Intel - product ID 8BB1 is also shared with Victus 15-fa1xxx;
+            // this ID is explicitly marked ambiguous so WMI model context can select the
+            // Victus disambiguation entry (8BB1-VICTUS15) when needed.
             AddModel(new ModelCapabilities
             {
                 ProductId = "8BB1",
@@ -699,7 +729,7 @@ namespace OmenCore.Hardware
                 Notes = "8BB1 is shared with Victus 15-fa1xxx; OMEN 17 profile selected when model name lacks 15-fa1 substring"
             });
 
-            // Virtual product ID resolved via ModelNamePattern before ProductId lookup.
+            // Virtual product ID resolved via ModelNamePattern for ambiguous 8BB1 systems.
             // Matches WMI model names containing "15-fa1" (e.g., HP Victus 15-fa1xxx).
             AddModel(new ModelCapabilities
             {
@@ -1077,6 +1107,26 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
+        /// Resolve the best database profile from raw identity inputs.
+        /// Exact ProductId wins unless the ProductId is known to be shared across model families.
+        /// </summary>
+        public static ModelCapabilities? GetPreferredCapabilities(string? productId, string? wmiModelName)
+        {
+            ModelCapabilities? productIdMatch = null;
+            var hasExactProductId = !string.IsNullOrWhiteSpace(productId) &&
+                _knownModels.TryGetValue(productId.Trim(), out productIdMatch);
+
+            if (hasExactProductId && !IsAmbiguousProductId(productId!))
+                return productIdMatch;
+
+            var modelNameMatch = GetCapabilitiesByModelName(wmiModelName ?? string.Empty);
+            if (modelNameMatch != null)
+                return modelNameMatch;
+
+            return hasExactProductId ? productIdMatch : null;
+        }
+
+        /// <summary>
         /// Get capabilities by matching the WMI model name pattern.
         /// Use this when ProductId doesn't accurately identify the model.
         /// </summary>
@@ -1139,6 +1189,11 @@ namespace OmenCore.Hardware
         {
             return !string.IsNullOrEmpty(productId) && 
                    _knownModels.ContainsKey(productId.ToUpperInvariant());
+        }
+
+        public static bool IsAmbiguousProductId(string? productId)
+        {
+            return !string.IsNullOrWhiteSpace(productId) && _ambiguousProductIds.Contains(productId.Trim());
         }
         
         /// <summary>

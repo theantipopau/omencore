@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
@@ -59,6 +60,8 @@ namespace OmenCoreApp.Tests.ViewModels
 
             public Task<FanCalibrationResult> PerformFanCalibrationAsync(int fanIndex, System.Threading.CancellationToken ct = default)
                 => Task.FromResult(new FanCalibrationResult());
+
+            public bool RestoreFanControlAfterCalibration() => true;
 
             public (int rpm, int level) GetCurrentFanState(int fanIndex) => (0, 0);
 
@@ -124,6 +127,22 @@ namespace OmenCoreApp.Tests.ViewModels
         }
 
         [Fact]
+        public void FanOwnershipSummary_ExplainsCurrentFanOwner()
+        {
+            var vm = CreateViewModel();
+
+            vm.FanOwnershipSummary.Should().Contain("firmware owns fan control");
+            vm.FanOwnershipDetail.Should().Contain("Backend: Test");
+
+            vm.ActiveFanMode = "Max";
+            vm.FanOwnershipSummary.Should().Contain("full cooling");
+
+            vm.ActiveFanMode = "Constant";
+            vm.ConstantFanPercent = 42;
+            vm.FanOwnershipSummary.Should().Contain("42%");
+        }
+
+        [Fact]
         public void FanCalibrationStatusText_WhenVerificationServiceMissing_ShowsInitializationReason()
         {
             var vm = CreateViewModel();
@@ -155,6 +174,36 @@ namespace OmenCoreApp.Tests.ViewModels
         }
 
         [Fact]
+        public void BuiltInFanCurves_ReserveNearMaxForHotOperation()
+        {
+            var vm = CreateViewModel();
+
+            var auto = vm.FanPresets.Single(p => p.Name == "Auto").Curve;
+            var extreme = vm.FanPresets.Single(p => p.Name == "Extreme").Curve;
+
+            auto.Where(p => p.TemperatureC <= 80).Should().OnlyContain(p => p.FanPercent < 90,
+                "Auto should not behave like Max at moderate gaming temperatures");
+            extreme.Where(p => p.TemperatureC <= 70).Should().OnlyContain(p => p.FanPercent < 90,
+                "Extreme is the highest non-Max curve, but Max remains the explicit 100% mode");
+            extreme.Single(p => p.FanPercent == 100).TemperatureC.Should().BeGreaterThan(80);
+        }
+
+        [Fact]
+        public void GamingFanCurve_DoesNotReachMaxBeforeHighThermals()
+        {
+            var method = typeof(OmenCore.ViewModels.FanControlViewModel)
+                .GetMethod("GetGamingCurve", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            method.Should().NotBeNull();
+
+            var gaming = ((System.Collections.Generic.List<FanCurvePoint>)method!.Invoke(null, null)!)
+                .OrderBy(p => p.TemperatureC)
+                .ToList();
+
+            gaming.Where(p => p.TemperatureC <= 75).Should().OnlyContain(p => p.FanPercent < 90);
+            gaming.Single(p => p.FanPercent == 100).TemperatureC.Should().BeGreaterThanOrEqualTo(90);
+        }
+
+        [Fact]
         public void QuickFanModeCommands_DoNotChangeUiState_DuringDiagnosticMode()
         {
             var vm = CreateViewModel();
@@ -176,6 +225,82 @@ namespace OmenCoreApp.Tests.ViewModels
             {
                 fanService.ExitDiagnosticMode();
             }
+        }
+
+        [Fact]
+        public void DeleteSelectedPresetCommand_Requeries_WhenSelectedPresetChanges()
+        {
+            var vm = CreateViewModel();
+            var customPreset = new FanPreset
+            {
+                Name = "Field curve",
+                Mode = FanMode.Manual,
+                IsBuiltIn = false,
+                Curve =
+                {
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 30 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 80 }
+                }
+            };
+            var canExecuteChangedCount = 0;
+            vm.FanPresets.Add(customPreset);
+            vm.DeleteSelectedPresetCommand.CanExecuteChanged += (_, _) => canExecuteChangedCount++;
+
+            vm.SelectedPreset = vm.FanPresets.First(p => p.IsBuiltIn);
+
+            vm.CanDeleteSelectedPreset.Should().BeFalse();
+            vm.DeleteSelectedPresetCommand.CanExecute(null).Should().BeFalse();
+
+            vm.SelectedPreset = customPreset;
+
+            vm.CanDeleteSelectedPreset.Should().BeTrue();
+            vm.DeleteSelectedPresetCommand.CanExecute(null).Should().BeTrue();
+            canExecuteChangedCount.Should().BeGreaterThan(0,
+                "the delete button must re-enable when a saved custom curve is selected");
+        }
+
+        [Fact]
+        public void CurrentTemperature_RefreshesSafetyFloorPreview()
+        {
+            var vm = CreateViewModel();
+            vm.CustomFanCurve.Clear();
+            vm.CustomFanCurve.Add(new FanCurvePoint { TemperatureC = 40, FanPercent = 20 });
+            vm.CustomFanCurve.Add(new FanCurvePoint { TemperatureC = 95, FanPercent = 20 });
+            vm.CurrentTemperature = 79;
+
+            var changed = new System.Collections.Generic.List<string>();
+            vm.PropertyChanged += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args.PropertyName))
+                {
+                    changed.Add(args.PropertyName);
+                }
+            };
+
+            vm.CurrentTemperature = 82;
+
+            vm.PredictedFanPercent.Should().Be(20);
+            vm.EffectiveFanPercent.Should().Be(40);
+            vm.IsSafetyFloorActive.Should().BeTrue();
+            vm.SafetyFloorNoticeText.Should().Contain("curve requests 20%");
+            vm.SafetyFloorNoticeText.Should().Contain("command 40%");
+            changed.Should().Contain(nameof(vm.EffectiveFanPercent));
+            changed.Should().Contain(nameof(vm.IsSafetyFloorActive));
+            changed.Should().Contain(nameof(vm.SafetyFloorNoticeText));
+            changed.Should().Contain(nameof(vm.CurveValidationMessage));
+        }
+
+        [Fact]
+        public void CurveValidationMessage_PrioritizesThermalGuard_WhenSafetyFloorIsActive()
+        {
+            var vm = CreateViewModel();
+            vm.CustomFanCurve.Clear();
+            vm.CustomFanCurve.Add(new FanCurvePoint { TemperatureC = 40, FanPercent = 20 });
+            vm.CustomFanCurve.Add(new FanCurvePoint { TemperatureC = 95, FanPercent = 20 });
+            vm.CurrentTemperature = 82;
+
+            vm.CurveValidationMessage.Should().StartWith("Thermal guard active:");
+            vm.CurvePreviewText.Should().Contain("requested 20%, effective 40%");
         }
     }
 }

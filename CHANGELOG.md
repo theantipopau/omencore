@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.6.0] - 2026-05-10 - Lightweight Resource Usage and Reliability Follow-up
+
+### Development Status
+
+- Code-complete with 500/500 tests passing.
+- Late smoke-run blocker fixed: Settings live cadence status bindings no longer attempt TwoWay writeback against read-only `SettingsViewModel` properties.
+- Version metadata corrected to `3.6.0` across the app, hardware worker, Avalonia front end, and installer so startup/version reporting matches packaged release assets.
+- Comprehensive changelog and release summary: [docs/CHANGELOG_v3.6.0.md](docs/CHANGELOG_v3.6.0.md) and [docs/v3.6.0-RELEASE-SUMMARY.md](docs/v3.6.0-RELEASE-SUMMARY.md).
+- Release Branch: `v3.6.0-planning` → production ready pending Linux build asset resolution and packaging validation.
+
+### Added
+
+- Diagnostics now include `resource-footprint.txt` with process footprint, hardware-worker footprint, monitoring cadence reason, recent cadence transitions, fan curve/hold blockers, active background timers, runtime/GC state, and optional subsystem load hints.
+- Diagnostics now include `rgb-control-path.txt` with HP keyboard backend/per-key state, external RGB provider status, and known OMEN RGB conflict processes without waking lazy providers just for export.
+- Diagnostics now include `tuning-safety.txt` with saved CPU undervolt, GPU OC, AMD power-limit, startup restore, pending test-apply, and last-confirmed metadata without waking tuning hardware paths.
+- Settings now exposes live monitoring cadence visibility, including current tier, cadence reason, and active blockers preventing tray-only ultra-low cadence.
+- Dashboard, Fan Control, Performance/System Control, RGB, and installer branding now use a shared first-party visual direction with vector status glyphs for confirmed, degraded, blocked, and overwritten states.
+- Added `qa/v3.6.0-checklist.md` with explicit release-gate rows for CPU/RAM before/after measurements, `resource-footprint.txt` evidence, cadence blocker checks, provider laziness, and restored Linux build validation.
+
+### Changed
+
+- Startup is lighter: tray startup, Dashboard, General, RGB/peripheral providers, and conflict/tuning software scans defer heavier view-model/provider work until the relevant page or action is used.
+- Monitoring cadence ownership is centralized around active, idle, tray-only, overlay, low-overhead, and static-tray sampling policies; obsolete polling-interval runtime/settings paths were removed while legacy config values remain normalized for compatibility.
+- Tray-only/low-overhead sessions can now reduce expensive GPU telemetry refreshes while keeping unified sample flow and fan/temperature telemetry alive.
+- Linux daemon performance hold now treats Default/Balanced readbacks as equivalent and only re-applies on true drift, making hold behavior less sensitive to board/kernel variance.
+- Keyboard lighting apply paths now retry model-specific fallback backends when the active 4-zone backend fails, improving resilience on systems where the preferred RGB path is unstable.
+- Keyboard lighting operations are now serialized across profile/zone/test/brightness/backlight writes, preventing concurrent backend-switch races when multiple RGB paths (manual apply, scenes, temperature RGB, startup restore) overlap.
+- Keyboard brightness and backlight toggles now use the same model-aware fallback retry path as color apply operations, including active-backend swap when fallback succeeds.
+- Memory Optimizer and Settings timers are more demand-driven: Memory telemetry pauses when its tab is hidden, and schedule enforcement only runs while schedule rules exist.
+- Tray quick-popup telemetry refresh is now visible-only: the 1s popup timer starts when the popup is shown, stops when hidden or closed, and appears in diagnostics only while active.
+- The main tray icon refresh loop is now registered in diagnostics, with descriptions that distinguish live temperature-badge redraws from static-icon tooltip/menu refreshes.
+- OSD overlay stats and network refresh timers now register as visible-only work in diagnostics, and OSD update failures are debug-logged instead of silently swallowed.
+- CPU undervolt status polling and EDP throttling mitigation loops now register with diagnostics so tuning page activation and resource exports show those active safety/readback monitors.
+- Temperature-reactive keyboard RGB polling now registers with diagnostics while enabled, unregisters/disposes cleanly on stop, and no longer uses a bare catch for hex-color parsing.
+- Dashboard hardware metrics history is now capped by both age and count, and the monitor-loop power trend calculation avoids a per-sample `TakeLast().ToList()` allocation.
+- Load, Thermal, and GPU voltage/current charts now avoid per-render sample `ToList()` copies when bound to indexable sample collections; GPU voltage/current range calculation also avoids temporary projection lists.
+- Memory Optimizer visible refreshes do less repeated work by reusing the current memory snapshot and resolving process executable paths only when the user opens a process location.
+- Memory Optimizer Auto Clean now exposes a persisted minimum-gap override, with `0` preserving the selected profile default cooldown.
+- Memory Optimizer top-process rows can be added directly to working-set exclusions from the context menu.
+- Memory Optimizer now shows dynamic exclusion guidance that suggests currently high-memory processes not yet excluded, and updates suggestions as exclusions change.
+- Memory Optimizer cleanup results now show richer before/after deltas for physical memory, available memory, standby list, system cache, commit, page file, and modified pages.
+- Memory Optimizer auto-clean is more game-aware: fullscreen and borderless-fullscreen foreground windows now trigger a quieter working-set-only clean unless memory pressure is critical, and the quiet-window behavior is exposed as a persisted Auto Clean toggle.
+- Fan curve previews now show requested vs effective fan duty when the thermal guard raises an unsafe low curve point at high temperatures.
+- Linux diagnostics now flag NVIDIA/SBIOS ACPI platform-request failures and stale `i2c` udev-group warnings from recent kernel logs (Discord: Loco Motivo).
+- Linux daemon service UX now uses a single generated systemd unit for both `--install` and `--generate-service`, and `daemon --status` reports service/config state plus active performance-hold settings.
+- Linux diagnostics now include service/package readiness details for systemd availability, OmenCore unit state, system/user config presence, and the bundle extraction directory.
+- Lighting now exposes RGB control ownership, HP keyboard backend, provider status details, and OMEN Light Studio/Gaming Hub conflict warnings in the page header.
+- Lighting now includes a Restore Keyboard action that reapplies saved HP keyboard colors through the active backend, and startup restore now uses the same zone ordering as manual Apply.
+- Hotkey registration now de-duplicates queued actions and rejects conflicting key-chord mappings earlier, reducing startup/retry timing cases where hotkeys could become flaky or ambiguous.
+- Fan Control now shows a plain-language fan ownership panel so users can see whether firmware, OmenCore Max, constant duty, or a managed curve is currently responsible for fan behavior.
+- Installer wizard artwork was regenerated from the first-party red/blue OmenCore visual generator.
+- Model identity diagnostics now separate the baseboard ProductId used by OmenCore capability lookup from HP's public support product number, making reports like `8A43` / `6G103EA` less ambiguous (Discord: Hades / 8A43).
+
+### Fixed
+
+- Auto fan handoff no longer overwrites explicit Auto curve payloads with BIOS-default restore after Max/policy transitions (Discord: OsamaBiden / BEAM).
+- Auto presets with explicit curve payloads now keep the curve engine active so fan ownership remains clear and fans can ramp down with the curve target (Discord: OsamaBiden / BEAM).
+- Game profile fan/performance actions now apply through services even when the deferred Fan Control and System Control pages have not been opened.
+- Custom curve Delete command state now requeries when the selected saved preset changes (Discord: OsamaBiden / BEAM).
+- GPU power boost readback now differentiates Minimum, Medium, Maximum, and Extended, including Extended mapping in WMI/OGH restore paths (Discord: OsamaBiden / BEAM).
+- WMI custom/manual fan 100% writes now use the protocol ceiling so firmware can clamp to the true hardware maximum instead of the detected classic max level (Discord: OsamaBiden / BEAM).
+- Built-in Auto/Gaming/Extreme fan curves are rebalanced so moderate 70-80C operation no longer behaves like near-Max cooling; explicit Max remains the 100% mode (Discord: Hades / snowfall hateall).
+- The stale runtime Extreme override that forced 100% fans at 75C was removed, so the rebalanced Extreme curve is respected by the actual fan service path (Discord: Hades / snowfall hateall).
+- The Extreme preset card no longer advertises the old 75C full-speed behavior after the 3.6 fan-curve rebalance (Discord: Hades / snowfall hateall).
+- Custom fan curves now send a bounded one-shot wake pulse when positive curve writes are accepted but fan RPM remains stuck at zero, avoiding the manual curve-toggle workaround reported on v3.5.0 (Discord: snowfall hateall).
+- Fan curve editor nodes now keep dragging through fast cursor movement and dense/boundary point layouts by using canvas-level capture and point-reference tracking (Discord: snowfall hateall).
+- Conflict-monitor startup now uses the actual OMEN/Tuning/Monitoring/Optimizer tab indices and no longer starts from Diagnostics.
+- Newly surfaced bare `catch {}` blocks in Settings and WMI monitoring cleanup paths were replaced with typed/logged exception handling.
+- Exact ProductId capability matches now win over broad model-name patterns unless the ProductId is explicitly marked ambiguous, preventing OMEN 16-n0xxx `8A43` systems from being treated as sibling `8A44` machines (Discord: Hades / 8A43).
+- OMEN 16-am0xxx GitHub #124 is safer when ProductId is missing: broad model-name fallback now uses an unverified 2025 Intel Core Ultra / RTX 50 profile with direct EC writes disabled, while exact `8D2F` still resolves to the older AMD profile.
+- Fan calibration now always releases Max/manual fan ownership back to BIOS auto control after completion, cancellation, or failure, preventing the wizard from leaving fans stuck at full speed after the final 100% test (Discord: ZeroMentu).
+- Fan calibration now includes a manual Restore Auto action so users can release calibration/manual fan ownership without restarting if fans still sound pinned high (Discord: ZeroMentu).
+- Linux diagnostics now detect GitHub #123-style 8D41 / RTX 50-series Dynamic Boost disable reports from `nvidia-powerd` and recommend collecting power daemon logs and ACPI data instead of treating the 80W TGP cap as a normal permissions issue.
+
+### Validation
+
+- Latest recorded v3.6.0 validation: full `OmenCoreApp.Tests` pass, 467/467. Earlier Windows app Release build also passed. A restored full solution build is still needed before release because the current `--no-restore` solution build can fail on Linux project assets missing a `net8.0/win-x64` target.
+- Focused diagnostics tests for the new RGB control-path export are pending because the local dotnet run is currently blocked by the sandbox/user-profile usage-limit gate.
+
+---
+
 ## [3.4.0] - 2026-04-27 — Fan Curve Fix, Profile Selector, PrtSc Hook Guard, AV FAQ
 
 ### Scope Freeze

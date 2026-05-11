@@ -68,6 +68,8 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CurrentPerformanceModeName));  // Notify sidebar to update
                     OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
+                    OnPropertyChanged(nameof(PerformanceModeVisualState));
+                    OnPropertyChanged(nameof(PerformanceModeVisualLabel));
                     OnPropertyChanged(nameof(IsQuietMode));
                     OnPropertyChanged(nameof(IsBalancedMode));
                     OnPropertyChanged(nameof(IsPerformanceMode));
@@ -614,6 +616,12 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public string PerformanceModeVisualState => PerformanceModeEcControlAvailable ? "confirmed" : "degraded";
+
+        public string PerformanceModeVisualLabel => PerformanceModeVisualState == "confirmed"
+            ? "Confirmed"
+            : "Degraded";
+
         private string _currentGpuMode = "Detecting...";
         public string CurrentGpuMode
         {
@@ -696,6 +704,8 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged(nameof(IsGpuFullPowerActive));
                     OnPropertyChanged(nameof(ShowGpuFullPowerPill));
                     OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
+                    OnPropertyChanged(nameof(GpuPowerBoostVisualState));
+                    OnPropertyChanged(nameof(GpuPowerBoostVisualLabel));
                 }
             }
         }
@@ -710,9 +720,38 @@ namespace OmenCore.ViewModels
                 {
                     _gpuPowerBoostStatus = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(GpuPowerBoostVisualState));
+                    OnPropertyChanged(nameof(GpuPowerBoostVisualLabel));
                 }
             }
         }
+
+        public string GpuPowerBoostVisualState
+        {
+            get
+            {
+                if (!GpuPowerBoostAvailable ||
+                    GpuPowerBoostStatus.StartsWith("Failed", StringComparison.OrdinalIgnoreCase) ||
+                    GpuPowerBoostStatus.StartsWith("Not supported", StringComparison.OrdinalIgnoreCase) ||
+                    GpuPowerBoostStatus.StartsWith("Not available", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "blocked";
+                }
+
+                return GpuPowerBoostStatus.Contains("detected", StringComparison.OrdinalIgnoreCase) ||
+                       GpuPowerBoostStatus.Contains("restored", StringComparison.OrdinalIgnoreCase) ||
+                       GpuPowerBoostStatus.Contains("applied", StringComparison.OrdinalIgnoreCase)
+                    ? "confirmed"
+                    : "degraded";
+            }
+        }
+
+        public string GpuPowerBoostVisualLabel => GpuPowerBoostVisualState switch
+        {
+            "blocked" => "Blocked",
+            "degraded" => "Degraded",
+            _ => "Confirmed"
+        };
         
         public string GpuPowerBoostDescription => GpuPowerBoostLevel switch
         {
@@ -3114,14 +3153,18 @@ namespace OmenCore.ViewModels
             // Try WMI BIOS first (preferred)
             if (_wmiBios != null && _wmiBios.IsAvailable)
             {
-                var gpuPower = _wmiBios.GetGpuPower();
+                var gpuPower = _wmiBios.GetGpuPowerDetailed();
                 if (gpuPower.HasValue)
                 {
                     GpuPowerBoostAvailable = true;
-                    
+
                     // Detect current state for status display
                     string detectedLevel;
-                    if (gpuPower.Value.customTgp && gpuPower.Value.ppab)
+                    if (gpuPower.Value.customTgp && gpuPower.Value.ppabLevel >= 2)
+                    {
+                        detectedLevel = "Extended";
+                    }
+                    else if (gpuPower.Value.customTgp && gpuPower.Value.ppabLevel >= 1)
                     {
                         detectedLevel = "Maximum";
                     }
@@ -3522,6 +3565,7 @@ namespace OmenCore.ViewModels
                     "Minimum" => HpWmiBios.GpuPowerLevel.Minimum,
                     "Medium" => HpWmiBios.GpuPowerLevel.Medium,
                     "Maximum" => HpWmiBios.GpuPowerLevel.Maximum,
+                    "Extended" => HpWmiBios.GpuPowerLevel.Extended3,
                     _ => HpWmiBios.GpuPowerLevel.Medium
                 };
 
@@ -3541,6 +3585,7 @@ namespace OmenCore.ViewModels
                                 "Minimum" => "✓ Minimum (Base TGP only) - Restored",
                                 "Medium" => "✓ Medium (Custom TGP) - Restored",
                                 "Maximum" => "✓ Maximum (Dynamic Boost) - Restored",
+                                "Extended" => "✓ Extended (PPAB+) - Restored",
                                 _ => $"✓ {savedLevel} - Restored"
                             }
                             : "⚠️ GPU power restore attempted but BIOS readback shows no change";
@@ -3557,6 +3602,7 @@ namespace OmenCore.ViewModels
                     "Minimum" => 0,
                     "Medium" => 1,
                     "Maximum" => 2,
+                    "Extended" => 3,
                     _ => 1
                 };
                 
@@ -3591,6 +3637,7 @@ namespace OmenCore.ViewModels
                             "Minimum" => 0,
                             "Medium" => 2,
                             "Maximum" => 3,  // Extreme mode enables PPAB +15W
+                            "Extended" => 3,
                             _ => 2
                         };
                         

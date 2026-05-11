@@ -1,6 +1,9 @@
 #define MyAppName "OmenCore"
 #ifndef MyAppVersion
-  #define MyAppVersion "3.5.0"
+  #define MyAppVersion "3.6.0"
+#endif
+#ifndef MyPublishDir
+  #define MyPublishDir "..\\publish\\win-x64"
 #endif
 #define MyAppPublisher "OmenCore Project"
 #define MyAppExeName "OmenCore.exe"
@@ -44,7 +47,7 @@ Name: "autostart"; Description: "Start OmenCore with Windows"; GroupDescription:
 
 [Files]
 ; Self-contained app with embedded .NET runtime - no separate .NET installation needed
-Source: "..\\publish\\win-x64\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyPublishDir}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; PawnIO installer (optional)
 Source: "PawnIO_setup.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall; Tasks: installpawnio; Check: PawnIOInstallerExists
 ; Default config

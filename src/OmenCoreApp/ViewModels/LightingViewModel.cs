@@ -87,6 +87,7 @@ namespace OmenCore.ViewModels
         private string _lastRgbSyncDetail = "No sync has run this session.";
         private System.Windows.Media.SolidColorBrush _lastRgbSyncBrush =
             new(System.Windows.Media.Color.FromRgb(0x75, 0x75, 0x75));
+        private string _keyboardRestoreStatusText = "Ready to restore saved keyboard colors.";
         
         // Performance mode colors
         private string _balancedModeColorHex = "#0096FF"; // Blue
@@ -319,6 +320,24 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public string RgbOwnershipVisualState
+        {
+            get
+            {
+                if (HasRgbConflictWarning)
+                    return "overwritten";
+
+                return ActiveRgbTargetCount > 0 ? "confirmed" : "degraded";
+            }
+        }
+
+        public string RgbOwnershipVisualLabel => RgbOwnershipVisualState switch
+        {
+            "overwritten" => "Overwritten risk",
+            "degraded" => "Degraded",
+            _ => "Confirmed"
+        };
+
         /// <summary>
         /// Active HP keyboard lighting backend path name (e.g. "WMI BIOS", "V2:ColorTable", "EC").
         /// </summary>
@@ -387,7 +406,14 @@ namespace OmenCore.ViewModels
         public string LastRgbSyncSummary
         {
             get => _lastRgbSyncSummary;
-            private set => SetProperty(ref _lastRgbSyncSummary, value);
+            private set
+            {
+                if (SetProperty(ref _lastRgbSyncSummary, value))
+                {
+                    OnPropertyChanged(nameof(LastRgbSyncVisualState));
+                    OnPropertyChanged(nameof(LastRgbSyncVisualLabel));
+                }
+            }
         }
 
         public string LastRgbSyncDetail
@@ -401,6 +427,31 @@ namespace OmenCore.ViewModels
             get => _lastRgbSyncBrush;
             private set => SetProperty(ref _lastRgbSyncBrush, value);
         }
+
+        public string LastRgbSyncVisualState
+        {
+            get
+            {
+                if (LastRgbSyncSummary.StartsWith("Sync failed", StringComparison.OrdinalIgnoreCase))
+                    return "blocked";
+
+                if (LastRgbSyncSummary.StartsWith("Partial", StringComparison.OrdinalIgnoreCase) ||
+                    LastRgbSyncSummary.StartsWith("No RGB", StringComparison.OrdinalIgnoreCase) ||
+                    LastRgbSyncSummary.StartsWith("Ready", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "degraded";
+                }
+
+                return "confirmed";
+            }
+        }
+
+        public string LastRgbSyncVisualLabel => LastRgbSyncVisualState switch
+        {
+            "blocked" => "Blocked",
+            "degraded" => "Degraded",
+            _ => "Confirmed"
+        };
         
         // Razer properties
         private readonly ObservableCollection<RazerDevice> _razerDevices = new();
@@ -551,6 +602,12 @@ namespace OmenCore.ViewModels
                 }
                 return string.Empty;
             }
+        }
+
+        public string KeyboardRestoreStatusText
+        {
+            get => _keyboardRestoreStatusText;
+            private set => SetProperty(ref _keyboardRestoreStatusText, value);
         }
         
         /// <summary>
@@ -1141,6 +1198,7 @@ namespace OmenCore.ViewModels
         
         // 4-Zone Keyboard Commands
         public ICommand ApplyKeyboardColorsCommand { get; }
+        public ICommand RestoreKeyboardLightingCommand { get; }
         public ICommand ApplyAllZonesSameColorCommand { get; }
         public ICommand ApplyQuickColorCommand { get; }
         public ICommand SetZone1ColorCommand { get; }
@@ -1227,6 +1285,7 @@ namespace OmenCore.ViewModels
             
             // 4-Zone Keyboard Commands
             ApplyKeyboardColorsCommand = new AsyncRelayCommand(async _ => await ApplyKeyboardColorsAsync());
+            RestoreKeyboardLightingCommand = new AsyncRelayCommand(async _ => await RestoreKeyboardLightingAsync());
             ApplyAllZonesSameColorCommand = new AsyncRelayCommand(async _ => await ApplyAllZonesSameColorAsync());
             ApplyQuickColorCommand = new AsyncRelayCommand(async param => await ApplyQuickColorAsync(param as string));
             SetZone1ColorCommand = new RelayCommand(_ => OpenColorPickerForZone(1, "WASD"));
@@ -1432,6 +1491,8 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(OpenRgbDeviceCount));
             OnPropertyChanged(nameof(HasOpenRgbDevices));
             OnPropertyChanged(nameof(RgbOwnershipSummary));
+            OnPropertyChanged(nameof(RgbOwnershipVisualState));
+            OnPropertyChanged(nameof(RgbOwnershipVisualLabel));
             OnPropertyChanged(nameof(HpKeyboardActiveBackend));
             OnPropertyChanged(nameof(HasRgbConflictWarning));
             OnPropertyChanged(nameof(RgbConflictWarningText));
@@ -1968,33 +2029,13 @@ namespace OmenCore.ViewModels
             if (_keyboardLightingService == null || !_keyboardLightingService.IsAvailable)
             {
                 _logging.Warn("Keyboard lighting not available");
+                KeyboardRestoreStatusText = "Keyboard lighting is unavailable on this backend.";
                 return;
             }
             
             await ExecuteWithLoadingAsync(async () =>
             {
-                // WMI Zone mapping (per HP BIOS/OmenMon):
-                // WMI Z0 = Right (arrows, nav block, right modifiers)
-                // WMI Z1 = Middle-R (right QWERTY: F6-F12, Y-P area)
-                // WMI Z2 = Middle-L (left QWERTY: F1-F5, Q-T area)  
-                // WMI Z3 = WASD (W/A/S/D keys area)
-                //
-                // UI Zone mapping (user-facing):
-                // Zone1 = WASD (left-most, where WASD is)
-                // Zone2 = Middle-L (left QWERTY area)
-                // Zone3 = Middle-R (right QWERTY area)
-                // Zone4 = Right (arrows, numpad area)
-                //
-                // So we need to reorder: UI [Z1,Z2,Z3,Z4] -> WMI [Z4,Z3,Z2,Z1]
-                var colors = new System.Drawing.Color[]
-                {
-                    ParseDrawingColor(_zone4ColorHex), // WMI Z0 (Right) = UI Zone4
-                    ParseDrawingColor(_zone3ColorHex), // WMI Z1 (Middle-R) = UI Zone3
-                    ParseDrawingColor(_zone2ColorHex), // WMI Z2 (Middle-L) = UI Zone2
-                    ParseDrawingColor(_zone1ColorHex)  // WMI Z3 (WASD) = UI Zone1
-                };
-                
-                await _keyboardLightingService.SetAllZoneColors(colors);
+                await ApplyCurrentKeyboardZonesToBackendAsync();
                 
                 // Save colors to config for persistence
                 SaveKeyboardColorsToConfig();
@@ -2013,8 +2054,45 @@ namespace OmenCore.ViewModels
                 }
                 
                 _logging.Info($"✓ Applied keyboard zone colors: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
+                KeyboardRestoreStatusText = $"Applied via {KeyboardLightingBackend}: Z1 {_zone1ColorHex}, Z2 {_zone2ColorHex}, Z3 {_zone3ColorHex}, Z4 {_zone4ColorHex}.";
                 await Task.CompletedTask;
             }, "Applying keyboard colors...");
+        }
+
+        private async Task RestoreKeyboardLightingAsync()
+        {
+            if (_keyboardLightingService == null || !_keyboardLightingService.IsAvailable)
+            {
+                KeyboardRestoreStatusText = "Keyboard lighting is unavailable; check backend detection or Settings > Hardware.";
+                _logging.Warn("Keyboard lighting restore requested, but no keyboard backend is available");
+                return;
+            }
+
+            await ExecuteWithLoadingAsync(async () =>
+            {
+                LoadKeyboardColorsFromConfig();
+                await ApplyCurrentKeyboardZonesToBackendAsync();
+                KeyboardRestoreStatusText = $"Restored saved keyboard colors via {KeyboardLightingBackend}.";
+                _logging.Info($"Restored keyboard lighting from saved colors via {KeyboardLightingBackend}: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
+            }, "Restoring keyboard lighting...");
+        }
+
+        private Task ApplyCurrentKeyboardZonesToBackendAsync()
+        {
+            return _keyboardLightingService?.SetAllZoneColors(BuildKeyboardZoneColorsForBackend()) ?? Task.CompletedTask;
+        }
+
+        private System.Drawing.Color[] BuildKeyboardZoneColorsForBackend()
+        {
+            // UI Zone1..4 = WASD, middle-left, middle-right, right.
+            // Firmware/WMI expects right, middle-right, middle-left, WASD.
+            return new[]
+            {
+                ParseDrawingColor(_zone4ColorHex),
+                ParseDrawingColor(_zone3ColorHex),
+                ParseDrawingColor(_zone2ColorHex),
+                ParseDrawingColor(_zone1ColorHex)
+            };
         }
         
         private async Task ApplyAllZonesSameColorAsync()
@@ -2182,16 +2260,7 @@ namespace OmenCore.ViewModels
                     return;
                 }
                 
-                // Apply the saved colors
-                var colors = new System.Drawing.Color[]
-                {
-                    ParseDrawingColor(_zone1ColorHex),
-                    ParseDrawingColor(_zone2ColorHex),
-                    ParseDrawingColor(_zone3ColorHex),
-                    ParseDrawingColor(_zone4ColorHex)
-                };
-                
-                await _keyboardLightingService.SetAllZoneColors(colors);
+                await _keyboardLightingService.SetAllZoneColors(BuildKeyboardZoneColorsForBackend());
                 _logging.Info($"✓ Restored keyboard colors on startup: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
             }
             catch (Exception ex)

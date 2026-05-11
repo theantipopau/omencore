@@ -622,12 +622,18 @@ namespace OmenCore.Hardware
                         // Byte 2: DState
                         // Byte 3: PeakTemperature
                         var customTgp = result[0] != 0;
-                        var ppab = result.Length > 1 && result[1] != 0;
+                        var ppabLevel = result.Length > 1 ? result[1] : 0;
+                        var ppab = ppabLevel != 0;
                         
                         int level;
                         string levelName;
                         
-                        if (customTgp && ppab)
+                        if (customTgp && ppabLevel >= 2)
+                        {
+                            level = 3;
+                            levelName = "Extended";
+                        }
+                        else if (customTgp && ppab)
                         {
                             level = 2;
                             levelName = "Maximum";
@@ -643,7 +649,7 @@ namespace OmenCore.Hardware
                             levelName = "Minimum";
                         }
                         
-                        _logging?.Info($"OGH GPU power level via '{cmd}': {levelName} (CustomTGP={customTgp}, PPAB={ppab})");
+                        _logging?.Info($"OGH GPU power level via '{cmd}': {levelName} (CustomTGP={customTgp}, PPAB={ppabLevel})");
                         return (true, level, levelName);
                     }
                 }
@@ -680,6 +686,10 @@ namespace OmenCore.Hardware
                     data[0] = 1; // CustomTgp on
                     data[1] = 1; // PPAB on
                     break;
+                case 3: // Extended - custom TGP + PPAB+
+                    data[0] = 1; // CustomTgp on
+                    data[1] = 2; // PPAB+ for supported RTX 4080/5080-class systems
+                    break;
                 default:
                     data[0] = 1; // Default to medium
                     data[1] = 0;
@@ -713,6 +723,7 @@ namespace OmenCore.Hardware
                 0 => "Minimum",
                 1 => "Medium", 
                 2 => "Maximum",
+                3 => "Extended",
                 _ => "Medium"
             };
             

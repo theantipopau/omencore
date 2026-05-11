@@ -29,7 +29,7 @@ namespace OmenCore.Hardware
     ///
     /// PawnIO is used ONLY for MSR-based throttling detection - NOT for core monitoring.
     /// </summary>
-    public class WmiBiosMonitor : IHardwareMonitorBridge, IDisposable
+    public class WmiBiosMonitor : IHardwareMonitorBridge, IAdaptiveSamplingBridge, IDisposable
     {
         private readonly LoggingService? _logging;
         private readonly HpWmiBios _wmiBios;
@@ -138,10 +138,14 @@ namespace OmenCore.Hardware
         // Battery
         private double _cachedBatteryDischargeRate;
         private bool _batteryMonitoringDisabled;
+        private bool _batteryDischargeRateSupported = true;
         private int _consecutiveZeroBatteryReads;
         private const int MaxZeroBatteryReadsBeforeDisable = 3;
         private DateTime _lastBatteryQuery = DateTime.MinValue;
         private readonly TimeSpan _batteryQueryCooldown = TimeSpan.FromSeconds(10);
+        private DateTime _lastBatteryDischargeRateWarnAt = DateTime.MinValue;
+        private int _suppressedBatteryDischargeRateWarnCount;
+        private static readonly TimeSpan BatteryDischargeRateWarnInterval = TimeSpan.FromMinutes(2);
         
         // NVAPI failure tracking — disable after repeated failures, then auto-recover after cooldown
         private int _nvapiConsecutiveFailures;
@@ -153,6 +157,9 @@ namespace OmenCore.Hardware
         // MSI Afterburner coexistence — read GPU metrics from shared memory instead of NVAPI polling
         private ConflictDetectionService? _afterburnerService;
         private bool _afterburnerCoexistenceActive;
+        private volatile bool _staticTraySamplingMode;
+        private DateTime _lastExpensiveGpuTelemetryUtc = DateTime.MinValue;
+        private static readonly TimeSpan StaticTrayGpuTelemetryInterval = TimeSpan.FromSeconds(30);
 
         // CPU PerformanceCounter — persistent instance avoids 100ms sleep + allocation every poll
         private System.Diagnostics.PerformanceCounter? _cpuPerfCounter;
@@ -266,6 +273,24 @@ namespace OmenCore.Hardware
             _afterburnerService = conflictService;
             _logging?.Info("[WmiBiosMonitor] Afterburner coexistence configured — will auto-activate when shared memory is available");
         }
+
+        public void SetStaticTraySamplingMode(bool enabled)
+        {
+            if (_staticTraySamplingMode == enabled)
+            {
+                return;
+            }
+
+            _staticTraySamplingMode = enabled;
+            if (!enabled)
+            {
+                _lastExpensiveGpuTelemetryUtc = DateTime.MinValue;
+            }
+
+            _logging?.Info(enabled
+                ? "[WmiBiosMonitor] Static tray sampling enabled — expensive GPU telemetry refresh reduced"
+                : "[WmiBiosMonitor] Static tray sampling disabled — full GPU telemetry cadence restored");
+        }
         
         public async Task<MonitoringSample> ReadSampleAsync(CancellationToken token)
         {
@@ -329,7 +354,11 @@ namespace OmenCore.Hardware
             // to the newly-started worker on the next poll cycle.
             if (_tempFallbackMonitor != null)
             {
-                try { _tempFallbackMonitor.Dispose(); } catch { } // Intentional: dispose-path cleanup; swallowing prevents masking the outer exception
+                try { _tempFallbackMonitor.Dispose(); }
+                catch (Exception ex)
+                {
+                    _logging?.Debug($"[WmiBiosMonitor] Temp fallback dispose during restart failed: {ex.Message}");
+                }
                 _tempFallbackMonitor = null;
                 _tempFallbackInitAttempted = false;
                 _modelCpuTempPreferenceLogged = false;
@@ -467,11 +496,15 @@ namespace OmenCore.Hardware
                 // When Afterburner is running, read temp/clocks/power from its
                 // shared memory (zero contention). NVAPI reduced to load+VRAM only.
                 // ═══════════════════════════════════════════════════════════════
+
+                bool shouldRefreshExpensiveGpuTelemetry =
+                    !_staticTraySamplingMode ||
+                    (DateTime.UtcNow - _lastExpensiveGpuTelemetryUtc) >= StaticTrayGpuTelemetryInterval;
                 
                 bool afterburnerProvidedData = false;
                 
                 // Try Afterburner shared memory first (eliminates NVAPI contention)
-                if (_afterburnerService?.IsMsiAfterburnerSharedMemoryAvailable == true)
+                if (shouldRefreshExpensiveGpuTelemetry && _afterburnerService?.IsMsiAfterburnerSharedMemoryAvailable == true)
                 {
                     try
                     {
@@ -560,7 +593,10 @@ namespace OmenCore.Hardware
 
                                     _nvapiConsecutiveFailures = 0;
                                 }
-                                catch { } // Non-critical
+                                catch (Exception ex)
+                                {
+                                    _logging?.Debug($"[WmiBiosMonitor] GPU cache update from Afterburner failed: {ex.Message}");
+                                }
                             }
                         }
                     }
@@ -581,14 +617,14 @@ namespace OmenCore.Hardware
                 
                 // Full NVAPI monitoring when Afterburner is NOT providing data
                 // Auto-recover after cooldown period (RC-1 fix: no longer permanently disabled)
-                if (_nvapiMonitoringDisabled && DateTime.Now >= _nvapiDisabledUntil)
+                if (shouldRefreshExpensiveGpuTelemetry && _nvapiMonitoringDisabled && DateTime.Now >= _nvapiDisabledUntil)
                 {
                     _nvapiMonitoringDisabled = false;
                     _nvapiConsecutiveFailures = 0;
                     _logging?.Info($"[WmiBiosMonitor] NVAPI monitoring re-enabled after {NvapiRecoveryCooldownSeconds}s cooldown");
                 }
 
-                if (!afterburnerProvidedData && _nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
+                if (shouldRefreshExpensiveGpuTelemetry && !afterburnerProvidedData && _nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
                 {
                     try
                     {
@@ -626,6 +662,11 @@ namespace OmenCore.Hardware
                             _logging?.Warn($"[WmiBiosMonitor] NVAPI monitoring suspended for {NvapiRecoveryCooldownSeconds}s after {MaxNvapiFailuresBeforeDisable} consecutive failures: {ex.Message}");
                         }
                     }
+                }
+
+                if (shouldRefreshExpensiveGpuTelemetry)
+                {
+                    _lastExpensiveGpuTelemetryUtc = DateTime.UtcNow;
                 }
                 
                 // ═══════════════════════════════════════════════════════════════
@@ -1004,7 +1045,7 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch
+            catch (Exception)
             {
             }
 
@@ -1801,7 +1842,7 @@ namespace OmenCore.Hardware
         /// </summary>
         private double GetBatteryDischargeRate()
         {
-            if (_batteryMonitoringDisabled) return 0;
+            if (_batteryMonitoringDisabled || !_batteryDischargeRateSupported) return 0;
             
             try
             {
@@ -1818,7 +1859,33 @@ namespace OmenCore.Hardware
             }
             catch (Exception ex)
             {
-                _logging?.Warn($"[WmiBiosMonitor] {nameof(GetBatteryDischargeRate)} failed: {ex.Message}");
+                // Some systems/providers do not expose DischargeRate and throw Invalid query every poll.
+                if (ex.Message.IndexOf("Invalid query", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    _batteryDischargeRateSupported = false;
+                    _logging?.Info($"[WmiBiosMonitor] {nameof(GetBatteryDischargeRate)} unavailable on this system (Invalid query) — disabling discharge-rate polling");
+                    return 0;
+                }
+
+                var now = DateTime.UtcNow;
+                if (now - _lastBatteryDischargeRateWarnAt >= BatteryDischargeRateWarnInterval)
+                {
+                    if (_suppressedBatteryDischargeRateWarnCount > 0)
+                    {
+                        _logging?.Warn($"[WmiBiosMonitor] {nameof(GetBatteryDischargeRate)} failed: {ex.Message} (suppressed {_suppressedBatteryDischargeRateWarnCount} repeats)");
+                        _suppressedBatteryDischargeRateWarnCount = 0;
+                    }
+                    else
+                    {
+                        _logging?.Warn($"[WmiBiosMonitor] {nameof(GetBatteryDischargeRate)} failed: {ex.Message}");
+                    }
+
+                    _lastBatteryDischargeRateWarnAt = now;
+                }
+                else
+                {
+                    _suppressedBatteryDischargeRateWarnCount++;
+                }
             }
             return 0;
         }

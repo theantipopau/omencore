@@ -6,9 +6,12 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
+using OmenCore.Models;
 using OmenCore.Services.KeyboardLighting;
+using OmenCore.Services.Rgb;
 using OmenCore.Utils;
 
 namespace OmenCore.Services.Diagnostics
@@ -24,19 +27,25 @@ namespace OmenCore.Services.Diagnostics
         private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
         private readonly HardwareMonitoringService? _hardwareMonitoringService;
         private readonly FanService? _fanService;
+        private readonly KeyboardLightingService? _keyboardLightingService;
+        private readonly Func<RgbManager?>? _rgbManagerProvider;
 
         public DiagnosticExportService(
             LoggingService logging,
             string logsDirectory,
             ResumeRecoveryDiagnosticsService? resumeDiagnostics = null,
             HardwareMonitoringService? hardwareMonitoringService = null,
-            FanService? fanService = null)
+            FanService? fanService = null,
+            KeyboardLightingService? keyboardLightingService = null,
+            Func<RgbManager?>? rgbManagerProvider = null)
         {
             _logging = logging;
             _logsDirectory = logsDirectory;
             _resumeDiagnostics = resumeDiagnostics;
             _hardwareMonitoringService = hardwareMonitoringService;
             _fanService = fanService;
+            _keyboardLightingService = keyboardLightingService;
+            _rgbManagerProvider = rgbManagerProvider;
         }
 
         /// <summary>
@@ -67,9 +76,12 @@ namespace OmenCore.Services.Diagnostics
                 {
                     CollectLogsAsync(exportPath),
                     CollectSystemInfoAsync(exportPath),
+                    CollectResourceFootprintSnapshotAsync(exportPath, effectiveMonitoringService, effectiveFanService),
                     CollectRuntimePerformanceSnapshotAsync(exportPath),
                     CollectBackgroundTimerSnapshotAsync(exportPath),
+                    CollectRgbControlPathAsync(exportPath),
                     CollectModelIdentityTraceAsync(exportPath),
+                    CollectTuningSafetySnapshotAsync(exportPath),
                     CollectEcStateAsync(exportPath, ecAccess),
                     CollectHardwareInfoAsync(exportPath, hwMonitor),
                     CollectWmiCommandHistoryAsync(exportPath, wmiController),
@@ -94,6 +106,111 @@ namespace OmenCore.Services.Diagnostics
                     message: "Failed to export diagnostics",
                     ex: ex);
                 throw;
+            }
+        }
+
+        private async Task CollectResourceFootprintSnapshotAsync(
+            string exportPath,
+            HardwareMonitoringService? monitoringService,
+            FanService? fanService)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== RESOURCE FOOTPRINT SNAPSHOT ===");
+                sb.AppendLine($"CapturedUtc: {DateTime.UtcNow:O}");
+                sb.AppendLine("Purpose: 3.6 lightweight baseline for idle, tray, OSD, fan-hold, and page-activation measurements.");
+                sb.AppendLine();
+
+                AppendProcessFootprint(sb, Process.GetCurrentProcess(), "OmenCore App");
+
+                sb.AppendLine("[Hardware Worker Processes]");
+                var workerProcesses = GetHardwareWorkerProcesses();
+
+                if (workerProcesses.Count == 0)
+                {
+                    sb.AppendLine("No hardware worker process detected.");
+                }
+                else
+                {
+                    foreach (var worker in workerProcesses)
+                    {
+                        AppendProcessFootprint(sb, worker, worker.ProcessName, disposeProcess: true);
+                    }
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("[Monitoring Cadence]");
+                if (monitoringService == null)
+                {
+                    sb.AppendLine("Monitoring service unavailable.");
+                }
+                else
+                {
+                    sb.AppendLine($"Health: {monitoringService.HealthStatus}");
+                    sb.AppendLine($"Source: {monitoringService.MonitoringSource}");
+                    sb.AppendLine($"LastSampleAgeSeconds: {FormatMaybeInfiniteSeconds(monitoringService.LastSampleAge)}");
+                    sb.AppendLine($"LowOverheadMode: {monitoringService.LowOverheadMode}");
+                    sb.AppendLine($"CurrentCadenceReason: {monitoringService.CurrentCadenceReason}");
+                    var transitions = monitoringService.GetCadenceTransitionsSnapshot();
+                    sb.AppendLine($"CadenceTransitionCount: {transitions.Count}");
+                    foreach (var transition in transitions.TakeLast(5))
+                    {
+                        sb.AppendLine($"  {transition.TimestampUtc:O} | {transition.CadenceMs}ms | {transition.Reason}");
+                    }
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("[Fan Activity Blockers]");
+                if (fanService == null)
+                {
+                    sb.AppendLine("Fan service unavailable.");
+                }
+                else
+                {
+                    sb.AppendLine($"CurveActive: {fanService.IsCurveActive}");
+                    sb.AppendLine($"HoldActive: {fanService.IsHoldActive}");
+                    sb.AppendLine($"CurveOrHoldActive: {fanService.IsCurveOrHoldActive}");
+                    sb.AppendLine($"CommandHistoryCount: {fanService.GetCommandHistorySnapshot().Count}");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("[Background Timers]");
+                var timers = BackgroundTimerRegistry.GetAll();
+                sb.AppendLine($"ActiveTimerCount: {timers.Count}");
+                foreach (var timer in timers)
+                {
+                    sb.AppendLine($"  {timer.Name} | owner={timer.OwnerService} | tier={timer.Tier} | interval={timer.IntervalMs}ms | {timer.Description}");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("[Managed Runtime]");
+                sb.AppendLine($"ManagedMemoryMB: {GC.GetTotalMemory(false) / 1024d / 1024d:F1}");
+                sb.AppendLine($"Gen0Collections: {GC.CollectionCount(0)}");
+                sb.AppendLine($"Gen1Collections: {GC.CollectionCount(1)}");
+                sb.AppendLine($"Gen2Collections: {GC.CollectionCount(2)}");
+                var gcInfo = GC.GetGCMemoryInfo();
+                sb.AppendLine($"HeapSizeMB: {gcInfo.HeapSizeBytes / 1024d / 1024d:F1}");
+                sb.AppendLine($"MemoryLoadMB: {gcInfo.MemoryLoadBytes / 1024d / 1024d:F1}");
+
+                sb.AppendLine();
+                sb.AppendLine("[Optional Subsystem Load Hints]");
+                AppendAssemblyLoadHint(sb, "LibreHardwareMonitor");
+                AppendAssemblyLoadHint(sb, "NvAPI");
+                AppendAssemblyLoadHint(sb, "Afterburner");
+                AppendAssemblyLoadHint(sb, "Corsair");
+                AppendAssemblyLoadHint(sb, "Logitech");
+                AppendAssemblyLoadHint(sb, "Razer");
+                AppendAssemblyLoadHint(sb, "OpenRGB");
+                AppendAssemblyLoadHint(sb, "RGB");
+
+                File.WriteAllText(Path.Combine(exportPath, "resource-footprint.txt"), sb.ToString());
+                _logging.Info("Collected resource footprint snapshot");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect resource footprint snapshot: {ex.Message}");
             }
         }
 
@@ -273,6 +390,159 @@ namespace OmenCore.Services.Diagnostics
             }
         }
 
+        private async Task CollectRgbControlPathAsync(string exportPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== RGB CONTROL PATH SNAPSHOT ===");
+                sb.AppendLine($"CapturedUtc: {DateTime.UtcNow:O}");
+                sb.AppendLine("Purpose: show which RGB backends are detected, initialized, available, or likely overwritten by HP/OMEN software.");
+                sb.AppendLine();
+
+                AppendKeyboardLightingControlPath(sb);
+                AppendRgbProviderControlPath(sb);
+                AppendRgbConflictProcesses(sb);
+
+                File.WriteAllText(Path.Combine(exportPath, "rgb-control-path.txt"), sb.ToString());
+                _logging.Info("Collected RGB control path snapshot");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect RGB control path snapshot: {ex.Message}");
+            }
+        }
+
+        private void AppendKeyboardLightingControlPath(StringBuilder sb)
+        {
+            sb.AppendLine("[HP Keyboard]");
+            if (_keyboardLightingService == null)
+            {
+                sb.AppendLine("Keyboard lighting service unavailable.");
+                sb.AppendLine();
+                return;
+            }
+
+            sb.AppendLine($"Available: {_keyboardLightingService.IsAvailable}");
+            sb.AppendLine($"ActiveBackend: {_keyboardLightingService.BackendType}");
+            sb.AppendLine($"PerKeyActive: {_keyboardLightingService.IsPerKey}");
+            sb.AppendLine($"PerKeyCapableHardware: {_keyboardLightingService.IsPerKeyCapableHardware}");
+            sb.AppendLine();
+        }
+
+        private void AppendRgbProviderControlPath(StringBuilder sb)
+        {
+            sb.AppendLine("[External RGB Providers]");
+            var rgbManager = SafeGetRgbManager();
+            if (rgbManager == null)
+            {
+                sb.AppendLine("RGB manager unavailable or not initialized yet.");
+                sb.AppendLine("Provider startup remains lazy until the Lighting page or an explicit RGB action requests it.");
+                sb.AppendLine();
+                return;
+            }
+
+            var status = rgbManager.GetStatus();
+            sb.AppendLine($"TotalProviders: {status.TotalProviders}");
+            sb.AppendLine($"AvailableProviders: {status.AvailableProviders}");
+            sb.AppendLine($"TotalDevices: {status.TotalDevices}");
+
+            if (status.ProviderStatuses.Count == 0)
+            {
+                sb.AppendLine("No providers registered.");
+                sb.AppendLine();
+                return;
+            }
+
+            foreach (var provider in status.ProviderStatuses.OrderBy(p => p.ProviderName, StringComparer.OrdinalIgnoreCase))
+            {
+                sb.AppendLine($"- {provider.ProviderName} ({provider.ProviderId})");
+                sb.AppendLine($"  ConnectionStatus: {provider.ConnectionStatus}");
+                sb.AppendLine($"  Available: {provider.IsAvailable}");
+                sb.AppendLine($"  Connected: {provider.IsConnected}");
+                sb.AppendLine($"  DeviceCount: {provider.DeviceCount}");
+                sb.AppendLine($"  Detail: {provider.StatusDetail}");
+            }
+
+            sb.AppendLine();
+        }
+
+        private RgbManager? SafeGetRgbManager()
+        {
+            try
+            {
+                return _rgbManagerProvider?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"RGB manager provider failed during diagnostics: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static void AppendRgbConflictProcesses(StringBuilder sb)
+        {
+            sb.AppendLine("[Known HP/OMEN RGB Conflict Processes]");
+            var conflicts = GetRunningRgbConflictProcesses();
+            if (conflicts.Count == 0)
+            {
+                sb.AppendLine("No known HP/OMEN RGB conflict processes detected.");
+            }
+            else
+            {
+                sb.AppendLine("Detected processes that may overwrite OmenCore keyboard lighting:");
+                foreach (var conflict in conflicts)
+                {
+                    sb.AppendLine($"- {conflict}");
+                }
+            }
+
+            sb.AppendLine();
+        }
+
+        private static List<string> GetRunningRgbConflictProcesses()
+        {
+            var conflicts = new List<string>();
+            var candidates = new[]
+            {
+                ("OmenLightStudio", "OMEN Light Studio"),
+                ("HPOmenLightStudio", "OMEN Light Studio"),
+                ("OmenCommandCenterBackground", "OMEN Gaming Hub"),
+                ("HPOmenCommandCenter", "OMEN Gaming Hub"),
+            };
+
+            foreach (var (processName, displayName) in candidates)
+            {
+                Process[] processes;
+                try
+                {
+                    processes = Process.GetProcessesByName(processName);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (processes.Length > 0 && !conflicts.Contains(displayName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        conflicts.Add(displayName);
+                    }
+                }
+                finally
+                {
+                    foreach (var process in processes)
+                    {
+                        process.Dispose();
+                    }
+                }
+            }
+
+            return conflicts;
+        }
+
         private async Task CollectRuntimePerformanceSnapshotAsync(string exportPath)
         {
             try
@@ -404,6 +674,89 @@ namespace OmenCore.Services.Diagnostics
             age.TotalMinutes >= 1 ? $"{age.TotalMinutes:F1}min" :
             $"{age.TotalSeconds:F0}s";
 
+        private static void AppendProcessFootprint(
+            StringBuilder sb,
+            Process process,
+            string label,
+            bool disposeProcess = false)
+        {
+            try
+            {
+                sb.AppendLine($"[{label}]");
+                sb.AppendLine($"Name: {SafeGet(() => process.ProcessName, "Unavailable")}");
+                sb.AppendLine($"PID: {SafeGet(() => process.Id.ToString(), "Unavailable")}");
+                sb.AppendLine($"StartTime: {SafeGet(() => process.StartTime.ToString("O"), "Unavailable")}");
+                sb.AppendLine($"UptimeSeconds: {SafeGet(() => (DateTime.Now - process.StartTime).TotalSeconds.ToString("F0"), "Unavailable")}");
+                sb.AppendLine($"TotalProcessorTime: {SafeGet(() => process.TotalProcessorTime.ToString(), "Unavailable")}");
+                sb.AppendLine($"AverageCpuPercentSinceStart: {SafeGet(() => CalculateAverageCpuPercentSinceStart(process).ToString("F2"), "Unavailable")}");
+                sb.AppendLine($"Threads: {SafeGet(() => process.Threads.Count.ToString(), "Unavailable")}");
+                sb.AppendLine($"Handles: {SafeGet(() => process.HandleCount.ToString(), "Unavailable")}");
+                sb.AppendLine($"WorkingSetMB: {SafeGet(() => (process.WorkingSet64 / 1024d / 1024d).ToString("F1"), "Unavailable")}");
+                sb.AppendLine($"PrivateMemoryMB: {SafeGet(() => (process.PrivateMemorySize64 / 1024d / 1024d).ToString("F1"), "Unavailable")}");
+                sb.AppendLine();
+            }
+            finally
+            {
+                if (disposeProcess)
+                {
+                    process.Dispose();
+                }
+            }
+        }
+
+        private static List<Process> GetHardwareWorkerProcesses()
+        {
+            var matches = new List<Process>();
+
+            foreach (var process in Process.GetProcesses())
+            {
+                var keep = false;
+                try
+                {
+                    keep = process.ProcessName.Contains("HardwareWorker", StringComparison.OrdinalIgnoreCase)
+                        || process.ProcessName.Equals("OmenCore.HardwareWorker", StringComparison.OrdinalIgnoreCase);
+
+                    if (keep)
+                    {
+                        matches.Add(process);
+                    }
+                }
+                catch
+                {
+                    keep = false;
+                }
+                finally
+                {
+                    if (!keep)
+                    {
+                        process.Dispose();
+                    }
+                }
+            }
+
+            return matches
+                .OrderBy(p => SafeGet(() => p.ProcessName, string.Empty), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static double CalculateAverageCpuPercentSinceStart(Process process)
+        {
+            var elapsedSeconds = Math.Max((DateTime.Now - process.StartTime).TotalSeconds, 0.001);
+            return process.TotalProcessorTime.TotalSeconds / elapsedSeconds / Math.Max(Environment.ProcessorCount, 1) * 100d;
+        }
+
+        private static string FormatMaybeInfiniteSeconds(TimeSpan value)
+        {
+            return value == TimeSpan.MaxValue ? "No successful sample yet" : value.TotalSeconds.ToString("F1");
+        }
+
+        private static void AppendAssemblyLoadHint(StringBuilder sb, string token)
+        {
+            var loaded = AppDomain.CurrentDomain.GetAssemblies()
+                .Any(a => (a.GetName().Name ?? string.Empty).Contains(token, StringComparison.OrdinalIgnoreCase));
+            sb.AppendLine($"{token}: {(loaded ? "loaded" : "not loaded")}");
+        }
+
         private static string SafeGet(Func<string> getter, string fallback)
         {
             try
@@ -429,6 +782,89 @@ namespace OmenCore.Services.Diagnostics
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to collect model identity resolution trace: {ex.Message}");
+            }
+        }
+
+        private async Task CollectTuningSafetySnapshotAsync(string exportPath)
+        {
+            try
+            {
+                var (config, source) = LoadConfigForDiagnostics();
+                var undervolt = config.Undervolt ?? new UndervoltPreferences();
+                var gpuOc = config.GpuOc ?? new GpuOcSettings();
+
+                var sb = new StringBuilder();
+                sb.AppendLine("=== TUNING SAFETY SNAPSHOT ===");
+                sb.AppendLine($"CapturedUtc: {DateTime.UtcNow:O}");
+                sb.AppendLine("Purpose: Export saved tuning safety state without waking System Control, EC, MSR, NVAPI, or OGH paths.");
+                sb.AppendLine($"Config source: {source}");
+                sb.AppendLine();
+
+                sb.AppendLine("[Startup Hardware Restore]");
+                sb.AppendLine($"EnableStartupHardwareRestore: {FormatBool(config.EnableStartupHardwareRestore)}");
+                sb.AppendLine($"AllowStartupRestoreOnOmen16OrVictus: {FormatBool(config.AllowStartupRestoreOnOmen16OrVictus)}");
+                sb.AppendLine($"LastPerformanceModeName: {FormatValue(config.LastPerformanceModeName)}");
+                sb.AppendLine($"LastGpuPowerBoostLevel: {FormatValue(config.LastGpuPowerBoostLevel)}");
+                sb.AppendLine($"LastCpuPl1Watts: {FormatNullableWatts(config.LastCpuPl1Watts)}");
+                sb.AppendLine($"LastCpuPl2Watts: {FormatNullableWatts(config.LastCpuPl2Watts)}");
+                sb.AppendLine($"LastTccOffset: {FormatNullableDegrees(config.LastTccOffset)}");
+                sb.AppendLine();
+
+                sb.AppendLine("[CPU Undervolt / Curve Optimizer]");
+                sb.AppendLine($"ApplyOnStartup: {FormatBool(undervolt.ApplyOnStartup)}");
+                sb.AppendLine($"PendingTestApply: {FormatBool(undervolt.PendingTestApply)}");
+                sb.AppendLine($"StartupPendingConfirmation: {FormatBool(undervolt.StartupPendingConfirmation)}");
+                sb.AppendLine($"RecoveryRequiredOnNextStartup: {FormatBool(TuningStartupRecoveryGuard.ShouldSafeReset(undervolt))}");
+                sb.AppendLine($"LastStartupHadUnconfirmedState: {FormatBool(undervolt.LastStartupHadUnconfirmedState)}");
+                sb.AppendLine($"RespectExternalControllers: {FormatBool(undervolt.RespectExternalControllers)}");
+                sb.AppendLine($"SavedDefaultOffset: {FormatUndervoltOffset(undervolt.DefaultOffset)}");
+                sb.AppendLine($"PerCoreEnabled: {FormatBool(undervolt.EnablePerCoreUndervolt)}");
+                sb.AppendLine($"SavedPerCoreOffsets: {FormatPerCoreOffsets(undervolt.PerCoreOffsetsMv)}");
+                sb.AppendLine($"LastConfirmedOffset: {FormatUndervoltOffset(undervolt.LastConfirmedOffset)}");
+                sb.AppendLine($"LastConfirmedAtUtc: {FormatDate(undervolt.LastConfirmedAtUtc)}");
+                sb.AppendLine();
+
+                sb.AppendLine("[GPU Overclock]");
+                sb.AppendLine($"ApplyOnStartup: {FormatBool(gpuOc.ApplyOnStartup)}");
+                sb.AppendLine($"PendingTestApply: {FormatBool(gpuOc.PendingTestApply)}");
+                sb.AppendLine($"StartupPendingConfirmation: {FormatBool(gpuOc.StartupPendingConfirmation)}");
+                sb.AppendLine($"RecoveryRequiredOnNextStartup: {FormatBool(TuningStartupRecoveryGuard.ShouldSafeReset(gpuOc))}");
+                sb.AppendLine($"LastStartupHadUnconfirmedState: {FormatBool(gpuOc.LastStartupHadUnconfirmedState)}");
+                sb.AppendLine($"SavedCoreClockOffsetMHz: {gpuOc.CoreClockOffsetMHz:+0;-0;0}");
+                sb.AppendLine($"SavedMemoryClockOffsetMHz: {gpuOc.MemoryClockOffsetMHz:+0;-0;0}");
+                sb.AppendLine($"SavedPowerLimitPercent: {gpuOc.PowerLimitPercent}%");
+                sb.AppendLine($"SavedVoltageOffsetMv: {FormatNullableMillivolts(gpuOc.VoltageOffsetMv)}");
+                sb.AppendLine($"LastConfirmedCoreClockOffsetMHz: {gpuOc.LastConfirmedCoreClockOffsetMHz:+0;-0;0}");
+                sb.AppendLine($"LastConfirmedMemoryClockOffsetMHz: {gpuOc.LastConfirmedMemoryClockOffsetMHz:+0;-0;0}");
+                sb.AppendLine($"LastConfirmedPowerLimitPercent: {gpuOc.LastConfirmedPowerLimitPercent}%");
+                sb.AppendLine($"LastConfirmedVoltageOffsetMv: {gpuOc.LastConfirmedVoltageOffsetMv:+0;-0;0} mV");
+                sb.AppendLine($"LastConfirmedAtUtc: {FormatDate(gpuOc.LastConfirmedAtUtc)}");
+                sb.AppendLine($"SelectedGpuOcProfile: {FormatValue(config.LastGpuOcProfileName)}");
+                sb.AppendLine($"CustomGpuOcProfileCount: {config.GpuOcProfiles?.Count ?? 0}");
+                sb.AppendLine();
+
+                sb.AppendLine("[AMD Power Limits]");
+                if (config.AmdPowerLimits == null)
+                {
+                    sb.AppendLine("SavedAmdPowerLimits: none");
+                }
+                else
+                {
+                    sb.AppendLine($"StapmLimitWatts: {config.AmdPowerLimits.StapmLimitWatts} W");
+                    sb.AppendLine($"TempLimitC: {config.AmdPowerLimits.TempLimitC} C");
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "tuning-safety.txt"), sb.ToString());
+                _logging.Info("Collected tuning safety snapshot");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.WarnWithContext(
+                    component: "DiagnosticExportService",
+                    operation: "CollectTuningSafetySnapshotAsync",
+                    message: "Failed to collect tuning safety snapshot",
+                    ex: ex);
             }
         }
 
@@ -954,6 +1390,66 @@ namespace OmenCore.Services.Diagnostics
                 _logging.Warn($"[DiagnosticExportService] {nameof(GetAfterburnerStatus)} failed: {ex.Message}");
             }
             return "Not Installed";
+        }
+
+        private static (AppConfig Config, string Source) LoadConfigForDiagnostics()
+        {
+            var configDirectory = Environment.GetEnvironmentVariable("OMENCORE_CONFIG_DIR");
+            if (string.IsNullOrWhiteSpace(configDirectory))
+            {
+                configDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "OmenCore");
+            }
+
+            var configPath = Path.Combine(configDirectory, "config.json");
+            if (!File.Exists(configPath))
+                return (DefaultConfiguration.Create(), $"defaults (config not found: {configPath})");
+
+            var json = File.ReadAllText(configPath);
+            var config = JsonSerializer.Deserialize<AppConfig>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            return (config ?? DefaultConfiguration.Create(), configPath);
+        }
+
+        private static string FormatBool(bool value) => value ? "yes" : "no";
+
+        private static string FormatValue(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? "not set" : value.Trim();
+
+        private static string FormatDate(DateTime? value) =>
+            value.HasValue ? value.Value.ToUniversalTime().ToString("O") : "never";
+
+        private static string FormatNullableWatts(int? value) =>
+            value.HasValue ? $"{value.Value} W" : "not set";
+
+        private static string FormatNullableDegrees(int? value) =>
+            value.HasValue ? $"{value.Value} C" : "not set";
+
+        private static string FormatNullableMillivolts(int? value) =>
+            value.HasValue ? $"{value.Value:+0;-0;0} mV" : "not set";
+
+        private static string FormatUndervoltOffset(UndervoltOffset? offset)
+        {
+            return offset == null
+                ? "not set"
+                : $"Core {offset.CoreMv:+0;-0;0} mV, Cache {offset.CacheMv:+0;-0;0} mV";
+        }
+
+        private static string FormatPerCoreOffsets(int?[]? offsets)
+        {
+            if (offsets == null || offsets.Length == 0)
+                return "none";
+
+            var active = offsets.Where(offset => offset.HasValue).ToArray();
+            if (active.Length == 0)
+                return $"configured ({offsets.Length} slots), all disabled";
+
+            var min = active.Min(offset => offset!.Value);
+            var max = active.Max(offset => offset!.Value);
+            return $"{active.Length}/{offsets.Length} active, range {min:+0;-0;0} to {max:+0;-0;0} mV";
         }
     }
 

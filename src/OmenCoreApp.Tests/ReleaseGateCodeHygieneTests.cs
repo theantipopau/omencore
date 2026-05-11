@@ -45,7 +45,7 @@ namespace OmenCoreApp.Tests
         // in the same PR that edits the file, with a comment explaining the shift.
         private static readonly HashSet<string> KnownBareCatchViolations = new(StringComparer.Ordinal)
         {
-            "App.xaml.cs:605", // shifted from :596
+            "App.xaml.cs:627", // shifted from :605 after 3.6 planning branch UI wiring edits
             "App.xaml.cs:1057",
             "AmdGpuService.cs:371",
             "EcAccessFactory.cs:216",
@@ -84,9 +84,9 @@ namespace OmenCoreApp.Tests
             "WmiBiosMonitor.cs:1007",
             "WmiBiosMonitor.cs:1478",
             "WmiBiosMonitor.cs:1521",
-            "WmiFanController.cs:157", // shifted from :149 (was :137) after alias consolidation
-            "WmiFanController.cs:171", // shifted from :163 (was :151) after alias consolidation
-            "WmiFanController.cs:185", // shifted from :177 (was :165) after alias consolidation
+            "WmiFanController.cs:168", // shifted from :157 after 3.6 fan percentage helper
+            "WmiFanController.cs:182", // shifted from :171 after 3.6 fan percentage helper
+            "WmiFanController.cs:196", // shifted from :185 after 3.6 fan percentage helper
             "DiagnosticLoggingService.cs:97",
             "DiagnosticLoggingService.cs:333",
             "DiagnosticLoggingService.cs:336",

@@ -210,7 +210,7 @@ namespace OmenCore.Services.KeyboardLighting
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
                 ModelYear = 2022,
                 UserVerified = false,
-                Notes = "GitHub #121 — Hades 8A43 exact ProductId mapping to avoid Unknown keyboard fallback"
+                Notes = "GitHub #121 - Hades 8A43 exact ProductId mapping to avoid Unknown keyboard fallback. HP serial lookup reports OMEN Gaming Laptop 16-n0002ni / 6G103EA."
             });
             
             // OMEN 16 (2023) - May use new interface
@@ -275,6 +275,20 @@ namespace OmenCore.Services.KeyboardLighting
                 ModelYear = 2024,
                 UserVerified = false,
                 Notes = "GitHub #111 — OMEN Gaming Laptop 16-am0xxx. Keyboard config mirrors xd0/ap0 sibling generation."
+            });
+
+            // OMEN 16-am0xxx (2025 Intel Core Ultra + RTX 50-series) - ProductId pending
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "am0xxx_intel_2025_unverified",
+                ModelName = "OMEN 16-am0xxx (2025) Intel Core Ultra",
+                ModelNamePattern = "16-am0",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
+                ModelYear = 2025,
+                UserVerified = false,
+                Notes = "GitHub #124 - OMEN 16-am0168ng / 16-am0xxx Intel Core Ultra 7-255H + RTX 5070. ProductId pending; 4-zone keyboard profile inferred from adjacent OMEN 16 generation."
             });
 
             // OMEN 16 (2025) - ap0xxx series (AMD Ryzen AI + RTX 50-series)

@@ -3,11 +3,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
     public class UndervoltService : IDisposable
     {
+        private const string MonitorTimerRegistryName = "UndervoltStatusMonitor";
+
         private readonly ICpuUndervoltProvider _provider;
         private readonly LoggingService _logging;
         private readonly TimeSpan _pollInterval;
@@ -42,17 +45,25 @@ namespace OmenCore.Services
             Stop();
             _cts = new CancellationTokenSource();
             _ = Task.Run(() => MonitorLoopAsync(_cts.Token));
+            BackgroundTimerRegistry.Register(
+                MonitorTimerRegistryName,
+                nameof(UndervoltService),
+                "CPU undervolt status/readback polling",
+                (int)_pollInterval.TotalMilliseconds,
+                BackgroundTimerTier.Optional);
         }
 
         public void Stop()
         {
             if (_cts == null)
             {
+                BackgroundTimerRegistry.Unregister(MonitorTimerRegistryName);
                 return;
             }
             _cts.Cancel();
             _cts.Dispose();
             _cts = null;
+            BackgroundTimerRegistry.Unregister(MonitorTimerRegistryName);
         }
 
         public async Task ApplyAsync(UndervoltOffset offset, CancellationToken token = default)

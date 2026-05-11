@@ -89,6 +89,15 @@ namespace OmenCore.Services
         private List<TelemetryDataState> _lastFanRpmStates = new();
         private const int FanSpeedChangeThreshold = 50; // RPM change to trigger UI update
         private const int RpmReadbackUnavailableThresholdSeconds = 10;
+        private const int CurveZeroRpmWakeKickThresholdSeconds = RpmReadbackUnavailableThresholdSeconds + 2;
+        private const int CurveZeroRpmWakeKickCooldownSeconds = 60;
+        private const int CurveZeroRpmWakeKickMinPercent = 35;
+        private const int CurveZeroRpmWakeKickMaxPercent = 60;
+        private const double CurveZeroRpmWakeKickMinTempC = 55.0;
+        private DateTime _zeroRpmCurveCommandSince = DateTime.MinValue;
+        private DateTime _lastCurveZeroRpmWakeKick = DateTime.MinValue;
+        private int _lastRawPrimaryFanRpm = -1;
+        private int _lastReportedPrimaryFanDutyPercent = -1;
         // Require two consecutive reads to accept a large non-zero RPM change to avoid
         // showing spurious transient readings (single-sample noise). Zero RPM is
         // accepted immediately so stopped-fan state is visible to users.
@@ -108,6 +117,7 @@ namespace OmenCore.Services
         private readonly object _fanCommandHistoryLock = new();
         private readonly Queue<FanCommandHistoryEntry> _fanCommandHistory = new();
         private bool? _lastRecordedHoldActive;
+        private bool? _lastNotifiedCurveOrHoldActive;
         
         // Thermal protection - override Auto mode when temps get too high
         // v2.8.0: Raised thresholds — 80°C/85°C was too aggressive for gaming laptops
@@ -355,6 +365,7 @@ namespace OmenCore.Services
             };
 
             EnqueueFanCommandEntry(entry);
+            NotifyFanActivityStateChangedIfNeeded();
         }
 
         private void EnqueueFanCommandEntry(FanCommandHistoryEntry entry)
@@ -369,21 +380,33 @@ namespace OmenCore.Services
             }
         }
 
-            /// <summary>
-            /// Human-readable description of the current fan control state for diagnostics/UI.
-            /// Mirrors the implicit state machine: thermal > diagnostic > curve > preset > auto.
-            /// </summary>
-            public string FanControlStateDescription
+        private void NotifyFanActivityStateChangedIfNeeded()
+        {
+            var active = IsCurveOrHoldActive;
+            if (_lastNotifiedCurveOrHoldActive.HasValue && _lastNotifiedCurveOrHoldActive.Value == active)
             {
-                get
-                {
-                    if (_thermalProtectionActive) return "Thermal protection (overriding)";
-                    if (_diagnosticModeActive)    return "Diagnostic mode (curve suspended)";
-                    if (IsCurveActive)            return $"Fan curve active — {_activePreset?.Name ?? "custom"}";
-                    if (_activePreset != null)    return $"Preset: {_activePreset.Name}";
-                    return "BIOS auto control";
-                }
+                return;
             }
+
+            _lastNotifiedCurveOrHoldActive = active;
+            FanActivityStateChanged?.Invoke(this, active);
+        }
+
+        /// <summary>
+        /// Human-readable description of the current fan control state for diagnostics/UI.
+        /// Mirrors the implicit state machine: thermal > diagnostic > curve > preset > auto.
+        /// </summary>
+        public string FanControlStateDescription
+        {
+            get
+            {
+                if (_thermalProtectionActive) return "Thermal protection (overriding)";
+                if (_diagnosticModeActive)    return "Diagnostic mode (curve suspended)";
+                if (IsCurveActive)            return $"Fan curve active — {_activePreset?.Name ?? "custom"}";
+                if (_activePreset != null)    return $"Preset: {_activePreset.Name}";
+                return "BIOS auto control";
+            }
+        }
         
         /// <summary>
         /// Enter diagnostic mode - suspends curve engine to allow manual fan testing.
@@ -625,6 +648,13 @@ namespace OmenCore.Services
         /// Event raised when a preset is applied (for UI synchronization).
         /// </summary>
         public event EventHandler<string>? PresetApplied;
+
+        /// <summary>
+        /// Event raised when curve or backend hold activity changes.
+        /// Used by monitoring cadence wiring to keep tray-only mode lightweight
+        /// without dropping telemetry cadence while OmenCore owns fan state.
+        /// </summary>
+        public event EventHandler<bool>? FanActivityStateChanged;
         
         /// <summary>
         /// Event raised when RPM sanity check detects zero RPM for >30s with active duty cycle.
@@ -789,6 +819,7 @@ namespace OmenCore.Services
 
                 bool isMaxPreset = IsMaxPreset(preset);
                 bool isAutoPreset = IsAutoPreset(preset);
+                bool hasCurvePayload = HasCurvePayload(preset);
 
                 // Verification helper
                 bool VerificationPasses()
@@ -811,7 +842,7 @@ namespace OmenCore.Services
                         // target speed (e.g. at idle, 40% curve target ≈ current 40% idle speed),
                         // causing a false "no change detected" rollback that permanently disables
                         // the curve even though the preset was applied successfully.
-                        if (preset.Curve != null && preset.Curve.Count > 0)
+                        if (hasCurvePayload)
                             return true;
 
                         // 3) For policy-only presets (Auto/Performance/Quiet/etc.) where there is no
@@ -894,13 +925,21 @@ namespace OmenCore.Services
                 }
                 else if (isAutoPreset)
                 {
-                    DisableCurve();
-                    _activePreset = preset;
+                    if (hasCurvePayload)
+                    {
+                        EnableCurve(preset.Curve.ToList(), preset);
+                        _logging.Info($"Preset '{preset.Name}' preserved controller-applied Auto policy and enabled explicit curve payload");
+                    }
+                    else
+                    {
+                        DisableCurve();
+                        _activePreset = preset;
 
-                    _fanController.RestoreAutoControl();
-                    _logging.Info($"✓ Preset '{preset.Name}' using BIOS auto control (fans can stop at idle)");
+                        _fanController.RestoreAutoControl();
+                        _logging.Info($"✓ Preset '{preset.Name}' using BIOS auto control (fans can stop at idle)");
+                    }
                 }
-                else if (preset.Curve != null && preset.Curve.Any())
+                else if (hasCurvePayload)
                 {
                     EnableCurve(preset.Curve.ToList(), preset);
                     _logging.Info($"✓ Preset '{preset.Name}' curve enabled with {preset.Curve.Count} points");
@@ -953,6 +992,11 @@ namespace OmenCore.Services
             return FanModeNameResolver.IsAutoAlias(preset.Name) ||
                    FanModeNameResolver.IsPerformanceAlias(preset.Name) ||
                    FanModeNameResolver.IsQuietAlias(preset.Name);
+        }
+
+        private static bool HasCurvePayload(FanPreset preset)
+        {
+            return preset.Curve != null && preset.Curve.Count > 0;
         }
 
         private static string ResolvePresetModeLabel(FanPreset preset, bool isMaxPreset, bool isAutoPreset)
@@ -1050,7 +1094,11 @@ namespace OmenCore.Services
                 _curveEnabled = true;
                 _lastCurveUpdate = DateTime.MinValue; // Force immediate update
                 _lastAppliedFanPercent = -1;
+                _zeroRpmCurveCommandSince = DateTime.MinValue;
+                _lastCurveZeroRpmWakeKick = DateTime.MinValue;
             }
+
+            NotifyFanActivityStateChangedIfNeeded();
         }
         
         /// <summary>
@@ -1068,7 +1116,11 @@ namespace OmenCore.Services
                 _lastAppliedFanPercent = -1;
                 _lastAppliedCpuFanPercent = -1;
                 _lastAppliedGpuFanPercent = -1;
+                _zeroRpmCurveCommandSince = DateTime.MinValue;
+                _lastCurveZeroRpmWakeKick = DateTime.MinValue;
             }
+
+            NotifyFanActivityStateChangedIfNeeded();
         }
         
         /// <summary>
@@ -1101,7 +1153,9 @@ namespace OmenCore.Services
                 _lastAppliedCpuFanPercent = -1;
                 _lastAppliedGpuFanPercent = -1;
             }
-            
+
+            NotifyFanActivityStateChangedIfNeeded();
+
             _logging.Info($"Independent fan curves enabled - CPU: {_cpuCurve.Count} points, GPU: {_gpuCurve.Count} points");
         }
 
@@ -1348,6 +1402,8 @@ namespace OmenCore.Services
                     // ignore single-sample spikes. Zero RPM is accepted immediately.
                     var fanCount = fanSpeeds.Count;
                     var primaryRawRpm = fanCount > 0 ? fanSpeeds[0].Rpm : 0;
+                    _lastRawPrimaryFanRpm = fanCount > 0 ? primaryRawRpm : -1;
+                    _lastReportedPrimaryFanDutyPercent = fanCount > 0 ? fanSpeeds[0].DutyCyclePercent : -1;
 
                     // Resize/initialize confirmation counters when fan count changes
                     if (_fanChangeConfirmCounters == null || _fanChangeConfirmCounters.Count != fanCount)
@@ -1827,6 +1883,83 @@ namespace OmenCore.Services
         /// Apply fan curve based on current temperature if curve is enabled.
         /// This is the core OmenMon-style continuous fan control with hysteresis support.
         /// </summary>
+        private bool TryApplyCurveZeroRpmWakeKick(int targetFanPercent, double temperatureC, DateTime now)
+        {
+            if (!_curveEnabled || _thermalProtectionActive || _diagnosticModeActive || !FanWritesAvailable ||
+                temperatureC < CurveZeroRpmWakeKickMinTempC)
+            {
+                _zeroRpmCurveCommandSince = DateTime.MinValue;
+                return false;
+            }
+
+            var commandedPercent = Math.Max(targetFanPercent, _lastAppliedFanPercent);
+            if (commandedPercent <= 0 || _lastRawPrimaryFanRpm < 0)
+            {
+                _zeroRpmCurveCommandSince = DateTime.MinValue;
+                return false;
+            }
+
+            if (_lastRawPrimaryFanRpm > 0)
+            {
+                if (_zeroRpmCurveCommandSince != DateTime.MinValue)
+                {
+                    _logging.Info($"Curve zero-RPM watch recovered: primary fan now reads {_lastRawPrimaryFanRpm} RPM after {commandedPercent}% request");
+                }
+
+                _zeroRpmCurveCommandSince = DateTime.MinValue;
+                return false;
+            }
+
+            if (_zeroRpmCurveCommandSince == DateTime.MinValue)
+            {
+                _zeroRpmCurveCommandSince = now;
+                _logging.Warn($"Curve zero-RPM watch: primary fan reports 0 RPM after {commandedPercent}% request (reported duty {_lastReportedPrimaryFanDutyPercent}%)");
+                return false;
+            }
+
+            var zeroSeconds = (now - _zeroRpmCurveCommandSince).TotalSeconds;
+            if (zeroSeconds < CurveZeroRpmWakeKickThresholdSeconds)
+            {
+                return false;
+            }
+
+            if (_lastCurveZeroRpmWakeKick != DateTime.MinValue &&
+                (now - _lastCurveZeroRpmWakeKick).TotalSeconds < CurveZeroRpmWakeKickCooldownSeconds)
+            {
+                return false;
+            }
+
+            var wakePercent = Math.Clamp(
+                Math.Max(commandedPercent, CurveZeroRpmWakeKickMinPercent),
+                CurveZeroRpmWakeKickMinPercent,
+                CurveZeroRpmWakeKickMaxPercent);
+
+            _lastCurveZeroRpmWakeKick = now;
+            _logging.Warn($"Curve zero-RPM recovery: requested {commandedPercent}% but primary fan stayed at 0 RPM for {(int)zeroSeconds}s; sending one-shot {wakePercent}% wake kick at {temperatureC:F1}C");
+
+            var success = _fanController.SetFanSpeed(wakePercent);
+            RecordFanCommand(
+                "CurveZeroRpmWakeKick",
+                $"{wakePercent}%",
+                success,
+                success
+                    ? $"0 RPM after {commandedPercent}% curve request; reported duty {_lastReportedPrimaryFanDutyPercent}%"
+                    : "Controller returned false");
+
+            if (success)
+            {
+                _lastAppliedFanPercent = wakePercent;
+                _lastAppliedCpuFanPercent = Math.Max(_lastAppliedCpuFanPercent, wakePercent);
+                _lastAppliedGpuFanPercent = Math.Max(_lastAppliedGpuFanPercent, wakePercent);
+                _lastHysteresisTemp = temperatureC;
+                _pendingFanPercent = -1;
+                _lastCurveUpdate = now;
+                _lastCurveForceRefresh = now;
+            }
+
+            return success;
+        }
+
         private Task ApplyCurveIfNeededAsync(double cpuTemp, double gpuTemp, bool immediate = false, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
@@ -1883,12 +2016,6 @@ namespace OmenCore.Services
                     // Apply safety bounds clamping based on temperature
                     targetFanPercent = ApplySafetyBoundsClamping(targetFanPercent, maxTemp);
 
-                    // Extreme preset behavior: users expect full fan at/above 75C.
-                    if (_activePreset?.Name?.Contains("Extreme", StringComparison.OrdinalIgnoreCase) == true && maxTemp >= 75.0)
-                    {
-                        targetFanPercent = Math.Max(targetFanPercent, 100.0);
-                    }
-                    
                     // If immediate flag passed, bypass hysteresis and smoothing and apply now
                     if (immediate)
                     {
@@ -1903,7 +2030,12 @@ namespace OmenCore.Services
 
                         return Task.CompletedTask;
                     }
-                    
+
+                    if (TryApplyCurveZeroRpmWakeKick((int)Math.Round(targetFanPercent), maxTemp, now))
+                    {
+                        return Task.CompletedTask;
+                    }
+
                     // Apply hysteresis if enabled
                     if (_hysteresis.Enabled && _lastAppliedFanPercent >= 0)
                     {
@@ -2015,7 +2147,12 @@ namespace OmenCore.Services
                     // Apply safety bounds clamping to both CPU and GPU fan speeds
                     cpuFanPercent = (int)Math.Round(ApplySafetyBoundsClamping(cpuFanPercent, cpuTemp));
                     gpuFanPercent = (int)Math.Round(ApplySafetyBoundsClamping(gpuFanPercent, gpuTemp));
-                    
+
+                    if (TryApplyCurveZeroRpmWakeKick(Math.Max(cpuFanPercent, gpuFanPercent), Math.Max(cpuTemp, gpuTemp), now))
+                    {
+                        return Task.CompletedTask;
+                    }
+
                     // Check if either fan needs updating
                     bool cpuChanged = cpuFanPercent != _lastAppliedCpuFanPercent;
                     bool gpuChanged = gpuFanPercent != _lastAppliedGpuFanPercent;

@@ -62,6 +62,23 @@ namespace OmenCoreApp.Tests.ViewModels
             testProvider.LastEffect.Should().Be("preset:TestPreset");
         }
 
+        [Fact]
+        public async Task RestoreKeyboardLightingCommand_WhenKeyboardUnavailable_ShowsRecoveryGuidance()
+        {
+            Environment.SetEnvironmentVariable("OMENCORE_DISABLE_FILE_LOG", "1");
+            var logging = new LoggingService { Level = LogLevel.Info };
+            var configService = new ConfigurationService();
+            var vm = new LightingViewModel(null, null, logging, keyboardLightingService: null, configService: configService);
+
+            vm.KeyboardRestoreStatusText.Should().Contain("Ready");
+
+            vm.RestoreKeyboardLightingCommand.Execute(null);
+            await Task.Delay(50);
+
+            vm.KeyboardRestoreStatusText.Should().Contain("unavailable");
+            vm.KeyboardRestoreStatusText.Should().Contain("Settings");
+        }
+
         private class TestRgbProvider : IRgbProvider
         {
             public string ProviderName => "TestProvider";

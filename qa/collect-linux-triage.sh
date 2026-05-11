@@ -57,6 +57,8 @@ run_cmd_allow_fail() {
     run_cmd_allow_fail "DMI board name" cat /sys/class/dmi/id/board_name
     run_cmd_allow_fail "DMI product name" cat /sys/class/dmi/id/product_name
     run_cmd_allow_fail "dmesg hp-wmi excerpt" bash -lc 'dmesg | grep -i "hp-wmi\|omen" | tail -n 200'
+    run_cmd_allow_fail "kernel NVIDIA/SBIOS/i2c excerpt" bash -lc 'journalctl -k -b --no-pager 2>/dev/null | grep -Ei "NVRM|PlatformRequestHandler|SBIOS|NV_ERR_INVALID_DATA|99-i2c|Failed to resolve group|hp-wmi|omen" | tail -n 250 || dmesg | grep -Ei "NVRM|PlatformRequestHandler|SBIOS|NV_ERR_INVALID_DATA|99-i2c|Failed to resolve group|hp-wmi|omen" | tail -n 250'
+    run_cmd_allow_fail "nvidia-powerd Dynamic Boost excerpt" bash -lc 'journalctl -u nvidia-powerd -b --no-pager 2>/dev/null | grep -Ei "Dynamic Boost|SBIOS|disable|power limit|TGP|PPAB" | tail -n 120'
 
     if command -v acpidump >/dev/null 2>&1; then
         echo

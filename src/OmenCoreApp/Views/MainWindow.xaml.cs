@@ -54,7 +54,6 @@ namespace OmenCore.Views
         {
             _ = sender;
             _ = e;
-            (DataContext as MainViewModel)?.DiscoverCorsairCommand.Execute(null);
             UpdateMaximizedBounds();
             
             // Initialize global hotkeys
@@ -228,7 +227,12 @@ namespace OmenCore.Views
 
             if (ReferenceEquals(tab, RgbTabItem))
             {
-                return new LightingView { DataContext = viewModel.Lighting };
+                var lightingView = new LightingView { DataContext = viewModel.Lighting };
+                _ = Dispatcher.InvokeAsync(async () =>
+                {
+                    lightingView.DataContext = await viewModel.EnsureLightingInitializedAsync();
+                });
+                return lightingView;
             }
 
             if (ReferenceEquals(tab, SettingsTabItem))

@@ -36,6 +36,7 @@ namespace OmenCore.Services
         private int _autoCleanThresholdPercent = 80;
         private int _autoCleanCheckSeconds = 30;
         private MemoryAutoCleanProfile _autoCleanProfile = MemoryAutoCleanProfile.Balanced;
+        private TimeSpan? _autoCleanCooldownOverride;
         private DateTime _autoCleanPressureSinceUtc = DateTime.MinValue;
         private DateTime _lastAutoCleanAtUtc = DateTime.MinValue;
         private int _autoCleanSkipLogCountdown;
@@ -123,47 +124,69 @@ namespace OmenCore.Services
         /// <summary>
         /// Gets the top memory-consuming processes.
         /// </summary>
-        public ProcessMemoryInfo[] GetTopMemoryHogs(int count = 10)
+        public ProcessMemoryInfo[] GetTopMemoryHogs(int count = 10, long totalPhysicalMB = 0)
         {
             try
             {
-                var memInfo = GetMemoryInfo();
-                var totalMB = memInfo.TotalPhysicalMB;
+                var totalMB = totalPhysicalMB > 0 ? totalPhysicalMB : GetMemoryInfo().TotalPhysicalMB;
                 if (totalMB <= 0) totalMB = 1; // Prevent division by zero
 
-                var processes = Process.GetProcesses()
-                    .Select(p =>
+                var processes = new List<ProcessMemoryInfo>();
+                foreach (var process in Process.GetProcesses())
+                {
+                    using (process)
                     {
                         try
                         {
-                            return new ProcessMemoryInfo
+                            var workingSetMB = process.WorkingSet64 / 1048576;
+                            if (workingSetMB <= 0)
                             {
-                                ProcessId = p.Id,
-                                ProcessName = p.ProcessName,
-                                ExecutablePath = TryGetExecutablePath(p),
-                                WorkingSetMB = p.WorkingSet64 / 1048576,
-                                PrivateMemoryMB = p.PrivateMemorySize64 / 1048576,
-                                MemoryPercent = (p.WorkingSet64 / 1024.0 / 1024.0 / totalMB) * 100.0
-                            };
+                                continue;
+                            }
+
+                            processes.Add(new ProcessMemoryInfo
+                            {
+                                ProcessId = process.Id,
+                                ProcessName = process.ProcessName,
+                                WorkingSetMB = workingSetMB,
+                                PrivateMemoryMB = process.PrivateMemorySize64 / 1048576,
+                                MemoryPercent = workingSetMB * 100.0 / totalMB
+                            });
                         }
-                        catch
+                        catch (Exception)
                         {
-                            return null;
+                            // Protected/system processes can disappear or deny details between enumeration and read.
                         }
-                    })
-                    .Where(p => p != null)
-                    .Cast<ProcessMemoryInfo>()
-                    .Where(p => p.WorkingSetMB > 0)
+                    }
+                }
+
+                return processes
                     .OrderByDescending(p => p.WorkingSetMB)
                     .Take(count)
                     .ToArray();
-
-                return processes;
             }
             catch (Exception ex)
             {
                 _logger.Warn($"Failed to get top memory hogs: {ex.Message}");
                 return Array.Empty<ProcessMemoryInfo>();
+            }
+        }
+
+        public string? TryResolveExecutablePath(int processId)
+        {
+            if (processId <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                using var process = Process.GetProcessById(processId);
+                return TryGetExecutablePath(process);
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 
@@ -173,7 +196,7 @@ namespace OmenCore.Services
             {
                 return process.MainModule?.FileName;
             }
-            catch
+            catch (Exception)
             {
                 return null;
             }
@@ -201,13 +224,12 @@ namespace OmenCore.Services
         /// Previews the estimated memory that would be freed by a cleanup operation.
         /// Uses heuristics to estimate freed memory without actually performing the cleanup.
         /// </summary>
-        public MemoryCleanPreview PreviewMemoryCleaning(MemoryCleanFlags flags)
+        public MemoryCleanPreview PreviewMemoryCleaning(MemoryCleanFlags flags, MemoryInfo? currentInfo = null)
         {
             try
             {
                 var preview = new MemoryCleanPreview();
-                var info = GetMemoryInfo();
-                var processCount = Process.GetProcesses().Length;
+                var info = currentInfo ?? GetMemoryInfo();
                 var estimatedFreeMB = 0L;
 
                 // Estimate working set cleanup (about 10% of used memory in typical scenario)
@@ -229,7 +251,7 @@ namespace OmenCore.Services
                 }
 
                 preview.EstimatedFreeMB = Math.Min(estimatedFreeMB, info.AvailablePhysicalMB + 500);
-                preview.EnumeratedProcesses = processCount;
+                preview.EnumeratedProcesses = info.ProcessCount;
 
                 return preview;
             }
@@ -278,6 +300,12 @@ namespace OmenCore.Services
             var result = new MemoryCleanResult();
             var beforeInfo = GetMemoryInfo();
             result.BeforeUsedMB = beforeInfo.UsedPhysicalMB;
+            result.BeforeAvailableMB = beforeInfo.AvailablePhysicalMB;
+            result.BeforeStandbyListMB = beforeInfo.StandbyListMB;
+            result.BeforeSystemCacheMB = beforeInfo.SystemCacheMB;
+            result.BeforeCommitTotalMB = beforeInfo.CommitTotalMB;
+            result.BeforePageFileUsedMB = beforeInfo.UsedPageFileMB;
+            result.BeforeModifiedPageListMB = beforeInfo.ModifiedPageListMB;
 
             _logger.Info($"Starting memory clean (flags: {flags})...");
             StatusChanged?.Invoke("Cleaning memory...");
@@ -394,6 +422,12 @@ namespace OmenCore.Services
             Thread.Sleep(200);
             var afterInfo = GetMemoryInfo();
             result.AfterUsedMB = afterInfo.UsedPhysicalMB;
+            result.AfterAvailableMB = afterInfo.AvailablePhysicalMB;
+            result.AfterStandbyListMB = afterInfo.StandbyListMB;
+            result.AfterSystemCacheMB = afterInfo.SystemCacheMB;
+            result.AfterCommitTotalMB = afterInfo.CommitTotalMB;
+            result.AfterPageFileUsedMB = afterInfo.UsedPageFileMB;
+            result.AfterModifiedPageListMB = afterInfo.ModifiedPageListMB;
             result.FreedMB = Math.Max(0, result.BeforeUsedMB - result.AfterUsedMB);
             result.OperationsSucceeded = operationsSucceeded;
             result.OperationsFailed = operationsFailed;
@@ -403,6 +437,7 @@ namespace OmenCore.Services
             var statusMsg = $"Freed {result.FreedMB} MB ({operationsSucceeded} operations, {operationsFailed} failed)";
             StatusChanged?.Invoke(statusMsg);
             _logger.Info(statusMsg);
+            _logger.Info($"Memory cleanup deltas: {result.GetDeltaSummary()}");
             CleanCompleted?.Invoke(result);
 
             return result;
@@ -701,6 +736,13 @@ namespace OmenCore.Services
             _logger.Info($"Auto-clean profile set: {profile} (threshold={_autoCleanThresholdPercent}%, check every {_autoCleanCheckSeconds}s)");
         }
 
+        public void SetAutoCleanCooldownOverrideMinutes(int cooldownMinutes)
+        {
+            _autoCleanCooldownOverride = cooldownMinutes <= 0
+                ? null
+                : TimeSpan.FromMinutes(Math.Clamp(cooldownMinutes, 1, 60));
+        }
+
         /// <summary>
         /// Enables periodic automatic memory cleaning every N minutes.
         /// </summary>
@@ -744,7 +786,8 @@ namespace OmenCore.Services
                     _autoCleanProfile,
                     nowUtc,
                     _autoCleanPressureSinceUtc,
-                    _lastAutoCleanAtUtc);
+                    _lastAutoCleanAtUtc,
+                    _autoCleanCooldownOverride);
 
                 _autoCleanPressureSinceUtc = decision.PressureSinceUtc;
 
@@ -752,13 +795,12 @@ namespace OmenCore.Services
                 {
                     // Game-aware quiet window: skip aggressive standby/cache operations when a
                     // fullscreen game is likely running in the foreground, unless pressure is critical.
-                    var cleanFlags = MemoryCleanFlags.AllSafe;
-                    if (_gameAwareQuietWindowEnabled && IsGameLikelyInForeground())
+                    var gameLikelyInForeground = IsGameLikelyInForeground();
+                    var cleanFlags = SelectAutoCleanFlags(info, gameLikelyInForeground, _gameAwareQuietWindowEnabled);
+                    if (_gameAwareQuietWindowEnabled && gameLikelyInForeground)
                     {
-                        var isCritical = info.MemoryLoadPercent >= 95 || info.AvailablePhysicalMB <= 512;
-                        if (!isCritical)
+                        if (cleanFlags == MemoryCleanFlags.WorkingSets)
                         {
-                            cleanFlags = MemoryCleanFlags.WorkingSets;
                             _logger.Info($"Auto-clean (game foreground, safe trim only): {decision.Reason}");
                         }
                         else
@@ -828,7 +870,8 @@ namespace OmenCore.Services
             MemoryAutoCleanProfile profile,
             DateTime nowUtc,
             DateTime pressureSinceUtc,
-            DateTime lastCleanAtUtc)
+            DateTime lastCleanAtUtc,
+            TimeSpan? cooldownOverride = null)
         {
             var threshold = Math.Clamp(thresholdPercent, 50, 95);
             if (!IsMemoryPressureActionable(info, threshold))
@@ -840,7 +883,7 @@ namespace OmenCore.Services
                     $"memory pressure below actionable threshold ({info.MemoryLoadPercent}%)");
             }
 
-            var cooldown = GetAutoCleanCooldown(profile);
+            var cooldown = cooldownOverride ?? GetAutoCleanCooldown(profile);
             if (lastCleanAtUtc != DateTime.MinValue)
             {
                 var elapsedSinceClean = nowUtc - lastCleanAtUtc;
@@ -897,6 +940,18 @@ namespace OmenCore.Services
             };
         }
 
+        public static MemoryCleanFlags SelectAutoCleanFlags(
+            MemoryInfo info,
+            bool gameLikelyInForeground,
+            bool quietWindowEnabled)
+        {
+            if (!quietWindowEnabled || !gameLikelyInForeground)
+                return MemoryCleanFlags.AllSafe;
+
+            var isCritical = info.MemoryLoadPercent >= 95 || info.AvailablePhysicalMB <= 512;
+            return isCritical ? MemoryCleanFlags.AllSafe : MemoryCleanFlags.WorkingSets;
+        }
+
         private static bool IsMemoryPressureActionable(MemoryInfo info, int thresholdPercent)
         {
             if (info.MemoryLoadPercent < thresholdPercent)
@@ -935,6 +990,7 @@ namespace OmenCore.Services
         public int AutoCleanThreshold => _autoCleanThresholdPercent;
         public int AutoCleanCheckSeconds => _autoCleanCheckSeconds;
         public MemoryAutoCleanProfile AutoCleanProfile => _autoCleanProfile;
+        public TimeSpan? AutoCleanCooldownOverride => _autoCleanCooldownOverride;
         public IReadOnlyCollection<string> ExcludedProcessNames => _excludedProcessNames;
         public bool IntervalCleanEnabled => _intervalCleanEnabled;
         public int IntervalCleanMinutes => _intervalCleanMinutes;
@@ -1022,7 +1078,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Enable or disable the game-aware quiet window feature.
         /// When enabled (default), auto-clean will skip aggressive standby/cache purges
-        /// when a fullscreen game process is detected in the foreground. Working-set trimming
+        /// when a fullscreen or borderless-fullscreen game is detected in the foreground. Working-set trimming
         /// still occurs, and any critical-pressure condition (>95% load / &lt;512 MB free)
         /// overrides the quiet window and performs a full safe clean.
         /// </summary>
@@ -1032,10 +1088,9 @@ namespace OmenCore.Services
         public bool GameAwareQuietWindowEnabled => _gameAwareQuietWindowEnabled;
 
         /// <summary>
-        /// Heuristic: returns true when a fullscreen exclusive window is occupying the primary
-        /// monitor. This is not a definitive "game running" check, but it reliably catches games
-        /// running in exclusive fullscreen mode (the vast majority of gaming sessions where
-        /// memory operations would cause stutter). Windowed/borderless games do not trigger this.
+        /// Heuristic: returns true when the foreground window covers its monitor.
+        /// This is not a definitive "game running" check, but it catches exclusive fullscreen and
+        /// borderless fullscreen sessions where standby/cache purges are most likely to stutter.
         /// Pure P/Invoke; never throws — returns false on any error.
         /// </summary>
         public static bool IsGameLikelyInForeground()
@@ -1055,22 +1110,53 @@ namespace OmenCore.Services
                 if (!NativeMethods.GetWindowRect(hwnd, out var windowRect))
                     return false;
 
-                // Compare with primary monitor bounds
-                int screenWidth = NativeMethods.GetSystemMetrics(0 /* SM_CXSCREEN */);
-                int screenHeight = NativeMethods.GetSystemMetrics(1 /* SM_CYSCREEN */);
+                var monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+                if (monitor == IntPtr.Zero)
+                    return false;
 
-                bool coversScreen = windowRect.Left == 0
-                    && windowRect.Top == 0
-                    && windowRect.Right == screenWidth
-                    && windowRect.Bottom == screenHeight;
+                var monitorInfo = new NativeMethods.MONITORINFO
+                {
+                    cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>()
+                };
 
-                return coversScreen;
+                if (!NativeMethods.GetMonitorInfo(monitor, ref monitorInfo))
+                    return false;
+
+                return CoversMonitor(windowRect, monitorInfo.rcMonitor);
             }
             catch
             {
                 return false;
             }
         }
+
+        public static bool CoversBounds(
+            int windowLeft,
+            int windowTop,
+            int windowRight,
+            int windowBottom,
+            int monitorLeft,
+            int monitorTop,
+            int monitorRight,
+            int monitorBottom)
+        {
+            const int tolerancePx = 2;
+            return windowLeft <= monitorLeft + tolerancePx
+                && windowTop <= monitorTop + tolerancePx
+                && windowRight >= monitorRight - tolerancePx
+                && windowBottom >= monitorBottom - tolerancePx;
+        }
+
+        private static bool CoversMonitor(NativeMethods.RECT windowRect, NativeMethods.RECT monitorRect) =>
+            CoversBounds(
+                windowRect.Left,
+                windowRect.Top,
+                windowRect.Right,
+                windowRect.Bottom,
+                monitorRect.Left,
+                monitorRect.Top,
+                monitorRect.Right,
+                monitorRect.Bottom);
 
         public void SetExcludedProcessNames(IEnumerable<string>? processNames)
         {
@@ -1223,7 +1309,11 @@ namespace OmenCore.Services
             public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
             [DllImport("user32.dll")]
-            public static extern int GetSystemMetrics(int nIndex);
+            public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+            [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
             [StructLayout(LayoutKind.Sequential)]
             public struct RECT
@@ -1234,7 +1324,18 @@ namespace OmenCore.Services
                 public int Bottom;
             }
 
+            [StructLayout(LayoutKind.Sequential)]
+            public struct MONITORINFO
+            {
+                public int cbSize;
+                public RECT rcMonitor;
+                public RECT rcWork;
+                public uint dwFlags;
+            }
+
             // ===== Constants =====
+
+            public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
 
             public const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
             public const uint TOKEN_QUERY = 0x0008;
@@ -1389,10 +1490,55 @@ namespace OmenCore.Services
         public string? ErrorMessage { get; set; }
         public long BeforeUsedMB { get; set; }
         public long AfterUsedMB { get; set; }
+        public long BeforeAvailableMB { get; set; }
+        public long AfterAvailableMB { get; set; }
+        public long BeforeStandbyListMB { get; set; }
+        public long AfterStandbyListMB { get; set; }
+        public long BeforeSystemCacheMB { get; set; }
+        public long AfterSystemCacheMB { get; set; }
+        public long BeforeCommitTotalMB { get; set; }
+        public long AfterCommitTotalMB { get; set; }
+        public long BeforePageFileUsedMB { get; set; }
+        public long AfterPageFileUsedMB { get; set; }
+        public long BeforeModifiedPageListMB { get; set; }
+        public long AfterModifiedPageListMB { get; set; }
         public long FreedMB { get; set; }
         public int OperationsSucceeded { get; set; }
         public int OperationsFailed { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
+
+        public long AvailableDeltaMB => AfterAvailableMB - BeforeAvailableMB;
+        public long StandbyListDeltaMB => AfterStandbyListMB - BeforeStandbyListMB;
+        public long SystemCacheDeltaMB => AfterSystemCacheMB - BeforeSystemCacheMB;
+        public long CommitDeltaMB => AfterCommitTotalMB - BeforeCommitTotalMB;
+        public long PageFileDeltaMB => AfterPageFileUsedMB - BeforePageFileUsedMB;
+        public long ModifiedPageListDeltaMB => AfterModifiedPageListMB - BeforeModifiedPageListMB;
+
+        public string GetDeltaSummary()
+        {
+            return string.Join(" | ", new[]
+            {
+                $"Physical used {FormatBeforeAfter(BeforeUsedMB, AfterUsedMB)}",
+                $"Available {FormatBeforeAfter(BeforeAvailableMB, AfterAvailableMB)}",
+                $"Standby {FormatBeforeAfter(BeforeStandbyListMB, AfterStandbyListMB)}",
+                $"Cache {FormatBeforeAfter(BeforeSystemCacheMB, AfterSystemCacheMB)}",
+                $"Commit {FormatBeforeAfter(BeforeCommitTotalMB, AfterCommitTotalMB)}",
+                $"Page file {FormatBeforeAfter(BeforePageFileUsedMB, AfterPageFileUsedMB)}",
+                $"Modified {FormatBeforeAfter(BeforeModifiedPageListMB, AfterModifiedPageListMB)}"
+            });
+        }
+
+        private static string FormatBeforeAfter(long before, long after)
+        {
+            var delta = after - before;
+            var deltaText = delta switch
+            {
+                > 0 => $"increased {delta} MB",
+                < 0 => $"reduced {-delta} MB",
+                _ => "unchanged"
+            };
+            return $"{before} -> {after} MB ({deltaText})";
+        }
     }
 
     /// <summary>

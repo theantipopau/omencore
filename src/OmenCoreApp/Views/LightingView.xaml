@@ -108,12 +108,16 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Ellipse Grid.Column="0"
-                                 Fill="{Binding LastRgbSyncBrush}"
-                                 Width="9"
-                                 Height="9"
-                                 VerticalAlignment="Center"
-                                 Margin="0,0,10,0"/>
+                        <Border Grid.Column="0"
+                                Style="{StaticResource StatusVisualBadge}"
+                                Tag="{Binding LastRgbSyncVisualState}"
+                                Padding="6,2"
+                                Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding LastRgbSyncVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding LastRgbSyncVisualLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding LastRgbSyncVisualState}"/>
+                            </StackPanel>
+                        </Border>
                         <StackPanel Grid.Column="1">
                             <TextBlock Text="{Binding LastRgbSyncSummary}"
                                        FontSize="12"
@@ -136,6 +140,125 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </Border>
                     </Grid>
+                </Border>
+
+                <Border Background="#10131A"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="14,12"
+                        Margin="0,10,24,0">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Control ownership"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Border Style="{StaticResource StatusVisualBadge}"
+                                        Tag="{Binding RgbOwnershipVisualState}"
+                                        Padding="6,2"
+                                        Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding RgbOwnershipVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                        <TextBlock Text="{Binding RgbOwnershipVisualLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding RgbOwnershipVisualState}"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border
+                                    Background="#141A22"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="8,3">
+                                    <TextBlock Text="{Binding HpKeyboardActiveBackend, StringFormat='HP: {0}'}"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding RgbOwnershipSummary}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"/>
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding KeyboardRestoreStatusText}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <Button Grid.Column="1"
+                                    Command="{Binding RestoreKeyboardLightingCommand}"
+                                    IsEnabled="{Binding IsKeyboardLightingAvailable}"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Padding="10,5"
+                                    ToolTip="Reapply saved keyboard colors through the active HP keyboard backend">
+                                <TextBlock Text="Restore Keyboard"
+                                           FontSize="10"/>
+                            </Button>
+                        </Grid>
+
+                        <Border Background="#26FFB300"
+                                BorderBrush="#FFFFB300"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="10,8"
+                                Margin="0,10,0,0"
+                                Visibility="{Binding HasRgbConflictWarning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="{Binding RgbConflictWarningText}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FFFFD166"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding CorsairStatusDetail}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding CorsairStatusDetail}"
+                                       Margin="0,0,8,0"
+                                       Visibility="{Binding IsCorsairEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding LogitechStatusDetail}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding LogitechStatusDetail}"
+                                       Margin="0,0,8,0"
+                                       Visibility="{Binding IsLogitechEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding RazerStatusDetail}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding RazerStatusDetail}"
+                                       Visibility="{Binding IsRazerEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </Grid>
+                    </StackPanel>
                 </Border>
             </StackPanel>
             

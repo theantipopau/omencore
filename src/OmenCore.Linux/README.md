@@ -146,29 +146,31 @@ sudo omencore-cli monitor --interval 500
 
 ## Systemd Service (Daemon Mode)
 
-Create `/etc/systemd/system/omencore.service`:
-
-```ini
-[Unit]
-Description=OmenCore Fan Control Daemon
-After=multi-user.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/omencore-cli fan --profile auto
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
+Use the built-in daemon command instead of maintaining a hand-written service file:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable omencore
-sudo systemctl start omencore
+# Install or refresh the systemd unit and default /etc/omencore/config.toml
+sudo omencore-cli daemon --install
+
+# Start, stop, and inspect daemon state
+sudo omencore-cli daemon --start
+sudo omencore-cli daemon --status
+sudo omencore-cli daemon --stop
+
+# Remove the systemd unit while preserving /etc/omencore/config.toml
+sudo omencore-cli daemon --uninstall
+
+# Print the generated service unit for packaging review
+omencore-cli daemon --generate-service
+```
+
+For boards or kernels that reset the platform profile, enable performance hold before starting the daemon:
+
+```bash
+sudo omencore-cli perf --mode performance --hold --hold-interval 30
+sudo omencore-cli daemon --install
+sudo omencore-cli daemon --start
+journalctl -u omencore -f
 ```
 
 ## EC Register Map
@@ -210,6 +212,12 @@ ls -R /sys/class/hwmon > hwmon-tree.txt
 
 # 4) Loaded modules
 lsmod | grep -E "hp_wmi|ec_sys|wmi" > module-state.txt
+
+# 5) Kernel firmware/NVIDIA/platform excerpts
+journalctl -k -b --no-pager | grep -Ei "NVRM|PlatformRequestHandler|SBIOS|NV_ERR_INVALID_DATA|hp-wmi|omen" > kernel-platform-excerpt.txt
+
+# 6) NVIDIA Dynamic Boost / power daemon excerpts for RTX 50-series TGP caps
+journalctl -u nvidia-powerd -b --no-pager | grep -Ei "Dynamic Boost|SBIOS|disable|power limit|TGP|PPAB" > nvidia-powerd-excerpt.txt
 ```
 
 Optional but useful for deeper support:
@@ -218,6 +226,16 @@ Optional but useful for deeper support:
 # ACPI tables (optional)
 sudo acpidump > acpidump.txt
 ```
+
+If the kernel log contains NVIDIA lines such as `PlatformRequestHandler failed to get target temp from SBIOS`,
+`failed to get platform power mode from SBIOS`, or `NV_ERR_INVALID_DATA`, include the full
+`journalctl -k -b` output and optional ACPI dump. Those messages usually point to a firmware/kernel/NVIDIA
+ACPI integration problem rather than a normal OmenCore permission or hp-wmi path issue.
+
+For OMEN Max 16 board `8D41` / RTX 50-series reports where TGP stays capped around 80W and
+`nvidia-powerd` says Dynamic Boost was disabled by SBIOS/client request, include the `nvidia-powerd`
+unit log too. `nvidia-smi -pl` is expected to be blocked on these laptop GPUs; the useful evidence is
+whether Linux hp-wmi exposed and applied the GPU thermal modes / PPAB unlock path.
 
 Please include:
 - Exact laptop model string (`sudo dmidecode -s system-product-name`)

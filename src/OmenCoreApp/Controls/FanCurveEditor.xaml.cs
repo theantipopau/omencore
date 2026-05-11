@@ -90,7 +90,7 @@ namespace OmenCore.Controls
         #region Private Fields
         
         private Ellipse? _draggedPoint;
-        private int _draggedPointIndex = -1;
+        private FanCurvePoint? _draggedCurvePoint;
         private bool _isDragging;
         private Point _dragStartOffset;
         private readonly List<Ellipse> _pointEllipses = new();
@@ -116,8 +116,8 @@ namespace OmenCore.Controls
             InitializeComponent();
             Loaded += (s, e) => RenderCurve();
             
-            // Handle mouse release when cursor leaves the chart area or releases outside a point
-            ChartCanvas.MouseLeave += ChartCanvas_MouseLeave;
+            // Capture drag at the canvas level so the cursor can outrun a node without dropping input.
+            ChartCanvas.MouseMove += ChartCanvas_MouseMove;
             ChartCanvas.MouseLeftButtonUp += ChartCanvas_MouseLeftButtonUp;
             ChartCanvas.LostMouseCapture += ChartCanvas_LostMouseCapture;
         }
@@ -126,15 +126,11 @@ namespace OmenCore.Controls
         
         #region Global Mouse Handlers
         
-        private void ChartCanvas_MouseLeave(object sender, MouseEventArgs e)
+        private void ChartCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            // Release drag when mouse leaves chart area
-            if (_isDragging)
-            {
-                ReleaseDrag();
-            }
+            UpdateDraggedPointFromMouse(e);
         }
-        
+
         private void ChartCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             // Release drag on any mouse up in the canvas
@@ -161,13 +157,10 @@ namespace OmenCore.Controls
             long dragMaxUs = _dragMaxRenderUs;
             long dragStartTicks = _dragStartTicks;
 
-            if (_draggedPoint != null)
-            {
-                _draggedPoint.ReleaseMouseCapture();
-            }
+            ChartCanvas.ReleaseMouseCapture();
             _isDragging = false;
             _draggedPoint = null;
-            _draggedPointIndex = -1;
+            _draggedCurvePoint = null;
             
             HideTooltip();
             
@@ -653,7 +646,7 @@ namespace OmenCore.Controls
                     Stroke = Brushes.White,
                     StrokeThickness = 2,
                     Cursor = Cursors.Hand,
-                    Tag = i,
+                    Tag = point,
                     Effect = new System.Windows.Media.Effects.DropShadowEffect
                     {
                         Color = Colors.Black,
@@ -667,7 +660,6 @@ namespace OmenCore.Controls
                 Canvas.SetTop(ellipse, canvasPoint.Y - PointRadius);
                 
                 ellipse.MouseLeftButtonDown += Point_MouseLeftButtonDown;
-                ellipse.MouseMove += Point_MouseMove;
                 ellipse.MouseLeftButtonUp += Point_MouseLeftButtonUp;
                 ellipse.MouseEnter += Point_MouseEnter;
                 ellipse.MouseLeave += Point_MouseLeave;
@@ -728,33 +720,37 @@ namespace OmenCore.Controls
         
         private void Point_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is Ellipse ellipse && ellipse.Tag is int index)
+            if (sender is Ellipse ellipse && ellipse.Tag is FanCurvePoint point)
             {
                 _isDragging = true;
                 _draggedPoint = ellipse;
-                _draggedPointIndex = index;
-                _dragStartTicks = DateTime.UtcNow.Ticks;
+                _draggedCurvePoint = point;
+                _dragStartTicks = System.Diagnostics.Stopwatch.GetTimestamp();
                 _dragFrameCount = 0;
                 _dragTotalRenderUs = 0;
                 _dragMaxRenderUs = 0;
+                _lastDragRenderTicks = 0;
                 
                 var mousePos = e.GetPosition(ChartCanvas);
                 var ellipsePos = new Point(Canvas.GetLeft(ellipse) + PointRadius, Canvas.GetTop(ellipse) + PointRadius);
                 _dragStartOffset = new Point(mousePos.X - ellipsePos.X, mousePos.Y - ellipsePos.Y);
                 
-                ellipse.CaptureMouse();
+                ChartCanvas.CaptureMouse();
                 e.Handled = true;
                 
                 UpdateTooltip(ellipse, true);
             }
         }
         
-        private void Point_MouseMove(object sender, MouseEventArgs e)
+        private void UpdateDraggedPointFromMouse(MouseEventArgs e)
         {
-            if (!_isDragging || _draggedPoint == null || CurvePoints == null) return;
+            if (!_isDragging || _draggedCurvePoint == null || CurvePoints == null) return;
             
-            // Guard: index may be stale if collection was modified externally
-            if (_draggedPointIndex < 0 || _draggedPointIndex >= CurvePoints.Count) return;
+            if (!CurvePoints.Contains(_draggedCurvePoint))
+            {
+                ReleaseDrag();
+                return;
+            }
             
             var pos = e.GetPosition(ChartCanvas);
             var adjustedPos = new Point(pos.X - _dragStartOffset.X, pos.Y - _dragStartOffset.Y);
@@ -763,9 +759,12 @@ namespace OmenCore.Controls
             
             // Get the sorted points to determine valid temperature range
             var sortedPoints = CurvePoints.OrderBy(p => p.TemperatureC).ToList();
-            var currentIndex = sortedPoints.FindIndex(p => 
-                p.TemperatureC == CurvePoints[_draggedPointIndex].TemperatureC && 
-                p.FanPercent == CurvePoints[_draggedPointIndex].FanPercent);
+            var currentIndex = sortedPoints.IndexOf(_draggedCurvePoint);
+            if (currentIndex < 0)
+            {
+                ReleaseDrag();
+                return;
+            }
             
             // Constrain temperature between neighbors (prevent crossing)
             int minTemp = MinTemperature;
@@ -784,8 +783,8 @@ namespace OmenCore.Controls
             if (minTemp > maxTemp)
             {
                 // Keep the point at its current position if constraints conflict
-                minTemp = CurvePoints[_draggedPointIndex].TemperatureC;
-                maxTemp = CurvePoints[_draggedPointIndex].TemperatureC;
+                minTemp = _draggedCurvePoint.TemperatureC;
+                maxTemp = _draggedCurvePoint.TemperatureC;
             }
             
             temp = Math.Clamp(temp, minTemp, maxTemp);
@@ -795,7 +794,7 @@ namespace OmenCore.Controls
             temp = Math.Clamp((int)Math.Round(temp / (double)DragTemperatureSnapStep) * DragTemperatureSnapStep, minTemp, maxTemp);
             fan = (int)Math.Round(fan / (double)DragFanPercentSnapStep) * DragFanPercentSnapStep;
 
-            var currentPoint = CurvePoints[_draggedPointIndex];
+            var currentPoint = _draggedCurvePoint;
             if (currentPoint.TemperatureC == temp && currentPoint.FanPercent == fan)
             {
                 return;
@@ -807,6 +806,16 @@ namespace OmenCore.Controls
             
             // Update visual position
             var newCanvasPoint = DataToCanvas(temp, fan);
+            if (_draggedPoint == null)
+            {
+                RebindDraggedPointVisual();
+            }
+
+            if (_draggedPoint == null)
+            {
+                return;
+            }
+
             Canvas.SetLeft(_draggedPoint, newCanvasPoint.X - PointRadius);
             Canvas.SetTop(_draggedPoint, newCanvasPoint.Y - PointRadius);
             
@@ -819,6 +828,7 @@ namespace OmenCore.Controls
                 // Re-render throttled to avoid lag from full-canvas redraw on every mouse event.
                 var renderStart = System.Diagnostics.Stopwatch.GetTimestamp();
                 RenderCurve();
+                RebindDraggedPointVisual();
                 var renderEnd = System.Diagnostics.Stopwatch.GetTimestamp();
                 var renderUs = (renderEnd - renderStart) * 1_000_000 / System.Diagnostics.Stopwatch.Frequency;
                 
@@ -828,6 +838,17 @@ namespace OmenCore.Controls
                 
                 _lastDragRenderTicks = nowTicks;
             }
+        }
+
+        private void RebindDraggedPointVisual()
+        {
+            if (_draggedCurvePoint == null)
+            {
+                _draggedPoint = null;
+                return;
+            }
+
+            _draggedPoint = _pointEllipses.FirstOrDefault(e => ReferenceEquals(e.Tag, _draggedCurvePoint));
         }
         
         private void Point_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -880,11 +901,11 @@ namespace OmenCore.Controls
         private void Point_RightClick(object sender, MouseButtonEventArgs e)
         {
             // Delete point on right-click
-            if (sender is Ellipse ellipse && ellipse.Tag is int index && CurvePoints != null)
+            if (sender is Ellipse ellipse && ellipse.Tag is FanCurvePoint point && CurvePoints != null)
             {
                 if (CurvePoints.Count > 2) // Keep at least 2 points
                 {
-                    CurvePoints.RemoveAt(index);
+                    CurvePoints.Remove(point);
                 }
                 e.Handled = true;
             }
@@ -896,9 +917,8 @@ namespace OmenCore.Controls
         
         private void UpdateTooltip(Ellipse ellipse, bool show)
         {
-            if (ellipse.Tag is int index && CurvePoints != null && index < CurvePoints.Count)
+            if (ellipse.Tag is FanCurvePoint point && CurvePoints != null && CurvePoints.Contains(point))
             {
-                var point = CurvePoints[index];
                 PointTooltipText.Text = $"{point.TemperatureC}°C → {point.FanPercent}%";
                 
                 var canvasPos = DataToCanvas(point.TemperatureC, point.FanPercent);

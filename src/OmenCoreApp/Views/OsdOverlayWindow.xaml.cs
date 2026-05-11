@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Views
 {
@@ -30,6 +31,10 @@ namespace OmenCore.Views
         private const int WS_EX_TOOLWINDOW = 0x00000080;
         private const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
         private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+        private const string OsdStatsTimerRegistryName = "OsdOverlayStatsRefresh";
+        private const string OsdNetworkTimerRegistryName = "OsdOverlayNetworkRefresh";
+        private const int OsdStatsTimerIntervalMs = 1000;
+        private const int OsdNetworkTimerIntervalMs = 5000;
         
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hwnd, int index);
@@ -291,14 +296,14 @@ namespace OmenCore.Views
             // Setup update timer (1 second interval)
             _updateTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(1)
+                Interval = TimeSpan.FromMilliseconds(OsdStatsTimerIntervalMs)
             };
             _updateTimer.Tick += UpdateTimer_Tick;
             
             // Setup ping timer (5 second interval - less frequent to avoid network spam)
             _pingTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(5)
+                Interval = TimeSpan.FromMilliseconds(OsdNetworkTimerIntervalMs)
             };
             _pingTimer.Tick += PingTimer_Tick;
         }
@@ -315,12 +320,11 @@ namespace OmenCore.Views
             var shouldPollNetwork = _showNetworkGroup && (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload);
             if (shouldPollNetwork)
             {
-                if (!_pingTimer.IsEnabled)
-                    _pingTimer.Start();
+                StartNetworkTimer();
             }
             else
             {
-                _pingTimer.Stop();
+                StopNetworkTimer();
             }
 
             PositionWindow();
@@ -444,9 +448,9 @@ namespace OmenCore.Views
         
         public void StartUpdates()
         {
-            _updateTimer.Start();
+            StartStatsTimer();
             if (_showNetworkGroup && (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload))
-                _pingTimer.Start();
+                StartNetworkTimer();
             
             // Initialize RTSS for real FPS data
             if (_rtssService != null && !_rtssInitialized)
@@ -463,9 +467,57 @@ namespace OmenCore.Views
         
         public void StopUpdates()
         {
-            _updateTimer.Stop();
-            _pingTimer.Stop();
+            StopStatsTimer();
+            StopNetworkTimer();
             _rtssService?.StopPolling();
+        }
+
+        private void StartStatsTimer()
+        {
+            if (!_updateTimer.IsEnabled)
+            {
+                _updateTimer.Start();
+                BackgroundTimerRegistry.Register(
+                    OsdStatsTimerRegistryName,
+                    nameof(OsdOverlayWindow),
+                    "Visible OSD overlay stats refresh",
+                    OsdStatsTimerIntervalMs,
+                    BackgroundTimerTier.VisibleOnly);
+            }
+        }
+
+        private void StopStatsTimer()
+        {
+            if (_updateTimer.IsEnabled)
+            {
+                _updateTimer.Stop();
+            }
+
+            BackgroundTimerRegistry.Unregister(OsdStatsTimerRegistryName);
+        }
+
+        private void StartNetworkTimer()
+        {
+            if (!_pingTimer.IsEnabled)
+            {
+                _pingTimer.Start();
+                BackgroundTimerRegistry.Register(
+                    OsdNetworkTimerRegistryName,
+                    nameof(OsdOverlayWindow),
+                    "Visible OSD network latency/throughput refresh",
+                    OsdNetworkTimerIntervalMs,
+                    BackgroundTimerTier.VisibleOnly);
+            }
+        }
+
+        private void StopNetworkTimer()
+        {
+            if (_pingTimer.IsEnabled)
+            {
+                _pingTimer.Stop();
+            }
+
+            BackgroundTimerRegistry.Unregister(OsdNetworkTimerRegistryName);
         }
         
         private void UpdateTimer_Tick(object? sender, EventArgs e)
@@ -544,10 +596,11 @@ namespace OmenCore.Views
                 _lastBytesReceived = currentBytesReceived;
                 _lastNetworkCheck = now;
             }
-            catch
+            catch (Exception ex)
             {
                 NetworkUpload = "0.0";
                 NetworkDownload = "0.0";
+                App.Logging.Debug($"OSD network throughput update failed: {ex.Message}");
             }
         }
         
@@ -579,10 +632,11 @@ namespace OmenCore.Views
                     NetworkLatencyColor = Brushes.Gray;
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 NetworkLatency = "N/A";
                 NetworkLatencyColor = Brushes.Gray;
+                App.Logging.Debug($"OSD network latency update failed: {ex.Message}");
             }
         }
         
@@ -817,9 +871,9 @@ namespace OmenCore.Views
                 // FPS would require hooking into present calls - placeholder
                 // Fps = ...
             }
-            catch
+            catch (Exception ex)
             {
-                // Silently ignore errors in OSD update
+                App.Logging.Debug($"OSD stats update failed: {ex.Message}");
             }
         }
         
@@ -903,10 +957,19 @@ namespace OmenCore.Views
                     Math.Max(1, (monitorInfo.rcWork.Right - monitorInfo.rcWork.Left) / dpiScaleX),
                     Math.Max(1, (monitorInfo.rcWork.Bottom - monitorInfo.rcWork.Top) / dpiScaleY));
             }
-            catch
+            catch (Exception ex)
             {
+                App.Logging.Debug($"OSD monitor work-area resolution failed: {ex.Message}");
                 return SystemParameters.WorkArea;
             }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            StopUpdates();
+            _updateTimer.Tick -= UpdateTimer_Tick;
+            _pingTimer.Tick -= PingTimer_Tick;
+            base.OnClosed(e);
         }
 
         private IntPtr ResolveTargetMonitor()

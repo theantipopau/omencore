@@ -798,47 +798,28 @@
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                         </StackPanel>
 
-                        <!-- Polling Profile -->
+                        <!-- Automatic Cadence Policy -->
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="220"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Polling profile" FontSize="14"
+                                <TextBlock Text="Automatic monitoring cadence" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Choose a tuned profile for responsiveness vs system overhead" FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="OmenCore now owns cadence automatically: active windows and OSD stay responsive, idle sessions slow down safely, and low-overhead tray-only mode can settle to the ultra-low cadence when nothing is blocking it." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
-                            <ComboBox Grid.Column="1"
-                                      ItemsSource="{Binding PollingProfiles}"
-                                      SelectedItem="{Binding PollingProfile, Mode=TwoWay}"
-                                      HorizontalAlignment="Right"
-                                      Width="180"/>
                         </Grid>
 
-                        <!-- Polling Interval -->
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="200"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Polling interval" FontSize="14" 
+                                <TextBlock Text="Cadence tiers" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="How often to read hardware sensors" FontSize="12" 
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Slider Minimum="500" Maximum="5000" 
-                                        TickFrequency="250"
-                                        IsSnapToTickEnabled="True"
-                                        Value="{Binding PollingIntervalMs}"
-                                        Width="120" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding PollingIntervalMs, StringFormat={}{0} ms}" 
-                                           FontSize="12" Width="60" TextAlignment="Right"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock Text="1s when the UI or OSD needs live data, 5s in standard background idle, and 10s for eligible tray-only low-overhead sessions. Use Low overhead mode below to favor the lighter cadence path." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Grid>
 
@@ -883,6 +864,28 @@
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding LowOverheadMode}"/>
                         </Grid>
+
+                        <Border Margin="0,16,0,0" Padding="14" CornerRadius="10" Background="#141A20" BorderBrush="#22303C" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Live cadence status" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+
+                                <TextBlock Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4">
+                                    <Run Text="Current tier: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceTier, Mode=OneWay}"/>
+                                </TextBlock>
+
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4">
+                                    <Run Text="Reason: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceReason, Mode=OneWay}"/>
+                                </TextBlock>
+
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                    <Run Text="Ultra-low blockers: " FontWeight="SemiBold"/>
+                                    <Run Text="{Binding MonitoringCadenceBlockers, Mode=OneWay}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Startup Safe Mode Guard -->
                         <Grid Margin="0,16,0,0">

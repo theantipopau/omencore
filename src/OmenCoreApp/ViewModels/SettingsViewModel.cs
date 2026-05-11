@@ -22,7 +22,7 @@ using OmenCore.Utils;
 
 namespace OmenCore.ViewModels
 {
-    public class SettingsViewModel : ViewModelBase
+    public class SettingsViewModel : ViewModelBase, IDisposable
     {
         private readonly LoggingService _logging;
         private readonly ConfigurationService _configService;
@@ -48,9 +48,6 @@ namespace OmenCore.ViewModels
         private bool _liteModeEnabled;
         private bool _linkFanToPerformanceMode;
         private bool _useSoftwareRendering;
-        private string _pollingProfile = "Balanced";
-        private bool _suppressPollingProfileSync;
-        private int _pollingIntervalMs = 2000;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
         private bool _autoCheckUpdates = true;
@@ -126,6 +123,7 @@ namespace OmenCore.ViewModels
         // Profile scheduler
         private DispatcherTimer? _scheduleTimer;
         private string? _lastScheduleMinute; // track last checked HH:mm to fire rules once per minute
+        private const string ScheduleTimerRegistryName = "SettingsScheduleEnforcement";
 
         public SettingsViewModel(LoggingService logging, ConfigurationService configService, 
             SystemInfoService systemInfoService, FanCleaningService fanCleaningService,
@@ -157,6 +155,16 @@ namespace OmenCore.ViewModels
             _diagnosticsExportService = diagnosticsExportService;
             _resumeRecoveryDiagnostics = resumeRecoveryDiagnostics;
             _detectedCapabilities = detectedCapabilities;
+
+            if (_hardwareMonitoringService != null)
+            {
+                _hardwareMonitoringService.CadenceChanged += (_, _) => RefreshMonitoringCadenceStatus();
+            }
+
+            if (_fanService != null)
+            {
+                _fanService.FanActivityStateChanged += (_, _) => RefreshMonitoringCadenceStatus();
+            }
 
             // Load saved settings
             LoadSettings();
@@ -205,6 +213,7 @@ namespace OmenCore.ViewModels
                 ScheduleRules.Add(new ScheduleRule());
                 _config.ScheduleRules = ScheduleRules.ToList();
                 _configService.Save(_config);
+                UpdateScheduleTimerState();
             });
             RemoveScheduleRuleCommand = new RelayCommand(param =>
             {
@@ -213,6 +222,7 @@ namespace OmenCore.ViewModels
                     ScheduleRules.Remove(rule);
                     _config.ScheduleRules = ScheduleRules.ToList();
                     _configService.Save(_config);
+                    UpdateScheduleTimerState();
                 }
             });
 
@@ -243,10 +253,7 @@ namespace OmenCore.ViewModels
                 AutomationRules.Add(item);
             }
 
-            // Start schedule enforcement timer (fires every 30 s, enforces once per HH:mm)
-            _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-            _scheduleTimer.Tick += EnforceScheduleRules;
-            _scheduleTimer.Start();
+            UpdateScheduleTimerState();
 
             // Check fan cleaning availability
             CheckFanCleaningAvailability();
@@ -257,6 +264,7 @@ namespace OmenCore.ViewModels
             // Load system status for Settings page
             LoadSystemStatus();
             RefreshModelIdentityStatus();
+            RefreshMonitoringCadenceStatus();
             
             // Load system info for BIOS
             LoadSystemInfo();
@@ -400,53 +408,6 @@ namespace OmenCore.ViewModels
 
         #region Monitoring Settings
 
-        public ObservableCollection<string> PollingProfiles { get; } = new()
-        {
-            "Performance",
-            "Balanced",
-            "Low overhead",
-            "Custom"
-        };
-
-        public string PollingProfile
-        {
-            get => _pollingProfile;
-            set
-            {
-                if (_pollingProfile == value)
-                {
-                    return;
-                }
-
-                _pollingProfile = value;
-                OnPropertyChanged();
-
-                if (_suppressPollingProfileSync)
-                {
-                    return;
-                }
-
-                ApplyPollingProfile(value);
-                SaveSettings();
-            }
-        }
-
-        public int PollingIntervalMs
-        {
-            get => _pollingIntervalMs;
-            set
-            {
-                if (_pollingIntervalMs != value)
-                {
-                    _pollingIntervalMs = value;
-                    OnPropertyChanged();
-                    _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
-                    UpdatePollingProfileFromCurrentSettings();
-                    SaveSettings();
-                }
-            }
-        }
-
         public int HistoryCount
         {
             get => _historyCount;
@@ -477,11 +438,86 @@ namespace OmenCore.ViewModels
                     
                     // Raise event for MainViewModel to update MonitoringGraphsVisible
                     LowOverheadModeChanged?.Invoke(this, value);
-                    UpdatePollingProfileFromCurrentSettings();
+                    RefreshMonitoringCadenceStatus();
                     
                     SaveSettings();
                 }
             }
+        }
+
+        public string MonitoringCadenceTier
+        {
+            get
+            {
+                var intervalMs = _hardwareMonitoringService?.CurrentCadenceIntervalMs ?? 0;
+                return intervalMs switch
+                {
+                    1000 => "Active (1s)",
+                    5000 => "Idle background (5s)",
+                    10000 => "Tray-only ultra-low (10s)",
+                    > 0 => $"Custom ({intervalMs} ms)",
+                    _ => "Initializing"
+                };
+            }
+        }
+
+        public string MonitoringCadenceReason => _hardwareMonitoringService?.CurrentCadenceReason ?? "Cadence unavailable";
+
+        public string MonitoringCadenceBlockers
+        {
+            get
+            {
+                var blockers = new List<string>();
+                var transition = _hardwareMonitoringService?.GetCadenceTransitionsSnapshot().LastOrDefault();
+                var lowOverheadEnabled = transition?.LowOverheadMode ?? _lowOverheadMode;
+
+                if (!lowOverheadEnabled)
+                {
+                    blockers.Add("Low overhead mode disabled");
+                }
+
+                if (transition != null)
+                {
+                    if (transition.UiWindowActive)
+                    {
+                        blockers.Add("Main window active");
+                    }
+
+                    if (transition.OverlayRealtimeMode)
+                    {
+                        blockers.Add("OSD visible");
+                    }
+                }
+
+                if (_fanService?.IsDiagnosticModeActive == true)
+                {
+                    blockers.Add("Fan diagnostics active");
+                }
+
+                if (_fanService?.IsCurveActive == true)
+                {
+                    blockers.Add("Fan curve active");
+                }
+
+                if (_fanService?.IsHoldActive == true)
+                {
+                    blockers.Add("Fan hold active");
+                }
+
+                return blockers.Count == 0
+                    ? "None - ultra-low cadence eligible when the app is hidden to tray"
+                    : string.Join(", ", blockers.Distinct(StringComparer.Ordinal));
+            }
+        }
+
+        private void RefreshMonitoringCadenceStatus()
+        {
+            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                OnPropertyChanged(nameof(MonitoringCadenceTier));
+                OnPropertyChanged(nameof(MonitoringCadenceReason));
+                OnPropertyChanged(nameof(MonitoringCadenceBlockers));
+            }));
         }
         
         /// <summary>
@@ -2309,6 +2345,49 @@ namespace OmenCore.ViewModels
             }
         }
 
+        private void UpdateScheduleTimerState()
+        {
+            if (ScheduleRules.Count > 0)
+            {
+                StartScheduleTimer();
+            }
+            else
+            {
+                StopScheduleTimer();
+                _lastScheduleMinute = null;
+            }
+        }
+
+        private void StartScheduleTimer()
+        {
+            if (_scheduleTimer == null)
+            {
+                _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+                _scheduleTimer.Tick += EnforceScheduleRules;
+            }
+
+            if (!_scheduleTimer.IsEnabled)
+            {
+                _scheduleTimer.Start();
+                BackgroundTimerRegistry.Register(
+                    ScheduleTimerRegistryName,
+                    "SettingsViewModel",
+                    "Enforces user-defined time-of-day profile schedule rules",
+                    30000,
+                    BackgroundTimerTier.Optional);
+            }
+        }
+
+        private void StopScheduleTimer()
+        {
+            if (_scheduleTimer != null)
+            {
+                _scheduleTimer.Stop();
+            }
+
+            BackgroundTimerRegistry.Unregister(ScheduleTimerRegistryName);
+        }
+
         #endregion
         
         #region Driver Status Properties
@@ -2748,13 +2827,8 @@ namespace OmenCore.ViewModels
         private void LoadSettings()
         {
             // Load from config
-            _pollingProfile = string.IsNullOrWhiteSpace(_config.Monitoring.PollingProfile)
-                ? "Balanced"
-                : _config.Monitoring.PollingProfile;
-            _pollingIntervalMs = _config.Monitoring.PollIntervalMs;
             _historyCount = _config.Monitoring.HistoryCount;
             _lowOverheadMode = _config.Monitoring.LowOverheadMode;
-            _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
             _autoCheckUpdates = _config.Updates?.AutoCheckEnabled ?? true;
             _includePreReleases = _config.Updates?.IncludePreReleases ?? false;
             // Map CheckIntervalHours to dropdown index: 0=Every startup, 1=Every 6 hours, 2=Daily(12h), 3=Weekly
@@ -2806,8 +2880,10 @@ namespace OmenCore.ViewModels
 
         private void SaveSettings()
         {
-            _config.Monitoring.PollingProfile = _pollingProfile;
-            _config.Monitoring.PollIntervalMs = _pollingIntervalMs;
+            // Preserve compatibility values for older configs/tools even though runtime cadence
+            // is now owned entirely by the unified active/idle/tray/overlay policy.
+            _config.Monitoring.PollingProfile = _lowOverheadMode ? "Low overhead" : "Balanced";
+            _config.Monitoring.PollIntervalMs = _lowOverheadMode ? 2000 : 1000;
             _config.Monitoring.HistoryCount = _historyCount;
             _config.Monitoring.LowOverheadMode = _lowOverheadMode;
             
@@ -2857,64 +2933,6 @@ namespace OmenCore.ViewModels
             _configService.Save(_config);
         }
 
-        private void ApplyPollingProfile(string profile)
-        {
-            _suppressPollingProfileSync = true;
-            try
-            {
-                switch (profile)
-                {
-                    case "Performance":
-                        _pollingIntervalMs = 500;
-                        _lowOverheadMode = false;
-                        break;
-                    case "Balanced":
-                        _pollingIntervalMs = 1000;
-                        _lowOverheadMode = false;
-                        break;
-                    case "Low overhead":
-                        _pollingIntervalMs = 2000;
-                        _lowOverheadMode = true;
-                        break;
-                    default:
-                        return;
-                }
-
-                OnPropertyChanged(nameof(PollingIntervalMs));
-                OnPropertyChanged(nameof(LowOverheadMode));
-                _hardwareMonitoringService?.SetPollingInterval(_pollingIntervalMs);
-                _hardwareMonitoringService?.SetLowOverheadMode(_lowOverheadMode);
-                LowOverheadModeChanged?.Invoke(this, _lowOverheadMode);
-            }
-            finally
-            {
-                _suppressPollingProfileSync = false;
-            }
-        }
-
-        private void UpdatePollingProfileFromCurrentSettings()
-        {
-            if (_suppressPollingProfileSync)
-            {
-                return;
-            }
-
-            var inferred = _lowOverheadMode
-                ? (_pollingIntervalMs == 2000 ? "Low overhead" : "Custom")
-                : _pollingIntervalMs switch
-                {
-                    500 => "Performance",
-                    1000 => "Balanced",
-                    _ => "Custom"
-                };
-
-            if (!string.Equals(_pollingProfile, inferred, StringComparison.Ordinal))
-            {
-                _pollingProfile = inferred;
-                OnPropertyChanged(nameof(PollingProfile));
-            }
-        }
-        
         /// <summary>
         /// Check if OmenCore scheduled task exists for startup.
         /// </summary>
@@ -3076,7 +3094,11 @@ namespace OmenCore.ViewModels
                     createProcess.WaitForExit(5000);
                     
                     // Clean up temp file
-                    try { File.Delete(xmlPath); } catch { }
+                    try { File.Delete(xmlPath); }
+                    catch (Exception ex)
+                    {
+                        _logging.Debug($"Failed to delete temporary scheduled task XML '{xmlPath}': {ex.Message}");
+                    }
                     
                     if (createProcess.ExitCode == 0)
                     {
@@ -3356,7 +3378,6 @@ namespace OmenCore.ViewModels
             try
             {
                 // Reset all settings to defaults
-                PollingIntervalMs = 2000;
                 HistoryCount = 120;
                 LowOverheadMode = false;
                 StartMinimized = false;
@@ -3411,7 +3432,10 @@ namespace OmenCore.ViewModels
                     if (wrService != null)
                         winRing0Available = true;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"WinRing0 registry check failed: {ex.Message}");
+                }
                 
                 // Check for XTU service conflict (check SERVICES not processes)
                 bool xtuRunning = false;
@@ -3442,7 +3466,10 @@ namespace OmenCore.ViewModels
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"XTU service conflict check failed: {ex.Message}");
+                }
 
                 if (pawnIoAvailable)
                 {
@@ -3748,13 +3775,20 @@ namespace OmenCore.ViewModels
                                 OghInstalled = true;
                                 // Get the process path for more detail
                                 var path = "";
-                                try { path = procs[0].MainModule?.FileName ?? ""; } catch { }
+                                try { path = procs[0].MainModule?.FileName ?? ""; }
+                                catch (Exception ex)
+                                {
+                                    _logging.Debug($"Unable to read OGH process path for '{proc}': {ex.Message}");
+                                }
                                 var detail = string.IsNullOrEmpty(path) ? $"Process: {proc}" : $"Process: {proc} ({path})";
                                 detectedItems.Add(detail);
                                 foreach (var p in procs) p.Dispose();
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            _logging.Debug($"OGH process check failed for '{proc}': {ex.Message}");
+                        }
                     }
                     
                     OghDetectionDetail = detectedItems.Count > 0 
@@ -4353,7 +4387,11 @@ namespace OmenCore.ViewModels
                 if (exportedPath != null && File.Exists(exportedPath))
                 {
                     File.Copy(exportedPath, dialog.FileName, overwrite: true);
-                    try { File.Delete(exportedPath); } catch { }
+                    try { File.Delete(exportedPath); }
+                    catch (Exception ex)
+                    {
+                        _logging.Debug($"Failed to delete temporary diagnostics export '{exportedPath}': {ex.Message}");
+                    }
                 }
                 
                 _logging.Info($"Diagnostics exported successfully to {dialog.FileName}");
@@ -4523,6 +4561,15 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged(nameof(ValidationMessage));
                 }
             }
+        }
+
+        public void Dispose()
+        {
+            StopScheduleTimer();
+            _scheduleTimer = null;
+            _fanCleaningCts?.Cancel();
+            _fanCleaningCts?.Dispose();
+            _fanCleaningCts = null;
         }
     }
 

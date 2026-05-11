@@ -95,8 +95,12 @@
                 <!-- Active Mode Badge -->
                 <Border Grid.Column="1" Background="#1A1A1E" CornerRadius="20" Padding="14,8" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="Confirmed:" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <Border Style="{StaticResource StatusVisualBadge}" Tag="{Binding FanOwnershipVisualState}" Padding="6,2" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Style="{StaticResource StatusVisualGlyph}" Tag="{Binding FanOwnershipVisualState}" Width="10" Height="10" Margin="0,0,4,0"/>
+                                <TextBlock Text="{Binding FanOwnershipVisualLabel}" Style="{StaticResource StatusVisualText}" Tag="{Binding FanOwnershipVisualState}"/>
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="{Binding CurrentFanModeName}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
                         <Border Background="#1A4CAF50" CornerRadius="4" Padding="6,2" Margin="10,0,0,0"
                                 Visibility="{Binding IsCurveActive, Converter={StaticResource BoolToVisibility}}">
@@ -216,7 +220,7 @@
                                  Tag="Extreme"
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
-                                 ToolTip="Maximum cooling for high-power systems (13900HX + 4090). Hits 100% at 75°C."
+                                 ToolTip="Highest non-Max cooling curve. Reserves 100% fan duty for hotter operation; use Max for immediate full RPM."
                                  Margin="3,0,3,0">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -237,7 +241,7 @@
                             </Border>
                             
                             <TextBlock Grid.Row="1" Text="Extreme" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Text="@75°C" FontSize="9" FontWeight="SemiBold" Foreground="#64B5F6" HorizontalAlignment="Center" Margin="0,2,0,6"/>
+                            <TextBlock Grid.Row="2" Text="@88C" FontSize="9" FontWeight="SemiBold" Foreground="#64B5F6" HorizontalAlignment="Center" Margin="0,2,0,6"/>
                             
                             <Border Grid.Row="3" Background="#2064B5F6" CornerRadius="4" Padding="6,2" HorizontalAlignment="Center"
                                     Visibility="{Binding IsExtremeSelected, Converter={StaticResource BoolToVisibility}}">
@@ -544,6 +548,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         
                         <!-- Header with instructions -->
@@ -660,9 +665,23 @@
                                            Foreground="{StaticResource AccentBlueBrush}"
                                            TextWrapping="Wrap"/>
                                 </Border>
-                        
+
+                        <Border Grid.Row="5"
+                                Background="#1A2A3A"
+                                BorderBrush="{StaticResource WarningBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8"
+                                Margin="0,0,0,8"
+                                Visibility="{Binding IsSafetyFloorActive, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="{Binding SafetyFloorNoticeText}"
+                                       FontSize="11"
+                                       Foreground="{StaticResource WarningBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
                         <!-- Current curve points summary -->
-                                <Border Grid.Row="5" 
+                                <Border Grid.Row="6"
                                 Background="{StaticResource SurfaceDarkBrush}"
                                 CornerRadius="6"
                                 Padding="12"
@@ -908,6 +927,30 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
+
+                        <Border Background="{StaticResource SurfaceDarkBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="FAN CONTROL OWNER"
+                                           Style="{StaticResource Label}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding FanOwnershipSummary}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"/>
+                                <TextBlock Text="{Binding FanOwnershipDetail}"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
 
                         <Border Background="#1A2A3A"
                                 BorderBrush="{StaticResource AccentBlueBrush}"

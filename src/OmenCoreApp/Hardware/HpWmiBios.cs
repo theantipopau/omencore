@@ -155,6 +155,48 @@ namespace OmenCore.Hardware
             Extended4 = 0x04
         }
 
+        public static (byte customTgp, byte ppab, byte dState, byte peakTemperature) BuildGpuPowerPayload(GpuPowerLevel level)
+        {
+            byte customTgp = 0;
+            byte ppab = 0;
+
+            switch (level)
+            {
+                case GpuPowerLevel.Minimum:
+                    customTgp = 0;
+                    ppab = 0;
+                    break;
+                case GpuPowerLevel.Medium:
+                    customTgp = 1;
+                    ppab = 0;
+                    break;
+                case GpuPowerLevel.Maximum:
+                    customTgp = 1;
+                    ppab = 1;
+                    break;
+                case GpuPowerLevel.Extended3:
+                case GpuPowerLevel.Extended4:
+                    customTgp = 1;
+                    ppab = (byte)(level - GpuPowerLevel.Maximum + 1);
+                    break;
+            }
+
+            return (customTgp, ppab, 0x01, 0x00);
+        }
+
+        public static bool IsGpuPowerReadbackMatch(GpuPowerLevel requestedLevel, bool customTgp, int ppabLevel)
+        {
+            return requestedLevel switch
+            {
+                GpuPowerLevel.Minimum => !customTgp && ppabLevel == 0,
+                GpuPowerLevel.Medium => customTgp && ppabLevel == 0,
+                GpuPowerLevel.Maximum => customTgp && ppabLevel >= 1,
+                GpuPowerLevel.Extended3 => customTgp && ppabLevel >= 2,
+                GpuPowerLevel.Extended4 => customTgp && ppabLevel >= 3,
+                _ => false
+            };
+        }
+
         /// <summary>
         /// GPU mode (not Advanced Optimus, requires reboot).
         /// </summary>
@@ -889,32 +931,8 @@ namespace OmenCore.Hardware
 
             try
             {
-                var data = new byte[4];
-                // GpuCustomTgp, GpuPpab, GpuDState, PeakTemperature
-                switch (level)
-                {
-                    case GpuPowerLevel.Minimum:
-                        data[0] = 0; // CustomTgp off
-                        data[1] = 0; // PPAB off
-                        break;
-                    case GpuPowerLevel.Medium:
-                        data[0] = 1; // CustomTgp on
-                        data[1] = 0; // PPAB off
-                        break;
-                    case GpuPowerLevel.Maximum:
-                        data[0] = 1; // CustomTgp on
-                        data[1] = 1; // PPAB on (Dynamic Boost)
-                        break;
-                    case GpuPowerLevel.Extended3:
-                    case GpuPowerLevel.Extended4:
-                        // Extended levels: try raw byte value for PPAB
-                        // RTX 5080 may support PPAB values > 1 for +25W boost
-                        data[0] = 1; // CustomTgp on
-                        data[1] = (byte)(level - GpuPowerLevel.Maximum + 1); // PPAB = 2, 3, etc.
-                        break;
-                }
-                data[2] = 0x01; // DState = D1
-                data[3] = 0x00; // PeakTemperature
+                var payload = BuildGpuPowerPayload(level);
+                var data = new byte[4] { payload.customTgp, payload.ppab, payload.dState, payload.peakTemperature };
 
                 _logging?.Info($"Sending GPU power command: Level={level}, CustomTgp={data[0]}, PPAB={data[1]}, DState={data[2]}");
                 _logging?.Debug($"[GitHub #91 Debug] GPU power bytes: [{string.Join(",", data)}]");
@@ -923,28 +941,23 @@ namespace OmenCore.Hardware
                 if (result != null)
                 {
                     _logging?.Info($"GPU power command result: {result} for level {level}");
-                    _logging?.Info($"✓ GPU power set to: {level} (CustomTgp={data[0]}, PPAB={data[1]})");
-                    return true;
+                    if (VerifyGpuPowerReadback(level))
+                    {
+                        _logging?.Info($"✓ GPU power set and verified: {level} (CustomTgp={data[0]}, PPAB={data[1]})");
+                        return true;
+                    }
+
+                    _logging?.Warn($"GPU power command was accepted but readback did not match requested level {level}");
+                    return false;
                 }
                 else
                 {
                     _logging?.Warn($"GPU power command returned null - BIOS may not support this command or returned error");
-                    
-                    // Try getting current GPU power to verify if the command was partially successful
-                    var currentPower = GetGpuPower();
-                    if (currentPower.HasValue)
+
+                    if (VerifyGpuPowerReadback(level))
                     {
-                        _logging?.Info($"Current GPU power after command: CustomTgp={currentPower.Value.customTgp}, PPAB={currentPower.Value.ppab}");
-                        
-                        // Check if the values match what we tried to set
-                        bool customTgpMatch = (level == GpuPowerLevel.Minimum) ? !currentPower.Value.customTgp : currentPower.Value.customTgp;
-                        bool ppabMatch = (level == GpuPowerLevel.Maximum || level == GpuPowerLevel.Extended3 || level == GpuPowerLevel.Extended4) ? currentPower.Value.ppab : !currentPower.Value.ppab;
-                        
-                        if (customTgpMatch && ppabMatch)
-                        {
-                            _logging?.Info($"✓ GPU power appears to be set correctly despite command returning null");
-                            return true;
-                        }
+                        _logging?.Info("✓ GPU power readback matches despite command returning null");
+                        return true;
                     }
                 }
             }
@@ -955,11 +968,41 @@ namespace OmenCore.Hardware
             return false;
         }
 
+        private bool VerifyGpuPowerReadback(GpuPowerLevel requestedLevel)
+        {
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                var currentPower = GetGpuPowerDetailed();
+                if (currentPower.HasValue)
+                {
+                    var readback = currentPower.Value;
+                    _logging?.Info($"GPU power readback attempt {attempt}: CustomTgp={readback.customTgp}, PPAB={readback.ppabLevel}, DState={readback.dState}");
+
+                    if (IsGpuPowerReadbackMatch(requestedLevel, readback.customTgp, readback.ppabLevel))
+                    {
+                        return true;
+                    }
+                }
+
+                Thread.Sleep(150);
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Get current GPU power settings.
         /// OmenMon: Cmd.Default, 0x21
         /// </summary>
         public (bool customTgp, bool ppab, int dState)? GetGpuPower()
+        {
+            var detailed = GetGpuPowerDetailed();
+            return detailed.HasValue
+                ? (detailed.Value.customTgp, detailed.Value.ppabLevel > 0, detailed.Value.dState)
+                : null;
+        }
+
+        public (bool customTgp, int ppabLevel, int dState)? GetGpuPowerDetailed()
         {
             if (!_isAvailable) return null;
 
@@ -968,7 +1011,7 @@ namespace OmenCore.Hardware
                 var result = SendBiosCommand(BiosCmd.Default, CMD_GPU_GET_POWER, new byte[4], 4);
                 if (result != null && result.Length >= 3)
                 {
-                    return (result[0] != 0, result[1] != 0, result[2]);
+                    return (result[0] != 0, result[1], result[2]);
                 }
             }
             catch (Exception ex)

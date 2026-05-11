@@ -89,5 +89,15 @@ namespace OmenCoreApp.Tests.Services
             result.DeviationPercent.Should().Be(100,
                 "expected 0 RPM with non-zero measured RPM should report a clear mismatch instead of 0% deviation");
         }
+
+        [Fact]
+        public void RestoreFanControlAfterCalibration_ReturnsFalse_WhenNoBackendAvailable()
+        {
+            var logging = new LoggingService();
+            logging.Initialize();
+            var service = new FanVerificationService(wmiBios: null, fanService: null, logging);
+
+            service.RestoreFanControlAfterCalibration().Should().BeFalse();
+        }
     }
 }

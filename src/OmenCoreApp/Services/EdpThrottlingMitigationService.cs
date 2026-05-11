@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using OmenCore.Hardware;
 using OmenCore.Services;
 using OmenCore.Models;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Services
 {
@@ -12,6 +13,8 @@ namespace OmenCore.Services
     /// </summary>
     public class EdpThrottlingMitigationService : IDisposable
     {
+        private const string MonitorTimerRegistryName = "EdpThrottlingMitigationMonitor";
+
         private readonly IMsrAccess? _msrAccess;
         private readonly UndervoltService _undervoltService;
         private readonly LoggingService _logging;
@@ -45,17 +48,27 @@ namespace OmenCore.Services
 
             _cts = new CancellationTokenSource();
             _ = Task.Run(() => MonitorLoopAsync(_cts.Token));
+            BackgroundTimerRegistry.Register(
+                MonitorTimerRegistryName,
+                nameof(EdpThrottlingMitigationService),
+                "EDP/power-throttling mitigation monitor",
+                (int)_monitorInterval.TotalMilliseconds,
+                BackgroundTimerTier.Critical);
             _logging.Info("EDP throttling mitigation service started");
         }
 
         public void Stop()
         {
             if (_cts == null)
+            {
+                BackgroundTimerRegistry.Unregister(MonitorTimerRegistryName);
                 return;
+            }
 
             _cts.Cancel();
             _cts.Dispose();
             _cts = null;
+            BackgroundTimerRegistry.Unregister(MonitorTimerRegistryName);
 
             // Remove any active mitigation
             if (_isMitigating)

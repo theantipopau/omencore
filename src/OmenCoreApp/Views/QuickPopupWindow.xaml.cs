@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using OmenCore.Models;
 using OmenCore.Services;
+using OmenCore.Services.Diagnostics;
 
 namespace OmenCore.Views
 {
@@ -15,6 +16,9 @@ namespace OmenCore.Views
     /// </summary>
     public partial class QuickPopupWindow : Window
     {
+        private const string UpdateTimerRegistryName = "TrayQuickPopupRefresh";
+        private const int UpdateTimerIntervalMs = 1000;
+
         private readonly DisplayService _displayService;
         private readonly DispatcherTimer _updateTimer;
         private MonitoringSample? _latestSample;
@@ -50,10 +54,10 @@ namespace OmenCore.Views
             // Start update timer for temperatures
             _updateTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(1)
+                Interval = TimeSpan.FromMilliseconds(UpdateTimerIntervalMs)
             };
             _updateTimer.Tick += UpdateDisplay;
-            _updateTimer.Start();
+            IsVisibleChanged += QuickPopupWindow_IsVisibleChanged;
             
             // Allow dragging the window
             MouseLeftButtonDown += (s, e) => 
@@ -76,8 +80,7 @@ namespace OmenCore.Views
             Top = workArea.Bottom - Height - 12;
 
             // Resume timer when showing
-            if (!_updateTimer.IsEnabled)
-                _updateTimer.Start();
+            StartUpdateTimer();
         }
 
         /// <summary>
@@ -322,21 +325,60 @@ namespace OmenCore.Views
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            _updateTimer.Stop();
+            StopUpdateTimer();
             Hide();
         }
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
             // Auto-hide when clicking outside
-            _updateTimer.Stop();
+            StopUpdateTimer();
             Hide();
+        }
+
+        private void QuickPopupWindow_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (IsVisible)
+            {
+                StartUpdateTimer();
+            }
+            else
+            {
+                StopUpdateTimer();
+            }
+        }
+
+        private void StartUpdateTimer()
+        {
+            if (_updateTimer.IsEnabled)
+            {
+                return;
+            }
+
+            _updateTimer.Start();
+            BackgroundTimerRegistry.Register(
+                UpdateTimerRegistryName,
+                nameof(QuickPopupWindow),
+                "Visible tray quick-popup telemetry refresh",
+                UpdateTimerIntervalMs,
+                BackgroundTimerTier.VisibleOnly);
+        }
+
+        private void StopUpdateTimer()
+        {
+            if (_updateTimer.IsEnabled)
+            {
+                _updateTimer.Stop();
+            }
+
+            BackgroundTimerRegistry.Unregister(UpdateTimerRegistryName);
         }
 
         protected override void OnClosed(EventArgs e)
         {
-            _updateTimer.Stop();
+            StopUpdateTimer();
             _updateTimer.Tick -= UpdateDisplay;
+            IsVisibleChanged -= QuickPopupWindow_IsVisibleChanged;
             // DisplayService doesn't need disposal
             base.OnClosed(e);
         }

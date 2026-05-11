@@ -72,6 +72,7 @@ namespace OmenCore.ViewModels
         private readonly ProcessMonitoringService _processMonitoringService;
         private readonly ITelemetryService _telemetryService;
         private readonly GameProfileService _gameProfileService;
+        private OmenCore.Services.Rgb.RgbManager? _rgbManager;
         private RgbSceneService? _rgbSceneService;
         private ScreenSamplingService? _screenSamplingService;
         private AudioReactiveRgbService? _audioReactiveRgbService;
@@ -87,6 +88,8 @@ namespace OmenCore.ViewModels
         private volatile AmdGpuService? _amdGpuService;
         private OsdService? _osdService;
         private ConflictDetectionService? _conflictDetectionService;
+        private readonly CancellationTokenSource _conflictMonitorCts = new();
+        private int _conflictMonitoringStarted;
         private HpWmiBios? _wmiBios;
         private WmiBiosMonitor? _wmiBiosMonitor;
         private OghServiceProxy? _oghProxy;
@@ -117,6 +120,7 @@ namespace OmenCore.ViewModels
         
         // Sub-ViewModels for modular UI (Lazy Loaded)
         private FanControlViewModel? _fanControl;
+        public bool IsFanControlLoaded => _fanControl != null;
         public FanControlViewModel? FanControl
         {
             get
@@ -137,14 +141,21 @@ namespace OmenCore.ViewModels
                         }
                     };
                     OnPropertyChanged(nameof(FanControl));
+                    OnPropertyChanged(nameof(IsFanControlLoaded));
                 }
                 return _fanControl;
             }
         }
 
         public LightingViewModel? Lighting { get; private set; }
+        public bool IsLightingLoaded => Lighting != null;
+        private readonly SemaphoreSlim _lightingInitializationLock = new(1, 1);
 
         private SystemControlViewModel? _systemControl;
+        public bool IsSystemControlLoaded => _systemControl != null;
+        public SystemControlViewModel? LoadedSystemControl => _systemControl;
+        public bool IsGpuPowerTrayLikelyAvailable => DetectedCapabilities?.ShowGpuPowerBoost ?? true;
+
         public SystemControlViewModel? SystemControl
         {
             get
@@ -178,7 +189,10 @@ namespace OmenCore.ViewModels
                             CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
                         }
                     };
+                    _general?.SetSystemControlViewModel(_systemControl);
                     OnPropertyChanged(nameof(SystemControl));
+                    OnPropertyChanged(nameof(IsSystemControlLoaded));
+                    OnPropertyChanged(nameof(LoadedSystemControl));
                 }
                 return _systemControl;
             }
@@ -192,14 +206,19 @@ namespace OmenCore.ViewModels
                 if (_dashboard == null)
                 {
                     _dashboard = new DashboardViewModel(_hardwareMonitoringService);
-                    // Initialize with current values (triggers creation of dependencies if needed)
-                    if (SystemControl != null)
+                    // Initialize with current values without forcing lazy sub-viewmodels to load.
+                    if (_systemControl != null)
                     {
-                        _dashboard.CurrentPerformanceMode = SystemControl.CurrentPerformanceModeName;
+                        _dashboard.CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
                         // Sync to tray menu as well
-                        CurrentPerformanceMode = SystemControl.CurrentPerformanceModeName;
+                        CurrentPerformanceMode = _systemControl.CurrentPerformanceModeName;
                     }
-                    if (FanControl != null) _dashboard.CurrentFanMode = FanControl.CurrentFanModeName;
+                    else
+                    {
+                        _dashboard.CurrentPerformanceMode = CurrentPerformanceMode;
+                    }
+
+                    _dashboard.CurrentFanMode = _fanControl?.CurrentFanModeName ?? CurrentFanMode;
                     _dashboard.ModeLinkStatus = FanPerformanceLinkStatus;
                     OnPropertyChanged(nameof(Dashboard));
                 }
@@ -208,10 +227,29 @@ namespace OmenCore.ViewModels
         }
 
         private int _selectedTabIndex = 0;
+        private const int GeneralTabIndex = 0;
+        private const int OmenTabIndex = 1;
+        private const int TuningTabIndex = 2;
+        private const int DiagnosticsTabIndex = 3;
+        private const int MonitoringTabIndex = 4;
+        private const int OptimizerTabIndex = 5;
+        private const int MemoryTabIndex = 6;
+        private const int BloatwareTabIndex = 7;
+        private const int RgbTabIndex = 8;
+
         public int SelectedTabIndex
         {
             get => _selectedTabIndex;
-            set { if (_selectedTabIndex != value) { _selectedTabIndex = value; OnPropertyChanged(nameof(SelectedTabIndex)); } }
+            set
+            {
+                if (_selectedTabIndex != value)
+                {
+                    _selectedTabIndex = value;
+                    OnPropertyChanged(nameof(SelectedTabIndex));
+                    UpdateLazyTabActivity(value);
+                    EnsureConflictMonitoringStartedForTab(value);
+                }
+            }
         }
 
         private bool _showAdvancedControls = true;
@@ -249,7 +287,9 @@ namespace OmenCore.ViewModels
                         _logging.LogDirectory,
                         _resumeRecoveryDiagnostics,
                         _hardwareMonitoringService,
-                        _fanService);
+                        _fanService,
+                        _keyboardLightingService,
+                        () => _rgbManager);
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
@@ -295,10 +335,10 @@ namespace OmenCore.ViewModels
                 if (_general == null)
                 {
                     _general = new GeneralViewModel(_fanService, _performanceModeService, _configService, _logging, _systemInfoService);
-                    // Wire up the FanControlViewModel reference for preset sync
-                    _general.SetFanControlViewModel(FanControl);
-                    // v2.8.6: Wire up SystemControlViewModel for OMEN tab sync on quick profile switch
-                    _general.SetSystemControlViewModel(SystemControl);
+                    // Keep FanControl lazy; wire it only if something else already loaded it.
+                    _general.SetFanControlViewModel(_fanControl);
+                    // Keep SystemControl lazy; wire it only if something else already loaded it.
+                    _general.SetSystemControlViewModel(_systemControl);
                     OnPropertyChanged(nameof(General));
                 }
                 return _general;
@@ -327,6 +367,7 @@ namespace OmenCore.ViewModels
                 if (_memoryOptimizer == null)
                 {
                     _memoryOptimizer = new MemoryOptimizerViewModel(_logging, _configService);
+                    _memoryOptimizer.SetPageActive(_selectedTabIndex == MemoryTabIndex);
                     OnPropertyChanged(nameof(MemoryOptimizer));
                 }
                 return _memoryOptimizer;
@@ -1616,9 +1657,6 @@ namespace OmenCore.ViewModels
                 _amdGpuService = null;
             }
             
-            // Services initialized asynchronously
-            _ = InitializeServicesAsync();
-
             // Auto-detect CPU vendor (Intel/AMD) and create appropriate undervolt provider
             var undervoltProvider = CpuUndervoltProviderFactory.Create(out string undervoltBackend);
             _logging.Info($"CPU undervolt provider: {undervoltBackend}");
@@ -1689,16 +1727,7 @@ namespace OmenCore.ViewModels
                     _logging.Warn($"Detected {conflicts.Count} conflicting application(s): {_conflictDetectionService.GetConflictSummary()}");
                 }
             };
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _conflictDetectionService.ScanForConflictsAsync();
-                    // Monitor every 60 seconds in the background
-                    await _conflictDetectionService.MonitorConflictsAsync(TimeSpan.FromSeconds(60), CancellationToken.None);
-                }
-                catch (Exception ex) { _logging.Warn($"Conflict detection failed: {ex.Message}"); }
-            });
+            _logging.Info("Conflict detection monitor deferred until Monitoring/OMEN/Tuning/Optimizer is opened");
             
             _autoUpdateService.DownloadProgressChanged += OnUpdateDownloadProgressChanged;
             _autoUpdateService.UpdateCheckCompleted += OnBackgroundUpdateCheckCompleted;
@@ -1739,12 +1768,7 @@ namespace OmenCore.ViewModels
                 if (SystemControl?.SelectedPerformanceMode != null)
                     SystemControl.ApplyPerformanceModeCommand?.Execute(null);
             }, _ => SystemControl?.SelectedPerformanceMode != null);
-            ApplyLightingProfileCommand = new AsyncRelayCommand(async _ => 
-            {
-                if (Lighting?.ApplyCorsairLightingCommand?.CanExecute(null) == true)
-                    Lighting.ApplyCorsairLightingCommand.Execute(null);
-                await Task.CompletedTask;
-            }, _ => Lighting?.SelectedCorsairDevice != null && Lighting?.SelectedCorsairPreset != null);
+            ApplyLightingProfileCommand = new AsyncRelayCommand(_ => ApplyLightingProfile(), _ => SelectedLightingProfile != null);
             ToggleAnimationsCommand = new RelayCommand(param => _systemOptimizationService.ApplyWindowsAnimations(param as string == "Enable"));
             GamingModeCommand = new RelayCommand(_ => GamingModeActive = !GamingModeActive);
             RestoreDefaultsCommand = new RelayCommand(_ => RestoreDefaults());
@@ -1757,7 +1781,11 @@ namespace OmenCore.ViewModels
             });
             ReloadConfigCommand = new RelayCommand(_ => ReloadConfiguration());
             OpenConfigFolderCommand = new RelayCommand(_ => OpenConfigFolder());
-            DiscoverCorsairCommand = new AsyncRelayCommand(_ => DiscoverCorsairDevices());
+            DiscoverCorsairCommand = new AsyncRelayCommand(async _ =>
+            {
+                await EnsureLightingInitializedAsync();
+                await DiscoverCorsairDevices();
+            });
             ApplyCorsairLightingCommand = new AsyncRelayCommand(_ => ApplyCorsairLighting(), _ => SelectedCorsairDevice != null && SelectedCorsairPreset != null);
             SaveCorsairDpiCommand = new AsyncRelayCommand(_ => SaveCorsairDpi(), _ => SelectedCorsairDevice != null);
             ApplyMacroCommand = new AsyncRelayCommand(_ => ApplyMacroToDevice(), _ => SelectedCorsairDevice != null && SelectedMacroProfile != null);
@@ -2160,27 +2188,36 @@ namespace OmenCore.ViewModels
             }
         }
 
-        private Task ApplyGameProfileAsync(GameProfile profile)
+        private async Task ApplyGameProfileAsync(GameProfile profile)
         {
             // Apply fan preset
-            if (!string.IsNullOrEmpty(profile.FanPresetName) && FanControl != null)
+            if (!string.IsNullOrEmpty(profile.FanPresetName))
             {
-                var preset = FanControl.FanPresets.FirstOrDefault(p => p.Name == profile.FanPresetName);
+                var preset = ResolveGameProfileFanPreset(profile.FanPresetName);
                 if (preset != null)
                 {
-                    FanControl.SelectedPreset = preset;
-                    _logging.Info($"Applied fan preset: {preset.Name}");
+                    await Task.Run(() => _fanService.ApplyPreset(preset));
+                    _logging.Info($"Applied game-profile fan preset: {preset.Name}");
+                }
+                else
+                {
+                    _logging.Warn($"Game profile fan preset not found: {profile.FanPresetName}");
                 }
             }
 
             // Apply performance mode
-            if (!string.IsNullOrEmpty(profile.PerformanceModeName) && SystemControl != null)
+            if (!string.IsNullOrEmpty(profile.PerformanceModeName))
             {
-                var mode = SystemControl.PerformanceModes.FirstOrDefault(m => m.Name == profile.PerformanceModeName);
+                var mode = ResolveGameProfilePerformanceMode(profile.PerformanceModeName);
                 if (mode != null)
                 {
-                    SystemControl.SelectedPerformanceMode = mode;
-                    _logging.Info($"Applied performance mode: {mode.Name}");
+                    await Task.Run(() => _performanceModeService.Apply(mode));
+                    _logging.Info($"Applied game-profile performance mode: {mode.Name}");
+                }
+                else
+                {
+                    await Task.Run(() => _performanceModeService.SetPerformanceMode(profile.PerformanceModeName));
+                    _logging.Info($"Applied game-profile performance mode by fallback name: {profile.PerformanceModeName}");
                 }
             }
 
@@ -2231,7 +2268,95 @@ namespace OmenCore.ViewModels
 
             _logging.Info($"✓ Profile '{profile.Name}' applied successfully");
 
-            return Task.CompletedTask;
+        }
+
+        private FanPreset? ResolveGameProfileFanPreset(string presetName)
+        {
+            var configured = _config.FanPresets?.FirstOrDefault(p =>
+                p.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+            if (configured != null)
+            {
+                return configured;
+            }
+
+            if (_fanControl != null)
+            {
+                var loadedPreset = _fanControl.FanPresets.FirstOrDefault(p =>
+                    p.Name.Equals(presetName, StringComparison.OrdinalIgnoreCase));
+                if (loadedPreset != null)
+                {
+                    return loadedPreset;
+                }
+            }
+
+            var mode = FanModeNameResolver.ResolveBuiltInFanMode(presetName);
+            return new FanPreset
+            {
+                Name = presetName,
+                Mode = mode,
+                IsBuiltIn = true,
+                Curve = BuildGameProfileFanCurve(presetName, mode)
+            };
+        }
+
+        private PerformanceMode? ResolveGameProfilePerformanceMode(string modeName)
+        {
+            if (_systemControl != null)
+            {
+                var loadedMode = _systemControl.PerformanceModes.FirstOrDefault(m =>
+                    m.Name.Equals(modeName, StringComparison.OrdinalIgnoreCase));
+                if (loadedMode != null)
+                {
+                    return loadedMode;
+                }
+            }
+
+            return _config.PerformanceModes?.FirstOrDefault(m =>
+                m.Name.Equals(modeName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static List<FanCurvePoint> BuildGameProfileFanCurve(string presetName, FanMode mode)
+        {
+            if (mode == FanMode.Max || FanModeNameResolver.IsMaxAlias(presetName))
+            {
+                return new() { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } };
+            }
+
+            if (FanModeNameResolver.IsQuietAlias(presetName))
+            {
+                return new()
+                {
+                    new FanCurvePoint { TemperatureC = 50, FanPercent = 25 },
+                    new FanCurvePoint { TemperatureC = 65, FanPercent = 35 },
+                    new FanCurvePoint { TemperatureC = 75, FanPercent = 50 },
+                    new FanCurvePoint { TemperatureC = 85, FanPercent = 70 },
+                    new FanCurvePoint { TemperatureC = 95, FanPercent = 100 }
+                };
+            }
+
+            if (FanModeNameResolver.IsPerformanceAlias(presetName))
+            {
+                return new()
+                {
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 35 },
+                    new FanCurvePoint { TemperatureC = 50, FanPercent = 45 },
+                    new FanCurvePoint { TemperatureC = 60, FanPercent = 58 },
+                    new FanCurvePoint { TemperatureC = 70, FanPercent = 72 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 88 },
+                    new FanCurvePoint { TemperatureC = 90, FanPercent = 100 }
+                };
+            }
+
+            return new()
+            {
+                new FanCurvePoint { TemperatureC = 40, FanPercent = 30 },
+                new FanCurvePoint { TemperatureC = 50, FanPercent = 38 },
+                new FanCurvePoint { TemperatureC = 60, FanPercent = 50 },
+                new FanCurvePoint { TemperatureC = 70, FanPercent = 62 },
+                new FanCurvePoint { TemperatureC = 80, FanPercent = 78 },
+                new FanCurvePoint { TemperatureC = 88, FanPercent = 92 },
+                new FanCurvePoint { TemperatureC = 95, FanPercent = 100 }
+            };
         }
 
         private Task RestoreDefaultSettingsAsync()
@@ -2614,6 +2739,9 @@ namespace OmenCore.ViewModels
             {
                 return;
             }
+
+            await EnsureLightingInitializedAsync();
+
             await _keyboardLightingService.ApplyProfile(SelectedLightingProfile);
             if (_corsairDeviceService != null)
             {
@@ -3066,7 +3194,31 @@ namespace OmenCore.ViewModels
             });
         }
 
-        private async Task InitializeServicesAsync()
+        public async Task<LightingViewModel?> EnsureLightingInitializedAsync()
+        {
+            if (Lighting != null)
+            {
+                return Lighting;
+            }
+
+            await _lightingInitializationLock.WaitAsync();
+            try
+            {
+                if (Lighting != null)
+                {
+                    return Lighting;
+                }
+
+                await InitializeLightingServicesAsync();
+                return Lighting;
+            }
+            finally
+            {
+                _lightingInitializationLock.Release();
+            }
+        }
+
+        private async Task InitializeLightingServicesAsync()
         {
             try
             {
@@ -3077,88 +3229,82 @@ namespace OmenCore.ViewModels
                 await DiscoverCorsairDevices();
                 await DiscoverLogitechDevices();
                 
-                // Initialize Lighting sub-ViewModel after async services are ready
+                // Initialize Lighting sub-ViewModel after async services are ready.
+                // This is intentionally first-use for v3.6 lightweight startup: peripheral SDK,
+                // Razer process, OpenRGB, screen-sampling, and audio-reactive paths stay cold
+                // until the RGB page or an explicit lighting action asks for them.
                 if (_corsairDeviceService != null && _logitechDeviceService != null)
                 {
-                    // Show lighting tab if:
-                    // 1. Corsair or Logitech peripheral devices are found, OR
-                    // 2. HP OMEN keyboard lighting is available, OR
-                    // 3. Razer Synapse has already been detected.
-                    // Optional RGB providers are registered without probing here; RgbManager
-                    // initializes them on the first RGB page action or sync request.
                     bool hasPeripherals = _corsairDeviceService.Devices.Any() || _logitechDeviceService.Devices.Any();
                     bool hasKeyboardLighting = _keyboardLightingService?.IsAvailable ?? false;
-                    bool hasRazer = _razerService?.IsAvailable ?? false;
-                    
-                    if (hasPeripherals || hasKeyboardLighting || hasRazer)
+
+                    // Register RGB providers with priority: Corsair -> Logitech -> Razer -> OpenRGB -> SystemGeneric.
+                    // Provider initialization remains lazy inside RgbManager until the RGB page applies/syncs.
+                    var rgbManager = new OmenCore.Services.Rgb.RgbManager(_logging);
+                    _rgbManager = rgbManager;
+                    var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService, _corsairDeviceService);
+                    var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging, _logitechDeviceService);
+                    var openRgbProvider = new OmenCore.Services.Rgb.OpenRgbProvider(_logging);
+                    rgbManager.RegisterProvider(corsairProvider);
+                    rgbManager.RegisterProvider(logitechProvider);
+
+                    if (_razerService != null)
                     {
-                        // Register RGB providers with priority: Corsair -> Logitech -> Razer -> OpenRGB -> SystemGeneric.
-                        // Provider initialization is lazy to avoid duplicate startup probes.
-                        var rgbManager = new OmenCore.Services.Rgb.RgbManager(_logging);
-                        var corsairProvider = new OmenCore.Services.Rgb.CorsairRgbProvider(_logging, _configService, _corsairDeviceService);
-                        var logitechProvider = new OmenCore.Services.Rgb.LogitechRgbProvider(_logging, _logitechDeviceService);
-                        var openRgbProvider = new OmenCore.Services.Rgb.OpenRgbProvider(_logging);
-                        rgbManager.RegisterProvider(corsairProvider);
-                        rgbManager.RegisterProvider(logitechProvider);
+                        var razerProvider = new OmenCore.Services.Rgb.RazerRgbProvider(_logging, _razerService);
+                        rgbManager.RegisterProvider(razerProvider);
+                    }
 
-                        if (_razerService != null)
-                        {
-                            var razerProvider = new OmenCore.Services.Rgb.RazerRgbProvider(_logging, _razerService);
-                            rgbManager.RegisterProvider(razerProvider);
-                        }
-                        
-                        rgbManager.RegisterProvider(openRgbProvider);
+                    rgbManager.RegisterProvider(openRgbProvider);
 
-                        var systemProvider = new OmenCore.Services.Rgb.SystemRgbProvider(rgbManager, _logging);
-                        rgbManager.RegisterProvider(systemProvider);
+                    var systemProvider = new OmenCore.Services.Rgb.SystemRgbProvider(rgbManager, _logging);
+                    rgbManager.RegisterProvider(systemProvider);
 
-                        _screenSamplingService = new ScreenSamplingService(_logging, rgbManager, _keyboardLightingService);
-                        _audioReactiveRgbService = new AudioReactiveRgbService(_logging, _keyboardLightingService);
+                    _screenSamplingService = new ScreenSamplingService(_logging, rgbManager, _keyboardLightingService);
+                    _audioReactiveRgbService = new AudioReactiveRgbService(_logging, _keyboardLightingService);
 
-                        foreach (var provider in rgbManager.Providers.Where(p => p.ProviderId != "system"))
-                        {
-                            _audioReactiveRgbService.RegisterProvider(provider);
-                        }
+                    foreach (var provider in rgbManager.Providers.Where(p => p.ProviderId != "system"))
+                    {
+                        _audioReactiveRgbService.RegisterProvider(provider);
+                    }
 
-                        _rgbSceneService = new RgbSceneService(
-                            _logging,
-                            rgbManager,
-                            _keyboardLightingService,
-                            _configService,
-                            _screenSamplingService,
-                            _audioReactiveRgbService);
+                    _rgbSceneService = new RgbSceneService(
+                        _logging,
+                        rgbManager,
+                        _keyboardLightingService,
+                        _configService,
+                        _screenSamplingService,
+                        _audioReactiveRgbService);
 
-                        Lighting = new LightingViewModel(
-                            _corsairDeviceService,
-                            _logitechDeviceService,
-                            _logging,
-                            _keyboardLightingService,
-                            _configService,
-                            _razerService,
-                            rgbManager,
-                            sceneService: _rgbSceneService,
-                            screenSamplingService: _screenSamplingService,
-                            audioReactiveRgbService: _audioReactiveRgbService);
-                        OnPropertyChanged(nameof(Lighting));
+                    Lighting = new LightingViewModel(
+                        _corsairDeviceService,
+                        _logitechDeviceService,
+                        _logging,
+                        _keyboardLightingService,
+                        _configService,
+                        _razerService,
+                        rgbManager,
+                        sceneService: _rgbSceneService,
+                        screenSamplingService: _screenSamplingService,
+                        audioReactiveRgbService: _audioReactiveRgbService);
+                    OnPropertyChanged(nameof(Lighting));
+                    OnPropertyChanged(nameof(IsLightingLoaded));
 
-                        // Apply saved keyboard colors on startup
-                        if (hasKeyboardLighting)
-                        {
-                            _ = Lighting.ApplySavedKeyboardColorsAsync();
-                        }
-                        
-                        if (hasKeyboardLighting && !hasPeripherals)
-                        {
-                            _logging.Info("Lighting sub-ViewModel initialized (keyboard lighting available)");
-                        }
-                        else
-                        {
-                            _logging.Info("Lighting sub-ViewModel initialized (devices found)");
-                        }
+                    if (hasKeyboardLighting)
+                    {
+                        _ = Lighting.ApplySavedKeyboardColorsAsync();
+                    }
+
+                    if (hasKeyboardLighting && !hasPeripherals)
+                    {
+                        _logging.Info("Lighting sub-ViewModel initialized on first use (keyboard lighting available)");
+                    }
+                    else if (hasPeripherals)
+                    {
+                        _logging.Info("Lighting sub-ViewModel initialized on first use (devices found)");
                     }
                     else
                     {
-                        _logging.Info("Lighting sub-ViewModel skipped (no devices or keyboard lighting found)");
+                        _logging.Info("Lighting sub-ViewModel initialized on first use (no RGB devices detected yet)");
                     }
                 }
             }
@@ -3166,7 +3312,7 @@ namespace OmenCore.ViewModels
             {
                 _logging.ErrorWithContext(
                     component: "MainViewModel",
-                    operation: "InitializeServicesAsync",
+                    operation: "InitializeLightingServicesAsync",
                     message: "Failed to initialize peripheral services",
                     ex: ex);
             }
@@ -3602,9 +3748,9 @@ namespace OmenCore.ViewModels
                 {
                     await dispatcher.InvokeAsync(() =>
                     {
-                        if (SystemControl != null)
+                        if (_systemControl != null)
                         {
-                            SystemControl.SelectModeByNameNoApply(mode);
+                            _systemControl.SelectModeByNameNoApply(mode);
                         }
 
                         CurrentPerformanceMode = mode;
@@ -3673,8 +3819,8 @@ namespace OmenCore.ViewModels
 
                         CurrentPerformanceMode = performanceMode;
                         CurrentFanMode = confirmedFanMode;
-                        General?.SetSystemControlViewModel(SystemControl);
-                        SystemControl?.SelectModeByNameNoApply(performanceMode);
+                        General?.SetSystemControlViewModel(_systemControl);
+                        _systemControl?.SelectModeByNameNoApply(performanceMode);
                         FanControl?.SelectPresetByNameNoApply(confirmedFanMode);
                         ShowHotkeyOsd("Profile", profile, "Tray");
                         PushEvent($"🎮 Profile: {profile} (fan: {confirmedFanMode})");
@@ -4004,17 +4150,69 @@ namespace OmenCore.ViewModels
                 ShowAdvancedControls = true;
             }
 
-            SelectedTabIndex = 7; // Bloatware tab index
+            SelectedTabIndex = BloatwareTabIndex;
         }
 
         private static bool IsAdvancedTab(int tabIndex) =>
-            tabIndex == 1 ||
-            tabIndex == 2 ||
-            tabIndex == 3 ||
-            tabIndex == 5 ||
-            tabIndex == 6 ||
-            tabIndex == 7 ||
-            tabIndex == 8;
+            tabIndex == OmenTabIndex ||
+            tabIndex == TuningTabIndex ||
+            tabIndex == DiagnosticsTabIndex ||
+            tabIndex == OptimizerTabIndex ||
+            tabIndex == MemoryTabIndex ||
+            tabIndex == BloatwareTabIndex ||
+            tabIndex == RgbTabIndex;
+
+        private static bool ShouldStartConflictMonitoringForTab(int tabIndex) =>
+            tabIndex == OmenTabIndex ||
+            tabIndex == TuningTabIndex ||
+            tabIndex == MonitoringTabIndex ||
+            tabIndex == OptimizerTabIndex;
+
+        private void UpdateLazyTabActivity(int tabIndex)
+        {
+            _memoryOptimizer?.SetPageActive(tabIndex == MemoryTabIndex);
+        }
+
+        private void EnsureConflictMonitoringStartedForTab(int tabIndex)
+        {
+            if (!ShouldStartConflictMonitoringForTab(tabIndex))
+            {
+                return;
+            }
+
+            EnsureConflictMonitoringStarted($"tab-index-{tabIndex}");
+        }
+
+        private void EnsureConflictMonitoringStarted(string reason)
+        {
+            if (_conflictDetectionService == null)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _conflictMonitoringStarted, 1, 0) != 0)
+            {
+                return;
+            }
+
+            _logging.Info($"Starting conflict detection monitor ({reason})");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _conflictDetectionService.ScanForConflictsAsync();
+                    await _conflictDetectionService.MonitorConflictsAsync(TimeSpan.FromSeconds(60), _conflictMonitorCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logging.Debug("Conflict detection monitor stopped");
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Conflict detection failed: {ex.Message}");
+                }
+            });
+        }
 
         /// <summary>
         /// Handle fan preset changes from FanService (e.g., power automation).
@@ -4277,6 +4475,9 @@ namespace OmenCore.ViewModels
             // Cancel any pending tray worker actions for clean shutdown
             _trayWorkerCts.Cancel();
             _trayWorkerCts.Dispose();
+
+            _conflictMonitorCts.Cancel();
+            _conflictMonitorCts.Dispose();
             
             _safeModeResetTimer?.Dispose();
             _safeModeResetTimer = null;
@@ -4366,6 +4567,7 @@ namespace OmenCore.ViewModels
             _screenSamplingService?.Dispose();
             _audioReactiveRgbService?.Dispose();
             _rgbSceneService?.Dispose();
+            _conflictDetectionService?.Dispose();
 
             // Dispose thermal monitoring and hardware watchdog
             _thermalMonitoringService = null;
@@ -4374,9 +4576,11 @@ namespace OmenCore.ViewModels
             // Clean up lazily-created child ViewModels that hold service event subscriptions
             Lighting?.Cleanup();
             _systemControl?.Cleanup();
+            _settings?.Dispose();
             
             // Dispose memory optimizer
             _memoryOptimizer?.Dispose();
+            _lightingInitializationLock.Dispose();
         }
     }
 }
