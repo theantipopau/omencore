@@ -2163,11 +2163,13 @@ namespace OmenCore.ViewModels
                     }
                 }
                 
-                // Restore fan preset
+                // Restore fan preset. Custom/manual fan curves are the user's selected fan owner,
+                // so restore them even when the broader startup power-restore guard is off.
                 var savedFanPreset = _config.LastFanPresetName;
                 if (!string.IsNullOrEmpty(savedFanPreset) && _fanService != null)
                 {
-                    if (!startupHardwareRestoreEnabled)
+                    if (!startupHardwareRestoreEnabled &&
+                        !ShouldRestoreFanPresetOnStartup(ResolveStartupFanPreset(savedFanPreset), startupHardwareRestoreEnabled))
                     {
                         _logging.Warn("Startup hardware restore is disabled - skipping automatic fan preset reapply");
                     }
@@ -2182,13 +2184,11 @@ namespace OmenCore.ViewModels
                                 ?? requested;
                         }
 
-                        // Look up the saved preset from config
-                        var preset = _config.FanPresets?.FirstOrDefault(p => 
-                            p.Name.Equals(savedFanPreset, StringComparison.OrdinalIgnoreCase));
+                        var preset = ResolveStartupFanPreset(savedFanPreset);
                         
                         if (preset != null)
                         {
-                            var applied = _fanService.ApplyPreset(preset);
+                            var applied = _fanService.ApplyPreset(preset, immediate: preset.Curve?.Count > 0);
                             var confirmedMode = ResolveConfirmedFanModeLabel(savedFanPreset);
                             _logging.Info($"✓ Fan preset restore {(applied ? "applied" : "failed")}: requested={savedFanPreset}, confirmed={confirmedMode} ({preset.Curve?.Count ?? 0} curve points)");
                             
@@ -2254,6 +2254,45 @@ namespace OmenCore.ViewModels
                     message: "Settings restoration failed",
                     ex: ex);
             }
+        }
+
+        private FanPreset? ResolveStartupFanPreset(string savedFanPreset)
+        {
+            var preset = _config.FanPresets?.FirstOrDefault(p =>
+                p.Name.Equals(savedFanPreset, StringComparison.OrdinalIgnoreCase));
+            if (preset != null)
+            {
+                return preset;
+            }
+
+            if (FanModeNameResolver.IsCustomAlias(savedFanPreset) &&
+                _config.CustomFanCurve is { Count: > 0 } customCurve)
+            {
+                return new FanPreset
+                {
+                    Name = "Custom",
+                    Mode = FanMode.Manual,
+                    Curve = customCurve.ToList(),
+                    IsBuiltIn = false
+                };
+            }
+
+            return null;
+        }
+
+        private static bool ShouldRestoreFanPresetOnStartup(FanPreset? preset, bool startupHardwareRestoreEnabled)
+        {
+            if (startupHardwareRestoreEnabled)
+            {
+                return true;
+            }
+
+            return preset is
+            {
+                IsBuiltIn: false,
+                Mode: FanMode.Manual,
+                Curve.Count: > 0
+            };
         }
 
         private bool ShouldRunStartupHardwareRestore()

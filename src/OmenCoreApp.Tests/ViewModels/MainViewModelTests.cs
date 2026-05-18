@@ -398,5 +398,39 @@ namespace OmenCoreApp.Tests.ViewModels
             resolver!.Invoke(vm, args).Should().Be("Custom");
             args[1].Should().Be("Field curve");
         }
+
+        [Fact]
+        public void StartupFanRestore_AllowsSavedCustomCurve_WhenHardwareRestoreDisabled()
+        {
+            var helper = typeof(MainViewModel).GetMethod(
+                "ShouldRestoreFanPresetOnStartup",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            helper.Should().NotBeNull();
+
+            var customCurve = new FanPreset
+            {
+                Name = "Field curve",
+                IsBuiltIn = false,
+                Mode = FanMode.Manual,
+                Curve =
+                {
+                    new FanCurvePoint { TemperatureC = 40, FanPercent = 30 },
+                    new FanCurvePoint { TemperatureC = 80, FanPercent = 85 }
+                }
+            };
+
+            var builtInMax = new FanPreset
+            {
+                Name = "Max",
+                IsBuiltIn = true,
+                Mode = FanMode.Max
+            };
+
+            helper!.Invoke(null, new object?[] { customCurve, false }).Should().Be(true,
+                because: "saved custom curves must become the active fan owner again on startup");
+            helper.Invoke(null, new object?[] { builtInMax, false }).Should().Be(false,
+                because: "built-in hardware modes should still respect the startup restore safety guard");
+            helper.Invoke(null, new object?[] { builtInMax, true }).Should().Be(true);
+        }
     }
 }

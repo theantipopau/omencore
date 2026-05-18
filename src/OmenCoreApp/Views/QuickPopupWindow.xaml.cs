@@ -64,6 +64,9 @@ namespace OmenCore.Views
             RefreshDisplayTargets();
             // Update display info
             UpdateRefreshRateDisplay();
+            UpdateFanModeButtons();
+            UpdatePerformanceModeButtons();
+            UpdateLinkModeText();
             
             // Start update timer for temperatures
             _updateTimer = new DispatcherTimer
