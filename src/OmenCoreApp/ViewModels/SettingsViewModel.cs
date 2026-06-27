@@ -4584,7 +4584,10 @@ namespace OmenCore.ViewModels
                 if (dialog.ShowDialog() != true)
                     return;
                 
-                var exportedPath = await _diagnosticsExportService.CollectAndExportAsync();
+                var exportedPath = await _diagnosticsExportService.CollectAndExportAsync(
+                    wmiController: _wmiBios,
+                    monitoringService: _hardwareMonitoringService,
+                    fanService: _fanService);
                 
                 // Copy to user-selected location if export succeeded
                 if (exportedPath != null && File.Exists(exportedPath))

@@ -305,7 +305,8 @@ namespace OmenCore.ViewModels
                         _ecOperationCoordinator,
                         _performanceModeService,
                         _hotkeyService,
-                        _omenKeyService);
+                        _omenKeyService,
+                        _wmiBios);
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
@@ -2273,6 +2274,21 @@ namespace OmenCore.ViewModels
                         _logging.Warn($"TCC offset restore failed: {ex.Message}");
                     }
                 }
+
+                // Apply Power Automation's AC/Battery profile for the current power source.
+                // This was previously never invoked at startup - ApplyCurrentProfile() existed
+                // but had no caller, so a user with Power Automation enabled and on battery at
+                // launch kept whatever fan/performance state was last manually set instead of
+                // their configured Battery profile until the next AC<->battery transition.
+                // Runs last so it has final say over the generic last-state restores above.
+                try
+                {
+                    _powerAutomationService?.ApplyCurrentProfile();
+                }
+                catch (Exception ex)
+                {
+                    _logging.Warn($"Power automation startup profile apply failed: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
@@ -3602,9 +3618,12 @@ namespace OmenCore.ViewModels
                     new DiagnosticExportService(
                         _logging,
                         _logging.LogDirectory,
+                        hardwareMonitoringService: _hardwareMonitoringService,
+                        fanService: _fanService,
                         ecOperationCoordinator: _ecOperationCoordinator,
                         hotkeyService: _hotkeyService,
-                        omenKeyService: _omenKeyService),
+                        omenKeyService: _omenKeyService,
+                        wmiController: _wmiBios),
                     _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
 
                 if (!string.IsNullOrEmpty(exportedPath) && File.Exists(exportedPath))

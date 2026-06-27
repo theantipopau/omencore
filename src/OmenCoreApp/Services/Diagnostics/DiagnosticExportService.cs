@@ -27,6 +27,7 @@ namespace OmenCore.Services.Diagnostics
         private readonly ResumeRecoveryDiagnosticsService? _resumeDiagnostics;
         private readonly HardwareMonitoringService? _hardwareMonitoringService;
         private readonly FanService? _fanService;
+        private readonly object? _wmiController;
         private readonly KeyboardLightingService? _keyboardLightingService;
         private readonly Func<RgbManager?>? _rgbManagerProvider;
         private readonly RuntimeEcOperationCoordinator _ecOperationCoordinator;
@@ -45,13 +46,15 @@ namespace OmenCore.Services.Diagnostics
             RuntimeEcOperationCoordinator? ecOperationCoordinator = null,
             PerformanceModeService? performanceModeService = null,
             HotkeyService? hotkeyService = null,
-            OmenKeyService? omenKeyService = null)
+            OmenKeyService? omenKeyService = null,
+            object? wmiController = null)
         {
             _logging = logging;
             _logsDirectory = logsDirectory;
             _resumeDiagnostics = resumeDiagnostics;
             _hardwareMonitoringService = hardwareMonitoringService;
             _fanService = fanService;
+            _wmiController = wmiController;
             _keyboardLightingService = keyboardLightingService;
             _rgbManagerProvider = rgbManagerProvider;
             _ecOperationCoordinator = ecOperationCoordinator ?? new RuntimeEcOperationCoordinator(logging);
@@ -75,6 +78,7 @@ namespace OmenCore.Services.Diagnostics
             {
                 var effectiveMonitoringService = monitoringService ?? _hardwareMonitoringService;
                 var effectiveFanService = fanService ?? _fanService;
+                var effectiveWmiController = wmiController ?? _wmiController;
 
                 var exportPath = Path.Combine(
                     Path.GetTempPath(),
@@ -93,7 +97,7 @@ namespace OmenCore.Services.Diagnostics
                     CollectBoundedPerformanceSnapshotsAsync(exportPath),
                     CollectBackgroundTimerSnapshotAsync(exportPath),
                     CollectLaunchReadinessSnapshotAsync(exportPath, effectiveMonitoringService, effectiveFanService),
-                    CollectCoreControlReadinessAsync(exportPath, effectiveMonitoringService, effectiveFanService, wmiController),
+                    CollectCoreControlReadinessAsync(exportPath, effectiveMonitoringService, effectiveFanService, effectiveWmiController),
                     CollectOmenMonRebornParityAsync(exportPath, effectiveMonitoringService, effectiveFanService),
                     CollectFieldValidationScriptAsync(exportPath, effectiveMonitoringService, effectiveFanService),
                     CollectPriorityModelValidationCardsAsync(exportPath, effectiveMonitoringService, effectiveFanService),
@@ -103,9 +107,9 @@ namespace OmenCore.Services.Diagnostics
                     CollectTuningSafetySnapshotAsync(exportPath),
                     CollectEcStateAsync(exportPath, ecAccess),
                     CollectHardwareInfoAsync(exportPath, hwMonitor),
-                    CollectWmiCommandHistoryAsync(exportPath, wmiController),
-                    CollectTuningAndFanFocusAsync(exportPath, wmiController),
-                    CollectMonitoringCadenceAndFanHoldAsync(exportPath, effectiveMonitoringService, effectiveFanService, wmiController),
+                    CollectWmiCommandHistoryAsync(exportPath, effectiveWmiController),
+                    CollectTuningAndFanFocusAsync(exportPath, effectiveWmiController),
+                    CollectMonitoringCadenceAndFanHoldAsync(exportPath, effectiveMonitoringService, effectiveFanService, effectiveWmiController),
                     CollectResumeRecoveryDiagnosticsAsync(exportPath)
                 };
 

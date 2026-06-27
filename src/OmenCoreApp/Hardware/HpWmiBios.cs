@@ -58,6 +58,13 @@ namespace OmenCore.Hardware
         private long _totalCommandFailures = 0;
         private readonly object _statsLock = new();
         private DateTime _statsResetTime = DateTime.Now;
+
+        // Per-command history for diagnostics export (covers every BIOS command routed
+        // through SendBiosCommand/SendBiosCommandLegacy, including Battery Care - this is
+        // the only place that bug evidence like GitHub #145's Battery Care WMI failure can
+        // be captured, since the failure happens inside this chokepoint, not in the caller).
+        private readonly List<WmiCommandHistoryEntry> _commandHistory = new();
+        private const int MaxCommandHistoryEntries = 50;
         
         // Heartbeat timer for 2023+ models
         private Timer? _heartbeatTimer;
@@ -1647,20 +1654,22 @@ namespace OmenCore.Hardware
                     {
                         _consecutiveFailures = 0; // Reset on success
                         TrackCommandResult(true);
+                        AddCommandToHistory(commandType, true);
                         return outData;
                     }
                     else
                     {
                         // Log error with more detail for GPU commands
                         string errorMsg = $"BIOS command {command}:{commandType:X2} returned code {returnCode}";
-                        
+
                         // Add GPU power specific hints
                         if (commandType == CMD_GPU_SET_POWER)
                         {
                             errorMsg += " (GPU SetPower). Return codes: 1=NotImplemented, 2=InvalidArgs, 3=HardwareError, 4=NotSupported";
                         }
-                        
+
                         LogThrottledError(errorMsg);
+                        AddCommandToHistory(commandType, false, $"Return code {returnCode}");
                     }
                 }
             }
@@ -1677,13 +1686,15 @@ namespace OmenCore.Hardware
                     LogThrottledError(cimError);
                 }
                 _consecutiveFailures++;
+                AddCommandToHistory(commandType, false, cimError);
             }
             catch (Exception ex)
             {
                 LogThrottledError($"BIOS command failed: {ex.Message}");
                 _consecutiveFailures++;
+                AddCommandToHistory(commandType, false, ex.Message);
             }
-            
+
             // Check if we should disable WMI commands
             if (_consecutiveFailures >= MaxConsecutiveFailures && !_wmiCommandsDisabled)
             {
@@ -1778,6 +1789,7 @@ namespace OmenCore.Hardware
                             if (returnCode == 0)
                             {
                                 TrackCommandResult(true);
+                                AddCommandToHistory(commandType, true);
                                 if (outDataSize > 0)
                                 {
                                     return outDataObj["Data"] as byte[] ?? new byte[outDataSize];
@@ -1786,6 +1798,7 @@ namespace OmenCore.Hardware
                             }
                             _logging?.Debug($"Legacy WMI: Command returned code {returnCode}");
                             TrackCommandResult(false);
+                            AddCommandToHistory(commandType, false, $"Return code {returnCode}");
                         }
                     }
                 }
@@ -1794,6 +1807,7 @@ namespace OmenCore.Hardware
             {
                 _logging?.Debug($"Legacy WMI fallback failed: {ex.Message}");
                 TrackCommandResult(false);
+                AddCommandToHistory(commandType, false, ex.Message);
             }
             
             return null;
@@ -1985,7 +1999,76 @@ namespace OmenCore.Hardware
                     _totalCommandFailures++;
             }
         }
-        
+
+        /// <summary>
+        /// Friendly name for a raw BIOS CommandType value, for diagnostics readability.
+        /// Falls back to the raw hex value for anything not in this list.
+        /// </summary>
+        private static string DescribeCommand(uint commandType) => commandType switch
+        {
+            CMD_FAN_GET_COUNT => "FanGetCount",
+            CMD_FAN_SET_LEVEL => "FanSetLevel",
+            CMD_FAN_GET_LEVEL => "FanGetLevel",
+            CMD_FAN_GET_LEVEL_V2 => "FanGetLevelV2",
+            CMD_FAN_GET_RPM => "FanGetRpm",
+            CMD_FAN_MODE_SET => "FanModeSet",
+            CMD_FAN_MAX_GET => "FanMaxGet",
+            CMD_FAN_MAX_SET => "FanMaxSet",
+            CMD_SYSTEM_GET_DATA => "SystemGetData",
+            CMD_GPU_GET_POWER => "GpuGetPower",
+            CMD_GPU_SET_POWER => "GpuSetPower",
+            CMD_GPU_GET_MODE => "GpuGetMode/GpuGetModeLegacy",
+            CMD_TEMP_GET => "TempGet",
+            CMD_BACKLIGHT_SET => "BacklightSet",
+            CMD_COLOR_GET => "ColorGet",
+            CMD_COLOR_SET => "ColorSet",
+            CMD_KBD_TYPE_GET => "KbdTypeGet",
+            CMD_BRIGHTNESS_GET => "BrightnessGet",
+            CMD_HAS_BACKLIGHT => "HasBacklight",
+            CMD_ANIMATION_SET => "AnimationSet",
+            CMD_IDLE_SET => "IdleSet",
+            CMD_BATTERY_CARE => "BatteryCare",
+            CMD_OVERDRIVE_GET => "OverdriveGet",
+            CMD_OVERDRIVE_SET => "OverdriveSet",
+            _ => $"0x{commandType:X2}"
+        };
+
+        /// <summary>
+        /// Record a BIOS command attempt for the diagnostics export's WMI command history.
+        /// Captures every command routed through SendBiosCommand/SendBiosCommandLegacy
+        /// (fan, GPU power, battery care, lighting, etc.), not just fan commands.
+        /// </summary>
+        private void AddCommandToHistory(uint commandType, bool success, string? error = null)
+        {
+            lock (_commandHistory)
+            {
+                _commandHistory.Add(new WmiCommandHistoryEntry
+                {
+                    Timestamp = DateTime.Now,
+                    Command = DescribeCommand(commandType),
+                    Success = success,
+                    Error = error
+                });
+
+                if (_commandHistory.Count > MaxCommandHistoryEntries)
+                {
+                    _commandHistory.RemoveAt(0);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get recent BIOS command history for diagnostics export.
+        /// </summary>
+        public IReadOnlyList<WmiCommandHistoryEntry> GetCommandHistory()
+        {
+            lock (_commandHistory)
+            {
+                return _commandHistory.ToList();
+            }
+        }
+
+
         /// <summary>
         /// Get BIOS query reliability statistics.
         /// </summary>

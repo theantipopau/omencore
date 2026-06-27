@@ -71,6 +71,33 @@ v3.8.2 exists solely to fix a critical regression reported within hours of the v
 - The GPU-temperature-source root cause remains unfixed pending a second corroborating report (ideally with the full diagnostics zip, not just the session log).
 - Per explicit instruction, this fix was **not** rolled into a new installer/portable build for this round — see Current Validation Status.
 
+### Diagnostics: WMI Command History, Hardware Info, And EC State Were Never Actually Collected (Affects GitHub #145 Evidence Gap)
+
+**How this was found:** the `wmi-command-history.txt` supplied by a `MODEL-3810-002`/#145 reporter as the Battery Care evidence requested in [3.8.1-BUG-REPORTS.md](3.8.1-BUG-REPORTS.md) contained only the literal placeholder string `"WMI fan controller not available"` — on a machine where WMI fan control was demonstrably working throughout the same session's logs. That contradiction led to the real defect.
+
+**Root cause:** `DiagnosticExportService.CollectAndExportAsync()` accepts optional `wmiController`/`hwMonitor`/`ecAccess` parameters that three collectors (`wmi-command-history.txt`, `hardware-info.txt`, `ec-state.txt`) depend on — but every production call site (`SettingsViewModel.ExportDiagnosticsAsync`, the "Export Diagnostics" button users are told to attach to GitHub issues, and `MainViewModel.ReportModelAsync`, the "Report Model" button) called it with none of these arguments. These three files have been the same "not available" placeholder in every diagnostics export any user has ever produced, regardless of their actual hardware state. Separately, even with correct wiring, `HpWmiBios.SetBatteryCareMode`/`GetBatteryCareMode` had no command-history recording at all — only `WmiFanController`'s fan commands were ever tracked — so Battery Care evidence specifically still would not have appeared.
+
+**Fix (diagnostics-only; no fan/thermal/EC control behavior changed):**
+- `HpWmiBios.cs`: added a command-history list and `GetCommandHistory()`, recorded at every success/failure exit point of `SendBiosCommand`/`SendBiosCommandLegacy` — the chokepoint every BIOS command (fan, GPU power, battery care, lighting, overdrive) routes through — so any WMI BIOS command attempt is now visible in diagnostics exports, not just fan commands.
+- `DiagnosticExportService.cs`: `wmiController` is now also accepted as a constructor parameter with the same `?? ` fallback pattern already used for `monitoringService`/`fanService`, so future call sites can't silently omit it the way both existing ones did.
+- `SettingsViewModel.cs` / `MainViewModel.cs`: both `DiagnosticExportService` construction sites now pass `_wmiBios`; the "Report Model" path now also passes `_hardwareMonitoringService`/`_fanService`, which it was missing entirely (its `hardware-info.txt`/resource-footprint sections were degraded too).
+
+**Verification performed in this environment:** Full Release build 0 errors/warnings; full Release test suite 900/900 (no new tests added — this is plumbing existing, already-tested collector logic to data it never previously received; the collectors' own reflection-based parsing was already exercised by existing diagnostics tests).
+
+**Not yet done / explicitly still open:** the next diagnostics zip exported by any user is the actual remaining evidence needed before any `CMD_BATTERY_CARE` command-handling change for #145 — this fix only makes that evidence collectible, it does not itself resolve the underlying Battery Care WMI failure.
+
+### Power Automation Never Applied The Battery/AC Profile At Boot (Discord, OMEN MAX 16 `8D41`)
+
+**Reported by:** ACF (Discord), 2026-06-27, OMEN 16 Max ah0500na — one of nine items reported on this model; see `BUG-3820-005` in [3.8.1-BUG-REPORTS.md](3.8.1-BUG-REPORTS.md) for the full list, most of which are confirmed deliberate model-safety gates or NVAPI/firmware-reported hardware locks rather than bugs.
+
+**Root cause:** `PowerAutomationService.ApplyCurrentProfile()` — explicitly commented "useful for initial setup" — had no caller anywhere in the codebase. The service only reacted to `SystemEvents.PowerModeChanged`; on a fresh launch that event hasn't fired, so a user with Power Automation enabled kept whatever fan/performance state was last manually set or startup-restored, regardless of their configured AC/Battery profile, until the next AC↔battery transition. This was not model-specific.
+
+**Fix:** added a call to `_powerAutomationService.ApplyCurrentProfile()` at the end of `MainViewModel.RestoreSettingsOnStartupAsync()`, after the existing GPU-Power-Boost/fan-preset/TCC-offset startup restores, wrapped in its own try/catch. It runs last so Power Automation (if enabled) has final say over the generic last-state restores, matching the feature's purpose. The method already no-ops internally when Power Automation is disabled, so this is zero-risk for users who don't use the feature.
+
+**Verification performed in this environment:** Full Release build 0 errors/warnings; full Release test suite 900/900.
+
+**Not yet done / explicitly still open:** reporter confirmation that the Battery/AC profile is now applied at boot; the other eight items from this report remain either confirmed-by-design (CPU/GPU power-limit locks, Dynamic Boost) or evidence-needed (RGB light-bar routing, battery-preset-name substitution to "Custom"/"Balanced", Optimizer "Disable Last Access Timestamps" failure).
+
 ## Minor Improvements (Code-Quality / Reliability Polish)
 
 These are small, hardware-independent cleanups verified by build + the full test suite. They do **not** touch any fan/thermal/EC control path and carry no behavior risk; they ride along with the hotfix because they are zero-risk and thematically aligned with its telemetry-reliability/diagnosability focus.
@@ -99,10 +126,10 @@ These items were already pending hardware validation in v3.8.1 and are out of sc
 ## Current Validation Status
 
 - `dotnet build OmenCoreApp.csproj -c Release`: passed, 0 errors, 0 warnings.
-- `dotnet test OmenCoreApp.Tests.csproj -c Release`: passed, 900/900 (895 from the BUG-3820-001 hang fix and minor improvements, plus 5 new `FanServiceSuspendTests` added for BUG-3820-004).
-- Smoke launch of the built `OmenCore.exe` on this (non-OMEN) dev machine: ran 18+ seconds responsive, clean exit, no exceptions logged. (Pre-dates the BUG-3820-004 fix; see artifact note below.)
+- `dotnet test OmenCoreApp.Tests.csproj -c Release`: passed, 900/900 (895 from the BUG-3820-001 hang fix and minor improvements, plus 5 new `FanServiceSuspendTests` added for BUG-3820-004; the diagnostics-wiring fix and BUG-3820-005 Power Automation startup-apply fix are covered by this same 900/900 run — no net new tests, as both are plumbing/call-site fixes exercised by existing collector and startup-restore coverage).
+- Smoke launch of the built `OmenCore.exe` on this (non-OMEN) dev machine: ran 18+ seconds responsive, clean exit, no exceptions logged. (Pre-dates the BUG-3820-004 fix and everything after it; see artifact note below.)
 - Version metadata bumped to `3.8.2` across `VERSION.txt`, `OmenCoreApp`, `OmenCore.Avalonia`, `OmenCore.Linux`, `OmenCore.HardwareWorker` project files, the installer script (`OmenCoreInstaller.iss`), the wizard-image generator default, and the Avalonia version fallback string.
-- **Artifact note — important:** the Windows/Linux artifacts and SHA256 hashes below were built *before* the BUG-3820-004 fix (fans-stuck-at-max / failed-standby / BIOS thermal shutdown) was implemented. Per explicit instruction, installers were **not** rebuilt after that fix while still waiting on pre-release feedback for the BUG-3820-001 hang fix — the source code on this branch is ahead of these binaries. Do not publish these specific artifacts as containing the BUG-3820-004 fix; they must be rebuilt before any tag/release that is meant to include it.
+- **Artifact note — important:** the Windows/Linux artifacts and SHA256 hashes below were built *before* the BUG-3820-004 fix (fans-stuck-at-max / failed-standby / BIOS thermal shutdown), the diagnostics-export wiring fix (#145 evidence gap), and the BUG-3820-005 Power Automation startup-apply fix. Per explicit instruction, installers were **not** rebuilt after any of these while still waiting on pre-release feedback for the BUG-3820-001 hang fix — the source code on this branch is ahead of these binaries. Do not publish these specific artifacts as containing any of the post-hash fixes; they must be rebuilt before any tag/release that is meant to include them.
   - Windows artifacts built with `build-installer.ps1`: `OmenCoreSetup-3.8.2.exe` and `OmenCore-3.8.2-win-x64.zip`.
   - Linux artifact built with `build-linux-package.ps1 -SkipBinaryVersionCheck`: `OmenCore-3.8.2-linux-x64.zip`, `.sha256`, and `version.json`. Binary execution smoke was skipped because this run was on Windows, not Linux/WSL (`binaryExecutionSkipped: true` in the verification manifest).
   - Artifact SHA256 (also recorded in `artifacts/SHA256SUMS-3.8.2.txt`):
