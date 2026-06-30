@@ -443,6 +443,7 @@ namespace OmenCore.ViewModels
         private readonly INotifyCollectionChanged? _macroBufferNotifier;
         private const int MaxUiLogLines = 200;
         private readonly Queue<string> _logLines = new();
+        private readonly System.Text.StringBuilder _logBufferBuilder = new();
         private string _logBufferText = string.Empty;
 
         private FanPreset? _selectedPreset;
@@ -3386,12 +3387,24 @@ namespace OmenCore.ViewModels
             Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 _logLines.Enqueue(line);
-                while (_logLines.Count > MaxUiLogLines)
+                // Append new line to builder; rebuild if we had to drop old lines.
+                _logBufferBuilder.Append(line).Append('\n');
+                if (_logLines.Count > MaxUiLogLines)
                 {
-                    _logLines.Dequeue();
+                    // Remove excess lines from queue.
+                    while (_logLines.Count > MaxUiLogLines)
+                    {
+                        _logLines.Dequeue();
+                    }
+                    // Rebuild the builder from the current queue state.
+                    _logBufferBuilder.Clear();
+                    foreach (var l in _logLines)
+                    {
+                        _logBufferBuilder.Append(l).Append('\n');
+                    }
                 }
-
-                _logBufferText = string.Join("\n", _logLines);
+                // Trim trailing newline for UI binding.
+                _logBufferText = _logBufferBuilder.ToString().TrimEnd('\n');
                 OnPropertyChanged(nameof(LogBuffer));
             });
         }
@@ -3525,6 +3538,7 @@ namespace OmenCore.ViewModels
         private void ReloadRecentBuffer()
         {
             _logLines.Clear();
+            _logBufferBuilder.Clear();
             _logBufferText = string.Empty;
             OnPropertyChanged(nameof(LogBuffer));
         }

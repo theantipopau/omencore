@@ -49,6 +49,22 @@ namespace OmenCore.Utils
         private bool _disposed;
         private readonly ConfigurationService? _configService;
         private bool? _lastRegisteredTrayTempDisplayEnabled;
+        // Cached previous values for change detection to avoid unnecessary UI work
+        private double _lastCpuTempC = double.NaN;
+        private double _lastGpuTempC = double.NaN;
+        private double _lastCpuLoadPercent = double.NaN;
+        private double _lastGpuLoadPercent = double.NaN;
+        private double _lastMemUsedGb = double.NaN;
+        private double _lastMemTotalGb = double.NaN;
+        private int _lastFan1Rpm = -1;
+        private int _lastFan2Rpm = -1;
+        private double _lastBatteryPercent = double.NaN;
+        private bool _lastIsAc = false;
+        private string _lastCurrentPerformanceMode = string.Empty;
+        private string _lastCurrentFanMode = string.Empty;
+        private string _lastMonitoringHealth = string.Empty;
+        private bool _lastLinkFanToPerformanceMode = false;
+        private bool _lastShowTempOnTray = false;
         private string? _lastTooltipText;
         private int? _lastRenderedBadgeTemperature;
         private bool? _lastRenderedTrayTempDisplayEnabled;
@@ -539,24 +555,54 @@ namespace OmenCore.Utils
                 var memTotalGb = _latestSample.RamTotalGb;
                 var memPercent = memTotalGb > 0 ? (memUsedGb * 100.0 / memTotalGb) : 0;
                 
-                var cpuTempStr = cpuTemp > 0 ? $"{cpuTemp:F0}°C" : "—°C";
-                var gpuTempStr = gpuTemp > 0 ? $"{gpuTemp:F0}°C" : "—°C";
-                
+                // Retrieve additional sample values needed for change detection.
                 var fan1Rpm = _latestSample.Fan1Rpm;
                 var fan2Rpm = _latestSample.Fan2Rpm;
+                var gpuPower = _latestSample.GpuPowerWatts;
+                var batteryPercent = _latestSample.BatteryChargePercent;
+                var isAc = _latestSample.IsOnAcPower;
+
+                // Determine whether the tray display needs updating based on any changed values.
+                var showTempOnTray = _configService?.Config?.Features?.TrayTempDisplayEnabled ?? true;
+
+                // Detect changes
+                bool valuesChanged = false;
+                if (!double.Equals(cpuTemp, _lastCpuTempC)) valuesChanged = true;
+                if (!double.Equals(gpuTemp, _lastGpuTempC)) valuesChanged = true;
+                if (!double.Equals(cpuLoad, _lastCpuLoadPercent)) valuesChanged = true;
+                if (!double.Equals(gpuLoad, _lastGpuLoadPercent)) valuesChanged = true;
+                if (!double.Equals(memUsedGb, _lastMemUsedGb)) valuesChanged = true;
+                if (!double.Equals(memTotalGb, _lastMemTotalGb)) valuesChanged = true;
+                if (fan1Rpm != _lastFan1Rpm) valuesChanged = true;
+                if (fan2Rpm != _lastFan2Rpm) valuesChanged = true;
+                if (!double.Equals(batteryPercent, _lastBatteryPercent)) valuesChanged = true;
+                if (isAc != _lastIsAc) valuesChanged = true;
+                if (_currentPerformanceMode != _lastCurrentPerformanceMode) valuesChanged = true;
+                if (_currentFanMode != _lastCurrentFanMode) valuesChanged = true;
+                if (_monitoringHealth != _lastMonitoringHealth) valuesChanged = true;
+                if (_linkFanToPerformanceMode != _lastLinkFanToPerformanceMode) valuesChanged = true;
+                if (showTempOnTray != _lastShowTempOnTray) valuesChanged = true;
+
+                if (!valuesChanged)
+                {
+                    // No visible changes; skip UI update.
+                    return;
+                }
+
+                // Build display strings after confirming changes.
+                var cpuTempStr = cpuTemp > 0 ? $"{cpuTemp:F0}°C" : "—°C";
+                var gpuTempStr = gpuTemp > 0 ? $"{gpuTemp:F0}°C" : "—°C";
+
                 var fanLine = fan2Rpm > 0 
                     ? $"🌀 CPU Fan: {fan1Rpm} · GPU Fan: {fan2Rpm} RPM" 
                     : (fan1Rpm > 0 ? $"🌀 Fan: {fan1Rpm} RPM" : "🌀 Fan: —");
-                    
-                var gpuPower = _latestSample.GpuPowerWatts;
+
                 var gpuPowerDisplay = gpuPower > 0 ? $" · {gpuPower:F0}W" : "";
-                
-                var batteryPercent = _latestSample.BatteryChargePercent;
-                var isAc = _latestSample.IsOnAcPower;
+
                 var powerLine = batteryPercent > 0 || isAc
                     ? $"🔋 {batteryPercent:F0}% · {(isAc ? "AC Power" : "Battery")}"
                     : "";
-                
+
                 var toolTipText = $"🎮 OmenCore v{_appVersion}\n" +
                                   $"━━━━━━━━━━━━━━━━━━\n" +
                                   $"🔥 CPU: {cpuTempStr} @ {cpuLoad:F0}%\n" +
@@ -597,7 +643,7 @@ namespace OmenCore.Utils
                     }
                 }
 
-                var showTempOnTray = _configService?.Config?.Features?.TrayTempDisplayEnabled ?? true;
+                // showTempOnTray already determined earlier
                 UpdateTrayRefreshTimerDescription(showTempOnTray);
                 if (showTempOnTray)
                 {
@@ -632,19 +678,36 @@ namespace OmenCore.Utils
                    else
                    {
                        // v3.6.2: Cache hit - render state unchanged (both disabled)
-                       RuntimeUiPerformanceCounters.RecordTrayRenderCacheHit();
-                   }
+                // Update cached values for next comparison
+                _lastCpuTempC = cpuTemp;
+                _lastGpuTempC = gpuTemp;
+                _lastCpuLoadPercent = cpuLoad;
+                _lastGpuLoadPercent = gpuLoad;
+                _lastMemUsedGb = memUsedGb;
+                _lastMemTotalGb = memTotalGb;
+                _lastFan1Rpm = fan1Rpm;
+                _lastFan2Rpm = fan2Rpm;
+                _lastBatteryPercent = batteryPercent;
+                _lastIsAc = isAc;
+                _lastCurrentPerformanceMode = _currentPerformanceMode;
+                _lastCurrentFanMode = _currentFanMode;
+                _lastMonitoringHealth = _monitoringHealth;
+                _lastLinkFanToPerformanceMode = _linkFanToPerformanceMode;
+                _lastShowTempOnTray = showTempOnTray;
+                        RuntimeUiPerformanceCounters.RecordTrayRenderCacheHit();
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    App.Logging.Warn($"Failed to update tray display: {ex.Message}");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _lastIconUpdateTicks, DateTime.UtcNow.Ticks);
+                    Interlocked.Exchange(ref _isUpdatingIcon, 0);
+                }
             }
-            catch (Exception ex)
-            {
-                App.Logging.Warn($"Failed to update tray display: {ex.Message}");
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _lastIconUpdateTicks, DateTime.UtcNow.Ticks);
-                Interlocked.Exchange(ref _isUpdatingIcon, 0);
-            }
-        }
 
         private void SetFanMode(string mode)
         {
