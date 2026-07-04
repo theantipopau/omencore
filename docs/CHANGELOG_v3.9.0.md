@@ -79,6 +79,12 @@ Neither change affects control behavior — they only surface failures that were
 
 ## Model Additions
 
+### GitHub #125: HP Victus 15-fa1xxx — Direct 8C3F Entry (Fan Control Delay Fix)
+
+HP reuses ProductId `8BB1` across two unrelated models (OMEN 17 2021 and Victus 15-fa1xxx), so the `8BB1` lookup path requires a model-name disambiguation step. Reporter on issue #125 observed a 10-minute delay applying fan speed changes — a symptom of the `8BB1` disambiguation path taking the wrong branch and routing fan commands through a slower fallback.
+
+Added a direct `8C3F` entry with the same conservative Victus 15-fa1xxx profile (`SupportsFanControlWmi = true`, no direct EC writes, no four-zone RGB, single backlight). An exact ProductId match bypasses the ambiguous-ID path entirely.
+
 ### GitHub #148: HP Victus 15 (2025) fb3xxx (AMD Ryzen 8xxx)
 
 Pattern-matched entry on `"15-fb3"` for the Victus 15-fb3012AX and other 2025 AMD Victus 15 variants. The family fallback was working for fan control but the WMI thermal-policy fallback (`AllowDecoupledWmiThermalPolicyFallback = true`) was missing from the family fallback path, which is why performance mode switching failed. No exact ProductId confirmed from diagnostics yet; exact entry to follow once reported.
@@ -91,6 +97,16 @@ Existing `8C58` entry updated to align with its `8E41` sibling (same Transcend 1
 
 ---
 
+## Improvements
+
+### RTSS OSD: FPS Now Matches The Foreground Game
+
+`RtssIntegrationService.GetCurrentFrameData()` previously returned the first non-empty RTSS shared memory slot. When RTSS tracks multiple GPU-accelerated processes simultaneously (a game plus Discord, a browser, or a game launcher), the first slot is not guaranteed to be the active game — it's insertion order in RTSS's memory, not recency or foreground status. Result: OmenCore could show the wrong game's FPS in the OSD overlay.
+
+Fixed: now reads the foreground window PID via `GetForegroundWindow()` + `GetWindowThreadProcessId()` and selects the RTSS slot matching that PID. Falls back to first-non-empty only when the foreground process is not tracked by RTSS (e.g., when the user is on the desktop). The original "first slot" path is now a fallback, not the primary path.
+
+---
+
 ## Roadmap (Items Scoped For Future Releases)
 
 The following improvements have been identified and scoped but are not implemented in this release. They are recorded here to prevent them being lost between cycles.
@@ -100,8 +116,7 @@ The following improvements have been identified and scoped but are not implement
 **OMEN Key — expose hotkey bindings to users**
 Default hotkeys (`Ctrl+Shift+F` fan, `Ctrl+Shift+P` performance, `Ctrl+Shift+M` max, `Ctrl+Shift+E` profile cycle, etc.) are registered at startup but not shown anywhere in the UI. A read-only list in Settings → OMEN Key or a dedicated Hotkeys section would let users discover them without reading the diagnostics export or source code. Hotkey rebinding (the underlying `UpdateHotkey()` method already exists in `HotkeyService`) is a natural follow-on.
 
-**RTSS OSD: Use foreground-window PID for frame data**
-`RtssIntegrationService.GetCurrentFrameData()` returns the first non-empty RTSS shared memory slot, which is not guaranteed to be the current game when RTSS is tracking multiple GPU-accelerated processes (e.g., Discord + a game). Fix: match the RTSS slot against `GetForegroundWindow()`'s PID before falling back to first-non-empty.
+**RTSS OSD: Use foreground-window PID for frame data** — ✅ Done in this release (see Improvements above).
 
 **FanController: EC write sequence recovery on partial failure**
 `ResetEcToDefaults()` writes 10 sequential EC registers in a single try block; a failure on step 3 leaves registers 1–2 written and 4–10 not. While the log message added in this release now surfaces the failure, a retry loop or step-by-step state tracking would give the EC a better chance of returning to a safe state.

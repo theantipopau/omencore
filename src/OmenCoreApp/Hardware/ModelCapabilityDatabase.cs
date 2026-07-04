@@ -958,6 +958,28 @@ namespace OmenCore.Hardware
                 Notes = "GitHub #134/#144 — WMI V1 control with worker-backed CPU temperature; fan-level fallback is estimated telemetry, not physical RPM. Direct EC remains unverified."
             });
 
+            // GitHub #125: HP Victus 15-fa1xxx i5-12450H / RTX 2050, exact ProductId 8C3F.
+            // Misidentified as 8BB1 (OMEN 17 / Victus 15 ambiguous shared ID) causing a 10-minute
+            // delay on fan speed changes. Direct entry eliminates the ambiguous-ID lookup path.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C3F",
+                ModelName = "HP Victus 15-fa1xxx (2022)",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #125 — HP Victus 15-fa1xxx (i5-12450H / RTX 2050), ProductId 8C3F. Direct entry to avoid 8BB1 ambiguous-ID path that caused fan control delays. Same conservative Victus profile as 8BB1-VICTUS15."
+            });
+
             // Virtual product ID resolved via ModelNamePattern for ambiguous 8BB1 systems.
             // Matches WMI model names containing "15-fa1" (e.g., HP Victus 15-fa1xxx).
             AddModel(new ModelCapabilities

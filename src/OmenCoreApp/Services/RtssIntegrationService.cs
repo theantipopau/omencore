@@ -23,6 +23,9 @@ namespace OmenCore.Services;
 public class RtssIntegrationService : IDisposable
 {
     private const string RTSS_SHARED_MEMORY_NAME = "RTSSSharedMemoryV2";
+
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     
     // RTSS Shared Memory Header (simplified)
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -166,43 +169,34 @@ public class RtssIntegrationService : IDisposable
             // Read header
             _accessor.Read(0, out RTSS_SHARED_MEMORY_HEADER header);
             
-            // Find active application (the one with recent frames)
+            // Find active application — prefer the entry matching the foreground window's PID
+            // so OmenCore shows the correct game's FPS when RTSS is tracking multiple processes
+            // (e.g. a game + Discord's GPU-accelerated window).
+            GetWindowThreadProcessId(GetForegroundWindow(), out uint foregroundPid);
+
             var appOffset = (int)header.dwAppArrOffset;
             var appSize = (int)header.dwAppEntrySize;
-            
+
+            RTSS_SHARED_MEMORY_APP_ENTRY? firstNonEmpty = null;
+
             for (int i = 0; i < header.dwAppArrSize; i++)
             {
                 var entryOffset = appOffset + (i * appSize);
                 _accessor.Read(entryOffset, out RTSS_SHARED_MEMORY_APP_ENTRY entry);
-                
-                // Skip empty entries
-                if (entry.dwProcessID == 0) continue;
-                
-                // Skip entries with no frames
-                if (entry.dwFrames == 0) continue;
-                
-                // Calculate instant FPS from frame time
-                float instantFps = 0;
-                if (entry.dwInstantFrameTime > 0)
+
+                if (entry.dwProcessID == 0 || entry.dwFrames == 0) continue;
+
+                firstNonEmpty ??= entry;
+
+                if (foregroundPid != 0 && entry.dwProcessID == foregroundPid)
                 {
-                    instantFps = 1000000.0f / entry.dwInstantFrameTime;
+                    return BuildFrameData(entry);
                 }
-                
-                return new RtssFrameData
-                {
-                    ProcessId = (int)entry.dwProcessID,
-                    ProcessName = entry.szName,
-                    InstantFps = instantFps,
-                    AverageFps = entry.fStatFramerateAvg,
-                    MinFps = entry.fStatFramerateMin,
-                    MaxFps = entry.fStatFramerateMax,
-                    OnePercentLow = entry.fStatFramerate1Dot0Pct,
-                    PointOnePercentLow = entry.fStatFramerate0Dot1Pct,
-                    FrametimeMs = entry.fStatFrametimeAvg,
-                    FrametimeMax = entry.fStatFrametimeMax,
-                    FrameCount = (int)entry.dwFrames
-                };
             }
+
+            // Foreground PID not tracked by RTSS — fall back to first non-empty slot.
+            if (firstNonEmpty.HasValue)
+                return BuildFrameData(firstNonEmpty.Value);
         }
         catch (Exception ex)
         {
@@ -212,6 +206,25 @@ public class RtssIntegrationService : IDisposable
         return null;
     }
     
+    private static RtssFrameData BuildFrameData(RTSS_SHARED_MEMORY_APP_ENTRY entry)
+    {
+        float instantFps = entry.dwInstantFrameTime > 0 ? 1000000.0f / entry.dwInstantFrameTime : 0;
+        return new RtssFrameData
+        {
+            ProcessId = (int)entry.dwProcessID,
+            ProcessName = entry.szName,
+            InstantFps = instantFps,
+            AverageFps = entry.fStatFramerateAvg,
+            MinFps = entry.fStatFramerateMin,
+            MaxFps = entry.fStatFramerateMax,
+            OnePercentLow = entry.fStatFramerate1Dot0Pct,
+            PointOnePercentLow = entry.fStatFramerate0Dot1Pct,
+            FrametimeMs = entry.fStatFrametimeAvg,
+            FrametimeMax = entry.fStatFrametimeMax,
+            FrameCount = (int)entry.dwFrames
+        };
+    }
+
     private void PollFrameData()
     {
         if (!_isAvailable)
