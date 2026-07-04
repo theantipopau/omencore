@@ -159,6 +159,11 @@ namespace OmenCore.Services
         public event EventHandler? ToggleMaxCoolingRequested;
 
         /// <summary>
+        /// Fired to show the quick access popup (tray popup, if enabled).
+        /// </summary>
+        public event EventHandler? ShowQuickPopupRequested;
+
+        /// <summary>
         /// Get or set whether OMEN key interception is enabled.
         /// When disabled, the key passes through to system normally.
         /// </summary>
@@ -639,27 +644,33 @@ namespace OmenCore.Services
             switch (_currentAction)
             {
                 case OmenKeyAction.ToggleOmenCore:
+                case OmenKeyAction.ShowWindow:
                     ToggleOmenCoreRequested?.Invoke(this, EventArgs.Empty);
                     break;
-                    
+
                 case OmenKeyAction.CyclePerformance:
+                case OmenKeyAction.TogglePerformanceMode:
                     CyclePerformanceRequested?.Invoke(this, EventArgs.Empty);
                     break;
-                    
+
                 case OmenKeyAction.CycleFanMode:
+                case OmenKeyAction.ToggleFanMode:
                     CycleFanModeRequested?.Invoke(this, EventArgs.Empty);
                     break;
-                    
+
                 case OmenKeyAction.ToggleMaxCooling:
                     ToggleMaxCoolingRequested?.Invoke(this, EventArgs.Empty);
                     break;
-                    
+
+                case OmenKeyAction.ShowQuickPopup:
+                    ShowQuickPopupRequested?.Invoke(this, EventArgs.Empty);
+                    break;
+
                 case OmenKeyAction.LaunchExternalApp:
                     LaunchExternalApplication();
                     break;
-                    
+
                 case OmenKeyAction.DoNothing:
-                    // Key is blocked but no action taken
                     break;
             }
         }
@@ -697,12 +708,23 @@ namespace OmenCore.Services
                 _isEnabled = _configService.Config.Features?.OmenKeyInterceptionEnabled ?? _configService.Config.OmenKeyEnabled;
                 _externalAppPath = _configService.Config.OmenKeyExternalApp ?? string.Empty;
                 
-                // Try Features.OmenKeyAction first, fall back to OmenKeyAction
+                // Try Features.OmenKeyAction first, fall back to OmenKeyAction.
+                // Map both old enum names (ToggleOmenCore, CycleFanMode…) and the UI display
+                // strings (ShowWindow, ToggleFanMode…) that SettingsViewModel persists.
                 var actionStr = _configService.Config.Features?.OmenKeyAction ?? _configService.Config.OmenKeyAction;
-                if (Enum.TryParse<OmenKeyAction>(actionStr, out var action))
+                _currentAction = actionStr switch
                 {
-                    _currentAction = action;
-                }
+                    "ShowQuickPopup"       => OmenKeyAction.ShowQuickPopup,
+                    "ShowWindow"           => OmenKeyAction.ShowWindow,
+                    "ToggleFanMode"        => OmenKeyAction.ToggleFanMode,
+                    "TogglePerformanceMode"=> OmenKeyAction.TogglePerformanceMode,
+                    "CyclePerformance"     => OmenKeyAction.CyclePerformance,
+                    "CycleFanMode"         => OmenKeyAction.CycleFanMode,
+                    "ToggleMaxCooling"     => OmenKeyAction.ToggleMaxCooling,
+                    "LaunchExternalApp"    => OmenKeyAction.LaunchExternalApp,
+                    "DoNothing"            => OmenKeyAction.DoNothing,
+                    _                      => OmenKeyAction.ShowQuickPopup
+                };
                 
                 _logging.Info($"OMEN key settings loaded: Enabled={_isEnabled}, Action={_currentAction}");
             }
@@ -1078,21 +1100,33 @@ namespace OmenCore.Services
     {
         /// <summary>Show/hide OmenCore window</summary>
         ToggleOmenCore,
-        
+
         /// <summary>Cycle through performance modes</summary>
         CyclePerformance,
-        
+
         /// <summary>Cycle through fan presets</summary>
         CycleFanMode,
-        
+
         /// <summary>Toggle max cooling on/off</summary>
         ToggleMaxCooling,
-        
+
         /// <summary>Launch a user-specified external application</summary>
         LaunchExternalApp,
-        
+
         /// <summary>Suppress the key but do nothing</summary>
-        DoNothing
+        DoNothing,
+
+        /// <summary>Show the quick access tray popup (UI string alias used in config).</summary>
+        ShowQuickPopup,
+
+        /// <summary>Show the main OmenCore window (alias for ToggleOmenCore, UI string used in config).</summary>
+        ShowWindow,
+
+        /// <summary>Cycle fan modes (alias for CycleFanMode, UI string used in config).</summary>
+        ToggleFanMode,
+
+        /// <summary>Cycle performance modes (alias for CyclePerformance, UI string used in config).</summary>
+        TogglePerformanceMode,
     }
 
     public sealed class OmenKeyDiagnosticSnapshot

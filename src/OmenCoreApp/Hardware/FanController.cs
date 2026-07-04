@@ -154,7 +154,10 @@ namespace OmenCore.Hardware
                 {
                     return (_bridge.GetCpuTemperature(), _bridge.GetGpuTemperature());
                 }
-                catch { /* fall through */ }
+                catch (Exception ex)
+                {
+                    _logging?.Debug($"Bridge temperature read failed, using 0°C fallback: {ex.Message}");
+                }
             }
             return (0, 0);
         }
@@ -785,12 +788,13 @@ namespace OmenCore.Hardware
                 
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                _logging?.Warn($"ResetEcToDefaults failed (EC may be in partial manual-control state): {ex.Message}");
                 return false;
             }
         }
-        
+
         /// <summary>
         /// Write a value to an EC register (public wrapper for throttling mitigation).
         /// Only allows writes to registers in the allowed write list.

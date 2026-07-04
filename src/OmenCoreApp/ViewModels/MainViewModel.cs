@@ -1885,6 +1885,7 @@ namespace OmenCore.ViewModels
             _omenKeyService.CyclePerformanceRequested += OnHotkeyTogglePerformanceMode;
             _omenKeyService.CycleFanModeRequested += OnHotkeyToggleFanMode;
             _omenKeyService.ToggleMaxCoolingRequested += OnOmenKeyToggleMaxCooling;
+            _omenKeyService.ShowQuickPopupRequested += OnOmenKeyShowQuickPopup;
             
             // Subscribe to service events for UI synchronization (e.g., power automation changes)
             _fanService!.PresetApplied += OnFanPresetApplied;
@@ -4669,6 +4670,11 @@ namespace OmenCore.ViewModels
             // Same as hotkey toggle but may include OSD feedback
             OnHotkeyToggleWindow(sender, e);
         }
+
+        private void OnOmenKeyShowQuickPopup(object? sender, EventArgs e)
+        {
+            App.TrayIcon?.ShowQuickPopup();
+        }
         
         private void OnOmenKeyToggleMaxCooling(object? sender, EventArgs e)
         {
@@ -5167,6 +5173,7 @@ namespace OmenCore.ViewModels
                 _omenKeyService.CyclePerformanceRequested -= OnHotkeyTogglePerformanceMode;
                 _omenKeyService.CycleFanModeRequested -= OnHotkeyToggleFanMode;
                 _omenKeyService.ToggleMaxCoolingRequested -= OnOmenKeyToggleMaxCooling;
+                _omenKeyService.ShowQuickPopupRequested -= OnOmenKeyShowQuickPopup;
             }
             // Dispose OMEN key service
             _omenKeyService?.Dispose();

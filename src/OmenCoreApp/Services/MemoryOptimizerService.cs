@@ -478,6 +478,7 @@ namespace OmenCore.Services
             var trimmed = 0;
             var failed = 0;
             var skipped = 0;
+            var ownProcessName = Process.GetCurrentProcess().ProcessName;
 
             foreach (var process in Process.GetProcesses())
             {
@@ -491,7 +492,7 @@ namespace OmenCore.Services
                     }
 
                     if (_excludedProcessNames.Contains(processName) ||
-                        string.Equals(processName, Process.GetCurrentProcess().ProcessName, StringComparison.OrdinalIgnoreCase))
+                        string.Equals(processName, ownProcessName, StringComparison.OrdinalIgnoreCase))
                     {
                         skipped++;
                         continue;

@@ -168,6 +168,7 @@ namespace OmenCore.Services
 
             _profiles.Add(profile);
             UpdateTrackedProcesses();
+            _ = SaveProfilesAsync();
             _logging.Info($"Created new game profile: {name}");
 
             return profile;
@@ -203,6 +204,7 @@ namespace OmenCore.Services
             var clone = source.Clone();
             _profiles.Add(clone);
             UpdateTrackedProcesses();
+            _ = SaveProfilesAsync();
             _logging.Info($"Duplicated profile: {source.Name} → {clone.Name}");
             return clone;
         }

@@ -1088,8 +1088,9 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = false,
                 HasPerKeyRgb = true,
                 SupportsUndervolt = false,
+                AllowV1AutoModeFloorClear = true,
                 UserVerified = false,
-                Notes = "Transcend 14 board family (8C58). Prefer hp-wmi/ACPI paths; direct legacy EC writes are unsafe on Linux and unverified on Windows."
+                Notes = "GitHub #149 — OMEN Transcend 14 (2024) fb0xxx/8C58. Same Transcend 14 board family as 8E41; added AllowV1AutoModeFloorClear to match 8E41 profile. Prefer hp-wmi/ACPI paths; direct legacy EC writes are unsafe on Linux and unverified on Windows."
             });
 
             AddModel(new ModelCapabilities
