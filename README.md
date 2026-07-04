@@ -6,7 +6,7 @@
 
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
-[![Version](https://img.shields.io/badge/version-3.8.1-red.svg?style=for-the-badge)](docs/CHANGELOG_v3.8.1.md)
+[![Version](https://img.shields.io/badge/version-3.8.2-red.svg?style=for-the-badge)](docs/CHANGELOG_v3.8.2.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -46,14 +46,24 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 3.8.1<br>
-**Status:** Patch release - implementation in progress; hardware validation pending<br>
-**Release notes:** [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md)<br>
+**Version:** 3.8.2<br>
+**Status:** Code-complete and test-verified in this environment (911/911 tests, 0 build warnings); artifacts built and hashed, not yet tagged/released pending hardware confirmation from affected reporters<br>
+**Release notes:** [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md)<br>
 **Release gate:** [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md)
 
-v3.8.1 is a post-3.8.0 field-reliability patch. It focuses on GitHub #141-#145 follow-up, fan-telemetry truthfulness, saved Custom fan-curve selection, GPU OC startup-reapply clarity, OMEN-key field diagnostics, performance-profile relaunch persistence, and Quick Access shortcut safety.
+v3.8.2 is a release-blocker patch for a critical Application Hang reported within hours of v3.8.1 shipping, plus several other field-reported fixes that landed in the same cycle.
 
-### v3.8.1 Highlights
+### v3.8.2 Highlights
+
+- **Critical:** fixed an Application Hang within 10-20s of launch (`8BCD`) caused by a named-pipe desync between the app and its out-of-process hardware worker — concurrent requests could race and consume each other's stale replies, with no reconnect-on-failure.
+- **Critical (safety):** fixed fans stuck at max independent of temperature, lid-close failing to suspend, and a resulting BIOS thermal shutdown ([#146](https://github.com/theantipopau/omencore/issues/146)) — the Max-mode keepalive timer is now stopped unconditionally on suspend, not just as a side effect of a successful restore.
+- Power Automation's AC/Battery fan and performance profiles now actually apply at app startup — previously they only took effect on the next power-source change.
+- Diagnostics export wiring fix: `wmi-command-history.txt`, `hardware-info.txt`, and `ec-state.txt` had been empty placeholders in every diagnostics zip ever exported, regardless of hardware state; bug reports going forward will contain real data.
+- Fixed the Optimizer's "Disable Last Access Timestamps" toggle always reporting itself as failed even when it had applied correctly (a registry-encoding mismatch, not an elevation issue).
+- Fixed a rare, timing-dependent background crash in the fan monitor loop during shutdown.
+- New conservative identities added for OMEN Slim 16-an0xxx (`8D40`), OMEN 17-ck1xxx (`8A18`), and OMEN Transcend 14-fb1xxx (`8E41`).
+
+### v3.8.1 Highlights (previous patch release)
 
 - `8A18` OMEN 17-ck1xxx: conservative exact capability profile, with V1 fan-level fallback explicitly labeled as an estimate rather than measured RPM, and fan verification evidence kept honest about command-success vs. physical confirmation.
 - Quick Access popup shortcut is now configurable (Display Off, Lock Windows, or Disabled) to prevent accidental display-off clicks.
@@ -78,15 +88,15 @@ v3.8.1 is a post-3.8.0 field-reliability patch. It focuses on GitHub #141-#145 f
 
 ## Current Development Focus
 
-**v3.8.2 is a release-blocker patch for a critical Application Hang** reported within hours of v3.8.1 shipping (OMEN 16-xd0010ax / `8BCD`, hang within 10-20s of launch). The fix is code-complete and test-verified in this environment, but is not yet confirmed on the reporter's physical hardware — see [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md).
+**v3.8.2 started as a release-blocker patch for a critical Application Hang** reported within hours of v3.8.1 shipping (OMEN 16-xd0010ax / `8BCD`, hang within 10-20s of launch), and grew to cover several other field reports from the same cycle (see Highlights above). All fixes are code-complete, test-verified (911/911), and built into hashed installer/portable/Linux artifacts in this environment — none are confirmed yet on the original reporters' physical hardware, so the release is not tagged.
 
 **v3.8.1's own tracked items are unchanged and still gated on physical hardware validation:** `8DCD` fan-thermal safety, `8D26` key routing, `8E9A` identity, background-resource budgets, and GPU OC startup reapply on real NVIDIA/AMD hardware.
 
 The active work is tracked in:
 
-- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - the hang-fix patch release notes and validation status.
+- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - the current patch release notes, artifact hashes, and validation status.
 - [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md) - prior patch release notes and validation status.
-- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - GitHub #141-#144, saved Custom fan selection, GPU OC persistence, background-resource work, the v3.8.2 hang (`BUG-3820-001`), test requirements, and hardware acceptance gates.
+- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - GitHub #141-#146, saved Custom fan selection, GPU OC persistence, background-resource work, the v3.8.2 hang (`BUG-3820-001`), test requirements, and hardware acceptance gates.
 - [docs/3.8.1-MIGRATION-HANDOFF.md](docs/3.8.1-MIGRATION-HANDOFF.md) - fresh-PC setup, repository state, implementation order, and release procedure.
 
 Prior-release work is kept for historical reference:
@@ -103,9 +113,9 @@ Release artifacts are published on the [GitHub Releases](https://github.com/thea
 
 | Artifact | Platform | Recommended For |
 |---|---|---|
-| `OmenCoreSetup-3.8.1.exe` | Windows | Most users. Installs app and can install PawnIO. |
-| `OmenCore-3.8.1-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
-| `OmenCore-3.8.1-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
+| `OmenCoreSetup-3.8.2.exe` | Windows | Most users. Installs app and can install PawnIO. |
+| `OmenCore-3.8.2-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
+| `OmenCore-3.8.2-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
 
 Final GitHub release notes must include SHA256 hashes for every artifact. The in-app updater requires release hashes before it will install an update.
 
@@ -113,20 +123,20 @@ Final GitHub release notes must include SHA256 hashes for every artifact. The in
 
 ### Windows
 
-1. Download `OmenCoreSetup-3.8.1.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
+1. Download `OmenCoreSetup-3.8.2.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
 2. Verify the SHA256 hash from the release notes.
 3. Run the installer as Administrator.
 4. Keep PawnIO selected unless you only want monitoring and WMI-only features.
 5. Launch OmenCore from the Start Menu.
 
-Portable users can download `OmenCore-3.8.1-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
+Portable users can download `OmenCore-3.8.2-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
 
 See [INSTALL.md](INSTALL.md) for the full Windows guide.
 
 ### Linux
 
 ```bash
-VERSION=3.8.1
+VERSION=3.8.2
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
@@ -245,25 +255,31 @@ Linux control normally follows available sysfs/hwmon capability:
 3. `ec_sys` for older models.
 4. Diagnostic-only mode when no safe write path exists.
 
-## Known Limits In 3.8.1
+## Known Limits In 3.8.2
 
+- The hang fix (`8BCD`), the fan-stuck-at-max/failed-standby fix (`88D2`), and the Power Automation/Optimizer fixes (`8D41`) are all code-complete and test-verified in this environment but **not yet confirmed on the reporters' physical hardware** — see Release Conditions in [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md).
 - Some 3.8.0 and 3.8.1 fixes still require physical hardware validation, especially fan ramp-down, RGB surface routing, and GPU wattage parity.
 - OMEN Max per-key RGB now has a first-pass HID backend in active development, but it is not fully verified until field logs confirm the USB PID list and physical segment behavior.
 - `8DCD` Victus 15 fan-speed collapse under sustained load (GitHub #143) is under investigation; treat it as thermal-safety critical until disproven.
 - `8D26` OMEN 16-ap0xxx dedicated key and Fn+P event routing (GitHub #141) needs shipped-artifact and physical-hardware confirmation.
+- `8E41` OMEN Transcend 14 idle-load thermal-emergency reports are under investigation; current evidence leans toward real (brief) thermal excursions rather than a sensor glitch, but the zero-debounce safety response itself is deliberately unchanged either way.
 - OGH Eco mode parity is tracked but not implemented.
 - Direct PL1/PL2 controls remain firmware/MSR gated on many systems.
 - Exclusive fullscreen OSD behavior depends on Windows composition, RTSS, game mode, and anti-cheat behavior.
 - `8574` legacy OMEN 15 support is partial until fresh diagnostics confirm effective fan command readback.
 
-## Active 3.8.1 Validation Targets
+## Active 3.8.2 Validation Targets
 
-- `8D40` OMEN Slim 16-an0xxx: exact identity validation, plus Battery Care (Charge Limit) WMI evidence on this new thin-chassis line.
+- `8BCD` OMEN 16-xd0010ax: confirm the named-pipe hang fix actually stops the Application Hang on the original reporter's hardware.
+- `88D2` OMEN 15-en1xxx: confirm the Max-mode keepalive fix lets lid-close suspend cleanly with no BIOS thermal shutdown.
+- `8D41` OMEN MAX 16 ah0500na: confirm Power Automation now applies at boot; RGB light-bar-vs-keyboard routing and battery-preset-name substitution still need a session log.
+- `8D40` OMEN Slim 16-an0xxx: exact identity validation, plus Battery Care (Charge Limit) WMI evidence — now collectible via the fixed diagnostics export.
 - `8DCD` Victus 15: bounded, abortable load test confirming Performance mode no longer drops below 2000 RPM above 80C.
 - `8D26` OMEN 16-ap0xxx: Fn+F2 never-intercept behavior and dedicated OMEN-key/Fn+P event path on physical hardware.
 - `8E9A` HyperX OMEN MAX 16t-ah100: exact conservative identity pending full diagnostic evidence.
 - `8A18` OMEN 17-ck1xxx: bounded load test with independent physical RPM/temperature source.
-- `8D41` and `8D87` OMEN Max: WMI-only Max fan hold, Restore OEM Auto, and HID per-key RGB PID confirmation.
+- `8E41` OMEN Transcend 14-fb1xxx: diagnostics-zip-level raw per-poll temperature evidence for the idle thermal-emergency reports.
+- `8D87` OMEN Max: WMI-only Max fan hold, Restore OEM Auto, and HID per-key RGB PID confirmation.
 - `8BD4` Victus 16: conservative WMI V1 Auto/Max handoff and WMI ColorTable RGB confirmation.
 - `8C30` Victus 15-fb1xxx: Quiet/Balanced/Performance WMI policy routing and wattage/RPM readback validation.
 - `878C` OMEN 15-ek0xxx: Quick Profile fan wake/ramp validation after exact WMI fallback routing.
@@ -299,9 +315,9 @@ pwsh ./build-installer.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCoreSetup-3.8.1.exe`
-- `artifacts/OmenCore-3.8.1-win-x64.zip`
-- `artifacts/SHA256SUMS-3.8.1.txt`
+- `artifacts/OmenCoreSetup-3.8.2.exe`
+- `artifacts/OmenCore-3.8.2-win-x64.zip`
+- `artifacts/SHA256SUMS-3.8.2.txt`
 
 ### Build Linux Artifact
 
@@ -311,10 +327,10 @@ pwsh ./build-linux-package.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCore-3.8.1-linux-x64.zip`
-- `artifacts/OmenCore-3.8.1-linux-x64.zip.sha256`
+- `artifacts/OmenCore-3.8.2-linux-x64.zip`
+- `artifacts/OmenCore-3.8.2-linux-x64.zip.sha256`
 - `artifacts/version.json`
-- `artifacts/linux-version-verification-3.8.1-linux-x64.json`
+- `artifacts/linux-version-verification-3.8.2-linux-x64.json`
 
 ## Release Checklist
 
@@ -351,9 +367,10 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - installation, upgrade, portable use, Linux setup, uninstall.
-- [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md) - current release notes.
-- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - active 3.8.1 field report tracking.
-- [docs/CHANGELOG_v3.8.0.md](docs/CHANGELOG_v3.8.0.md) - previous release notes.
+- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - current release notes.
+- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - active field report tracking (covers GitHub #141-#146 and Discord reports through v3.8.2).
+- [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md) - previous release notes.
+- [docs/CHANGELOG_v3.8.0.md](docs/CHANGELOG_v3.8.0.md) - earlier release notes.
 - [docs/CHANGELOG_v3.7.1.md](docs/CHANGELOG_v3.7.1.md) - earlier release notes.
 - [docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md](docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md) - core control validation and practical next steps.
 - [docs/3.8.0-BUG-REPORTS.md](docs/3.8.0-BUG-REPORTS.md) - prior 3.8.0 field report tracking.
@@ -368,6 +385,7 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 
 | Version | Summary |
 |---|---|
+| 3.8.2 | Patch release: critical Application Hang fix (#BUG-3820-001), fans-stuck-at-max/failed-standby fix (#146), Power Automation boot-apply fix, diagnostics-export wiring fix (#145 evidence gap), Optimizer verification fix, fan-monitor-loop shutdown-race fix |
 | 3.8.1 | Patch release: GitHub #141-#145 follow-up, fan-telemetry truthfulness, saved Custom curve fix, GPU OC startup-reapply clarity, OMEN-key field diagnostics, performance-profile relaunch persistence fix |
 | 3.8.0 | Release candidate: field fixes, fan/RGB/tuning readiness diagnostics, UI responsiveness, model-specific validation |
 | 3.7.1 | Quick Access profiles, WMI V1 fan recovery, profile-only fan gating, AMD ADL containment, launch diagnostics |
