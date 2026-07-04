@@ -740,6 +740,24 @@
                                       VerticalAlignment="Center"/>
                         </Grid>
 
+                        <!-- Enable/Disable Quick Access popup entirely -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="Enable quick access popup" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Show the quick popup on tray click. Disable to open the main window directly instead."
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding QuickPopupEnabled}"/>
+                        </Grid>
+
                         <!-- Show Temperature on Tray Icon -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
@@ -747,12 +765,12 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Show temperature on tray icon" FontSize="14" 
+                                <TextBlock Text="Show temperature on tray icon" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Display live CPU/GPU temperature on the system tray icon" FontSize="12" 
+                                <TextBlock Text="Display live CPU/GPU temperature on the system tray icon" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
-                            <ToggleButton Grid.Column="1" 
+                            <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding TrayTempDisplayEnabled}"/>
                         </Grid>

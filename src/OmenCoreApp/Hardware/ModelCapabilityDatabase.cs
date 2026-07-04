@@ -1256,6 +1256,34 @@ namespace OmenCore.Hardware
                 Notes = "GitHub #135/#139 — Victus 15-fb1xxx. Conservative Victus profile: WMI fan/profile control retained, direct EC writes and CPU power-limit UI disabled, WMI thermal-policy fallback enabled for Performance/Balanced/Quiet pending before/after wattage readback; single-zone backlight assumed pending field verification."
             });
 
+            // Victus 15 (2025) - fb3xxx series (AMD Ryzen 8xxx)
+            // GitHub Issue #148: HP Victus 15-fb3012AX — working via Family fallback but
+            // performance profile switching needs an explicit entry with WMI thermal-policy
+            // fallback. No diagnostics-confirmed ProductId yet; matched on "15-fb3" pattern.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "fb3xxx_victus15",
+                ModelName = "HP Victus 15 (2025) fb3xxx",
+                ModelNamePattern = "15-fb3",
+                ModelYear = 2025,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                SupportsPowerLimits = false,
+                PerformanceModes = new[] { "Quiet", "Balanced", "Performance" },
+                AllowDecoupledWmiThermalPolicyFallback = true,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = false,
+                UserVerified = false,
+                Notes = "GitHub #148 — HP Victus 15-fb3012AX (2025 AMD). Pattern-matched on '15-fb3'; no diagnostics-confirmed ProductId yet. Conservative Victus profile: WMI fan/profile control, no direct EC writes, WMI thermal-policy fallback for Performance/Balanced/Quiet. User reports no RGB keyboard."
+            });
+
             // Victus 16 (2023/2024) - d1xxx series
             // GitHub Issue #66: Product ID 8A26 requested for capability DB.
             AddModel(new ModelCapabilities
