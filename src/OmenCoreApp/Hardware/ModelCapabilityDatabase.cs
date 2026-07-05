@@ -572,7 +572,32 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "Discord HUrON / HP OMEN 16-WF1015ns 9U8J3EA — ProductId 8C76, i9-14900HX + RTX 4080, BIOS F.19, WMI V1/classic 55-level fan control. Exact entry replaces low-confidence inferred sibling match."
             });
-            
+
+            // OMEN 16-wf1xxx (2024 Intel) — ProductId 8C77, crash report (2026-07): FileNotFoundException
+            // on Custom Fan Curve tab ~6 s after applying Quiet mode. Reporter: OMEN 16 (2024), BIOS F.19,
+            // Intel. Same BIOS and model-name family as confirmed 8C76 sibling (i9-14900HX, V1 WMI/55-level).
+            // Without this exact entry the DB fell through to the 8BAB pattern match (V2, MaxFanLevel=100),
+            // sending 100-point percentage commands to a V1 WMI stack — mismatch that likely caused the crash.
+            // Profile is deliberately conservative (mirrors 8C76); set UserVerified=true after confirmation.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C77",
+                ModelName = "OMEN 16 (2024) wf1xxx Intel",
+                ModelNamePattern = "16-wf1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "OMEN 16-wf1xxx (2024 Intel) — ProductId 8C77, BIOS F.19. Crash report 2026-07: FileNotFoundException on Custom Fan Curve/Quiet mode (8BAB V2 mismatch). Profile mirrors confirmed 8C76 sibling; V1 WMI 55-level fan control."
+            });
+
             // OMEN 16 (2024) - xf series
             AddModel(new ModelCapabilities
             {

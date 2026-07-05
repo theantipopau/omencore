@@ -69,6 +69,30 @@ Neither change affects control behavior — they only surface failures that were
 
 ---
 
+### Crash Reports Had No Stack Trace — Impossible to Diagnose
+
+**Root cause:** `App.OnDispatcherUnhandledException` and `OnDomainUnhandledException` both called `Logging.ErrorWithContext(...)`, which formats the exception as `exception={type}: {ex.Message}`. The stack trace was never logged. Community crash reports that include an OmenCore log file show `exception=FileNotFoundException: ` (empty message, no location) with no way to determine which code path caused the crash.
+
+**Fix:** After each `ErrorWithContext` call in both handlers, log `[CrashTrace] {type}: {message}\n{stackTrace}` and `[CrashTrace.Inner] ...` for the inner exception. This uses `ex.GetType().FullName` and `ex.StackTrace` directly — properties that `BuildContextPayload` was not capturing. No behavior change; future crash reports from real users will include the full call stack.
+
+---
+
+### Dashboard Refresh Button: Unhandled `async void` Exception Path
+
+**Root cause:** `HardwareMonitoringDashboard.RefreshDataButton_Click` was `async void` with three sequential `await` calls (`UpdateMetricsAsync`, `CheckForAlertsAsync`, `RefreshAllChartsAsync`) and no top-level `try/catch`. Any exception thrown by these methods after the first `await` would propagate directly to `DispatcherUnhandledException` and show the fatal crash dialog.
+
+**Fix:** Wrapped the three awaits in a `try/catch(Exception ex)` that logs the error to the app log.
+
+---
+
+### SystemOptimizerView Toggle: Unhandled `async void` Exception Path
+
+**Root cause:** `SystemOptimizerView.OnToggleClicked` was `async void` and called `await item.Toggle(desiredState)` with no exception guard. If `Toggle` threw after the await, the exception would propagate to `DispatcherUnhandledException`.
+
+**Fix:** Wrapped `await item.Toggle(desiredState)` in `try/catch(Exception ex)` with error logging.
+
+---
+
 ### MemoryOptimizerService: `Process.GetCurrentProcess()` Called Per Loop Iteration
 
 **Root cause:** `EmptyWorkingSetsWithExclusions()` called `Process.GetCurrentProcess()` inside its `foreach` loop over every process on the system to compare process names. This allocates a new managed `Process` object on every iteration during an operation that already touches every running process.
@@ -84,6 +108,14 @@ Neither change affects control behavior — they only surface failures that were
 HP reuses ProductId `8BB1` across two unrelated models (OMEN 17 2021 and Victus 15-fa1xxx), so the `8BB1` lookup path requires a model-name disambiguation step. Reporter on issue #125 observed a 10-minute delay applying fan speed changes — a symptom of the `8BB1` disambiguation path taking the wrong branch and routing fan commands through a slower fallback.
 
 Added a direct `8C3F` entry with the same conservative Victus 15-fa1xxx profile (`SupportsFanControlWmi = true`, no direct EC writes, no four-zone RGB, single backlight). An exact ProductId match bypasses the ambiguous-ID path entirely.
+
+### Crash Report (2026-07): OMEN 16 (2024) wf1xxx Intel — Direct 8C77 Entry (V1/V2 Profile Mismatch Fix)
+
+**Reported by:** Community member — `FileNotFoundException` (empty message) on the Custom Fan Curve tab ~6 s after navigating to it and applying Quiet mode on an OMEN 16 (2024) wf1xxx Intel (ProductId 8C77, BIOS F.19, v3.8.2).
+
+**Root cause:** ProductId `8C77` had no exact entry in `ModelCapabilityDatabase`. The database fell through to a pattern match on `"16-wf1"` and returned the `8BAB` entry — a V2 percentage-based profile with `MaxFanLevel = 100`. The reporter's device uses V1 WMI fan control (same board family as the confirmed `8C76` sibling, also BIOS F.19). Sending 100-point percentage fan commands to a V1 WMI stack is the most likely source of the `FileNotFoundException` thrown from within the WMI fan-control path.
+
+**Fix:** Added a direct `8C77` entry mirroring the confirmed `8C76` sibling profile: `SupportsFanControlWmi = true`, `SupportsFanControlEc = false`, `MaxFanLevel = 55` (V1 WMI), `FanZoneCount = 2`, `HasFourZoneRgb = true`, `HasMuxSwitch = true`, `SupportsGpuPowerBoost = true`, `UserVerified = false`. An exact ProductId match now prevents the wrong V2/8BAB profile from being applied. Profile will be updated to `UserVerified = true` after the reporter confirms.
 
 ### GitHub #148: HP Victus 15 (2025) fb3xxx (AMD Ryzen 8xxx)
 

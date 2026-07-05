@@ -947,9 +947,16 @@ namespace OmenCore.Controls
 
         private async void RefreshDataButton_Click(object sender, RoutedEventArgs e)
         {
-            await UpdateMetricsAsync();
-            await CheckForAlertsAsync();
-            await RefreshAllChartsAsync();
+            try
+            {
+                await UpdateMetricsAsync();
+                await CheckForAlertsAsync();
+                await RefreshAllChartsAsync();
+            }
+            catch (Exception ex)
+            {
+                App.Logging.Error($"[Dashboard.RefreshData] Failed: {ex.Message}", ex);
+            }
         }
 
         private async void ExportDataButton_Click(object sender, RoutedEventArgs e)
