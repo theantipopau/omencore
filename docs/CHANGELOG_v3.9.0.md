@@ -1,7 +1,7 @@
 # OmenCore v3.9.0 – UX Polish, Silent-Failure Fixes, and Model Additions
 
 **Release Date:** TBD
-**Release Status:** In development on `release/3.9.0`
+**Release Status:** Code-complete and test-verified in this environment (913/913 tests, 0 build warnings); artifacts not yet built, pending hardware confirmation from affected reporters (`8C77`, `8BCD` fan reports) before tagging
 **Type:** Minor release — no fan/thermal/EC control behavior changes; UX fixes, reliability improvements, and model additions
 **Base Version:** v3.8.2
 
@@ -129,6 +129,8 @@ Neither change affects control behavior — they only surface failures that were
 
 **Fix (root cause):** Changed `_performanceMode = "Balanced"` to `_performanceMode = ""`. `ShowPerformanceModeRow` now guards `!string.IsNullOrWhiteSpace(_performanceMode)` so the row is hidden until a real value is received from `StateChanged` (within ~2 s of startup). Also added `OnPropertyChanged(nameof(ShowPerformanceModeRow))` to the `PerformanceMode` setter so the row appears correctly as soon as the first real mode arrives.
 
+**Follow-up (dedupe gap):** `RuntimeStateEngine.StateChanged` only fires on value changes, and the engine's initial state is `Auto/Balanced/Auto/unlinked`. A user whose confirmed startup state exactly matches those defaults (the common Balanced case) never receives a snapshot, which with the empty default above would leave the mode row hidden indefinitely. `OsdService.Show()` now seeds its cache from `config.LastPerformanceModeName` — the user's last explicitly applied mode, the same value `SystemControlViewModel` restores at startup — when no confirmed snapshot has arrived yet. This is real persisted data, correct for both the original reporter (Performance) and Balanced users; on a fresh install with no applied mode the row simply stays hidden until the first confirmed mode.
+
 ---
 
 ### AutomationService Idle Trigger Misbehaved After ~24.9 Days Uptime
@@ -136,6 +138,22 @@ Neither change affects control behavior — they only surface failures that were
 **Root cause:** `EvaluateIdleTrigger()` computed idle time as `TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime)`. `Environment.TickCount` is a signed 32-bit integer that wraps negative at ~24.9 days uptime. Subtracting a `uint` (the Win32 `LASTINPUTINFO.dwTime`) from a negative `int` produces undefined overflow behaviour — idle triggers could fire constantly or never fire on long-running systems.
 
 **Fix:** Changed to `(uint)Environment.TickCount64 - lastInputInfo.dwTime`. Truncating the 64-bit counter to `uint` and performing unsigned subtraction gives the correct millisecond delta modulo 2³², matching the documented Win32 behaviour for `GetLastInputInfo`. Also removed the unused `_lastIdleCheck` field that was allocated but never read.
+
+---
+
+### AutomationService Battery Rules Misfired On Systems With No Readable Battery
+
+**Root cause:** `EvaluateBatteryTrigger()` computed `SystemInformation.PowerStatus.BatteryLifePercent * 100`. Per the Win32/WinForms contract, `BatteryLifePercent` returns `255f` when the battery state is unknown (desktop systems, sensor failure) — giving `25500`, which satisfies any "above N%" condition permanently. A user with an "above 80%" battery automation rule on a desktop (or with a flaky battery sensor) would have that rule triggered constantly.
+
+**Fix:** Values outside 0–100 are now treated as "battery state unknown" and the trigger returns false.
+
+---
+
+### AutomationService Evaluation Ticks Could Overlap
+
+**Root cause:** Rule evaluation runs on a 5-second `System.Threading.Timer`, which fires callbacks concurrently if the previous one has not finished. Trigger evaluation does live WMI reads (WiFi SSID, temperature) and rule actions call into fan/performance services — a slow cycle exceeding 5 s meant a second callback started and blocked on `_lock`, and sustained slowness let timer threads pile up.
+
+**Fix:** Added an `Interlocked` reentrancy guard; overlapping ticks are skipped instead of queued. Rule state remains protected by the existing lock; this only prevents concurrent duplicate evaluation cycles.
 
 ---
 
@@ -207,6 +225,9 @@ The following improvements have been identified and scoped but are not implement
 
 ### Near-term (3.9.x candidates)
 
+**Sidebar/UI shows default state for ~2 s on fresh launch (OsamaBiden report, item 10)**
+On a fresh launch the sidebar and mode indicators show construction-time defaults until `RestoreSettingsOnStartupAsync` (deliberate 2-second hardware-stabilization delay) and the SystemControl startup task confirm the real mode. The OSD side of this window is addressed in this release (rows hide until confirmed, with a `LastPerformanceModeName` fallback); the main-window sidebar still shows the default briefly. A proper fix would hydrate initial UI state from `LastPerformanceModeName`/`LastFanPresetName` at construction (display-only, no hardware writes) so the UI starts on the persisted selection instead of hardcoded defaults.
+
 **OMEN Key — expose hotkey bindings to users**
 Default hotkeys (`Ctrl+Shift+F` fan, `Ctrl+Shift+P` performance, `Ctrl+Shift+M` max, `Ctrl+Shift+E` profile cycle, etc.) are registered at startup but not shown anywhere in the UI. A read-only list in Settings → OMEN Key or a dedicated Hotkeys section would let users discover them without reading the diagnostics export or source code. Hotkey rebinding (the underlying `UpdateHotkey()` method already exists in `HotkeyService`) is a natural follow-on.
 
@@ -226,8 +247,7 @@ Default hotkeys (`Ctrl+Shift+F` fan, `Ctrl+Shift+P` performance, `Ctrl+Shift+M` 
 **Hotkey rebinding UI**
 `HotkeyService.UpdateHotkey()` exists but is not exposed. A settings panel to let users remap the 8 registered hotkeys would be a meaningful quality-of-life addition for users with conflicting third-party tool bindings.
 
-**AutoUpdateService: verify HardwareWorker process exit before installer launch**
-`InstallUpdateAsync()` kills `OmenCore.HardwareWorker.exe` by name with a 3-second `WaitForExit` before launching the installer, but does not verify the process actually exited before proceeding. If the kill fails or times out, the installer may be unable to replace locked binaries. Should check exit code and warn (or abort) if the process is still running.
+**AutoUpdateService: verify HardwareWorker process exit before installer launch** — ✅ Done in this release (see "AutoUpdateService: HardwareWorker Kill Loop Aborted On First Exception; Exit Not Verified" in Fixed above).
 
 ### Ongoing / Hardware-gated
 
@@ -239,6 +259,10 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 - **8BCD Quiet mode thermal ceiling** — Reporter observes Quiet mode capping at ~70°C instead of throttling gracefully. Could be a thermal-policy WMI mismatch or a fan curve with too-low 100% threshold for this board. Evidence gate: WMI ThermalPolicy confirmation + per-zone temp log at thermal ceiling.
 - **8BCD fan ramp-down stepping artifacts** — Rapid small-step oscillation during ramp-down visible in RPM telemetry. Hardware-timing specific; needs RPM log at 100ms resolution during ramp-down from a sustained load. Cannot safely change ramp timing constants without evidence from affected hardware.
 - **BUG-3820-004** (88D2 suspend/fan-stuck fix) — needs hardware confirmation.
+- **BUG-3820-002** (GPU locked to base TGP, Dynamic Boost not activating in Performance mode) — no session log received yet; needs NVAPI capability probe output and a mode-switch session log before any TGP-path change.
+- **BUG-3820-003** (CPU runs hotter in Quiet mode after 3.7.1 → 3.8.0 upgrade) — code diff review found no candidate regression; needs before/after session logs with per-poll temps and fan RPM under comparable load.
+- **BUG-3820-005 items 1/2/4** (8D41 OMEN MAX 16) — brightness-coupling on mode switch (likely firmware side effect; needs mode-switch session log), battery "Silent" profile displaying as "Custom"/"Balanced" (model defines no quiet-equivalent mode; exact UI substitution point needs log evidence — deliberately not guess-fixed), and RGB routing to light bar instead of keyboard (needs `[HidPerKey] PID 0x????` log line to confirm the actual USB PID for the database entry). Items 5–8 of the same report remain intentionally unfixed: they trace to the model's deliberate EC-write safety gate and NVAPI/firmware-reported locks, not OmenCore defects.
+- **BUG-3810-004 / GitHub #144** (8A18 temperature freeze and Performance fan lock) — source fixes shipped in 3.8.1; reporter confirmation on physical hardware still pending.
 - **GitHub #141** (8D26 OMEN 16-ap0xxx Fn+P routing) — needs key-event capture on physical hardware.
 - **GitHub #142** (8E9A HyperX OMEN MAX 16 identity) — needs full diagnostics before adding.
 - **GitHub #143** (8DCD Victus 15 fan-drop-under-load) — needs bounded physical load test.
@@ -251,7 +275,7 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 
 - `dotnet build OmenCoreApp.csproj -c Release`: passed, 0 errors, 0 warnings.
 - `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (all new fixes are runtime-only; no new tests required).
-- Version not yet bumped; full bump, artifact rebuild, and tag will happen at release time.
+- Version bumped to 3.9.0 across `VERSION.txt`, all four project files (`OmenCoreApp`, `OmenCore.HardwareWorker`, `OmenCore.Linux`, `OmenCore.Avalonia`), and the installer script. Artifact rebuild (installer/portable/Linux zip + SHA256 hashes) and tag are still pending hardware confirmation from affected reporters.
 
 ---
 

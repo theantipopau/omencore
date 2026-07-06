@@ -158,6 +158,21 @@ namespace OmenCore.Services
             {
                 if (_overlayWindow == null || _isVisible) return;
 
+                // If no confirmed performance mode has arrived yet, fall back to the last
+                // explicitly applied mode from config. StateChanged dedupes identical values,
+                // so a user whose startup state matches the engine defaults (e.g. Balanced)
+                // never receives a snapshot and the mode row would otherwise stay hidden.
+                if (string.IsNullOrWhiteSpace(_lastPerformanceMode))
+                {
+                    var persisted = _config.Config.LastPerformanceModeName;
+                    if (!string.IsNullOrWhiteSpace(persisted))
+                    {
+                        _lastPerformanceMode = persisted;
+                        if (string.IsNullOrWhiteSpace(_lastCurrentMode))
+                            _lastCurrentMode = persisted;
+                    }
+                }
+
                 _overlayWindow.Show();
                 if (!string.IsNullOrWhiteSpace(_lastCurrentMode))
                 {
