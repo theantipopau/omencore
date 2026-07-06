@@ -194,6 +194,10 @@ Default hotkeys (`Ctrl+Shift+F` fan, `Ctrl+Shift+P` performance, `Ctrl+Shift+M` 
 These items require physical OMEN/Victus hardware to validate and are intentionally not touched from this development environment:
 
 - **BUG-3820-001** (8BCD hang fix) — needs hardware confirmation from the original reporter.
+- **8BCD fan oscillation (OsamaBiden)** — Balanced profile: fan RPM reported oscillating rapidly on profile switch (drops to 0 then ramps). Likely BIOS auto-mode floor interaction. Needs per-poll EC register dump from the original reporter during the oscillation window; not reproducible on dev hardware.
+- **8BCD Quiet RPM floor too high** — Quiet profile: fans reported at 3000–3400 RPM at idle instead of expected ~1800. May be related to `AllowV1AutoModeFloorClear` logic or a different thermal-policy register on this BIOS revision. Needs RPM vs. EC register snapshot from reporter.
+- **8BCD Quiet mode thermal ceiling** — Reporter observes Quiet mode capping at ~70°C instead of throttling gracefully. Could be a thermal-policy WMI mismatch or a fan curve with too-low 100% threshold for this board. Evidence gate: WMI ThermalPolicy confirmation + per-zone temp log at thermal ceiling.
+- **8BCD fan ramp-down stepping artifacts** — Rapid small-step oscillation during ramp-down visible in RPM telemetry. Hardware-timing specific; needs RPM log at 100ms resolution during ramp-down from a sustained load. Cannot safely change ramp timing constants without evidence from affected hardware.
 - **BUG-3820-004** (88D2 suspend/fan-stuck fix) — needs hardware confirmation.
 - **GitHub #141** (8D26 OMEN 16-ap0xxx Fn+P routing) — needs key-event capture on physical hardware.
 - **GitHub #142** (8E9A HyperX OMEN MAX 16 identity) — needs full diagnostics before adding.
