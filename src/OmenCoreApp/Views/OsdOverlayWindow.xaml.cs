@@ -114,7 +114,7 @@ namespace OmenCore.Views
         private Brush _fpsAccentBrush = FpsGoodBrush;
         private string _frametimeDisplay = "0.0ms";
         private string _fanMode = "Auto";
-        private string _performanceMode = "Balanced";
+        private string _performanceMode = "";
         private double _frametime;
         private string _clockTime = "";
         private string _networkLatency = "--";
@@ -160,7 +160,7 @@ namespace OmenCore.Views
         public Brush FpsAccentBrush { get => _fpsAccentBrush; set { _fpsAccentBrush = value; OnPropertyChanged(); } }
         public string FrametimeDisplay { get => _frametimeDisplay; set { _frametimeDisplay = value; OnPropertyChanged(); } }
         public string FanMode { get => _fanMode; set { _fanMode = value; OnPropertyChanged(); } }
-        public string PerformanceMode { get => _performanceMode; set { _performanceMode = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowCurrentModeRow)); } }
+        public string PerformanceMode { get => _performanceMode; set { _performanceMode = value; OnPropertyChanged(); OnPropertyChanged(nameof(ShowCurrentModeRow)); OnPropertyChanged(nameof(ShowPerformanceModeRow)); } }
         public double Frametime { get => _frametime; set { _frametime = value; OnPropertyChanged(); } }
         public string ClockTime { get => _clockTime; set { _clockTime = value; OnPropertyChanged(); } }
         public string NetworkLatency { get => _networkLatency; set { _networkLatency = value; OnPropertyChanged(); } }
@@ -242,7 +242,7 @@ namespace OmenCore.Views
             _showCurrentMode &&
             !string.IsNullOrWhiteSpace(CurrentMode) &&
             (!_showPerformanceMode || !string.Equals(CurrentMode, PerformanceMode, StringComparison.OrdinalIgnoreCase));
-        public bool ShowPerformanceModeRow => _showPerformanceGroup && _showPerformanceMode;
+        public bool ShowPerformanceModeRow => _showPerformanceGroup && _showPerformanceMode && !string.IsNullOrWhiteSpace(_performanceMode);
         public bool ShowFanModeRow => _showPerformanceGroup && _showFanMode;
         public bool ShowCpuTempRow => _showThermalsGroup && _showCpuTemp;
         public bool ShowCpuClockRow => _showPerformanceGroup && _showCpuClock;

@@ -109,7 +109,7 @@ Neither change affects control behavior — they only surface failures that were
 
 **Root cause:** `OsdService._lastPerformanceMode` starts as an empty string. When the OSD is shown for the first time, `Show()` applies `_lastPerformanceMode` to the overlay window only if non-empty. If the user opens the OSD within the first few seconds of startup — before `RuntimeStateEngine` fires its first `StateChanged` snapshot — `_lastPerformanceMode` is still `""`, so no mode is applied, and the overlay falls back to `OsdOverlayWindow`'s hardcoded field default (`"Balanced"`). This means a user in Performance mode who opens the OSD immediately at startup sees "Balanced."
 
-**Fix:** In `App.xaml.cs`, immediately after wiring up the `StateChanged` handler, seed `OsdService` with `mainViewModel.CurrentPerformanceMode` (which is resolved from the performance mode service during `MainViewModel` construction). This ensures the OSD cache has a valid mode before the first `StateChanged` fires.
+**Fix (initial):** In `App.xaml.cs`, immediately after wiring up the `StateChanged` handler, seed `OsdService` with `mainViewModel.CurrentPerformanceMode`. This was later superseded by the root-cause fix in "OSD Performance-Mode Row Showed Stale 'Balanced' At Startup" (see below), which removed this seed because `CurrentPerformanceMode` is also "Balanced" at init time, making the seed counterproductive once the window default was changed to empty.
 
 ---
 
@@ -120,6 +120,38 @@ Neither change affects control behavior — they only surface failures that were
 **Root cause:** `OmenTabItem` in `MainWindow.xaml` defines a local `<TabItem.Style>` to control its visibility via a `MultiDataTrigger` (visible only when Custom profile is selected AND `ShowAdvancedControls` is true). In WPF, a local `TabItem.Style` property completely overrides `ItemContainerStyle` — the `ItemContainerStyle="{StaticResource ModernTabItem}"` set on the parent `TabControlMain` is ignored for any `TabItem` that has its own `Style` defined. `ModernTabItem` provides the entire dark-themed tab template; without it, the OmenTabItem fell back to WPF's default `TabItem` control template, which renders the tab content area with a white/system-theme background.
 
 **Fix:** Added `BasedOn="{StaticResource ModernTabItem}"` to the inline `Style` declaration on `OmenTabItem`. The style now inherits the full dark template from `ModernTabItem` while still overriding `Visibility` via its trigger.
+
+---
+
+### OSD Performance-Mode Row Showed Stale "Balanced" At Startup (Root Cause Fix)
+
+**Root cause:** `OsdOverlayWindow._performanceMode` was initialised to `"Balanced"` as a hardcoded field default. When the OSD was opened within the first ~2 seconds of startup (before `RuntimeStateEngine` fired its first `StateChanged` snapshot), the overlay displayed "Balanced" regardless of the user's actual mode. The previous fix (seeding `OsdService` from `MainViewModel.CurrentPerformanceMode` in `App.xaml.cs`) was a partial mitigation, but `CurrentPerformanceMode` also starts at "Balanced", so the seed value was identical to the bogus default and the row continued to display before real data arrived.
+
+**Fix (root cause):** Changed `_performanceMode = "Balanced"` to `_performanceMode = ""`. `ShowPerformanceModeRow` now guards `!string.IsNullOrWhiteSpace(_performanceMode)` so the row is hidden until a real value is received from `StateChanged` (within ~2 s of startup). Also added `OnPropertyChanged(nameof(ShowPerformanceModeRow))` to the `PerformanceMode` setter so the row appears correctly as soon as the first real mode arrives.
+
+---
+
+### AutomationService Idle Trigger Misbehaved After ~24.9 Days Uptime
+
+**Root cause:** `EvaluateIdleTrigger()` computed idle time as `TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime)`. `Environment.TickCount` is a signed 32-bit integer that wraps negative at ~24.9 days uptime. Subtracting a `uint` (the Win32 `LASTINPUTINFO.dwTime`) from a negative `int` produces undefined overflow behaviour — idle triggers could fire constantly or never fire on long-running systems.
+
+**Fix:** Changed to `(uint)Environment.TickCount64 - lastInputInfo.dwTime`. Truncating the 64-bit counter to `uint` and performing unsigned subtraction gives the correct millisecond delta modulo 2³², matching the documented Win32 behaviour for `GetLastInputInfo`. Also removed the unused `_lastIdleCheck` field that was allocated but never read.
+
+---
+
+### `DispatcherHelper.RunOnUiThreadAsync` Returned Before Async Action Completed
+
+**Root cause:** `DispatcherHelper.RunOnUiThreadAsync` called `await dispatcher.InvokeAsync(asyncAction)` where `asyncAction` is `Func<Task>`. `InvokeAsync` returns a `DispatcherOperation<Task>`; the single `await` unwraps only that outer operation, returning the `Task` returned by `asyncAction` without awaiting it. Any work the async action did after its first `await` was silently fire-and-forget. The method was not called anywhere in the current codebase, so no user-visible regressions existed, but the bug would surface immediately upon any future call site.
+
+**Fix:** Changed to `await await dispatcher.InvokeAsync(asyncAction)` — the second `await` waits for the inner `Task` returned by `asyncAction` to complete, matching the contract implied by the method's signature.
+
+---
+
+### AutoUpdateService: HardwareWorker Kill Loop Aborted On First Exception; Exit Not Verified
+
+**Root cause:** `InstallUpdateAsync()` called `proc.Kill()` and `proc.WaitForExit(3000)` inside a single `try/catch` wrapping the entire loop. If `Kill()` threw on one process (e.g., `InvalidOperationException` because it already exited), the `catch` at the outer level swallowed the exception and exited the loop entirely — any remaining HardwareWorker processes were not killed. Additionally, `WaitForExit(3000)` returns `bool` (true = exited, false = timed out), but the return value was never checked, so the installer was launched even when the worker process had not yet released its file locks.
+
+**Fix:** Moved `try/catch` inside the loop so one failure doesn't skip remaining processes. Added `proc.HasExited` check before `Kill()`. Check `WaitForExit` return value and log a warning if the process did not exit in time. Added `proc.Dispose()` in a `finally` block.
 
 ---
 
@@ -218,7 +250,7 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 ## Current Validation Status
 
 - `dotnet build OmenCoreApp.csproj -c Release`: passed, 0 errors, 0 warnings.
-- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (regression test for 8C77 V1/V2 mismatch was added in this cycle; all other changes are runtime-only).
+- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (all new fixes are runtime-only; no new tests required).
 - Version not yet bumped; full bump, artifact rebuild, and tag will happen at release time.
 
 ---

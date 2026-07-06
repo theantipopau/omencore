@@ -82,7 +82,9 @@ namespace OmenCore.Utils
             }
             else
             {
-                await dispatcher.InvokeAsync(asyncAction);
+                // InvokeAsync returns DispatcherOperation<Task>; await twice to wait for
+                // the async action itself to complete, not just to be dispatched.
+                await await dispatcher.InvokeAsync(asyncAction);
             }
         }
 

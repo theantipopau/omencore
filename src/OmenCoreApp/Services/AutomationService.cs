@@ -31,7 +31,6 @@ namespace OmenCore.Services
         private readonly HashSet<string> _activeRules = new();
         private readonly object _lock = new();
         private bool _isRunning;
-        private DateTime _lastIdleCheck = DateTime.Now;
 
         /// <summary>
         /// Fired when a rule is triggered
@@ -297,7 +296,9 @@ namespace OmenCore.Services
                 if (!GetLastInputInfo(ref lastInputInfo))
                     return false;
 
-                var idleTime = TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime);
+                // Use TickCount64 truncated to uint so unsigned subtraction wraps correctly
+                // regardless of system uptime (Environment.TickCount overflows after ~24.9 days).
+                var idleTime = TimeSpan.FromMilliseconds((uint)Environment.TickCount64 - lastInputInfo.dwTime);
                 return idleTime.TotalMinutes >= config.IdleMinutes.Value;
             }
             catch
