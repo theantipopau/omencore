@@ -4033,6 +4033,7 @@ namespace OmenCore.ViewModels
                 string performanceMode;
                 string fanMode;
 
+                string? gpuBoostLevel = null;
                 switch (profile.ToLowerInvariant())
                 {
                     case "performance":
@@ -4043,8 +4044,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Performance";
                         fanMode = "Performance";
-                        if (_systemControl?.GpuPowerBoostAvailable == true)
-                            _systemControl.GpuPowerBoostLevel = "Maximum";
+                        gpuBoostLevel = "Maximum";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4056,8 +4056,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Balanced";
                         fanMode = "Auto";
-                        if (_systemControl?.GpuPowerBoostAvailable == true)
-                            _systemControl.GpuPowerBoostLevel = "Medium";
+                        gpuBoostLevel = "Medium";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4069,8 +4068,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Quiet";
                         fanMode = "Quiet";
-                        if (_systemControl?.GpuPowerBoostAvailable == true)
-                            _systemControl.GpuPowerBoostLevel = "Minimum";
+                        gpuBoostLevel = "Minimum";
                         ArmQuietSafetyMonitor();
                         break;
 
@@ -4109,6 +4107,9 @@ namespace OmenCore.ViewModels
                         // analogous fan-preset gap).
                         _systemControl?.SelectModeByNameNoApplyAndSave(confirmedPerformanceMode);
                         FanControl?.SelectPresetByNameNoApplyAndSave(confirmedFanMode);
+                        // Sync GPU Power Boost level on UI thread (setter calls OnPropertyChanged)
+                        if (gpuBoostLevel != null && _systemControl?.GpuPowerBoostAvailable == true)
+                            _systemControl.GpuPowerBoostLevel = gpuBoostLevel;
                         ShowHotkeyOsd("Profile", profile, "Tray");
                         PushEvent($"🎮 Profile: {profile} (fan: {confirmedFanMode})");
                     });
