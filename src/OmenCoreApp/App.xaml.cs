@@ -432,6 +432,16 @@ namespace OmenCore
                             }
                         }
                     };
+
+                    // Seed the OSD cache with the current performance mode so that if the
+                    // user shows the OSD before the first StateChanged fires, it shows the
+                    // correct mode rather than the hardcoded "Balanced" default.
+                    var seedMode = mainViewModel.CurrentPerformanceMode;
+                    if (!string.IsNullOrEmpty(seedMode))
+                    {
+                        mainViewModel.Osd?.SetPerformanceMode(seedMode);
+                        mainViewModel.Osd?.SetCurrentMode(seedMode);
+                    }
                 }
 
                 // Wire up tray quick actions to MainViewModel
