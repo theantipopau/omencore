@@ -1885,6 +1885,7 @@ namespace OmenCore.ViewModels
             _omenKeyService.CyclePerformanceRequested += OnHotkeyTogglePerformanceMode;
             _omenKeyService.CycleFanModeRequested += OnHotkeyToggleFanMode;
             _omenKeyService.ToggleMaxCoolingRequested += OnOmenKeyToggleMaxCooling;
+            _omenKeyService.ShowQuickPopupRequested += OnOmenKeyShowQuickPopup;
             
             // Subscribe to service events for UI synchronization (e.g., power automation changes)
             _fanService!.PresetApplied += OnFanPresetApplied;
@@ -4032,6 +4033,7 @@ namespace OmenCore.ViewModels
                 string performanceMode;
                 string fanMode;
 
+                string? gpuBoostLevel = null;
                 switch (profile.ToLowerInvariant())
                 {
                     case "performance":
@@ -4042,6 +4044,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Performance";
                         fanMode = "Performance";
+                        gpuBoostLevel = "Maximum";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4053,6 +4056,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Balanced";
                         fanMode = "Auto";
+                        gpuBoostLevel = "Medium";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4064,6 +4068,7 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Quiet";
                         fanMode = "Quiet";
+                        gpuBoostLevel = "Minimum";
                         ArmQuietSafetyMonitor();
                         break;
 
@@ -4102,6 +4107,9 @@ namespace OmenCore.ViewModels
                         // analogous fan-preset gap).
                         _systemControl?.SelectModeByNameNoApplyAndSave(confirmedPerformanceMode);
                         FanControl?.SelectPresetByNameNoApplyAndSave(confirmedFanMode);
+                        // Sync GPU Power Boost level on UI thread (setter calls OnPropertyChanged)
+                        if (gpuBoostLevel != null && _systemControl?.GpuPowerBoostAvailable == true)
+                            _systemControl.GpuPowerBoostLevel = gpuBoostLevel;
                         ShowHotkeyOsd("Profile", profile, "Tray");
                         PushEvent($"🎮 Profile: {profile} (fan: {confirmedFanMode})");
                     });
@@ -4669,6 +4677,11 @@ namespace OmenCore.ViewModels
             // Same as hotkey toggle but may include OSD feedback
             OnHotkeyToggleWindow(sender, e);
         }
+
+        private void OnOmenKeyShowQuickPopup(object? sender, EventArgs e)
+        {
+            App.TrayIcon?.ShowQuickPopup();
+        }
         
         private void OnOmenKeyToggleMaxCooling(object? sender, EventArgs e)
         {
@@ -5167,6 +5180,7 @@ namespace OmenCore.ViewModels
                 _omenKeyService.CyclePerformanceRequested -= OnHotkeyTogglePerformanceMode;
                 _omenKeyService.CycleFanModeRequested -= OnHotkeyToggleFanMode;
                 _omenKeyService.ToggleMaxCoolingRequested -= OnOmenKeyToggleMaxCooling;
+                _omenKeyService.ShowQuickPopupRequested -= OnOmenKeyShowQuickPopup;
             }
             // Dispose OMEN key service
             _omenKeyService?.Dispose();

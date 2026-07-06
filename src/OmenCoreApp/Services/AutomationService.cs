@@ -31,7 +31,7 @@ namespace OmenCore.Services
         private readonly HashSet<string> _activeRules = new();
         private readonly object _lock = new();
         private bool _isRunning;
-        private DateTime _lastIdleCheck = DateTime.Now;
+        private int _evaluationInProgress;
 
         /// <summary>
         /// Fired when a rule is triggered
@@ -98,6 +98,11 @@ namespace OmenCore.Services
             if (!_isRunning)
                 return;
 
+            // Skip overlapping ticks: WMI trigger reads and rule actions can exceed the
+            // 5 s timer period, and System.Threading.Timer fires callbacks concurrently.
+            if (Interlocked.CompareExchange(ref _evaluationInProgress, 1, 0) != 0)
+                return;
+
             try
             {
                 var config = _configService.Config;
@@ -156,6 +161,10 @@ namespace OmenCore.Services
             {
                 _logger.Error($"Error in automation evaluation cycle: {ex.Message}");
             }
+            finally
+            {
+                Interlocked.Exchange(ref _evaluationInProgress, 0);
+            }
         }
 
         private bool EvaluateTrigger(AutomationRule rule)
@@ -210,6 +219,11 @@ namespace OmenCore.Services
             try
             {
                 var battery = SystemInformation.PowerStatus.BatteryLifePercent * 100;
+                // BatteryLifePercent is 255f when unknown (no battery / sensor failure),
+                // which would make any "above" rule fire permanently (255*100 = 25500).
+                if (battery < 0 || battery > 100)
+                    return false;
+
                 var threshold = config.BatteryThreshold.Value;
 
                 return config.BatteryCondition?.ToLowerInvariant() switch
@@ -297,7 +311,9 @@ namespace OmenCore.Services
                 if (!GetLastInputInfo(ref lastInputInfo))
                     return false;
 
-                var idleTime = TimeSpan.FromMilliseconds(Environment.TickCount - lastInputInfo.dwTime);
+                // Use TickCount64 truncated to uint so unsigned subtraction wraps correctly
+                // regardless of system uptime (Environment.TickCount overflows after ~24.9 days).
+                var idleTime = TimeSpan.FromMilliseconds((uint)Environment.TickCount64 - lastInputInfo.dwTime);
                 return idleTime.TotalMinutes >= config.IdleMinutes.Value;
             }
             catch

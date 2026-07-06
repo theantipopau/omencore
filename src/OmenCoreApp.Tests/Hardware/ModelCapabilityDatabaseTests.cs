@@ -25,6 +25,7 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData("8A43", OmenModelFamily.OMEN16)]
         [InlineData("8A44", OmenModelFamily.OMEN16)]
         [InlineData("8C76", OmenModelFamily.OMEN16)]
+        [InlineData("8C77", OmenModelFamily.OMEN16)]
         [InlineData("8A3E", OmenModelFamily.Victus)]
         [InlineData("8C30", OmenModelFamily.Victus)]
         [InlineData("8DCD", OmenModelFamily.Victus)]
@@ -264,6 +265,28 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsFanCurves.Should().BeTrue();
             caps.FanZoneCount.Should().Be(2);
             caps.MaxFanLevel.Should().Be(55);
+            caps.HasMuxSwitch.Should().BeTrue();
+            caps.SupportsGpuPowerBoost.Should().BeTrue();
+            caps.HasFourZoneRgb.Should().BeTrue();
+            caps.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetCapabilities_8C77_Wf1xxx_UsesExactV1WmiProfileNotV2Mismatch()
+        {
+            // Regression guard: without an exact 8C77 entry, the pattern match falls through to
+            // 8BAB (V2, MaxFanLevel=100), which sent wrong commands and caused a crash on the
+            // reporter's device (FileNotFoundException on Custom Fan Curve/Quiet mode, 2026-07).
+            var caps = ModelCapabilityDatabase.GetCapabilities("8C77");
+
+            caps.ProductId.Should().Be("8C77");
+            caps.ModelName.Should().Contain("wf1xxx");
+            caps.Family.Should().Be(OmenModelFamily.OMEN16);
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanControlEc.Should().BeFalse();
+            caps.SupportsFanCurves.Should().BeTrue();
+            caps.FanZoneCount.Should().Be(2);
+            caps.MaxFanLevel.Should().Be(55);   // V1 WMI — must NOT be 100 (V2/8BAB mismatch)
             caps.HasMuxSwitch.Should().BeTrue();
             caps.SupportsGpuPowerBoost.Should().BeTrue();
             caps.HasFourZoneRgb.Should().BeTrue();

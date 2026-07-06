@@ -1141,6 +1141,13 @@ namespace OmenCore
                 operation: "DispatcherUnhandledException",
                 message: "Unhandled UI thread exception",
                 ex: e.Exception);
+            // Log full stack trace separately so crash reports are diagnosable without a debugger.
+            // BuildContextPayload only logs ex.Message; the stack trace is the critical missing piece.
+            Logging.Error($"[CrashTrace] {e.Exception.GetType().FullName}: {e.Exception.Message}\n{e.Exception.StackTrace}");
+            if (e.Exception.InnerException != null)
+            {
+                Logging.Error($"[CrashTrace.Inner] {e.Exception.InnerException.GetType().FullName}: {e.Exception.InnerException.Message}\n{e.Exception.InnerException.StackTrace}");
+            }
             e.Handled = true;
             ShowFatalDialog(e.Exception, false);
         }
@@ -1172,6 +1179,11 @@ namespace OmenCore
                         ex: ex);
                 }
                 
+                Logging.Error($"[CrashTrace] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}");
+                if (ex.InnerException != null)
+                {
+                    Logging.Error($"[CrashTrace.Inner] {ex.InnerException.GetType().FullName}: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}");
+                }
                 ShowFatalDialog(ex, isNvmlCrash);
             }
         }

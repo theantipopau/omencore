@@ -370,6 +370,10 @@ namespace OmenCore.ViewModels
                 // v2.8.6: Sync OMEN tab performance mode display; v3.8.1: also persist (GitHub #145)
                 _systemControlViewModel?.SelectModeByNameNoApplyAndSave("Performance");
 
+                // Set GPU Power Boost to Maximum for Performance profile
+                if (_systemControlViewModel?.GpuPowerBoostAvailable == true)
+                    _systemControlViewModel.GpuPowerBoostLevel = "Maximum";
+
                 SyncFromConfirmedRuntime("Performance profile");
 
                 _logging.Info("Performance profile applied successfully");
@@ -439,6 +443,10 @@ namespace OmenCore.ViewModels
                 // v2.8.6: Sync OMEN tab performance mode display; v3.8.1: also persist (GitHub #145)
                 _systemControlViewModel?.SelectModeByNameNoApplyAndSave("Balanced");
 
+                // Set GPU Power Boost to Medium for Balanced profile
+                if (_systemControlViewModel?.GpuPowerBoostAvailable == true)
+                    _systemControlViewModel.GpuPowerBoostLevel = "Medium";
+
                 SyncFromConfirmedRuntime("Balanced profile");
 
                 _logging.Info("Balanced profile applied successfully");
@@ -477,6 +485,10 @@ namespace OmenCore.ViewModels
                 
                 // v2.8.6: Sync OMEN tab performance mode display; v3.8.1: also persist (GitHub #145)
                 _systemControlViewModel?.SelectModeByNameNoApplyAndSave("Quiet");
+
+                // Set GPU Power Boost to Minimum for Quiet profile
+                if (_systemControlViewModel?.GpuPowerBoostAvailable == true)
+                    _systemControlViewModel.GpuPowerBoostLevel = "Minimum";
 
                 SyncFromConfirmedRuntime("Quiet profile");
 

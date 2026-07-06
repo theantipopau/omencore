@@ -370,6 +370,20 @@ namespace OmenCore.ViewModels
             }
         }
 
+        public bool QuickPopupEnabled
+        {
+            get => _config.QuickPopupEnabled;
+            set
+            {
+                if (_config.QuickPopupEnabled != value)
+                {
+                    _config.QuickPopupEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
         public bool LinkFanToPerformanceMode
         {
             get => _linkFanToPerformanceMode;

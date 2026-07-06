@@ -38,12 +38,8 @@ namespace OmenCore.Utils
             }
             catch (Exception ex)
             {
-                // Log the error and show user feedback
-                // This prevents unhandled exceptions from crashing the application
-                var logging = App.Current?.Properties["LoggingService"] as OmenCore.Services.LoggingService;
-                logging?.Error($"Command execution failed: {ex.Message}", ex);
-                
-                // Show error dialog to user on UI thread
+                App.Logging.Error($"Command execution failed: {ex.Message}", ex);
+
                 System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() =>
                 {
                     System.Windows.MessageBox.Show(

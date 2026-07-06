@@ -572,7 +572,32 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "Discord HUrON / HP OMEN 16-WF1015ns 9U8J3EA — ProductId 8C76, i9-14900HX + RTX 4080, BIOS F.19, WMI V1/classic 55-level fan control. Exact entry replaces low-confidence inferred sibling match."
             });
-            
+
+            // OMEN 16-wf1xxx (2024 Intel) — ProductId 8C77, crash report (2026-07): FileNotFoundException
+            // on Custom Fan Curve tab ~6 s after applying Quiet mode. Reporter: OMEN 16 (2024), BIOS F.19,
+            // Intel. Same BIOS and model-name family as confirmed 8C76 sibling (i9-14900HX, V1 WMI/55-level).
+            // Without this exact entry the DB fell through to the 8BAB pattern match (V2, MaxFanLevel=100),
+            // sending 100-point percentage commands to a V1 WMI stack — mismatch that likely caused the crash.
+            // Profile is deliberately conservative (mirrors 8C76); set UserVerified=true after confirmation.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C77",
+                ModelName = "OMEN 16 (2024) wf1xxx Intel",
+                ModelNamePattern = "16-wf1",
+                ModelYear = 2024,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "OMEN 16-wf1xxx (2024 Intel) — ProductId 8C77, BIOS F.19. Crash report 2026-07: FileNotFoundException on Custom Fan Curve/Quiet mode (8BAB V2 mismatch). Profile mirrors confirmed 8C76 sibling; V1 WMI 55-level fan control."
+            });
+
             // OMEN 16 (2024) - xf series
             AddModel(new ModelCapabilities
             {
@@ -958,6 +983,28 @@ namespace OmenCore.Hardware
                 Notes = "GitHub #134/#144 — WMI V1 control with worker-backed CPU temperature; fan-level fallback is estimated telemetry, not physical RPM. Direct EC remains unverified."
             });
 
+            // GitHub #125: HP Victus 15-fa1xxx i5-12450H / RTX 2050, exact ProductId 8C3F.
+            // Misidentified as 8BB1 (OMEN 17 / Victus 15 ambiguous shared ID) causing a 10-minute
+            // delay on fan speed changes. Direct entry eliminates the ambiguous-ID lookup path.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C3F",
+                ModelName = "HP Victus 15-fa1xxx (2022)",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #125 — HP Victus 15-fa1xxx (i5-12450H / RTX 2050), ProductId 8C3F. Direct entry to avoid 8BB1 ambiguous-ID path that caused fan control delays. Same conservative Victus profile as 8BB1-VICTUS15."
+            });
+
             // Virtual product ID resolved via ModelNamePattern for ambiguous 8BB1 systems.
             // Matches WMI model names containing "15-fa1" (e.g., HP Victus 15-fa1xxx).
             AddModel(new ModelCapabilities
@@ -1088,8 +1135,9 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = false,
                 HasPerKeyRgb = true,
                 SupportsUndervolt = false,
+                AllowV1AutoModeFloorClear = true,
                 UserVerified = false,
-                Notes = "Transcend 14 board family (8C58). Prefer hp-wmi/ACPI paths; direct legacy EC writes are unsafe on Linux and unverified on Windows."
+                Notes = "GitHub #149 — OMEN Transcend 14 (2024) fb0xxx/8C58. Same Transcend 14 board family as 8E41; added AllowV1AutoModeFloorClear to match 8E41 profile. Prefer hp-wmi/ACPI paths; direct legacy EC writes are unsafe on Linux and unverified on Windows."
             });
 
             AddModel(new ModelCapabilities
@@ -1254,6 +1302,34 @@ namespace OmenCore.Hardware
                 HasKeyboardBacklight = true,
                 UserVerified = false,
                 Notes = "GitHub #135/#139 — Victus 15-fb1xxx. Conservative Victus profile: WMI fan/profile control retained, direct EC writes and CPU power-limit UI disabled, WMI thermal-policy fallback enabled for Performance/Balanced/Quiet pending before/after wattage readback; single-zone backlight assumed pending field verification."
+            });
+
+            // Victus 15 (2025) - fb3xxx series (AMD Ryzen 8xxx)
+            // GitHub Issue #148: HP Victus 15-fb3012AX — working via Family fallback but
+            // performance profile switching needs an explicit entry with WMI thermal-policy
+            // fallback. No diagnostics-confirmed ProductId yet; matched on "15-fb3" pattern.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "fb3xxx_victus15",
+                ModelName = "HP Victus 15 (2025) fb3xxx",
+                ModelNamePattern = "15-fb3",
+                ModelYear = 2025,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                SupportsPowerLimits = false,
+                PerformanceModes = new[] { "Quiet", "Balanced", "Performance" },
+                AllowDecoupledWmiThermalPolicyFallback = true,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = false,
+                UserVerified = false,
+                Notes = "GitHub #148 — HP Victus 15-fb3012AX (2025 AMD). Pattern-matched on '15-fb3'; no diagnostics-confirmed ProductId yet. Conservative Victus profile: WMI fan/profile control, no direct EC writes, WMI thermal-policy fallback for Performance/Balanced/Quiet. User reports no RGB keyboard."
             });
 
             // Victus 16 (2023/2024) - d1xxx series

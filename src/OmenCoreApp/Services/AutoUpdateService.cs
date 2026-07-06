@@ -715,19 +715,26 @@ namespace OmenCore.Services
                 _logging.Info($"Installing update from {installerPath}...");
                 
                 // Stop HardwareWorker first to release any file locks
-                try
+                var workerProcesses = Process.GetProcessesByName("OmenCore.HardwareWorker");
+                foreach (var proc in workerProcesses)
                 {
-                    var workerProcesses = Process.GetProcessesByName("OmenCore.HardwareWorker");
-                    foreach (var proc in workerProcesses)
+                    try
                     {
                         _logging.Info($"Stopping HardwareWorker process (PID: {proc.Id})...");
-                        proc.Kill();
-                        proc.WaitForExit(3000);
+                        if (!proc.HasExited)
+                            proc.Kill();
+                        var exited = proc.WaitForExit(3000);
+                        if (!exited)
+                            _logging.Warn($"HardwareWorker (PID: {proc.Id}) did not exit within 3 s; installer may be unable to replace locked files");
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logging.Warn($"Could not stop HardwareWorker: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"Could not stop HardwareWorker (PID: {proc.Id}): {ex.Message}");
+                    }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
                 }
                 
                 // Launch installer with silent flags

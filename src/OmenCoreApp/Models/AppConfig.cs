@@ -93,6 +93,13 @@ namespace OmenCore.Models
         /// DisplayOff, LockWindows, and Disabled.
         /// </summary>
         public string QuickAccessAction { get; set; } = "DisplayOff";
+
+        /// <summary>
+        /// When false, left-clicking the tray icon opens the main window directly instead
+        /// of showing the Quick Access popup. Also suppresses the popup on OMEN-key press
+        /// when its action is configured to ShowQuickPopup.
+        /// </summary>
+        public bool QuickPopupEnabled { get; set; } = true;
         
         /// <summary>
         /// When true, switching performance modes also writes a fan policy (legacy coupled behavior).

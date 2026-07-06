@@ -666,7 +666,7 @@
                 <!-- Custom Tab: visible only when Custom profile is active -->
                 <TabItem x:Name="OmenTabItem">
                     <TabItem.Style>
-                        <Style TargetType="TabItem">
+                        <Style TargetType="TabItem" BasedOn="{StaticResource ModernTabItem}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
                                 <MultiDataTrigger>

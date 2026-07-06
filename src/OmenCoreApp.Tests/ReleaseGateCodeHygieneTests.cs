@@ -49,8 +49,8 @@ namespace OmenCoreApp.Tests
             "App.xaml.cs:1057",
             "AmdGpuService.cs:409", // shifted from :371 after adding DescribeAdlResult/ADL error constants
             "EcAccessFactory.cs:216",
-            "FanController.cs:412",
-            "FanController.cs:769",
+            "FanController.cs:415", // shifted from :412 after GetBridgeTemperatures bare-catch fix (3.9.0)
+            "FanController.cs:772", // shifted from :769 after GetBridgeTemperatures bare-catch fix (3.9.0)
             "FanControllerFactory.cs:157", // shifted from :151
             "FanControllerFactory.cs:176", // shifted from :170
             "FanControllerFactory.cs:1168", // shifted from :1165 after WMI wrapper external-reset status properties

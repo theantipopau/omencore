@@ -23,7 +23,14 @@ namespace OmenCore.Views
 
                 // Keep the UI on the last authoritative state until the async apply/revert completes.
                 toggle.IsChecked = item.IsEnabled;
-                await item.Toggle(desiredState);
+                try
+                {
+                    await item.Toggle(desiredState);
+                }
+                catch (Exception ex)
+                {
+                    App.Logging.Error($"[SystemOptimizer] Toggle failed for {item.Name}: {ex.Message}", ex);
+                }
             }
         }
     }

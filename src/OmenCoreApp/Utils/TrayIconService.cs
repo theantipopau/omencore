@@ -1082,6 +1082,12 @@ namespace OmenCore.Utils
         {
             Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
+                if (_configService?.Config.QuickPopupEnabled == false)
+                {
+                    _showMainWindow();
+                    return;
+                }
+
                 if (_quickPopup == null)
                 {
                     _quickPopup = new QuickPopupWindow();
@@ -1121,6 +1127,12 @@ namespace OmenCore.Utils
         {
             Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
+                if (_configService?.Config.QuickPopupEnabled == false)
+                {
+                    _showMainWindow();
+                    return;
+                }
+
                 if (_quickPopup == null)
                 {
                     _quickPopup = new QuickPopupWindow();
@@ -1246,13 +1258,18 @@ namespace OmenCore.Utils
                 // Draw temperature text - use largest font that fits
                 var text = temp.ToString("F0");
                 var fontSize = temp >= 100 ? 13 : 16; // Adjusted for 32x32 icon
+                // Use dark text on light backgrounds (yellow at 65-75°C is the main offender).
+                // Simple luminance estimate (non-linearized) sufficient for this purpose.
+                double lum = 0.2126 * (bgColor.R / 255.0) + 0.7152 * (bgColor.G / 255.0) + 0.0722 * (bgColor.B / 255.0);
+                var textBrush = lum > 0.45 ? Brushes.Black : Brushes.White;
+
                 var formatted = new FormattedText(
                     text,
                     CultureInfo.InvariantCulture,
                     FlowDirection.LeftToRight,
                     new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.ExtraBold, FontStretches.Normal),
                     fontSize,
-                    Brushes.White,
+                    textBrush,
                     1.25);
 
                 // Center the text
