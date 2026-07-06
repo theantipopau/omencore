@@ -4043,6 +4043,8 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Performance";
                         fanMode = "Performance";
+                        if (_systemControl?.GpuPowerBoostAvailable == true)
+                            _systemControl.GpuPowerBoostLevel = "Maximum";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4054,6 +4056,8 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Balanced";
                         fanMode = "Auto";
+                        if (_systemControl?.GpuPowerBoostAvailable == true)
+                            _systemControl.GpuPowerBoostLevel = "Medium";
                         DisarmQuietSafetyMonitor();
                         break;
 
@@ -4065,6 +4069,8 @@ namespace OmenCore.ViewModels
                         });
                         performanceMode = "Quiet";
                         fanMode = "Quiet";
+                        if (_systemControl?.GpuPowerBoostAvailable == true)
+                            _systemControl.GpuPowerBoostLevel = "Minimum";
                         ArmQuietSafetyMonitor();
                         break;
 

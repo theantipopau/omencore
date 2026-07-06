@@ -99,9 +99,9 @@ Neither change affects control behavior — they only surface failures that were
 
 **Root cause:** `GeneralViewModel.ApplyPerformanceProfile()`, `ApplyBalancedProfile()`, and `ApplyQuietProfile()` never set `GpuPowerBoostLevel`. The user's last manually-selected boost level (e.g., "Minimum") persisted through all profile switches. Switching to Performance had no effect on GPU TGP — it stayed at whatever the user last saved in the Custom tab.
 
-**Fix:** Each profile method now checks `_systemControlViewModel?.GpuPowerBoostAvailable` and, if true, sets the appropriate level: Performance → `"Maximum"`, Balanced → `"Medium"`, Quiet → `"Minimum"`. Custom profile deliberately leaves boost unchanged — the user controls it directly in that tab. The setter on `SystemControlViewModel.GpuPowerBoostLevel` handles the fan service update and config save, so no additional persistence code was needed.
+**Fix:** Three profile methods in `GeneralViewModel` now check `_systemControlViewModel?.GpuPowerBoostAvailable` and, if true, set the appropriate level: Performance → `"Maximum"`, Balanced → `"Medium"`, Quiet → `"Minimum"`. The same change was made to `MainViewModel.ApplyQuickProfileFromTray()` (the tray quick-profile switcher, which had its own parallel code path that also missed the boost setting). Custom profile and performance-mode-only tray actions deliberately leave boost unchanged. The setter on `SystemControlViewModel.GpuPowerBoostLevel` handles fan service update and config save.
 
-**Impact:** Affects all devices with GPU Power Boost support (`SupportsGpuPowerBoost = true`). This was a regression — the prior version (before GPU Power Boost was added to the profile system) had no profile-boost link at all, but user expectations from the feature documentation were that switching to Performance would maximize GPU power.
+**Impact:** Affects all devices with GPU Power Boost support (`SupportsGpuPowerBoost = true`). Triggered from the General tab profile cards, the tray quick-profile menu, and the Ctrl+Shift+E hotkey cycle (the hotkey path calls `General.ApplyXxxProfile()` which is covered by the GeneralViewModel fix).
 
 ---
 
