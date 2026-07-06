@@ -1,7 +1,7 @@
 # OmenCore v3.9.0 – UX Polish, Silent-Failure Fixes, and Model Additions
 
 **Release Date:** TBD
-**Release Status:** Code-complete and test-verified in this environment (913/913 tests, 0 build warnings); artifacts not yet built, pending hardware confirmation from affected reporters (`8C77`, `8BCD` fan reports) before tagging
+**Release Status:** Code-complete, test-verified (913/913 tests, 0 build warnings), and merged to `main`; artifacts built and hashed in this environment (see SHA256 hashes below); manually smoke-tested on a non-HP desktop with no crashes or regressions. Still pending hardware confirmation from affected reporters (`8C77`, `8BCD` fan reports) before tagging.
 **Type:** Minor release — no fan/thermal/EC control behavior changes; UX fixes, reliability improvements, and model additions
 **Base Version:** v3.8.2
 
@@ -274,8 +274,19 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 ## Current Validation Status
 
 - `dotnet build OmenCoreApp.csproj -c Release`: passed, 0 errors, 0 warnings.
-- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (all new fixes are runtime-only; no new tests required).
-- Version bumped to 3.9.0 across `VERSION.txt`, all four project files (`OmenCoreApp`, `OmenCore.HardwareWorker`, `OmenCore.Linux`, `OmenCore.Avalonia`), and the installer script. Artifact rebuild (installer/portable/Linux zip + SHA256 hashes) and tag are still pending hardware confirmation from affected reporters.
+- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (all new fixes are runtime-only; no new tests required). Re-verified after the version bump and again after merging `release/3.9.0` into `main`.
+- Version bumped to 3.9.0 across `VERSION.txt`, all four project files (`OmenCoreApp`, `OmenCore.HardwareWorker`, `OmenCore.Linux`, `OmenCore.Avalonia`), and the installer script.
+- `release/3.9.0` merged into `main` and pushed.
+- Manual smoke test: portable build launched on a non-HP AMD desktop (Ryzen 9800X3D, no OMEN/Victus hardware). No crashes, no unhandled exceptions, clean shutdown. Confirmed the Custom tab navigates and renders without error, and `ApplyBalancedProfile()` correctly skips the GPU Power Boost call when `GpuPowerBoostAvailable` is false (no functional backend on this system) rather than throwing. HP-specific paths (GPU Power Boost, OMEN key, OSD) could not be exercised on this hardware since it correctly gates them off entirely.
+- Artifacts built and hashed (tag still pending hardware confirmation from affected reporters):
+
+  ```
+  6994AA13BFDE4A54C916EFEA8B1BCF40582C0695F06857000FF6BFA53C70DC73  OmenCoreSetup-3.9.0.exe
+  29BCF1F82977513177A9B8194D4BCFE25BDB4210779CBE44BC02E7EAA0EF89E4  OmenCore-3.9.0-win-x64.zip
+  54083720C4C36DCE7394FFB8425F3BFF727A72380CE7234658EED7C211700D12  OmenCore-3.9.0-linux-x64.zip
+  ```
+
+  Also written to `artifacts/SHA256SUMS-3.9.0.txt`. Note: the Linux zip was built with `-SkipBinaryVersionCheck` because the packaging script's binary-execution verifier requires a Linux/WSL host; the publish and its internal version-manifest check both passed, but the binary has not been executed on real Linux.
 
 ---
 
