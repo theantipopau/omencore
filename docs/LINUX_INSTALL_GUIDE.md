@@ -642,6 +642,7 @@ OmenCore automatically selects the best fan control method available for your ha
    - Path: `/sys/kernel/debug/ec/ec0/io`
    - Direct reads/writes to EC registers
    - Based on [omen-fan](https://github.com/alou-S/omen-fan) register documentation
+   - **OMEN 15-dc0xxx (board 84DB):** fan boost at offset `0xEC` — write `1` for max, `0` for auto. Stock `hp-wmi` `pwm1_enable=0` fails with EINVAL; RPM readback via `fan1_input`/`fan2_input` works. See [hp-omen-fan-linux](https://github.com/murilopontes/hp-omen-fan-linux).
 
 ### Safety Protections
 
@@ -669,6 +670,7 @@ OmenCore automatically selects the best fan control method available for your ha
 
 | Model | Kernel | Method | Notes |
 |-------|--------|--------|-------|
+| OMEN 15 2018-19 (dc0xxx, 84DB) | 5.15+ | ec_sys + hp-wmi RPM | Fan max via EC `0xEC=1`; `pwm1_enable=0` returns EINVAL on stock kernel |
 | OMEN 15 2020 | 5.15+ | ec_sys | Full EC access |
 | OMEN 16 2022 | 5.19+ | ec_sys | Full EC access |
 | OMEN 16 2023 (wf0xxx) | 6.5+ | hp-wmi | Partial fan control |
