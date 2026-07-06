@@ -105,6 +105,14 @@ Neither change affects control behavior — they only surface failures that were
 
 ---
 
+### OSD Showed Stale "Balanced" Default Before First StateChanged Fires
+
+**Root cause:** `OsdService._lastPerformanceMode` starts as an empty string. When the OSD is shown for the first time, `Show()` applies `_lastPerformanceMode` to the overlay window only if non-empty. If the user opens the OSD within the first few seconds of startup — before `RuntimeStateEngine` fires its first `StateChanged` snapshot — `_lastPerformanceMode` is still `""`, so no mode is applied, and the overlay falls back to `OsdOverlayWindow`'s hardcoded field default (`"Balanced"`). This means a user in Performance mode who opens the OSD immediately at startup sees "Balanced."
+
+**Fix:** In `App.xaml.cs`, immediately after wiring up the `StateChanged` handler, seed `OsdService` with `mainViewModel.CurrentPerformanceMode` (which is resolved from the performance mode service during `MainViewModel` construction). This ensures the OSD cache has a valid mode before the first `StateChanged` fires.
+
+---
+
 ### Custom Tab Appeared White (Default WPF Theme Instead of Dark Theme)
 
 **Reported by:** Community member OsamaBiden (OMEN 16 xd0010AX, 8BCD) — Custom tab was "super bright, all white, definitely something from the theme that's not working."
