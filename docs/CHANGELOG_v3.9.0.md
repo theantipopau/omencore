@@ -93,6 +93,28 @@ Neither change affects control behavior — they only surface failures that were
 
 ---
 
+### General Tab Profiles Did Not Sync GPU Power Boost Level
+
+**Reported by:** Community member OsamaBiden (OMEN 16 xd0010AX, 8BCD) — Performance profile gave 90W instead of expected 120W; Quiet profile also gave 90W instead of expected ~50W.
+
+**Root cause:** `GeneralViewModel.ApplyPerformanceProfile()`, `ApplyBalancedProfile()`, and `ApplyQuietProfile()` never set `GpuPowerBoostLevel`. The user's last manually-selected boost level (e.g., "Minimum") persisted through all profile switches. Switching to Performance had no effect on GPU TGP — it stayed at whatever the user last saved in the Custom tab.
+
+**Fix:** Each profile method now checks `_systemControlViewModel?.GpuPowerBoostAvailable` and, if true, sets the appropriate level: Performance → `"Maximum"`, Balanced → `"Medium"`, Quiet → `"Minimum"`. Custom profile deliberately leaves boost unchanged — the user controls it directly in that tab. The setter on `SystemControlViewModel.GpuPowerBoostLevel` handles the fan service update and config save, so no additional persistence code was needed.
+
+**Impact:** Affects all devices with GPU Power Boost support (`SupportsGpuPowerBoost = true`). This was a regression — the prior version (before GPU Power Boost was added to the profile system) had no profile-boost link at all, but user expectations from the feature documentation were that switching to Performance would maximize GPU power.
+
+---
+
+### Custom Tab Appeared White (Default WPF Theme Instead of Dark Theme)
+
+**Reported by:** Community member OsamaBiden (OMEN 16 xd0010AX, 8BCD) — Custom tab was "super bright, all white, definitely something from the theme that's not working."
+
+**Root cause:** `OmenTabItem` in `MainWindow.xaml` defines a local `<TabItem.Style>` to control its visibility via a `MultiDataTrigger` (visible only when Custom profile is selected AND `ShowAdvancedControls` is true). In WPF, a local `TabItem.Style` property completely overrides `ItemContainerStyle` — the `ItemContainerStyle="{StaticResource ModernTabItem}"` set on the parent `TabControlMain` is ignored for any `TabItem` that has its own `Style` defined. `ModernTabItem` provides the entire dark-themed tab template; without it, the OmenTabItem fell back to WPF's default `TabItem` control template, which renders the tab content area with a white/system-theme background.
+
+**Fix:** Added `BasedOn="{StaticResource ModernTabItem}"` to the inline `Style` declaration on `OmenTabItem`. The style now inherits the full dark template from `ModernTabItem` while still overriding `Visibility` via its trigger.
+
+---
+
 ### MemoryOptimizerService: `Process.GetCurrentProcess()` Called Per Loop Iteration
 
 **Root cause:** `EmptyWorkingSetsWithExclusions()` called `Process.GetCurrentProcess()` inside its `foreach` loop over every process on the system to compare process names. This allocates a new managed `Process` object on every iteration during an operation that already touches every running process.
@@ -184,7 +206,7 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 ## Current Validation Status
 
 - `dotnet build OmenCoreApp.csproj -c Release`: passed, 0 errors, 0 warnings.
-- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 911/911 passed (no new tests added in this batch — all changes are in runtime service code, not in testable pure-logic paths; the OmenKey fix is an enum/string mapping with no injectable seam in the existing test infrastructure).
+- `dotnet test OmenCoreApp.Tests.csproj -c Release`: 913/913 passed (regression test for 8C77 V1/V2 mismatch was added in this cycle; all other changes are runtime-only).
 - Version not yet bumped; full bump, artifact rebuild, and tag will happen at release time.
 
 ---
