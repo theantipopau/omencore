@@ -1,33 +1,32 @@
 # v3.9.0 - UX Polish, Silent-Failure Fixes, and Model Additions
 
-Thanks OsamaBiden and everyone who reported issues on Discord/GitHub since 3.8.2!
+Thanks OsamaBiden and everyone who reported issues since 3.8.2!
 
 ## Bug Fixes
 
-- **OMEN Key action setting was completely non-functional** - all four options in Settings silently failed to save and reverted to default on every relaunch
-- **Game profiles could be lost on crash** - newly created or duplicated profiles weren't saved until another action triggered a write
-- **GPU Power Boost now follows profile switches** - Performance/Balanced/Quiet on the General tab, the tray quick-profile menu, and the hotkey cycle all sync boost level again (it used to stay frozen at whatever was last set manually)
-- **Custom tab showed the default white WPF theme** instead of the app's dark theme
-- **OSD no longer drops behind borderless/windowed-fullscreen games** - now re-asserts topmost every second instead of only once. (True DXGI exclusive fullscreen still can't show any overlay window - that's a Windows compositor limit, not us)
-- **OSD stale "Balanced" default** - performance-mode row no longer shows a wrong mode before the real one is confirmed at startup
-- **Tray icon contrast** - temperature text is now black instead of white on the yellow/green badge (was eye-straining)
-- **Auto-updater HardwareWorker shutdown** - one process failing to close no longer skipped the rest, and the installer now waits for confirmed exit
-- **Automation Service** - fixed an idle-timer overflow bug (~24.9 days uptime) and a battery-percentage bug that could fire "above N%" rules constantly on desktops/sensor-failure systems
-- **8C77 OMEN 16 (2024) wf1xxx Intel** - fixed a crash on the Custom Fan Curve tab caused by a V1/V2 profile mismatch
-- **8C3F HP Victus 15-fa1xxx** - direct model entry fixes a 10-minute fan-control delay (GitHub #125)
+- **OMEN Key action** - all four options silently failed to save, reverted on every relaunch
+- **Game profiles** - new/duplicated profiles could be lost on a crash before the next save
+- **GPU Power Boost** - now follows Performance/Balanced/Quiet on General tab, tray, and hotkey cycle again
+- **Custom tab** - was rendering the default white WPF theme instead of dark
+- **OSD in fullscreen** - no longer drops behind borderless/windowed games (re-asserts topmost). Exclusive fullscreen still can't show any overlay - Windows limit
+- **OSD stale mode** - no longer shows "Balanced" before the real mode is confirmed at startup
+- **Tray icon contrast** - temp text is black instead of white on yellow/green badges
+- **Auto-updater** - HardwareWorker shutdown no longer skips remaining processes on one failure
+- **Automation Service** - fixed an idle-timer overflow (~24.9 days uptime) and a battery bug that could fire "above N%" rules constantly on desktops
+- **8C77 OMEN 16 (2024) wf1xxx Intel** - fixed Custom Fan Curve crash (V1/V2 mismatch)
+- **8C3F HP Victus 15-fa1xxx** - fixed 10-minute fan-control delay (#125)
 
 ## Enhancements
 
-- **Quick Access popup** - new "Enable quick access popup" toggle for anyone who keeps hitting Display Off by accident
-- **Crash reports now include full stack traces** - previously only the exception type/message was logged, making community bug reports nearly impossible to diagnose
-- **Silent EC write failures now log a warning** instead of failing invisibly (no control-behavior change)
-- Model additions/updates: HP Victus 15 2025 AMD family fallback (`fb3xxx`), OMEN Transcend 14 (`8C58`) capability alignment
+- Quick Access popup: new toggle to disable it entirely
+- Crash reports now include full stack traces
+- Silent EC write failures now log a warning
+- Model updates: Victus 15 2025 AMD (`fb3xxx`), OMEN Transcend 14 (`8C58`)
 
 ## Still Tracked
 
-- `8BCD` OMEN 16 fan reports (Balanced-switch oscillation, Quiet RPM floor, Quiet thermal ceiling, ramp-down stepping) - evidence-gated, no fan/thermal code touched without hardware proof
-- GPU TGP lock and Quiet-mode CPU temp reports on other models - awaiting session logs
-- OGH Eco equivalent and dedicated OMEN Max HID per-key editor
+- `8BCD` OMEN 16 fan reports - evidence-gated, no fan/thermal code touched without proof
+- OGH Eco equivalent, OMEN Max HID per-key editor
 
 **Download:** <https://github.com/theantipopau/omencore/releases/tag/v3.9.0>
 
