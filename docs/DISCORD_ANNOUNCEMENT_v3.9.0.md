@@ -32,8 +32,8 @@ Thanks OsamaBiden and everyone who reported issues on Discord/GitHub since 3.8.2
 **Download:** <https://github.com/theantipopau/omencore/releases/tag/v3.9.0>
 
 ```text
-6994AA13  OmenCoreSetup-3.9.0.exe
-29BCF1F8  OmenCore-3.9.0-win-x64.zip
+F662E33F  OmenCoreSetup-3.9.0.exe
+8E20A11E  OmenCore-3.9.0-win-x64.zip
 54083720  OmenCore-3.9.0-linux-x64.zip
 ```
 

@@ -293,12 +293,12 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 - Artifacts built and hashed (tag still pending hardware confirmation from affected reporters):
 
   ```
-  6994AA13BFDE4A54C916EFEA8B1BCF40582C0695F06857000FF6BFA53C70DC73  OmenCoreSetup-3.9.0.exe
-  29BCF1F82977513177A9B8194D4BCFE25BDB4210779CBE44BC02E7EAA0EF89E4  OmenCore-3.9.0-win-x64.zip
+  F662E33FB2C62C7B9C1422E9CC422D3A6B72DB54513B5A304827FF6C03311C30  OmenCoreSetup-3.9.0.exe
+  8E20A11E870922545BEEDDC83AB7A24A25BED081A3F98897ADB840632A408902  OmenCore-3.9.0-win-x64.zip
   54083720C4C36DCE7394FFB8425F3BFF727A72380CE7234658EED7C211700D12  OmenCore-3.9.0-linux-x64.zip
   ```
 
-  Also written to `artifacts/SHA256SUMS-3.9.0.txt`. Note: the Linux zip was built with `-SkipBinaryVersionCheck` because the packaging script's binary-execution verifier requires a Linux/WSL host; the publish and its internal version-manifest check both passed, but the binary has not been executed on real Linux.
+  Also written to `artifacts/SHA256SUMS-3.9.0.txt`. Note: the Linux zip was built with `-SkipBinaryVersionCheck` because the packaging script's binary-execution verifier requires a Linux/WSL host; the publish and its internal version-manifest check both passed, but the binary has not been executed on real Linux. The Windows artifacts were rebuilt after the OSD topmost fix landed — the Linux zip is unaffected (that fix is in WPF-only code not referenced by the Linux CLI/GUI) and keeps its original hash.
 
 ---
 
