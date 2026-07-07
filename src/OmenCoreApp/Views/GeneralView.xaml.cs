@@ -81,5 +81,29 @@ namespace OmenCore.Views
                 vm.ApplyCustomProfile();
             }
         }
+
+        private void FanQuickMode_Max_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is ViewModels.GeneralViewModel vm)
+            {
+                vm.ApplyFanQuickMax();
+            }
+        }
+
+        private void FanQuickMode_Auto_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is ViewModels.GeneralViewModel vm)
+            {
+                vm.ApplyFanQuickAuto();
+            }
+        }
+
+        private void FanQuickMode_Custom_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (DataContext is ViewModels.GeneralViewModel vm)
+            {
+                vm.ApplyFanQuickCustom();
+            }
+        }
     }
 }

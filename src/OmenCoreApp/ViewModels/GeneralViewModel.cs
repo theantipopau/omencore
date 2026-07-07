@@ -150,7 +150,17 @@ namespace OmenCore.ViewModels
         public string CurrentFanMode
         {
             get => _currentFanMode;
-            set { _currentFanMode = value; OnPropertyChanged(); }
+            set
+            {
+                _currentFanMode = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsFanQuickModeMax));
+                OnPropertyChanged(nameof(IsFanQuickModeAuto));
+                OnPropertyChanged(nameof(IsFanQuickModeCustom));
+                OnPropertyChanged(nameof(FanQuickModeBorder_Max));
+                OnPropertyChanged(nameof(FanQuickModeBorder_Auto));
+                OnPropertyChanged(nameof(FanQuickModeBorder_Custom));
+            }
         }
 
         public string SelectedProfile
@@ -324,6 +334,22 @@ namespace OmenCore.ViewModels
         public Brush SelectedProfileBorder_Balanced => IsBalancedSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
         public Brush SelectedProfileBorder_Quiet => IsQuietSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
         public Brush SelectedProfileBorder_Custom => IsCustomSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
+
+        // v3.9.1: Standalone fan-mode-only quick selector (mirrors OMEN Gaming Hub's
+        // Max / Profile Controlled (Auto) / Custom fan switch). Independent of the
+        // Performance/Balanced/Quiet/Custom profile cards above — these only reflect
+        // and change fan mode, never the performance profile.
+        // "Auto" here means "profile controlled" — it must catch every built-in
+        // profile-driven curve (Performance/Balanced/Quiet), not just literal "auto"
+        // aliases, otherwise the Performance/Quiet profiles' own fan presets
+        // (named "Performance"/"Quiet") wrongly fall through to "Custom".
+        public bool IsFanQuickModeMax => FanModeNameResolver.IsMaxAlias(CurrentFanMode);
+        public bool IsFanQuickModeCustom => FanModeNameResolver.IsCustomAlias(CurrentFanMode);
+        public bool IsFanQuickModeAuto => !IsFanQuickModeMax && !IsFanQuickModeCustom;
+
+        public Brush FanQuickModeBorder_Max => IsFanQuickModeMax ? SelectedProfileBorderBrush : Brushes.Transparent;
+        public Brush FanQuickModeBorder_Auto => IsFanQuickModeAuto ? SelectedProfileBorderBrush : Brushes.Transparent;
+        public Brush FanQuickModeBorder_Custom => IsFanQuickModeCustom ? SelectedProfileBorderBrush : Brushes.Transparent;
 
         // v3.7.0: Quiet thermal safety override state
         public bool IsQuietSafetyOverrideActive
@@ -536,6 +562,82 @@ namespace OmenCore.ViewModels
             {
                 _logging.Error($"Failed to set Custom profile: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Quick fan-mode-only actions for the General tab's Max / Profile Controlled (Auto) / Custom
+        /// selector. These apply via <see cref="_fanService"/> directly (matching the pattern used by
+        /// ApplyPerformanceProfile/ApplyBalancedProfile/ApplyQuietProfile above) rather than through
+        /// <see cref="_fanControlViewModel"/>, which is lazily constructed by MainViewModel only once
+        /// the Custom/OMEN tab has been opened — routing through it here silently no-ops if the user
+        /// hasn't visited that tab yet.
+        /// </summary>
+        public void ApplyFanQuickMax()
+        {
+            try
+            {
+                _logging.Info("General tab: quick fan mode set to Max");
+                var maxPreset = new FanPreset
+                {
+                    Name = "Max",
+                    Mode = FanMode.Max,
+                    IsBuiltIn = true,
+                    Curve = new() { new FanCurvePoint { TemperatureC = 0, FanPercent = 100 } }
+                };
+                var applied = _fanService.ApplyPreset(maxPreset, immediate: true);
+                if (applied)
+                {
+                    _fanControlViewModel?.SelectPresetByNameNoApplyAndSave(maxPreset.Name);
+                }
+                RefreshFanModeFromConfirmedRuntime();
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply quick Max fan mode: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// "Profile Controlled (Auto)" — reapplies whichever built-in profile curve matches the
+        /// currently active performance mode (Performance/Balanced/Quiet), handing fan control back
+        /// to the profile the same way the OMEN Gaming Hub Auto fan option does.
+        /// </summary>
+        public void ApplyFanQuickAuto()
+        {
+            try
+            {
+                _logging.Info("General tab: quick fan mode set to Profile Controlled (Auto)");
+                var performanceMode = CurrentPerformanceMode?.Trim();
+                if (PerformanceModeNameResolver.IsQuietAlias(performanceMode))
+                    ApplyQuietProfile();
+                else if (PerformanceModeNameResolver.IsPerformanceAlias(performanceMode))
+                    ApplyPerformanceProfile();
+                else
+                    ApplyBalancedProfile();
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to apply quick Auto fan mode: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// "Custom" — navigates to the Custom tab for manual curve control. Delegates to
+        /// <see cref="ApplyCustomProfile"/> so the Custom tab's visibility (gated on
+        /// SelectedProfile == "Custom") and last-preset reapply behave identically to the
+        /// existing Custom profile card.
+        /// </summary>
+        public void ApplyFanQuickCustom()
+        {
+            _logging.Info("General tab: quick fan mode Custom selected");
+            ApplyCustomProfile();
+        }
+
+        private void RefreshFanModeFromConfirmedRuntime()
+        {
+            var confirmedFanMode = _fanService.GetCurrentFanMode() ?? CurrentFanMode;
+            CurrentFanMode = confirmedFanMode;
+            DetermineActiveProfile(preferSavedPreset: false);
         }
 
         #endregion

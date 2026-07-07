@@ -293,12 +293,36 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 - Artifacts built and hashed (tag still pending hardware confirmation from affected reporters):
 
   ```
-  F662E33FB2C62C7B9C1422E9CC422D3A6B72DB54513B5A304827FF6C03311C30  OmenCoreSetup-3.9.0.exe
-  8E20A11E870922545BEEDDC83AB7A24A25BED081A3F98897ADB840632A408902  OmenCore-3.9.0-win-x64.zip
+  3C8D30678FB93EAD1C8F106E3902445E216D71B0D37A0CBA831CB97E02E0DA70  OmenCoreSetup-3.9.0.exe
+  B2C49C683BA3020A04D41AAB8E07EA0FF6ED574658B8A7463D7163BAD4CC2518  OmenCore-3.9.0-win-x64.zip
   54083720C4C36DCE7394FFB8425F3BFF727A72380CE7234658EED7C211700D12  OmenCore-3.9.0-linux-x64.zip
   ```
 
-  Also written to `artifacts/SHA256SUMS-3.9.0.txt`. Note: the Linux zip was built with `-SkipBinaryVersionCheck` because the packaging script's binary-execution verifier requires a Linux/WSL host; the publish and its internal version-manifest check both passed, but the binary has not been executed on real Linux. The Windows artifacts were rebuilt after the OSD topmost fix landed — the Linux zip is unaffected (that fix is in WPF-only code not referenced by the Linux CLI/GUI) and keeps its original hash.
+  Also written to `artifacts/SHA256SUMS-3.9.0.txt`. Note: the Linux zip was built with `-SkipBinaryVersionCheck` because the packaging script's binary-execution verifier requires a Linux/WSL host; the publish and its internal version-manifest check both passed, but the binary has not been executed on real Linux. The Windows artifacts were rebuilt a third time after fixing the General-tab fan-selector regressions reported by OsamaBiden (see "General-Tab Fan Selector Regressions" below) — the Linux zip is unaffected (WPF-only change, not referenced by the Linux CLI/GUI) and keeps its original hash. `dotnet test` re-verified at 913/913 passing after each change.
+
+---
+
+### General-Tab Fan Selector Regressions (Reported By OsamaBiden, Same Day As Ship)
+
+**Reported by:** OsamaBiden (O16 - xd0010ax), same day the General-tab "FAN MODE" quick selector (Max / Profile Controlled (Auto) / Custom) shipped in this rebuild. Across Performance/Balanced/Quiet/Custom profiles: the fan-mode buttons appeared unclickable or had no effect, "Custom" always showed as active even on Performance/Quiet, clicking Custom navigated to a Custom tab that stayed hidden, and Max didn't actually max the fans.
+
+**Root cause 1 (buttons no-op on Performance/Balanced/Quiet):** `GeneralViewModel.ApplyFanQuickMax()`/`ApplyFanQuickAuto()` called `_fanControlViewModel?.ApplyFanMode(...)`. `FanControlViewModel` is lazily constructed by `MainViewModel.FanControl` — only built the first time something touches it (typically the user opening the OMEN/Custom tab). `MainViewModel.General`'s getter wires `_general.SetFanControlViewModel(_fanControl)` using the private field at General-construction time, but unlike `SystemControl`'s getter (which re-wires `_general?.SetSystemControlViewModel(...)` when `SystemControl` is later constructed), **`FanControl`'s getter never re-wires `SetFanControlViewModel` after the fact**. Result: if the user hadn't visited the Custom tab yet, `_fanControlViewModel` stayed `null` in `GeneralViewModel` and the `?.` silently swallowed every Max/Auto click. The existing Performance/Balanced/Quiet profile cards never hit this because they apply via `_fanService` directly and only use `_fanControlViewModel` for cosmetic UI sync.
+
+**Fix:** `ApplyFanQuickMax()` now builds the `Max` preset (`Mode = FanMode.Max`, `Curve = [{0°C, 100%}]`, matching `FanControlViewModel`'s own built-in preset) and applies it via `_fanService.ApplyPreset(...)` directly. `ApplyFanQuickAuto()` now resolves the active performance mode and calls the matching existing `ApplyPerformanceProfile()`/`ApplyBalancedProfile()`/`ApplyQuietProfile()` method — all three already apply via `_fanService` directly, so neither quick-mode action depends on `FanControl` having been loaded.
+
+**Root cause 2 ("Custom" always shown as active on Performance/Quiet):** `IsFanQuickModeCustom => !IsFanQuickModeMax && !IsFanQuickModeAuto` made Custom the catch-all, and `IsFanQuickModeAuto` only matched `FanModeNameResolver.IsAutoAlias` ("auto"/"balanced"/"default"). The Performance profile's own fan preset is named "Performance" and Quiet's is "Quiet"/"Cool" — neither matches `IsAutoAlias`, so both always fell through to "Custom" regardless of actual state.
+
+**Fix:** Inverted the catch-all — `IsFanQuickModeAuto => !IsFanQuickModeMax && !IsFanQuickModeCustom` (catches every profile-driven curve), and `IsFanQuickModeCustom` now uses `FanModeNameResolver.IsCustomAlias` specifically, so only an actual manual/custom curve shows as "Custom."
+
+**Root cause 3 (Custom tab hidden after navigating to it):** `OmenTabItem`'s visibility in `MainWindow.xaml` is gated on `SelectedProfile == "Custom"`. `ApplyFanQuickCustom()` fired `CustomTabNavigationRequested` without setting `SelectedProfile`, on the theory that the fan-mode selector shouldn't disturb the profile-card selection — but that's exactly what left the destination tab invisible once navigated to.
+
+**Fix:** `ApplyFanQuickCustom()` now delegates directly to the existing `ApplyCustomProfile()` (used by the Custom profile card), which sets `SelectedProfile = "Custom"` before firing the navigation event and reapplies the last custom preset — identical, already-tested behavior instead of a parallel path.
+
+**Not fixed in this pass (separate, pre-existing issues, not introduced by the fan selector):**
+- Changing a fan preset directly in the Custom/OMEN tab can cause `DetermineActiveProfile()` (invoked via the various `General?.SyncRuntimeState(CurrentPerformanceMode, newFanMode)` call sites in `MainViewModel`, e.g. the fan-mode hotkey cycle handler) to reclassify the active profile card — and hide the Custom tab — based on whatever `CurrentPerformanceMode` happens to be combined with the new fan mode name. This predates the General-tab fan selector and needs its own investigation before changing shared sync behavior.
+- The reported long-run fan RPM drop to ~5500 on this reporter's 8BCD board under sustained Performance-profile load (10-15 minutes+, 7-10°C temperature increase) is a hardware/EC behavior question, not a UI bug — per this project's evidence-gate rule, needs field diagnostics (per-poll RPM/duty log across the slowdown window) before any fan-timing change, not a blind code fix.
+
+`dotnet build`/`dotnet test` clean (913/913) after these fixes; Windows installer and portable zip rebuilt and re-hashed a third time.
 
 ---
 
@@ -307,3 +331,16 @@ These items require physical OMEN/Victus hardware to validate and are intentiona
 - The `QuickPopupEnabled` default is `true` — existing users are unaffected.
 - The `AllowV1AutoModeFloorClear` addition to 8C58 aligns it with the 8E41 profile confirmed by a Windows field report; it is the safer of the two directions (false would leave the V1 auto-mode floor stuck after a mode transition).
 - No fan/thermal/EC control code was changed in this release. The evidence-gate rule remains in force.
+
+---
+
+## Post-Release Feedback / Follow-Ups (Discord, `#design-feature-requests`)
+
+Feedback gathered after the 3.9.0 write-up, from `OsamaBiden` (O16 - xd0010ax) and other Discord reporters.
+
+- **✅ Done in this rebuild — Fan mode selector on the General tab**, mirroring OGH's layout: `Max`, `Profile Controlled (Auto)`, `Custom` (jumps to the Custom tab). Added a standalone "FAN MODE" quick selector to `GeneralView.xaml`/`GeneralViewModel.cs`, independent of the existing Performance/Balanced/Quiet/Custom profile cards — it only changes fan mode via `FanControlViewModel.ApplyFanMode()` (the same path hotkeys use), never the performance profile or GPU power boost level. `dotnet build`/`dotnet test` both clean (913/913); Windows installer and portable zip rebuilt and re-hashed.
+- **Not done — Dedicated Balanced Fan Mode, decoupled from Auto/BIOS-controlled fans.** Reporter noted the 3.9.0 changelog explains the "0 RPM on Balanced" behavior as fans being set to Auto (BIOS-controlled) when the Balanced *performance* profile is applied. Request: add a distinct Balanced *fan* mode tied to the Balanced profile instead of silently linking it to Auto fan mode, so users don't see 0 RPM and mistake it for a fault. Deliberately held back from this rebuild: `FanPerformanceLinkMapper` falls back to Auto because most models in `ModelCapabilityDatabase.cs` don't have a per-model-verified safe non-Auto curve, and this release's evidence-gate rule (see "Notes For Release" below) treats unverified fan-behavior changes as needing field validation first. Needs a design-feature-requests writeup and per-model capability gating before implementation.
+- **Not done — Linux: tray minimize + config-file load/save, running `omencore-gui` as a proper background service.** Confirmed: `omencore-gui` (`src/OmenCore.Avalonia`) currently has no tray icon or config persistence at all — tray today is only an external shell script (`src/OmenCore.Linux/scripts/omencore-tray.sh`), and config persistence exists only in the separate CLI/daemon (`src/OmenCore.Linux/Config/OmenCoreConfig.cs`), not the GUI. This is new feature work (Avalonia `TrayIcon` integration + GUI-side config load/save + systemd packaging), not a quick fix — needs its own scoping pass.
+- **Overlay/OSD does not appear over full-screen games.** Likely already addressed by the 3.9.0 fix (`OsdOverlayWindow` re-asserts `HWND_TOPMOST` every second, see "OSD Overlay Could Silently Drop Behind Borderless/Windowed-Fullscreen Games" above) for borderless/windowed-fullscreen. The known, WPF-unfixable gap is true DXGI **exclusive** fullscreen. Needs a reporter follow-up to confirm which fullscreen mode they were using before treating this as still-open.
+- Reporter said they'd file the fan-mode items (and "a few more improvement suggestions") formally in `#design-feature-requests`; those should be reconciled against this list once posted rather than duplicated.
+- These items, plus a redone installer, are being considered as 3.9.0 follow-up additions (next patch/minor, version TBD) rather than late additions to 3.9.0 itself.
