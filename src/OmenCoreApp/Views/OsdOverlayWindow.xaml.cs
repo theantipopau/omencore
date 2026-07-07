@@ -31,6 +31,10 @@ namespace OmenCore.Views
         private const int WS_EX_TOOLWINDOW = 0x00000080;
         private const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
         private const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+        private static readonly IntPtr HWND_TOPMOST = new(-1);
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
         private const string OsdStatsTimerRegistryName = "OsdOverlayStatsRefresh";
         private const string OsdNetworkTimerRegistryName = "OsdOverlayNetworkRefresh";
         private const int OsdStatsTimerIntervalMs = 1000;
@@ -60,6 +64,9 @@ namespace OmenCore.Views
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
@@ -452,15 +459,32 @@ namespace OmenCore.Views
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
-            
+
             // Make window click-through
             var hwnd = new WindowInteropHelper(this).Handle;
             var extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
             SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW);
         }
+
+        /// <summary>
+        /// Re-applies HWND_TOPMOST. Borderless/windowed-fullscreen games render through the
+        /// desktop compositor and frequently reclaim topmost for their own window on focus or
+        /// present, silently dropping this overlay behind them; WPF's Topmost="True" is only
+        /// applied once and does not fight that. Cannot help true DXGI exclusive-fullscreen,
+        /// which bypasses the compositor entirely and no HWND can render over.
+        /// </summary>
+        private void ReassertTopmost()
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero)
+                return;
+
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        }
         
         public void StartUpdates()
         {
+            ReassertTopmost();
             StartStatsTimer();
             if (_showNetworkGroup && (_showNetworkLatency || _showNetworkUpload || _showNetworkDownload))
                 StartNetworkTimer();
@@ -535,6 +559,7 @@ namespace OmenCore.Views
         
         private void UpdateTimer_Tick(object? sender, EventArgs e)
         {
+            ReassertTopmost();
             UpdateStats();
         }
         

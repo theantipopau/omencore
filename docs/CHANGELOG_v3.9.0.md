@@ -173,6 +173,18 @@ Neither change affects control behavior — they only surface failures that were
 
 ---
 
+### OSD Overlay Could Silently Drop Behind Borderless/Windowed-Fullscreen Games
+
+**Reported by:** User feedback — OSD not appearing in fullscreen games.
+
+**Root cause:** `OsdOverlayWindow` sets `Topmost="True"` once in XAML, which WPF applies via a single `SetWindowPos(HWND_TOPMOST, ...)` call when the window is shown. Many games running borderless or windowed-fullscreen (rendering through the desktop compositor, not true DXGI exclusive fullscreen) periodically reclaim topmost for their own window — on focus, on present, or via their own overlay/anti-cheat hooks — which silently demotes the OSD behind the game with no error and no way to recover until the overlay is toggled off and back on.
+
+**Fix:** `OsdOverlayWindow` now re-asserts `HWND_TOPMOST` via `SetWindowPos` (with `SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE`) once per second on the existing stats-refresh timer tick, plus once immediately when the overlay is shown. This fights back against games that periodically steal topmost.
+
+**Known limitation (not fixable in WPF):** true DXGI **exclusive** fullscreen bypasses the desktop compositor entirely — no ordinary window, topmost or not, can render over it. That requires D3D/DXGI hook injection (the approach RTSS and similar tools use) and is out of scope for a WPF overlay window. Users who need the OSD in exclusive-fullscreen titles should switch the game to borderless/windowed-fullscreen mode, which this fix now targets directly.
+
+---
+
 ### MemoryOptimizerService: `Process.GetCurrentProcess()` Called Per Loop Iteration
 
 **Root cause:** `EmptyWorkingSetsWithExclusions()` called `Process.GetCurrentProcess()` inside its `foreach` loop over every process on the system to compare process names. This allocates a new managed `Process` object on every iteration during an operation that already touches every running process.
