@@ -99,7 +99,8 @@
                                      Command="{Binding SystemControl.SelectPerformanceModeCommand}"
                                      CommandParameter="Quiet"
                                      Style="{StaticResource PerformanceModeCard}"
-                                     Margin="0,0,8,0">
+                                     Margin="0,0,8,0"
+                                     AutomationProperties.Name="Quiet performance mode: silent operation, low power">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -154,7 +155,8 @@
                                      Command="{Binding SystemControl.SelectPerformanceModeCommand}"
                                      CommandParameter="Balanced"
                                      Style="{StaticResource PerformanceModeCard}"
-                                     Margin="4,0,4,0">
+                                     Margin="4,0,4,0"
+                                     AutomationProperties.Name="Balanced performance mode: recommended, automatic power and fan control">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -206,7 +208,8 @@
                                      Command="{Binding SystemControl.SelectPerformanceModeCommand}"
                                      CommandParameter="Performance"
                                      Style="{StaticResource PerformanceModeCard}"
-                                     Margin="8,0,0,0">
+                                     Margin="8,0,0,0"
+                                     AutomationProperties.Name="Performance mode: maximum power, high fan speed">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -357,17 +360,19 @@
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    VerticalAlignment="Center" Margin="0,0,12,0"/>
                         
-                        <ComboBox Grid.Column="1" 
+                        <ComboBox Grid.Column="1"
                                   Style="{StaticResource ModernComboBox}"
                                   ItemsSource="{Binding SystemControl.GpuPowerBoostLevels}"
                                   SelectedItem="{Binding SystemControl.GpuPowerBoostLevel}"
-                                  Margin="0,0,12,0"/>
-                        
-                        <Button Grid.Column="2" 
-                                Content="Apply" 
+                                  Margin="0,0,12,0"
+                                  AutomationProperties.Name="GPU power boost level"/>
+
+                        <Button Grid.Column="2"
+                                Content="Apply"
                                 Style="{StaticResource ModernButton}"
                                 Command="{Binding SystemControl.ApplyGpuPowerBoostCommand}"
-                                Padding="16,8"/>
+                                Padding="16,8"
+                                AutomationProperties.Name="Apply GPU power boost level"/>
                     </Grid>
                     </StackPanel>
                 </Grid>
@@ -428,17 +433,19 @@
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    VerticalAlignment="Center" Margin="0,0,12,0"/>
                         
-                        <ComboBox Grid.Column="1" 
+                        <ComboBox Grid.Column="1"
                                   Style="{StaticResource ModernComboBox}"
                                   ItemsSource="{Binding SystemControl.GpuSwitchModes}"
                                   SelectedItem="{Binding SystemControl.SelectedGpuMode}"
-                                  Margin="0,0,12,0"/>
-                        
-                        <Button Grid.Column="2" 
-                                Content="Apply (Requires Restart)" 
+                                  Margin="0,0,12,0"
+                                  AutomationProperties.Name="Switch GPU mode to"/>
+
+                        <Button Grid.Column="2"
+                                Content="Apply (Requires Restart)"
                                 Style="{StaticResource ModernButton}"
                                 Command="{Binding SystemControl.SwitchGpuModeCommand}"
-                                Padding="16,8"/>
+                                Padding="16,8"
+                                AutomationProperties.Name="Apply GPU mode switch, requires restart"/>
                     </Grid>
                 </StackPanel>
             </Border>
@@ -465,10 +472,11 @@
                             <TextBlock Text="Panel Overdrive" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Improves pixel response time on 165Hz+ displays" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <ToggleButton Grid.Column="1" 
-                                      IsChecked="{Binding SystemControl.DisplayOverdriveEnabled, Mode=TwoWay}" 
+                        <ToggleButton Grid.Column="1"
+                                      IsChecked="{Binding SystemControl.DisplayOverdriveEnabled, Mode=TwoWay}"
                                       Style="{StaticResource ModernToggleButton}"
-                                      VerticalAlignment="Center"/>
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="Panel overdrive"/>
                     </Grid>
                 </StackPanel>
             </Border>

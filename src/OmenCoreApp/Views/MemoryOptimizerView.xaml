@@ -625,8 +625,13 @@
                                     <TextBlock Grid.Column="1" Text="{Binding CleanEveryMinutesText}" 
                                                FontSize="12" FontWeight="SemiBold" Foreground="#00C8C8"/>
                                 </Grid>
-                                <Slider Minimum="1" Maximum="120" 
-                                        Value="{Binding CleanEveryMinutes, Mode=TwoWay}" 
+                                <!-- Minimum=0 (not 1) deliberately: WPF snaps tick marks to
+                                     Minimum + n*TickFrequency, so Minimum=1 produced 1,6,11,16...
+                                     instead of the expected 1,5,10,15... Minimum=0 gives ticks at
+                                     0,5,10,15...120; CleanEveryMinutes's setter already clamps to
+                                     a floor of 1, so selecting the 0 tick still enforces >=1 min. -->
+                                <Slider Minimum="0" Maximum="120"
+                                        Value="{Binding CleanEveryMinutes, Mode=TwoWay}"
                                         TickFrequency="5" IsSnapToTickEnabled="True"
                                         Margin="0,4,0,0"/>
                             </StackPanel>

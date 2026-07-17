@@ -245,6 +245,12 @@ public partial class SystemControlViewModel : ObservableObject
             CurrentGpuMode = mode;
             SetStatus($"GPU mode changed to {mode}. A reboot may be required.");
         }
+        catch (NotSupportedException ex)
+        {
+            // Distinct from a transient failure: this operation is not offered on this
+            // platform/board at all, not a command that failed to execute.
+            SetStatus("GPU mode switching isn't available here.", ex.Message);
+        }
         catch (Exception ex)
         {
             SetStatus("GPU switch failed.", ex.Message);
@@ -271,6 +277,12 @@ public partial class SystemControlViewModel : ObservableObject
         try
         {
             await _hardwareService.SetKeyboardBrightnessAsync(KeyboardBrightness);
+        }
+        catch (NotSupportedException ex)
+        {
+            // Distinct from a transient failure: this board/kernel path doesn't expose
+            // brightness control at all, not a command that failed to execute.
+            SetStatus("Keyboard brightness isn't available on this board.", ex.Message);
         }
         catch (Exception ex)
         {

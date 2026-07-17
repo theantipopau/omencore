@@ -67,3 +67,24 @@ jobs:
           OMENCORE_DISABLE_FILE_LOG: '1'
         run: |
           dotnet test "OmenCore.sln" -c Debug --no-build --filter FullyQualifiedName~FanSmoothingTests.QuickProfileSwitching_Stress_LongRun|FullyQualifiedName~ModelReportServiceTests.CreateModelDiagnosticBundleAsync_CreatesZipAndReturnsPath|FullyQualifiedName~FanControllerEcWatchdogTests|FullyQualifiedName~FanControllerEcRateTests --logger "console;verbosity=minimal"
+
+  model-database-submissions:
+    name: Validate community model-database submissions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate any submitted model JSON files
+        run: |
+          shopt -s nullglob
+          files=(docs/model-database/submissions/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No submission files present, nothing to validate."
+            exit 0
+          fi
+          status=0
+          for f in "${files[@]}"; do
+            echo "Validating $f"
+            python3 docs/model-database/validate_model_submission.py "$f" \
+              --existing-db src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs || status=1
+          done
+          exit $status

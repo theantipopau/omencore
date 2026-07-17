@@ -38,7 +38,7 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 | OmenCore Principle | Result |
 |---|---|
-| Local first | No sign-in, no ads, no outbound telemetry |
+| Local first | No sign-in, no ads, no outbound telemetry ([details](docs/TELEMETRY.md)) |
 | Safety gated | Unsupported EC/fan/RGB paths stay hidden or diagnostic-only |
 | Field driven | Model quirks are tracked by ProductId, BIOS behavior, and logs |
 | Fast startup | Hardware polling and heavy providers are deferred where possible |

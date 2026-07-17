@@ -25,7 +25,7 @@ namespace OmenCore.Utils
         private readonly TaskbarIcon _trayIcon;
         private const string TrayRefreshTimerRegistryName = "TrayIconRefresh";
         private const int TrayRefreshIntervalMs = 2000;
-        private readonly DispatcherTimer _updateTimer;
+        private readonly IDisposable _updateTimerSubscription;
         private readonly Action _showMainWindow;
         private readonly Action _shutdownApp;
         private readonly ImageSource? _baseIconSource;
@@ -48,6 +48,7 @@ namespace OmenCore.Utils
         private string _monitoringHealth = "Unknown";
         private bool _disposed;
         private readonly ConfigurationService? _configService;
+        private readonly NotificationService? _notificationService;
         private bool? _lastRegisteredTrayTempDisplayEnabled;
         private string? _lastTooltipText;
         private int? _lastRenderedBadgeTemperature;
@@ -88,6 +89,7 @@ namespace OmenCore.Utils
         public event Action<int>? KeyboardBacklightChangeRequested;
         public event Action? KeyboardBacklightToggleRequested;
         public event Action? CheckForUpdatesRequested;
+        public event Action? ReportProblemRequested;
         
         /// <summary>
         /// Forces immediate refresh of the tray icon (e.g., when temp display setting changes).
@@ -101,13 +103,14 @@ namespace OmenCore.Utils
             });
         }
 
-        public TrayIconService(TaskbarIcon trayIcon, Action showMainWindow, Action shutdownApp, ConfigurationService? configService = null)
+        public TrayIconService(TaskbarIcon trayIcon, Action showMainWindow, Action shutdownApp, ConfigurationService? configService = null, NotificationService? notificationService = null)
         {
             _trayIcon = trayIcon;
             _showMainWindow = showMainWindow;
             _shutdownApp = shutdownApp;
             _displayService = new DisplayService(App.Logging);
             _configService = configService;
+            _notificationService = notificationService;
             _appVersion = AppVersionProvider.GetVersionString();
 
             _baseIconSource = LoadBaseIcon();
@@ -115,12 +118,12 @@ namespace OmenCore.Utils
 
             InitializeContextMenu();
 
-            _updateTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(TrayRefreshIntervalMs)
-            };
-            _updateTimer.Tick += UpdateTrayDisplay;
-            _updateTimer.Start();
+            // First consumer migrated onto the shared UiPollingCoordinator (see ROADMAP_v4.0.0.md
+            // Phase B timer-consolidation item) instead of owning an independent DispatcherTimer.
+            _updateTimerSubscription = UiPollingCoordinator.Subscribe(
+                TrayRefreshTimerRegistryName,
+                TimeSpan.FromMilliseconds(TrayRefreshIntervalMs),
+                () => UpdateTrayDisplay(null, EventArgs.Empty));
             RegisterTrayRefreshTimer();
 
             UpdateTrayDisplay(null, EventArgs.Empty);
@@ -211,6 +214,81 @@ namespace OmenCore.Utils
             };
 
             contextMenu.Items.Add(quickProfileMenuItem);
+
+            // Single-click Max Fan shortcut — previously only reachable via Advanced ▶ Fan
+            // Control ▶ Max (three menu levels deep). Kept alongside that entry rather than
+            // replacing it; this mirrors how OGH exposes a single-click Max option.
+            var maxFanQuickItem = new MenuItem { Header = "🔥 Max Fan" };
+            maxFanQuickItem.Click += (s, e) => SetFanMode("Max");
+            contextMenu.Items.Add(maxFanQuickItem);
+
+            // Recent Notifications — surfaces toast history the user may have missed/dismissed.
+            // Rebuilt from NotificationService.InAppNotifications each time the submenu opens,
+            // matching the lazy-refresh pattern used by the other dynamic submenus below.
+            if (_notificationService != null)
+            {
+                var notificationsMenuItem = new MenuItem { Header = "🔔 Recent Notifications ▶" };
+                notificationsMenuItem.ItemContainerStyle = menuItemStyle;
+                notificationsMenuItem.SubmenuOpened += (s, e) =>
+                {
+                    notificationsMenuItem.Items.Clear();
+
+                    var recent = _notificationService.GetRecentNotifications(10).ToList();
+                    if (recent.Count == 0)
+                    {
+                        notificationsMenuItem.Items.Add(new MenuItem { Header = "No notifications yet", IsEnabled = false });
+                    }
+                    else
+                    {
+                        foreach (var n in recent)
+                        {
+                            var item = new MenuItem
+                            {
+                                Header = $"{n.TypeIcon} {n.Title} — {n.TimeAgo}",
+                                ToolTip = n.Message,
+                                FontWeight = n.IsRead ? FontWeights.Normal : FontWeights.Bold
+                            };
+                            var id = n.Id;
+                            item.Click += (s2, e2) => _notificationService.MarkAsRead(id);
+                            notificationsMenuItem.Items.Add(item);
+                        }
+
+                        notificationsMenuItem.Items.Add(new Separator());
+                        var clearItem = new MenuItem { Header = "Clear All" };
+                        clearItem.Click += (s2, e2) => _notificationService.ClearAllNotifications();
+                        notificationsMenuItem.Items.Add(clearItem);
+                    }
+
+                    try
+                    {
+                        notificationsMenuItem.ApplyTemplate();
+                        var popup = notificationsMenuItem.Template.FindName("PART_Popup", notificationsMenuItem) as System.Windows.Controls.Primitives.Popup;
+                        if (popup?.Child != null)
+                        {
+                            if (popup.Child is System.Windows.Controls.Border b)
+                            {
+                                b.Background = contextMenu.Background;
+                                if (b.Child is System.Windows.Controls.Control innerCtrl)
+                                    innerCtrl.Foreground = (Brush)contextMenu.Foreground;
+                            }
+                            else if (popup.Child is System.Windows.Controls.Control ctrl)
+                            {
+                                ctrl.Background = contextMenu.Background;
+                                ctrl.Foreground = (Brush)contextMenu.Foreground;
+                            }
+                        }
+                    }
+                    catch (Exception ex) { App.Logging.Warn($"[Tray] Notifications submenu style error: {ex.Message}"); }
+                };
+                contextMenu.Items.Add(notificationsMenuItem);
+            }
+
+            // Report a Problem — always-visible entry point for diagnostics export, independent
+            // of Lite/Advanced mode. Previously only reachable via Settings (gated behind
+            // ShowAdvancedControls/non-Lite mode) or a command buried in SettingsView.xaml.
+            var reportProblemItem = new MenuItem { Header = "🩺 Report a Problem" };
+            reportProblemItem.Click += (s, e) => ReportProblemRequested?.Invoke();
+            contextMenu.Items.Add(reportProblemItem);
 
             // ═══ ADVANCED CONTROLS ═══
             var advancedMenuItem = new MenuItem { Header = "🔧 Advanced ▶" };
@@ -1162,8 +1240,7 @@ namespace OmenCore.Utils
         {
             if (!_disposed)
             {
-                _updateTimer.Stop();
-                _updateTimer.Tick -= UpdateTrayDisplay;
+                _updateTimerSubscription.Dispose();
                 BackgroundTimerRegistry.Unregister(TrayRefreshTimerRegistryName);
                 _quickPopup?.Close();
                 _disposed = true;

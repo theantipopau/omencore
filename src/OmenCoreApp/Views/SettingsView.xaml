@@ -1881,9 +1881,16 @@
                                        FontSize="14" 
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        Margin="0,0,0,8"/>
-                            <ProgressBar Value="{Binding FanCleaningProgressPercent}" 
+                            <ProgressBar Value="{Binding FanCleaningProgressPercent}"
                                          Maximum="100" Height="8"
                                          Foreground="#FFB74D"/>
+                            <Button Content="Cancel"
+                                    Style="{StaticResource ModernButton}"
+                                    Command="{Binding CancelFanCleaningCommand}"
+                                    HorizontalAlignment="Left"
+                                    Padding="16,6"
+                                    Margin="0,8,0,0"
+                                    ToolTip="Stop the fan cleaning cycle and return fans to normal control"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -2754,16 +2761,17 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Thermal Protection" FontSize="13" 
+                                        <TextBlock Text="Thermal Protection" FontSize="13"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="Auto-boost fans when temps exceed threshold. Disable if your laptop naturally runs hot and you manage fans manually." FontSize="11" 
+                                        <TextBlock Text="Auto-boost fans when temps exceed threshold, including the emergency 100% override on custom curves. Disable if your laptop naturally runs hot and you manage fans manually — you take full responsibility for thermal management." FontSize="11"
                                                    Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
-                                    <ToggleButton Grid.Column="1" 
+                                    <ToggleButton Grid.Column="1"
                                                   Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding ThermalProtectionEnabled}"/>
+                                                  IsChecked="{Binding ThermalProtectionEnabled}"
+                                                  AutomationProperties.Name="Thermal protection"/>
                                 </Grid>
-                                
+
                                 <!-- Thermal Protection Threshold -->
                                 <Grid Margin="0,12,0,0"
                                       IsEnabled="{Binding ThermalProtectionEnabled}">
@@ -2772,15 +2780,38 @@
                                         <ColumnDefinition Width="80"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Thermal Protection Threshold" FontSize="13" 
+                                        <TextBlock Text="Thermal Protection Threshold" FontSize="13"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="Fans ramp up when temps exceed this (70-95°C)" FontSize="11" 
+                                        <TextBlock Text="Fans ramp up when temps exceed this (70-95°C)" FontSize="11"
                                                    Foreground="{StaticResource TextTertiaryBrush}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <TextBox Text="{Binding ThermalProtectionThreshold, StringFormat=F0}" 
-                                                 Width="50" Padding="6,4" TextAlignment="Right"/>
-                                        <TextBlock Text="°C" VerticalAlignment="Center" Margin="4,0,0,0" 
+                                        <TextBox Text="{Binding ThermalProtectionThreshold, StringFormat=F0}"
+                                                 Width="50" Padding="6,4" TextAlignment="Right"
+                                                 AutomationProperties.Name="Thermal protection ramp threshold in Celsius"/>
+                                        <TextBlock Text="°C" VerticalAlignment="Center" Margin="4,0,0,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Thermal Emergency Threshold -->
+                                <Grid Margin="0,12,0,0"
+                                      IsEnabled="{Binding ThermalProtectionEnabled}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="80"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Emergency Max-Fan Threshold" FontSize="13"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="Fans forced to 100% immediately above this (90-99°C, always at least 2°C above the ramp threshold above)" FontSize="11"
+                                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBox Text="{Binding ThermalEmergencyThreshold, StringFormat=F0}"
+                                                 Width="50" Padding="6,4" TextAlignment="Right"
+                                                 AutomationProperties.Name="Emergency max fan threshold in Celsius"/>
+                                        <TextBlock Text="°C" VerticalAlignment="Center" Margin="4,0,0,0"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </StackPanel>
                                 </Grid>

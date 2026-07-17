@@ -202,6 +202,7 @@ namespace OmenCore.ViewModels
             OpenHpDriversPageCommand = new RelayCommand(_ => OpenUrl("https://support.hp.com/drivers"));
             OpenOmenGamingHubCommand = new RelayCommand(_ => OpenUrl("https://apps.microsoft.com/detail/9nqdw009t0t0"));
             StartFanCleaningCommand = new AsyncRelayCommand(async _ => await StartFanCleaningAsync(), _ => CanStartFanCleaning && !IsFanCleaningActive);
+            CancelFanCleaningCommand = new RelayCommand(_ => _fanCleaningCts?.Cancel(), _ => IsFanCleaningActive);
             ResetToDefaultsCommand = new RelayCommand(_ => ResetToDefaults());
             InstallDriverCommand = new RelayCommand(_ => InstallDriver());
             RefreshDriverStatusCommand = new RelayCommand(_ => CheckDriverStatus());
@@ -2272,6 +2273,14 @@ namespace OmenCore.ViewModels
                 {
                     _config.FanHysteresis.ThermalProtectionThreshold = clamped;
                     OnPropertyChanged();
+
+                    // Keep the emergency threshold at least 2°C above this one so a raised ramp
+                    // threshold can't leave the emergency override sitting at or below it.
+                    if (_config.FanHysteresis.ThermalEmergencyThreshold < clamped + 2.0)
+                    {
+                        ThermalEmergencyThreshold = clamped + 2.0;
+                    }
+
                     SaveSettings();
                 }
             }
@@ -2279,8 +2288,9 @@ namespace OmenCore.ViewModels
 
         /// <summary>
         /// Enable/disable thermal protection override.
-        /// When disabled, fans will NEVER be automatically overridden by thermal protection.
-        /// The user takes full responsibility for thermal management.
+        /// When disabled, fans will NEVER be automatically overridden by thermal protection —
+        /// this includes both the gradual ramp-up and the hard "emergency" 100% override, even
+        /// for a custom fan curve. The user takes full responsibility for thermal management.
         /// </summary>
         public bool ThermalProtectionEnabled
         {
@@ -2291,6 +2301,28 @@ namespace OmenCore.ViewModels
                 if (_config.FanHysteresis.ThermalProtectionEnabled != value)
                 {
                     _config.FanHysteresis.ThermalProtectionEnabled = value;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Emergency (hard 100%) thermal protection threshold in °C. Default 95°C, range 90-99°C.
+        /// Kept at least 2°C above <see cref="ThermalProtectionThreshold"/> so the two can't invert.
+        /// Only takes effect while <see cref="ThermalProtectionEnabled"/> is true.
+        /// </summary>
+        public double ThermalEmergencyThreshold
+        {
+            get => _config.FanHysteresis?.ThermalEmergencyThreshold ?? 95.0;
+            set
+            {
+                if (_config.FanHysteresis == null) _config.FanHysteresis = new FanHysteresisSettings();
+                var clamped = Math.Max(90.0, Math.Min(99.0, value));
+                clamped = Math.Max(clamped, ThermalProtectionThreshold + 2.0);
+                if (Math.Abs(_config.FanHysteresis.ThermalEmergencyThreshold - clamped) > 0.1)
+                {
+                    _config.FanHysteresis.ThermalEmergencyThreshold = clamped;
                     OnPropertyChanged();
                     SaveSettings();
                 }
@@ -2351,9 +2383,10 @@ namespace OmenCore.ViewModels
             get => _isFanCleaningActive;
             set 
             { 
-                _isFanCleaningActive = value; 
+                _isFanCleaningActive = value;
                 OnPropertyChanged();
                 (StartFanCleaningCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                (CancelFanCleaningCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
@@ -2395,6 +2428,7 @@ namespace OmenCore.ViewModels
         public ICommand OpenHpDriversPageCommand { get; }
         public ICommand OpenOmenGamingHubCommand { get; }
         public ICommand StartFanCleaningCommand { get; }
+        public ICommand CancelFanCleaningCommand { get; }
         public ICommand ResetToDefaultsCommand { get; }
         public ICommand InstallDriverCommand { get; }
         public ICommand RefreshDriverStatusCommand { get; }

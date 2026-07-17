@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/theantipopau/omencore/docs/model-database/model-capabilities.schema.json",
+  "title": "OmenCore Model Capability Submission",
+  "description": "One HP OMEN/Victus model's known capability profile, submitted by a community member for review before being merged into ModelCapabilityDatabase.cs. Field names and defaults mirror the ModelCapabilities C# class (src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs) exactly so a reviewer can convert an accepted submission into an AddModel(...) call with no semantic translation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["productId", "modelName", "modelYear", "family", "reportedBy", "sourceDiagnosticsExport"],
+  "properties": {
+    "productId": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{4}$",
+      "description": "HP Product ID / board ID, e.g. \"8D87\". Find it in Settings > Export Diagnostics, or via `wmic csproduct get name` / the BIOS SKU string. Must be exactly 4 hex characters, matching every existing database entry."
+    },
+    "modelName": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Human-readable model name, e.g. \"OMEN MAX 16z-ak000 (AMD)\". Prefer including the CPU vendor when a ProductId is shared across Intel/AMD SKUs."
+    },
+    "modelNamePattern": {
+      "type": ["string", "null"],
+      "description": "Optional substring to match against the raw WMI model name string (Win32_ComputerSystem.Model) when the ProductId alone is ambiguous or unreliable for this board, e.g. \"17-ck2\". Only set this if you confirmed the exact WMI string via diagnostics export — do not guess."
+    },
+    "modelYear": {
+      "type": "integer",
+      "minimum": 2015,
+      "maximum": 2035,
+      "description": "Approximate release year."
+    },
+    "family": {
+      "type": "string",
+      "enum": ["Unknown", "OMEN16", "OMEN17", "Victus", "Transcend", "OMEN2024Plus", "Desktop", "Legacy"],
+      "description": "Model family classification. See OmenModelFamily enum in DeviceCapabilities.cs. Use \"Legacy\" for pre-2021 boards, \"OMEN2024Plus\" for 2024+ boards with the newer WMI interface if unsure which specific family applies."
+    },
+    "fanControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supportsFanControlWmi": { "type": "boolean", "default": true, "description": "WMI BIOS fan control (command 0x2D-family) works on this board." },
+        "supportsFanControlEc": { "type": "boolean", "default": true, "description": "Direct EC register fan control works on this board." },
+        "supportsFanCurves": { "type": "boolean", "default": true, "description": "Custom fan curves can be set and hold." },
+        "supportsIndependentFanCurves": { "type": "boolean", "default": true, "description": "CPU and GPU fans can run independent curves, not just a shared one." },
+        "supportsRpmReadback": { "type": "boolean", "default": true, "description": "Set this to false if the Guided Fan Diagnostic or General tab only ever shows an estimated RPM (look for \"(fan-level estimate)\" or a log line like \"Fan RPM readback returned null\") rather than a real tachometer reading." },
+        "fanZoneCount": { "type": "integer", "minimum": 1, "maximum": 4, "default": 2 },
+        "maxFanSpeedPercent": { "type": "integer", "minimum": 0, "maximum": 100, "default": 100 },
+        "maxFanLevel": { "type": ["integer", "null"], "description": "Model-specific max WMI fan level override (0-100). Leave null unless you've confirmed the board caps out below the default." },
+        "minFanSpeedPercent": { "type": "integer", "minimum": 0, "maximum": 100, "default": 0, "description": "Set above 0 if the board never spins down to a true 0% / fan-off state — include the observed floor RPM/percent in notes." }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supportsPerformanceModes": { "type": "boolean", "default": true },
+        "allowDecoupledWmiThermalPolicyFallback": { "type": "boolean", "default": false, "description": "Advanced/rare: only set true if you've confirmed this board needs the WMI thermal/performance policy write to hold OEM performance behavior when direct EC/MSR power-limit writes are unavailable. Leave the default unless a maintainer asked you to set this." },
+        "allowV1AutoModeFloorClear": { "type": ["boolean", "null"], "default": null },
+        "maxModeDropChecksBeforeReapply": { "type": ["integer", "null"], "default": null },
+        "performanceModes": { "type": "array", "items": { "type": "string" }, "default": ["Default", "Performance", "Cool"] },
+        "supportsThrottleDetection": { "type": "boolean", "default": true }
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hasMuxSwitch": { "type": "boolean", "default": false },
+        "supportsGpuPowerBoost": { "type": "boolean", "default": true },
+        "supportsGpuDisable": { "type": "boolean", "default": false },
+        "supportsAdvancedOptimus": { "type": "boolean", "default": false }
+      }
+    },
+    "lighting": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hasKeyboardBacklight": { "type": "boolean", "default": true },
+        "hasFourZoneRgb": { "type": "boolean", "default": true },
+        "hasPerKeyRgb": { "type": "boolean", "default": false },
+        "hasLightBar": { "type": "boolean", "default": false },
+        "preferredLightingMethod": { "type": "string", "default": "WmiBios", "enum": ["WmiBios", "Ec", "Hid"] }
+      }
+    },
+    "power": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supportsUndervolt": { "type": "boolean", "default": true, "description": "Set false for AMD CPUs — Intel-style MSR undervolting doesn't apply." },
+        "supportsTccOffset": { "type": "boolean", "default": true },
+        "supportsPowerLimits": { "type": "boolean", "default": true }
+      }
+    },
+    "other": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hasWebcamKillSwitch": { "type": "boolean", "default": false },
+        "supportsNetworkBoost": { "type": "boolean", "default": true },
+        "supportsOverboost": { "type": "boolean", "default": false }
+      }
+    },
+    "tdpOverridesWatts": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Only include fields here if you have measured, board-specific values that differ from OmenCore's global defaults — leave the whole object out otherwise.",
+      "properties": {
+        "performanceCpuPl1": { "type": ["integer", "null"] },
+        "performanceCpuPl2": { "type": ["integer", "null"] },
+        "balancedCpuPl1": { "type": ["integer", "null"] },
+        "ecoCpuPl1": { "type": ["integer", "null"] },
+        "performanceGpuTgp": { "type": ["integer", "null"] },
+        "balancedGpuTgp": { "type": ["integer", "null"] }
+      }
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Quirks, limitations, or caveats a maintainer/future user should know — e.g. \"BIOS locks GPU TGP below 140W regardless of OmenCore setting\" or \"Always-on fan option in BIOS must be disabled for 0% to reach fan-off.\""
+    },
+    "reportedBy": {
+      "type": "string",
+      "minLength": 2,
+      "description": "Your Discord/GitHub handle, so a maintainer can follow up with questions."
+    },
+    "sourceDiagnosticsExport": {
+      "type": "boolean",
+      "const": true,
+      "description": "Confirms the values above were read from an actual OmenCore diagnostics export (Settings > Export Diagnostics) or Guided Fan Diagnostic run on the real device, not guessed or copied from a similar model. Submissions without this will be rejected — see CONTRIBUTING_MODEL_DATABASE.md."
+    }
+  }
+}

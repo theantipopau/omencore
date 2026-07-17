@@ -11,6 +11,7 @@ using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Views
 {
@@ -93,8 +94,8 @@ namespace OmenCore.Views
             public int dwFlags;
         }
         
-        private readonly DispatcherTimer _updateTimer;
-        private readonly DispatcherTimer _pingTimer;
+        private IDisposable? _updateTimerSubscription;
+        private IDisposable? _pingTimerSubscription;
         private readonly ThermalSensorProvider? _thermalProvider;
         private readonly FanService? _fanService;
         private readonly RtssIntegrationService? _rtssService;
@@ -313,19 +314,9 @@ namespace OmenCore.Views
             // Position window
             PositionWindow();
             
-            // Setup update timer (1 second interval)
-            _updateTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(OsdStatsTimerIntervalMs)
-            };
-            _updateTimer.Tick += UpdateTimer_Tick;
-            
-            // Setup ping timer (5 second interval - less frequent to avoid network spam)
-            _pingTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(OsdNetworkTimerIntervalMs)
-            };
-            _pingTimer.Tick += PingTimer_Tick;
+            // Stats/ping timers are started/stopped with overlay visibility and settings
+            // (see Start/StopStatsTimer, Start/StopNetworkTimer) rather than running
+            // continuously from construction.
         }
         
         /// <summary>
@@ -511,9 +502,12 @@ namespace OmenCore.Views
 
         private void StartStatsTimer()
         {
-            if (!_updateTimer.IsEnabled)
+            if (_updateTimerSubscription == null)
             {
-                _updateTimer.Start();
+                _updateTimerSubscription = UiPollingCoordinator.Subscribe(
+                    OsdStatsTimerRegistryName,
+                    TimeSpan.FromMilliseconds(OsdStatsTimerIntervalMs),
+                    () => UpdateTimer_Tick(null, EventArgs.Empty));
                 BackgroundTimerRegistry.Register(
                     OsdStatsTimerRegistryName,
                     nameof(OsdOverlayWindow),
@@ -525,19 +519,20 @@ namespace OmenCore.Views
 
         private void StopStatsTimer()
         {
-            if (_updateTimer.IsEnabled)
-            {
-                _updateTimer.Stop();
-            }
+            _updateTimerSubscription?.Dispose();
+            _updateTimerSubscription = null;
 
             BackgroundTimerRegistry.Unregister(OsdStatsTimerRegistryName);
         }
 
         private void StartNetworkTimer()
         {
-            if (!_pingTimer.IsEnabled)
+            if (_pingTimerSubscription == null)
             {
-                _pingTimer.Start();
+                _pingTimerSubscription = UiPollingCoordinator.Subscribe(
+                    OsdNetworkTimerRegistryName,
+                    TimeSpan.FromMilliseconds(OsdNetworkTimerIntervalMs),
+                    () => PingTimer_Tick(null, EventArgs.Empty));
                 BackgroundTimerRegistry.Register(
                     OsdNetworkTimerRegistryName,
                     nameof(OsdOverlayWindow),
@@ -549,10 +544,8 @@ namespace OmenCore.Views
 
         private void StopNetworkTimer()
         {
-            if (_pingTimer.IsEnabled)
-            {
-                _pingTimer.Stop();
-            }
+            _pingTimerSubscription?.Dispose();
+            _pingTimerSubscription = null;
 
             BackgroundTimerRegistry.Unregister(OsdNetworkTimerRegistryName);
         }
@@ -771,7 +764,7 @@ namespace OmenCore.Views
                             fpsSnapshot = OsdFpsDisplayFormatter.Unavailable(
                                 _rtssService == null
                                     ? "RTSS disabled"
-                                    : "RTSS unavailable");
+                                    : "FPS needs RTSS running (RivaTuner Statistics Server)");
                         }
 
                         ApplyFpsSnapshot(fpsSnapshot);
@@ -987,8 +980,6 @@ namespace OmenCore.Views
         protected override void OnClosed(EventArgs e)
         {
             StopUpdates();
-            _updateTimer.Tick -= UpdateTimer_Tick;
-            _pingTimer.Tick -= PingTimer_Tick;
             base.OnClosed(e);
         }
 

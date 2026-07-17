@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Views
 {
@@ -21,7 +22,7 @@ namespace OmenCore.Views
         private const int UpdateTimerIntervalMs = 1000;
 
         private readonly DisplayService _displayService;
-        private readonly DispatcherTimer _updateTimer;
+        private IDisposable? _updateTimerSubscription;
         private MonitoringSample? _latestSample;
         
         private string _currentFanMode = "Auto";
@@ -73,12 +74,8 @@ namespace OmenCore.Views
             UpdatePerformanceModeButtons();
             UpdateLinkModeText();
             
-            // Start update timer for temperatures
-            _updateTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(UpdateTimerIntervalMs)
-            };
-            _updateTimer.Tick += UpdateDisplay;
+            // Update timer for temperatures is started/stopped with window visibility
+            // (see StartUpdateTimer/StopUpdateTimer) rather than running continuously.
             IsVisibleChanged += QuickPopupWindow_IsVisibleChanged;
             
             // Allow dragging the window
@@ -503,12 +500,15 @@ namespace OmenCore.Views
 
         private void StartUpdateTimer()
         {
-            if (_updateTimer.IsEnabled)
+            if (_updateTimerSubscription != null)
             {
                 return;
             }
 
-            _updateTimer.Start();
+            _updateTimerSubscription = UiPollingCoordinator.Subscribe(
+                UpdateTimerRegistryName,
+                TimeSpan.FromMilliseconds(UpdateTimerIntervalMs),
+                () => UpdateDisplay(null, EventArgs.Empty));
             BackgroundTimerRegistry.Register(
                 UpdateTimerRegistryName,
                 nameof(QuickPopupWindow),
@@ -519,10 +519,8 @@ namespace OmenCore.Views
 
         private void StopUpdateTimer()
         {
-            if (_updateTimer.IsEnabled)
-            {
-                _updateTimer.Stop();
-            }
+            _updateTimerSubscription?.Dispose();
+            _updateTimerSubscription = null;
 
             BackgroundTimerRegistry.Unregister(UpdateTimerRegistryName);
         }
@@ -530,7 +528,6 @@ namespace OmenCore.Views
         protected override void OnClosed(EventArgs e)
         {
             StopUpdateTimer();
-            _updateTimer.Tick -= UpdateDisplay;
             IsVisibleChanged -= QuickPopupWindow_IsVisibleChanged;
             // DisplayService doesn't need disposal
             base.OnClosed(e);

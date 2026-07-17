@@ -128,7 +128,8 @@
                     <TextBlock Text="Fan/performance decoupling is now the default" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                     <TextBlock Text="{Binding FanPerformanceLinkDescription}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
-                <Button Grid.Column="1" Command="{Binding DismissFanPerformanceInfoBannerCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0">
+                <Button Grid.Column="1" Command="{Binding DismissFanPerformanceInfoBannerCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0"
+                        AutomationProperties.Name="Dismiss fan/performance decoupling notice">
                     <TextBlock Text="Dismiss" FontSize="10"/>
                 </Button>
             </Grid>
@@ -150,7 +151,8 @@
                     <TextBlock Text="{Binding RpmSanityWarningMessage}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
                     <TextBlock Text="OmenCore uses your laptop's standard firmware interface (WMI BIOS). Software commands cannot damage hardware. If the issue persists, contact HP support or check your fans physically." FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,8,0,0" TextWrapping="Wrap" FontStyle="Italic"/>
                 </StackPanel>
-                <Button Grid.Column="1" Command="{Binding DismissRpmSanityWarningCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0">
+                <Button Grid.Column="1" Command="{Binding DismissRpmSanityWarningCommand}" Style="{StaticResource OutlineButtonSmall}" Padding="10,6" Margin="12,0,0,0"
+                        AutomationProperties.Name="Dismiss fan hardware issue warning">
                     <TextBlock Text="Dismiss" FontSize="10"/>
                 </Button>
             </Grid>
@@ -184,7 +186,8 @@
                                     Style="{StaticResource OutlineButtonSmall}"
                                     Padding="10,6"
                                     Margin="10,0,0,0"
-                                    ToolTip="Clear OmenCore fan ownership and return control to firmware auto mode">
+                                    ToolTip="Clear OmenCore fan ownership and return control to firmware auto mode"
+                                    AutomationProperties.Name="Restore OEM auto fan control">
                                 <TextBlock Text="Restore OEM Auto" FontSize="10"/>
                             </Button>
                         </StackPanel>
@@ -202,7 +205,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Forces all fans to maximum RPM. Use for heavy gaming or stress tests."
-                                 Margin="0,0,6,0">
+                                 Margin="0,0,6,0"
+                                 AutomationProperties.Name="Max fan preset: forces all fans to 100%">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -239,7 +243,8 @@
                                  Tag="Direct"
                                  IsEnabled="{Binding ManualFanControlAvailable}"
                                  ToolTip="{Binding DirectFanControlTooltip}"
-                                 Margin="3,0,3,0">
+                                 Margin="3,0,3,0"
+                                 AutomationProperties.Name="Direct fixed fan level preset">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -277,7 +282,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Highest non-Max cooling curve. Reserves 100% fan duty for hotter operation; use Max for immediate full RPM."
-                                 Margin="3,0,3,0">
+                                 Margin="3,0,3,0"
+                                 AutomationProperties.Name="Extreme fan preset: highest non-Max cooling curve">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -315,7 +321,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Aggressive fan curve that ramps up quickly. Good for gaming sessions."
-                                 Margin="3,0,3,0">
+                                 Margin="3,0,3,0"
+                                 AutomationProperties.Name="Gaming fan preset: aggressive ramp-up curve">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -353,7 +360,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="BIOS-controlled balanced curve. Recommended for everyday use."
-                                 Margin="3,0,3,0">
+                                 Margin="3,0,3,0"
+                                 AutomationProperties.Name="Auto fan preset: BIOS-controlled balanced curve">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -391,7 +399,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="Prioritizes quiet operation. Fans stay low until temps rise significantly."
-                                 Margin="3,0,3,0">
+                                 Margin="3,0,3,0"
+                                 AutomationProperties.Name="Silent fan preset: prioritizes quiet operation">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -430,7 +439,8 @@
                                  MouseEnter="PresetCard_MouseEnter"
                                  MouseLeave="PresetCard_MouseLeave"
                                  ToolTip="{Binding CustomCurveTooltip}"
-                                 Margin="6,0,0,0">
+                                 Margin="6,0,0,0"
+                                 AutomationProperties.Name="Custom fan preset: user-defined curve">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -495,7 +505,8 @@
                                     IsSnapToTickEnabled="True"
                                     Value="{Binding ConstantFanPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                     Style="{StaticResource ModernSlider}"
-                                    ToolTip="Drag to request a fixed fan level"/>
+                                    ToolTip="Drag to request a fixed fan level"
+                                    AutomationProperties.Name="Direct fan level percentage"/>
                             <Grid Margin="0,5,0,0">
                                 <TextBlock Text="0%" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Left"/>
                                 <TextBlock Text="50%" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
@@ -510,7 +521,8 @@
                                 Padding="12,0"
                                 Margin="16,0,0,0"
                                 VerticalAlignment="Center"
-                                ToolTip="Apply the selected direct fan level now">
+                                ToolTip="Apply the selected direct fan level now"
+                                AutomationProperties.Name="Apply direct fan level">
                             <TextBlock Text="Apply" FontSize="11"/>
                         </Button>
                     </Grid>
@@ -521,15 +533,17 @@
                             Visibility="{Binding ShowCurveEditor, Converter={StaticResource BoolToVisibility}}">
                     <!-- Save Custom Preset -->
                     <WrapPanel>
-                        <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
-                                 Style="{StaticResource ModernTextBox}" 
+                        <TextBox Text="{Binding CustomPresetName, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                 Style="{StaticResource ModernTextBox}"
                                  Width="130" Height="28" FontSize="10" Padding="6,4"
                                  VerticalContentAlignment="Center"
-                                 ToolTip="Name for your custom preset"/>
-                        <Button Command="{Binding SaveCustomPresetCommand}" 
-                                Style="{StaticResource ModernButton}" 
+                                 ToolTip="Name for your custom preset"
+                                 AutomationProperties.Name="Custom preset name"/>
+                        <Button Command="{Binding SaveCustomPresetCommand}"
+                                Style="{StaticResource ModernButton}"
                                 Height="28" Padding="8,0" Margin="6,0,0,0"
-                                ToolTip="Save current curve as a custom preset">
+                                ToolTip="Save current curve as a custom preset"
+                                AutomationProperties.Name="Save custom preset">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource IconExport}" Width="10" Height="10" Fill="{StaticResource TextPrimaryBrush}" Stretch="Uniform" Margin="0,0,4,0"/>
                                 <TextBlock Text="Save" FontSize="10"/>
@@ -541,27 +555,31 @@
                     <WrapPanel Margin="0,10,0,0">
                         <TextBlock Text="Saved:" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <ComboBox ItemsSource="{Binding SavedCustomPresets}" 
+                        <ComboBox ItemsSource="{Binding SavedCustomPresets}"
                                   SelectedItem="{Binding SelectedPreset}"
                                   DisplayMemberPath="Name"
                                   Width="130" Height="28" FontSize="10"
-                                  ToolTip="Select a saved custom preset to load"/>
-                        <Button Command="{Binding DeleteSelectedPresetCommand}" 
-                                Style="{StaticResource ModernButton}" 
+                                  ToolTip="Select a saved custom preset to load"
+                                  AutomationProperties.Name="Saved custom presets"/>
+                        <Button Command="{Binding DeleteSelectedPresetCommand}"
+                                Style="{StaticResource ModernButton}"
                                 Height="28" Padding="6,0" Margin="4,0,0,0"
-                                ToolTip="Delete the selected custom preset">
+                                ToolTip="Delete the selected custom preset"
+                                AutomationProperties.Name="Delete selected preset">
                             <TextBlock Text="🗑️" FontSize="10"/>
                         </Button>
-                        <Button Command="{Binding ImportPresetsCommand}" 
-                                Style="{StaticResource ModernButton}" 
+                        <Button Command="{Binding ImportPresetsCommand}"
+                                Style="{StaticResource ModernButton}"
                                 Height="28" Padding="6,0" Margin="8,0,0,0"
-                                ToolTip="Import presets from a JSON file">
+                                ToolTip="Import presets from a JSON file"
+                                AutomationProperties.Name="Import presets from file">
                             <TextBlock Text="Import" FontSize="10"/>
                         </Button>
-                        <Button Command="{Binding ExportPresetsCommand}" 
-                                Style="{StaticResource ModernButton}" 
+                        <Button Command="{Binding ExportPresetsCommand}"
+                                Style="{StaticResource ModernButton}"
                                 Height="28" Padding="6,0" Margin="4,0,0,0"
-                                ToolTip="Export presets to a JSON file">
+                                ToolTip="Export presets to a JSON file"
+                                AutomationProperties.Name="Export presets to file">
                             <TextBlock Text="Export" FontSize="10"/>
                         </Button>
                     </WrapPanel>
@@ -580,14 +598,16 @@
                             
                             <!-- Smoothing Duration -->
                             <TextBlock Text="Smoothing:" Style="{StaticResource SettingsLabel}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding SmoothingDurationMs, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
-                                     Width="50" Height="24" Style="{StaticResource ModernTextBox}" FontSize="10" Padding="4,2"/>
+                            <TextBox Text="{Binding SmoothingDurationMs, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                     Width="50" Height="24" Style="{StaticResource ModernTextBox}" FontSize="10" Padding="4,2"
+                                     AutomationProperties.Name="Smoothing duration in milliseconds"/>
                             <TextBlock Text="ms" Style="{StaticResource SettingsLabel}" Margin="4,0,12,0"/>
-                            
+
                             <!-- Step -->
                             <TextBlock Text="Step:" Style="{StaticResource SettingsLabel}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding SmoothingStepMs, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" 
-                                     Width="50" Height="24" Style="{StaticResource ModernTextBox}" FontSize="10" Padding="4,2"/>
+                            <TextBox Text="{Binding SmoothingStepMs, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                     Width="50" Height="24" Style="{StaticResource ModernTextBox}" FontSize="10" Padding="4,2"
+                                     AutomationProperties.Name="Smoothing step in milliseconds"/>
                             <TextBlock Text="ms" Style="{StaticResource SettingsLabel}" Margin="4,0,12,0"/>
                             
                             <Border Width="1" Background="#333" Margin="0,0,12,0"/>
@@ -666,26 +686,29 @@
                                 <TextBlock Text="VISUAL CURVE EDITOR" 
                                            Style="{StaticResource Label}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="+ Add" 
+                                    <Button Content="+ Add"
                                             Command="{Binding AddCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="70" Height="32"
                                             FontSize="12"
                                             Margin="0,0,6,0"
-                                            ToolTip="Add a new curve point (max 10 points)"/>
-                                    <Button Content="− Remove" 
+                                            ToolTip="Add a new curve point (max 10 points)"
+                                            AutomationProperties.Name="Add curve point"/>
+                                    <Button Content="− Remove"
                                             Command="{Binding RemoveCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="85" Height="32"
                                             FontSize="12"
                                             Margin="0,0,6,0"
-                                            ToolTip="Remove the last curve point (min 2 points)"/>
-                                    <Button Content="↺ Reset" 
+                                            ToolTip="Remove the last curve point (min 2 points)"
+                                            AutomationProperties.Name="Remove last curve point"/>
+                                    <Button Content="↺ Reset"
                                             Command="{Binding ResetCurveCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="75" Height="32"
                                             FontSize="12"
-                                            ToolTip="Reset curve to default"/>
+                                            ToolTip="Reset curve to default"
+                                            AutomationProperties.Name="Reset curve to default"/>
                                 </StackPanel>
                             </Grid>
                             
@@ -860,26 +883,29 @@
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="+" 
+                                    <Button Content="+"
                                             Command="{Binding AddCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
                                             FontSize="12"
-                                            Margin="0,0,4,0"/>
-                                    <Button Content="−" 
+                                            Margin="0,0,4,0"
+                                            AutomationProperties.Name="Add CPU curve point"/>
+                                    <Button Content="−"
                                             Command="{Binding RemoveCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
                                             FontSize="12"
-                                            Margin="0,0,4,0"/>
-                                    <Button Content="↺" 
+                                            Margin="0,0,4,0"
+                                            AutomationProperties.Name="Remove last CPU curve point"/>
+                                    <Button Content="↺"
                                             Command="{Binding ResetCurveCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
-                                            FontSize="12"/>
+                                            FontSize="12"
+                                            AutomationProperties.Name="Reset CPU curve to default"/>
                                 </StackPanel>
                             </Grid>
-                            
+
                             <controls:FanCurveEditor Grid.Row="1"
                                                      CurvePoints="{Binding CustomFanCurve}"
                                                      CurrentTemperature="{Binding CurrentCpuTemperature}"
@@ -934,26 +960,30 @@
                                             Width="32" Height="28"
                                             FontSize="12"
                                             Margin="0,0,4,0"
-                                            ToolTip="Copy CPU curve to GPU">
+                                            ToolTip="Copy CPU curve to GPU"
+                                            AutomationProperties.Name="Copy CPU curve to GPU">
                                         <Path Data="{StaticResource IconCopy}" Fill="{StaticResource TextPrimaryBrush}" Width="12" Height="12" Stretch="Uniform"/>
                                     </Button>
-                                    <Button Content="+" 
+                                    <Button Content="+"
                                             Command="{Binding AddGpuCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
                                             FontSize="12"
-                                            Margin="0,0,4,0"/>
-                                    <Button Content="−" 
+                                            Margin="0,0,4,0"
+                                            AutomationProperties.Name="Add GPU curve point"/>
+                                    <Button Content="−"
                                             Command="{Binding RemoveGpuCurvePointCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
                                             FontSize="12"
-                                            Margin="0,0,4,0"/>
-                                    <Button Content="↺" 
+                                            Margin="0,0,4,0"
+                                            AutomationProperties.Name="Remove last GPU curve point"/>
+                                    <Button Content="↺"
                                             Command="{Binding ResetGpuCurveCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Width="32" Height="28"
-                                            FontSize="12"/>
+                                            FontSize="12"
+                                            AutomationProperties.Name="Reset GPU curve to default"/>
                                 </StackPanel>
                             </Grid>
                             
@@ -1091,7 +1121,8 @@
                                             Style="{StaticResource ModernButton}"
                                             Padding="12,6"
                                             Margin="12,0,0,0"
-                                            VerticalAlignment="Top">
+                                            VerticalAlignment="Top"
+                                            AutomationProperties.Name="Open fan calibration wizard">
                                         <TextBlock Text="{Binding FanCalibrationActionText}" FontSize="10"/>
                                     </Button>
                                 </Grid>

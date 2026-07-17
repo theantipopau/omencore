@@ -56,9 +56,10 @@
                     </StackPanel>
                 </Border>
 
-                <Button Style="{StaticResource ModernOutlineButton}" 
+                <Button Style="{StaticResource ModernOutlineButton}"
                         Command="{Binding RefreshCommand}"
-                        ToolTip="Refresh dashboard readings">
+                        ToolTip="Refresh dashboard readings"
+                        AutomationProperties.Name="Refresh dashboard readings">
                     <StackPanel Orientation="Horizontal">
                         <Path Data="{StaticResource IconRestore}" Width="12" Height="12" 
                               Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
@@ -450,10 +451,10 @@
             <!-- Time range selector -->
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
                 <TextBlock Text="History:" FontSize="10" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <RadioButton Content="1m"  IsChecked="{Binding IsTimeRange1m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
-                <RadioButton Content="5m"  IsChecked="{Binding IsTimeRange5m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
-                <RadioButton Content="15m" IsChecked="{Binding IsTimeRange15m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0"/>
-                <RadioButton Content="30m" IsChecked="{Binding IsTimeRange30m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}"/>
+                <RadioButton Content="1m"  IsChecked="{Binding IsTimeRange1m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0" AutomationProperties.Name="Show last 1 minute of history"/>
+                <RadioButton Content="5m"  IsChecked="{Binding IsTimeRange5m,  Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0" AutomationProperties.Name="Show last 5 minutes of history"/>
+                <RadioButton Content="15m" IsChecked="{Binding IsTimeRange15m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" Margin="0,0,2,0" AutomationProperties.Name="Show last 15 minutes of history"/>
+                <RadioButton Content="30m" IsChecked="{Binding IsTimeRange30m, Mode=TwoWay}" GroupName="TimeRange" Style="{StaticResource TimeRangeButton}" AutomationProperties.Name="Show last 30 minutes of history"/>
             </StackPanel>
 
             <Grid>

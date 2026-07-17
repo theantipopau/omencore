@@ -36,8 +36,13 @@ namespace OmenCore.Services.FanCalibration
         // Default calibration levels to test
         private static readonly int[] DefaultCalibrationLevels = { 0, 10, 20, 30, 40, 45, 50, 55 };
         
-        // Fan response delay (mechanical inertia)
-        private const int FanResponseDelayMs = 3000;
+        // Fan response delay (mechanical inertia). Some boards apply additional
+        // BIOS/EC-side smoothing on top of the mechanical ramp (field report: OMEN MAX
+        // 16z-ak000, GitHub #117-adjacent) where 3s was too short to catch the settled
+        // RPM. 5s costs ~16s more across an 8-level wizard run but is still a single
+        // fixed delay, not adaptive stabilization polling — a real fix would sample
+        // until RPM stops changing, which needs field data to tune safely.
+        private const int FanResponseDelayMs = 5000;
 
         public FanCalibrationProfile? ActiveProfile => _activeProfile;
         public bool IsCalibrating => _calibrationInProgress;

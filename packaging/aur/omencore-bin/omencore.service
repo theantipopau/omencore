@@ -1,0 +1,29 @@
+# Static copy of the unit generated at runtime by `omencore-cli daemon --generate-service`
+# (src/OmenCore.Linux/Commands/DaemonCommand.cs, BuildSystemdService), with the dynamically
+# detected executable path fixed to this package's install location. If that generator
+# changes, mirror the change here too.
+[Unit]
+Description=OmenCore HP OMEN Laptop Control Daemon
+Documentation=https://github.com/theantipopau/omencore
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/mkdir -p /var/tmp/omencore
+ExecStart=/usr/bin/omencore-cli daemon --run
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+User=root
+Environment=HOME=/root
+Environment=DOTNET_BUNDLE_EXTRACT_BASE_DIR=/var/tmp/omencore
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/run /var/log /sys/kernel/debug/ec /var/tmp/omencore
+NoNewPrivileges=false
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

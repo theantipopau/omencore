@@ -1,0 +1,20 @@
+{
+  "productId": "8D87",
+  "modelName": "OMEN MAX 16z-ak000 (AMD)",
+  "modelYear": 2025,
+  "family": "OMEN2024Plus",
+  "reportedBy": "example-discord-handle",
+  "sourceDiagnosticsExport": true,
+  "fanControl": {
+    "supportsFanControlWmi": true,
+    "supportsFanControlEc": true,
+    "supportsFanCurves": true,
+    "supportsIndependentFanCurves": true,
+    "supportsRpmReadback": false,
+    "minFanSpeedPercent": 5
+  },
+  "power": {
+    "supportsUndervolt": false
+  },
+  "notes": "AMD board; RPM readback returns null so displayed RPM is a software estimate. Fan floor observed around 300 RPM at 0% commanded (Always-on-fan disabled in BIOS)."
+}

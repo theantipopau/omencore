@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OmenCore
+GenericName=Laptop Control Center
+Comment=Control center for HP OMEN and Victus gaming laptops (fan control, performance profiles, RGB, power tools)
+Exec=omencore-gui
+Icon=omencore
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+StartupNotify=true

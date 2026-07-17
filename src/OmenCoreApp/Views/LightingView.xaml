@@ -205,7 +205,8 @@
                                     IsEnabled="{Binding IsKeyboardLightingAvailable}"
                                     Style="{StaticResource SecondaryButton}"
                                     Padding="10,5"
-                                    ToolTip="Reapply saved keyboard colors through the active HP keyboard backend">
+                                    ToolTip="Reapply saved keyboard colors through the active HP keyboard backend"
+                                    AutomationProperties.Name="Restore keyboard lighting">
                                 <TextBlock Text="Restore Keyboard"
                                            FontSize="10"/>
                             </Button>
@@ -243,7 +244,8 @@
                                           SelectedItem="{Binding SelectedObservedRgbSurface, Mode=TwoWay}"
                                           MinHeight="30"
                                           VerticalAlignment="Center"
-                                          ToolTip="Record the physical RGB or backlight surface that changed after probing"/>
+                                          ToolTip="Record the physical RGB or backlight surface that changed after probing"
+                                          AutomationProperties.Name="Observed RGB surface"/>
 
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal"
@@ -254,7 +256,8 @@
                                             Style="{StaticResource SecondaryButton}"
                                             Padding="8,5"
                                             Margin="0,0,6,0"
-                                            ToolTip="Apply a safe bright probe color through the active HP keyboard backend">
+                                            ToolTip="Apply a safe bright probe color through the active HP keyboard backend"
+                                            AutomationProperties.Name="Run RGB surface probe">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Data="{StaticResource IconRefresh}"
                                                   Width="12"
@@ -268,7 +271,8 @@
                                     <Button Command="{Binding SaveRgbSurfaceObservationCommand}"
                                             Style="{StaticResource SecondaryButton}"
                                             Padding="8,5"
-                                            ToolTip="Save the selected observed RGB surface for diagnostic exports">
+                                            ToolTip="Save the selected observed RGB surface for diagnostic exports"
+                                            AutomationProperties.Name="Save observed RGB surface">
                                         <StackPanel Orientation="Horizontal">
                                             <Path Data="{StaticResource IconCheck}"
                                                   Width="12"
@@ -335,7 +339,8 @@
             <!-- Sync All Button -->
             <Button Grid.Column="1" Command="{Binding SyncAllRgbCommand}"
                     VerticalAlignment="Top" Margin="0,0,0,0"
-                    ToolTip="Sync current color across all connected RGB devices">
+                    ToolTip="Sync current color across all connected RGB devices"
+                    AutomationProperties.Name="Sync all RGB devices">
                 <Button.Style>
                     <Style TargetType="Button">
                         <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
@@ -385,7 +390,8 @@
                                           Style="{StaticResource ToggleButtonStyle}"
                                           Margin="12,0,0,0"
                                           VerticalAlignment="Center"
-                                          ToolTip="Enable or disable Scene Quick Select controls in this card"/>
+                                          ToolTip="Enable or disable Scene Quick Select controls in this card"
+                                          AutomationProperties.Name="Enable Scene Quick Select card"/>
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding IsSceneQuickSelectCardContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -452,7 +458,8 @@
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsAmbientModeActive, Mode=TwoWay}"
-                                          Style="{StaticResource ToggleButtonStyle}"/>
+                                          Style="{StaticResource ToggleButtonStyle}"
+                                          AutomationProperties.Name="Ambient screen lighting"/>
                         </Grid>
 
                         <!-- Audio Reactive Toggle -->
@@ -471,7 +478,8 @@
                                            Foreground="{StaticResource TextTertiaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" IsChecked="{Binding IsAudioReactiveModeActive, Mode=TwoWay}"
-                                          Style="{StaticResource ToggleButtonStyle}"/>
+                                          Style="{StaticResource ToggleButtonStyle}"
+                                          AutomationProperties.Name="Audio reactive lighting"/>
                         </Grid>
 
                         <Grid Margin="0,8,0,0"
@@ -488,12 +496,14 @@
                                        Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
                             <ComboBox Grid.Column="1" ItemsSource="{Binding AudioVisualizationModes}"
                                       SelectedItem="{Binding SelectedAudioVisualizationMode, Mode=TwoWay}"
-                                      Style="{StaticResource ModernComboBox}"/>
+                                      Style="{StaticResource ModernComboBox}"
+                                      AutomationProperties.Name="Audio reactive visualization mode"/>
 
                             <TextBlock Grid.Column="3" Text="Sensitivity" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
                             <Slider Grid.Column="4" Minimum="0.1" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True"
-                                    Value="{Binding AudioReactiveSensitivity, Mode=TwoWay}"/>
+                                    Value="{Binding AudioReactiveSensitivity, Mode=TwoWay}"
+                                    AutomationProperties.Name="Audio reactive sensitivity"/>
                         </Grid>
                         </StackPanel>
                     </StackPanel>
@@ -519,7 +529,8 @@
                                           Style="{StaticResource ToggleButtonStyle}"
                                           Margin="12,0,0,0"
                                           VerticalAlignment="Center"
-                                          ToolTip="Enable or disable Corsair controls in this card"/>
+                                          ToolTip="Enable or disable Corsair controls in this card"
+                                          AutomationProperties.Name="Enable Corsair Devices card"/>
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding IsCorsairCardContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -769,7 +780,8 @@
                                           Style="{StaticResource ToggleButtonStyle}"
                                           Margin="12,0,0,0"
                                           VerticalAlignment="Center"
-                                          ToolTip="Enable or disable Logitech controls in this card"/>
+                                          ToolTip="Enable or disable Logitech controls in this card"
+                                          AutomationProperties.Name="Enable Logitech Devices card"/>
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding IsLogitechCardContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -933,7 +945,8 @@
                                           Style="{StaticResource ToggleButtonStyle}"
                                           Margin="12,0,0,0"
                                           VerticalAlignment="Center"
-                                          ToolTip="Enable or disable Razer controls in this card"/>
+                                          ToolTip="Enable or disable Razer controls in this card"
+                                          AutomationProperties.Name="Enable Razer Devices card"/>
                         </StackPanel>
 
                         <StackPanel Visibility="{Binding IsRazerCardContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -1165,28 +1178,36 @@
                         <WrapPanel Margin="0,0,0,0">
                             <Button Content="🔴" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Red"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF0000"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF0000"
+                                    AutomationProperties.Name="OpenRGB quick color: Red"/>
                             <Button Content="🔵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Blue"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#0066FF"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#0066FF"
+                                    AutomationProperties.Name="OpenRGB quick color: Blue"/>
                             <Button Content="🟢" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Green"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#00FF00"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#00FF00"
+                                    AutomationProperties.Name="OpenRGB quick color: Green"/>
                             <Button Content="🟣" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Purple"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#9400D3"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#9400D3"
+                                    AutomationProperties.Name="OpenRGB quick color: Purple"/>
                             <Button Content="🟡" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Yellow"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFF00"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFF00"
+                                    AutomationProperties.Name="OpenRGB quick color: Yellow"/>
                             <Button Content="⚪" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="White"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFFFF"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FFFFFF"
+                                    AutomationProperties.Name="OpenRGB quick color: White"/>
                             <Button Content="🟠" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Orange"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF6B35"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#FF6B35"
+                                    AutomationProperties.Name="OpenRGB quick color: Orange"/>
                             <Button Content="⬛" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Off"
-                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#000000"/>
+                                    Command="{Binding ApplyOpenRgbColorCommand}" CommandParameter="#000000"
+                                    AutomationProperties.Name="OpenRGB quick color: Off"/>
                         </WrapPanel>
                         
                         <!-- Info Box -->
@@ -1222,7 +1243,8 @@
                                           Style="{StaticResource ToggleButtonStyle}"
                                           Margin="12,0,0,0"
                                           VerticalAlignment="Center"
-                                          ToolTip="Enable or disable HP OMEN keyboard controls in this card"/>
+                                          ToolTip="Enable or disable HP OMEN keyboard controls in this card"
+                                          AutomationProperties.Name="Enable HP OMEN Keyboard card"/>
                         </StackPanel>
                         
                         <TextBlock Text="Your laptop's built-in 4-zone RGB keyboard" 
@@ -1240,31 +1262,40 @@
                         <WrapPanel Margin="0,0,0,16">
                             <Button Content="🔴" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="OMEN Red"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#E6002E"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#E6002E"
+                                    AutomationProperties.Name="Keyboard quick color: OMEN Red"/>
                             <Button Content="🔵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Blue"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#0066FF"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#0066FF"
+                                    AutomationProperties.Name="Keyboard quick color: Blue"/>
                             <Button Content="🟢" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Green"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FF00"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FF00"
+                                    AutomationProperties.Name="Keyboard quick color: Green"/>
                             <Button Content="🟣" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Purple"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#9400D3"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#9400D3"
+                                    AutomationProperties.Name="Keyboard quick color: Purple"/>
                             <Button Content="🟡" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Yellow"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFF00"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFF00"
+                                    AutomationProperties.Name="Keyboard quick color: Yellow"/>
                             <Button Content="⚪" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="White"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFFFF"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FFFFFF"
+                                    AutomationProperties.Name="Keyboard quick color: White"/>
                             <Button Content="🩵" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Cyan"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FFFF"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#00FFFF"
+                                    AutomationProperties.Name="Keyboard quick color: Cyan"/>
                             <Button Content="🩷" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Pink"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FF69B4"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#FF69B4"
+                                    AutomationProperties.Name="Keyboard quick color: Pink"/>
                             <Button Content="⬛" FontSize="14" Padding="8,4" Margin="0,0,6,4"
                                     Style="{StaticResource ModernButton}" ToolTip="Off"
-                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#000000"/>
+                                    Command="{Binding ApplyQuickColorCommand}" CommandParameter="#000000"
+                                    AutomationProperties.Name="Keyboard quick color: Off"/>
                         </WrapPanel>
                         
                         <!-- Keyboard Status Hint (shows tips for models where WMI may not work) -->

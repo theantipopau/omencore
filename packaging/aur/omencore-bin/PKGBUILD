@@ -1,0 +1,57 @@
+# Maintainer: TODO — needs a real maintainer name/email before AUR submission.
+# See packaging/aur/README.md for the full submission checklist; this PKGBUILD is a
+# reviewed draft, not yet published or built/tested on real Arch hardware.
+pkgname=omencore-bin
+pkgver=3.9.0
+pkgrel=1
+pkgdesc="Control center for HP OMEN and Victus gaming laptops (fan control, performance profiles, RGB, power tools) — CLI, daemon, and GUI"
+arch=('x86_64' 'aarch64')
+url="https://github.com/theantipopau/omencore"
+license=('MIT')
+depends=('glibc' 'gtk3' 'libice' 'libsm' 'libx11' 'libxext' 'libxrandr' 'libxi')
+makedepends=('unzip')
+optdepends=(
+    'linux-headers: hp-wmi module rebuild on some kernels'
+    'nvidia-utils: nvidia-smi for NVIDIA GPU monitoring'
+)
+provides=('omencore')
+conflicts=('omencore')
+options=('!strip') # self-contained .NET single-file binaries are already trimmed; re-stripping can break them
+install=omencore-bin.install
+
+# The upstream release ships one archive per architecture containing both omencore-cli
+# and omencore-gui as self-contained single-file .NET binaries (see build-linux-package.ps1
+# in the main repo) — no .NET runtime dependency, so this is a "-bin" style package rather
+# than one that compiles from source (which would need the full .NET SDK as a makedepend).
+source_x86_64=("https://github.com/theantipopau/omencore/releases/download/v${pkgver}/OmenCore-${pkgver}-linux-x64.zip")
+source_aarch64=("https://github.com/theantipopau/omencore/releases/download/v${pkgver}/OmenCore-${pkgver}-linux-arm64.zip")
+
+# TODO before submission: run `updpkgsums` (or `sha256sum` the downloaded archives
+# manually) against the actual published v${pkgver} release assets and replace these.
+# SKIP is fine for local `makepkg` testing but AUR will reject a package with unverified
+# checksums.
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+# omencore.service / omencore.desktop / omencore.png are packaged alongside this PKGBUILD
+# (not fetched from upstream — the upstream release zip doesn't ship these yet, see
+# packaging/aur/README.md). LICENSE is fetched from the tagged source tree so it's the
+# real, verifiable license text for this exact release rather than a bundled copy that
+# could drift out of sync.
+source=(
+    "omencore.service"
+    "omencore.desktop"
+    "omencore.png"
+    "LICENSE::https://raw.githubusercontent.com/theantipopau/omencore/v${pkgver}/LICENSE"
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "$srcdir/omencore-cli" "$pkgdir/usr/bin/omencore-cli"
+    install -Dm755 "$srcdir/omencore-gui" "$pkgdir/usr/bin/omencore-gui"
+
+    install -Dm644 "$srcdir/omencore.service" "$pkgdir/usr/lib/systemd/system/omencore.service"
+    install -Dm644 "$srcdir/omencore.desktop" "$pkgdir/usr/share/applications/omencore.desktop"
+    install -Dm644 "$srcdir/omencore.png" "$pkgdir/usr/share/pixmaps/omencore.png"
+    install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

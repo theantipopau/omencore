@@ -368,14 +368,17 @@ namespace OmenCore
             // Retry tray icon visibility after boot (Windows sometimes fails to show icons during login)
             _ = EnsureTrayIconVisibleAsync();
 
-            _trayIconService = new TrayIconService(_trayIcon, ForceShowMainWindow, () => Shutdown(), Configuration);
+            // Resolved before TrayIconService construction so its NotificationService can be
+            // passed straight in (needed for the tray's Recent Notifications submenu).
+            var mainViewModel = _serviceProvider?.GetRequiredService<MainViewModel>();
+
+            _trayIconService = new TrayIconService(_trayIcon, ForceShowMainWindow, () => Shutdown(), Configuration, mainViewModel?.Notifications);
             TrayIcon = _trayIconService; // Expose for static access (e.g., SettingsViewModel)
             _trayIcon.TrayLeftMouseUp += (s, e) => _trayIconService?.ShowQuickPopup(); // Quick popup like G-Helper
             _trayIcon.TrayLeftMouseDown += (s, e) => { }; // Handle double-click below
             _trayIcon.TrayMouseDoubleClick += (s, e) => ForceShowMainWindow(); // Full window on double-click
 
             // Wire up to MainViewModel for monitoring updates and tray actions
-            var mainViewModel = _serviceProvider?.GetRequiredService<MainViewModel>();
             _runtimeStateEngine = _serviceProvider?.GetService<RuntimeStateEngine>();
             if (mainViewModel != null)
             {
@@ -464,6 +467,11 @@ namespace OmenCore
                 _trayIconService.KeyboardBacklightToggleRequested += () =>
                 {
                     mainViewModel.ToggleKeyboardBacklightFromTray();
+                };
+
+                _trayIconService.ReportProblemRequested += () =>
+                {
+                    mainViewModel.Settings?.ExportDiagnosticsCommand.Execute(null);
                 };
 
                 SystemControlViewModel? attachedSystemControl = null;
@@ -932,15 +940,31 @@ namespace OmenCore
 
         private void ConfigureServices(IServiceCollection services)
         {
-            // Register ViewModels (MainViewModel creates all services internally for now)
+            // Register ViewModels (MainViewModel still creates most services internally —
+            // this is being moved incrementally onto the DI container one field at a time,
+            // see ROADMAP_v4.0.0.md Phase B. Each service registered here is optional from
+            // MainViewModel's perspective: its constructor parameter defaults to null and
+            // falls back to manual construction, so this list can grow independently of
+            // MainViewModel without a coordinated two-sided change.)
+            services.AddSingleton(_ => new SystemRestoreService(Logging));
+            services.AddSingleton(_ => new OmenGamingHubCleanupService(Logging));
+            services.AddSingleton(_ => new NotificationService(Logging));
+            services.AddSingleton(_ => new SystemInfoService(Logging));
+            services.AddSingleton(_ => new AutoUpdateService(Logging));
+            services.AddSingleton(_ => new BiosUpdateService(Logging));
+            services.AddSingleton(_ => new TelemetryService(Logging, Configuration));
+            services.AddSingleton(_ => new SystemOptimizationService(Logging));
+            services.AddSingleton(_ => new GpuSwitchService(Logging));
+            services.AddSingleton(_ => new ProcessMonitoringService(Logging));
+            services.AddSingleton(_ => new HotkeyService(Logging));
+            services.AddSingleton(_ => new OmenKeyService(Logging, Configuration));
+            services.AddSingleton(sp => new GameProfileService(Logging, sp.GetRequiredService<ProcessMonitoringService>(), Configuration));
+
             services.AddSingleton<RuntimeStateEngine>();
             services.AddSingleton<MainViewModel>();
 
             // Register Views
             services.AddTransient<MainWindow>();
-            
-            // TODO: Future refactoring - register all services here and inject into ViewModels
-            // This would require breaking down MainViewModel's constructor to accept dependencies
         }
 
         /// <summary>

@@ -495,6 +495,16 @@ namespace OmenCore.Models
         /// Range: 75-95°C. Values outside this range will be clamped.
         /// </summary>
         public double ThermalProtectionThreshold { get; set; } = 90.0;
+
+        /// <summary>
+        /// Temperature threshold in °C for the hard emergency override — fans forced to 100%
+        /// immediately, no debounce. Default: 95°C. Range: 90-99°C, and kept at least 2°C
+        /// above <see cref="ThermalProtectionThreshold"/> (values that would invert the two
+        /// are bumped up automatically). Only takes effect while
+        /// <see cref="ThermalProtectionEnabled"/> is true — requested by field reports asking
+        /// for control over the "thermal emergency forces max fan" behavior.
+        /// </summary>
+        public double ThermalEmergencyThreshold { get; set; } = 95.0;
     }
 
     /// <summary>

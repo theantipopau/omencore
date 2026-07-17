@@ -92,6 +92,7 @@ namespace OmenCore.Services
                 }
 
                 builder.Show();
+                AddInfo("Game Profile Activated", $"{gameName}: {profileName}");
                 _logging.Info($"Notification: Game profile '{profileName}' activated for '{gameName}'");
             }
             catch (Exception ex)
@@ -115,7 +116,8 @@ namespace OmenCore.Services
                     .AddText("Restored default settings")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
-                    
+
+                AddInfo("Game Closed", $"{gameName}: restored default settings");
                 _logging.Info($"Notification: Game '{gameName}' closed, defaults restored");
             }
             catch (Exception ex)
@@ -147,7 +149,8 @@ namespace OmenCore.Services
                     .AddText($"Changed via {triggeredBy}")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
-                    
+
+                AddInfo($"Fan Mode: {modeName}", $"Changed via {triggeredBy}");
                 _logging.Info($"Notification: Fan mode changed to '{modeName}'");
             }
             catch (Exception ex)
@@ -178,7 +181,8 @@ namespace OmenCore.Services
                     .AddText($"Changed via {triggeredBy}")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
-                    
+
+                AddInfo($"Performance: {modeName}", $"Changed via {triggeredBy}");
                 _logging.Info($"Notification: Performance mode changed to '{modeName}'");
             }
             catch (Exception ex)
@@ -202,7 +206,8 @@ namespace OmenCore.Services
                     .AddText($"Threshold: {threshold:F0}°C")
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
-                    
+
+                AddWarning("High Temperature Warning", $"{component}: {temperature:F0}°C (threshold {threshold:F0}°C)");
                 _logging.Info($"Notification: Temperature warning - {component} at {temperature}°C");
             }
             catch (Exception ex)
@@ -226,7 +231,8 @@ namespace OmenCore.Services
                     .AddText("Thermal throttling may occur. Consider reducing load or improving cooling.")
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
-                    
+
+                AddError($"CRITICAL: {component} Overheating!", $"{temperature:F0}°C — thermal throttling may occur");
                 _logging.Warn($"Critical temperature warning - {component} at {temperature}°C");
             }
             catch (Exception ex)
@@ -249,7 +255,8 @@ namespace OmenCore.Services
                     .AddText($"{temperature:F0}°C - Fans boosted to max")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
-                    
+
+                AddWarning($"Thermal Protection: {protectionLevel}", $"{temperature:F0}°C — fans boosted to max");
                 _logging.Info($"Thermal protection notification: {protectionLevel} at {temperature}°C");
             }
             catch (Exception ex)
@@ -273,7 +280,8 @@ namespace OmenCore.Services
                     .AddText("Some features may be unavailable.")
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
-                    
+
+                AddWarning($"Driver Issue: {driverName}", $"{issue} — some features may be unavailable");
                 _logging.Warn($"Driver issue notification: {driverName} - {issue}");
             }
             catch (Exception ex)
@@ -297,7 +305,8 @@ namespace OmenCore.Services
                     .AddText(message)
                     .SetToastDuration(isCritical ? ToastDuration.Long : ToastDuration.Short)
                     .Show();
-                    
+
+                AddInAppNotification(isCritical ? InAppNotificationType.Error : InAppNotificationType.Warning, "Fan Alert", message);
                 _logging.Warn($"Fan alert: {message}");
             }
             catch (Exception ex)
@@ -321,7 +330,8 @@ namespace OmenCore.Services
                     .AddText("Install LibreHardwareMonitor to enable EC access.")
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
-                    
+
+                AddWarning("EC Bridge Unavailable", "Fan control features are disabled. Install LibreHardwareMonitor to enable EC access.");
                 _logging.Warn("EC bridge unavailable notification shown");
             }
             catch (Exception ex)
@@ -345,7 +355,8 @@ namespace OmenCore.Services
                     .AddText(isOnBattery ? "Running on battery" : "Connected to AC power")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
-                    
+
+                AddInfo($"Power Profile: {profileName}", isOnBattery ? "Running on battery" : "Connected to AC power");
                 _logging.Info($"Power profile changed: {profileName}");
             }
             catch (Exception ex)
@@ -382,6 +393,7 @@ namespace OmenCore.Services
                     .AddArgument("action", "dismiss"));
 
                 builder.Show();
+                AddInAppNotification(InAppNotificationType.Update, "Update Available", $"OmenCore {newVersion} is ready (current: {currentVersion})");
                 _logging.Info($"Notification: Update available - {newVersion}");
             }
             catch (Exception ex)
@@ -404,6 +416,7 @@ namespace OmenCore.Services
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
+                AddInfo(title, message);
             }
             catch (Exception ex)
             {
@@ -425,6 +438,7 @@ namespace OmenCore.Services
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
+                AddSuccess(title, message);
             }
             catch (Exception ex)
             {
@@ -446,6 +460,7 @@ namespace OmenCore.Services
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
+                AddError(title, message);
             }
             catch (Exception ex)
             {
@@ -467,6 +482,7 @@ namespace OmenCore.Services
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
+                AddWarning(title, message);
             }
             catch (Exception ex)
             {

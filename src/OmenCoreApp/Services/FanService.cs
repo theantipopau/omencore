@@ -140,7 +140,7 @@ namespace OmenCore.Services
         // on Silent mode. Modern laptop CPUs throttle at 95-100°C; 85°C is normal.
         // v2.8.0: Added time-based debounce to prevent fan yo-yo on CPUs that briefly spike
         private double _thermalProtectionThreshold = 90.0;      // °C - start ramping fans (configurable)
-        private const double ThermalEmergencyThreshold = 95.0;  // Emergency 100% - actual danger zone
+        private double _thermalEmergencyThreshold = 95.0;       // °C - Emergency 100% (configurable, see SetHysteresis)
         private const double ThermalSafeReleaseTemp = 65.0;     // Temps below this are truly safe for release
         private const int ThermalReleaseMinFanPercent = 40;     // Min fan on thermal release to prevent yo-yo
         private const double ThermalReleaseHysteresis = 10.0;   // °C below threshold to release (was 5°C, too tight)
@@ -866,9 +866,15 @@ namespace OmenCore.Services
             // v2.8.0: Widened range — previous max of 90°C was too restrictive for
             // high-power laptops where 85°C is normal gaming temp
             _thermalProtectionThreshold = Math.Clamp(settings?.ThermalProtectionThreshold ?? 90.0, 75.0, 95.0);
-            
+
+            // Load configurable emergency (hard 100%) threshold, clamp to a safe range, and keep
+            // it meaningfully above the ramp-start threshold so the two never invert (e.g. a user
+            // raising ramp-start to 95°C doesn't leave emergency sitting at or below it).
+            var emergencyRaw = Math.Clamp(settings?.ThermalEmergencyThreshold ?? 95.0, 90.0, 99.0);
+            _thermalEmergencyThreshold = Math.Max(emergencyRaw, _thermalProtectionThreshold + 2.0);
+
             _logging.Info($"Fan hysteresis: {(_hysteresis.Enabled ? $"Enabled (deadzone={_hysteresis.DeadZone}°C, ramp↑={_hysteresis.RampUpDelay}s, ramp↓={_hysteresis.RampDownDelay}s)" : "Disabled")}");
-            _logging.Info($"Thermal protection: {(_thermalProtectionEnabled ? $"Enabled at {_thermalProtectionThreshold}°C" : "Disabled")}");
+            _logging.Info($"Thermal protection: {(_thermalProtectionEnabled ? $"Enabled (ramp={_thermalProtectionThreshold:F0}°C, emergency={_thermalEmergencyThreshold:F0}°C)" : "Disabled — user has taken full responsibility for thermal management")}");
         }
 
         /// <summary>
@@ -1396,18 +1402,27 @@ namespace OmenCore.Services
         /// </summary>
         private double ApplySafetyBoundsClamping(double fanPercent, double temperatureC)
         {
+            // Respect the same opt-out CheckThermalProtection already honors — the toggle's own
+            // doc comment promises "fans will NEVER be automatically overridden by thermal
+            // protection" when disabled, but this method used to apply its emergency/critical
+            // floor unconditionally, which silently broke that promise for anyone on a custom
+            // fan curve. Field report: users on 8D87/88F7 asked for a way to turn off the
+            // "thermal emergency forces max fan" behavior entirely — this was the gap.
+            if (!_thermalProtectionEnabled)
+                return fanPercent;
+
             double clamped = fanPercent;
-            
-            // Emergency thermal protection at 95°C - force 100%
-            if (temperatureC >= 95.0)
+
+            // Emergency thermal protection (configurable, default 95°C) - force 100%
+            if (temperatureC >= _thermalEmergencyThreshold)
             {
                 if (fanPercent < 100.0)
                 {
-                    _logging.Warn($"EMERGENCY: Temperature {temperatureC:F1}°C >= 95°C, forcing fans to 100% (curve wanted {fanPercent:F0}%)");
+                    _logging.Warn($"EMERGENCY: Temperature {temperatureC:F1}°C >= {_thermalEmergencyThreshold:F0}°C, forcing fans to 100% (curve wanted {fanPercent:F0}%)");
                     return 100.0;
                 }
             }
-            
+
             // Critical: 90°C+ — minimum 80% (genuine danger zone)
             if (temperatureC >= 90.0)
             {
@@ -2182,8 +2197,9 @@ namespace OmenCore.Services
         /// Thermal protection override - kicks fans to max when temps hit critical levels.
         /// This works even in Auto mode to prevent thermal throttling/damage.
         /// v2.8.0: Raised thresholds based on community feedback:
-        /// - 90°C: Start ramping fans aggressively
-        /// - 95°C: Emergency max fans
+        /// - 90°C (configurable, see ThermalProtectionThreshold): Start ramping fans aggressively
+        /// - 95°C (configurable, see ThermalEmergencyThreshold): Emergency max fans
+        /// Entirely disableable via ThermalProtectionEnabled = false.
         /// </summary>
         // Remember the fan mode/preset BEFORE thermal protection kicks in
         private string? _preThermalFanMode;
@@ -2217,8 +2233,8 @@ namespace OmenCore.Services
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             var now = DateTime.UtcNow;
             
-            // Emergency: temps >= 95°C - immediate max fans (no debounce, safety critical)
-            if (maxTemp >= ThermalEmergencyThreshold)
+            // Emergency: temps >= configurable threshold (default 95°C) - immediate max fans (no debounce, safety critical)
+            if (maxTemp >= _thermalEmergencyThreshold)
             {
                 // Reset release timer
                 _thermalBelowReleaseSince = DateTime.MinValue;
@@ -2299,7 +2315,7 @@ namespace OmenCore.Services
                 }
                 
                 // Calculate thermal protection target: threshold = 85%, scaling to 100% at emergency
-                var tempRange = ThermalEmergencyThreshold - _thermalProtectionThreshold;
+                var tempRange = _thermalEmergencyThreshold - _thermalProtectionThreshold;
                 var thermalTargetPercent = (int)(85 + (maxTemp - _thermalProtectionThreshold) * (15.0 / tempRange));
                 thermalTargetPercent = Math.Min(100, thermalTargetPercent);
                 

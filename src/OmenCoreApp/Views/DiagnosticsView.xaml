@@ -83,12 +83,174 @@
                 </Grid>
             </GroupBox>
 
+            <!-- Model Capabilities (what this specific detected model does/doesn't support) -->
+            <GroupBox Header="Model Capabilities" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0">
+                <StackPanel Margin="8">
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding DetectedCapabilities.ModelConfig.ModelName, FallbackValue='Unknown model'}"/>
+                            <TextBlock FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,2,0,0">
+                                <Run Text="Product ID: "/>
+                                <Run Text="{Binding DetectedCapabilities.ProductId, FallbackValue='?'}"/>
+                            </TextBlock>
+                        </StackPanel>
+                        <Border Grid.Column="1" CornerRadius="6" Padding="10,4" VerticalAlignment="Center"
+                                Background="#1A00FF88"
+                                Visibility="{Binding DetectedCapabilities.ModelConfig.UserVerified, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="✓ User-verified profile" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}"/>
+                        </Border>
+                        <Border Grid.Column="1" CornerRadius="6" Padding="10,4" VerticalAlignment="Center"
+                                Background="#1AFF9800"
+                                Visibility="{Binding DetectedCapabilities.ModelConfig.UserVerified, Converter={StaticResource InverseBoolToVisibility}}">
+                            <TextBlock Text="⚠ Inferred, not yet verified" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Notes / quirks for this model, when present -->
+                    <Border Background="#2D2D1F" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12"
+                            Visibility="{Binding DetectedCapabilities.ModelConfig.Notes, Converter={StaticResource NullToVisibilityConverter}, FallbackValue=Collapsed}">
+                        <TextBlock Text="{Binding DetectedCapabilities.ModelConfig.Notes}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <TextBlock Text="This reflects what OmenCore's model database knows about the specific board detected on this machine — a feature showing &quot;Not supported&quot; may be a real hardware/firmware limitation rather than an OmenCore bug. If your model shows unverified and something below looks wrong, please report it."
+                               FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+                    <UniformGrid Columns="2">
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Custom fan curves" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsFanCurves, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsFanCurves, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Independent CPU/GPU fan curves" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsIndependentFanCurves, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsIndependentFanCurves, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Real fan RPM readback" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsRpmReadback, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Estimated only" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsRpmReadback, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="GPU MUX switch" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Present" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasMuxSwitch, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not present" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasMuxSwitch, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="GPU power boost (TGP)" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsGpuPowerBoost, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsGpuPowerBoost, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Advanced Optimus GPU switching" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsAdvancedOptimus, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsAdvancedOptimus, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="4-zone keyboard RGB" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasFourZoneRgb, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasFourZoneRgb, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Per-key RGB" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasPerKeyRgb, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasPerKeyRgb, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Light bar" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Present" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasLightBar, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not present" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.HasLightBar, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="CPU undervolting" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsUndervolt, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsUndervolt, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,6,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Power limit (PL1/PL2) adjustment" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsPowerLimits, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsPowerLimits, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="#0D0D0F" CornerRadius="6" Padding="10,8" Margin="0,0,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Overboost mode" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="✓ Supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsOverboost, Converter={StaticResource BoolToVisibility}}"/>
+                                    <TextBlock Text="✗ Not supported" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Visibility="{Binding DetectedCapabilities.ModelConfig.SupportsOverboost, Converter={StaticResource InverseBoolToVisibility}}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+                </StackPanel>
+            </GroupBox>
+
             <!-- Info Box -->
-            <Border Background="{StaticResource SurfaceDarkBrush}" 
-                    CornerRadius="8" 
-                    Padding="16" 
+            <Border Background="{StaticResource SurfaceDarkBrush}"
+                    CornerRadius="8"
+                    Padding="16"
                     Margin="0,8,0,0"
-                    BorderBrush="{StaticResource AccentBlueBrush}" 
+                    BorderBrush="{StaticResource AccentBlueBrush}"
                     BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="ℹ️ About Diagnostics" 

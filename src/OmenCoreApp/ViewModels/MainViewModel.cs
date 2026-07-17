@@ -425,15 +425,10 @@ namespace OmenCore.ViewModels
             }
         }
         
-        private readonly AsyncRelayCommand _applyUndervoltCommand;
-        private readonly AsyncRelayCommand _resetUndervoltCommand;
-        private readonly AsyncRelayCommand _refreshUndervoltCommand;
         private readonly AsyncRelayCommand _createRestorePointCommand;
         private readonly AsyncRelayCommand _cleanupOmenHubCommand;
         private readonly AsyncRelayCommand _installUpdateCommand;
         private readonly AsyncRelayCommand _checkForUpdatesCommand;
-        private readonly RelayCommand _takeUndervoltControlCommand;
-        private readonly RelayCommand _respectExternalUndervoltCommand;
         private readonly RelayCommand _stopMacroRecordingInternalCommand;
         private readonly RelayCommand _saveRecordedMacroInternalCommand;
         private readonly AsyncRelayCommand _applyLogitechColorInternalCommand;
@@ -455,10 +450,6 @@ namespace OmenCore.ViewModels
         private string _customPresetName = "Custom";
         private bool _gamingModeActive;
         private bool _logsCollapsed = true;
-        private UndervoltStatus _undervoltStatus = UndervoltStatus.CreateUnknown();
-        private double _requestedCoreOffset;
-        private double _requestedCacheOffset;
-        private bool _respectExternalUndervolt = true;
         private MonitoringSample? _latestMonitoringSample;
         private bool _monitoringLowOverhead;
         private bool _monitoringInitialized;
@@ -998,69 +989,6 @@ namespace OmenCore.ViewModels
         public string MemorySummary => BuildMemorySummary(LatestMonitoringSample);
         public string StorageSummary => BuildStorageSummary(LatestMonitoringSample);
         public string CpuClockSummary => BuildCpuClockSummary(LatestMonitoringSample);
-        public UndervoltStatus UndervoltStatus
-        {
-            get => _undervoltStatus;
-            private set
-            {
-                _undervoltStatus = value;
-                OnPropertyChanged(nameof(UndervoltStatus));
-                OnPropertyChanged(nameof(UndervoltStatusSummary));
-                OnPropertyChanged(nameof(ExternalUndervoltSummary));
-                OnPropertyChanged(nameof(UndervoltWarning));
-                OnPropertyChanged(nameof(ShowUndervoltWarning));
-                OnPropertyChanged(nameof(HasExternalUndervolt));
-                _applyUndervoltCommand?.RaiseCanExecuteChanged();
-            }
-        }
-
-        public double RequestedCoreOffset
-        {
-            get => _requestedCoreOffset;
-            set
-            {
-                if (Math.Abs(_requestedCoreOffset - value) > double.Epsilon)
-                {
-                    _requestedCoreOffset = value;
-                    OnPropertyChanged(nameof(RequestedCoreOffset));
-                }
-            }
-        }
-
-        public double RequestedCacheOffset
-        {
-            get => _requestedCacheOffset;
-            set
-            {
-                if (Math.Abs(_requestedCacheOffset - value) > double.Epsilon)
-                {
-                    _requestedCacheOffset = value;
-                    OnPropertyChanged(nameof(RequestedCacheOffset));
-                }
-            }
-        }
-
-        public bool RespectExternalUndervolt
-        {
-            get => _respectExternalUndervolt;
-            set
-            {
-                if (_respectExternalUndervolt != value)
-                {
-                    _respectExternalUndervolt = value;
-                    OnPropertyChanged(nameof(RespectExternalUndervolt));
-                    _applyUndervoltCommand?.RaiseCanExecuteChanged();
-                }
-            }
-        }
-
-        public bool HasExternalUndervolt => UndervoltStatus?.HasExternalController ?? false;
-        public string UndervoltStatusSummary => UndervoltStatus == null ? "n/a" : $"Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
-        public string ExternalUndervoltSummary => HasExternalUndervolt
-            ? $"{UndervoltStatus.ExternalController}: Core {UndervoltStatus.ExternalCoreOffsetMv:+0;-0;0} mV / Cache {UndervoltStatus.ExternalCacheOffsetMv:+0;-0;0} mV"
-            : "None detected";
-        public string UndervoltWarning => UndervoltStatus?.RuntimeBlockReason ?? UndervoltStatus?.Warning ?? UndervoltStatus?.Error ?? string.Empty;
-        public bool ShowUndervoltWarning => !string.IsNullOrWhiteSpace(UndervoltWarning);
 
         public FanPreset? SelectedPreset
         {
@@ -1464,11 +1392,6 @@ namespace OmenCore.ViewModels
         public ICommand OpenAboutCommand { get; }
         public ICommand ToggleServiceCommand { get; }
         public ICommand ToggleLowOverheadModeCommand { get; }
-        public ICommand ApplyUndervoltCommand { get; }
-        public ICommand ResetUndervoltCommand { get; }
-        public ICommand RefreshUndervoltCommand { get; }
-        public ICommand TakeUndervoltControlCommand { get; }
-        public ICommand RespectExternalUndervoltCommand { get; }
         public ICommand DiscoverLogitechCommand { get; }
         public ICommand ApplyLogitechColorCommand { get; }
         public ICommand CreateRestorePointCommand { get; }
@@ -1492,7 +1415,43 @@ namespace OmenCore.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public MainViewModel()
+        /// <param name="systemRestoreService">
+        /// Optional DI-injected instance (see App.xaml.cs ConfigureServices). Falls back to a
+        /// manually-constructed instance when omitted so every existing parameterless
+        /// `new MainViewModel()` call site (tests included) keeps working unchanged. First step
+        /// of incrementally moving MainViewModel off manual `new` construction of its ~40
+        /// service fields and onto the DI container — see ROADMAP_v4.0.0.md Phase B.
+        /// </param>
+        /// <param name="hubCleanupService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="notificationService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="systemInfoService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="autoUpdateService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="biosUpdateService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="telemetryService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="systemOptimizationService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="gpuSwitchService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="processMonitoringService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="hotkeyService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="omenKeyService">Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>.</param>
+        /// <param name="gameProfileService">
+        /// Same optional-DI-with-fallback pattern as <paramref name="systemRestoreService"/>, but
+        /// depends on <paramref name="processMonitoringService"/> — its DI factory resolves that
+        /// same singleton via the service provider rather than constructing a second instance.
+        /// </param>
+        public MainViewModel(
+            SystemRestoreService? systemRestoreService = null,
+            OmenGamingHubCleanupService? hubCleanupService = null,
+            NotificationService? notificationService = null,
+            SystemInfoService? systemInfoService = null,
+            AutoUpdateService? autoUpdateService = null,
+            BiosUpdateService? biosUpdateService = null,
+            TelemetryService? telemetryService = null,
+            SystemOptimizationService? systemOptimizationService = null,
+            GpuSwitchService? gpuSwitchService = null,
+            ProcessMonitoringService? processMonitoringService = null,
+            HotkeyService? hotkeyService = null,
+            OmenKeyService? omenKeyService = null,
+            GameProfileService? gameProfileService = null)
         {
             _config = _configService.Load();
             ShowAdvancedControls = !_config.LiteModeEnabled;
@@ -1684,7 +1643,7 @@ namespace OmenCore.ViewModels
             }
             
             // Create notification service early (before FanService which needs it)
-            _notificationService = new NotificationService(_logging);
+            _notificationService = notificationService ?? new NotificationService(_logging);
             
             // Thermal alert service — fires Windows toast notifications on CPU/GPU/SSD overtemperature
             _thermalMonitoringService = new ThermalMonitoringService(_logging, _notificationService);
@@ -1748,13 +1707,13 @@ namespace OmenCore.ViewModels
             
             // Initialize SystemInfoService before KeyboardLightingService so the KB service
             // receives a non-null reference and its DetectModelConfig() gets populated data.
-            _systemInfoService = new SystemInfoService(_logging);
+            _systemInfoService = systemInfoService ?? new SystemInfoService(_logging);
             SystemInfo = _systemInfoService.GetSystemInfo();
             _logging.SetDefaultTelemetryContext(SystemInfo.Model, SystemInfo.OsVersion);
 
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService, _ecOperationCoordinator);
-            _systemOptimizationService = new SystemOptimizationService(_logging);
-            _gpuSwitchService = new GpuSwitchService(_logging);
+            _systemOptimizationService = systemOptimizationService ?? new SystemOptimizationService(_logging);
+            _gpuSwitchService = gpuSwitchService ?? new GpuSwitchService(_logging);
             
             // Keyboard diagnostics (must be after _keyboardLightingService is created)
             KeyboardDiagnostics = new KeyboardDiagnosticsViewModel(_corsairDeviceService, _logitechDeviceService, _keyboardLightingService, _razerService, _logging);
@@ -1793,11 +1752,13 @@ namespace OmenCore.ViewModels
             // Auto-detect CPU vendor (Intel/AMD) and create appropriate undervolt provider
             var undervoltProvider = CpuUndervoltProviderFactory.Create(out string undervoltBackend);
             _logging.Info($"CPU undervolt provider: {undervoltBackend}");
+            // Owned here (constructed + started + disposed) and shared into SystemControlViewModel
+            // via the SystemControl property below — that's the ViewModel that actually exposes
+            // undervolt UI/commands today; MainViewModel used to have its own parallel Undervolt
+            // tab wiring (ApplyUndervoltCommand, RequestedCoreOffset, etc.) but that UI
+            // (Views/SystemControlView.xaml) was superseded by TuningView.xaml and never wired
+            // into the visual tree — removed as dead code rather than left to bit-rot.
             _undervoltService = new UndervoltService(undervoltProvider, _logging, _config.Undervolt?.ProbeIntervalMs ?? 4000);
-            _undervoltService.StatusChanged += UndervoltServiceOnStatusChanged;
-            RespectExternalUndervolt = _config.Undervolt?.RespectExternalControllers ?? true;
-            RequestedCoreOffset = _config.Undervolt?.DefaultOffset.CoreMv ?? -75;
-            RequestedCacheOffset = _config.Undervolt?.DefaultOffset.CacheMv ?? -50;
             _hardwareMonitoringService = new HardwareMonitoringService(monitorBridge, _logging, _config.Monitoring ?? new MonitoringPreferences(), _resumeRecoveryDiagnostics);
             MonitoringSamples = _hardwareMonitoringService.Samples;
             _hardwareMonitoringService.SampleUpdated += HardwareMonitoringServiceOnSampleUpdated;
@@ -1809,15 +1770,15 @@ namespace OmenCore.ViewModels
             // Enable WMI BIOS fallback for temperature freeze recovery (v2.7.0)
             _hardwareMonitoringService.SetWmiBiosService(_wmiBios);
             
-            _systemRestoreService = new SystemRestoreService(_logging);
-            _hubCleanupService = new OmenGamingHubCleanupService(_logging);
-            _autoUpdateService = new AutoUpdateService(_logging);
-            _processMonitoringService = new ProcessMonitoringService(_logging);
-            _telemetryService = new TelemetryService(_logging, _configService);
-            _gameProfileService = new GameProfileService(_logging, _processMonitoringService, _configService);
+            _systemRestoreService = systemRestoreService ?? new SystemRestoreService(_logging);
+            _hubCleanupService = hubCleanupService ?? new OmenGamingHubCleanupService(_logging);
+            _autoUpdateService = autoUpdateService ?? new AutoUpdateService(_logging);
+            _processMonitoringService = processMonitoringService ?? new ProcessMonitoringService(_logging);
+            _telemetryService = telemetryService ?? new TelemetryService(_logging, _configService);
+            _gameProfileService = gameProfileService ?? new GameProfileService(_logging, _processMonitoringService, _configService);
             _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService, _wmiBios, _oghProxy, _ecOperationCoordinator);
-            _biosUpdateService = new BiosUpdateService(_logging);
-            _hotkeyService = new HotkeyService(_logging);
+            _biosUpdateService = biosUpdateService ?? new BiosUpdateService(_logging);
+            _hotkeyService = hotkeyService ?? new HotkeyService(_logging);
             // _notificationService created earlier (before FanService)
             _powerAutomationService = new PowerAutomationService(_logging, _fanService, _performanceModeService, _configService, _gpuSwitchService);
             _automationService = new AutomationService(
@@ -1829,7 +1790,7 @@ namespace OmenCore.ViewModels
                 _nvapiService,
                 _undervoltService,
                 _performanceModeService);
-            _omenKeyService = new OmenKeyService(_logging, _configService);
+            _omenKeyService = omenKeyService ?? new OmenKeyService(_logging, _configService);
 
             // Subscribe to suspend/resume early so protection works even if Settings is never opened.
             _powerAutomationService.SystemSuspending += OnSystemSuspending;
@@ -1948,16 +1909,6 @@ namespace OmenCore.ViewModels
                 }
             });
             ToggleLowOverheadModeCommand = new RelayCommand(_ => MonitoringLowOverheadMode = !MonitoringLowOverheadMode);
-            _applyUndervoltCommand = new AsyncRelayCommand(_ => ApplyUndervoltAsync(), _ => CanApplyUndervolt());
-            ApplyUndervoltCommand = _applyUndervoltCommand;
-            _resetUndervoltCommand = new AsyncRelayCommand(_ => ResetUndervoltAsync());
-            ResetUndervoltCommand = _resetUndervoltCommand;
-            _refreshUndervoltCommand = new AsyncRelayCommand(_ => _undervoltService.RefreshAsync());
-            RefreshUndervoltCommand = _refreshUndervoltCommand;
-            _takeUndervoltControlCommand = new RelayCommand(_ => TakeUndervoltControl());
-            TakeUndervoltControlCommand = _takeUndervoltControlCommand;
-            _respectExternalUndervoltCommand = new RelayCommand(_ => RespectExternalUndervoltController());
-            RespectExternalUndervoltCommand = _respectExternalUndervoltCommand;
             DiscoverLogitechCommand = new AsyncRelayCommand(_ => DiscoverLogitechDevices());
             _applyLogitechColorInternalCommand = new AsyncRelayCommand(_ => ApplyLogitechColor(), _ => SelectedLogitechDevice != null);
             ApplyLogitechColorCommand = _applyLogitechColorInternalCommand;
@@ -2333,8 +2284,13 @@ namespace OmenCore.ViewModels
             }
 
             var model = SystemInfo?.Model ?? string.Empty;
-            var guardedModel = model.Contains("OMEN 16", StringComparison.OrdinalIgnoreCase) ||
-                               model.Contains("Victus", StringComparison.OrdinalIgnoreCase);
+            // Was a local literal-"OMEN 16"-substring reimplementation of this same gate —
+            // that exact bug class (real WMI strings like "OMEN Gaming Laptop 16-ap0xxx" don't
+            // contain the literal substring "OMEN 16") was already found and fixed in
+            // StartupRestorePolicy.IsSensitiveModel() itself (see its own doc comment), but this
+            // duplicate here was never updated to match. Delegating to the shared, already-fixed
+            // policy instead of re-checking inline.
+            var guardedModel = StartupRestorePolicy.IsSensitiveModel(model);
 
             if (guardedModel && !_config.AllowStartupRestoreOnOmen16OrVictus)
             {
@@ -3317,44 +3273,6 @@ namespace OmenCore.ViewModels
         private void RecordingBufferOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             _saveRecordedMacroInternalCommand?.RaiseCanExecuteChanged();
-        }
-
-        private async Task ApplyUndervoltAsync()
-        {
-            var offset = new UndervoltOffset
-            {
-                CoreMv = RequestedCoreOffset,
-                CacheMv = RequestedCacheOffset
-            };
-            await _undervoltService.ApplyAsync(offset);
-            PushEvent($"CPU undervolt core {offset.CoreMv:+0;-0;0} mV / cache {offset.CacheMv:+0;-0;0} mV");
-        }
-
-        private async Task ResetUndervoltAsync()
-        {
-            await _undervoltService.ResetAsync();
-            PushEvent("CPU undervolt reset to defaults");
-        }
-
-        private bool CanApplyUndervolt() =>
-            (UndervoltStatus?.IsRuntimeReady ?? false) &&
-            (!HasExternalUndervolt || !RespectExternalUndervolt);
-
-        private void TakeUndervoltControl()
-        {
-            RespectExternalUndervolt = false;
-            PushEvent("OmenCore now controls CPU undervolt planes");
-        }
-
-        private void RespectExternalUndervoltController()
-        {
-            RespectExternalUndervolt = true;
-            PushEvent("Respecting external undervolt controller");
-        }
-
-        private void UndervoltServiceOnStatusChanged(object? sender, UndervoltStatus status)
-        {
-            Application.Current?.Dispatcher?.BeginInvoke(() => UndervoltStatus = status);
         }
 
         private void ShowAbout()
@@ -5119,7 +5037,6 @@ namespace OmenCore.ViewModels
             _fanService.PresetApplied -= OnFanPresetApplied;
             _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
             _fanService.Dispose();
-            _undervoltService.StatusChanged -= UndervoltServiceOnStatusChanged;
             _undervoltService.Dispose();
             _hardwareMonitoringService.SampleUpdated -= HardwareMonitoringServiceOnSampleUpdated;
             _hardwareMonitoringService.HealthStatusChanged -= HardwareMonitoringServiceOnHealthStatusChanged;
