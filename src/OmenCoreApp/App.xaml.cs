@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
+using OmenCore.Hardware;
 using OmenCore.Services;
 using OmenCore.Utils;
 using OmenCore.ViewModels;
@@ -959,6 +960,11 @@ namespace OmenCore
             services.AddSingleton(_ => new HotkeyService(Logging));
             services.AddSingleton(_ => new OmenKeyService(Logging, Configuration));
             services.AddSingleton(sp => new GameProfileService(Logging, sp.GetRequiredService<ProcessMonitoringService>(), Configuration));
+            services.AddSingleton(_ => new RuntimeEcOperationCoordinator(Logging));
+            services.AddSingleton(_ => new HpWmiBios(Logging));
+            services.AddSingleton(_ => new OghServiceProxy(Logging));
+            services.AddSingleton(sp => new ThermalMonitoringService(Logging, sp.GetRequiredService<NotificationService>()));
+            services.AddSingleton(_ => new ConflictDetectionService(Logging));
 
             services.AddSingleton<RuntimeStateEngine>();
             services.AddSingleton<MainViewModel>();

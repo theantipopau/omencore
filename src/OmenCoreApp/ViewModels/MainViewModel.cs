@@ -1451,7 +1451,12 @@ namespace OmenCore.ViewModels
             ProcessMonitoringService? processMonitoringService = null,
             HotkeyService? hotkeyService = null,
             OmenKeyService? omenKeyService = null,
-            GameProfileService? gameProfileService = null)
+            GameProfileService? gameProfileService = null,
+            RuntimeEcOperationCoordinator? ecOperationCoordinator = null,
+            HpWmiBios? wmiBios = null,
+            OghServiceProxy? oghProxy = null,
+            ThermalMonitoringService? thermalMonitoringService = null,
+            ConflictDetectionService? conflictDetectionService = null)
         {
             _config = _configService.Load();
             ShowAdvancedControls = !_config.LiteModeEnabled;
@@ -1466,7 +1471,7 @@ namespace OmenCore.ViewModels
                 logWarn: message => _logging.Warn(message),
                 logInfo: message => _logging.Info(message),
                 onBeginInvokeScheduled: source => NoteDispatcherBeginInvoke(source));
-            _ecOperationCoordinator = new RuntimeEcOperationCoordinator(_logging);
+            _ecOperationCoordinator = ecOperationCoordinator ?? new RuntimeEcOperationCoordinator(_logging);
             
             // ═══════════════════════════════════════════════════════════════════
             // SELF-SUSTAINING MONITORING ARCHITECTURE (v2.8.6+)
@@ -1629,11 +1634,11 @@ namespace OmenCore.ViewModels
             FanBackend = fanControllerFactory.ActiveBackend;
             
             // Create HP WMI BIOS instance for GPU Power Boost control
-            _wmiBios = new HpWmiBios(_logging);
-            
+            _wmiBios = wmiBios ?? new HpWmiBios(_logging);
+
             // Create OGH Proxy for systems where WMI BIOS commands don't work
             // This is common on 2023+ OMEN laptops with Secure Boot enabled
-            _oghProxy = new OghServiceProxy(_logging);
+            _oghProxy = oghProxy ?? new OghServiceProxy(_logging);
             
             // Run OGH diagnostics on startup to help debug command issues
             if (_oghProxy.Status.WmiAvailable && _config.EnableDiagnostics)
@@ -1646,7 +1651,7 @@ namespace OmenCore.ViewModels
             _notificationService = notificationService ?? new NotificationService(_logging);
             
             // Thermal alert service — fires Windows toast notifications on CPU/GPU/SSD overtemperature
-            _thermalMonitoringService = new ThermalMonitoringService(_logging, _notificationService);
+            _thermalMonitoringService = thermalMonitoringService ?? new ThermalMonitoringService(_logging, _notificationService);
             var ta = _config.ThermalAlerts;
             _thermalMonitoringService.IsEnabled = ta.IsEnabled;
             _thermalMonitoringService.CpuWarningThreshold = ta.CpuWarningC;
@@ -1806,7 +1811,7 @@ namespace OmenCore.ViewModels
             _pollingCoordinator?.SetOverlayRealtimeMode(false);
             
             // Initialize conflict detection service for detecting conflicting software
-            _conflictDetectionService = new ConflictDetectionService(_logging);
+            _conflictDetectionService = conflictDetectionService ?? new ConflictDetectionService(_logging);
             
             // Wire up Afterburner coexistence — WmiBiosMonitor reads GPU data from
             // Afterburner shared memory instead of polling NVAPI (eliminates contention)
