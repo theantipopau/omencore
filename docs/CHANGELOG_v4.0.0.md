@@ -113,7 +113,7 @@ Effectively complete. The only open Phase A item is the stale-OSD-fan-mode repor
 
 ## Phase B — Architecture Cleanup
 
-Three of Phase B's four items were touched this cycle: timer consolidation got a corrected audit plus a real, tested, live-verified first migration; sync-over-async got a full audit with nothing safe to change in isolation; `MainViewModel` decomposition got its scope confirmed but deliberately not started. One item (Authenticode signature check) is blocked on code signing existing first (Phase C) and untouched.
+All four of Phase B's items were touched this cycle: timer consolidation got a corrected audit plus a real, tested, live-verified first migration; sync-over-async got a full audit with nothing safe to change in isolation; `MainViewModel` decomposition is now well underway — 19 fields/units DI-seeded (18 services plus `HardwareBringup` itself), the hardware bring-up sequence extracted into its own class as a prerequisite for the remaining ~22 fields, and `MainViewModel.cs` down to 5,114 lines from its original 5,333 (partly from this work, partly from the dead-undervolt-UI removal below). One item (Authenticode signature check) is still blocked on code signing existing first (Phase C) and untouched.
 
 ### Timer Consolidation: Corrected the Audit, Then Built and Shipped the First Migration
 
@@ -179,7 +179,7 @@ Verified after every batch: full test suite (34/34 `MainViewModelTests`, then th
 
 ### Test Suite
 
-**941/941 passing** (up from the 913 baseline: +19 `BiosUpdateServiceTests`, +9 `PollingSchedulerTests`), 0 build warnings across all four projects (`OmenCoreApp`, `OmenCore.Avalonia`, `OmenCore.Linux`, plus the test project). The `TrayIconService` migration was additionally verified by launching the real built app and observing live runtime behavior, not just the test suite.
+**948/948 passing** (up from the 913 baseline: +19 `BiosUpdateServiceTests`, +9 `PollingSchedulerTests`, +7 thermal-emergency-threshold tests), 0 build warnings across all four projects (`OmenCoreApp`, `OmenCore.Avalonia`, `OmenCore.Linux`, plus the test project). Held steady at 948/948 through every subsequent pass this cycle (5-field DI batch, `HardwareBringup` extraction, `HardwareBringup` DI wiring, accessibility passes) since none of that work added new behavior needing new test coverage. The `TrayIconService` migration was additionally verified by launching the real built app and observing live runtime behavior, not just the test suite.
 
 ---
 
