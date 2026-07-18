@@ -965,6 +965,7 @@ namespace OmenCore
             services.AddSingleton(_ => new OghServiceProxy(Logging));
             services.AddSingleton(sp => new ThermalMonitoringService(Logging, sp.GetRequiredService<NotificationService>()));
             services.AddSingleton(_ => new ConflictDetectionService(Logging));
+            services.AddSingleton(_ => new HardwareBringup(Logging, Configuration.Config));
 
             services.AddSingleton<RuntimeStateEngine>();
             services.AddSingleton<MainViewModel>();

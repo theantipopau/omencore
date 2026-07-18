@@ -1456,7 +1456,8 @@ namespace OmenCore.ViewModels
             HpWmiBios? wmiBios = null,
             OghServiceProxy? oghProxy = null,
             ThermalMonitoringService? thermalMonitoringService = null,
-            ConflictDetectionService? conflictDetectionService = null)
+            ConflictDetectionService? conflictDetectionService = null,
+            HardwareBringup? hardwareBringup = null)
         {
             _config = _configService.Load();
             ShowAdvancedControls = !_config.LiteModeEnabled;
@@ -1477,7 +1478,7 @@ namespace OmenCore.ViewModels
             // capability detection, EC access acquisition, fan controller construction.
             // See Hardware/HardwareBringup.cs for the full sequence (extracted verbatim from
             // this constructor — ROADMAP_v4.0.0.md Phase B, MainViewModel decomposition).
-            var bringup = new HardwareBringup(_logging, _config);
+            var bringup = hardwareBringup ?? new HardwareBringup(_logging, _config);
 
             _nvapiService = bringup.NvapiService;
             _wmiBiosMonitor = bringup.WmiBiosMonitor;
