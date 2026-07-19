@@ -601,7 +601,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding StartWithWindows}"/>
+                                          IsChecked="{Binding StartWithWindows}"
+                                          AutomationProperties.Name="Start with Windows"/>
                         </Grid>
 
                         <!-- Start Minimized -->
@@ -619,7 +620,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding StartMinimized}"/>
+                                          IsChecked="{Binding StartMinimized}"
+                                          AutomationProperties.Name="Start minimized to tray"/>
                         </Grid>
 
                         <!-- Lite Mode -->
@@ -638,7 +640,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding LiteModeEnabled, Mode=TwoWay}"/>
+                                          IsChecked="{Binding LiteModeEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Lite mode (beginner UI)"/>
                         </Grid>
 
                         <!-- Headless Mode -->
@@ -655,7 +658,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding HeadlessMode, Mode=TwoWay}"/>
+                                          IsChecked="{Binding HeadlessMode, Mode=TwoWay}"
+                                          AutomationProperties.Name="Headless mode (no main window)"/>
                         </Grid>
 
                         <!-- Software Rendering (RTSS / overlay compatibility) -->
@@ -672,7 +676,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding UseSoftwareRendering, Mode=TwoWay}"/>
+                                          IsChecked="{Binding UseSoftwareRendering, Mode=TwoWay}"
+                                          AutomationProperties.Name="Software rendering mode"/>
                         </Grid>
 
                         <!-- Minimize to Tray on Close -->
@@ -690,7 +695,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding MinimizeToTrayOnClose}"/>
+                                          IsChecked="{Binding MinimizeToTrayOnClose}"
+                                          AutomationProperties.Name="Minimize to tray on close"/>
                         </Grid>
 
                         <!-- Stay on Top -->
@@ -737,7 +743,8 @@
                             <ComboBox Grid.Column="1"
                                       ItemsSource="{Binding QuickAccessActionOptions}"
                                       SelectedItem="{Binding QuickAccessAction, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      VerticalAlignment="Center"/>
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="Quick Access shortcut selection"/>
                         </Grid>
 
                         <!-- Enable/Disable Quick Access popup entirely -->
@@ -772,7 +779,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding TrayTempDisplayEnabled}"/>
+                                          IsChecked="{Binding TrayTempDisplayEnabled}"
+                                          AutomationProperties.Name="Show temperature on tray icon"/>
                         </Grid>
 
                         <!-- Corsair HID-only mode (Disable iCUE fallback) -->
@@ -789,7 +797,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding CorsairDisableIcueFallback, Mode=TwoWay}"/>
+                                          IsChecked="{Binding CorsairDisableIcueFallback, Mode=TwoWay}"
+                                          AutomationProperties.Name="Corsair: Disable iCUE fallback (HID-only mode)"/>
                         </Grid>
 
                         <TextBlock Text="Warning: HID-only mode may reduce compatibility with some Corsair devices. If lighting control stops working, re-enable iCUE fallback or install iCUE." 
@@ -811,7 +820,8 @@
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}" 
-                                          ToolTipService.ToolTip="Share anonymous PID success/failure counts to help improve device support. Opt-in only; stored at %LOCALAPPDATA%\OmenCore\telemetry.json"/>
+                                          ToolTipService.ToolTip="Share anonymous PID success/failure counts to help improve device support. Opt-in only; stored at %LOCALAPPDATA%\OmenCore\telemetry.json"
+                                          AutomationProperties.Name="Enable anonymous lighting telemetry"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -899,7 +909,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding LowOverheadMode}"/>
+                                          IsChecked="{Binding LowOverheadMode}"
+                                          AutomationProperties.Name="Low overhead mode"/>
                         </Grid>
 
                         <Border Margin="0,16,0,0" Padding="14" CornerRadius="10" Background="#141A20" BorderBrush="#22303C" BorderThickness="1">
@@ -938,7 +949,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding StartupSafeModeGuardEnabled}"/>
+                                          IsChecked="{Binding StartupSafeModeGuardEnabled}"
+                                          AutomationProperties.Name="Startup safe mode guard"/>
                         </Grid>
 
                         <!-- Safe Mode Guard Window -->
@@ -1021,7 +1033,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding HardwareWorkerOrphanTimeoutEnabled, Mode=TwoWay}"/>
+                                          IsChecked="{Binding HardwareWorkerOrphanTimeoutEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Enable orphan timeout"/>
                         </Grid>
 
                         <!-- Orphan Timeout Minutes -->
@@ -1078,7 +1091,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding PowerAutomationEnabled, Mode=TwoWay}"/>
+                                          IsChecked="{Binding PowerAutomationEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Auto-switch on power change"/>
                         </Grid>
 
                         <!-- AC Power Settings -->
@@ -1095,7 +1109,8 @@
                             </StackPanel>
                             <ComboBox Grid.Column="1" SelectedItem="{Binding AcFanPreset, Mode=TwoWay}"
                                       ItemsSource="{Binding FanPresetOptions}"
-                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                                      IsEnabled="{Binding PowerAutomationEnabled}"
+                                      AutomationProperties.Name="AC power fan preset"/>
                         </Grid>
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
@@ -1108,7 +1123,8 @@
                             </StackPanel>
                             <ComboBox Grid.Column="1" SelectedItem="{Binding AcPerformanceMode, Mode=TwoWay}"
                                       ItemsSource="{Binding PerformanceModeOptions}"
-                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                                      IsEnabled="{Binding PowerAutomationEnabled}"
+                                      AutomationProperties.Name="AC power performance mode"/>
                         </Grid>
 
                         <!-- Battery Settings -->
@@ -1125,7 +1141,8 @@
                             </StackPanel>
                             <ComboBox Grid.Column="1" SelectedItem="{Binding BatteryFanPreset, Mode=TwoWay}"
                                       ItemsSource="{Binding FanPresetOptions}"
-                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                                      IsEnabled="{Binding PowerAutomationEnabled}"
+                                      AutomationProperties.Name="Battery power fan preset"/>
                         </Grid>
                         <Grid Margin="0,0,0,8">
                             <Grid.ColumnDefinitions>
@@ -1138,7 +1155,8 @@
                             </StackPanel>
                             <ComboBox Grid.Column="1" SelectedItem="{Binding BatteryPerformanceMode, Mode=TwoWay}"
                                       ItemsSource="{Binding PerformanceModeOptions}"
-                                      IsEnabled="{Binding PowerAutomationEnabled}"/>
+                                      IsEnabled="{Binding PowerAutomationEnabled}"
+                                      AutomationProperties.Name="Battery power performance mode"/>
                         </Grid>
 
                         <!-- Link fan preset to performance mode selection -->
@@ -1155,7 +1173,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding LinkFanToPerformanceMode, Mode=TwoWay}"/>
+                                          IsChecked="{Binding LinkFanToPerformanceMode, Mode=TwoWay}"
+                                          AutomationProperties.Name="Link fan to performance mode"/>
                         </Grid>
 
                         <Separator Margin="0,16,0,16" Background="{StaticResource BorderBrush}"/>
@@ -1173,7 +1192,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding EnableStartupHardwareRestore, Mode=TwoWay}"/>
+                                          IsChecked="{Binding EnableStartupHardwareRestore, Mode=TwoWay}"
+                                          AutomationProperties.Name="Restore last hardware settings on startup"/>
                         </Grid>
 
                         <Grid Margin="0,0,0,8">
@@ -1190,7 +1210,8 @@
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsEnabled="{Binding EnableStartupHardwareRestore}"
-                                          IsChecked="{Binding AllowStartupRestoreOnOmen16OrVictus, Mode=TwoWay}"/>
+                                          IsChecked="{Binding AllowStartupRestoreOnOmen16OrVictus, Mode=TwoWay}"
+                                          AutomationProperties.Name="Allow startup restore on OMEN 16/Victus"/>
                         </Grid>
 
                         <Border Background="#141414" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
@@ -1211,7 +1232,8 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding StartupRestoreFansEnabled, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding StartupRestoreFansEnabled, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Fans"/>
                                 </Grid>
 
                                 <Grid Margin="0,0,0,8">
@@ -1225,7 +1247,8 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding StartupRestorePerformanceEnabled, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding StartupRestorePerformanceEnabled, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Performance"/>
                                 </Grid>
 
                                 <Grid Margin="0,0,0,8">
@@ -1239,7 +1262,8 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding StartupRestoreRgbEnabled, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding StartupRestoreRgbEnabled, Mode=TwoWay}"
+                                                  AutomationProperties.Name="RGB"/>
                                 </Grid>
 
                                 <Grid>
@@ -1253,7 +1277,8 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding StartupRestoreTuningEnabled, Mode=TwoWay}"/>
+                                                  IsChecked="{Binding StartupRestoreTuningEnabled, Mode=TwoWay}"
+                                                  AutomationProperties.Name="Tuning"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -1304,7 +1329,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding AutoCheckUpdates}"/>
+                                          IsChecked="{Binding AutoCheckUpdates}"
+                                          AutomationProperties.Name="Check for updates automatically"/>
                         </Grid>
 
                         <!-- Update Check Interval -->
@@ -1319,10 +1345,11 @@
                                 <TextBlock Text="How often to check for updates" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
-                            <ComboBox Grid.Column="1" 
+                            <ComboBox Grid.Column="1"
                                       Style="{StaticResource ModernComboBox}"
                                       SelectedIndex="{Binding UpdateCheckIntervalIndex}"
-                                      HorizontalAlignment="Right" Width="150">
+                                      HorizontalAlignment="Right" Width="150"
+                                      AutomationProperties.Name="Update check interval">
                                 <ComboBoxItem Content="Every hour"/>
                                 <ComboBoxItem Content="Every 6 hours"/>
                                 <ComboBoxItem Content="Daily"/>
@@ -1344,7 +1371,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding IncludePreReleases}"/>
+                                          IsChecked="{Binding IncludePreReleases}"
+                                          AutomationProperties.Name="Include pre-releases"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -1373,7 +1401,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding HotkeysEnabled}"/>
+                                          IsChecked="{Binding HotkeysEnabled}"
+                                          AutomationProperties.Name="Enable global hotkeys"/>
                         </Grid>
                         <!-- Window-focused toggle -->
                         <Grid Margin="0,0,0,12">
@@ -1389,7 +1418,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding HotkeysWindowFocused}"/>
+                                          IsChecked="{Binding HotkeysWindowFocused}"
+                                          AutomationProperties.Name="Only enable hotkeys when window is focused"/>
                         </Grid>
 
                         <!-- Experimental Firmware Fn+P Profile Cycle -->
@@ -1406,7 +1436,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding EnableFirmwareFnPProfileCycle}"/>
+                                          IsChecked="{Binding EnableFirmwareFnPProfileCycle}"
+                                          AutomationProperties.Name="Experimental firmware Fn+P profile cycle"/>
                         </Grid>
 
                         <!-- Hotkey Reference -->
@@ -1494,7 +1525,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding NotificationsEnabled}"/>
+                                          IsChecked="{Binding NotificationsEnabled}"
+                                          AutomationProperties.Name="Enable notifications"/>
                         </Grid>
 
                         <!-- Game Profile Notifications -->
@@ -1512,7 +1544,8 @@
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding GameNotificationsEnabled}"
-                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                                          IsEnabled="{Binding NotificationsEnabled}"
+                                          AutomationProperties.Name="Game profile notifications"/>
                         </Grid>
 
                         <!-- Mode Change Notifications -->
@@ -1530,7 +1563,8 @@
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding ModeChangeNotificationsEnabled}"
-                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                                          IsEnabled="{Binding NotificationsEnabled}"
+                                          AutomationProperties.Name="Mode change notifications"/>
                         </Grid>
 
                         <!-- Temperature Warning Notifications -->
@@ -1548,7 +1582,8 @@
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding TemperatureWarningsEnabled}"
-                                          IsEnabled="{Binding NotificationsEnabled}"/>
+                                          IsEnabled="{Binding NotificationsEnabled}"
+                                          AutomationProperties.Name="Temperature warnings"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -1956,7 +1991,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding CorsairIntegrationEnabled}"/>
+                                          IsChecked="{Binding CorsairIntegrationEnabled}"
+                                          AutomationProperties.Name="Corsair iCUE Integration"/>
                         </Grid>
 
                         <!-- Logitech Integration -->
@@ -1973,7 +2009,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding LogitechIntegrationEnabled}"/>
+                                          IsChecked="{Binding LogitechIntegrationEnabled}"
+                                          AutomationProperties.Name="Logitech G HUB Integration"/>
                         </Grid>
 
                         <!-- Game Profiles -->
@@ -1990,7 +2027,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding GameProfilesEnabled}"/>
+                                          IsChecked="{Binding GameProfilesEnabled}"
+                                          AutomationProperties.Name="Game Profile Auto-Switching"/>
                         </Grid>
 
                         <!-- Keyboard Lighting -->
@@ -2007,7 +2045,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding KeyboardLightingEnabled}"/>
+                                          IsChecked="{Binding KeyboardLightingEnabled}"
+                                          AutomationProperties.Name="Keyboard Backlight Control"/>
                         </Grid>
                         
                         <!-- Ambient Lighting (Screen Color Sampling) -->
@@ -2026,7 +2065,8 @@
                                     </StackPanel>
                                     <ToggleButton Grid.Column="1" 
                                                   Style="{StaticResource ModernToggleButton}"
-                                                  IsChecked="{Binding AmbientLightingEnabled}"/>
+                                                  IsChecked="{Binding AmbientLightingEnabled}"
+                                                  AutomationProperties.Name="🌈 Ambient Lighting"/>
                                 </Grid>
                                 
                                 <!-- Saturation Slider -->
@@ -2109,7 +2149,8 @@
                                     <ToggleButton Grid.Column="1" 
                                                   Style="{StaticResource ModernToggleButton}"
                                                   IsChecked="{Binding ExperimentalEcKeyboardEnabled}"
-                                                  VerticalAlignment="Center"/>
+                                                  VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Force EC Keyboard Writes"/>
                                 </Grid>
                                 
                                 <!-- Exclusive EC Diagnostics -->
@@ -2129,7 +2170,8 @@
                                     <ToggleButton Grid.Column="1" 
                                                   Style="{StaticResource ModernToggleButton}"
                                                   IsChecked="{Binding ExclusiveEcAccessDiagnosticsEnabled}"
-                                                  VerticalAlignment="Center"/>
+                                                  VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Exclusive EC Diagnostics"/>
                                 </Grid>
                                 
                                 <!-- Keyboard Backend Selector -->
@@ -2168,7 +2210,8 @@
                                     <ToggleButton Grid.Column="1" 
                                                   Style="{StaticResource ModernToggleButton}"
                                                   IsChecked="{Binding InvertRgbZoneOrder}"
-                                                  VerticalAlignment="Center"/>
+                                                  VerticalAlignment="Center"
+                                                  AutomationProperties.Name="Invert RGB Zone Order"/>
                                 </Grid>
                                 
                                 <TextBlock Text="💡 Safe alternative: Use HP Omen Gaming Hub for keyboard lighting" 
@@ -2191,7 +2234,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding FanCurvesEnabled}"/>
+                                          IsChecked="{Binding FanCurvesEnabled}"
+                                          AutomationProperties.Name="Custom Fan Curves"/>
                         </Grid>
 
                         <!-- Power Automation -->
@@ -2208,7 +2252,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding FeaturePowerAutomationEnabled}"/>
+                                          IsChecked="{Binding FeaturePowerAutomationEnabled}"
+                                          AutomationProperties.Name="Power Source Automation"/>
                         </Grid>
 
                         <!-- GPU Switching -->
@@ -2225,7 +2270,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding GpuSwitchingEnabled}"/>
+                                          IsChecked="{Binding GpuSwitchingEnabled}"
+                                          AutomationProperties.Name="GPU Mode Switching"/>
                         </Grid>
 
                         <!-- Undervolt -->
@@ -2242,7 +2288,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding UndervoltEnabled}"/>
+                                          IsChecked="{Binding UndervoltEnabled}"
+                                          AutomationProperties.Name="CPU Undervolt Controls"/>
                         </Grid>
 
                         <!-- OMEN Key Section -->
@@ -2341,7 +2388,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding OsdEnabled}"/>
+                                          IsChecked="{Binding OsdEnabled}"
+                                          AutomationProperties.Name="Enable OSD Overlay"/>
                         </Grid>
 
                         <Border Background="#1A6B4C9A" CornerRadius="8" Padding="16" 
@@ -2613,7 +2661,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding BatteryChargeLimitEnabled}"/>
+                                          IsChecked="{Binding BatteryChargeLimitEnabled}"
+                                          AutomationProperties.Name="Enable Charge Limit"/>
                         </Grid>
 
                         <!-- Charge Threshold Slider (shown when enabled) -->
@@ -2688,7 +2737,8 @@
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
-                                          IsChecked="{Binding FanHysteresisEnabled}"/>
+                                          IsChecked="{Binding FanHysteresisEnabled}"
+                                          AutomationProperties.Name="Enable Hysteresis"/>
                         </Grid>
 
                         <Border Background="#1A6B4C9A" CornerRadius="8" Padding="16" 

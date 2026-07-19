@@ -34,6 +34,15 @@ namespace OmenCore.Models
         public string? ExecutablePath { get; set; }
 
         /// <summary>
+        /// Optional: substring (case-insensitive) that must appear in the process's main window title
+        /// for this profile to match. Disambiguates multiple profiles that share the same executable
+        /// (e.g. a common launcher/emulator/runtime hosting different games under one process name).
+        /// When set, a process whose window title doesn't contain this text will not match this profile
+        /// even if the executable name matches.
+        /// </summary>
+        public string? WindowTitleContains { get; set; }
+
+        /// <summary>
         /// Fan preset to apply when game launches.
         /// </summary>
         public string? FanPresetName { get; set; }
@@ -132,6 +141,7 @@ namespace OmenCore.Models
                 Name = $"{Name} (Copy)",
                 ExecutableName = ExecutableName,
                 ExecutablePath = ExecutablePath,
+                WindowTitleContains = WindowTitleContains,
                 IsEnabled = IsEnabled,
                 FanPresetName = FanPresetName,
                 PerformanceModeName = PerformanceModeName,
@@ -169,43 +179,59 @@ namespace OmenCore.Models
         /// <summary>
         /// Checks if this profile matches a given process.
         /// </summary>
-        public bool MatchesProcess(string processName, string? processPath = null)
+        public bool MatchesProcess(string processName, string? processPath = null, string? windowTitle = null)
         {
-            return GetProcessMatchScore(processName, processPath) > 0;
+            return GetProcessMatchScore(processName, processPath, windowTitle) > 0;
         }
 
         /// <summary>
-        /// Returns a match strength for profile conflict resolution.
-        /// 0 = no match, 1 = executable-name match, 2 = exact executable-path match.
+        /// Returns a match strength for profile conflict resolution: 0 = no match, 1 = executable-name
+        /// match, +1 for an exact executable-path match, +2 for a <see cref="WindowTitleContains"/> match.
+        /// A profile with <see cref="WindowTitleContains"/> configured requires the title to match — this
+        /// is what lets two profiles sharing the same executable (a launcher/emulator/runtime hosting
+        /// different games) resolve to the right one instead of a coin-flip on registration order.
         /// </summary>
-        public int GetProcessMatchScore(string processName, string? processPath = null)
+        public int GetProcessMatchScore(string processName, string? processPath = null, string? windowTitle = null)
         {
             if (!IsEnabled) return 0;
 
-            // Exact executable name match (case-insensitive)
+            // Exact executable name match (case-insensitive), tolerant of optional ".exe" suffix
             var normalizedProcess = NormalizeExecutableName(processName);
             var normalizedProfile = NormalizeExecutableName(ExecutableName);
 
-            // Exact executable name match (case-insensitive), tolerant of optional ".exe" suffix
-            if (!string.IsNullOrEmpty(normalizedProfile) &&
-                string.Equals(normalizedProcess, normalizedProfile, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(normalizedProfile) ||
+                !string.Equals(normalizedProcess, normalizedProfile, StringComparison.OrdinalIgnoreCase))
             {
-                // If path is specified, verify it matches too
-                if (!string.IsNullOrWhiteSpace(ExecutablePath))
-                {
-                    if (string.IsNullOrWhiteSpace(processPath))
-                    {
-                        return 0;
-                    }
-
-                    return string.Equals(processPath, ExecutablePath, StringComparison.OrdinalIgnoreCase)
-                        ? 2
-                        : 0;
-                }
-                return 1;
+                return 0;
             }
 
-            return 0;
+            // If a path is specified, it must match exactly.
+            var pathMatched = !string.IsNullOrWhiteSpace(ExecutablePath);
+            if (pathMatched)
+            {
+                if (string.IsNullOrWhiteSpace(processPath) ||
+                    !string.Equals(processPath, ExecutablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return 0;
+                }
+            }
+
+            // If a window-title disambiguator is configured, it must match too.
+            var titleMatched = false;
+            if (!string.IsNullOrWhiteSpace(WindowTitleContains))
+            {
+                if (string.IsNullOrWhiteSpace(windowTitle) ||
+                    windowTitle.IndexOf(WindowTitleContains, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    return 0;
+                }
+                titleMatched = true;
+            }
+
+            var score = 1;
+            if (pathMatched) score += 1;
+            if (titleMatched) score += 2;
+            return score;
         }
     }
 }

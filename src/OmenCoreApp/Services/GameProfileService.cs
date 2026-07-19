@@ -302,6 +302,57 @@ namespace OmenCore.Services
             }
         }
 
+        /// <summary>
+        /// Finds the best-scoring enabled profile for a single observed process, using window title
+        /// as a tie-breaker/disambiguator (see <see cref="GameProfile.WindowTitleContains"/>).
+        /// </summary>
+        private GameProfile? FindMatchingProfile(ProcessInfo process)
+        {
+            return _profiles
+                .Select(p => new
+                {
+                    Profile = p,
+                    MatchScore = p.GetProcessMatchScore(process.ProcessName, process.ExecutablePath, process.WindowTitle)
+                })
+                .Where(match => match.MatchScore > 0)
+                .OrderByDescending(match => match.MatchScore)
+                .ThenByDescending(match => match.Profile.Priority)
+                .Select(match => match.Profile)
+                .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Finds the best-scoring profile across a set of still-running processes — used to pick a
+        /// replacement profile when the currently active game exits but another tracked game is still
+        /// running, instead of unconditionally falling back to defaults.
+        /// </summary>
+        private (GameProfile Profile, ProcessInfo Process)? FindBestMatchingProfile(IEnumerable<ProcessInfo> processes)
+        {
+            GameProfile? bestProfile = null;
+            ProcessInfo? bestProcess = null;
+            var bestScore = 0;
+
+            foreach (var process in processes)
+            {
+                foreach (var profile in _profiles)
+                {
+                    var score = profile.GetProcessMatchScore(process.ProcessName, process.ExecutablePath, process.WindowTitle);
+                    if (score <= 0) continue;
+
+                    if (bestProfile == null ||
+                        score > bestScore ||
+                        (score == bestScore && profile.Priority > bestProfile.Priority))
+                    {
+                        bestProfile = profile;
+                        bestProcess = process;
+                        bestScore = score;
+                    }
+                }
+            }
+
+            return bestProfile != null && bestProcess != null ? (bestProfile, bestProcess) : null;
+        }
+
         private void OnProcessDetected(object? sender, ProcessDetectedEventArgs e)
         {
             if (!IsAutomationEnabled)
@@ -309,62 +360,71 @@ namespace OmenCore.Services
                 return;
             }
 
-            // Find matching profile (by priority if multiple match)
-            var matchingProfiles = _profiles
-                .Select(p => new
-                {
-                    Profile = p,
-                    MatchScore = p.GetProcessMatchScore(e.ProcessInfo.ProcessName, e.ProcessInfo.ExecutablePath)
-                })
-                .Where(match => match.MatchScore > 0)
-                .OrderByDescending(match => match.MatchScore)
-                .ThenByDescending(match => match.Profile.Priority)
-                .Select(match => match.Profile)
-                .ToList();
-
-            if (matchingProfiles.Any())
+            var profile = FindMatchingProfile(e.ProcessInfo);
+            if (profile == null)
             {
-                var profile = matchingProfiles.First();
-
-                if (ActiveProfile?.Id == profile.Id)
-                {
-                    _logging.Debug($"Profile '{profile.Name}' is already active for {e.ProcessInfo.ProcessName}; skipping duplicate apply");
-                    return;
-                }
-
-                if (ActiveProfile != null)
-                {
-                    // Stop timing previous profile
-                    RecordPlaytime(ActiveProfile);
-                }
-
-                ActiveProfile = profile;
-                _lastExitedProfile = null;
-                _activeProfileStartTime = DateTime.Now;
-                profile.LaunchCount++;
-
-                _logging.Info($"Auto-activated profile '{profile.Name}' for {e.ProcessInfo.ProcessName}");
-
-                // Trigger settings application
-                ProfileApplyRequested?.Invoke(this, new ProfileApplyEventArgs(profile, ProfileTrigger.GameLaunch));
+                return;
             }
+
+            if (ActiveProfile?.Id == profile.Id)
+            {
+                _logging.Debug($"Profile '{profile.Name}' is already active for {e.ProcessInfo.ProcessName}; skipping duplicate apply");
+                return;
+            }
+
+            if (ActiveProfile != null)
+            {
+                // Stop timing previous profile
+                RecordPlaytime(ActiveProfile);
+            }
+
+            ActiveProfile = profile;
+            _lastExitedProfile = null;
+            _activeProfileStartTime = DateTime.Now;
+            profile.LaunchCount++;
+
+            _logging.Info($"Auto-activated profile '{profile.Name}' for {e.ProcessInfo.ProcessName}");
+
+            // Trigger settings application
+            ProfileApplyRequested?.Invoke(this, new ProfileApplyEventArgs(profile, ProfileTrigger.GameLaunch));
         }
 
         private void OnProcessExited(object? sender, ProcessExitedEventArgs e)
         {
             // Check if the exited process was our active profile
-            if (ActiveProfile != null && ActiveProfile.MatchesProcess(e.ProcessInfo.ProcessName, e.ProcessInfo.ExecutablePath))
+            if (ActiveProfile == null ||
+                !ActiveProfile.MatchesProcess(e.ProcessInfo.ProcessName, e.ProcessInfo.ExecutablePath, e.ProcessInfo.WindowTitle))
             {
-                var exitedProfile = ActiveProfile;
-                RecordPlaytime(ActiveProfile);
-                _logging.Info($"Profile '{ActiveProfile.Name}' deactivated (game closed, playtime: {e.Runtime:hh\\:mm\\:ss})");
-
-                _lastExitedProfile = exitedProfile;
-                ActiveProfile = null;
-
-                // Trigger restore defaults
-                ProfileApplyRequested?.Invoke(this, new ProfileApplyEventArgs(null, ProfileTrigger.GameExit, exitedProfile));
+                return;
             }
+
+            var exitedProfile = ActiveProfile;
+            RecordPlaytime(ActiveProfile);
+            _logging.Info($"Profile '{ActiveProfile.Name}' deactivated (game closed, playtime: {e.Runtime:hh\\:mm\\:ss})");
+
+            _lastExitedProfile = exitedProfile;
+            ActiveProfile = null;
+
+            // If another tracked game is still running (multiple simultaneously-tracked games), switch
+            // to its profile instead of unconditionally restoring defaults.
+            var remaining = FindBestMatchingProfile(
+                _processMonitor.ActiveProcesses.Values.Where(p => p.ProcessId != e.ProcessInfo.ProcessId));
+
+            if (remaining != null)
+            {
+                var (nextProfile, sourceProcess) = remaining.Value;
+                ActiveProfile = nextProfile;
+                _lastExitedProfile = null;
+                _activeProfileStartTime = DateTime.Now;
+                nextProfile.LaunchCount++;
+
+                _logging.Info($"Profile '{exitedProfile.Name}' exited; switching to still-running '{nextProfile.Name}' ({sourceProcess.ProcessName})");
+                ProfileApplyRequested?.Invoke(this, new ProfileApplyEventArgs(nextProfile, ProfileTrigger.GameLaunch));
+                return;
+            }
+
+            // No other tracked game running — trigger restore defaults
+            ProfileApplyRequested?.Invoke(this, new ProfileApplyEventArgs(null, ProfileTrigger.GameExit, exitedProfile));
         }
 
         private void RecordPlaytime(GameProfile profile)

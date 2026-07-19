@@ -707,11 +707,12 @@
                                                            VerticalAlignment="Center" 
                                                            Width="60"/>
                                                 
-                                                <Slider Grid.Column="1" 
-                                                        Minimum="400" Maximum="18000" 
-                                                        TickFrequency="100" 
+                                                <Slider Grid.Column="1"
+                                                        Minimum="400" Maximum="18000"
+                                                        TickFrequency="100"
                                                         Value="{Binding Dpi}"
-                                                        Margin="12,0"/>
+                                                        Margin="12,0"
+                                                        AutomationProperties.Name="{Binding Name, StringFormat={}{0} DPI stage}"/>
                                                 
                                                 <TextBlock Grid.Column="2" 
                                                            Text="{Binding Dpi, StringFormat={}{0} DPI}" 
@@ -736,7 +737,8 @@
                                                   SelectedItem="{Binding SelectedCorsairDpiProfile}"
                                                   DisplayMemberPath="Name"
                                                   Width="220" Margin="0,0,8,0"
-                                                  ToolTip="Select a saved DPI profile (Save with same name will prompt to overwrite)"/>
+                                                  ToolTip="Select a saved DPI profile (Save with same name will prompt to overwrite)"
+                                                  AutomationProperties.Name="Saved DPI profile selection"/>
 
                                         <Button Content="Save Profile" Style="{StaticResource ModernButton}" Command="{Binding SaveCorsairDpiProfileCommand}" Padding="12,6" Margin="0,0,8,0" ToolTip="Save current DPI stages as a profile"/>
                                         <Button Content="Apply Profile" Style="{StaticResource ModernButton}" Command="{Binding ApplyCorsairDpiProfileCommand}" Padding="12,6" Margin="0,0,8,0" ToolTip="Apply selected DPI profile to current stages"/>
@@ -891,24 +893,27 @@
                                 <TextBlock Text="Red" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding LogitechRedValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding LogitechRedValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Logitech color red value"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2" Margin="0,0,8,0">
                                 <TextBlock Text="Green" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding LogitechGreenValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding LogitechGreenValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Logitech color green value"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="3" Margin="0,0,8,0">
                                 <TextBlock Text="Blue" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding LogitechBlueValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding LogitechBlueValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Logitech color blue value"/>
                             </StackPanel>
                             
                             <Button Grid.Column="5" 
@@ -1039,24 +1044,27 @@
                                 <TextBlock Text="Red" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding RazerRedValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding RazerRedValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Razer color red value"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="2" Margin="0,0,8,0">
                                 <TextBlock Text="Green" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding RazerGreenValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding RazerGreenValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Razer color green value"/>
                             </StackPanel>
                             
                             <StackPanel Grid.Column="3" Margin="0,0,8,0">
                                 <TextBlock Text="Blue" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" 
                                            Margin="0,0,0,4"/>
-                                <TextBox Text="{Binding RazerBlueValue, UpdateSourceTrigger=PropertyChanged}" 
-                                         FontSize="14"/>
+                                <TextBox Text="{Binding RazerBlueValue, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="14"
+                                         AutomationProperties.Name="Razer color blue value"/>
                             </StackPanel>
                             
                             <Button Grid.Column="5" 
@@ -1474,19 +1482,21 @@
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        VerticalAlignment="Center" Margin="0,0,12,0"/>
                             
-                            <ComboBox Grid.Column="1" 
+                            <ComboBox Grid.Column="1"
                                       Style="{StaticResource ModernComboBox}"
                                       ItemsSource="{Binding KeyboardPresets}"
                                       SelectedItem="{Binding SelectedKeyboardPreset}"
                                       DisplayMemberPath="Name"
-                                      Margin="0,0,12,0"/>
-                            
-                            <Button Grid.Column="2" 
-                                    Content="Apply to Keyboard" 
+                                      Margin="0,0,12,0"
+                                      AutomationProperties.Name="Keyboard lighting preset selection"/>
+
+                            <Button Grid.Column="2"
+                                    Content="Apply to Keyboard"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding ApplyKeyboardColorsCommand}"
                                     Padding="16,8"
-                                    Margin="0,0,8,0"/>
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Apply zone colors to keyboard"/>
                             
                             <Button Grid.Column="3" 
                                     Content="All Same Color" 
@@ -1515,10 +1525,11 @@
                                                Margin="0,2,0,0"/>
                                 </StackPanel>
                                 
-                                <ToggleButton Grid.Column="1" 
+                                <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding ApplyKeyboardColorsOnStartup, Mode=TwoWay}"
                                               Style="{StaticResource ModernToggleButton}"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center"
+                                              AutomationProperties.Name="Apply keyboard colors on startup"/>
                             </Grid>
                         </Border>
 
@@ -1567,7 +1578,8 @@
                                                 Command="{Binding FillAllPerKeyCommand}" Padding="12,6" Margin="0,0,8,0"/>
                                         <Button Grid.Column="5" Content="Apply to Keyboard"
                                                 Style="{StaticResource ModernButton}"
-                                                Command="{Binding ApplyPerKeyLightingCommand}" Padding="16,6"/>
+                                                Command="{Binding ApplyPerKeyLightingCommand}" Padding="16,6"
+                                                AutomationProperties.Name="Apply per-key colors to keyboard"/>
                                     </Grid>
                                     <!-- Key grid -->
                                     <Border Background="#0D0D0D" CornerRadius="8" Padding="8"
@@ -1646,7 +1658,8 @@
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding TemperatureResponsiveLightingEnabled, Mode=TwoWay}"
                                               Style="{StaticResource ModernToggleButton}"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center"
+                                              AutomationProperties.Name="Enable temperature-responsive lighting"/>
                             </Grid>
                         </Border>
 
@@ -1744,7 +1757,8 @@
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding PerformanceModeSyncedLightingEnabled, Mode=TwoWay}"
                                               Style="{StaticResource ModernToggleButton}"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center"
+                                              AutomationProperties.Name="Enable performance mode synced lighting"/>
                             </Grid>
                         </Border>
 
@@ -1825,7 +1839,8 @@
                                 <ToggleButton Grid.Column="1"
                                               IsChecked="{Binding ThrottlingIndicatorLightingEnabled, Mode=TwoWay}"
                                               Style="{StaticResource ModernToggleButton}"
-                                              VerticalAlignment="Center"/>
+                                              VerticalAlignment="Center"
+                                              AutomationProperties.Name="Enable throttling indicator lighting"/>
                             </Grid>
                         </Border>
 
@@ -1885,12 +1900,13 @@
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        VerticalAlignment="Center" Margin="0,0,12,0"/>
                             
-                            <ComboBox Grid.Column="1" 
+                            <ComboBox Grid.Column="1"
                                       Style="{StaticResource ModernComboBox}"
                                       ItemsSource="{Binding MacroProfiles}"
                                       SelectedItem="{Binding SelectedMacroProfile}"
                                       DisplayMemberPath="ProfileName"
-                                      Margin="0,0,12,0"/>
+                                      Margin="0,0,12,0"
+                                      AutomationProperties.Name="Macro profile selection"/>
                             
                             <Button Grid.Column="2" 
                                     Content="Load Profile" 

@@ -114,6 +114,71 @@ public class GameProfileServiceTests : IDisposable
         exitArgs.ExitedProfile!.RestoreDefaultsOnExit.Should().BeFalse();
     }
 
+    [Fact]
+    public void ProcessDetected_DisambiguatesSameExecutable_ByWindowTitle()
+    {
+        using var service = CreateService(out _);
+        var modpackA = service.CreateProfile("Modpack A", "javaw.exe");
+        modpackA.WindowTitleContains = "Modpack A";
+        var modpackB = service.CreateProfile("Modpack B", "javaw.exe");
+        modpackB.WindowTitleContains = "Modpack B";
+
+        InvokeProcessDetected(service, "javaw", windowTitle: "Minecraft 1.20.1 - Modpack B");
+
+        service.ActiveProfile.Should().BeSameAs(modpackB);
+        modpackB.LaunchCount.Should().Be(1);
+        modpackA.LaunchCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ProcessExited_SwitchesToStillRunningTrackedGame_InsteadOfRestoringDefaults()
+    {
+        using var service = CreateService(out var monitor);
+        var first = service.CreateProfile("First Game", "first.exe");
+        var second = service.CreateProfile("Second Game", "second.exe");
+
+        // Second game is already running alongside the first when the first exits.
+        monitor.ActiveProcesses[2222] = new ProcessInfo
+        {
+            ProcessId = 2222,
+            ProcessName = "second",
+            ExecutablePath = string.Empty,
+            StartTime = DateTime.Now
+        };
+
+        InvokeProcessDetected(service, "first");
+        service.ActiveProfile.Should().BeSameAs(first);
+
+        ProfileApplyEventArgs? applyArgs = null;
+        service.ProfileApplyRequested += (_, args) => applyArgs = args;
+
+        InvokeProcessExited(service, "first");
+
+        service.ActiveProfile.Should().BeSameAs(second);
+        second.LaunchCount.Should().Be(1);
+        applyArgs.Should().NotBeNull();
+        applyArgs!.Trigger.Should().Be(ProfileTrigger.GameLaunch);
+        applyArgs.Profile.Should().BeSameAs(second);
+    }
+
+    [Fact]
+    public void ProcessExited_RestoresDefaults_WhenNoOtherTrackedGameIsRunning()
+    {
+        using var service = CreateService(out _);
+        service.CreateProfile("Only Game", "only.exe");
+
+        InvokeProcessDetected(service, "only");
+
+        ProfileApplyEventArgs? applyArgs = null;
+        service.ProfileApplyRequested += (_, args) => applyArgs = args;
+
+        InvokeProcessExited(service, "only");
+
+        service.ActiveProfile.Should().BeNull();
+        applyArgs.Should().NotBeNull();
+        applyArgs!.Trigger.Should().Be(ProfileTrigger.GameExit);
+    }
+
     private static GameProfileService CreateService(out ProcessMonitoringService monitor)
     {
         var logging = new LoggingService();
@@ -122,7 +187,7 @@ public class GameProfileServiceTests : IDisposable
         return new GameProfileService(logging, monitor, config);
     }
 
-    private static void InvokeProcessDetected(GameProfileService service, string processName, string executablePath = "")
+    private static void InvokeProcessDetected(GameProfileService service, string processName, string executablePath = "", string? windowTitle = null, int processId = 0)
     {
         InvokePrivate(
             service,
@@ -134,12 +199,14 @@ public class GameProfileServiceTests : IDisposable
                 {
                     ProcessName = processName,
                     ExecutablePath = executablePath,
+                    WindowTitle = windowTitle ?? string.Empty,
+                    ProcessId = processId,
                     StartTime = DateTime.Now
                 })
             });
     }
 
-    private static void InvokeProcessExited(GameProfileService service, string processName, string executablePath = "")
+    private static void InvokeProcessExited(GameProfileService service, string processName, string executablePath = "", string? windowTitle = null, int processId = 0)
     {
         InvokePrivate(
             service,
@@ -151,6 +218,8 @@ public class GameProfileServiceTests : IDisposable
                 {
                     ProcessName = processName,
                     ExecutablePath = executablePath,
+                    WindowTitle = windowTitle ?? string.Empty,
+                    ProcessId = processId,
                     StartTime = DateTime.Now.AddMinutes(-5)
                 }, TimeSpan.FromMinutes(5))
             });
