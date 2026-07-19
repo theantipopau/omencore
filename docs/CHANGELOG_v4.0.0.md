@@ -113,7 +113,7 @@ Effectively complete. The only open Phase A item is the stale-OSD-fan-mode repor
 
 ## Phase B — Architecture Cleanup
 
-All four of Phase B's items were touched this cycle: timer consolidation got a corrected audit plus a real, tested, live-verified first migration; sync-over-async got a full audit with nothing safe to change in isolation; `MainViewModel` decomposition is now well underway — 19 fields/units DI-seeded (18 services plus `HardwareBringup` itself), the hardware bring-up sequence extracted into its own class as a prerequisite for the remaining ~22 fields, and `MainViewModel.cs` down to 5,114 lines from its original 5,333 (partly from this work, partly from the dead-undervolt-UI removal below). One item (Authenticode signature check) is still blocked on code signing existing first (Phase C) and untouched.
+Three of Phase B's four items were worked this cycle: timer consolidation got a corrected audit plus a real, tested, live-verified first migration; sync-over-async got a full audit with nothing safe to change in isolation; `MainViewModel` decomposition is now well underway — 19 fields/units DI-seeded (18 services plus `HardwareBringup` itself), the hardware bring-up sequence extracted into its own class as a prerequisite for the remaining ~22 fields, and `MainViewModel.cs` down to 5,114 lines from its original 5,333 (partly from this work, partly from the dead-undervolt-UI removal below). The fourth item (Authenticode signature check) remains blocked on code signing existing first (Phase C) and is untouched.
 
 ### Timer Consolidation: Corrected the Audit, Then Built and Shipped the First Migration
 
@@ -179,7 +179,7 @@ Verified after every batch: full test suite (34/34 `MainViewModelTests`, then th
 
 ### Test Suite
 
-**948/948 passing** (up from the 913 baseline: +19 `BiosUpdateServiceTests`, +9 `PollingSchedulerTests`, +7 thermal-emergency-threshold tests), 0 build warnings across all four projects (`OmenCoreApp`, `OmenCore.Avalonia`, `OmenCore.Linux`, plus the test project). Held steady at 948/948 through every subsequent pass this cycle (5-field DI batch, `HardwareBringup` extraction, `HardwareBringup` DI wiring, accessibility passes) since none of that work added new behavior needing new test coverage. The `TrayIconService` migration was additionally verified by launching the real built app and observing live runtime behavior, not just the test suite.
+**953/953 passing** as of the end of this cycle (up from the 913 baseline: +19 `BiosUpdateServiceTests`, +9 `PollingSchedulerTests`, +7 thermal-emergency-threshold tests, +5 game-profile window-title/restore-previous tests), 0 build warnings across all projects (`OmenCoreApp`, `OmenCore.Avalonia`, `OmenCore.Linux`, `OmenCore.HardwareWorker`, plus the test project). The count held at 948/948 through the Phase B passes (5-field DI batch, `HardwareBringup` extraction, `HardwareBringup` DI wiring, accessibility passes — none added behavior needing new coverage) and moved to 953 with the Phase C game-profile work. The `TrayIconService` migration was additionally verified by launching the real built app and observing live runtime behavior, not just the test suite.
 
 ---
 
@@ -357,4 +357,4 @@ On a creation event, a newly-launched tracked process's window often doesn't exi
 
 ## Phase C / D — Everything Else
 
-Not started this cycle beyond the game-profile and accessibility items above. See `ROADMAP_v4.0.0.md`'s Execution Checklist for the full remaining scope (privilege separation, RGB provider architecture, i18n, and the hardware-gated items).
+Phase C items completed or advanced this cycle each have their own section above: the Avalonia live/dormant decision, the community model-database pipeline, first-run capability disclosure, AUR packaging (drafted), the configurable thermal emergency override, all three game-profile automation items, and the (still-partial) accessibility pass. What remains untouched: privilege separation, RGB provider architecture, i18n, Linux tray/config persistence, the code-signing decision, and every hardware-gated Phase D item except the completed string-matching safety-gate audit. See `ROADMAP_v4.0.0.md`'s Execution Checklist for authoritative per-item status.
