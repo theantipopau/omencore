@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>OmenCore — Local Control Center for HP OMEN &amp; Victus Laptops</title>
+<meta name="description" content="OmenCore is a free, open-source, local-first control center for HP OMEN and Victus gaming laptops. Fan curves, performance modes, multi-brand RGB, and monitoring — no telemetry, no bloat, no OMEN Gaming Hub required." />
+<meta name="theme-color" content="#08080a" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="OmenCore — Local Control Center for HP OMEN &amp; Victus Laptops" />
+<meta property="og:description" content="Fan curves, performance modes, multi-brand RGB, and monitoring for HP OMEN &amp; Victus laptops — free, open-source, local-first, no telemetry." />
+<meta property="og:image" content="assets/og-card.jpg" />
+<meta property="og:url" content="https://theantipopau.github.io/omencore/" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="OmenCore — Local Control Center for HP OMEN &amp; Victus Laptops" />
+<meta name="twitter:description" content="Free, open-source, local-first control center for HP OMEN &amp; Victus gaming laptops." />
+<meta name="twitter:image" content="assets/og-card.jpg" />
+
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/favicon-180.png" />
+<link rel="manifest" href="site.webmanifest" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main" style="position:absolute;left:-9999px;top:0;background:#fff;color:#000;padding:10px 16px;z-index:1000;">Skip to content</a>
+
+<!-- ============================== NAV ============================== -->
+<header class="nav" id="nav">
+  <div class="container">
+    <a href="#top" class="brand">
+      <img src="assets/icon-256.png" alt="" width="30" height="30" />
+      OmenCore
+      <small>v3.9.0</small>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features">Features</a>
+      <a href="#showcase">Preview</a>
+      <a href="#compare">Compare</a>
+      <a href="#download">Download</a>
+      <a href="#changelog">Changelog</a>
+      <a href="#community">Community</a>
+      <a href="#support">Support</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a class="gh-stat" href="https://github.com/theantipopau/omencore" target="_blank" rel="noopener" aria-label="Star OmenCore on GitHub">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+        <b id="starCount">★</b>
+      </a>
+      <button class="icon-btn theme-toggle" id="themeToggle" aria-label="Toggle color theme" type="button">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-panel" id="mobilePanel">
+  <a href="#features">Features</a>
+  <a href="#showcase">Preview</a>
+  <a href="#compare">Compare</a>
+  <a href="#download">Download</a>
+  <a href="#changelog">Changelog</a>
+  <a href="#community">Community</a>
+  <a href="#support">Support</a>
+  <a class="btn btn-primary btn-block" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download OmenCore</a>
+</div>
+
+<main id="main">
+
+<!-- ============================== HERO ============================== -->
+<section class="hero" id="top">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="hero-grid" aria-hidden="true"></div>
+  <picture>
+    <source srcset="assets/icon-640.webp" type="image/webp" />
+    <img class="hero-watermark" src="assets/icon-640.png" alt="" aria-hidden="true" loading="lazy" />
+  </picture>
+  <div class="container hero-inner">
+
+    <span class="hero-pill">
+      <span class="dot-live"></span>
+      v4.0.0 in active development — see the public roadmap
+    </span>
+
+    <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
+
+    <p class="hero-sub">
+      OmenCore is a free, open-source replacement for OMEN Gaming Hub — fan curves, performance modes,
+      multi-brand RGB, undervolting, and live monitoring, running 100% locally with no ads, accounts,
+      or telemetry by default.
+    </p>
+
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v13m0 0 5-5m-5 5-5-5M5 21h14"/></svg>
+        Download for Windows
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/theantipopau/omencore" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.98 5.24.98 11.52c0 5.02 3.26 9.28 7.78 10.78.57.1.78-.25.78-.55 0-.27-.01-1.16-.02-2.1-3.16.69-3.83-1.35-3.83-1.35-.52-1.32-1.26-1.67-1.26-1.67-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.74 2.65 1.23 3.3.94.1-.74.4-1.23.72-1.51-2.52-.29-5.17-1.26-5.17-5.62 0-1.24.44-2.26 1.17-3.05-.12-.29-.51-1.45.11-3.02 0 0 .96-.31 3.15 1.16.91-.25 1.89-.38 2.86-.38.97 0 1.95.13 2.86.38 2.18-1.47 3.14-1.16 3.14-1.16.63 1.57.24 2.73.12 3.02.73.79 1.16 1.81 1.16 3.05 0 4.37-2.65 5.33-5.18 5.61.41.36.77 1.06.77 2.14 0 1.55-.01 2.79-.01 3.17 0 .3.2.66.79.55 4.52-1.51 7.77-5.76 7.77-10.78C23.02 5.24 18.27.5 12 .5Z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="hero-meta">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No telemetry by default</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> MIT licensed &amp; open source</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Windows &amp; Linux</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> 2022+ OMEN &amp; Victus models</span>
+    </div>
+
+    <div class="hero-visual">
+      <div class="hero-frame">
+        <div class="frame-bar">
+          <span></span><span></span><span></span>
+          <span class="frame-title">OmenCore — General</span>
+        </div>
+        <div style="position:relative;">
+          <picture>
+            <source srcset="assets/main-window.webp" type="image/webp" />
+            <img src="assets/main-window.png" alt="OmenCore desktop application showing the General tab with quick performance profiles, live CPU/GPU stats, and system information" loading="eager" />
+          </picture>
+
+          <button class="hotspot" style="left:26.5%; top:31%;" type="button" aria-label="Quick Profiles">1
+            <span class="hotspot-tip"><strong>Quick Profiles</strong>One click to switch Performance, Balanced, Quiet, or a fully custom profile — fan curve and power mode together.</span>
+          </button>
+          <button class="hotspot" style="left:27.5%; top:52%;" type="button" aria-label="Live Monitoring">2
+            <span class="hotspot-tip"><strong>Live Monitoring</strong>Real CPU/GPU temperature, load, power draw, and fan RPM, sampled from WMI BIOS, NVAPI, and EC — refreshed continuously.</span>
+          </button>
+          <button class="hotspot" style="left:5.5%; top:32%;" type="button" aria-label="Quick Actions">3
+            <span class="hotspot-tip"><strong>Quick Actions</strong>Apply fan presets, lighting, and Gaming Mode from a persistent sidebar without hunting through tabs.</span>
+          </button>
+          <button class="hotspot" style="left:85%; top:52%;" type="button" aria-label="System Panel">4
+            <span class="hotspot-tip"><strong>System Panel</strong>RAM usage, active mode, and fan state at a glance — everything OMEN Gaming Hub buries, in one card.</span>
+          </button>
+          <button class="hotspot" style="left:65%; top:88%;" type="button" aria-label="Activity Log">5
+            <span class="hotspot-tip"><strong>Transparent Logging</strong>Every hardware write and mode change is logged in the open — no hidden background behavior.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================== STATS ============================== -->
+<section class="stats-strip">
+  <div class="container stats-grid reveal-stagger" id="statsGrid">
+    <div class="stat">
+      <div class="num"><span class="count-up" data-target="0">0</span></div>
+      <div class="label">Background services</div>
+    </div>
+    <div class="stat">
+      <div class="num"><span class="count-up" data-target="12">0</span><span class="unit">+</span></div>
+      <div class="label">Core control modules</div>
+    </div>
+    <div class="stat">
+      <div class="num"><span class="count-up" data-target="950">0</span><span class="unit">+</span></div>
+      <div class="label">Automated tests</div>
+    </div>
+    <div class="stat">
+      <div class="num"><span class="count-up" data-target="3">0</span></div>
+      <div class="label">RGB brands supported</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FEATURES ============================== -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Core Features</span>
+      <h2>Everything OMEN Gaming Hub does — and a lot it doesn't</h2>
+      <p>Thermal management, performance tuning, RGB lighting, monitoring, and system cleanup, all in one lightweight app.</p>
+    </div>
+
+    <div class="feature-grid reveal-stagger">
+      <div class="feature-card">
+        <div class="feature-icon">❄️</div>
+        <h3>Thermal Management</h3>
+        <p>Independent CPU/GPU fan curves, Max/Auto/Silent presets, hysteresis smoothing, and a configurable thermal emergency override.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Performance Tuning</h3>
+        <p>Quiet, Balanced, Performance, and custom profiles with instant switching, GPU power boost, and Intel/AMD undervolting.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎨</div>
+        <h3>Multi-Brand RGB</h3>
+        <p>HP OMEN keyboard zones plus Corsair, Logitech, and Razer device integration from a single unified panel.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔥</div>
+        <h3>Live Monitoring</h3>
+        <p>CPU/GPU temperature, load, clocks, fan RPM, and power draw sampled from WMI BIOS, NVAPI, and EC — not a kernel driver.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💾</div>
+        <h3>Memory Optimizer</h3>
+        <p>Smart and Deep Clean modes, working-set trimming, standby memory purge, and configurable auto-clean thresholds.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎛️</div>
+        <h3>System Optimizer</h3>
+        <p>One-click Windows gaming tuning — power plans, background services, network settings, and startup apps, with registry backup.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔧</div>
+        <h3>Diagnostics</h3>
+        <p>Guided fan diagnostics, sensor health checks, and a one-click exportable bundle for support or bug reports.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎮</div>
+        <h3>Game Profiles</h3>
+        <p>Automatic per-game fan/performance/lighting profiles with window-title disambiguation and multi-game restore handling.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔋</div>
+        <h3>Battery &amp; Power</h3>
+        <p>AC/battery-aware profile switching, an 80% charge limiter, TCC offset control, and settings that persist across reboots.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖥️</div>
+        <h3>OSD &amp; Tray</h3>
+        <p>Click-through overlay, hotkey toasts, a quick-access popup, and live tray status — reach Max Fan in a single click.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🐧</div>
+        <h3>Linux Support</h3>
+        <p>A full Avalonia GUI and CLI with an automatic fan-control daemon and TOML configuration — feature parity with Windows.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Privacy First</h3>
+        <p>Telemetry is opt-in and local-only when enabled — no account, no ads, no cloud dependency, ever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SHOWCASE / COMPARE ============================== -->
+<section class="compare" id="compare">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Why Switch</span>
+      <h2>OmenCore vs. OMEN Gaming Hub</h2>
+      <p>Same hardware, a lot less overhead.</p>
+    </div>
+
+    <div class="compare-wrap reveal">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th class="col-omen">OmenCore</th>
+            <th>OMEN Gaming Hub</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Background services</td><td class="col-omen"><span class="check">✓</span> None</td><td>3–5 services</td></tr>
+          <tr><td>Telemetry &amp; data collection</td><td class="col-omen"><span class="check">✓</span> Opt-in, local only</td><td>Always active</td></tr>
+          <tr><td>Independent CPU/GPU fan curves</td><td class="col-omen"><span class="check">✓</span> Yes</td><td><span class="cross">✕</span> No</td></tr>
+          <tr><td>Memory optimizer</td><td class="col-omen"><span class="check">✓</span> Built-in</td><td><span class="cross">✕</span> No</td></tr>
+          <tr><td>MSI Afterburner coexistence</td><td class="col-omen"><span class="check">✓</span> Yes</td><td>Conflicts</td></tr>
+          <tr><td>Multi-brand RGB support</td><td class="col-omen"><span class="check">✓</span> Corsair, Logitech, Razer</td><td>HP only</td></tr>
+          <tr><td>Linux support</td><td class="col-omen"><span class="check">✓</span> GUI + CLI</td><td><span class="cross">✕</span> No</td></tr>
+          <tr><td>System optimizer</td><td class="col-omen"><span class="check">✓</span> One-click</td><td><span class="cross">✕</span> No</td></tr>
+          <tr><td>Source code</td><td class="col-omen"><span class="check">✓</span> Open (MIT)</td><td>Closed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== PLATFORMS ============================== -->
+<section class="platforms" id="showcase">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Everywhere You Game</span>
+      <h2>Built for Windows, at home on Linux too</h2>
+      <p>The same control surface, tuned for each platform's conventions.</p>
+    </div>
+
+    <div class="platform-grid reveal-stagger">
+      <div class="platform-card featured">
+        <span class="plat-icon">🪟</span>
+        <h3>Windows 10 / 11</h3>
+        <p>The full WPF desktop app — every feature above, self-contained with an embedded .NET runtime.</p>
+        <ul class="plat-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Installer or portable ZIP — no separate .NET install required</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Auto-detects your model's capabilities on first launch</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Runs elevated for direct EC/WMI hardware access</li>
+        </ul>
+        <a class="btn btn-primary btn-sm" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Get the Windows build</a>
+      </div>
+      <div class="platform-card">
+        <span class="plat-icon">🐧</span>
+        <h3>Linux</h3>
+        <p>A native Avalonia GUI plus a CLI and systemd daemon, for the same fan/thermal control headless or on the desktop.</p>
+        <ul class="plat-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> <code>omencore-gui</code> and <code>omencore-cli</code>, self-contained builds</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Automatic fan-control daemon with TOML config</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> hp-wmi / ec_sys / sysfs backed, no proprietary drivers</li>
+        </ul>
+        <a class="btn btn-outline btn-sm" href="https://github.com/theantipopau/omencore/blob/main/docs/LINUX_INSTALL_GUIDE.md" target="_blank" rel="noopener">Linux install guide</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== DOWNLOAD ============================== -->
+<section class="download" id="download">
+  <div class="container">
+    <div class="download-card reveal">
+      <div>
+        <div class="download-version">Latest release <b id="latestVersion">v3.9.0</b></div>
+        <h3>Get OmenCore</h3>
+        <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
+
+        <div class="tab-group" role="tablist" aria-label="Choose platform">
+          <button class="tab-btn is-active" data-tab="windows" role="tab" aria-selected="true" type="button">Windows</button>
+          <button class="tab-btn" data-tab="linux" role="tab" aria-selected="false" type="button">Linux</button>
+        </div>
+
+        <div class="tab-panel is-active" data-panel="windows">
+          <div class="download-actions">
+            <a class="btn btn-primary" id="downloadPrimary" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download Installer</a>
+            <a class="btn btn-outline" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Portable ZIP</a>
+          </div>
+          <div class="download-req">⚠️ Run the installer as Administrator — OmenCore needs elevated access for direct EC/WMI hardware control.</div>
+        </div>
+
+        <div class="tab-panel" data-panel="linux">
+          <div class="code-block">
+            <button class="copy-btn" type="button" data-copy="# Download the latest self-contained Linux build from GitHub Releases,&#10;# then run the CLI daemon or the omencore-gui binary directly.&#10;# Full steps: docs/LINUX_INSTALL_GUIDE.md">Copy</button>
+            <span># Download the latest self-contained Linux build from GitHub Releases,</span><br />
+            <span># then run the CLI daemon or the omencore-gui binary directly.</span><br />
+            <span># Full steps: docs/LINUX_INSTALL_GUIDE.md</span>
+          </div>
+          <div class="download-actions" style="margin-top:16px;">
+            <a class="btn btn-primary" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download Linux build</a>
+            <a class="btn btn-outline" href="https://github.com/theantipopau/omencore/blob/main/docs/LINUX_INSTALL_GUIDE.md" target="_blank" rel="noopener">Install guide</a>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <ul class="plat-list" style="gap:16px;">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No account or sign-in required</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No OMEN Gaming Hub dependency</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Unsigned binaries today — see the AV/SmartScreen FAQ before you install</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Every release is SHA256-verified and built from this public source</li>
+        </ul>
+        <a class="btn btn-ghost btn-sm" style="margin-top:18px;" href="https://github.com/theantipopau/omencore/blob/main/docs/ANTIVIRUS_FAQ.md" target="_blank" rel="noopener">Read the antivirus / SmartScreen FAQ →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CHANGELOG / TIMELINE ============================== -->
+<section class="timeline-section" id="changelog">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Release History</span>
+      <h2>Actively developed, in the open</h2>
+      <p>Every change is documented — no vague "bug fixes and improvements."</p>
+    </div>
+
+    <div class="timeline reveal">
+      <div class="timeline-item is-current">
+        <div class="timeline-head">
+          <span class="v">v4.0.0</span>
+          <span class="timeline-badge">In development</span>
+        </div>
+        <p>A sustainability-focused cycle: privilege-separation groundwork, a community-contributable model database, first-run capability disclosure, accessibility passes, and a running audit of tech debt — tracked live on the public roadmap.</p>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.0.0.md" target="_blank" rel="noopener">View the 4.0.0 roadmap →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v3.9.0</span>
+          <span class="timeline-badge muted">Current stable</span>
+        </div>
+        <p>UX-and-reliability focused — no fan/thermal/EC control behavior changes, just fixing day-to-day friction.</p>
+        <ul>
+          <li>Fixed a completely non-functional OMEN key action setting</li>
+          <li>Fixed game profiles that could be lost on a crash before saving</li>
+          <li>Fixed several previously-silent EC reset and crash-report failure paths</li>
+          <li>Low-contrast tray icon and new model support additions</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.9.0.md" target="_blank" rel="noopener">Full v3.9.0 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head"><span class="v">v3.8.2</span> <span class="timeline-badge muted">Patch</span></div>
+        <p>A same-day critical-hang fix: a named-pipe desync between the app and its out-of-process hardware worker could freeze and force-close OmenCore within seconds of launch on affected boards.</p>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.8.2.md" target="_blank" rel="noopener">Full v3.8.2 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head"><span class="v">v3.8.0</span> <span class="timeline-badge muted">Minor</span></div>
+        <p>A broad field-driven release covering model-specific fan fixes, GUI/accessibility polish, diagnostics clarity, and runtime optimization across multiple OMEN and Victus boards.</p>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.8.0.md" target="_blank" rel="noopener">Full v3.8.0 changelog →</a>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:44px;">
+      <a class="btn btn-outline" href="https://github.com/theantipopau/omencore/tree/main/docs" target="_blank" rel="noopener">Browse the full changelog archive</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== COMMUNITY ============================== -->
+<section class="community" id="community">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">Community</span>
+      <h2>Field-driven, not boardroom-driven</h2>
+      <p>Model support and fixes come from real hardware reports, tracked in the open.</p>
+    </div>
+
+    <div class="community-grid reveal-stagger">
+      <div class="community-card">
+        <div class="c-icon">💬</div>
+        <h3>Discord</h3>
+        <p>Report hardware quirks, request model support, and talk to the maintainer directly — most fixes in this project start here.</p>
+        <a class="btn btn-ghost btn-sm" href="https://discord.gg/9WhJdabGk8" target="_blank" rel="noopener">Join the Discord</a>
+      </div>
+      <div class="community-card">
+        <div class="c-icon">🐛</div>
+        <h3>GitHub Issues</h3>
+        <p>Found a bug or missing model? Open an issue with a diagnostics export — the built-in exporter does most of the work for you.</p>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/theantipopau/omencore/issues" target="_blank" rel="noopener">Open an issue</a>
+      </div>
+      <div class="community-card">
+        <div class="c-icon">🧩</div>
+        <h3>Model Database</h3>
+        <p>Submit a schema-validated capability entry for your laptop instead of waiting on a hand-written one — a validator checks the shape before review.</p>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/theantipopau/omencore/blob/main/docs/model-database/CONTRIBUTING_MODEL_DATABASE.md" target="_blank" rel="noopener">Contribute your model</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SUPPORT / DONATE ============================== -->
+<section class="support" id="support">
+  <div class="container">
+    <div class="support-card reveal">
+      <div class="c-icon">❤️</div>
+      <h2>Support independent development</h2>
+      <p>
+        OmenCore is free, open source, and has no paid tier, no ads, and no data to sell — it's built and
+        maintained in spare time, driven by field reports rather than a roadmap set by HP. If it's saved you
+        from OMEN Gaming Hub, a donation helps keep it that way.
+      </p>
+      <div class="support-actions">
+        <a class="btn btn-primary" href="https://www.paypal.com/donate/?business=XH8CKYF8T7EBU" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z"/></svg>
+          Donate via PayPal
+        </a>
+        <a class="btn btn-outline" href="https://github.com/theantipopau/omencore" target="_blank" rel="noopener">Star on GitHub instead</a>
+      </div>
+      <p class="support-note">100% optional. No feature is ever paywalled — donations just support hosting and development time.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="#top" class="brand">
+          <img src="assets/icon-256.png" alt="" width="30" height="30" />
+          OmenCore
+        </a>
+        <p>Local, open-source control for HP OMEN &amp; Victus gaming laptops. Not made by or endorsed by HP.</p>
+        <div class="footer-social">
+          <a class="icon-btn" href="https://github.com/theantipopau/omencore" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.73.5.98 5.24.98 11.52c0 5.02 3.26 9.28 7.78 10.78.57.1.78-.25.78-.55 0-.27-.01-1.16-.02-2.1-3.16.69-3.83-1.35-3.83-1.35-.52-1.32-1.26-1.67-1.26-1.67-1.03-.7.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1.01 1.74 2.65 1.23 3.3.94.1-.74.4-1.23.72-1.51-2.52-.29-5.17-1.26-5.17-5.62 0-1.24.44-2.26 1.17-3.05-.12-.29-.51-1.45.11-3.02 0 0 .96-.31 3.15 1.16.91-.25 1.89-.38 2.86-.38.97 0 1.95.13 2.86.38 2.18-1.47 3.14-1.16 3.14-1.16.63 1.57.24 2.73.12 3.02.73.79 1.16 1.81 1.16 3.05 0 4.37-2.65 5.33-5.18 5.61.41.36.77 1.06.77 2.14 0 1.55-.01 2.79-.01 3.17 0 .3.2.66.79.55 4.52-1.51 7.77-5.76 7.77-10.78C23.02 5.24 18.27.5 12 .5Z"/></svg>
+          </a>
+          <a class="icon-btn" href="https://discord.gg/9WhJdabGk8" target="_blank" rel="noopener" aria-label="Discord">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.32 4.9A19.8 19.8 0 0 0 15.6 3.4a.07.07 0 0 0-.08.04c-.2.37-.44.85-.6 1.23a18.3 18.3 0 0 0-5.84 0c-.16-.39-.4-.86-.61-1.23a.08.08 0 0 0-.08-.04 19.74 19.74 0 0 0-4.72 1.5.07.07 0 0 0-.03.03C1.16 9.3.42 13.55.78 17.75a.08.08 0 0 0 .03.06 19.9 19.9 0 0 0 6 3.05.08.08 0 0 0 .08-.03c.46-.64.87-1.31 1.23-2.02a.08.08 0 0 0-.04-.11 13.1 13.1 0 0 1-1.87-.9.08.08 0 0 1 0-.13c.13-.09.25-.19.37-.29a.07.07 0 0 1 .08 0c3.93 1.8 8.18 1.8 12.06 0a.07.07 0 0 1 .08 0c.12.1.24.2.37.29a.08.08 0 0 1 0 .13c-.6.34-1.22.65-1.87.9a.08.08 0 0 0-.04.11c.37.71.78 1.38 1.23 2.02a.08.08 0 0 0 .08.03 19.83 19.83 0 0 0 6.01-3.05.08.08 0 0 0 .03-.06c.44-4.85-.73-9.06-3.1-12.82a.06.06 0 0 0-.03-.03ZM8.68 15.2c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.21 0 2.17 1.1 2.15 2.42 0 1.34-.95 2.42-2.15 2.42Zm6.66 0c-1.18 0-2.15-1.08-2.15-2.42 0-1.33.95-2.42 2.15-2.42 1.21 0 2.17 1.1 2.15 2.42 0 1.34-.94 2.42-2.15 2.42Z"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#compare">Compare to Gaming Hub</a></li>
+          <li><a href="#download">Download</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.0.0.md" target="_blank" rel="noopener">Roadmap</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Community</h4>
+        <ul>
+          <li><a href="https://discord.gg/9WhJdabGk8" target="_blank" rel="noopener">Discord</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/issues" target="_blank" rel="noopener">Issues</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/model-database/CONTRIBUTING_MODEL_DATABASE.md" target="_blank" rel="noopener">Add your model</a></li>
+          <li><a href="https://www.paypal.com/donate/?business=XH8CKYF8T7EBU" target="_blank" rel="noopener">Donate</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/README.md" target="_blank" rel="noopener">Documentation</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/INSTALL.md" target="_blank" rel="noopener">Install guide</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ANTIVIRUS_FAQ.md" target="_blank" rel="noopener">Antivirus FAQ</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© <span id="year">2026</span> OmenCore. Not affiliated with or endorsed by HP Inc.</span>
+      <span class="footer-credit">Site built by <a href="https://matthurley.dev" target="_blank" rel="noopener">Matt Hurley</a></span>
+    </div>
+  </div>
+</footer>
+
+<button class="to-top" id="toTop" aria-label="Back to top" type="button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script src="js/main.js"></script>
+</body>
+</html>
