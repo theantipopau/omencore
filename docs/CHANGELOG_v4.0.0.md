@@ -1,10 +1,20 @@
 # OmenCore v4.0.0 – Sustainability, Architecture, and Accessibility
 
 **Release Date:** TBD
-**Release Status:** Code-complete, test-verified (953/953 tests, 0 build warnings) and merged to `main`. Nearly all of this cycle is architecture cleanup, UI/accessibility, and process/tooling work with no fan/thermal/EC behavior changes. Two exceptions are both bug fixes restoring already-documented behavior rather than introducing new unvalidated logic — the configurable thermal emergency override (makes an existing Settings toggle's documented promise actually hold, verified by test simulation of the threshold logic) and the startup-restore safety-gate fix (delegates a duplicated, stale inline check to the already field-tested `StartupRestorePolicy` class) — neither needed new physical-hardware confirmation beyond what already backs the policy they now correctly use. Artifacts not yet built.
+**Release Status:** Code-complete, test-verified (953/953 tests, 0 build warnings), merged to `main`, and artifacts built and hashed (see SHA256 hashes below) — smoke-tested by launching the packaged portable build directly (confirmed `OmenCore v4.0.0 starting up (Assembly: 4.0.0.0)`, correct Portable install-type detection, zero errors in the log). Built locally rather than via the release Actions workflow due to a GitHub Actions platform-wide incident on 2026-07-19/20 that left CI runners unavailable; a separate, real bug in `build-installer.ps1`'s Inno Setup path resolution (broke only when `iscc` is found via PATH, e.g. on a CI runner after `choco install`) was found and fixed in the process — it had been silently failing the release workflow for at least the last two releases (v3.9.0, v3.8.2), which is why those artifacts were also built and uploaded manually. Nearly all of this cycle is architecture cleanup, UI/accessibility, and process/tooling work with no fan/thermal/EC behavior changes. Two exceptions are both bug fixes restoring already-documented behavior rather than introducing new unvalidated logic — the configurable thermal emergency override (makes an existing Settings toggle's documented promise actually hold, verified by test simulation of the threshold logic) and the startup-restore safety-gate fix (delegates a duplicated, stale inline check to the already field-tested `StartupRestorePolicy` class) — neither needed new physical-hardware confirmation beyond what already backs the policy they now correctly use.
 **Type:** Major release — architecture/maintainability cleanup and process investment per the roadmap vision, not a features-first release
 **Base Version:** v3.9.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — read that first for scope, phase ordering, and the full execution checklist this changelog mirrors.
+
+## SHA256 Hashes
+
+```text
+EEDAD07BBA6904557F9E66A24DB8C1BA4E347032FEA2AF27F76BF87A172EE087  OmenCoreSetup-4.0.0.exe
+9E209D3696CB948B7E50F28CACF7A416FF1E194678DB42E53EB90D960F0672AF  OmenCore-4.0.0-win-x64.zip
+A0F4B6DA749608A25525F735F192934BED35D59719121A9CC664EF93AD67196B  OmenCore-4.0.0-linux-x64.zip
+```
+
+Also published as `artifacts/SHA256SUMS-4.0.0.txt`. Verify with `Get-FileHash <file> -Algorithm SHA256` (Windows) or `sha256sum <file>` (Linux) before installing.
 
 ---
 
