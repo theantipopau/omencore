@@ -88,9 +88,17 @@ if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
 Write-Host "Created $zipPath" -ForegroundColor Green
 
-# Resolve Inno Setup CLI
-$iscc = Get-Command iscc -ErrorAction SilentlyContinue
-if (-not $iscc) {
+# Resolve Inno Setup CLI to a plain path string. Get-Command returns an
+# ApplicationInfo (has .Source, no .FullName) when iscc is found on PATH
+# (e.g. via `choco install innosetup` on CI runners), but Get-Item returns
+# a FileInfo (has .FullName, no .Source) for the hardcoded-path fallback
+# below — using .FullName unconditionally silently resolved to $null on
+# CI and broke `& $null ...` with a cryptic "not a valid command" error.
+$isccCommand = Get-Command iscc -ErrorAction SilentlyContinue
+$isccPath = $null
+if ($isccCommand) {
+    $isccPath = $isccCommand.Source
+} else {
     $defaultPaths = @(
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
         "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
@@ -100,13 +108,13 @@ if (-not $iscc) {
     foreach ($candidate in $defaultPaths) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
         if (Test-Path $candidate) {
-            $iscc = Get-Item $candidate
+            $isccPath = $candidate
             break
         }
     }
 }
 
-if (-not $iscc) {
+if (-not $isccPath) {
     throw "Inno Setup (iscc) not found. Install Inno Setup 6 to build the installer."
 }
 
@@ -117,7 +125,7 @@ if (-not (Test-Path $pawnIoInstaller)) {
 
 $installer = Join-Path $artifactsDir "OmenCoreSetup-$version.exe"
 if (Test-Path $installer) { Remove-Item $installer -Force }
-& $iscc.FullName "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version" "/DMyPublishDir=$publishDir"
+& $isccPath "installer/OmenCoreInstaller.iss" "/DMyAppVersion=$version" "/DMyPublishDir=$publishDir"
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup compile failed with exit code $LASTEXITCODE"
 }
