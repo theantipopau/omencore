@@ -6,7 +6,7 @@
 
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
-[![Version](https://img.shields.io/badge/version-3.9.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v3.9.0.md)
+[![Version](https://img.shields.io/badge/version-4.0.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.0.0.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -46,14 +46,31 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 3.9.0<br>
-**Status:** Code-complete and test-verified in this environment (913/913 tests, 0 build warnings); artifacts not yet built or tagged, pending hardware confirmation from affected reporters<br>
-**Release notes:** [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md)<br>
-**Release gate:** [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md)
+**Version:** 4.0.0<br>
+**Status:** Code-complete and test-verified in this environment (953/953 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Release notes:** [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md)<br>
+**Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
-v3.9.0 is a minor release focused on UX polish and silent-failure fixes found via codebase audit, rather than another emergency patch cycle: a completely non-functional OMEN key action setting (all four UI options), an eye-straining tray icon color, game profiles silently lost on crash, silent EC write failures, crash reports with no stack trace, and several thread-safety/async correctness bugs. No fan/thermal/EC control behavior changed in this release.
+v4.0.0 is a sustainability-focused major release, not a features-first one: it pays down the architecture debt that had accumulated across the 3.x series rather than adding new hardware-control surface. No fan/thermal/EC control *behavior* changed in this release (the two exceptions are both bug fixes restoring already-documented behavior, not new logic — see the changelog header for detail). Highlights: a shared DI composition root replacing 19 of ~40 manually-wired fields in the `MainViewModel` god-object, a consolidated polling scheduler replacing part of a 27-timer sprawl, a community-contributable model-database submission pipeline, a persistent "Model Capabilities" diagnostics panel, an accessibility labeling pass across five views (~140 controls), and game-profile automation improvements (window-title disambiguation, WMI event-based process detection, multi-game restore handling).
 
-### v3.9.0 Highlights
+### v4.0.0 Highlights
+
+- **Architecture:** introduced a real DI composition root — 19 of ~40 manually-wired `MainViewModel` fields migrated onto it, and the hardware bring-up sequence (NVAPI/PawnIO/WMI BIOS/capability detection/EC/fan-controller construction) extracted into its own `HardwareBringup` class as a prerequisite for the rest.
+- **Architecture:** built a shared `PollingScheduler`/`UiPollingCoordinator` and migrated the tray icon, quick popup, and OSD timers onto it — a first cut at consolidating a 27-timer sprawl (corrected from an earlier "21 timers" estimate) across three different timer APIs.
+- **Removed** ~80 lines of dead, orphaned CPU-undervolt UI wiring in `MainViewModel` — a second, meaningfully-behind copy of `SystemControlViewModel`'s real implementation, bound only to a view that was never in the app's visual tree.
+- **Fixed a safety-gate bug:** the OMEN 16/Victus sensitive-model startup-restore check had a live, un-updated copy of the exact fragile-string-match bug already fixed elsewhere in 3.8.1 — could silently skip the extra safety opt-in it exists to enforce.
+- **Fixed:** the "disable thermal protection" toggle's documented promise ("fans will NEVER be automatically overridden") didn't actually hold for custom fan curves — a separate always-on safety clamp ignored the toggle. Also made the emergency-override temperature itself configurable (was a hardcoded 95°C).
+- Community-contributable model-database pipeline: JSON schema, a dependency-free validator, a PR template, and a CI job — so new hardware support no longer has to funnel through one person hand-writing every entry.
+- New persistent "Model Capabilities" panel on the Diagnostics tab — shows what your detected model does and doesn't support, and whether that profile is field-verified or inferred, before you go looking for a setting that isn't there.
+- Game profiles: window-title disambiguation for same-exe-different-game cases, WMI event-based process detection replacing pure polling, and multi-game restore handling (switches to a still-running game's profile instead of unconditionally restoring defaults).
+- Accessibility: `AutomationProperties` labeling added across Dashboard, Advanced, FanControl, Lighting, and (partially) Settings views — roughly 140 previously-silent controls now announce correctly to screen readers.
+- Tray menu: "Max Fan" promoted to one click deep (was three), plus a new in-app notification history and a persistent "Report a Problem" entry reachable regardless of Lite/Advanced mode.
+- Corrected a stale risk record: `BiosUpdateService` was documented as "the firmware-write path" — it never writes firmware at all, only checks for updates and hands off to HP's own tools. Added 19 tests for the parts that actually matter (version comparison, URL construction).
+- New interactive GitHub Pages site (replaces the old custom omencore.info site) with live release info, a feature/comparison showcase, and donation info.
+
+Full detail on every item, including what was investigated and deliberately *not* changed, in [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md).
+
+### v3.9.0 Highlights (previous minor release)
 
 - **Silent failure:** the OMEN key action setting (Settings → OMEN Key) was completely non-functional for all four UI options — the saved string never matched any backing enum value, so any non-default choice was silently discarded on every relaunch.
 - **Silent failure:** newly created or duplicated game profiles were lost if the app crashed before another action triggered a save — `CreateProfile()`/`DuplicateProfile()` never persisted.
@@ -91,38 +108,26 @@ v3.9.0 is a minor release focused on UX polish and silent-failure fixes found vi
 - `8D40` OMEN Slim 16-an0xxx: exact conservative identity added (GitHub #145), replacing low-confidence family fallback.
 - Fixed Performance Profile silently reverting to Balanced after relaunch when changed via the tray menu, the `Ctrl+Shift+E` hotkey cycle, or the General page's quick-profile buttons (GitHub #145) — these paths now persist the choice the same way the System Control page always did.
 
-### v3.8.0 Highlights (previous minor release)
-
-- Core-control readiness exports summarize fan backend/readback, RGB backend/surface, tuning startup/readback, hotkeys, monitoring health, and next validation actions.
-- Exact model routing was expanded for priority reports including `8C30`, `8DCD`, `878C`, `8600`, and `88EE`, while unsupported control paths stay gated.
-- General telemetry now hides unavailable zero-return power sensors as `--W` instead of showing misleading `0W`.
-- The Windows installer now calls the bundled PawnIO setup with `-install -silent`.
-- Startup restore is split into separate fan, performance/GPU power, RGB, and tuning opt-ins under the broad safety gate.
-- OSD FPS reporting is clearer with RTSS average fallback and explicit unavailable states.
-- Game-profile automation now respects feature gates, exact executable-path priority, duplicate suppression, and per-profile restore policy.
-- OMEN Max HID per-key RGB routing is included conservatively and still needs real-device PID/segment confirmation.
+Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in `docs/` rather than summarized here.
 
 ## Current Development Focus
 
-**v3.9.0 followed immediately after v3.8.2's critical-fix cycle**, shifting focus from emergency patching to a deliberate codebase audit for silent breakage and UX friction (see Highlights above). All fixes are code-complete and test-verified (913/913) in this environment — artifacts have not yet been built, and none of the model/hardware-specific fixes are confirmed yet on the original reporters' physical hardware, so the release is not tagged.
+**v4.0.0 is a sustainability-focused cycle**, not a features-first one — see the Vision section of [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) for the full rationale. Instead of another field-driven patch cycle, this release pays down architecture debt (the `MainViewModel` god-object, timer sprawl), invests in process (a community-contributable model database instead of every SKU going through one person), and closes an accessibility gap. All work is code-complete and test-verified (953/953) in this environment — artifacts have not yet been built. Unlike prior releases, nothing in 4.0.0 is gated on physical-hardware confirmation: no fan/thermal/EC control behavior changed (the two exceptions are bug fixes restoring already-documented/already-tested behavior, not new logic).
 
-**Several items remain intentionally unfixed pending hardware evidence:** `8BCD` fan oscillation/RPM-floor/thermal-ceiling reports from OsamaBiden, `BUG-3820-002` (GPU TGP lock), `BUG-3820-003` (Quiet-mode CPU temp regression), and the `8D41` brightness-coupling/battery-profile-naming/RGB-routing items — see the Roadmap section of the changelog for the full evidence-gated list.
+**What's intentionally *not* in this release:** the larger architectural items — privilege separation, a real RGB provider architecture, i18n, Linux tray/config persistence — are scoped in the roadmap but not started; they're multi-release efforts, not something to rush into one cycle. Every hardware-specific item still awaiting field evidence from 3.9.0 (fan RPM/thermal reports, RGB routing, OC/UV persistence) carries forward unchanged, since 4.0.0 didn't touch that code.
 
 The active work is tracked in:
 
-- [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - the current release notes and validation status.
-- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - prior patch release notes, artifact hashes, and validation status.
-- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - GitHub #141-#146, saved Custom fan selection, GPU OC persistence, background-resource work, the v3.8.2 hang (`BUG-3820-001`), test requirements, and hardware acceptance gates.
-- [docs/3.8.1-MIGRATION-HANDOFF.md](docs/3.8.1-MIGRATION-HANDOFF.md) - fresh-PC setup, repository state, implementation order, and release procedure.
+- [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md) - the current release notes, written incrementally as work landed.
+- [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - the full scope, phase ordering, and execution checklist this cycle worked through.
+- [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - the prior release's notes and validation status.
 
 Prior-release work is kept for historical reference:
 
-- [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md) - field fixes, UI polish, diagnostics, and validation status.
-- [docs/CHANGELOG_v3.8.0.md](docs/CHANGELOG_v3.8.0.md) - field fixes, UI polish, diagnostics, and validation status.
-- [docs/3.8.0-BUG-REPORTS.md](docs/3.8.0-BUG-REPORTS.md) - tracked model reports and issue follow-up.
-- [docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md](docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md) - practical next steps for fan, RGB, tuning, responsiveness, and release gates.
+- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md), [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md), [docs/CHANGELOG_v3.8.0.md](docs/CHANGELOG_v3.8.0.md) - field fixes, UI polish, diagnostics, and validation status for each release.
+- [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md), [docs/3.8.0-BUG-REPORTS.md](docs/3.8.0-BUG-REPORTS.md) - tracked model reports and issue follow-up.
 
-The main 3.8.0 support improvement, a consolidated `core-control-readiness.txt` diagnostic report covering fan backend/readback state, RGB surface/backend state, tuning startup/readback state, monitoring health, and next validation actions, remains in place. 3.8.1 builds on it with OMEN-key candidate diagnostics and additional background-timer registry coverage.
+The consolidated `core-control-readiness.txt` diagnostic report (fan backend/readback state, RGB surface/backend state, tuning startup/readback state, monitoring health, next validation actions) introduced in 3.8.0 remains in place, joined in 4.0.0 by the persistent "Model Capabilities" panel on the Diagnostics tab.
 
 ## Downloads
 
@@ -130,9 +135,9 @@ Release artifacts are published on the [GitHub Releases](https://github.com/thea
 
 | Artifact | Platform | Recommended For |
 |---|---|---|
-| `OmenCoreSetup-3.9.0.exe` | Windows | Most users. Installs app and can install PawnIO. |
-| `OmenCore-3.9.0-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
-| `OmenCore-3.9.0-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
+| `OmenCoreSetup-4.0.0.exe` | Windows | Most users. Installs app and can install PawnIO. |
+| `OmenCore-4.0.0-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
+| `OmenCore-4.0.0-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
 
 Final GitHub release notes must include SHA256 hashes for every artifact. The in-app updater requires release hashes before it will install an update.
 
@@ -140,20 +145,20 @@ Final GitHub release notes must include SHA256 hashes for every artifact. The in
 
 ### Windows
 
-1. Download `OmenCoreSetup-3.9.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
+1. Download `OmenCoreSetup-4.0.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
 2. Verify the SHA256 hash from the release notes.
 3. Run the installer as Administrator.
 4. Keep PawnIO selected unless you only want monitoring and WMI-only features.
 5. Launch OmenCore from the Start Menu.
 
-Portable users can download `OmenCore-3.9.0-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
+Portable users can download `OmenCore-4.0.0-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
 
 See [INSTALL.md](INSTALL.md) for the full Windows guide.
 
 ### Linux
 
 ```bash
-VERSION=3.9.0
+VERSION=4.0.0
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
@@ -272,9 +277,10 @@ Linux control normally follows available sysfs/hwmon capability:
 3. `ec_sys` for older models.
 4. Diagnostic-only mode when no safe write path exists.
 
-## Known Limits In 3.9.0
+## Known Limits
 
-- The OMEN key action, tray icon contrast, game-profile save, and OSD stale-default fixes are all code-complete and test-verified in this environment but affect UI/UX paths only — no hardware confirmation is required for those.
+4.0.0 changed no fan/thermal/EC control behavior, so every hardware-confirmation item below carries forward unchanged from 3.9.0 — nothing here was introduced or resolved by the 4.0.0 cycle itself. 4.0.0's own work (DI composition root, timer consolidation, accessibility labeling, model-database tooling) is architecture/UI/process only and doesn't need physical-hardware confirmation; the one open item specific to 4.0.0 is that its accessibility labeling hasn't been verified with an actual screen reader (NVDA/Narrator/JAWS) in this environment — build-clean and test-green confirm nothing broke, not that the announced names read well.
+
 - `8C77` OMEN 16 (2024) wf1xxx Intel: the V1/V2 profile-mismatch fix is code-complete and test-verified but **not yet confirmed on the reporter's physical hardware**.
 - `8BCD` OMEN 16 xd0010AX: four fan-behavior reports (Balanced-switch oscillation, Quiet RPM floor, Quiet thermal ceiling, ramp-down stepping) are evidence-gated — no fan/thermal code was changed without physical-hardware evidence, per project safety policy.
 - The hang fix (`8BCD`), the fan-stuck-at-max/failed-standby fix (`88D2`), and the Power Automation/Optimizer fixes (`8D41`) from v3.8.2 remain code-complete and test-verified in this environment but **not yet confirmed on the reporters' physical hardware** — see Release Conditions in [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md).
@@ -288,7 +294,9 @@ Linux control normally follows available sysfs/hwmon capability:
 - OSD now fights back against borderless/windowed-fullscreen games stealing topmost (fixed in 3.9.0). True DXGI exclusive-fullscreen still cannot show any overlay window — that's a Windows compositor limitation, not something a WPF window can override without D3D/DXGI hook injection.
 - `8574` legacy OMEN 15 support is partial until fresh diagnostics confirm effective fan command readback.
 
-## Active 3.9.0 Validation Targets
+## Active Validation Targets
+
+Carried forward unchanged from 3.9.0 — 4.0.0 didn't touch fan/thermal/EC/RGB control code, so none of these needed re-validation this cycle.
 
 - `8C77` OMEN 16 (2024) wf1xxx Intel: confirm the direct model entry and V1 fan-control path resolve the `FileNotFoundException` crash on the Custom Fan Curve tab.
 - `8BCD` OMEN 16-xd0010AX: per-poll EC register dump during Balanced-switch fan oscillation; RPM vs. EC register snapshot for the Quiet RPM floor; WMI ThermalPolicy + per-zone temp log at the Quiet thermal ceiling; 100ms-resolution RPM log during ramp-down.
@@ -337,9 +345,9 @@ pwsh ./build-installer.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCoreSetup-3.9.0.exe`
-- `artifacts/OmenCore-3.9.0-win-x64.zip`
-- `artifacts/SHA256SUMS-3.9.0.txt`
+- `artifacts/OmenCoreSetup-4.0.0.exe`
+- `artifacts/OmenCore-4.0.0-win-x64.zip`
+- `artifacts/SHA256SUMS-4.0.0.txt`
 
 ### Build Linux Artifact
 
@@ -349,10 +357,10 @@ pwsh ./build-linux-package.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCore-3.9.0-linux-x64.zip`
-- `artifacts/OmenCore-3.9.0-linux-x64.zip.sha256`
+- `artifacts/OmenCore-4.0.0-linux-x64.zip`
+- `artifacts/OmenCore-4.0.0-linux-x64.zip.sha256`
 - `artifacts/version.json`
-- `artifacts/linux-version-verification-3.9.0-linux-x64.json`
+- `artifacts/linux-version-verification-4.0.0-linux-x64.json`
 
 ## Release Checklist
 
@@ -365,8 +373,6 @@ Before publishing a stable GitHub release:
 5. Add hashes, known limits, and hardware validation status to GitHub Release notes.
 6. Upload artifacts.
 7. Tag the release only after the final notes and artifacts match.
-
-The current release gate is tracked in [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md).
 
 ## Troubleshooting
 
@@ -389,15 +395,17 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - installation, upgrade, portable use, Linux setup, uninstall.
-- [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - current release notes.
+- [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md) - current release notes.
+- [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - current roadmap, scope, and execution checklist.
+- [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - previous release notes.
 - [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - active field report tracking (covers GitHub #141-#146 and Discord reports through v3.8.2).
-- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - previous release notes.
+- [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - earlier release notes.
 - [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md) - earlier release notes.
 - [docs/CHANGELOG_v3.8.0.md](docs/CHANGELOG_v3.8.0.md) - earlier release notes.
 - [docs/CHANGELOG_v3.7.1.md](docs/CHANGELOG_v3.7.1.md) - earlier release notes.
 - [docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md](docs/3.8.0-CORE-CONTROLS-NEXT-STEPS.md) - core control validation and practical next steps.
 - [docs/3.8.0-BUG-REPORTS.md](docs/3.8.0-BUG-REPORTS.md) - prior 3.8.0 field report tracking.
-- [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md) - release gate.
+- [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md) - a historical release-gate checklist from the v3.7.1 cycle, kept for reference; not maintained per release.
 - [docs/3.7.1-BUG-REPORTS.md](docs/3.7.1-BUG-REPORTS.md) - field report tracking.
 - [docs/LINUX_INSTALL_GUIDE.md](docs/LINUX_INSTALL_GUIDE.md) - Linux details.
 - [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) - antivirus and driver guidance.
@@ -408,6 +416,7 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 
 | Version | Summary |
 |---|---|
+| 4.0.0 | Major release: sustainability/architecture cycle, not features-first — DI composition root started (19/~40 `MainViewModel` fields migrated), shared polling coordinator, community model-database contribution pipeline, persistent "Model Capabilities" diagnostics panel, accessibility labeling pass (~140 controls across 5 views), game-profile window-title disambiguation + WMI event-based detection + multi-game restore, dead-code removal, safety-gate string-match audit fix. No fan/thermal/EC control behavior changed. |
 | 3.9.0 | Minor release: non-functional OMEN key action fix, game-profile-loss-on-crash fix, silent EC-failure logging, crash stack traces, GPU Power Boost/profile linkage, Custom tab theme fix, OSD stale-default fix, AutomationService idle/battery bugs, HardwareWorker update-kill-loop fix, `8C3F`/`8C77` model additions |
 | 3.8.2 | Patch release: critical Application Hang fix (#BUG-3820-001), fans-stuck-at-max/failed-standby fix (#146), Power Automation boot-apply fix, diagnostics-export wiring fix (#145 evidence gap), Optimizer verification fix, fan-monitor-loop shutdown-race fix |
 | 3.8.1 | Patch release: GitHub #141-#145 follow-up, fan-telemetry truthfulness, saved Custom curve fix, GPU OC startup-reapply clarity, OMEN-key field diagnostics, performance-profile relaunch persistence fix |

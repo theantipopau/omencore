@@ -1,14 +1,14 @@
 ﻿# OmenCore Installation Guide
 
-Complete installation, upgrade, portable, Linux, and uninstall instructions for OmenCore 3.9.0.
+Complete installation, upgrade, portable, Linux, and uninstall instructions for OmenCore 4.0.0.
 
 ## Choose Your Package
 
 | Package | Platform | Use This When |
 |---|---|---|
-| `OmenCoreSetup-3.9.0.exe` | Windows | You want the normal install flow, Start Menu entry, and optional PawnIO install. |
-| `OmenCore-3.9.0-win-x64.zip` | Windows | You want a portable copy, test build, or no installer changes. |
-| `OmenCore-3.9.0-linux-x64.zip` | Linux | You want the CLI and Avalonia GUI bundle. |
+| `OmenCoreSetup-4.0.0.exe` | Windows | You want the normal install flow, Start Menu entry, and optional PawnIO install. |
+| `OmenCore-4.0.0-win-x64.zip` | Windows | You want a portable copy, test build, or no installer changes. |
+| `OmenCore-4.0.0-linux-x64.zip` | Linux | You want the CLI and Avalonia GUI bundle. |
 
 Always download from the [latest GitHub Release](https://github.com/theantipopau/omencore/releases/latest), then compare the SHA256 hash against the release notes before running binaries.
 
@@ -23,7 +23,7 @@ Always download from the [latest GitHub Release](https://github.com/theantipopau
 
 ### Install
 
-1. Download `OmenCoreSetup-3.9.0.exe`.
+1. Download `OmenCoreSetup-4.0.0.exe`.
 2. Verify the SHA256 hash from the GitHub Release notes.
 3. Right-click the installer and choose **Run as administrator**.
 4. Keep **Install PawnIO Driver** selected unless you only need WMI-only features and monitoring.
@@ -49,7 +49,7 @@ Startup hardware restore is disabled by default. Leave it disabled unless you ha
 
 ### Install
 
-1. Download `OmenCore-3.9.0-win-x64.zip`.
+1. Download `OmenCore-4.0.0-win-x64.zip`.
 2. Verify the SHA256 hash from the GitHub Release notes.
 3. Extract to a normal writable folder, for example `C:\Tools\OmenCore`.
 4. Right-click `OmenCore.exe` and choose **Run as administrator**.
@@ -71,11 +71,11 @@ Deleting the extracted portable folder does not remove config, logs, or PawnIO.
 ## Windows Upgrade
 
 1. Exit OmenCore from the tray menu.
-2. Install `OmenCoreSetup-3.9.0.exe` over the previous version.
+2. Install `OmenCoreSetup-4.0.0.exe` over the previous version.
 3. Keep PawnIO selected if you use EC/MSR features.
 4. Launch as Administrator.
 5. Open Diagnostics and confirm:
-   - App version is `3.9.0`.
+   - App version is `4.0.0`.
    - Model identity uses exact ProductId where available.
    - Fan/RGB/performance capabilities match your hardware.
 
@@ -96,7 +96,7 @@ If upgrading from a much older version, export or back up `%APPDATA%\OmenCore\co
 ### Quick Start: CLI
 
 ```bash
-VERSION=3.9.0
+VERSION=4.0.0
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
@@ -383,7 +383,7 @@ sudo rm -f /etc/modprobe.d/ec_sys.conf
 
 ## Release Operator Notes
 
-For maintainers preparing 3.9.0:
+For maintainers preparing 4.0.0:
 
 ```powershell
 dotnet restore OmenCore.sln
@@ -397,17 +397,17 @@ pwsh ./build-linux-package.ps1
 After building:
 
 ```powershell
-Get-FileHash artifacts\OmenCoreSetup-3.9.0.exe -Algorithm SHA256
-Get-FileHash artifacts\OmenCore-3.9.0-win-x64.zip -Algorithm SHA256
-Get-FileHash artifacts\OmenCore-3.9.0-linux-x64.zip -Algorithm SHA256
+Get-FileHash artifacts\OmenCoreSetup-4.0.0.exe -Algorithm SHA256
+Get-FileHash artifacts\OmenCore-4.0.0-win-x64.zip -Algorithm SHA256
+Get-FileHash artifacts\OmenCore-4.0.0-linux-x64.zip -Algorithm SHA256
 ```
 
-`artifacts\SHA256SUMS-3.9.0.txt` can be uploaded alongside the artifacts. Publish those hashes in the GitHub Release notes. Do not publish an in-app update without SHA256 hashes.
+`artifacts\SHA256SUMS-4.0.0.txt` can be uploaded alongside the artifacts. Publish those hashes in the GitHub Release notes. Do not publish an in-app update without SHA256 hashes.
 
 ## Additional Resources
 
 - [README.md](README.md)
-- [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md)
+- [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md)
 - [docs/CHANGELOG_v3.8.1.md](docs/CHANGELOG_v3.8.1.md)
 - [docs/FINAL_RELEASE_CHECKLIST.md](docs/FINAL_RELEASE_CHECKLIST.md)
 - [docs/LINUX_INSTALL_GUIDE.md](docs/LINUX_INSTALL_GUIDE.md)

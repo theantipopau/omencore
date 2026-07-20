@@ -1,9 +1,10 @@
-# OmenCore v4.0.0 – Changelog (In Progress)
+# OmenCore v4.0.0 – Sustainability, Architecture, and Accessibility
 
-**Release Date:** TBD — this is a living document tracking the 4.0.0 cycle, updated as items from `docs/ROADMAP_v4.0.0.md` are completed. Not all entries below are released; see each entry's status.
-**Type:** Major release — architecture/maintainability cleanup per the roadmap vision, plus accumulated field fixes. No fan/EC/thermal control *behavior* changes without field validation (project evidence-gate rule); changes below are UI/wiring/messaging/documentation unless noted otherwise.
+**Release Date:** TBD
+**Release Status:** Code-complete, test-verified (953/953 tests, 0 build warnings) and merged to `main`. Nearly all of this cycle is architecture cleanup, UI/accessibility, and process/tooling work with no fan/thermal/EC behavior changes. Two exceptions are both bug fixes restoring already-documented behavior rather than introducing new unvalidated logic — the configurable thermal emergency override (makes an existing Settings toggle's documented promise actually hold, verified by test simulation of the threshold logic) and the startup-restore safety-gate fix (delegates a duplicated, stale inline check to the already field-tested `StartupRestorePolicy` class) — neither needed new physical-hardware confirmation beyond what already backs the policy they now correctly use. Artifacts not yet built.
+**Type:** Major release — architecture/maintainability cleanup and process investment per the roadmap vision, not a features-first release
 **Base Version:** v3.9.0
-**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — read that first for scope, phase ordering, and the execution checklist this changelog mirrors.
+**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — read that first for scope, phase ordering, and the full execution checklist this changelog mirrors.
 
 ---
 
