@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v3.9.0</small>
+      <small>v4.0.0</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v4.0.0 in active development — see the public roadmap
+      v4.0.0 is out now — architecture, accessibility &amp; process investment
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v3.9.0</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v4.0.0</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
 
@@ -379,15 +379,21 @@
       <div class="timeline-item is-current">
         <div class="timeline-head">
           <span class="v">v4.0.0</span>
-          <span class="timeline-badge">In development</span>
+          <span class="timeline-badge">Current stable</span>
         </div>
-        <p>A sustainability-focused cycle: privilege-separation groundwork, a community-contributable model database, first-run capability disclosure, accessibility passes, and a running audit of tech debt — tracked live on the public roadmap.</p>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.0.0.md" target="_blank" rel="noopener">View the 4.0.0 roadmap →</a>
+        <p>A sustainability-focused major release — not features-first. Pays down architecture debt from the 3.x series instead of adding new hardware-control surface. No fan/thermal/EC control behavior changed.</p>
+        <ul>
+          <li>DI composition root started — 19 of ~40 fields pulled out of the <code>MainViewModel</code> god-object</li>
+          <li>Community-contributable model-database pipeline (schema + validator + PR template)</li>
+          <li>Game profiles: window-title disambiguation, WMI event-based detection, multi-game restore</li>
+          <li>Accessibility labeling across five views — ~140 previously-silent controls</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.0.0.md" target="_blank" rel="noopener">Full v4.0.0 changelog →</a>
       </div>
       <div class="timeline-item">
         <div class="timeline-head">
           <span class="v">v3.9.0</span>
-          <span class="timeline-badge muted">Current stable</span>
+          <span class="timeline-badge muted">Minor</span>
         </div>
         <p>UX-and-reliability focused — no fan/thermal/EC control behavior changes, just fixing day-to-day friction.</p>
         <ul>
@@ -402,11 +408,6 @@
         <div class="timeline-head"><span class="v">v3.8.2</span> <span class="timeline-badge muted">Patch</span></div>
         <p>A same-day critical-hang fix: a named-pipe desync between the app and its out-of-process hardware worker could freeze and force-close OmenCore within seconds of launch on affected boards.</p>
         <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.8.2.md" target="_blank" rel="noopener">Full v3.8.2 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head"><span class="v">v3.8.0</span> <span class="timeline-badge muted">Minor</span></div>
-        <p>A broad field-driven release covering model-specific fan fixes, GUI/accessibility polish, diagnostics clarity, and runtime optimization across multiple OMEN and Victus boards.</p>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.8.0.md" target="_blank" rel="noopener">Full v3.8.0 changelog →</a>
       </div>
     </div>
 
