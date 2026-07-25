@@ -83,6 +83,28 @@ namespace OmenCore.Hardware
         // A lax floor lets "stuck-at-mid" states (for example level 55 on a level-63 board)
         // look healthy, so we keep this threshold intentionally high.
         private const double MaxModeHealthyLevelRatio = 0.90;
+
+        // Self-calibrating fallback for boards whose real fan-level ceiling sits *below*
+        // MaxFanLevel * MaxModeHealthyLevelRatio, which makes the nominal check above
+        // unwinnable and produces an endless "external reset suspected" reassert loop.
+        //
+        // MaxFanLevel is a firmware-declared nominal value and is already known to be an
+        // unreliable proxy for the real hardware ceiling in *both* directions: OMEN 16-xd0xxx
+        // holds level 63 against a nominal 55 (see the SetFanLevel ceiling comment in
+        // SetMaxFanSpeed), while OMEN 17-ck1xxx (8A18, nominal 55) tops out at a steady 46-48 —
+        // permanently below the derived floor of 50. On that board every maintenance cycle
+        // read "dropped" and re-asserted max, fighting firmware that was already holding max.
+        //
+        // Only engage this fallback once the nominal floor has proven unreachable across several
+        // consecutive observations. Boards that *do* reach the nominal floor keep the strict
+        // check unchanged, so the stuck-at-mid protection above is preserved wherever it is
+        // actually testable.
+        private const double MaxModeObservedPeakTolerance = 0.94;
+        private const int MaxModeObservedPeakMinObservations = 3;
+        private const double MaxModeAbsoluteLevelFloorRatio = 0.50;
+        private int _maxModeObservedPeakLevel;
+        private int _maxModeLevelObservationCount;
+        private bool _maxModeNominalFloorEverMet;
         private const ushort EcFanModeRegister = 0x95; // OmenMon HPCM register
         private const int FanModeReadbackAttempts = 3;
         private const int FanModeReadbackDelayMs = 40;
@@ -335,8 +357,7 @@ namespace OmenCore.Hardware
                             _isMaxModeActive = true;      // Track max mode for countdown extension
                             _lastManualFanPercent = 100;
                             _lastMaxModeMaintenanceUtc = DateTime.MinValue;
-                            _maxModeLowTelemetryStreak = 0;
-                            _maxModeTelemetryUnavailableStreak = 0;
+                            ResetMaxModeHealthTracking();
                             return true;
                         }
 
@@ -363,8 +384,7 @@ namespace OmenCore.Hardware
                             _isMaxModeActive = true;
                             _lastManualFanPercent = 100;
                             _lastMaxModeMaintenanceUtc = DateTime.MinValue;
-                            _maxModeLowTelemetryStreak = 0;
-                            _maxModeTelemetryUnavailableStreak = 0;
+                            ResetMaxModeHealthTracking();
                             return true;
                         }
 
@@ -634,7 +654,13 @@ namespace OmenCore.Hardware
                     if (success)
                     {
                         IsManualControlActive = true;
+                        var enteringMaxMode = percent >= 100 && !_isMaxModeActive;
                         _isMaxModeActive = percent >= 100;  // Track if we're at max
+                        if (enteringMaxMode)
+                        {
+                            // Fresh Max hold: discard any peak learned during a previous hold.
+                            ResetMaxModeHealthTracking();
+                        }
                         _lastManualFanPercent = percent;     // Track for re-apply
                         _lastManualModeReapplyUtc = DateTime.UtcNow;
                         
@@ -769,7 +795,13 @@ namespace OmenCore.Hardware
                 if (success)
                 {
                     IsManualControlActive = true;
+                    var enteringMaxMode = cpuPercent >= 100 && gpuPercent >= 100 && !_isMaxModeActive;
                     _isMaxModeActive = cpuPercent >= 100 && gpuPercent >= 100;
+                    if (enteringMaxMode)
+                    {
+                        // Fresh Max hold: discard any peak learned during a previous hold.
+                        ResetMaxModeHealthTracking();
+                    }
                     _lastManualFanPercent = Math.Max(cpuPercent, gpuPercent);
                     _lastManualModeReapplyUtc = DateTime.UtcNow;
                     StartCountdownExtension();
@@ -808,16 +840,14 @@ namespace OmenCore.Hardware
                 _isMaxModeActive = true;
                 _lastManualFanPercent = 100;
                 _lastMaxModeMaintenanceUtc = DateTime.MinValue;
-                _maxModeLowTelemetryStreak = 0;
-                _maxModeTelemetryUnavailableStreak = 0;
+                ResetMaxModeHealthTracking();
                 StartCountdownExtension();
             }
             else
             {
                 _isMaxModeActive = false;
                 _lastManualFanPercent = -1;
-                _maxModeLowTelemetryStreak = 0;
-                _maxModeTelemetryUnavailableStreak = 0;
+                ResetMaxModeHealthTracking();
 
                 // If no other non-default mode is active, stop keepalive timer.
                 if (_lastMode == HpWmiBios.FanMode.Default || _lastMode == HpWmiBios.FanMode.LegacyDefault)
@@ -1875,6 +1905,20 @@ namespace OmenCore.Hardware
             }
         }
 
+        /// <summary>
+        /// Clears the per-session Max-mode health tracking state. Must run on every Max-mode
+        /// entry and exit so an observed peak learned during one hold can never leak into the
+        /// next one (a stale peak from a previous session would lower the drop-detection bar).
+        /// </summary>
+        private void ResetMaxModeHealthTracking()
+        {
+            _maxModeLowTelemetryStreak = 0;
+            _maxModeTelemetryUnavailableStreak = 0;
+            _maxModeObservedPeakLevel = 0;
+            _maxModeLevelObservationCount = 0;
+            _maxModeNominalFloorEverMet = false;
+        }
+
         private bool IsMaxModeTelemetryHealthy(out string details)
         {
             bool hasTelemetry = false;
@@ -1891,10 +1935,45 @@ namespace OmenCore.Hardware
             {
                 hasTelemetry = true;
                 hasLevelTelemetry = true;
-                int levelFloor = Math.Max(1, (int)Math.Round(_maxFanLevel * MaxModeHealthyLevelRatio));
+                int nominalFloor = Math.Max(1, (int)Math.Round(_maxFanLevel * MaxModeHealthyLevelRatio));
                 int levelMax = Math.Max(fanLevels.Value.fan1, fanLevels.Value.fan2);
-                levelHealthy = levelMax >= levelFloor;
-                levelInfo = $"levels={fanLevels.Value.fan1}/{fanLevels.Value.fan2} floor={levelFloor}";
+
+                if (levelMax > _maxModeObservedPeakLevel)
+                {
+                    _maxModeObservedPeakLevel = levelMax;
+                }
+                if (levelMax >= nominalFloor)
+                {
+                    _maxModeNominalFloorEverMet = true;
+                }
+                if (_maxModeLevelObservationCount < int.MaxValue)
+                {
+                    _maxModeLevelObservationCount++;
+                }
+
+                // Default to the strict nominal floor. Only fall back to the observed peak once
+                // this board has demonstrated, across several consecutive reads, that it never
+                // reaches the nominal floor at all — otherwise a board that legitimately dropped
+                // from max would get a lowered bar and the drop would go undetected.
+                int effectiveFloor = nominalFloor;
+                bool usingObservedPeak = false;
+                if (!_maxModeNominalFloorEverMet &&
+                    _maxModeLevelObservationCount >= MaxModeObservedPeakMinObservations &&
+                    _maxModeObservedPeakLevel > 0 &&
+                    _maxModeObservedPeakLevel < nominalFloor)
+                {
+                    // Keep an absolute backstop so a genuine collapse toward idle/auto is still
+                    // caught even when the observed peak becomes the reference point.
+                    effectiveFloor = Math.Max(
+                        (int)Math.Round(_maxModeObservedPeakLevel * MaxModeObservedPeakTolerance),
+                        (int)Math.Round(_maxFanLevel * MaxModeAbsoluteLevelFloorRatio));
+                    usingObservedPeak = true;
+                }
+
+                levelHealthy = levelMax >= effectiveFloor;
+                levelInfo = usingObservedPeak
+                    ? $"levels={fanLevels.Value.fan1}/{fanLevels.Value.fan2} floor={effectiveFloor} (observed peak {_maxModeObservedPeakLevel}; nominal floor {nominalFloor} unreachable on this board)"
+                    : $"levels={fanLevels.Value.fan1}/{fanLevels.Value.fan2} floor={effectiveFloor}";
             }
 
             var rpms = _wmiBios.GetFanRpmDirect();

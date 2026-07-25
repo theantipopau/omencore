@@ -667,19 +667,28 @@ namespace OmenCoreApp.Tests.Services
 
             checkMethod.Should().NotBeNull();
 
-            // Keep temps/load/power static and non-idle so freeze threshold stays at 30 readings.
-            var frozenSample = new MonitoringSample
+            // Model a genuinely stuck sensor: temperature pinned while load swings widely.
+            //
+            // This test previously held load static at 20% as well. Freeze detection now requires a
+            // load swing of >=15 points before treating an identical-temperature run as suspicious,
+            // because integer-degree sensors legitimately repeat one value at thermal equilibrium —
+            // a static temperature under static load is normal, not a fault (GitHub #152/#153, where
+            // a GPU at 100% load steadily reading 48°C produced false "frozen" warnings). Swinging
+            // the load here is what makes this a real freeze rather than equilibrium, so the
+            // bridge-restart rate limiting under test is still exercised on a valid premise.
+            MonitoringSample FrozenSampleWithLoad(double load) => new MonitoringSample
             {
                 CpuTemperatureC = 42,
                 GpuTemperatureC = 51,
-                CpuLoadPercent = 20,
-                GpuLoadPercent = 20,
+                CpuLoadPercent = load,
+                GpuLoadPercent = load,
                 CpuPowerWatts = 12
             };
 
             for (var i = 0; i < 75; i++)
             {
-                checkMethod!.Invoke(svc, new object[] { frozenSample });
+                // Alternate 20% / 45% => 25-point swing with temperatures never moving.
+                checkMethod!.Invoke(svc, new object[] { FrozenSampleWithLoad(i % 2 == 0 ? 20 : 45) });
             }
 
             // Allow the async restart task to run once.
@@ -693,7 +702,7 @@ namespace OmenCoreApp.Tests.Services
             // More frozen checks should not trigger another immediate restart due to cooldown.
             for (var i = 0; i < 75; i++)
             {
-                checkMethod!.Invoke(svc, new object[] { frozenSample });
+                checkMethod!.Invoke(svc, new object[] { FrozenSampleWithLoad(i % 2 == 0 ? 20 : 45) });
             }
 
             await Task.Delay(100);

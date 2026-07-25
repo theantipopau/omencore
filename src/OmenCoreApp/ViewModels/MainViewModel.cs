@@ -740,6 +740,15 @@ namespace OmenCore.ViewModels
                 // v2.6.1: Push update to GeneralViewModel for enhanced General tab
                 _general?.UpdateFromMonitoringSample(normalized);
 
+                // GitHub #152: the Dashboard surface (including the sidebar's live temp chips) used
+                // to subscribe to the raw HardwareMonitoringService.SampleUpdated event, so it
+                // rendered un-normalized sensor output while these other surfaces rendered the
+                // normalized/stabilized sample below — producing visibly different temperatures for
+                // the same instant. Both now consume the same normalized sample. Uses the backing
+                // field, not the Dashboard property, so a dormant (never-opened) dashboard is not
+                // force-created just to receive telemetry.
+                _dashboard?.UpdateFromNormalizedSample(normalized);
+
                 // v3.7.0: Feed sample to Quiet safety monitor (no-op unless Quiet profile armed)
                 _quietSafetyMonitor.ProcessSample(normalized);
                 

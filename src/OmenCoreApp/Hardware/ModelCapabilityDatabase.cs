@@ -1379,12 +1379,18 @@ namespace OmenCore.Hardware
                 Notes = "RC1 field log - Victus 16-s0xxx (8BD4), Ryzen 7 7840HS + RTX 4060. Conservative WMI V1 fan profile; GPU boost disabled pending verification. Discord 2026-06-08 / 7Z5Z2EA reports basic keyboard RGB should be controllable through WMI ColorTable; EC keyboard writes remain disabled. Discord 2026-06-03 reported fans stuck at max after long gaming session; v3.7.1 Discord 2026-06-07 logs showed non-reactive/0 RPM fan behavior after SetFanLevel(0,0), so V1 manual-zero floor clear is disabled pending a safer handoff sequence."
             });
 
-            // Victus 16 (2024+) Ryzen r0xxx series
+            // Victus 15/16 (2024+) Ryzen — board 8C2F is shared across BOTH chassis sizes.
             // GitHub Issue #110: Victus by HP Gaming Laptop 16-r0xxx — model not in capability database
+            // GitHub Issue #155: the same ProductId 8C2F resolves for a 15" "Victus by HP Gaming
+            //   Laptop 15-fb2xxx" (15-fb2082wm), so this entry is NOT 16-inch-specific despite its
+            //   original name. Renamed accordingly so diagnostics stop reporting a 15" machine as a
+            //   16" model. Capability flags are unchanged and still inherited from the #110 16"
+            //   report — they have NOT been confirmed on the 15" chassis yet, so treat fan/RGB/
+            //   thermal behavior on 15-fb2xxx as inferred until a reporter verifies it.
             AddModel(new ModelCapabilities
             {
                 ProductId = "8C2F",
-                ModelName = "HP Victus 16 (2024+) Ryzen r0xxx",
+                ModelName = "HP Victus 15/16 (2024+) Ryzen (shared board)",
                 ModelNamePattern = "16-r0",
                 ModelYear = 2024,
                 Family = OmenModelFamily.Victus,
@@ -1396,7 +1402,7 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // Ryzen AMD
                 HasFourZoneRgb = true,
                 UserVerified = false,
-                Notes = "GitHub #110 — Victus 16-r0xxx (Ryzen 2024+). Keyboard entry 8C2F already present in KeyboardModelDatabase."
+                Notes = "GitHub #110 (16-r0xxx) + #155 (15-fb2082wm) — ProductId 8C2F is shared across the 15\" and 16\" Victus Ryzen 2024+ chassis. Capabilities were inferred from the 16\" report and are not yet confirmed on the 15\" chassis. Keyboard entry 8C2F already present in KeyboardModelDatabase."
             });
 
             AddModel(new ModelCapabilities

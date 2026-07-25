@@ -70,6 +70,33 @@ namespace OmenCore.Hardware
         private const int MaxConsecutiveIdenticalTempReads = 20;
         private const int IdleConsecutiveIdenticalTempReads = 40;
         private const int FreezeWarnCooldownSeconds = 60;
+
+        // Freeze detection must account for sensor quantization. HP WMI BIOS reports temperature in
+        // whole degrees Celsius, so a machine sitting at thermal equilibrium legitimately reports the
+        // SAME integer for many consecutive reads — that is a working sensor, not a stuck one.
+        //
+        // Counting identical reads alone produced heavy false positives in the field: a diagnostics
+        // bundle for board 8A18 (GitHub #152/#153) contained 48 "appears frozen" warnings in a single
+        // session, including a GPU pinned at 100% load holding a steady 48°C. Users reasonably read
+        // that as "temps are broken" and filed it as a bug.
+        //
+        // A stable temperature is only genuinely suspicious when a correlated signal says it should
+        // have moved. Load is the cheapest such signal already sampled here: if load swung materially
+        // while the temperature did not budge by even one quantization step, the sensor really does
+        // look wedged. If load was also flat, steady temperature is the expected outcome and no
+        // warning is warranted. An absolute read-count ceiling still catches a sensor wedged through
+        // a long stretch of genuinely constant load.
+        private const double FreezeLoadVarianceThresholdPercent = 15.0;
+        private const int AbsoluteFreezeReadCeiling = 150;
+        private double _cpuLoadMinDuringIdenticalTemp = double.MaxValue;
+        private double _cpuLoadMaxDuringIdenticalTemp = double.MinValue;
+        private double _gpuLoadMinDuringIdenticalTemp = double.MaxValue;
+        private double _gpuLoadMaxDuringIdenticalTemp = double.MinValue;
+        // Tracked separately from the WMI CPU range above: the ACPI path has its own identical-read
+        // counter, so sharing one range would let an ACPI temp change reset the window while the WMI
+        // counter was still accumulating (masking a real WMI-side freeze).
+        private double _acpiLoadMinDuringIdenticalTemp = double.MaxValue;
+        private double _acpiLoadMaxDuringIdenticalTemp = double.MinValue;
         private bool _cpuTempFrozen;
         private DateTime _cpuTempFrozeAt = DateTime.MinValue;
         private DateTime _lastCpuFreezeWarnAt = DateTime.MinValue;
@@ -423,6 +450,52 @@ namespace OmenCore.Hardware
             return Task.FromResult(true);
         }
         
+        /// <summary>
+        /// Records the load observed while a temperature reading has been holding the same value, so
+        /// freeze detection can tell "sensor wedged" apart from "thermal equilibrium".
+        /// </summary>
+        private static void TrackLoadRangeDuringIdenticalTemp(double load, ref double min, ref double max)
+        {
+            if (load < min) min = load;
+            if (load > max) max = load;
+        }
+
+        private static void ResetLoadRangeDuringIdenticalTemp(ref double min, ref double max)
+        {
+            min = double.MaxValue;
+            max = double.MinValue;
+        }
+
+        private static double LoadSwing(double min, double max)
+        {
+            if (min > max)
+            {
+                return 0; // no observations recorded yet
+            }
+
+            return max - min;
+        }
+
+        /// <summary>
+        /// Decides whether a run of identical temperature readings is genuinely suspicious.
+        /// </summary>
+        /// <remarks>
+        /// HP WMI BIOS temperature is quantized to whole degrees, so an identical value repeating is
+        /// the expected result at thermal equilibrium — it is only evidence of a stuck sensor if load
+        /// moved materially over the same window and the temperature still did not shift by even one
+        /// quantization step. <see cref="AbsoluteFreezeReadCeiling"/> remains a backstop so a sensor
+        /// wedged through a long stretch of genuinely constant load is still reported.
+        /// </remarks>
+        private static bool IsIdenticalTempSuspicious(int consecutiveIdenticalReads, double loadMin, double loadMax)
+        {
+            if (consecutiveIdenticalReads >= AbsoluteFreezeReadCeiling)
+            {
+                return true;
+            }
+
+            return LoadSwing(loadMin, loadMax) >= FreezeLoadVarianceThresholdPercent;
+        }
+
         private void UpdateReadings()
         {
             if (_disposed) return;
@@ -457,7 +530,17 @@ namespace OmenCore.Hardware
                             if (Math.Abs(cpuTemp - _lastCpuTempReading) < 0.1) // Same temp (within 0.1°C)
                             {
                                 _consecutiveIdenticalCpuTempReads++;
-                                if (_consecutiveIdenticalCpuTempReads > cpuFreezeThreshold && !_cpuTempFrozen)
+                                TrackLoadRangeDuringIdenticalTemp(
+                                    _cachedCpuLoad,
+                                    ref _cpuLoadMinDuringIdenticalTemp,
+                                    ref _cpuLoadMaxDuringIdenticalTemp);
+
+                                if (_consecutiveIdenticalCpuTempReads > cpuFreezeThreshold &&
+                                    !_cpuTempFrozen &&
+                                    IsIdenticalTempSuspicious(
+                                        _consecutiveIdenticalCpuTempReads,
+                                        _cpuLoadMinDuringIdenticalTemp,
+                                        _cpuLoadMaxDuringIdenticalTemp))
                                 {
                                     var nowUtc = DateTime.UtcNow;
                                     if ((nowUtc - _lastCpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
@@ -465,7 +548,7 @@ namespace OmenCore.Hardware
                                         _cpuTempFrozen = true;
                                         _cpuTempFrozeAt = nowUtc;
                                         _lastCpuFreezeWarnAt = nowUtc;
-                                        _logging?.Warn($"🥶 CPU temperature appears frozen at {cpuTemp:F1}°C for {_consecutiveIdenticalCpuTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                        _logging?.Warn($"🥶 CPU temperature appears frozen at {cpuTemp:F1}°C for {_consecutiveIdenticalCpuTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W, load swing during hold={LoadSwing(_cpuLoadMinDuringIdenticalTemp, _cpuLoadMaxDuringIdenticalTemp):F0}%)");
                                     }
                                 }
                             }
@@ -473,6 +556,9 @@ namespace OmenCore.Hardware
                             {
                                 // Temperature changed — sensor is responding
                                 _consecutiveIdenticalCpuTempReads = 0;
+                                ResetLoadRangeDuringIdenticalTemp(
+                                    ref _cpuLoadMinDuringIdenticalTemp,
+                                    ref _cpuLoadMaxDuringIdenticalTemp);
                                 if (_cpuTempFrozen)
                                 {
                                     TimeSpan frozenDuration = DateTime.UtcNow - _cpuTempFrozeAt;
@@ -493,7 +579,17 @@ namespace OmenCore.Hardware
                             if (Math.Abs(gpuTemp - _lastGpuTempReading) < 0.1)
                             {
                                 _consecutiveIdenticalGpuTempReads++;
-                                if (_consecutiveIdenticalGpuTempReads > gpuFreezeThreshold && !_gpuTempFrozen)
+                                TrackLoadRangeDuringIdenticalTemp(
+                                    _cachedGpuLoad,
+                                    ref _gpuLoadMinDuringIdenticalTemp,
+                                    ref _gpuLoadMaxDuringIdenticalTemp);
+
+                                if (_consecutiveIdenticalGpuTempReads > gpuFreezeThreshold &&
+                                    !_gpuTempFrozen &&
+                                    IsIdenticalTempSuspicious(
+                                        _consecutiveIdenticalGpuTempReads,
+                                        _gpuLoadMinDuringIdenticalTemp,
+                                        _gpuLoadMaxDuringIdenticalTemp))
                                 {
                                     var nowUtc = DateTime.UtcNow;
                                     if ((nowUtc - _lastGpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
@@ -501,13 +597,16 @@ namespace OmenCore.Hardware
                                         _gpuTempFrozen = true;
                                         _gpuTempFrozeAt = nowUtc;
                                         _lastGpuFreezeWarnAt = nowUtc;
-                                        _logging?.Warn($"🥶 GPU temperature appears frozen at {gpuTemp:F1}°C for {_consecutiveIdenticalGpuTempReads} readings (load={_cachedGpuLoad:F0}%)");
+                                        _logging?.Warn($"🥶 GPU temperature appears frozen at {gpuTemp:F1}°C for {_consecutiveIdenticalGpuTempReads} readings (load={_cachedGpuLoad:F0}%, load swing during hold={LoadSwing(_gpuLoadMinDuringIdenticalTemp, _gpuLoadMaxDuringIdenticalTemp):F0}%)");
                                     }
                                 }
                             }
                             else
                             {
                                 _consecutiveIdenticalGpuTempReads = 0;
+                                ResetLoadRangeDuringIdenticalTemp(
+                                    ref _gpuLoadMinDuringIdenticalTemp,
+                                    ref _gpuLoadMaxDuringIdenticalTemp);
                                 if (_gpuTempFrozen)
                                 {
                                     TimeSpan frozenDuration = DateTime.UtcNow - _gpuTempFrozeAt;
@@ -805,7 +904,17 @@ namespace OmenCore.Hardware
                                 if (Math.Abs(acpiTemp - _lastAcpiCpuTempReading) < 0.1)
                                 {
                                     _consecutiveIdenticalAcpiTempReads++;
-                                    if (_consecutiveIdenticalAcpiTempReads > acpiFreezeThreshold && !_cpuTempFrozen)
+                                    TrackLoadRangeDuringIdenticalTemp(
+                                        _cachedCpuLoad,
+                                        ref _acpiLoadMinDuringIdenticalTemp,
+                                        ref _acpiLoadMaxDuringIdenticalTemp);
+
+                                    if (_consecutiveIdenticalAcpiTempReads > acpiFreezeThreshold &&
+                                        !_cpuTempFrozen &&
+                                        IsIdenticalTempSuspicious(
+                                            _consecutiveIdenticalAcpiTempReads,
+                                            _acpiLoadMinDuringIdenticalTemp,
+                                            _acpiLoadMaxDuringIdenticalTemp))
                                     {
                                         var nowUtc = DateTime.UtcNow;
                                         if ((nowUtc - _lastCpuFreezeWarnAt).TotalSeconds >= FreezeWarnCooldownSeconds)
@@ -813,13 +922,16 @@ namespace OmenCore.Hardware
                                             _cpuTempFrozen = true;
                                             _cpuTempFrozeAt = nowUtc;
                                             _lastCpuFreezeWarnAt = nowUtc;
-                                            _logging?.Warn($"🥶 CPU temperature appears frozen at {acpiTemp:F1}°C for {_consecutiveIdenticalAcpiTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W)");
+                                            _logging?.Warn($"🥶 CPU temperature appears frozen at {acpiTemp:F1}°C for {_consecutiveIdenticalAcpiTempReads} readings (load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W, load swing during hold={LoadSwing(_acpiLoadMinDuringIdenticalTemp, _acpiLoadMaxDuringIdenticalTemp):F0}%)");
                                         }
                                     }
                                 }
                                 else
                                 {
                                     _consecutiveIdenticalAcpiTempReads = 0;
+                                    ResetLoadRangeDuringIdenticalTemp(
+                                        ref _acpiLoadMinDuringIdenticalTemp,
+                                        ref _acpiLoadMaxDuringIdenticalTemp);
                                     if (_cpuTempFrozen)
                                     {
                                         TimeSpan frozenDuration = DateTime.UtcNow - _cpuTempFrozeAt;

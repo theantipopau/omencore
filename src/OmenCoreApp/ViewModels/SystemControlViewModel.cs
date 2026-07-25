@@ -3528,16 +3528,39 @@ namespace OmenCore.ViewModels
         
         private void DetectGpuPowerBoost()
         {
-            // HP Victus models do not expose custom TGP/PPAB control via BIOS.
+            // HP Victus models generally do not expose custom TGP/PPAB control via BIOS.
             // Probing WMI on Victus can still return non-null values (shared BIOS bridge),
-            // which would incorrectly enable the GPU Power Boost UI and produce API errors on apply.
+            // which would incorrectly enable the GPU Power Boost UI and produce API errors on
+            // apply — this blanket deny was added in v3.2.0 to fix exactly that (GitHub #89).
+            //
+            // However, applying it unconditionally made ModelCapabilities.SupportsGpuPowerBoost
+            // dead code for *every* Victus board: even a field-verified entry declaring support
+            // could never take effect, because this check ran first and returned early. That also
+            // put this gate at odds with DeviceCapabilities.ShowGpuPowerBoost, which does consult
+            // the model database — so diagnostics could report "Show GPU Power Boost: Yes" for a
+            // board where the feature was in fact hard-disabled here (Discord report, board 8A25).
+            //
+            // Resolution: the blanket deny remains the default for Victus, but an explicit
+            // per-model SupportsGpuPowerBoost=true opt-in now wins. No Victus entry sets that flag
+            // today, so current behavior is unchanged on every shipping board; the flag simply
+            // becomes meaningful again once a board's support is confirmed by field evidence.
             var sysInfo = _systemInfoService?.GetSystemInfo();
             if (sysInfo?.IsHpVictus == true)
             {
-                GpuPowerBoostAvailable = false;
-                GpuPowerBoostStatus = "Not supported — HP Victus BIOS does not expose custom TGP/PPAB control";
-                _logging.Info("GPU Power Boost: skipped — HP Victus does not support WMI TGP/PPAB control");
-                return;
+                var victusModelConfig = ModelCapabilityDatabase.GetPreferredCapabilities(
+                    sysInfo.ProductName,
+                    sysInfo.Model);
+
+                if (victusModelConfig?.SupportsGpuPowerBoost != true)
+                {
+                    GpuPowerBoostAvailable = false;
+                    GpuPowerBoostStatus = "Not supported — HP Victus BIOS does not expose custom TGP/PPAB control";
+                    _logging.Info("GPU Power Boost: skipped — HP Victus does not support WMI TGP/PPAB control");
+                    return;
+                }
+
+                _logging.Info(
+                    $"GPU Power Boost: Victus blanket deny overridden by model database opt-in for '{victusModelConfig.ModelName}' (ProductId {victusModelConfig.ProductId}) — continuing with WMI probe");
             }
 
             // Check if user has a saved preference - don't overwrite it

@@ -655,7 +655,10 @@ namespace OmenCore.ViewModels
             _fanService = fanService;
             _pollingCoordinator = pollingCoordinator;
             RefreshCommand = new RelayCommand(_ => RefreshDashboardDisplay());
-            _monitoringService.SampleUpdated += OnSampleUpdated;
+            // NOTE: deliberately NOT subscribing to _monitoringService.SampleUpdated.
+            // Telemetry arrives via UpdateFromNormalizedSample(), pushed by MainViewModel, so this
+            // surface renders the same normalized/stabilized sample as the General tab rather than
+            // raw sensor output. See UpdateFromNormalizedSample for the full rationale (GitHub #152).
             _monitoringService.HealthStatusChanged += OnHealthStatusChanged;
             SubscribeFanTelemetry();
             
@@ -978,6 +981,32 @@ namespace OmenCore.ViewModels
             });
         }
 
+        /// <summary>
+        /// Accepts a telemetry sample that has already been normalized by
+        /// <c>MainViewModel.NormalizeMonitoringSample</c> (load sanitization, 0-125°C range clamping,
+        /// state-based hold of the last good reading, and spike/stabilization filtering).
+        /// </summary>
+        /// <remarks>
+        /// This surface used to subscribe to <c>HardwareMonitoringService.SampleUpdated</c> directly,
+        /// which delivered the *raw* sample — bypassing every one of those normalization steps that
+        /// the General tab's cards received via MainViewModel. The two surfaces therefore rendered
+        /// genuinely different numbers from the same instant: GitHub #152 reported the sidebar
+        /// showing 65°C/54°C while the main cards and tray tooltip showed 53°C/45°C, because the
+        /// sidebar was displaying a raw spike that stabilization had rejected for everything else.
+        ///
+        /// Routing both surfaces through the single normalized sample makes them agree by
+        /// construction instead of by keeping two independent filter implementations in sync.
+        /// </remarks>
+        public void UpdateFromNormalizedSample(MonitoringSample? sample)
+        {
+            if (sample == null)
+            {
+                return;
+            }
+
+            OnSampleUpdated(this, sample);
+        }
+
         private void OnSampleUpdated(object? sender, MonitoringSample sample)
         {
             RuntimeUiPerformanceCounters.RecordDashboardSampleReceived();
@@ -1252,7 +1281,8 @@ namespace OmenCore.ViewModels
             
             if (disposing)
             {
-                _monitoringService.SampleUpdated -= OnSampleUpdated;
+                // SampleUpdated is intentionally never subscribed (see constructor) — samples arrive
+                // via UpdateFromNormalizedSample, so there is no handler to detach here.
                 _monitoringService.HealthStatusChanged -= OnHealthStatusChanged;
                 UnsubscribeFanTelemetry();
                 _uptimeTimer?.Stop();

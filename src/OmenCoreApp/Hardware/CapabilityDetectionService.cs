@@ -103,9 +103,29 @@ namespace OmenCore.Hardware
             {
                 Capabilities.IsKnownModel = true;
                 Capabilities.ModelConfig = modelMatch;
-                var resolutionSource = ModelCapabilityDatabase.IsAmbiguousProductId(productId)
-                    ? "model-name disambiguation"
-                    : "ProductId";
+
+                // Report how the profile was ACTUALLY resolved. Previously this claimed "ProductId"
+                // for anything that wasn't an ambiguous-ID disambiguation, which was misleading when
+                // GetPreferredCapabilities had in fact fallen through to a ModelNamePattern match on
+                // a *different* board's entry: e.g. board 8A25 has no entry of its own and resolves
+                // to the 8A26 entry via its "16-d1" pattern, yet the log read "Found model by
+                // ProductId" — obscuring that the running board was never actually in the database
+                // (Discord report, GPU Power Boost on Victus 16-d1176TX).
+                var resolvedByExactProductId =
+                    !string.IsNullOrWhiteSpace(productId) &&
+                    string.Equals(modelMatch.ProductId, productId.Trim(), StringComparison.OrdinalIgnoreCase);
+                string resolutionSource;
+                if (resolvedByExactProductId)
+                {
+                    resolutionSource = ModelCapabilityDatabase.IsAmbiguousProductId(productId)
+                        ? "model-name disambiguation"
+                        : "ProductId";
+                }
+                else
+                {
+                    resolutionSource = $"model-name pattern '{modelMatch.ModelNamePattern}' (no entry for ProductId '{productId}')";
+                }
+
                 _logging?.Info($"  ✓ Found model by {resolutionSource}: {Capabilities.ModelConfig.ModelName}");
                 _logging?.Info($"    Year: {Capabilities.ModelConfig.ModelYear}, Family: {Capabilities.ModelConfig.Family}");
                 

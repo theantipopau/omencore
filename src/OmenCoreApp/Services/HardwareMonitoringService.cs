@@ -69,6 +69,18 @@ namespace OmenCore.Services
         private const int IdleCpuFreezeThreshold = 120;      // Idle CPU can legitimately hold flat temps for longer
         private const int IdleGpuFreezeThreshold = 120;      // v2.8.6: Idle GPU (load <10%) needs 120 readings (~2min) before flagging
         private const double TempFreezeEpsilon = 0.1;        // Temperature must change by at least 0.1°C
+
+        // Same quantization caveat as WmiBiosMonitor's detector (see IsIdenticalTempSuspicious there):
+        // integer-degree sensors legitimately repeat one value at thermal equilibrium, so an identical
+        // run only indicates a stuck sensor when a correlated signal says the temperature should have
+        // moved. This detector matters more than the diagnostic one because a false positive here also
+        // flips _usingWmiFallback and can trigger a monitoring-bridge restart.
+        private const double FreezeLoadVarianceThresholdPercent = 15.0;
+        private const int AbsoluteFreezeReadCeiling = 400;   // backstop for genuinely constant load
+        private double _cpuLoadMinDuringFreezeWindow = double.MaxValue;
+        private double _cpuLoadMaxDuringFreezeWindow = double.MinValue;
+        private double _gpuLoadMinDuringFreezeWindow = double.MaxValue;
+        private double _gpuLoadMaxDuringFreezeWindow = double.MinValue;
         private HpWmiBios? _wmiBiosService;                  // Optional WMI fallback for temps
         private bool _usingWmiFallback = false;              // Track if we're in fallback mode
         private int _consecutiveZeroTempReadings = 0;        // Track sustained zero-temp data quality failures
@@ -1139,6 +1151,24 @@ namespace OmenCore.Services
         /// Temperatures are considered "frozen" when they don't change by even 0.1°C for 30+ readings.
         /// This can happen when LibreHardwareMonitor returns stale cached values.
         /// </summary>
+        private static double FreezeWindowLoadSwing(double min, double max)
+            => min > max ? 0 : max - min;
+
+        /// <summary>
+        /// Whether a run of identical temperature readings is genuinely suspicious rather than
+        /// ordinary thermal equilibrium on a quantized sensor. Mirrors
+        /// <c>WmiBiosMonitor.IsIdenticalTempSuspicious</c>; see the constants above for rationale.
+        /// </summary>
+        private static bool IsIdenticalTempSuspicious(int consecutiveIdenticalReads, double loadMin, double loadMax)
+        {
+            if (consecutiveIdenticalReads >= AbsoluteFreezeReadCeiling)
+            {
+                return true;
+            }
+
+            return FreezeWindowLoadSwing(loadMin, loadMax) >= FreezeLoadVarianceThresholdPercent;
+        }
+
         private MonitoringSample CheckAndRecoverFrozenTemps(MonitoringSample sample)
         {
             bool cpuFrozen = false;
@@ -1151,12 +1181,16 @@ namespace OmenCore.Services
             if (Math.Abs(sample.CpuTemperatureC - _lastCpuTempForFreezeCheck) < TempFreezeEpsilon)
             {
                 _consecutiveSameCpuTemp++;
-                if (_consecutiveSameCpuTemp >= effectiveCpuFreezeThreshold)
+                if (sample.CpuLoadPercent < _cpuLoadMinDuringFreezeWindow) _cpuLoadMinDuringFreezeWindow = sample.CpuLoadPercent;
+                if (sample.CpuLoadPercent > _cpuLoadMaxDuringFreezeWindow) _cpuLoadMaxDuringFreezeWindow = sample.CpuLoadPercent;
+
+                if (_consecutiveSameCpuTemp >= effectiveCpuFreezeThreshold &&
+                    IsIdenticalTempSuspicious(_consecutiveSameCpuTemp, _cpuLoadMinDuringFreezeWindow, _cpuLoadMaxDuringFreezeWindow))
                 {
                     cpuFrozen = true;
                     if (_consecutiveSameCpuTemp == effectiveCpuFreezeThreshold)
                     {
-                        _logging.Warn($"🥶 CPU temperature appears frozen at {sample.CpuTemperatureC:F1}°C for {_consecutiveSameCpuTemp} readings (load={sample.CpuLoadPercent:F0}%, power={sample.CpuPowerWatts:F1}W)");
+                        _logging.Warn($"🥶 CPU temperature appears frozen at {sample.CpuTemperatureC:F1}°C for {_consecutiveSameCpuTemp} readings (load={sample.CpuLoadPercent:F0}%, power={sample.CpuPowerWatts:F1}W, load swing during hold={FreezeWindowLoadSwing(_cpuLoadMinDuringFreezeWindow, _cpuLoadMaxDuringFreezeWindow):F0}%)");
                     }
                 }
             }
@@ -1169,6 +1203,8 @@ namespace OmenCore.Services
                     ResetFreezeRestartGuards();
                 }
                 _consecutiveSameCpuTemp = 0;
+                _cpuLoadMinDuringFreezeWindow = double.MaxValue;
+                _cpuLoadMaxDuringFreezeWindow = double.MinValue;
                 _lastCpuTempForFreezeCheck = sample.CpuTemperatureC;
             }
             
@@ -1179,12 +1215,16 @@ namespace OmenCore.Services
             if (Math.Abs(sample.GpuTemperatureC - _lastGpuTempForFreezeCheck) < TempFreezeEpsilon)
             {
                 _consecutiveSameGpuTemp++;
-                if (_consecutiveSameGpuTemp >= effectiveGpuFreezeThreshold)
+                if (sample.GpuLoadPercent < _gpuLoadMinDuringFreezeWindow) _gpuLoadMinDuringFreezeWindow = sample.GpuLoadPercent;
+                if (sample.GpuLoadPercent > _gpuLoadMaxDuringFreezeWindow) _gpuLoadMaxDuringFreezeWindow = sample.GpuLoadPercent;
+
+                if (_consecutiveSameGpuTemp >= effectiveGpuFreezeThreshold &&
+                    IsIdenticalTempSuspicious(_consecutiveSameGpuTemp, _gpuLoadMinDuringFreezeWindow, _gpuLoadMaxDuringFreezeWindow))
                 {
                     gpuFrozen = true;
                     if (!_gpuFreezeWarningLogged)
                     {
-                        _logging.Warn($"🥶 GPU temperature appears frozen at {sample.GpuTemperatureC:F1}°C for {_consecutiveSameGpuTemp} readings (load={sample.GpuLoadPercent}%)");
+                        _logging.Warn($"🥶 GPU temperature appears frozen at {sample.GpuTemperatureC:F1}°C for {_consecutiveSameGpuTemp} readings (load={sample.GpuLoadPercent}%, load swing during hold={FreezeWindowLoadSwing(_gpuLoadMinDuringFreezeWindow, _gpuLoadMaxDuringFreezeWindow):F0}%)");
                         _gpuFreezeWarningLogged = true;
                     }
                 }
@@ -1197,6 +1237,8 @@ namespace OmenCore.Services
                     ResetFreezeRestartGuards();
                 }
                 _consecutiveSameGpuTemp = 0;
+                _gpuLoadMinDuringFreezeWindow = double.MaxValue;
+                _gpuLoadMaxDuringFreezeWindow = double.MinValue;
                 _lastGpuTempForFreezeCheck = sample.GpuTemperatureC;
                 _gpuFreezeWarningLogged = false;
             }
