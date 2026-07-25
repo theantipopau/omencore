@@ -409,8 +409,16 @@ namespace OmenCore.Services
                     }
                     else
                     {
-                        var mode = new PerformanceMode { Name = perfMode };
-                        _performanceModeService.Apply(mode);
+                        // Route through SetPerformanceMode(string) rather than building a bare
+                        // `new PerformanceMode { Name = perfMode }` and calling Apply() directly.
+                        // A bare Name-only object carries 0W CPU / 0W GPU, which Apply()'s "both
+                        // limits non-positive" guard then skips outright - so on every board that
+                        // doesn't define a per-model override for this mode (57 of 59 in the
+                        // database), this step silently changed nothing but the fan preset and
+                        // Windows power plan. SetPerformanceMode normalizes aliases (e.g. "Silent")
+                        // and supplies real generic wattage, matching what manual mode selection in
+                        // the UI already does via the same method.
+                        _performanceModeService.SetPerformanceMode(perfMode);
                         _logging.Info($"  [{transitionId}] Performance mode: {perfMode}");
                     }
                 }
@@ -475,7 +483,9 @@ namespace OmenCore.Services
 
             try
             {
-                _performanceModeService.Apply(new PerformanceMode { Name = previousModeName });
+                // Same reasoning as the primary apply above: route through SetPerformanceMode
+                // so the restored mode carries real wattage instead of a bare Name-only object.
+                _performanceModeService.SetPerformanceMode(previousModeName);
                 _logging.Info($"  [{transitionId}] Performance rollback restored mode: {previousModeName}");
             }
             catch (Exception rollbackEx)

@@ -1,7 +1,7 @@
 # OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
 
 **Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 969/969 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Status:** In development. Code-complete and test-verified for the items below — 970/970 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
@@ -149,6 +149,20 @@ HP reused board ID `8C2F` across both a 15" and a 16" Victus Ryzen chassis. The 
 
 ---
 
+## Fixed: Power Automation Never Actually Applied CPU/GPU Wattage on AC/Battery Transitions
+
+**Originally reported as:** a v3.8.1-era bug (`docs/3.8.1-BUG-REPORTS.md` BUG-3820-005 item 2) that never made it into the 4.0.0 roadmap consolidation — "Battery profile set to 'Silent' applies as 'Custom' or 'Balanced' instead," on OMEN MAX 16 `8D41`. Found by re-sweeping older bug-report docs for anything that fell through the cracks.
+
+**Root cause — much bigger than the original report scoped.** `PowerAutomationService.ApplyPowerProfile()` (the opt-in AC/Battery profile switcher) applied performance mode by building `new PerformanceMode { Name = perfMode }` and calling `Apply()` directly — a bare object with `CpuPowerLimitWatts = 0` and `GpuPowerLimitWatts = 0`. `PerformanceModeService.Apply()`'s own "both limits non-positive" guard then skips the EC power-limit step entirely unless the model defines a per-mode wattage override — **only 2 of 59 models in the database do.** So for the other 57, on both AC and Battery transitions, this feature's performance-mode step silently changed nothing but the fan preset. The 8D41 "Silent" report was the visible edge of this: `"Silent"` (the literal config default) matches no board's real mode-name list either (only 3 boards use `"Quiet"` literally, none use `"Silent"`), so the UI's current-mode indicator also silently failed to update, leaving whatever was last shown — "Custom" or "Balanced," exactly as reported.
+
+**Fix:** both the primary apply and the failure-path rollback now call `PerformanceModeService.SetPerformanceMode(string)` — an already-existing method that normalizes aliases and supplies real wattage, and the exact same entry point manual UI mode-selection already uses. This isn't new EC-write logic; it's removing an accidental bypass of an already-proven-safe path. `DirectEcPowerLimitWritesBlocked` still gates boards where EC writes are considered unsafe, unchanged. Power Automation remains strictly opt-in, so only users who already enabled it are affected — and the effect is that the feature now does what it always claimed to do.
+
+**Still open:** the UI current-mode indicator may still lag after an automated transition on boards whose mode-name list doesn't include a literal alias target (e.g. `8D41`'s `Cool`, `AK0003NR`'s `L5P`) — the applied wattage is correct regardless, but display sync on those specific boards isn't fixed this pass.
+
+**Verified:** 1 new test (`PowerAutomationServiceApplyCurrentProfileTests.ApplyCurrentProfile_AppliesRealWattage_NotBareZeroWattObject`) pins non-zero CPU/GPU wattage and a normalized mode name after a Power-Automation-triggered apply. Full suite green, 0 warnings.
+
+---
+
 ## One Existing Test Updated (Not Weakened)
 
 `HotkeyAndMonitoringTests.CheckAndRecoverFrozenTemps_RateLimitsBridgeRestart_WhenTempsStayFrozen` started failing against the freeze-heuristic change, and it was right to: it fed a **completely static** sample (temperature *and* load both pinned) and expected a freeze to be detected. Under the new rule that is equilibrium, not a fault — which is precisely the false positive being removed.
@@ -157,10 +171,11 @@ The test's actual subject — that bridge restarts are rate-limited once a freez
 
 ## Test Suite
 
-**969/969 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release). 16 new tests added across three files:
+**970/970 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release). 17 new tests added across four files:
 - `WmiFanControllerMaxModeHealthTests` (6) — the `8A18` unwinnable-floor shape, preservation of the strict check on boards that reach the nominal floor, genuine-collapse detection via the backstop, cross-session peak isolation, telemetry-unavailable handling, RPM fallback.
 - `WmiBiosMonitorFreezeHeuristicTests` (7) — 100%-load and idle equilibrium (previously false-positived), wide-load-swing true positive, both threshold boundaries, absolute-ceiling backstop, unpopulated-sentinel safety.
 - `DashboardTelemetrySourceTests` (3) — dashboard ignores the raw event, projects pushed normalized samples, treats a null push as a no-op.
+- `PowerAutomationServiceApplyCurrentProfileTests` (1) — a Power-Automation-triggered apply produces real, non-zero CPU/GPU wattage and a normalized mode name, not a bare zero-watt object.
 
 All use this codebase's established reflection pattern for private-method coverage, and every one replays a shape taken from a real field log rather than a hypothetical.
 

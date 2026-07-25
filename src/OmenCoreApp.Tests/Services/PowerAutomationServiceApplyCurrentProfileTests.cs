@@ -77,7 +77,7 @@ namespace OmenCoreApp.Tests.Services
             public bool VerifyMaxApplied(out string details) { details = "stub"; return false; }
         }
 
-        private (PowerAutomationService service, RecordingFanController controller, ConfigurationService configService) CreateService(bool enabled)
+        private (PowerAutomationService service, RecordingFanController controller, ConfigurationService configService, PerformanceModeService performanceModeService) CreateService(bool enabled)
         {
             var logging = new LoggingService();
             logging.Initialize();
@@ -105,13 +105,13 @@ namespace OmenCoreApp.Tests.Services
 
             var service = new PowerAutomationService(logging, fanService, performanceModeService, configService);
             _disposables.Add(service);
-            return (service, controller, configService);
+            return (service, controller, configService, performanceModeService);
         }
 
         [Fact]
         public void ApplyCurrentProfile_NoOp_WhenPowerAutomationDisabled()
         {
-            var (service, controller, _) = CreateService(enabled: false);
+            var (service, controller, _, _) = CreateService(enabled: false);
 
             service.ApplyCurrentProfile();
 
@@ -122,7 +122,7 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void ApplyCurrentProfile_AppliesConfiguredFanPreset_ForCurrentPowerSource_WhenEnabled()
         {
-            var (service, controller, _) = CreateService(enabled: true);
+            var (service, controller, _, _) = CreateService(enabled: true);
 
             service.ApplyCurrentProfile();
 
@@ -130,6 +130,34 @@ namespace OmenCoreApp.Tests.Services
             controller.AppliedPresets.Should().ContainSingle(
                 p => p.Name == expectedPresetName,
                 "a successful startup apply must use the fan preset configured for whichever power source is currently active");
+        }
+
+        // GitHub #145 item 2 ("Silent" battery profile applies as "Custom"/"Balanced" instead) —
+        // root-caused this cycle: ApplyPowerProfile used to build a bare
+        // `new PerformanceMode { Name = perfMode }` and call Apply() directly, which carries 0W
+        // CPU / 0W GPU. Apply()'s "both limits non-positive" guard then skips the EC power-limit
+        // step outright on any board without a per-model wattage override (57 of 59 in the
+        // database) - so this feature's performance-mode step silently did nothing but leave a
+        // mode name behind, never actually lowering CPU/GPU power on battery. Fixed by routing
+        // through SetPerformanceMode(string), the same alias-normalizing, real-wattage entry
+        // point manual UI mode selection already uses.
+        [Fact]
+        public void ApplyCurrentProfile_AppliesRealWattage_NotBareZeroWattObject()
+        {
+            var (service, _, _, performanceModeService) = CreateService(enabled: true);
+
+            service.ApplyCurrentProfile();
+
+            var applied = performanceModeService.CurrentMode;
+            applied.Should().NotBeNull("Power Automation must actually apply a performance mode on startup sync");
+            applied!.CpuPowerLimitWatts.Should().BeGreaterThan(0,
+                "a bare Name-only PerformanceMode object (the pre-fix bug) carries 0W and gets silently skipped by the EC apply guard");
+            applied.GpuPowerLimitWatts.Should().BeGreaterThan(0,
+                "GPU wattage must also be real, not the 0W default from a bare Name-only object");
+
+            var expectedName = service.IsOnAcPower ? "Performance" : "Quiet";
+            applied.Name.Should().Be(expectedName,
+                "SetPerformanceMode must normalize the configured alias (e.g. 'Silent') to its canonical mode name");
         }
     }
 }

@@ -320,6 +320,40 @@ New addendum to the already-tracked `16z-ak000` (board `8D87`, AMD) thread above
 
 --------------------------------------------------
 
+## Recovered From Pre-4.0.0 Docs: A Sweep of Older Bug-Report Files (2026-07-26)
+
+A dedicated pass re-read `docs/3.6.3-BUG-REPORTS.md`, `docs/3.7.1-BUG-REPORTS.md`, `docs/3.8.0-BUG-REPORTS.md`, `docs/3.8.1-BUG-REPORTS.md`, and `docs/V3_ARCHITECTURE_REVIEW.md` end to end, looking specifically for anything logged as open/unresolved in those files that never made it into this roadmap's consolidation. `V3_ARCHITECTURE_REVIEW.md`'s v3.0.0-era findings are all already re-verified elsewhere in this document (e.g. `TryRestartAsync`, see the Phase A checklist). `CODE_REVIEW_AND_REVAMP_STRATEGY.md` (v2.5.1-era) and `DISCORD_FORUM_4.0.0_ROADMAP.md` are superseded narration with nothing new. Ten items were found that had never been carried forward — one traced and fixed this cycle (turned out to be far bigger in scope than its original report suggested), the rest logged below so they stop getting lost between roadmap consolidations.
+
+### FIXED (4.1.0 cycle): Power Automation Never Actually Applied CPU/GPU Wattage on AC/Battery Transitions
+
+**Originally reported as:** `docs/3.8.1-BUG-REPORTS.md` BUG-3820-005 item 2 — OMEN MAX 16 `8D41`, "Battery profile set to 'Silent' applies as 'Custom' or 'Balanced' instead." Logged as needing "log evidence for the exact substitution point."
+
+**Traced this cycle — the real bug is much bigger than the 8D41 report suggested, and needed no field evidence, just code tracing.** `PowerAutomationService.ApplyPowerProfile()` (the AC/Battery power-source-triggered profile switcher — an opt-in feature) applied performance mode by constructing `new PerformanceMode { Name = perfMode }` and calling `_performanceModeService.Apply(mode)` directly — a bare object with `CpuPowerLimitWatts = 0` and `GpuPowerLimitWatts = 0`. `PerformanceModeService.Apply()`'s own defensive guard (`"both limits are non-positive"`) then skips the EC power-limit step outright whenever both are non-positive — which they always are here unless the model happens to define a per-mode wattage override in `ModelCapabilityDatabase.cs`. A count found only **2 of 59** models define one. So for the other 57, and for both AC and Battery transitions (not just Battery), this feature's "apply performance mode" step has been silently doing nothing but leave a mode name behind — the only real, working part of Power Automation was the fan-preset switch. The 8D41-specific "Silent" symptom was just the most visible corner of it: `perfMode = "Silent"` (the literal config default for `BatteryPerformanceMode`) never matches any board's real `PerformanceModes` list either (only 3 boards in the whole database use `"Quiet"` literally, none use `"Silent"`), so the UI-visible current-mode indicator (`SystemControlViewModel.SelectModeByNameNoApply`, which does an exact-string match) also silently no-ops, leaving stale state that could show as whatever was last manually selected — "Custom" or "Balanced," exactly as reported.
+
+The already-correct fix already existed in the codebase and just wasn't being called from this site: `PerformanceModeService.SetPerformanceMode(string modeName)` normalizes aliases (`"silent"`/`"quiet"`/`"powersaver"` → `"Quiet"`, etc.) and supplies real generic wattage (Performance 95W/140W, Quiet 35W/60W, Balanced 65W/100W, refined by any per-model override) — this is the exact method manual UI mode-selection already routes through, so it is an already-exercised, already-safe code path, not new EC-write logic.
+
+**Fix:** both `ApplyPowerProfile`'s primary apply and `TryRollbackPerformanceMode`'s failure-path rollback now call `_performanceModeService.SetPerformanceMode(perfMode)` instead of hand-building a zero-wattage object. This is scoped as a safe, non-evidence-gated correctness fix (not a new capability decision) because: (1) it routes through a code path already proven safe by every manual Quiet/Balanced/Performance selection made through the UI on every board today; (2) `DirectEcPowerLimitWritesBlocked` still gates boards where EC power writes are considered unsafe (e.g. `8D41`/`8D87`, unaffected either way); (3) Power Automation itself remains strictly opt-in, so only users who already enabled AC/Battery automation are affected, and the effect is the feature finally doing what it always claimed to do.
+
+**Still open on some boards:** the UI current-mode indicator sync (`SelectModeByNameNoApply`'s exact-string match) may still not update after an automated transition on boards whose `PerformanceModes` list uses non-standard labels (e.g. `8D41`'s `Cool`/`AK0003NR`'s `L5P`, neither of which is a literal alias target) — the underlying applied wattage is now correct regardless, but the tray/General-tab display may lag on those specific boards. Not fixed this pass; flagging rather than overclaiming.
+
+**Verified:** 1 new regression test (`PowerAutomationServiceApplyCurrentProfileTests.ApplyCurrentProfile_AppliesRealWattage_NotBareZeroWattObject`) pins that a Power-Automation-triggered apply produces non-zero CPU/GPU wattage and a normalized mode name, not a bare zero-watt object. Full suite green, 0 warnings.
+
+### Still Open — Recovered, Not Yet Actioned
+
+- **`docs/3.8.1-BUG-REPORTS.md`, [GitHub #143](https://github.com/theantipopau/omencore/issues/143)** — Victus 15 `8DCD`: fans reportedly collapse below 2000 RPM while CPU is above 80°C. Safety-relevant; explicitly logged as needing reproduction evidence before any control-policy change — correctly evidence-gated, just never carried into this roadmap's tracking.
+- **`docs/3.8.1-BUG-REPORTS.md`, [GitHub #137](https://github.com/theantipopau/omencore/issues/137) (carried from 3.8.0)** — Linux OMEN 16-xd0xxx `8BCD`: ACPI WMAA call aborts, breaking fan/RGB/battery control on Linux. Only diagnostics-labeling shipped; the routing gap itself is untouched.
+- **[GitHub #141](https://github.com/theantipopau/omencore/issues/141)** — OMEN 16-ap0xxx `8D26`: dedicated OMEN key not working, Fn+F2 false-triggers. A source/artifact discrepancy was identified but the model-event discovery work to actually fix it was never executed.
+- **[GitHub #142](https://github.com/theantipopau/omencore/issues/142)** — HyperX OMEN MAX 16 `8E9A`: unrecognized model identity; no conservative profile added pending diagnostics.
+- **[GitHub #145](https://github.com/theantipopau/omencore/issues/145)** — OMEN Slim 16 `8D40`: Battery Care (`CMD_BATTERY_CARE`) WMI call fails. Evidence-capture wiring was added; the root cause itself is still open pending a diagnostics export.
+- **PERF-3810-001** — background RAM reportedly above 400 MB plus sluggish response. A measurement/scenario plan was scoped in 3.8.1 but never executed — no baseline was ever captured.
+- **`docs/3.7.1-BUG-REPORTS.md` #6** — Eco Mode parity with OMEN Gaming Hub, requested but never implemented; dropped from tracking rather than explicitly deferred.
+- **`docs/3.8.0-BUG-REPORTS.md` BUG-3800-006** — Victus 16-S0035NT / `7Z5Z2EA`: RGB reported completely uncontrollable. No diagnostics were ever collected and there was no follow-up request.
+- **OMEN Transcend 14 `8E41`** (3.6.3/3.7.1) — Fn+P/Fn+F12 hotkeys don't work and advanced lighting effects fail. Distinct from this board's thermal-spike issue (BUG-3810-005), which *is* tracked elsewhere — this hotkey/lighting angle specifically was never carried forward.
+
+None of these are actioned this cycle — each needs either a fresh diagnostics export/reproduction (the hardware-behavior ones) or just triage time (the never-executed investigation plans). Listed here so the next pass doesn't have to re-read five old bug-report files to find them again.
+
+--------------------------------------------------
+
 ## How To Tackle This: A Guide For Whoever Picks This Up (Human or Agent)
 
 This roadmap file has accumulated a lot of independently-scoped items across several passes. Don't try to do all of it at once, and don't reorder by what's "interesting" — follow this sequence:
