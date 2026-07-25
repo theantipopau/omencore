@@ -2,17 +2,24 @@ namespace OmenCore.Linux.Hardware;
 
 /// <summary>
 /// Linux HP WMI keyboard lighting controller.
-/// 
+///
 /// Uses /sys/devices/platform/hp-wmi/* interface for controlling
 /// the 4-zone RGB keyboard on HP OMEN laptops.
 /// Per-key RGB models are detected but require USB HID protocol (not yet supported on Linux).
-/// 
-/// Requires hp-wmi kernel module:
+///
+/// Some boards (confirmed on OMEN Max 16-ah0xxx, board 8D41, GitHub #151) expose
+/// zone control via a separate hp-rgb-lighting platform device instead of hp-wmi,
+/// with plain "zoneN" filenames (no "_color" suffix). Reporter confirmed these zones
+/// are writable via raw sysfs even though hp-wmi's zoneN_color path doesn't exist on
+/// that board.
+///
+/// Requires hp-wmi kernel module (or hp-rgb-lighting for boards that use it):
 ///   modprobe hp-wmi
 /// </summary>
 public class LinuxKeyboardController
 {
     private const string HP_WMI_PATH = "/sys/devices/platform/hp-wmi";
+    private const string HP_RGB_LIGHTING_PATH = "/sys/devices/platform/hp-rgb-lighting";
     private const string KEYBOARD_BACKLIGHT_PATH = "/sys/class/leds/hp::kbd_backlight";
     private const string DMI_PRODUCT_NAME_PATH = "/sys/class/dmi/id/product_name";
     
@@ -45,9 +52,19 @@ public class LinuxKeyboardController
     
     public LinuxKeyboardController()
     {
-        IsAvailable = Directory.Exists(HP_WMI_PATH) || Directory.Exists(KEYBOARD_BACKLIGHT_PATH);
-        HasZoneControl = File.Exists(Path.Combine(HP_WMI_PATH, "keyboard_zones"));
+        IsAvailable = Directory.Exists(HP_WMI_PATH) || Directory.Exists(KEYBOARD_BACKLIGHT_PATH)
+            || Directory.Exists(HP_RGB_LIGHTING_PATH);
+        HasZoneControl = File.Exists(Path.Combine(HP_WMI_PATH, "keyboard_zones")) || HasRgbLightingZoneFiles();
         IsPerKeyRgb = DetectPerKeyRgb();
+    }
+
+    /// <summary>
+    /// Some boards expose zone files directly under hp-rgb-lighting with no
+    /// separate "keyboard_zones" capability flag - detect by probing for zone0.
+    /// </summary>
+    private static bool HasRgbLightingZoneFiles()
+    {
+        return File.Exists(Path.Combine(HP_RGB_LIGHTING_PATH, "zone0"));
     }
     
     /// <summary>
@@ -83,19 +100,26 @@ public class LinuxKeyboardController
         {
             // HP OMEN keyboard lighting is complex - zones may be controlled via WMI
             // This implementation uses a simplified approach based on available interfaces
-            
+            var colorValue = $"{r:X2}{g:X2}{b:X2}";
+
             // Try HP WMI zone control (if available)
-            if (HasZoneControl)
+            var zonePath = Path.Combine(HP_WMI_PATH, $"zone{zone}_color");
+            if (File.Exists(zonePath))
             {
-                var zonePath = Path.Combine(HP_WMI_PATH, $"zone{zone}_color");
-                if (File.Exists(zonePath))
-                {
-                    var colorValue = $"{r:X2}{g:X2}{b:X2}";
-                    File.WriteAllText(zonePath, colorValue);
-                    return true;
-                }
+                File.WriteAllText(zonePath, colorValue);
+                return true;
             }
-            
+
+            // Some boards (e.g. board 8D41 / OMEN Max 16-ah0xxx) expose zones via a
+            // separate hp-rgb-lighting platform device instead, with a plain "zoneN"
+            // filename (no "_color" suffix) - try that path before falling back.
+            var rgbLightingZonePath = Path.Combine(HP_RGB_LIGHTING_PATH, $"zone{zone}");
+            if (File.Exists(rgbLightingZonePath))
+            {
+                File.WriteAllText(rgbLightingZonePath, colorValue);
+                return true;
+            }
+
             // Alternative: Use keyboard backlight brightness as a proxy
             // This doesn't support full RGB but provides basic control
             var brightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness");

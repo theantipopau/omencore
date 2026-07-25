@@ -116,12 +116,36 @@ HP reused board ID `8C2F` across both a 15" and a 16" Victus Ryzen chassis. The 
 
 ---
 
+## Fixed: Board `8D41` Light Bar Zones Silently Failed on Linux Through the Wrong sysfs Path
+
+**Reported in:** [GitHub #151](https://github.com/theantipopau/omencore/issues/151) (Nefreyu, board `8D41`, Darfon `0d62:54bf` keyboard) — reporter proved zones 0-3 (the chassis light bar) are writable via raw sysfs on this board, but `omencore-cli` never lit them.
+
+**Root cause:** `LinuxKeyboardController.cs` only ever wrote to `/sys/devices/platform/hp-wmi/zoneN_color`. This board's community driver instead exposes zone control through a separate `hp-rgb-lighting` platform device, with plain `zoneN` filenames (no `_color` suffix) — a different sysfs device entirely, not a naming variant of the same one.
+
+**Fix:** `SetZoneColor` now tries the existing `hp-wmi/zoneN_color` path first (unchanged for every board that already worked), and falls back to `hp-rgb-lighting/zoneN` when that path doesn't exist. `HasZoneControl`/`IsAvailable` detection extended the same way. This covers only the light-bar zones the reporter already confirmed are writable — it does not touch keyboard zones 4-7, which reach a separate Darfon USB HID controller and remain correctly gated behind the field HID-capture work below.
+
+**Verified:** build clean, 0 warnings. No test project exists for `OmenCore.Linux` (no Linux hardware or CI runner available in this environment), so this is code-review-verified only, not a live sysfs write — noted here rather than overclaimed.
+
+---
+
 ## Not Changed This Release (Deliberately)
 
 - **[GitHub #154](https://github.com/theantipopau/omencore/issues/154) — HP ENVY 14-eb0xxx:** out of scope; an ENVY is not an OMEN or Victus board and its firmware exposes no thermal-profile/fan-target interface. Worth noting the reporter's diagnostics were among the most thorough received this cycle, should ENVY support ever be considered.
-- **[GitHub #151](https://github.com/theantipopau/omencore/issues/151) — board `8D41` Darfon `0d62:54bf` keyboard RGB:** already fully tracked; still gated on the reporter's offered HID capture. The reporter has since confirmed HP's own OMEN Light Studio doesn't support this controller either, which is useful corroboration but doesn't unblock the work.
-- **Discord (SprinkSponk, board `8D87`) — CPU package power caps at 71W vs. 105W via OGH:** logged, not yet traced. `PowerLimitController` clamps only to a generous 10-150W range, so the cap is coming from elsewhere (likely the AMD SMU path or firmware). Board `8D87` now has multiple open unconfirmed capability questions and would benefit from one consolidated field-evidence pass.
+- **[GitHub #151](https://github.com/theantipopau/omencore/issues/151) — board `8D41` keyboard zones 4-7 (Darfon HID controller):** the light-bar half of this report is fixed above; the keyboard-zone half still needs the reporter's offered USB HID feature-report capture before a backend can be written.
+- **Discord (SprinkSponk, board `8D87`) — CPU package power caps at 71W vs. 105W via OGH:** traced this cycle (see below) — root cause found, fix identified, deliberately not applied pending field confirmation.
 - **#153's underlying question of whether an external actor really resets fan state on board `8A18`:** the reassert *loop* is fixed, but whether anything genuinely drops the fan level remains unanswered without an EC register trace.
+
+---
+
+## Traced, Not Fixed: Board `8D87` CPU Power Ceiling (71W vs. 105W via OGH)
+
+**Reported by:** Discord (SprinkSponk, OMEN MAX 16z-ak000, board `8D87`, AMD) — CPU package power hard-caps at 71W where OGH reaches 105W on the same hardware.
+
+**Root cause found.** Board `8D87` sets `SupportsFanControlEc = false` (2025 MAX-family EC register layout diverges from legacy — the same reason every 2025 MAX board disables direct EC writes) and has no `PerformanceCpuPl1Watts`/`PerformanceCpuPl2Watts` override, so `PerformanceModeService.Apply()`'s EC power-limit path is blocked for this board. The intended escape hatch for exactly this case, `AllowDecoupledWmiThermalPolicyFallback`, is set `true` on every other 2025 MAX-family board with EC writes disabled — `8D41` and `8D42`, both Intel — but **`8D87` and its AMD sibling entry `AK0003NR` are the only two 2025 MAX boards in the database that don't set it.** With neither path enabled, a performance-mode switch on this board currently does nothing to CPU/GPU power beyond the Windows power plan, so the firmware's own default cap simply never gets overridden — consistent with OGH (which likely drives the same WMI thermal-policy path itself) reaching 105W while OmenCore touches nothing.
+
+**Not applied this release.** The fix is a one-line addition per entry (`AllowDecoupledWmiThermalPolicyFallback = true` on `8D87` and `AK0003NR`), but it is a genuine hardware-behavior change — it starts sending a WMI write on every mode switch for these boards where today nothing is sent — so per this project's evidence-gate rule it needs field confirmation, not just code-level confidence. Unlike the `8D41`/`8D42` siblings (`UserVerified = true`), both `8D87` and `AK0003NR` are `UserVerified = false`; the WMI fallback reaching higher wattage on the AMD SMU path is a strong hypothesis from symmetry with the Intel siblings, not a confirmed mechanism.
+
+**Next step:** get a reporter to test a build with the flag flipped and confirm CPU power actually rises with no adverse thermal/fan/stability effects, before merging. Full detail in `docs/ROADMAP_v4.0.0.md`.
 
 ---
 
