@@ -1,7 +1,7 @@
 # OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
 
 **Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 970/970 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Status:** In development. Code-complete and test-verified for the items below — 977/977 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
@@ -163,6 +163,22 @@ HP reused board ID `8C2F` across both a 15" and a 16" Victus Ryzen chassis. The 
 
 ---
 
+## Added: Diagnostic Warning for Sustained High-Temp / Low-RPM Anomaly (GitHub #143)
+
+**Originally reported as:** `docs/3.8.1-BUG-REPORTS.md` BUG-3810-002 — Victus 15 `8DCD`, Performance-mode fan reportedly collapsing from ~5000 RPM to below 2000 RPM while CPU stayed above 80°C for roughly five minutes, recovering only after a manual mode change. Flagged thermal-safety-critical; explicitly gated on a field reproduction with `wmi-command-history.txt`/`tuning-fan-focus.txt` evidence before any control-policy change — that gate is correct and unchanged.
+
+**What shipped instead of a fix:** the report's own "Required Automated Coverage" line called for exactly this — "a sustained high-temperature/unexpectedly-low-RPM state emits an actionable warning and never reports the requested mode as verified solely from command success" — and that's buildable without field evidence, since it's pure diagnostics. `HardwareMonitoringService.CheckForUnexpectedLowRpmAtHighTemp` now watches every monitoring sample and warns once per sustained window when a `TelemetryDataState.Valid` RPM reading (CPU or GPU fan, checked independently) stays below 2000 RPM while that side's temperature stays at or above 80°C for 5+ consecutive polls. Both thresholds are the reporter's own numbers.
+
+**This changes nothing about fan control.** It doesn't read the requested mode/preset, doesn't touch the EC or WMI, and doesn't influence any decision the fan curve engine makes — it only compares temperature to RPM already present on the sample and logs. Readings that aren't `TelemetryDataState.Valid` (Zero/Stale/Unavailable/Invalid) are skipped entirely rather than treated as evidence either way, so boards without real RPM telemetry won't generate false alarms.
+
+Also checked `8DCD`'s own `ModelCapabilityDatabase.cs` entry while investigating: it already has `SupportsFanControlEc = false` and `AllowDecoupledWmiThermalPolicyFallback = true`, the correct conservative profile, and the report describes the collapse happening in Performance mode rather than Max mode, so this release's earlier Max-mode-health fix (see the #153 section above) doesn't apply here. No separate bug found in this board's database entry.
+
+**Verified:** 7 new tests (`HardwareMonitoringUnexpectedLowRpmTests`) cover: the warning firing after the sustained threshold; staying silent below that threshold; staying silent when only temperature or only RPM is anomalous (not both); staying silent on non-`Valid` RPM state; the consecutive-count resetting on recovery; and firing only once per anomaly window rather than spamming the log. Full suite green, 0 warnings.
+
+**Still open:** the actual root cause of #143. This only ensures the next reproduction's log carries unambiguous evidence instead of silence.
+
+---
+
 ## One Existing Test Updated (Not Weakened)
 
 `HotkeyAndMonitoringTests.CheckAndRecoverFrozenTemps_RateLimitsBridgeRestart_WhenTempsStayFrozen` started failing against the freeze-heuristic change, and it was right to: it fed a **completely static** sample (temperature *and* load both pinned) and expected a freeze to be detected. Under the new rule that is equilibrium, not a fault — which is precisely the false positive being removed.
@@ -171,11 +187,12 @@ The test's actual subject — that bridge restarts are rate-limited once a freez
 
 ## Test Suite
 
-**970/970 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release). 17 new tests added across four files:
+**977/977 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release). 24 new tests added across five files:
 - `WmiFanControllerMaxModeHealthTests` (6) — the `8A18` unwinnable-floor shape, preservation of the strict check on boards that reach the nominal floor, genuine-collapse detection via the backstop, cross-session peak isolation, telemetry-unavailable handling, RPM fallback.
 - `WmiBiosMonitorFreezeHeuristicTests` (7) — 100%-load and idle equilibrium (previously false-positived), wide-load-swing true positive, both threshold boundaries, absolute-ceiling backstop, unpopulated-sentinel safety.
 - `DashboardTelemetrySourceTests` (3) — dashboard ignores the raw event, projects pushed normalized samples, treats a null push as a no-op.
 - `PowerAutomationServiceApplyCurrentProfileTests` (1) — a Power-Automation-triggered apply produces real, non-zero CPU/GPU wattage and a normalized mode name, not a bare zero-watt object.
+- `HardwareMonitoringUnexpectedLowRpmTests` (7) — the sustained high-temp/low-RPM warning firing after threshold, staying silent below it, staying silent when only one of the two conditions holds, staying silent on non-`Valid` RPM state, counter reset on recovery, single-fire-per-window.
 
 All use this codebase's established reflection pattern for private-method coverage, and every one replays a shape taken from a real field log rather than a hypothetical.
 

@@ -87,6 +87,22 @@ namespace OmenCore.Services
         private const int ZeroTempDegradedThreshold = 10;    // Mark degraded after 10 consecutive 0°C readings (~10s)
         private bool _gpuFreezeWarningLogged = false;        // v2.8.6: Only log GPU freeze warning once per freeze event
         private const int FreezeRestartBaseCooldownSeconds = 90;
+
+        // GitHub #143 (Victus 8DCD): Performance fan reportedly collapsed from ~5000 RPM to
+        // below 2000 RPM while CPU stayed above 80°C for roughly five minutes, recovering only
+        // after a manual mode change. This does NOT attempt to diagnose or fix that report — per
+        // this project's evidence-gate rule, a control-policy change needs a field reproduction
+        // with wmi-command-history/tuning-fan-focus evidence first. This is diagnostic-only: it
+        // makes that evidence loud and easy to find in a log, so "the requested mode applied
+        // successfully" is never mistaken for "the fan is actually spinning at a safe speed" when
+        // the two disagree for a sustained period. Thresholds match the reporter's own numbers.
+        private const double UnexpectedLowRpmHighTempThresholdC = 80.0;
+        private const int UnexpectedLowRpmFloor = 2000;
+        private const int UnexpectedLowRpmSustainedReadings = 5; // avoid firing on a single transient dip
+        private int _consecutiveCpuHighTempLowRpm = 0;
+        private int _consecutiveGpuHighTempLowRpm = 0;
+        private bool _cpuHighTempLowRpmWarningLogged = false;
+        private bool _gpuHighTempLowRpmWarningLogged = false;
         private const int FreezeRestartMaxCooldownSeconds = 300;
         private const int FreezeRestartBudgetWindowMinutes = 15;
         private const int FreezeRestartMaxAttemptsPerWindow = 4;
@@ -569,6 +585,7 @@ namespace OmenCore.Services
 
                     // Temperature freeze detection (v2.7.0)
                     sample = CheckAndRecoverFrozenTemps(sample);
+                    CheckForUnexpectedLowRpmAtHighTemp(sample);
                     sample = EnrichCpuTelemetry(sample);
 
                     // ALWAYS update historical metrics for charts/graphs (bug fix v2.7.0)
@@ -1349,6 +1366,52 @@ namespace OmenCore.Services
             }
             
             return sample;
+        }
+
+        /// <summary>
+        /// Diagnostic-only warning for GitHub #143. Does not read fan-mode/preset state and does
+        /// not touch fan control in any way - it only compares temperature against fan RPM already
+        /// present on the sample and logs once per sustained anomaly window. See the field
+        /// comments above <see cref="UnexpectedLowRpmHighTempThresholdC"/> for the reasoning.
+        /// </summary>
+        private void CheckForUnexpectedLowRpmAtHighTemp(MonitoringSample sample)
+        {
+            CheckOneFanForUnexpectedLowRpmAtHighTemp(
+                sample.CpuTemperatureC, sample.Fan1Rpm, sample.Fan1RpmState, "CPU",
+                ref _consecutiveCpuHighTempLowRpm, ref _cpuHighTempLowRpmWarningLogged);
+
+            CheckOneFanForUnexpectedLowRpmAtHighTemp(
+                sample.GpuTemperatureC, sample.Fan2Rpm, sample.Fan2RpmState, "GPU",
+                ref _consecutiveGpuHighTempLowRpm, ref _gpuHighTempLowRpmWarningLogged);
+        }
+
+        private void CheckOneFanForUnexpectedLowRpmAtHighTemp(
+            double temperatureC, int fanRpm, TelemetryDataState rpmState, string label,
+            ref int consecutiveCount, ref bool warningLogged)
+        {
+            // Only act on a Valid reading (a real, plausible positive RPM) - Zero/Stale/Unavailable/
+            // Invalid readings are not evidence either way and would just produce noise here.
+            var anomalous = temperatureC >= UnexpectedLowRpmHighTempThresholdC &&
+                rpmState == TelemetryDataState.Valid &&
+                fanRpm < UnexpectedLowRpmFloor;
+
+            if (!anomalous)
+            {
+                consecutiveCount = 0;
+                warningLogged = false;
+                return;
+            }
+
+            consecutiveCount++;
+            if (consecutiveCount >= UnexpectedLowRpmSustainedReadings && !warningLogged)
+            {
+                _logging.Warn(
+                    $"⚠️ {label} fan reads {fanRpm} RPM while {label} temperature is {temperatureC:F1}°C " +
+                    $"(>= {UnexpectedLowRpmHighTempThresholdC:F0}°C) for {consecutiveCount} consecutive readings - " +
+                    "unusually low for this temperature. If this is sustained, verify the requested fan mode " +
+                    "actually matches hardware behavior rather than trusting command-success alone (GitHub #143).");
+                warningLogged = true;
+            }
         }
 
         private void ResetFreezeDetectionState()
