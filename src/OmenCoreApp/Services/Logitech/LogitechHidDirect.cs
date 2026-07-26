@@ -456,64 +456,103 @@ namespace OmenCore.Services.Logitech
 
         private async Task SendColorCommand(LogitechHidDevice device, byte r, byte g, byte b)
         {
-            // Logitech HID++ protocol for RGB control
-            // Protocol varies between HID++ 1.0 and 2.0 devices
-            
-            try
+            // Logitech HID++ protocol for RGB control - protocol varies between HID++ 1.0 and
+            // 2.0 devices. Each write opens its own stream and is tried independently: the
+            // HID++ 1.0 attempt must not be nested inside the HID++ 2.0 attempt's try block,
+            // or a HID++ 2.0 failure skips it entirely (the bug this replaces - confirmed via a
+            // real field log where a HID++ 1.0-only device logged 958 failed HID++ 2.0 writes
+            // in under 3 minutes while every caller kept reporting success regardless).
+            bool wroteSuccessfully = false;
+
+            if (device.HidPlusPlus2Supported != false)
             {
-                using var stream = device.HidDevice.Open();
-                
-                // HID++ 2.0 color control (for newer G devices)
-                // Feature: RGB Effect (0x8071)
-                // This is a simplified solid color command
-                
-                var report = new byte[20]; // Short HID++ report
-                report[0] = 0x11; // Short report ID for HID++ 2.0
-                report[1] = 0xFF; // Device index (0xFF = all)
-                report[2] = 0x04; // Feature index (RGB effects, varies by device)
-                report[3] = 0x3E; // Function: Set RGB zone color
-                report[4] = 0x00; // Zone (0 = all)
-                report[5] = r;    // Red
-                report[6] = g;    // Green
-                report[7] = b;    // Blue
-                report[8] = 0x02; // Effect type (solid)
-                
-                await stream.WriteAsync(report, 0, report.Length);
-                
-                // Alternative: Try HID++ 1.0 style for older devices
-                var report10 = new byte[7];
-                report10[0] = 0x10; // Short report for HID++ 1.0
-                report10[1] = 0xFF; // Device
-                report10[2] = 0x81; // Backlight command
-                report10[3] = r;
-                report10[4] = g;
-                report10[5] = b;
-                
                 try
                 {
+                    using var stream = device.HidDevice.Open();
+
+                    // HID++ 2.0 color control (for newer G devices)
+                    // Feature: RGB Effect (0x8071)
+                    // This is a simplified solid color command
+                    var report = new byte[20]; // Short HID++ report
+                    report[0] = 0x11; // Short report ID for HID++ 2.0
+                    report[1] = 0xFF; // Device index (0xFF = all)
+                    report[2] = 0x04; // Feature index (RGB effects, varies by device)
+                    report[3] = 0x3E; // Function: Set RGB zone color
+                    report[4] = 0x00; // Zone (0 = all)
+                    report[5] = r;    // Red
+                    report[6] = g;    // Green
+                    report[7] = b;    // Blue
+                    report[8] = 0x02; // Effect type (solid)
+
+                    await stream.WriteAsync(report, 0, report.Length);
+                    device.HidPlusPlus2Supported = true;
+                    wroteSuccessfully = true;
+                }
+                catch (Exception ex)
+                {
+                    // Only warn the first time - once confirmed unsupported, skip this attempt
+                    // entirely on future calls instead of repeating a doomed write every time.
+                    if (device.HidPlusPlus2Supported == null)
+                    {
+                        _logging.Warn($"HID write failed: {ex.Message} - Device may require specific HID++ version");
+                    }
+                    device.HidPlusPlus2Supported = false;
+                }
+            }
+
+            if (!wroteSuccessfully)
+            {
+                try
+                {
+                    using var stream = device.HidDevice.Open();
+
+                    var report10 = new byte[7];
+                    report10[0] = 0x10; // Short report for HID++ 1.0
+                    report10[1] = 0xFF; // Device
+                    report10[2] = 0x81; // Backlight command
+                    report10[3] = r;
+                    report10[4] = g;
+                    report10[5] = b;
+
                     await stream.WriteAsync(report10, 0, report10.Length);
+                    wroteSuccessfully = true;
                 }
                 catch (Exception ex)
                 {
                     _logging.Debug($"Logitech HID++ 1.0 static color fallback unsupported: {ex.Message}");
                 }
             }
-            catch (Exception ex)
+
+            if (!wroteSuccessfully)
             {
-                _logging.Warn($"HID write failed: {ex.Message} - Device may require specific HID++ version");
+                throw new InvalidOperationException("Neither HID++ 2.0 nor HID++ 1.0 color write succeeded for this device.");
             }
         }
 
         /// <summary>
-        /// Send an HID++ 2.0 RGB effect command (breathing, spectrum, flash, wave).
-        /// Falls back to HID++ 1.0 for older devices.
+        /// Send an HID++ 2.0 RGB effect command (breathing, spectrum, flash, wave). Animated
+        /// effects are a HID++ 2.0-only concept here - HID++ 1.0 has no equivalent, so on
+        /// failure this throws and callers fall back to a plain static color
+        /// (<see cref="ApplyStaticColorAsync"/>, which itself now correctly tries both protocol
+        /// versions). A previous version also attempted an "HID++ 1.0 effect" write inline, but
+        /// it was nested inside the HID++ 2.0 try block and so was unreachable whenever HID++
+        /// 2.0 failed - dead code in the only case that mattered - and its real-world behavior
+        /// on hardware that only speaks HID++ 1.0 (a plain backlight command, not a real
+        /// animation) was never actually verified. Removed rather than guessed at.
         /// </summary>
         private async Task SendEffectCommand(LogitechHidDevice device, byte effectType, byte r, byte g, byte b, byte param1, byte param2)
         {
+            if (device.HidPlusPlus2Supported == false)
+            {
+                // Already confirmed unsupported earlier this session - skip the doomed write
+                // and its warning entirely, and let the caller fall back to static immediately.
+                throw new InvalidOperationException("Device does not support HID++ 2.0 effects (confirmed earlier this session).");
+            }
+
             try
             {
                 using var stream = device.HidDevice.Open();
-                
+
                 // HID++ 2.0 long report for effects (Feature 0x8071 - RGB Effects)
                 var report = new byte[20];
                 report[0] = 0x11;       // Long report ID for HID++ 2.0
@@ -527,31 +566,18 @@ namespace OmenCore.Services.Logitech
                 report[8] = effectType; // Effect: 0x02=solid, 0x03=breathing, 0x04=spectrum, 0x05=flash, 0x06=wave
                 report[9] = param1;     // Speed/period/rate
                 report[10] = param2;    // Intensity/direction/duration (effect-specific)
-                
+
                 await stream.WriteAsync(report, 0, report.Length);
-                
-                // Also try HID++ 1.0 effect command for older devices
-                try
-                {
-                    var report10 = new byte[7];
-                    report10[0] = 0x10;       // Short report for HID++ 1.0
-                    report10[1] = 0xFF;       // Device
-                    report10[2] = 0x81;       // Backlight command
-                    report10[3] = r;
-                    report10[4] = g;
-                    report10[5] = b;
-                    report10[6] = effectType; // Effect type in last byte
-                    await stream.WriteAsync(report10, 0, report10.Length);
-                }
-                catch (Exception ex)
-                {
-                    _logging.Debug($"Logitech HID++ 1.0 effect fallback unsupported: {ex.Message}");
-                }
+                device.HidPlusPlus2Supported = true;
             }
             catch (Exception ex)
             {
-                _logging.Warn($"HID effect write failed: {ex.Message} - Device may require specific HID++ version");
-                throw; // Let caller handle fallback
+                if (device.HidPlusPlus2Supported == null)
+                {
+                    _logging.Warn($"HID effect write failed: {ex.Message} - Device may require specific HID++ version");
+                }
+                device.HidPlusPlus2Supported = false;
+                throw; // Let caller handle fallback to static.
             }
         }
 
@@ -590,6 +616,15 @@ namespace OmenCore.Services.Logitech
             public HidDevice HidDevice { get; set; } = null!;
             public int ProductId { get; set; }
             public LogitechDevice DeviceInfo { get; set; } = null!;
+
+            /// <summary>
+            /// Null = not yet determined this session. False = the HID++ 2.0 write has been
+            /// confirmed to fail on this device (real field log: 958 failed HID++ 2.0 writes in
+            /// under 3 minutes on one user's session, because the device only speaks HID++ 1.0) -
+            /// skip it and go straight to the HID++ 1.0 path instead of retrying and re-warning
+            /// on every single lighting call for the rest of the session.
+            /// </summary>
+            public bool? HidPlusPlus2Supported { get; set; }
         }
     }
 }

@@ -221,6 +221,20 @@ Continuing to review real diagnostics exports (this time from three additional r
 
 ---
 
+## Fixed: Logitech HID++ Fallback Was Unreachable, Silently Reporting False Success
+
+Found by reading a raw application log (not just the summary files) inside one of the same real diagnostics exports — a ~73-minute session on board `8A18`. It logged **960 "HID write failed"/"HID effect write failed" warnings in a single session**, almost all clustered into a ~3-minute window while the user was testing RGB scenes/effects — roughly 5-6 failures per second, not slow background noise.
+
+**Root cause:** `LogitechHidDirect.cs`'s `SendColorCommand`/`SendEffectCommand` always try an HID++ 2.0 write first, with the HID++ 1.0 fallback **nested inside the same `try` block**. When HID++ 2.0 throws — which it always did for this user's device (a `G715 Wireless`/`Lightspeed Receiver` pair that only speaks HID++ 1.0) — execution jumps straight to the outer `catch`, so the HID++ 1.0 fallback never runs. Worse, `SendColorCommand`'s outer catch swallowed the exception without rethrowing, so `ApplyStaticColorAsync` logged `"Applied lighting ... via direct HID"` as unconditional success. The log makes this visible in sequence: `HID write failed` → `Applied lighting #E6002E ... via direct HID` → `Applied color #E6002E @ 100% to G715 Wireless` — the last two lines both false. For this device, nothing was ever actually written to the keyboard/mouse, but the app reported success every single time.
+
+**Fix:** restructured both methods so HID++ 1.0 is a genuinely independent second attempt (its own `try`, its own stream), reached only when HID++ 2.0 actually fails. Added a per-device `HidPlusPlus2Supported` tri-state flag so a confirmed-unsupported device skips the doomed HID++ 2.0 write (and its warning) on every later call instead of repeating both forever — cutting the spam to at most one warning per device per session. Success is now only reported when a write genuinely succeeded via either protocol; genuine failure now logs at `Error`, not silently. Also removed `SendEffectCommand`'s internal "HID++ 1.0 effect" attempt entirely rather than making the same dead branch reachable and guessing at undocumented behavior — animated effects have no HID++ 1.0 equivalent, and the caller (`ApplyBreathingEffectAsync` etc.) already has a correctly-labeled fallback to static color for exactly this case.
+
+**No test coverage added** — `LogitechHidDirect` has no existing tests and depends on HidSharp's concrete `HidDevice`/`HidStream` types (real USB HID I/O, not mockable without a stream abstraction this class doesn't have), so this is code-review-verified only. Flagging that rather than overclaiming.
+
+**Scope note:** confirmed in one real user's session, not cross-confirmed across multiple reporters like the diagnostics-collector fixes above — still real and reproducible straight from the log's own evidence, just a narrower evidence base than the others in this release.
+
+---
+
 ## One Existing Test Updated (Not Weakened)
 
 `HotkeyAndMonitoringTests.CheckAndRecoverFrozenTemps_RateLimitsBridgeRestart_WhenTempsStayFrozen` started failing against the freeze-heuristic change, and it was right to: it fed a **completely static** sample (temperature *and* load both pinned) and expected a freeze to be detected. Under the new rule that is equilibrium, not a fault — which is precisely the false positive being removed.
