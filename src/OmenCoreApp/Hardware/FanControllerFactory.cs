@@ -30,6 +30,38 @@ namespace OmenCore.Hardware
         /// </summary>
         void StopCountdownExtension() { }
 
+        /// <summary>
+        /// True when this backend is currently holding the fan in manual/override mode rather
+        /// than BIOS auto control. Backends without this concept get a safe default of false.
+        /// </summary>
+        bool IsManualControlActive => false;
+
+        /// <summary>
+        /// True when commands to this backend report success but have been observed not to
+        /// actually change fan behavior (some 2024+ OMEN models). Diagnostics-only signal;
+        /// backends without this detection get a safe default of false.
+        /// </summary>
+        bool CommandsIneffective => false;
+
+        /// <summary>
+        /// Count of consecutive command-verification failures, where applicable.
+        /// Backends without this concept get a safe default of 0.
+        /// </summary>
+        int VerifyFailCount => 0;
+
+        /// <summary>
+        /// Timestamp of the most recent detected external reset of Max fan mode (e.g. firmware
+        /// or another application silently dropping OmenCore's fan ownership), if any.
+        /// Backends without this detection get a safe default of null.
+        /// </summary>
+        DateTime? LastMaxModeExternalResetUtc => null;
+
+        /// <summary>
+        /// Human-readable detail for <see cref="LastMaxModeExternalResetUtc"/>.
+        /// Backends without this detection get a safe default explaining it's not tracked.
+        /// </summary>
+        string LastMaxModeExternalResetDetails => "Not tracked by this backend.";
+
         bool ApplyPreset(FanPreset preset);
         bool ApplyCustomCurve(IEnumerable<FanCurvePoint> curve);
         bool SetFanSpeed(int percent);
@@ -776,6 +808,8 @@ namespace OmenCore.Hardware
         public bool IsAvailable => _controller.IsAvailable;
         public string Status => _controller.Status;
         public string Backend => "WMI BIOS";
+        public bool IsManualControlActive => _controller.IsManualControlActive;
+        public int VerifyFailCount => _controller.VerifyFailCount;
         public bool IsHoldActive => _controller.CountdownExtensionEnabled;
         public void StopCountdownExtension() => _controller.StopCountdownExtension();
         

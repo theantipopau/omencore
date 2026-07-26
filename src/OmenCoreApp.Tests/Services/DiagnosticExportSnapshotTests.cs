@@ -881,5 +881,82 @@ namespace OmenCoreApp.Tests.Services
             string content = ReadFileFromExport(zipPath, "ec-state.txt");
             content.Should().Be("EC access not available");
         }
+
+        // Real field diagnostics (2026-07-26, reviewed across multiple users' exports spanning
+        // v3.8.0-v4.0.0) showed IsManualControlActive/CommandsIneffective/VerifyFailCount/
+        // LastMaxModeExternalResetUtc/LastMaxModeExternalResetDetails as a byte-identical
+        // "<unavailable>" placeholder in every single export, on every board - including board
+        // 8A18, the exact board this session's #153 fix targeted, where this evidence would
+        // have directly answered the still-open "is there a real external fan-reset actor"
+        // question. Root cause: these fields were reflected off wmiController (HpWmiBios, the
+        // raw WMI command layer), which never had them - they live on the fan controller
+        // (WmiFanController/WmiFanControllerWrapper) instead. These tests pin that all four
+        // collectors that show this section now read from fanService.Controller and no longer
+        // show the broken-wiring "<unavailable>" placeholder.
+        [Fact]
+        public void BuildCoreControlReadinessReport_FanOwnershipFields_ComeFromFanControllerNotWmiController()
+        {
+            using var fanService = new FanService(
+                new ReadbackFanController(),
+                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                _logging,
+                new NotificationService(_logging),
+                1000,
+                new ResumeRecoveryDiagnosticsService());
+
+            var svc = new DiagnosticExportService(_logging, _tempDir, fanService: fanService);
+            var report = svc.BuildCoreControlReadinessReport(fanService: fanService);
+
+            report.Should().NotContain("IsManualControlActive: <unavailable>",
+                "the fix must read this from fanService.Controller, not the unrelated wmiController object");
+            report.Should().Contain("IsManualControlActive: False");
+            report.Should().Contain("CommandsIneffective: False");
+            report.Should().Contain("VerifyFailCount: 0");
+            report.Should().Contain("LastMaxModeExternalResetDetails: Not tracked by this backend.",
+                "ReadbackFanController doesn't override this, so it must show the new IFanController default, not the old '<unavailable>' wiring-gap placeholder");
+        }
+
+        [Fact]
+        public async Task MonitoringCadenceHoldFile_FanOwnershipFields_ComeFromFanControllerNotWmiController()
+        {
+            using var fanService = new FanService(
+                new ReadbackFanController(),
+                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                _logging,
+                new NotificationService(_logging),
+                1000,
+                new ResumeRecoveryDiagnosticsService());
+
+            var svc = new DiagnosticExportService(_logging, _tempDir, fanService: fanService);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "monitoring-cadence-hold.txt");
+            content.Should().NotContain("IsManualControlActive: <unavailable>");
+            content.Should().Contain("LastMaxModeExternalResetDetails: Not tracked by this backend.");
+        }
+
+        [Fact]
+        public async Task TuningFanFocusFile_FanOwnershipFields_ComeFromFanControllerNotWmiController()
+        {
+            using var fanService = new FanService(
+                new ReadbackFanController(),
+                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                _logging,
+                new NotificationService(_logging),
+                1000,
+                new ResumeRecoveryDiagnosticsService());
+
+            // [WMI Fan Ownership] (where these fields live in this file) is gated behind a
+            // non-null wmiController, same as production (HpWmiBios is always present there) -
+            // ReadbackFanController conveniently already exposes IsAvailable/Status, so it also
+            // works as the wmiController stub here.
+            var svc = new DiagnosticExportService(_logging, _tempDir, fanService: fanService);
+            var zipPath = await svc.CollectAndExportAsync(wmiController: new ReadbackFanController());
+
+            string content = ReadFileFromExport(zipPath, "tuning-fan-focus.txt");
+            content.Should().NotContain("IsManualControlActive: <unavailable>");
+            content.Should().Contain("CommandsIneffective: False");
+            content.Should().Contain("VerifyFailCount: 0");
+        }
     }
 }

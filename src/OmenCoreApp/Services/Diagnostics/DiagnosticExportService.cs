@@ -110,8 +110,8 @@ namespace OmenCore.Services.Diagnostics
                     CollectTuningSafetySnapshotAsync(exportPath),
                     CollectEcStateAsync(exportPath, effectiveEcAccess),
                     CollectHardwareInfoAsync(exportPath, effectiveMonitoringService),
-                    CollectWmiCommandHistoryAsync(exportPath, effectiveWmiController),
-                    CollectTuningAndFanFocusAsync(exportPath, effectiveWmiController),
+                    CollectWmiCommandHistoryAsync(exportPath, effectiveWmiController, effectiveFanService),
+                    CollectTuningAndFanFocusAsync(exportPath, effectiveWmiController, effectiveFanService),
                     CollectMonitoringCadenceAndFanHoldAsync(exportPath, effectiveMonitoringService, effectiveFanService, effectiveWmiController),
                     CollectResumeRecoveryDiagnosticsAsync(exportPath)
                 };
@@ -295,14 +295,26 @@ namespace OmenCore.Services.Diagnostics
                     }
                 }
 
-                if (wmiController != null)
+                // See AppendFanReadiness's comment for why these come from the fan controller
+                // (fanService.Controller), not wmiController - the latter is HpWmiBios, which
+                // never had these properties, so this section was "<unavailable>" in every
+                // real export reviewed regardless of hardware.
+                var ownershipController = fanService?.Controller;
+                sb.AppendLine();
+                sb.AppendLine("[WMI Keepalive Ownership]");
+                if (ownershipController == null)
                 {
-                    sb.AppendLine();
-                    sb.AppendLine("[WMI Keepalive Ownership]");
-                    AppendReflectedProperty(sb, wmiController, "CountdownExtensionEnabled");
-                    AppendReflectedProperty(sb, wmiController, "IsManualControlActive");
-                    AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetUtc");
-                    AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetDetails");
+                    sb.AppendLine("CountdownExtensionEnabled: <unavailable>");
+                    sb.AppendLine("IsManualControlActive: <unavailable>");
+                    sb.AppendLine("LastMaxModeExternalResetUtc: <unavailable>");
+                    sb.AppendLine("LastMaxModeExternalResetDetails: <unavailable>");
+                }
+                else
+                {
+                    sb.AppendLine($"CountdownExtensionEnabled: {ownershipController.IsHoldActive}");
+                    sb.AppendLine($"IsManualControlActive: {ownershipController.IsManualControlActive}");
+                    sb.AppendLine($"LastMaxModeExternalResetUtc: {ownershipController.LastMaxModeExternalResetUtc?.ToString("O") ?? "<none>"}");
+                    sb.AppendLine($"LastMaxModeExternalResetDetails: {ownershipController.LastMaxModeExternalResetDetails}");
                 }
 
                 File.WriteAllText(Path.Combine(exportPath, "monitoring-cadence-hold.txt"), sb.ToString());
@@ -628,15 +640,37 @@ namespace OmenCore.Services.Diagnostics
                 AppendReflectedProperty(sb, wmiController, "IsAvailable");
                 AppendReflectedProperty(sb, wmiController, "Status");
                 AppendReflectedProperty(sb, wmiController, "FanCount");
-                AppendReflectedProperty(sb, wmiController, "IsManualControlActive");
-                AppendReflectedProperty(sb, wmiController, "CommandsIneffective");
-                AppendReflectedProperty(sb, wmiController, "VerifyFailCount");
-                AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetUtc");
-                AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetDetails");
             }
+
+            // These five fields live on the fan controller (WmiFanController/WmiFanControllerWrapper),
+            // not on wmiController (HpWmiBios, the raw WMI command layer) - reflecting them off
+            // wmiController always returned "<unavailable>" in every real diagnostics export
+            // reviewed, on every version, because HpWmiBios simply doesn't have these properties.
+            // fanService.Controller is the real IFanController instance that does.
+            AppendFanControllerOwnershipFields(sb, fanService?.Controller);
 
             sb.AppendLine("RecoveryAction: use Restore OEM Auto before retesting Max/Direct/Curve if ownership or RPM readback looks wrong.");
             sb.AppendLine();
+        }
+
+        // See AppendFanReadiness above for why these come from the fan controller, not wmiController.
+        private static void AppendFanControllerOwnershipFields(StringBuilder sb, IFanController? controller)
+        {
+            if (controller == null)
+            {
+                sb.AppendLine("IsManualControlActive: <unavailable>");
+                sb.AppendLine("CommandsIneffective: <unavailable>");
+                sb.AppendLine("VerifyFailCount: <unavailable>");
+                sb.AppendLine("LastMaxModeExternalResetUtc: <unavailable>");
+                sb.AppendLine("LastMaxModeExternalResetDetails: <unavailable>");
+                return;
+            }
+
+            sb.AppendLine($"IsManualControlActive: {controller.IsManualControlActive}");
+            sb.AppendLine($"CommandsIneffective: {controller.CommandsIneffective}");
+            sb.AppendLine($"VerifyFailCount: {controller.VerifyFailCount}");
+            sb.AppendLine($"LastMaxModeExternalResetUtc: {controller.LastMaxModeExternalResetUtc?.ToString("O") ?? "<none>"}");
+            sb.AppendLine($"LastMaxModeExternalResetDetails: {controller.LastMaxModeExternalResetDetails}");
         }
 
         private void AppendRgbReadiness(StringBuilder sb)
@@ -2357,7 +2391,7 @@ namespace OmenCore.Services.Diagnostics
             }
         }
 
-        private async Task CollectWmiCommandHistoryAsync(string exportPath, object? wmiController)
+        private async Task CollectWmiCommandHistoryAsync(string exportPath, object? wmiController, FanService? fanService)
         {
             try
             {
@@ -2421,16 +2455,20 @@ namespace OmenCore.Services.Diagnostics
                     var isAvailable = wmiController.GetType().GetProperty("IsAvailable")?.GetValue(wmiController)?.ToString() ?? "Unknown";
                     var status = wmiController.GetType().GetProperty("Status")?.GetValue(wmiController)?.ToString() ?? "Unknown";
                     var fanCount = wmiController.GetType().GetProperty("FanCount")?.GetValue(wmiController)?.ToString() ?? "Unknown";
-                    var lastMaxResetUtc = wmiController.GetType().GetProperty("LastMaxModeExternalResetUtc")?.GetValue(wmiController);
-                    var lastMaxResetDetails = wmiController.GetType().GetProperty("LastMaxModeExternalResetDetails")?.GetValue(wmiController)?.ToString();
 
                     sb.AppendLine($"Available: {isAvailable}");
                     sb.AppendLine($"Status: {status}");
                     sb.AppendLine($"Fan Count: {fanCount}");
-                    if (lastMaxResetUtc is DateTime timestampUtc)
+
+                    // See AppendFanReadiness's comment: LastMaxModeExternalReset* lives on the fan
+                    // controller (fanService.Controller), not wmiController (HpWmiBios) - reading
+                    // it off wmiController always returned "<none recorded>" here regardless of
+                    // whether a reset had actually happened, in every real export reviewed.
+                    var resetController = fanService?.Controller;
+                    if (resetController?.LastMaxModeExternalResetUtc is DateTime timestampUtc)
                     {
                         sb.AppendLine($"Last Max External Reset: {timestampUtc:O}");
-                        sb.AppendLine($"Last Max External Reset Detail: {lastMaxResetDetails ?? "Unknown"}");
+                        sb.AppendLine($"Last Max External Reset Detail: {resetController.LastMaxModeExternalResetDetails}");
                     }
                     else
                     {
@@ -2452,7 +2490,7 @@ namespace OmenCore.Services.Diagnostics
             }
         }
 
-        private async Task CollectTuningAndFanFocusAsync(string exportPath, object? wmiController)
+        private async Task CollectTuningAndFanFocusAsync(string exportPath, object? wmiController, FanService? fanService)
         {
             try
             {
@@ -2538,18 +2576,46 @@ namespace OmenCore.Services.Diagnostics
                     }
                 }
 
+                sb.AppendLine("[WMI Fan Ownership]");
                 if (wmiController != null)
                 {
-                    sb.AppendLine("[WMI Fan Ownership]");
                     AppendReflectedProperty(sb, wmiController, "IsAvailable");
                     AppendReflectedProperty(sb, wmiController, "Status");
-                    AppendReflectedProperty(sb, wmiController, "IsManualControlActive");
-                    AppendReflectedProperty(sb, wmiController, "CountdownExtensionEnabled");
-                    AppendReflectedProperty(sb, wmiController, "CommandsIneffective");
-                    AppendReflectedProperty(sb, wmiController, "VerifyFailCount");
-                    AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetUtc");
-                    AppendReflectedProperty(sb, wmiController, "LastMaxModeExternalResetDetails");
+                }
+                else
+                {
+                    sb.AppendLine("IsAvailable: <unavailable>");
+                    sb.AppendLine("Status: <unavailable>");
+                }
 
+                // See AppendFanReadiness's comment: these live on the fan controller
+                // (fanService.Controller), not wmiController (HpWmiBios) - reflecting them
+                // off wmiController always returned "<unavailable>" in every real export.
+                // Deliberately not gated on wmiController being present - the two objects aren't
+                // strictly coupled (a board could have a fan controller without an HpWmiBios
+                // instance available, or vice versa).
+                var focusController = fanService?.Controller;
+                if (focusController == null)
+                {
+                    sb.AppendLine("IsManualControlActive: <unavailable>");
+                    sb.AppendLine("CountdownExtensionEnabled: <unavailable>");
+                    sb.AppendLine("CommandsIneffective: <unavailable>");
+                    sb.AppendLine("VerifyFailCount: <unavailable>");
+                    sb.AppendLine("LastMaxModeExternalResetUtc: <unavailable>");
+                    sb.AppendLine("LastMaxModeExternalResetDetails: <unavailable>");
+                }
+                else
+                {
+                    sb.AppendLine($"IsManualControlActive: {focusController.IsManualControlActive}");
+                    sb.AppendLine($"CountdownExtensionEnabled: {focusController.IsHoldActive}");
+                    sb.AppendLine($"CommandsIneffective: {focusController.CommandsIneffective}");
+                    sb.AppendLine($"VerifyFailCount: {focusController.VerifyFailCount}");
+                    sb.AppendLine($"LastMaxModeExternalResetUtc: {focusController.LastMaxModeExternalResetUtc?.ToString("O") ?? "<none>"}");
+                    sb.AppendLine($"LastMaxModeExternalResetDetails: {focusController.LastMaxModeExternalResetDetails}");
+                }
+
+                if (wmiController != null)
+                {
                     try
                     {
                         var getHistoryMethod = wmiController.GetType().GetMethod("GetCommandHistory");
@@ -2574,8 +2640,7 @@ namespace OmenCore.Services.Diagnostics
                 }
                 else
                 {
-                    sb.AppendLine("[WMI Fan Ownership]");
-                    sb.AppendLine("WMI controller unavailable.");
+                    sb.AppendLine("Recent WMI history entries: unavailable (WMI controller not available).");
                 }
 
                 File.WriteAllText(Path.Combine(exportPath, "tuning-fan-focus.txt"), sb.ToString());

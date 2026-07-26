@@ -25,6 +25,14 @@ namespace OmenCore.Services
         private readonly ThermalSensorProvider _thermalProvider;
         private readonly LoggingService _logging;
         private readonly NotificationService _notificationService;
+
+        /// <summary>
+        /// The underlying fan controller backend, exposed for diagnostics export
+        /// (DiagnosticExportService needs the real controller for Max-mode ownership/health
+        /// fields like IsManualControlActive/LastMaxModeExternalResetUtc - those must not be
+        /// read off the unrelated HpWmiBios object, which does not have them).
+        /// </summary>
+        public IFanController Controller => _fanController;
         private readonly ResumeRecoveryDiagnosticsService _resumeDiagnostics; // Always non-null; STEP-12 Option A
         private readonly RuntimeEcOperationCoordinator _ecOperationCoordinator;
         private readonly DeviceCapabilities? _capabilities;

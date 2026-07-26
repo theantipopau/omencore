@@ -1,7 +1,7 @@
 # OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
 
 **Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 981/981 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Status:** In development. Code-complete and test-verified for the items below — 984/984 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
@@ -133,7 +133,7 @@ HP reused board ID `8C2F` across both a 15" and a 16" Victus Ryzen chassis. The 
 - **[GitHub #154](https://github.com/theantipopau/omencore/issues/154) — HP ENVY 14-eb0xxx:** out of scope; an ENVY is not an OMEN or Victus board and its firmware exposes no thermal-profile/fan-target interface. Worth noting the reporter's diagnostics were among the most thorough received this cycle, should ENVY support ever be considered.
 - **[GitHub #151](https://github.com/theantipopau/omencore/issues/151) — board `8D41` keyboard zones 4-7 (Darfon HID controller):** the light-bar half of this report is fixed above; the keyboard-zone half still needs the reporter's offered USB HID feature-report capture before a backend can be written.
 - **Discord (SprinkSponk, board `8D87`) — CPU package power caps at 71W vs. 105W via OGH:** traced this cycle (see below) — root cause found, fix identified, deliberately not applied pending field confirmation.
-- **#153's underlying question of whether an external actor really resets fan state on board `8A18`:** the reassert *loop* is fixed, but whether anything genuinely drops the fan level remains unanswered without an EC register trace.
+- **#153's underlying question of whether an external actor really resets fan state on board `8A18`:** the reassert *loop* is fixed, and the diagnostics collector that should have been able to answer this (`LastMaxModeExternalResetUtc`/`Details`) is now fixed too (see below) - but the question itself remains unanswered until a reporter's next export actually shows a real reset event or confirms none occurred.
 
 ---
 
@@ -181,7 +181,7 @@ Also checked `8DCD`'s own `ModelCapabilityDatabase.cs` entry while investigating
 
 ## Real Field Diagnostics Reviewed, Two More Broken Collectors Found and Fixed
 
-While the RAM investigation above was framed around a fresh synthetic 3-minute test on this dev machine, the project owner pointed at five of their own `omencore-diagnostics-*` export folders (spanning v3.8.0 through v4.0.0, roughly a month of real usage on their own Victus 15 — which turned out to be the exact board `8C2F` fixed earlier in this release for #155). Reviewing them directly surfaced a much better answer to PERF-3810-001, and two more collectors from the same "wiring never reached this file" bug class as the `wmi-command-history.txt` fix in 3.8.1.
+While the RAM investigation above was framed around a fresh synthetic 3-minute test on this dev machine, the project owner pointed at five `omencore-diagnostics-*` export folders sitting in their Downloads directory — real bug-report attachments from users, collected for triage, spanning v3.8.0 through v4.0.0. (These were initially mischaracterized as "the project owner's own laptop" before checking the `Config source` paths, which show four distinct Windows usernames across the five exports — corrected once noticed.) One happens to be board `8C2F`, the exact board fixed earlier in this release for #155; three others turned out to be board `8A18`, directly relevant to the #153/#152 fixes above. Reviewing them directly surfaced a much better answer to PERF-3810-001, and two more collectors from the same "wiring never reached this file" bug class as the `wmi-command-history.txt` fix in 3.8.1.
 
 ### PERF-3810-001 confirmed with real data (superseding the earlier synthetic estimate)
 
@@ -202,6 +202,22 @@ Both files read the exact same byte-identical placeholder text ("Hardware monito
 ### Process note: full-suite runs were crashing intermittently, traced to this session's own new tests
 
 Running the complete suite twice this cycle produced "Test host process crashed" partway through (a background exception from an undisposed `HardwareMonitoringService`'s monitor loop, thrown well after the originating test had already passed and moved on). Traced to two of this session's own new test files (`HardwareMonitoringUnexpectedLowRpmTests`, and the new tests added to `DiagnosticExportSnapshotTests` above) constructing `HardwareMonitoringService` — which starts a background polling loop on construction and implements `IDisposable` specifically to stop it — without disposing it. Fixed both to dispose properly. A clean full-suite re-run afterward passed 981/981 with no crash, confirming this was the cause. Not a pre-existing issue release-worthy of its own note, except as a reminder for future tests in this codebase: always dispose a constructed `HardwareMonitoringService`.
+
+---
+
+## Fixed: Fan-Controller Ownership Diagnostics Were Reading the Wrong Object (Directly Relevant to #153)
+
+Continuing to review real diagnostics exports (this time from three additional real users, one of them on board `8A18` — the exact board #153/#152 concern) surfaced a fourth instance of the "diagnostic collector never reaches real data" bug class, and this one is the most consequential yet: it's the exact evidence source that could answer #153's still-open question of whether something external genuinely resets fan state on that board.
+
+**Root cause:** `core-control-readiness.txt`, `monitoring-cadence-hold.txt`, `tuning-fan-focus.txt`, and `wmi-command-history.txt` all read `IsManualControlActive`, `CommandsIneffective`, `VerifyFailCount`, `LastMaxModeExternalResetUtc`, and `LastMaxModeExternalResetDetails` via reflection off `wmiController` — which is `HpWmiBios`, the raw WMI command layer. **`HpWmiBios` does not have any of these properties.** They live on the fan controller (`WmiFanController`/`WmiFanControllerWrapper`) instead — the exact class this release already touched for the #153 max-mode-health fix. `HpWmiBios` does correctly have `IsAvailable`/`Status`/`FanCount`/`GetCommandHistory()`, which is why those specific fields *did* work and why the bug went unnoticed — the file wasn't a placeholder, just partially wrong. Confirmed across every real export checked (multiple users, multiple boards, multiple versions): these five fields were always `<unavailable>`, regardless of hardware.
+
+**Fix:** extended the `IFanController` interface with these five members as safe-default properties (`=> false`/`0`/`null`, matching the existing `IsHoldActive => false` pattern for backends without the concept), so every existing implementation keeps compiling with zero changes. Added the two missing forwards (`IsManualControlActive`, `VerifyFailCount`) to `WmiFanControllerWrapper` (it already forwarded the other three). Exposed the real controller via a new `FanService.Controller` property, and switched all four collectors to read from `fanService.Controller` instead of `wmiController` for these fields specifically — `IsAvailable`/`Status`/`FanCount`/command-history collection are untouched and still correctly read from `wmiController`. Also un-gated `tuning-fan-focus.txt`'s ownership fields from requiring a non-null `wmiController` at all, since the two objects aren't strictly coupled.
+
+**This changes no fan-control behavior whatsoever** — every touched property is a read-only diagnostic getter already computed by the existing Max-mode-health tracking; nothing new is written to the EC/WMI, and no control decision is affected.
+
+**Verified:** 3 new tests (`BuildCoreControlReadinessReport_FanOwnershipFields_ComeFromFanControllerNotWmiController`, `MonitoringCadenceHoldFile_FanOwnershipFields_ComeFromFanControllerNotWmiController`, `TuningFanFocusFile_FanOwnershipFields_ComeFromFanControllerNotWmiController`) pin that all four files now show the fan controller's real values (or its new safe defaults) instead of the old wiring-gap placeholder. Full suite (984/984) green, 0 warnings — one full-suite run hit the pre-existing "Test host process crashed" flakiness described above (this time from a different, unrelated undisposed `FanService` elsewhere in the wider test suite, not this session's own new tests, which all correctly dispose via `using`); a clean re-run confirmed 984/984 with no crash.
+
+**Still open:** the underlying #153 question itself. This only means the *next* diagnostics export from an `8A18` reporter (or anyone else) will actually carry the evidence needed to answer it, instead of silence.
 
 ---
 
