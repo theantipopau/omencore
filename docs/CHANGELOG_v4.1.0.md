@@ -1,18 +1,20 @@
-# OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
+# OmenCore v4.1.0 – Field-Report Fixes, Diagnostics Overhaul, and Real-Log Bug Hunting
 
 **Release Date:** TBD (in development)
 **Release Status:** In development. Code-complete and test-verified for the items below — 990/990 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
-**Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
+**Type:** Minor release — targeted fixes for post-4.0.0 field reports, the architecture/accuracy issues found while tracing them, and a second pass driven by reading real users' diagnostics exports and application logs directly
 **Base Version:** v4.0.0
-**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
+**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" onward for the full traces this release acts on.
 
 ---
 
 ## Purpose
 
-4.0.0 shipped, and five GitHub issues plus two Discord threads arrived against it. Tracing them turned up four real, provable defects — three of which had been misleading users into believing hardware telemetry was broken, and one of which had OmenCore fighting its own firmware for minutes at a time. This release fixes those, plus two accuracy problems in diagnostics that were actively hindering triage.
+4.0.0 shipped, and five GitHub issues plus two Discord threads arrived against it. Tracing them turned up four real, provable defects — three of which had been misleading users into believing hardware telemetry was broken, and one of which had OmenCore fighting its own firmware for minutes at a time — plus two accuracy problems in diagnostics that were actively hindering triage of those same reports.
 
-Every change here is either pure UI/display, a provable logic bug, or metadata. Nothing widens hardware-control surface, and the one fan-control change moves strictly in the direction of *fewer* EC writes.
+A second pass then swept older bug-report docs for anything that never made it into the 4.0.0 consolidation, which turned up a systemic bug in Power Automation and a chance to add real diagnostic instrumentation for a still-unresolved thermal-safety report. A third pass went further still: reviewing real `omencore-diagnostics-*` exports and raw application logs from actual users (not synthetic tests) directly surfaced four more real, previously-undiscovered bugs — two diagnostics collectors that had never worked in any export ever produced, a Logitech RGB write path that silently did nothing while claiming success, and a thermal-authority selector that flip-flopped nearly 200 times in one real session.
+
+Every change here is either pure UI/display, a provable logic bug, or metadata/diagnostics. Nothing widens hardware-control surface; the fan-control change moves strictly in the direction of *fewer* EC writes, and the thermal-authority fix moves strictly in the direction of *fewer* source switches.
 
 ---
 
@@ -255,14 +257,18 @@ The test's actual subject — that bridge restarts are rate-limited once a freez
 
 ## Test Suite
 
-**977/977 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release). 24 new tests added across five files:
-- `WmiFanControllerMaxModeHealthTests` (6) — the `8A18` unwinnable-floor shape, preservation of the strict check on boards that reach the nominal floor, genuine-collapse detection via the backstop, cross-session peak isolation, telemetry-unavailable handling, RPM fallback.
-- `WmiBiosMonitorFreezeHeuristicTests` (7) — 100%-load and idle equilibrium (previously false-positived), wide-load-swing true positive, both threshold boundaries, absolute-ceiling backstop, unpopulated-sentinel safety.
-- `DashboardTelemetrySourceTests` (3) — dashboard ignores the raw event, projects pushed normalized samples, treats a null push as a no-op.
-- `PowerAutomationServiceApplyCurrentProfileTests` (1) — a Power-Automation-triggered apply produces real, non-zero CPU/GPU wattage and a normalized mode name, not a bare zero-watt object.
-- `HardwareMonitoringUnexpectedLowRpmTests` (7) — the sustained high-temp/low-RPM warning firing after threshold, staying silent below it, staying silent when only one of the two conditions holds, staying silent on non-`Valid` RPM state, counter reset on recovery, single-fire-per-window.
+**990/990 passing**, 0 build warnings across all projects (up from 953 at the 4.0.0 release — 37 new tests this cycle):
+- `WmiFanControllerMaxModeHealthTests` (6, new file) — the `8A18` unwinnable-floor shape, preservation of the strict check on boards that reach the nominal floor, genuine-collapse detection via the backstop, cross-session peak isolation, telemetry-unavailable handling, RPM fallback.
+- `WmiBiosMonitorFreezeHeuristicTests` (7, new file) — 100%-load and idle equilibrium (previously false-positived), wide-load-swing true positive, both threshold boundaries, absolute-ceiling backstop, unpopulated-sentinel safety.
+- `DashboardTelemetrySourceTests` (3, new file) — dashboard ignores the raw event, projects pushed normalized samples, treats a null push as a no-op.
+- `PowerAutomationServiceApplyCurrentProfileTests` (1 new test in an existing file) — a Power-Automation-triggered apply produces real, non-zero CPU/GPU wattage and a normalized mode name, not a bare zero-watt object.
+- `HardwareMonitoringUnexpectedLowRpmTests` (7, new file) — the sustained high-temp/low-RPM warning firing after threshold, staying silent below it, staying silent when only one of the two conditions holds, staying silent on non-`Valid` RPM state, counter reset on recovery, single-fire-per-window.
+- `DiagnosticExportSnapshotTests` (7 new tests in an existing file) — `system-info.txt` reports installed physical RAM not the GC heap; `hardware-info.txt`/`ec-state.txt` placeholder and real-data states; the fan-controller-ownership fields in `core-control-readiness.txt`/`monitoring-cadence-hold.txt`/`tuning-fan-focus.txt` come from the fan controller, not `wmiController`.
+- `WmiBiosMonitorTests` (6 new tests in an existing file) — the CPU-thermal-authority debounce: no switch before 3 confirmations, switch after 3, a non-matching interruption resetting the count, an already-active source updating its reason without debounce, both directions of the explicit reset helper.
 
-All use this codebase's established reflection pattern for private-method coverage, and every one replays a shape taken from a real field log rather than a hypothetical.
+`LogitechHidDirect.cs`'s HID++ fallback fix has no test coverage (no existing test infrastructure for this class; depends on HidSharp's concrete, non-mockable `HidDevice`/`HidStream` types) — noted rather than overclaimed.
+
+All tests use this codebase's established reflection pattern for private-method/private-field coverage, and every new test replays a shape taken from a real field log or diagnostics export rather than a hypothetical.
 
 ## Runtime Verification
 
