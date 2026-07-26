@@ -133,9 +133,68 @@ namespace OmenCore.Hardware
         private DateTime _cpuTemperatureAuthorityLastSwitchUtc = DateTime.MinValue;
         private DateTime _cpuTemperatureAuthorityLastWarnUtc = DateTime.MinValue;
         private int _cpuTemperatureAuthoritySwitchCount;
-        private int _cpuPrimaryAuthorityRecoveryReadings;
         private const int CpuAuthoritySwitchWarnCooldownSeconds = 30;
-        private const int CpuPrimaryAuthorityRecoveryConfirmReadings = 3;
+
+        // Symmetric debounce for CPU-temperature-authority transitions. Previously only the
+        // "returning to WMI BIOS" direction required confirmed consecutive readings
+        // (CpuPrimaryAuthorityRecoveryConfirmReadings) - switching to ACPI Thermal Zone or into
+        // LHM Fallback happened instantly on a single reading. Real field logs showed one
+        // session with ~192 authority switches, the large majority ACPI<->Fallback flip-flops,
+        // because a single 1C cross-sensor difference was enough to switch immediately in that
+        // direction. This generalizes the existing WMI-only debounce to every noise-driven
+        // transition. Deliberate transitions (a model-specific override, or a hard read
+        // timeout with no alternative) intentionally bypass this and call
+        // SetCpuTemperatureAuthority directly - see call sites.
+        private string? _pendingCpuAuthoritySource;
+        private int _pendingCpuAuthorityConfirmCount;
+        private const int CpuAuthoritySwitchConfirmReadings = 3;
+
+        /// <summary>
+        /// Requests a CPU-temperature-authority transition through the debounce above.
+        /// </summary>
+        private void RequestCpuTemperatureAuthority(string source, string reason)
+        {
+            if (string.Equals(_cpuTemperatureAuthoritySource, source, StringComparison.Ordinal))
+            {
+                // Already active - refresh the reason text (e.g. updated readings) without
+                // needing to re-confirm a switch that already happened.
+                SetCpuTemperatureAuthority(source, reason);
+                _pendingCpuAuthoritySource = null;
+                _pendingCpuAuthorityConfirmCount = 0;
+                return;
+            }
+
+            if (string.Equals(_pendingCpuAuthoritySource, source, StringComparison.Ordinal))
+            {
+                _pendingCpuAuthorityConfirmCount++;
+            }
+            else
+            {
+                _pendingCpuAuthoritySource = source;
+                _pendingCpuAuthorityConfirmCount = 1;
+            }
+
+            if (_pendingCpuAuthorityConfirmCount >= CpuAuthoritySwitchConfirmReadings)
+            {
+                SetCpuTemperatureAuthority(source, reason);
+                _pendingCpuAuthoritySource = null;
+                _pendingCpuAuthorityConfirmCount = 0;
+            }
+        }
+
+        /// <summary>
+        /// Clears any in-progress authority-switch confirmation toward the given source(s) -
+        /// called when an intervening tick proposes a different direction entirely, so
+        /// non-consecutive proposals can't silently satisfy the confirm count.
+        /// </summary>
+        private void ResetPendingCpuAuthorityIfMatches(params string[] sources)
+        {
+            if (_pendingCpuAuthoritySource != null && Array.IndexOf(sources, _pendingCpuAuthoritySource) >= 0)
+            {
+                _pendingCpuAuthoritySource = null;
+                _pendingCpuAuthorityConfirmCount = 0;
+            }
+        }
         
         // GPU temperature freeze detection (similar to CPU temp)
         private double _lastGpuTempReading;
@@ -952,28 +1011,17 @@ namespace OmenCore.Hardware
                 var fallbackApplied = TryApplyCpuTemperatureFallback();
                 if (fallbackApplied)
                 {
-                    _cpuPrimaryAuthorityRecoveryReadings = 0;
+                    // The primary path wasn't accepted this tick - any in-progress confirmation
+                    // toward switching to a primary source must not survive the gap.
+                    ResetPendingCpuAuthorityIfMatches("WMI BIOS", "ACPI Thermal Zone");
                 }
                 else if (primaryCpuAuthoritySource != null)
                 {
-                    var returningToWmi =
-                        string.Equals(primaryCpuAuthoritySource, "WMI BIOS", StringComparison.Ordinal) &&
-                        !string.Equals(_cpuTemperatureAuthoritySource, "WMI BIOS", StringComparison.Ordinal);
-
-                    if (returningToWmi)
-                    {
-                        _cpuPrimaryAuthorityRecoveryReadings++;
-                        if (_cpuPrimaryAuthorityRecoveryReadings >= CpuPrimaryAuthorityRecoveryConfirmReadings)
-                        {
-                            _cpuPrimaryAuthorityRecoveryReadings = 0;
-                            SetCpuTemperatureAuthority(primaryCpuAuthoritySource, primaryCpuAuthorityReason ?? "Primary CPU temperature accepted");
-                        }
-                    }
-                    else
-                    {
-                        _cpuPrimaryAuthorityRecoveryReadings = 0;
-                        SetCpuTemperatureAuthority(primaryCpuAuthoritySource, primaryCpuAuthorityReason ?? "Primary CPU temperature accepted");
-                    }
+                    // Symmetric with the reset above: a primary-accepted tick means fallback
+                    // wasn't proposed, so any in-progress confirmation toward switching into
+                    // fallback must not survive either.
+                    ResetPendingCpuAuthorityIfMatches("LHM Fallback", "LHM Worker Override");
+                    RequestCpuTemperatureAuthority(primaryCpuAuthoritySource, primaryCpuAuthorityReason ?? "Primary CPU temperature accepted");
                 }
                 
                 // ═══════════════════════════════════════════════════════════════
@@ -1322,10 +1370,18 @@ namespace OmenCore.Hardware
                         }
 
                         var fallbackAuthoritySource = GetCpuFallbackAuthoritySource(_workerBackedCpuTempOverrideEnabled);
-                        var fallbackAuthorityReason = _workerBackedCpuTempOverrideEnabled
-                            ? $"Model override active for '{_systemModel}'"
-                            : $"WMI/ACPI authority rejected ({previous:F1}C) vs fallback ({fallbackCpuTemp:F1}C), load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W";
-                        SetCpuTemperatureAuthority(fallbackAuthoritySource, fallbackAuthorityReason);
+                        if (_workerBackedCpuTempOverrideEnabled)
+                        {
+                            // Deliberate, model-specific configuration choice, not a
+                            // noise-driven signal decision - takes effect immediately rather
+                            // than waiting for confirm readings.
+                            SetCpuTemperatureAuthority(fallbackAuthoritySource, $"Model override active for '{_systemModel}'");
+                        }
+                        else
+                        {
+                            var fallbackAuthorityReason = $"WMI/ACPI authority rejected ({previous:F1}C) vs fallback ({fallbackCpuTemp:F1}C), load={_cachedCpuLoad:F0}%, power={_cachedCpuPowerWatts:F1}W";
+                            RequestCpuTemperatureAuthority(fallbackAuthoritySource, fallbackAuthorityReason);
+                        }
 
                         if (_cpuAuthorityMismatchConsecutiveReadings >= CpuAuthorityMismatchConfirmReadings)
                         {

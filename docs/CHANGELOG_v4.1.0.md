@@ -1,7 +1,7 @@
 # OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
 
 **Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 984/984 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Status:** In development. Code-complete and test-verified for the items below — 990/990 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
@@ -232,6 +232,18 @@ Found by reading a raw application log (not just the summary files) inside one o
 **No test coverage added** — `LogitechHidDirect` has no existing tests and depends on HidSharp's concrete `HidDevice`/`HidStream` types (real USB HID I/O, not mockable without a stream abstraction this class doesn't have), so this is code-review-verified only. Flagging that rather than overclaiming.
 
 **Scope note:** confirmed in one real user's session, not cross-confirmed across multiple reporters like the diagnostics-collector fixes above — still real and reproducible straight from the log's own evidence, just a narrower evidence base than the others in this release.
+
+---
+
+## Fixed: CPU Thermal Authority Switching Had Asymmetric Debounce (~192 Flip-Flops in One Real Session)
+
+Found by aggregating `[WmiBiosMonitor] CPU thermal authority switched:` lines across the same batch of real logs. One session alone logged **~192 authority transitions** in a single run, the large majority `LHM Fallback <-> ACPI Thermal Zone` flip-flops. This is the mechanism that decides which of WMI BIOS / ACPI Thermal Zone / LHM fallback is authoritative for the reported CPU temperature — the number fan curves consume via `Math.Max(cpuTemp, gpuTemp)` — not the freeze-detection heuristic already fixed this cycle.
+
+**Root cause:** only the "returning to WMI BIOS" transition was debounced (3 consecutive confirming readings). Every other transition switched on a single reading: accepting ACPI Thermal Zone had no confirm-count gate at all, and entering LHM Fallback triggered as soon as the fallback reading differed from the current one by `>= 1.0°C` — a threshold ordinary cross-sensor noise crosses easily given HP WMI's whole-degree reporting. Two sensors sitting near that boundary during steady load would ping-pong the authority back and forth indefinitely, exactly matching the observed pattern.
+
+**Fix:** generalized the WMI-only debounce into a symmetric `RequestCpuTemperatureAuthority` mechanism — any transition to a different source now needs 3 consecutive proposals of that same candidate before committing, matching the protection WMI-return already had. `ResetPendingCpuAuthorityIfMatches` clears an in-progress confirmation when an intervening tick proposes the opposite direction, so non-consecutive proposals can't accumulate into a false confirmation. Two transitions deliberately bypass this and still switch immediately: a model-specific override (an intentional configuration choice, not noise) and the hard-read-timeout reuse path (no alternative reading exists to wait for). Direction of risk is one-way — this can only make switches less frequent, never more.
+
+**Verified:** 6 new tests (`WmiBiosMonitorTests`) cover no-switch-before-3-confirmations, switch-after-3, a non-matching interruption resetting the count, an already-active source updating its reason without debounce, and both directions of the explicit reset helper.
 
 ---
 
