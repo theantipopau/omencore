@@ -24,7 +24,7 @@ jobs:
         dotnet-version: '8.0.x'
     
     - name: Restore dependencies
-      run: dotnet restore OmenCore.sln
+      run: dotnet restore src/OmenCore.Linux/OmenCore.Linux.csproj
     
     - name: Build Linux CLI (self-contained x64)
       run: |
