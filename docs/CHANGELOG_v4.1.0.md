@@ -1,7 +1,7 @@
 # OmenCore v4.1.0 – Field-Report Fixes: Telemetry Accuracy and Fan Reassert Loop
 
 **Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 977/977 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Status:** In development. Code-complete and test-verified for the items below — 981/981 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, plus the architecture/accuracy issues found while tracing them
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" for the full traces this release acts on.
@@ -176,6 +176,32 @@ Also checked `8DCD`'s own `ModelCapabilityDatabase.cs` entry while investigating
 **Verified:** 7 new tests (`HardwareMonitoringUnexpectedLowRpmTests`) cover: the warning firing after the sustained threshold; staying silent below that threshold; staying silent when only temperature or only RPM is anomalous (not both); staying silent on non-`Valid` RPM state; the consecutive-count resetting on recovery; and firing only once per anomaly window rather than spamming the log. Full suite green, 0 warnings.
 
 **Still open:** the actual root cause of #143. This only ensures the next reproduction's log carries unambiguous evidence instead of silence.
+
+---
+
+## Real Field Diagnostics Reviewed, Two More Broken Collectors Found and Fixed
+
+While the RAM investigation above was framed around a fresh synthetic 3-minute test on this dev machine, the project owner pointed at five of their own `omencore-diagnostics-*` export folders (spanning v3.8.0 through v4.0.0, roughly a month of real usage on their own Victus 15 — which turned out to be the exact board `8C2F` fixed earlier in this release for #155). Reviewing them directly surfaced a much better answer to PERF-3810-001, and two more collectors from the same "wiring never reached this file" bug class as the `wmi-command-history.txt` fix in 3.8.1.
+
+### PERF-3810-001 confirmed with real data (superseding the earlier synthetic estimate)
+
+`resource-footprint.txt` in each export already captures real `Process` working-set/private-bytes for both the main app and the separate `OmenCore.HardwareWorker` process — this collector was never broken. Across the five real sessions: main app working set ranged **355.6-705.0 MB**, plus **47.6-174.2 MB** for the hardware-worker process — combined **464-870 MB**. This confirms the >400 MB complaint as real and, in the worst observed session, more than double the reported threshold — considerably worse than the earlier synthetic tray-only 3-minute test (314-337 MB) suggested. No single subsystem cleanly explains the swing (the highest reading was actually a session with `LibreHardwareMonitor: not loaded`), so no code change was made here — this is confirmation, not a fix. Isolating the actual contributor needs a memory-profiler comparison across sessions, not more log-reading.
+
+### Fixed: `system-info.txt` mislabeled the .NET managed heap as "RAM"
+
+Cross-referencing `system-info.txt`'s `RAM: {n} MB` line against the same exports' `resource-footprint.txt` `[Managed Runtime] ManagedMemoryMB` line showed near-identical numbers in every export (e.g. 38.1 vs 37, 51.5 vs 51) — confirming `RAM:` was reporting `GC.GetTotalMemory(false)`, the .NET managed heap at that instant, not installed system memory. That's why it swung 16-51 MB across exports on the *same physical laptop* and read as alarming nonsense on first look. Fixed to query real installed physical memory via WMI (`Win32_ComputerSystem.TotalPhysicalMemory`, same technique `WmiBiosMonitor.GetTotalPhysicalMemoryGB()` already uses), now labeled `Installed RAM:`.
+
+### Fixed: `hardware-info.txt` and `ec-state.txt` were placeholders in every single export, across all five OmenCore versions
+
+Both files read the exact same byte-identical placeholder text ("Hardware monitoring not available" / "EC access not available") in 100% of the real exports reviewed — direct field confirmation, not speculation. Root cause: `CollectAndExportAsync`'s `ecAccess`/`hwMonitor` parameters had no constructor-level `?? _field` fallback, unlike `monitoringService`/`fanService`/`wmiController` (which got exactly this treatment for `wmi-command-history.txt` in 3.8.1) — neither production call site (Settings "Export Diagnostics", "Report Model") could ever populate them.
+
+**Fix:** added an `IEcAccess? ecAccess` constructor parameter with the same fallback pattern, wired to `MainViewModel._ecAccess` at both construction sites. `hardware-info.txt`'s collector no longer requires a raw `LibreHardwareMonitorImpl` (unreachable from any production call site, and coupled to one specific `IHardwareMonitorBridge` implementation) — it now reads a new `HardwareMonitoringService.LastSample` property, the latest sample updated on every successful monitoring tick, independent of the UI-facing `Samples` history's throttling/Dispatcher requirements.
+
+**Verified:** 4 new tests — `SystemInfoFile_ReportsInstalledPhysicalMemory_NotManagedHeap`, `HardwareInfoFile_ShowsPlaceholder_WhenNoMonitoringServiceAvailable`, `HardwareInfoFile_ReportsRealSample_WhenMonitoringServiceHasOne`, `EcStateFile_ShowsPlaceholder_WhenNoEcAccessAvailable` — plus the full existing `DiagnosticExportSnapshotTests` suite (33 tests total in that file) re-verified green. Full suite green, 0 warnings.
+
+### Process note: full-suite runs were crashing intermittently, traced to this session's own new tests
+
+Running the complete suite twice this cycle produced "Test host process crashed" partway through (a background exception from an undisposed `HardwareMonitoringService`'s monitor loop, thrown well after the originating test had already passed and moved on). Traced to two of this session's own new test files (`HardwareMonitoringUnexpectedLowRpmTests`, and the new tests added to `DiagnosticExportSnapshotTests` above) constructing `HardwareMonitoringService` — which starts a background polling loop on construction and implements `IDisposable` specifically to stop it — without disposing it. Fixed both to dispose properly. A clean full-suite re-run afterward passed 981/981 with no crash, confirming this was the cause. Not a pre-existing issue release-worthy of its own note, except as a reminder for future tests in this codebase: always dispose a constructed `HardwareMonitoringService`.
 
 ---
 

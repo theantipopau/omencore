@@ -30,6 +30,16 @@ namespace OmenCore.Services
         private volatile bool _trayOnlyMode; // True when UI is hidden to tray and no active fan curve/hold requires fast updates
         private volatile bool _overlayRealtimeMode; // True while in-game OSD overlay is visible and requires responsive telemetry cadence
         private MonitoringSample? _lastSample;
+
+        /// <summary>
+        /// Most recent sample regardless of the UI-facing significant-change filter or WPF
+        /// Dispatcher availability - unlike <see cref="Samples"/> (which only gets a new entry
+        /// when both <c>ShouldUpdateUI</c> passes and a live Dispatcher processes the
+        /// <c>BeginInvoke</c>), this is set unconditionally on every successful monitoring tick.
+        /// Intended for consumers that need the latest reading rather than UI-throttled history,
+        /// e.g. diagnostics export.
+        /// </summary>
+        public MonitoringSample? LastSample => _lastSample;
         private readonly double _changeThreshold = 0.5; // Minimum change to trigger UI update (degrees/percent)
         private readonly double _lowOverheadChangeThreshold = 3.0; // Higher threshold in low overhead mode
         private readonly double _powerChangeThresholdWatts = 1.0; // Force UI update on significant power change (Watts)

@@ -53,7 +53,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void Warns_AfterSustainedHighTempLowRpm()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var sample = HighTempLowRpmSample();
 
             for (var i = 0; i < 5; i++)
@@ -68,7 +71,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void DoesNotWarn_BeforeSustainedThreshold()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var sample = HighTempLowRpmSample();
 
             for (var i = 0; i < 4; i++)
@@ -83,7 +89,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void DoesNotWarn_WhenTemperatureBelowThreshold()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var sample = new MonitoringSample
             {
                 CpuTemperatureC = 60, // below the 80C threshold
@@ -103,7 +112,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void DoesNotWarn_WhenRpmAboveFloor()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var sample = new MonitoringSample
             {
                 CpuTemperatureC = 85,
@@ -123,7 +135,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void DoesNotWarn_WhenRpmStateIsNotValid()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             // Same shape as the failing case, but the RPM reading itself is not trustworthy -
             // e.g. Zero/Stale/Unavailable/Invalid. Warning on untrustworthy data would be noise,
             // not evidence.
@@ -146,7 +161,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void ResetsConsecutiveCount_WhenConditionClears()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var badSample = HighTempLowRpmSample();
             var goodSample = new MonitoringSample
             {
@@ -177,7 +195,10 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void WarnsOnlyOnce_PerSustainedAnomalyWindow()
         {
-            var (svc, method, logs) = CreateHarness();
+            var harness = CreateHarness();
+            using var svc = harness.svc;
+            var method = harness.method;
+            var logs = harness.logs;
             var sample = HighTempLowRpmSample();
 
             for (var i = 0; i < 20; i++)

@@ -306,7 +306,8 @@ namespace OmenCore.ViewModels
                         _performanceModeService,
                         _hotkeyService,
                         _omenKeyService,
-                        _wmiBios);
+                        _wmiBios,
+                        ecAccess: _ecAccess);
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
                         _fanCleaningService, _biosUpdateService, profileExportService, diagnosticsExportService,
@@ -3415,7 +3416,8 @@ namespace OmenCore.ViewModels
                         ecOperationCoordinator: _ecOperationCoordinator,
                         hotkeyService: _hotkeyService,
                         omenKeyService: _omenKeyService,
-                        wmiController: _wmiBios),
+                        wmiController: _wmiBios,
+                        ecAccess: _ecAccess),
                     _autoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
 
                 if (!string.IsNullOrEmpty(exportedPath) && File.Exists(exportedPath))

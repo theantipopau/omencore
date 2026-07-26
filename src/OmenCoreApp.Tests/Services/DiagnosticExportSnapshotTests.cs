@@ -797,5 +797,89 @@ namespace OmenCoreApp.Tests.Services
                 monitoringLine.Should().Contain("CPU Authority", "CPU thermal authority source must be included when monitoring is available");
             }
         }
+
+        private sealed class EmptyBridge : OmenCore.Hardware.IHardwareMonitorBridge
+        {
+            public string MonitoringSource => "EmptyBridge";
+            public Task<MonitoringSample> ReadSampleAsync(System.Threading.CancellationToken token)
+                => Task.FromResult(new MonitoringSample());
+            public Task<bool> TryRestartAsync() => Task.FromResult(true);
+        }
+
+        // GitHub #143-adjacent field finding (2026-07-26): system-info.txt reported
+        // GC.GetTotalMemory() - the .NET managed heap, fluctuating 16-51 MB across real exports
+        // on the same physical machine - mislabeled as "RAM", which is confusing in a section
+        // titled "SYSTEM INFORMATION" and duplicates what resource-footprint.txt already reports
+        // correctly under "ManagedMemoryMB". Fixed to report real installed physical memory.
+        [Fact]
+        public async Task SystemInfoFile_ReportsInstalledPhysicalMemory_NotManagedHeap()
+        {
+            var svc = new DiagnosticExportService(_logging, _tempDir);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "system-info.txt");
+
+            content.Should().Contain("Installed RAM:", "system-info.txt must report real physical memory, not the GC managed heap");
+            content.Should().NotMatchRegex(@"RAM: \d+ MB", "the old mislabeled GC-heap-as-RAM line must be gone");
+        }
+
+        // GitHub PERF-3810-001 (2026-07-26): hardware-info.txt and ec-state.txt were confirmed,
+        // via 5 real diagnostics exports spanning v3.8.0-v4.0.0, to be byte-identical
+        // placeholders in every single one - neither production call site (Settings "Export
+        // Diagnostics" nor "Report Model") ever passed ecAccess/hwMonitor, and there was no
+        // constructor-level fallback for either (unlike monitoringService/fanService/
+        // wmiController, which all had one). These tests pin both states.
+        [Fact]
+        public async Task HardwareInfoFile_ShowsPlaceholder_WhenNoMonitoringServiceAvailable()
+        {
+            var svc = new DiagnosticExportService(_logging, _tempDir);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "hardware-info.txt");
+            content.Should().Be("Hardware monitoring not available");
+        }
+
+        [Fact]
+        public async Task HardwareInfoFile_ReportsRealSample_WhenMonitoringServiceHasOne()
+        {
+            // HardwareMonitoringService starts its own background monitor loop on construction
+            // and implements IDisposable specifically to stop it - dispose explicitly so this
+            // test doesn't leak a polling loop into the rest of the test process's lifetime.
+            using var monitoringService = new HardwareMonitoringService(
+                new EmptyBridge(), _logging, new MonitoringPreferences(), new ResumeRecoveryDiagnosticsService());
+
+            // LastSample is only set by the running monitor loop; seed it directly via
+            // reflection for a deterministic unit test, matching this codebase's established
+            // pattern for exercising private state without running the full async loop.
+            var field = typeof(HardwareMonitoringService).GetField("_lastSample",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            field.Should().NotBeNull();
+            field!.SetValue(monitoringService, new MonitoringSample
+            {
+                CpuTemperatureC = 62.5,
+                GpuTemperatureC = 58.0,
+                Fan1Rpm = 3200,
+                Fan2Rpm = 3100,
+                GpuName = "Test GPU"
+            });
+
+            var svc = new DiagnosticExportService(_logging, _tempDir, hardwareMonitoringService: monitoringService);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "hardware-info.txt");
+            content.Should().Contain("62.5", "the real CPU temperature from LastSample must be reported");
+            content.Should().Contain("3200", "the real fan RPM from LastSample must be reported");
+            content.Should().NotBe("Hardware monitoring not available");
+        }
+
+        [Fact]
+        public async Task EcStateFile_ShowsPlaceholder_WhenNoEcAccessAvailable()
+        {
+            var svc = new DiagnosticExportService(_logging, _tempDir);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "ec-state.txt");
+            content.Should().Be("EC access not available");
+        }
     }
 }

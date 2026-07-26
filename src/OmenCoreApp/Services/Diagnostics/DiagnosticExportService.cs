@@ -34,6 +34,7 @@ namespace OmenCore.Services.Diagnostics
         private readonly PerformanceModeService? _performanceModeService;
         private readonly HotkeyService? _hotkeyService;
         private readonly OmenKeyService? _omenKeyService;
+        private readonly IEcAccess? _ecAccess;
 
         public DiagnosticExportService(
             LoggingService logging,
@@ -47,7 +48,8 @@ namespace OmenCore.Services.Diagnostics
             PerformanceModeService? performanceModeService = null,
             HotkeyService? hotkeyService = null,
             OmenKeyService? omenKeyService = null,
-            object? wmiController = null)
+            object? wmiController = null,
+            IEcAccess? ecAccess = null)
         {
             _logging = logging;
             _logsDirectory = logsDirectory;
@@ -61,6 +63,7 @@ namespace OmenCore.Services.Diagnostics
             _performanceModeService = performanceModeService;
             _hotkeyService = hotkeyService;
             _omenKeyService = omenKeyService;
+            _ecAccess = ecAccess;
         }
 
         /// <summary>
@@ -69,7 +72,6 @@ namespace OmenCore.Services.Diagnostics
         /// </summary>
         public async Task<string> CollectAndExportAsync(
             IEcAccess? ecAccess = null,
-            LibreHardwareMonitorImpl? hwMonitor = null,
             object? wmiController = null,
             HardwareMonitoringService? monitoringService = null,
             FanService? fanService = null)
@@ -79,6 +81,7 @@ namespace OmenCore.Services.Diagnostics
                 var effectiveMonitoringService = monitoringService ?? _hardwareMonitoringService;
                 var effectiveFanService = fanService ?? _fanService;
                 var effectiveWmiController = wmiController ?? _wmiController;
+                var effectiveEcAccess = ecAccess ?? _ecAccess;
 
                 var exportPath = Path.Combine(
                     Path.GetTempPath(),
@@ -105,8 +108,8 @@ namespace OmenCore.Services.Diagnostics
                     CollectRgbControlPathAsync(exportPath),
                     CollectModelIdentityTraceAsync(exportPath),
                     CollectTuningSafetySnapshotAsync(exportPath),
-                    CollectEcStateAsync(exportPath, ecAccess),
-                    CollectHardwareInfoAsync(exportPath, hwMonitor),
+                    CollectEcStateAsync(exportPath, effectiveEcAccess),
+                    CollectHardwareInfoAsync(exportPath, effectiveMonitoringService),
                     CollectWmiCommandHistoryAsync(exportPath, effectiveWmiController),
                     CollectTuningAndFanFocusAsync(exportPath, effectiveWmiController),
                     CollectMonitoringCadenceAndFanHoldAsync(exportPath, effectiveMonitoringService, effectiveFanService, effectiveWmiController),
@@ -364,8 +367,8 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine($"Timestamp: {DateTime.Now:O}");
                 sb.AppendLine($"OmenCore Version: {GetOmenCoreVersion()}");
                 sb.AppendLine($"OS: {Environment.OSVersion.VersionString}");
-                sb.AppendLine($"Processor: {Environment.ProcessorCount} cores");
-                sb.AppendLine($"RAM: {GC.GetTotalMemory(false) / 1024 / 1024} MB");
+                sb.AppendLine($"Processor: {Environment.ProcessorCount} active logical processors (can vary with OS core-parking/power state)");
+                sb.AppendLine($"Installed RAM: {FormatTotalPhysicalMemory()}");
                 sb.AppendLine();
 
                 // Check security features
@@ -396,6 +399,39 @@ namespace OmenCore.Services.Diagnostics
                     message: "Failed to collect system info",
                     ex: ex);
             }
+        }
+
+        // Previously this line reported GC.GetTotalMemory() - the .NET managed heap size at
+        // capture time - mislabeled as "RAM". Confirmed via real field diagnostics: it tracked
+        // almost exactly the "[Managed Runtime] ManagedMemoryMB" figure already reported
+        // correctly elsewhere in the same bundle (resource-footprint.txt), and fluctuated
+        // between ~16-51 MB across exports on the same physical machine - nowhere near actual
+        // installed system memory, and confusing in a section literally titled "SYSTEM
+        // INFORMATION". This queries the real installed physical memory via WMI instead, same
+        // technique as WmiBiosMonitor.GetTotalPhysicalMemoryGB().
+        private static string FormatTotalPhysicalMemory()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT TotalPhysicalMemory FROM Win32_ComputerSystem");
+                foreach (var obj in searcher.Get())
+                {
+                    using (obj)
+                    {
+                        if (obj["TotalPhysicalMemory"] is ulong bytes)
+                        {
+                            return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // WMI query failed - fall through to the unknown marker below.
+            }
+
+            return "unknown (WMI query failed)";
         }
 
         private async Task CollectResumeRecoveryDiagnosticsAsync(string exportPath)
@@ -2275,11 +2311,22 @@ namespace OmenCore.Services.Diagnostics
                 () => ecAccess.ReadByte(register));
         }
 
-        private async Task CollectHardwareInfoAsync(string exportPath, LibreHardwareMonitorImpl? hwMonitor)
+        // Previously took a raw LibreHardwareMonitorImpl? parameter that neither production call
+        // site (Settings "Export Diagnostics" nor "Report Model") ever passed - confirmed via 5
+        // real field diagnostics exports spanning v3.8.0-v4.0.0 where this file was a
+        // byte-identical "Hardware monitoring not available" placeholder in every single one.
+        // Reworked to read from the already-reliably-wired HardwareMonitoringService instead
+        // (effectiveMonitoringService, which both call sites already pass) via LastSample rather
+        // than the UI-throttled Samples history, since Samples only grows when both the
+        // significant-change filter passes and a live WPF Dispatcher processes the update -
+        // LastSample is set on every successful tick unconditionally. This also works regardless
+        // of which IHardwareMonitorBridge implementation is active, not just LibreHardwareMonitor.
+        private async Task CollectHardwareInfoAsync(string exportPath, HardwareMonitoringService? monitoringService)
         {
             try
             {
-                if (hwMonitor == null)
+                var sample = monitoringService?.LastSample;
+                if (monitoringService == null || sample == null)
                 {
                     File.WriteAllText(Path.Combine(exportPath, "hardware-info.txt"), "Hardware monitoring not available");
                     await Task.CompletedTask;
@@ -2289,10 +2336,16 @@ namespace OmenCore.Services.Diagnostics
                 var sb = new StringBuilder();
                 sb.AppendLine("=== HARDWARE TELEMETRY ===");
                 sb.AppendLine($"Captured: {DateTime.Now:O}");
+                sb.AppendLine($"SampleAge: {sample.Timestamp:O}");
                 sb.AppendLine();
 
-                sb.AppendLine($"CPU Temp: {hwMonitor.GetCpuTemperature()}°C");
-                sb.AppendLine($"GPU Temp: {hwMonitor.GetGpuTemperature()}°C");
+                sb.AppendLine($"CPU Temp: {sample.CpuTemperatureC:F1}°C (state: {sample.CpuTemperatureState})");
+                sb.AppendLine($"GPU Temp: {sample.GpuTemperatureC:F1}°C (state: {sample.GpuTemperatureState})");
+                sb.AppendLine($"CPU Load: {sample.CpuLoadPercent:F0}%");
+                sb.AppendLine($"GPU Load: {sample.GpuLoadPercent:F0}%");
+                sb.AppendLine($"Fan1 RPM: {sample.Fan1Rpm} (state: {sample.Fan1RpmState})");
+                sb.AppendLine($"Fan2 RPM: {sample.Fan2Rpm} (state: {sample.Fan2RpmState})");
+                sb.AppendLine($"GPU Name: {sample.GpuName}");
 
                 File.WriteAllText(Path.Combine(exportPath, "hardware-info.txt"), sb.ToString());
                 _logging.Info("Collected hardware information");
