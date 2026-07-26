@@ -1,10 +1,20 @@
 # OmenCore v4.1.0 – Field-Report Fixes, Diagnostics Overhaul, and Real-Log Bug Hunting
 
-**Release Date:** TBD (in development)
-**Release Status:** In development. Code-complete and test-verified for the items below — 990/990 tests passing, 0 build warnings across all projects, plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
+**Release Date:** TBD
+**Release Status:** Code-complete, test-verified (990/990 tests, 0 build warnings across all projects), merged to `main`, and artifacts built and hashed (see SHA256 hashes below), plus runtime verification of the freeze-heuristic fix against a machine that reproduced the false positive (see Runtime Verification). **No physical-hardware confirmation yet** from the original reporters; the fan reassert-loop fix in particular needs their confirmation that the audible behavior matches.
 **Type:** Minor release — targeted fixes for post-4.0.0 field reports, the architecture/accuracy issues found while tracing them, and a second pass driven by reading real users' diagnostics exports and application logs directly
 **Base Version:** v4.0.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.0.0 Release): Field Reports Triaged 2026-07-25" onward for the full traces this release acts on.
+
+## SHA256 Hashes
+
+```text
+2FB3F301F896EAFE6E8034493C4CE83F7AB95ED7ED207814B6DCB799A97501F8  OmenCoreSetup-4.1.0.exe
+39B24556EDE3001006E3AD48F8EB4978F92CEDF31B1C9C765AB8C8508590403A  OmenCore-4.1.0-win-x64.zip
+0BB93B570C627764632A0CC7E2759DE88621F58808DBA31111B54BEF4AF1F933  OmenCore-4.1.0-linux-x64.zip
+```
+
+Also published as `artifacts/SHA256SUMS-4.1.0.txt`. Verify with `Get-FileHash <file> -Algorithm SHA256` (Windows) or `sha256sum <file>` (Linux) before installing.
 
 ---
 
