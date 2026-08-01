@@ -511,11 +511,11 @@ namespace OmenCore.ViewModels
 
         public string CustomCurveTooltip => FanCurvesAvailable
             ? "Apply your custom fan curve defined in the editor below."
-            : "Custom fan curves are unavailable for this model; use OEM fan profiles instead.";
+            : "This model's fan controller doesn't expose a custom-curve interface — a hardware/firmware limitation, not related to whether the model profile is verified. Use OEM fan profiles instead.";
 
         public string DirectFanControlTooltip => ManualFanControlAvailable
             ? "Hold fans at a fixed requested level using manual fan control."
-            : "Direct fixed fan level control is unavailable for this model; use OEM fan profiles instead.";
+            : "This model's fan controller doesn't expose direct fixed-level control — a hardware/firmware limitation, not related to whether the model profile is verified. Use OEM fan profiles instead.";
 
         public string CustomPresetName
         {

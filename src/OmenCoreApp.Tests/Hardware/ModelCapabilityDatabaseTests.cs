@@ -30,6 +30,7 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData("8C30", OmenModelFamily.Victus)]
         [InlineData("8DCD", OmenModelFamily.Victus)]
         [InlineData("8A26", OmenModelFamily.Victus)]
+        [InlineData("8A25", OmenModelFamily.Victus)]
         [InlineData("8C58", OmenModelFamily.Transcend)]
         [InlineData("8E41", OmenModelFamily.Transcend)]
         [InlineData("8D87", OmenModelFamily.OMEN2024Plus)]
@@ -47,6 +48,27 @@ namespace OmenCoreApp.Tests.Hardware
             caps.ProductId.Should().Be(productId);
             caps.Family.Should().Be(expectedFamily);
             caps.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetCapabilities_Victus8A25_SupportsGpuPowerBoost_DistinctFrom8A26Sibling()
+        {
+            // Field-confirmed by two independent Discord reporters across v3.8.0/v4.0.0/v4.1.0:
+            // RTX 3060 boosts 85W -> 100W via WMI PPAB on this exact board, matching OMEN Gaming Hub.
+            var caps8a25 = ModelCapabilityDatabase.GetCapabilities("8A25");
+            var caps8a26 = ModelCapabilityDatabase.GetCapabilities("8A26");
+
+            caps8a25.SupportsGpuPowerBoost.Should().BeTrue();
+            caps8a26.SupportsGpuPowerBoost.Should().BeFalse();
+
+            // Exact ProductId match must win over the shared "16-d1" ModelNamePattern the two
+            // entries both carry, so 8A25 resolves to its own entry rather than falling through
+            // to 8A26 (previously the only match, per the field logs' own "no entry for ProductId
+            // '8A25'" note).
+            var preferred = ModelCapabilityDatabase.GetPreferredCapabilities("8A25", "Victus by HP Laptop 16-d1xxx");
+            preferred.Should().NotBeNull();
+            preferred!.ProductId.Should().Be("8A25");
+            preferred.SupportsGpuPowerBoost.Should().BeTrue();
         }
 
         [Fact]

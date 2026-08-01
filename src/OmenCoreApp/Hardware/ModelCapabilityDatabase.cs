@@ -1353,7 +1353,32 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "GitHub #66 — Victus 16-d1xxx (8A26). Capabilities inferred from nearby Victus 16 entries; awaiting user confirmation."
             });
-            
+
+            // Victus 16-d1176TX (2023/2024), exact ProductId 8A25 — distinct from the 8A26 entry
+            // above, which this board previously fell through to via ModelNamePattern "16-d1".
+            // GPU Power Boost repeatedly reported working (85W -> 100W dynamic boost, matching OGH)
+            // by two independent Discord reporters (ACe_Centrick, corroborated by OsamaBiden) across
+            // three versions (v3.8.0, v4.0.0, v4.1.0) with consistent RTX 3060 base/boost TGP figures.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A25",
+                ModelName = "HP Victus 16 (2023/2024) d1176TX",
+                ModelNamePattern = "16-d1",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 2,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = true,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = true,
+                HasKeyboardBacklight = true,
+                UserVerified = false,
+                Notes = "Discord reports (ACe_Centrick, corroborated by OsamaBiden), v3.8.0/v4.0.0/v4.1.0 — RTX 3060 Laptop GPU boosts 85W base TGP -> 100W dynamic boost via WMI PPAB, matching OMEN Gaming Hub on the same hardware. Other flags inherited from the sibling 8A26 entry and remain otherwise unconfirmed for this exact board."
+            });
+
             // Victus 16-s0xxx (2023/2024) AMD Ryzen 7 7840HS + RTX 4060.
             // RC1 field log 2026-05-16: ProductId 8BD4, BIOS F.30, V1 WMI fan control,
             // two fan levels exposed, no confirmed MUX/GPU boost; RGB handled through WMI ColorTable.
