@@ -50,7 +50,7 @@ namespace OmenCoreApp.Tests.Services
                 return true;
             }
             public virtual IEnumerable<FanTelemetry> ReadFanSpeeds() => new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 1000, DutyCyclePercent = 40 } };
-            public void ApplyMaxCooling() { ApplyMaxCoolingCount++; }
+            public bool ApplyMaxCooling() { ApplyMaxCoolingCount++;  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;
@@ -768,7 +768,7 @@ namespace OmenCoreApp.Tests.Services
             public bool SetPerformanceMode(string modeName) => true;
             public bool RestoreAutoControl() => true;
             public IEnumerable<FanTelemetry> ReadFanSpeeds() => Enumerable.Empty<FanTelemetry>();
-            public void ApplyMaxCooling() { }
+            public bool ApplyMaxCooling() {  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;

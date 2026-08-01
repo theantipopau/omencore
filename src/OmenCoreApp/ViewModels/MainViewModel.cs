@@ -4368,7 +4368,15 @@ namespace OmenCore.ViewModels
                     CurrentFanMode = confirmedFanMode;
                     General?.SetQuietSafetyOverride(true);
                     General?.SyncRuntimeState(CurrentPerformanceMode, confirmedFanMode);
-                    PushEvent("🌡️ Quiet safety: fans → Max (temp critical)");
+                    if (string.Equals(confirmedFanMode, "Max", StringComparison.OrdinalIgnoreCase))
+                    {
+                        PushEvent("🌡️ Quiet safety: fans → Max (temp critical)");
+                    }
+                    else
+                    {
+                        _logging.Warn($"[QuietSafety] Max cooling did not confirm (mode is '{confirmedFanMode}') — temp is critical and fans may not have responded");
+                        PushEvent("⚠️ Quiet safety: temp critical, but Max cooling failed to apply — check fan control");
+                    }
                 }
                 catch (Exception ex)
                 {

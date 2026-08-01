@@ -59,7 +59,7 @@ namespace OmenCoreApp.Tests.Services
                     RpmSource = RpmSource.WmiBios
                 }
             };
-            public void ApplyMaxCooling() { }
+            public bool ApplyMaxCooling() {  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;

@@ -28,7 +28,7 @@ namespace OmenCoreApp.Tests.ViewModels
             public bool SetPerformanceMode(string modeName) => true;
             public bool RestoreAutoControl() => true;
             public IEnumerable<FanTelemetry> ReadFanSpeeds() => Array.Empty<FanTelemetry>();
-            public void ApplyMaxCooling() { }
+            public bool ApplyMaxCooling() {  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;

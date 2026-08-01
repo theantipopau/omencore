@@ -47,7 +47,7 @@ namespace OmenCoreApp.Tests.Services
         {
             public bool IsAvailable => true;
             public string Status => "Test";
-            public string Backend => "Test";
+            public string Backend { get; set; } = "Test";
             public bool IsHoldActive => false;
             public List<int> SetFanSpeedCalls { get; } = new();
             public List<string> ApplyMaxCoolingCalls { get; } = new();
@@ -70,7 +70,8 @@ namespace OmenCoreApp.Tests.Services
                 return true;
             }
             public IEnumerable<FanTelemetry> ReadFanSpeeds() => new[] { new FanTelemetry { Name = "CPU Fan", SpeedRpm = 1000, DutyCyclePercent = 40 } };
-            public void ApplyMaxCooling() { ApplyMaxCoolingCalls.Add("ApplyMaxCooling"); }
+            public bool ApplyMaxCoolingShouldFail { get; set; }
+            public bool ApplyMaxCooling() { ApplyMaxCoolingCalls.Add("ApplyMaxCooling"); return !ApplyMaxCoolingShouldFail; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;
@@ -227,6 +228,36 @@ namespace OmenCoreApp.Tests.Services
 
             fanService.IsThermalProtectionActive.Should().BeFalse("invalid temps should not trigger thermal protection");
             controller.SetFanSpeedCallCount.Should().Be(0, "no fan commands should be issued for invalid temps");
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void ApplyMaxCooling_ControllerReportsFailure_DoesNotClaimMaxModeActive()
+        {
+            // Regression test: ApplyMaxCooling() previously reported "Max cooling mode active"
+            // and set the internal fan-mode field to "Max" unconditionally, even when the
+            // underlying controller write failed (e.g. a transient WMI busy error). That left
+            // callers reading a confirmed "Max" state back after a genuine write failure -
+            // most importantly the thermal-critical safety-override path in MainViewModel,
+            // which reads GetCurrentFanMode() right after calling this to decide whether the
+            // emergency response actually took effect.
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            // WMI backend: FanService deliberately skips its defensive non-WMI SetFanSpeed(100)
+            // re-write for WMI (relies on the controller's own keepalive), so this is the
+            // specific path where a failed ApplyMaxCooling() write has no fallback recovery.
+            var controller = new TrackingFanController { ApplyMaxCoolingShouldFail = true, Backend = "WMI BIOS" };
+            var thermalProvider = new MockThermalProvider();
+            var notificationService = new NotificationService(logging);
+
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+
+            fanService.ApplyMaxCooling();
+
+            controller.ApplyMaxCoolingCalls.Should().HaveCount(1, "the controller write should still have been attempted");
+            fanService.GetCurrentFanMode().Should().NotBe("Max", "the controller reported failure, so Max mode must not be reported as active");
 
             logging.Dispose();
         }

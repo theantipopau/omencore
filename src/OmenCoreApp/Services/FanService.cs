@@ -1710,18 +1710,18 @@ namespace OmenCore.Services
             }
         }
 
-        private void ApplyMaxCoolingSerialized()
+        private bool ApplyMaxCoolingSerialized()
         {
             if (DesktopFanWritesBlocked)
             {
                 RecordFanCommand("ApplyMaxCooling", "Max", false, DesktopFanWriteBlockedMessage);
                 _logging.Warn(DesktopFanWriteBlockedMessage);
-                return;
+                return false;
             }
 
             lock (_fanWriteLock)
             {
-                _ecOperationCoordinator.Execute("FanService", "ApplyMaxCooling", () => _fanController.ApplyMaxCooling());
+                return _ecOperationCoordinator.Execute("FanService", "ApplyMaxCooling", () => _fanController.ApplyMaxCooling());
             }
         }
 
@@ -2869,12 +2869,18 @@ namespace OmenCore.Services
             }
             
             DisableCurve();
-            ApplyMaxCoolingSerialized();
-            RecordFanCommand("ApplyMaxCooling.Controller", "Max", true, "ApplyMaxCooling sent");
+            var maxCoolingApplied = ApplyMaxCoolingSerialized();
+            if (!maxCoolingApplied)
+            {
+                _logging.Warn("ApplyMaxCooling: controller reported failure applying Max mode");
+            }
+            RecordFanCommand("ApplyMaxCooling.Controller", "Max", maxCoolingApplied,
+                maxCoolingApplied ? "ApplyMaxCooling sent" : "ApplyMaxCooling reported failure");
 
             // WMI max mode is maintained by controller-level keepalive logic. Re-sending an
             // immediate SetFanSpeed(100) here can create an unnecessary re-apply pulse on
             // some firmware. Keep the defensive write for non-WMI backends.
+            var effectivelyApplied = maxCoolingApplied;
             if (!Backend.Contains("WMI", StringComparison.OrdinalIgnoreCase))
             {
                 try
@@ -2882,6 +2888,7 @@ namespace OmenCore.Services
                     if (SetFanSpeedSerialized(100))
                     {
                         _lastAppliedFanPercent = 100;
+                        effectivelyApplied = true;
                         RecordFanCommand("SetFanSpeed", "100%", true, "Defensive non-WMI Max write");
                     }
                 }
@@ -2896,10 +2903,22 @@ namespace OmenCore.Services
                 _lastAppliedFanPercent = 100;
             }
 
-            _currentFanMode = "Max";
-            RecordFanCommand("ApplyMaxCooling", "Max", true, "Max cooling mode active");
+            // Only claim Max mode is active if a write actually succeeded — previously this was
+            // set unconditionally, so a failed controller write (e.g. transient WMI busy error
+            // during a thermal-critical event) still reported "Max cooling mode active" and left
+            // MainViewModel's safety-override confirmation reading this same now-wrong state back.
+            if (effectivelyApplied)
+            {
+                _currentFanMode = "Max";
+                RecordFanCommand("ApplyMaxCooling", "Max", true, "Max cooling mode active");
+                _logging.Info("Max cooling mode applied");
+            }
+            else
+            {
+                RecordFanCommand("ApplyMaxCooling", "Max", false, "All Max cooling write attempts failed");
+                _logging.Warn("Max cooling mode NOT applied - all write attempts failed");
+            }
             ScheduleDeferredMaxVerification();
-            _logging.Info("Max cooling mode applied");
             PublishPresetApplied(_currentFanMode);
         }
 

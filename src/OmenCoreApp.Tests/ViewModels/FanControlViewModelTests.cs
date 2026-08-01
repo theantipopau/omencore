@@ -49,7 +49,7 @@ namespace OmenCoreApp.Tests.ViewModels
             public bool SetPerformanceMode(string modeName) => true;
             public bool RestoreAutoControl() => true;
             public System.Collections.Generic.IEnumerable<FanTelemetry> ReadFanSpeeds() => new System.Collections.Generic.List<FanTelemetry>();
-            public void ApplyMaxCooling() { LastSetPercent = 100; SetCallCount++; }
+            public bool ApplyMaxCooling() { LastSetPercent = 100; SetCallCount++;  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;

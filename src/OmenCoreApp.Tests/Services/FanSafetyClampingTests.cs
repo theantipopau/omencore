@@ -259,7 +259,7 @@ namespace OmenCoreApp.Tests.Services
             public bool SetPerformanceMode(string modeName) => true;
             public bool RestoreAutoControl() => true;
             public IEnumerable<FanTelemetry> ReadFanSpeeds() => new[] { new FanTelemetry { Name = "CPU", SpeedRpm = 1000, DutyCyclePercent = 40 } };
-            public void ApplyMaxCooling() { }
+            public bool ApplyMaxCooling() {  return true; }
             public void ApplyAutoMode() { }
             public void ApplyQuietMode() { }
             public bool ResetEcToDefaults() => true;

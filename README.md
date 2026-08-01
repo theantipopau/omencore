@@ -7,7 +7,7 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-4.1.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.1.0.md)
+[![Version](https://img.shields.io/badge/version-4.1.5-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.1.5.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -47,14 +47,22 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 4.1.0<br>
-**Status:** Code-complete and test-verified in this environment (990/990 tests, 0 build warnings); artifacts not yet built or tagged<br>
-**Release notes:** [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md)<br>
+**Version:** 4.1.5<br>
+**Status:** Code-complete and test-verified in this environment (993/993 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Release notes:** [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
-v4.1.0 is a field-report and diagnostics-accuracy release: it fixes the bugs behind five GitHub issues and two Discord threads filed against 4.0.0, then goes further by reviewing real users' diagnostics exports and application logs directly, which turned up several more real bugs nobody had reported yet — three broken diagnostic collectors that had never worked in any export ever produced, a Logitech RGB write path that silently did nothing while claiming success, and a CPU-temperature-source selector that flip-flopped ~192 times in one real session. Every change is a provable logic bug, a diagnostics fix, or metadata; the fan-control change moves strictly toward *fewer* EC writes and the thermal-authority fix moves strictly toward *fewer* source switches — nothing here widens hardware-control surface.
+v4.1.5 is a small patch: three targeted fixes found while triaging field reports for the next cycle. GPU Power Boost now works on the specific Victus board (`8A25`) that had three consecutive versions of consistent reports with no counter-evidence; a locked fan-curve tooltip that read as "not verified" (when the real cause was an unrelated capability flag) now says so explicitly; and `ApplyMaxCooling()` — including the path that fires during a genuine thermal-critical emergency — no longer reports success when the underlying hardware write actually failed.
 
-### v4.1.0 Highlights
+### v4.1.5 Highlights
+
+- **Fixed:** GPU Power Boost never worked on Victus 16-d1176TX (board `8A25`) — added the model-database entry this exact board was missing, with `SupportsGpuPowerBoost = true`.
+- **Fixed:** locked fan-curve/direct-control tooltips said "unavailable for this model" with no explanation, which real users misread as related to the separate "unverified model" status — now explicitly states it's a hardware/firmware limitation.
+- **Fixed:** `ApplyMaxCooling()` silently reported success even when the hardware write failed, including in the thermal-critical safety-override path — fans could stay unchanged during a real overheat event while the log and UI both claimed "Max cooling active."
+
+Full detail on every item in [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md).
+
+### v4.1.0 Highlights (previous release)
 
 - **Fixed:** the sidebar and General-tab main cards could show different temperatures at the same instant — the sidebar was subscribed directly to raw, unfiltered sensor data and bypassed the same spike-rejection/stabilization every other surface received.
 - **Fixed:** "temperature appears frozen" was a false positive most of the time — the detector didn't account for HP WMI's whole-degree sensor quantization, so a machine sitting at real thermal equilibrium (steady load, steady temp) was flagged as a stuck sensor. One field session alone logged 48 false warnings.
@@ -129,15 +137,15 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 ## Current Development Focus
 
-**v4.1.0 is a field-report and diagnostics-accuracy cycle** — see [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) for the full rationale and every trace. Five GitHub issues and two Discord threads against 4.0.0 turned up four real defects (three had been misleading users into thinking hardware telemetry was broken); a sweep of older, never-consolidated bug reports found a systemic Power Automation bug; and a final pass reading real users' diagnostics exports and application logs directly found four more bugs nobody had reported yet, including three diagnostics collectors that had never worked in any export ever produced. All work is code-complete and test-verified (990/990) in this environment — artifacts have not yet been built. Several fixes are code-provable from the reporters' own logs but still need field confirmation that the physical/audible behavior matches — see Known Limits.
+**v4.1.5 is a small patch** — see [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) for the full rationale and every trace. Three targeted fixes found while triaging field reports for the next cycle: GPU Power Boost enabled on a specific Victus board after three versions of consistent reports, a locked fan-curve tooltip that was misleading users about why it was locked, and a fan-control safety fix so `ApplyMaxCooling()` no longer reports success when the underlying hardware write actually failed — including during a genuine thermal-critical emergency. All work is code-complete and test-verified (993/993) in this environment — artifacts have not yet been built.
 
-**What's intentionally *not* in this release:** the larger architectural items — privilege separation, a real RGB provider architecture, i18n, Linux tray/config persistence — remain scoped in the roadmap but not started. A concrete architecture fix identified for board `8D87`'s CPU power ceiling was deliberately *not* applied, since it's a genuine hardware-behavior change awaiting field confirmation, not a proven-safe correctness fix.
+**What's intentionally *not* in this release:** a broader audit surfaced several more candidates of the same "silently swallowed write failure" bug class in the Razer/Corsair RGB providers, plus UI/accessibility gaps — logged in the roadmap but deliberately deferred to keep this patch narrow. The larger architectural items from 4.1.0 — privilege separation, a real RGB provider architecture, i18n, Linux tray/config persistence — remain scoped in the roadmap but not started.
 
 The active work is tracked in:
 
-- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - the current release notes, written incrementally as work landed.
-- [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - the full scope, phase ordering, and execution checklist this and the prior cycle worked through.
-- [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md) - the prior release's notes and validation status.
+- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - the current release notes.
+- [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - the full scope, phase ordering, and execution checklist this and the prior cycles worked through.
+- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - the prior release's notes and validation status.
 
 Prior-release work is kept for historical reference:
 
@@ -152,9 +160,9 @@ Release artifacts are published on the [GitHub Releases](https://github.com/thea
 
 | Artifact | Platform | Recommended For |
 |---|---|---|
-| `OmenCoreSetup-4.1.0.exe` | Windows | Most users. Installs app and can install PawnIO. |
-| `OmenCore-4.1.0-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
-| `OmenCore-4.1.0-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
+| `OmenCoreSetup-4.1.5.exe` | Windows | Most users. Installs app and can install PawnIO. |
+| `OmenCore-4.1.5-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
+| `OmenCore-4.1.5-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
 
 Final GitHub release notes must include SHA256 hashes for every artifact. The in-app updater requires release hashes before it will install an update.
 
@@ -162,20 +170,20 @@ Final GitHub release notes must include SHA256 hashes for every artifact. The in
 
 ### Windows
 
-1. Download `OmenCoreSetup-4.1.0.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
+1. Download `OmenCoreSetup-4.1.5.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
 2. Verify the SHA256 hash from the release notes.
 3. Run the installer as Administrator.
 4. Keep PawnIO selected unless you only want monitoring and WMI-only features.
 5. Launch OmenCore from the Start Menu.
 
-Portable users can download `OmenCore-4.1.0-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
+Portable users can download `OmenCore-4.1.5-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
 
 See [INSTALL.md](INSTALL.md) for the full Windows guide.
 
 ### Linux
 
 ```bash
-VERSION=4.1.0
+VERSION=4.1.5
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
@@ -379,9 +387,9 @@ pwsh ./build-installer.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCoreSetup-4.1.0.exe`
-- `artifacts/OmenCore-4.1.0-win-x64.zip`
-- `artifacts/SHA256SUMS-4.1.0.txt`
+- `artifacts/OmenCoreSetup-4.1.5.exe`
+- `artifacts/OmenCore-4.1.5-win-x64.zip`
+- `artifacts/SHA256SUMS-4.1.5.txt`
 
 ### Build Linux Artifact
 
@@ -391,10 +399,10 @@ pwsh ./build-linux-package.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCore-4.1.0-linux-x64.zip`
-- `artifacts/OmenCore-4.1.0-linux-x64.zip.sha256`
+- `artifacts/OmenCore-4.1.5-linux-x64.zip`
+- `artifacts/OmenCore-4.1.5-linux-x64.zip.sha256`
 - `artifacts/version.json`
-- `artifacts/linux-version-verification-4.1.0-linux-x64.json`
+- `artifacts/linux-version-verification-4.1.5-linux-x64.json`
 
 ## Release Checklist
 
@@ -429,9 +437,9 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - installation, upgrade, portable use, Linux setup, uninstall.
-- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - current release notes.
+- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - current release notes.
 - [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - current roadmap, scope, and execution checklist.
-- [docs/CHANGELOG_v4.0.0.md](docs/CHANGELOG_v4.0.0.md) - previous release notes.
+- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - previous release notes.
 - [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - earlier release notes.
 - [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - active field report tracking (covers GitHub #141-#146 and Discord reports through v3.8.2).
 - [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - earlier release notes.
@@ -451,6 +459,7 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 
 | Version | Summary |
 |---|---|
+| 4.1.5 | Patch release: GPU Power Boost enabled on Victus board `8A25` after three versions of consistent field reports, a locked fan-curve tooltip reworded to stop reading as related to model-verification status, and `ApplyMaxCooling()` fixed to stop reporting success when the hardware write actually failed — including in the thermal-critical safety-override path. 993/993 tests. |
 | 4.1.0 | Minor release: field-report fixes for five GitHub issues/two Discord threads (telemetry-mismatch, freeze-heuristic false positive, Max-fan reassert loop, dead GPU-Power-Boost capability flag, board-naming ambiguity, Linux RGB sysfs path), a systemic Power Automation wattage bug found via an older-docs sweep, and four more bugs found by reading real users' diagnostics exports/logs directly (three broken diagnostics collectors never producing real data, a Logitech HID++ fallback silently failing while claiming success, a CPU-thermal-authority selector flip-flopping ~192 times in one session). 990/990 tests. |
 | 4.0.0 | Major release: sustainability/architecture cycle, not features-first — DI composition root started (19/~40 `MainViewModel` fields migrated), shared polling coordinator, community model-database contribution pipeline, persistent "Model Capabilities" diagnostics panel, accessibility labeling pass (~140 controls across 5 views), game-profile window-title disambiguation + WMI event-based detection + multi-game restore, dead-code removal, safety-gate string-match audit fix. No fan/thermal/EC control behavior changed. |
 | 3.9.0 | Minor release: non-functional OMEN key action fix, game-profile-loss-on-crash fix, silent EC-failure logging, crash stack traces, GPU Power Boost/profile linkage, Custom tab theme fix, OSD stale-default fix, AutomationService idle/battery bugs, HardwareWorker update-kill-loop fix, `8C3F`/`8C77` model additions |

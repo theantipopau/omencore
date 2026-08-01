@@ -72,7 +72,7 @@ namespace OmenCore.Hardware
         IEnumerable<FanTelemetry> ReadFanSpeeds();
 
         // Quick profile methods
-        void ApplyMaxCooling();
+        bool ApplyMaxCooling();
         void ApplyAutoMode();
         void ApplyQuietMode();
 
@@ -738,7 +738,7 @@ namespace OmenCore.Hardware
             return Math.Clamp((rpm - minRpm) * 100 / (maxRpm - minRpm), 0, 100);
         }
 
-        public void ApplyMaxCooling() => _proxy.SetMaxFan(true);
+        public bool ApplyMaxCooling() => _proxy.SetMaxFan(true);
         public void ApplyAutoMode() => _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Default);
         public void ApplyQuietMode() => _proxy.SetThermalPolicy(OghServiceProxy.ThermalPolicy.Cool);
         
@@ -837,7 +837,7 @@ namespace OmenCore.Hardware
         public bool RestoreAutoControl() => _controller.RestoreAutoControl();
         public IEnumerable<FanTelemetry> ReadFanSpeeds() => _controller.ReadFanSpeeds();
 
-        public void ApplyMaxCooling() => _controller.SetMaxFanSpeed(true);
+        public bool ApplyMaxCooling() => _controller.SetMaxFanSpeed(true);
         public void ApplyAutoMode() => _controller.RestoreAutoControl();
         public void ApplyQuietMode() => _controller.SetPerformanceMode("Cool");
         
@@ -1026,7 +1026,7 @@ namespace OmenCore.Hardware
 
         public IEnumerable<FanTelemetry> ReadFanSpeeds() => _controller.ReadFanSpeeds();
 
-        public void ApplyMaxCooling()
+        public bool ApplyMaxCooling()
         {
             _logging?.Info("Applying Max cooling via EC (with fan boost)...");
             var ok = SetMaxFanSpeed(true);
@@ -1034,6 +1034,7 @@ namespace OmenCore.Hardware
             {
                 _logging?.Warn("ApplyMaxCooling: Verification failed - Max may not be applied");
             }
+            return ok;
         }
         
         public void ApplyAutoMode()
@@ -1192,7 +1193,11 @@ namespace OmenCore.Hardware
             return Math.Clamp((rpm - minRpm) * 100 / (maxRpm - minRpm), 0, 100);
         }
 
-        public void ApplyMaxCooling() => _logging?.Warn("Fan control not available: Cannot apply max cooling");
+        public bool ApplyMaxCooling()
+        {
+            _logging?.Warn("Fan control not available: Cannot apply max cooling");
+            return false;
+        }
         public void ApplyAutoMode() => _logging?.Warn("Fan control not available: Cannot apply auto mode");
         public void ApplyQuietMode() => _logging?.Warn("Fan control not available: Cannot apply quiet mode");
         
