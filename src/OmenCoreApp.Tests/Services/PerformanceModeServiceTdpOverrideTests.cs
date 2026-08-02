@@ -443,6 +443,71 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void Apply_WithSupportsFanControlEcTrue_ButSupportsEcPowerLimitsUnset_BlocksDirectEcPowerLimits()
+        {
+            // Regression test (GitHub #159, board 8A44): DirectEcPowerLimitWritesBlocked previously
+            // reused SupportsFanControlEc (defaults true) as its gate. That flag also controls real,
+            // working EC fan control on many boards, so every model that didn't explicitly opt out
+            // got PowerLimitController's EC_CPU_PL1/PL2/EC_GPU_TGP writes attempted by default -
+            // even though those register addresses are documented as unconfirmed placeholders that
+            // vary per model. The gate now uses the dedicated SupportsEcPowerLimits flag instead,
+            // which defaults false independently of SupportsFanControlEc.
+            var fan = new RecordingWmiFanController();
+            var ec = new RecordingEcAccess();
+            var powerLimits = new PowerLimitController(ec);
+            var caps = new ModelCapabilities
+            {
+                ModelName = "EC fan control confirmed, power limits unconfirmed test model",
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = true, // real EC fan control works on this hypothetical board
+                AllowDecoupledWmiThermalPolicyFallback = false
+                // SupportsEcPowerLimits deliberately left unset (defaults false)
+            };
+            var service = BuildService(fan, powerLimits, caps);
+
+            service.LinkFanToPerformanceMode = false;
+            service.Apply(new PerformanceMode
+            {
+                Name = "Performance",
+                CpuPowerLimitWatts = 95,
+                GpuPowerLimitWatts = 140
+            });
+
+            ec.WriteCount.Should().Be(0,
+                "SupportsFanControlEc=true must not implicitly enable unconfirmed EC power-limit register writes");
+            service.EcPowerControlAvailable.Should().BeFalse();
+        }
+
+        [Fact]
+        public void Apply_WithSupportsEcPowerLimitsExplicitlyTrue_AllowsDirectEcPowerLimits()
+        {
+            var fan = new RecordingWmiFanController();
+            var ec = new RecordingEcAccess();
+            var powerLimits = new PowerLimitController(ec, useSimplifiedMode: false);
+            var caps = new ModelCapabilities
+            {
+                ModelName = "EC power limits field-confirmed test model",
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = true,
+                SupportsEcPowerLimits = true,
+                AllowDecoupledWmiThermalPolicyFallback = false
+            };
+            var service = BuildService(fan, powerLimits, caps);
+
+            service.LinkFanToPerformanceMode = false;
+            service.Apply(new PerformanceMode
+            {
+                Name = "Performance",
+                CpuPowerLimitWatts = 95,
+                GpuPowerLimitWatts = 140
+            });
+
+            ec.WriteCount.Should().BeGreaterThan(0,
+                "explicitly opting in via SupportsEcPowerLimits should still allow the write path");
+            service.EcPowerControlAvailable.Should().BeTrue();
+        }
+
+        [Fact]
         public void Constructor_With8D41ModelCapabilities_EnablesWmiThermalPolicyFallback()
         {
             var fan = new RecordingWmiFanController();

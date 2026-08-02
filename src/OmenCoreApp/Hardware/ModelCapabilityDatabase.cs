@@ -34,7 +34,22 @@ namespace OmenCore.Hardware
         
         /// <summary>Whether direct EC fan control is supported.</summary>
         public bool SupportsFanControlEc { get; set; } = true;
-        
+
+        /// <summary>
+        /// Whether direct EC-register CPU PL1/PL2 and GPU TGP power-limit writes (via
+        /// PowerLimitController) are confirmed safe on this model. Defaults to false and is
+        /// deliberately NOT tied to SupportsFanControlEc: that flag also gates real, working EC
+        /// fan control on many boards, while PowerLimitController's EC_CPU_PL1/PL2/EC_GPU_TGP
+        /// register addresses are explicitly documented as unconfirmed placeholders that vary
+        /// per model ("EXAMPLE - varies by model!" in PowerLimitController.cs) and can, per that
+        /// file's own warning, cause system instability. Reusing SupportsFanControlEc as the
+        /// gate for this meant every board that didn't explicitly opt out got this unconfirmed,
+        /// higher-risk write path attempted by default (found via GitHub #159's 8A44 field
+        /// report). Only set true once a model's real PL1/PL2/GPU-TGP register addresses have
+        /// been confirmed via datasheet or field-verified readback.
+        /// </summary>
+        public bool SupportsEcPowerLimits { get; set; } = false;
+
         /// <summary>Whether custom fan curves are supported.</summary>
         public bool SupportsFanCurves { get; set; } = true;
         

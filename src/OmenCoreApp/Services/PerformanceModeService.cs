@@ -45,9 +45,13 @@ namespace OmenCore.Services
 
         private bool FanPolicyAvailable => _fanController.IsAvailable && !FanPolicyWritesBlocked;
 
+        // Deliberately checks SupportsEcPowerLimits, NOT SupportsFanControlEc - the latter also
+        // gates real, working EC fan control on many boards and defaults to true, while
+        // PowerLimitController's EC register addresses are unconfirmed placeholders per-model
+        // (see ModelCapabilities.SupportsEcPowerLimits' doc comment). Blocked by default
+        // (SupportsEcPowerLimits defaults false) until a model has confirmed-correct addresses.
         private bool DirectEcPowerLimitWritesBlocked =>
-            _modelCapabilities != null &&
-            !_modelCapabilities.SupportsFanControlEc;
+            _modelCapabilities == null || !_modelCapabilities.SupportsEcPowerLimits;
 
         /// <summary>
         /// Event raised when a performance mode is applied (for UI synchronization).
