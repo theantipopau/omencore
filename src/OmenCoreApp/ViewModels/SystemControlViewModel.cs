@@ -3599,7 +3599,15 @@ namespace OmenCore.ViewModels
                     {
                         GpuPowerBoostLevel = detectedLevel;
                     }
-                    GpuPowerBoostStatus = $"{detectedLevel} (detected via WMI)";
+
+                    // GitHub #159: when a saved preference exists but doesn't match what's
+                    // actually on the hardware right now (e.g. startup restore is disabled, or a
+                    // reapply attempt failed), the level selector still shows the saved value -
+                    // make the status text say so explicitly instead of just naming the detected
+                    // level, so this doesn't read as "Maximum is active" when it isn't yet.
+                    GpuPowerBoostStatus = (hasSavedPreference && !string.Equals(detectedLevel, savedLevel, StringComparison.OrdinalIgnoreCase))
+                        ? $"{detectedLevel} (detected via WMI; saved preference '{savedLevel}' not yet applied)"
+                        : $"{detectedLevel} (detected via WMI)";
                     _logging.Info($"✓ GPU Power Boost available via WMI BIOS. Detected: {detectedLevel}, User pref: {savedLevel ?? "none"}");
                     return;
                 }
@@ -3820,11 +3828,17 @@ namespace OmenCore.ViewModels
                     }
 
                     // If NVAPI power limits are writable, include the fine-tuning layer.
+                    // Deliberately checks GpuPowerLimitAvailable here, not GpuNvapiAvailable -
+                    // the latter only means NVAPI itself initialized (GPU detected via NVAPI),
+                    // not that power-limit writes are actually supported. GitHub #159 showed a
+                    // board where NVAPI was available but SupportsPowerLimit was false, and this
+                    // branch's previous GpuNvapiAvailable check still printed "NVAPI power limits
+                    // available" - misleading, since none were.
                     if (GpuPowerLimitAvailable && GpuPowerLimitPercent != 100)
                     {
                         GpuPowerBoostStatus = $"{baseStatus} + NVAPI {GpuPowerLimitPercent}% limit";
                     }
-                    else if (GpuNvapiAvailable)
+                    else if (GpuPowerLimitAvailable)
                     {
                         GpuPowerBoostStatus = $"{baseStatus} (NVAPI power limits available)";
                     }

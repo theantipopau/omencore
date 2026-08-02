@@ -7,7 +7,7 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-4.1.5-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.1.5.md)
+[![Version](https://img.shields.io/badge/version-4.1.6-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.1.6.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -47,14 +47,22 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 4.1.5<br>
-**Status:** Code-complete, test-verified (1000/1000 tests, 0 build warnings), merged to `main`, and artifacts built and hashed<br>
-**Release notes:** [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md)<br>
+**Version:** 4.1.6<br>
+**Status:** Code-complete and test-verified in this environment (1002/1002 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Release notes:** [docs/CHANGELOG_v4.1.6.md](docs/CHANGELOG_v4.1.6.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
-v4.1.5 is a patch built from two passes: targeted fixes for specific field reports, plus a broader audit for the "logs success without confirming a real write happened" bug class after finding one instance of it (Logitech, fixed in 4.1.0). GPU Power Boost now works on the specific Victus board (`8A25`) that had three consecutive versions of consistent reports with no counter-evidence; a locked fan-curve tooltip that read as "not verified" now says explicitly that it isn't; `ApplyMaxCooling()` — including the path that fires during a genuine thermal-critical emergency — no longer reports success when the underlying hardware write actually failed; the same silent-failure bug class found and fixed in Razer and Corsair RGB; a top-level system-status banner that conflated "unsupported" with "unverified" is now two correctly-gated banners; and `SettingsView.xaml`'s accessibility labeling, left half-finished in an earlier cycle, is now complete.
+v4.1.6 is a patch found while triaging an exceptionally detailed field report (GitHub #159). The most significant fix is safety-relevant: `PerformanceModeService` was attempting CPU/GPU EC power-limit writes to register addresses its own code documents as unconfirmed placeholders ("EXAMPLE - varies by model!", with an explicit hardware-damage warning) by default on any board that didn't opt out — the gate reused a flag meant for real EC fan control, which defaults to `true`. A new, dedicated capability flag now defaults this off for every board until a model's real register addresses are confirmed. Two smaller GPU Power Boost diagnostics-clarity fixes ride along: status text no longer claims NVAPI power limits are available when they aren't, and no longer silently shows a saved preference as active when the hardware hasn't actually reached it yet.
 
-### v4.1.5 Highlights
+### v4.1.6 Highlights
+
+- **Fixed:** unconfirmed EC power-limit register writes (CPU PL1/PL2, GPU TGP) were attempted by default on any board that didn't explicitly opt out — a new `SupportsEcPowerLimits` capability flag now defaults this off everywhere until a model's addresses are field-confirmed. Safety-relevant; no board has ever had these addresses confirmed correct.
+- **Fixed:** GPU Power Boost status text claimed "NVAPI power limits available" based on the wrong capability flag (checked "NVAPI initialized" instead of "power limits actually writable") — could show that note even when the log showed NVAPI reporting no writable power policy.
+- **Fixed:** GPU Power Boost status text didn't flag when a saved preference (e.g. "Maximum") doesn't match what's actually on the hardware yet (e.g. because startup restore is disabled) — now says so explicitly instead of reading as if the saved value were already active.
+
+Full detail on every item in [docs/CHANGELOG_v4.1.6.md](docs/CHANGELOG_v4.1.6.md).
+
+### v4.1.5 Highlights (previous release)
 
 - **Fixed:** GPU Power Boost never worked on Victus 16-d1176TX (board `8A25`) — added the model-database entry this exact board was missing, with `SupportsGpuPowerBoost = true`.
 - **Fixed:** locked fan-curve/direct-control tooltips said "unavailable for this model" with no explanation, which real users misread as related to the separate "unverified model" status — now explicitly states it's a hardware/firmware limitation.
@@ -66,7 +74,7 @@ v4.1.5 is a patch built from two passes: targeted fixes for specific field repor
 
 Full detail on every item in [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md).
 
-### v4.1.0 Highlights (previous release)
+### v4.1.0 Highlights (previous minor)
 
 - **Fixed:** the sidebar and General-tab main cards could show different temperatures at the same instant — the sidebar was subscribed directly to raw, unfiltered sensor data and bypassed the same spike-rejection/stabilization every other surface received.
 - **Fixed:** "temperature appears frozen" was a false positive most of the time — the detector didn't account for HP WMI's whole-degree sensor quantization, so a machine sitting at real thermal equilibrium (steady load, steady temp) was flagged as a stuck sensor. One field session alone logged 48 false warnings.
@@ -141,15 +149,15 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 ## Current Development Focus
 
-**v4.1.5 is a patch built in two passes** — see [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) for the full rationale and every trace. First pass: three targeted fixes from field reports (Victus GPU Power Boost, a misleading fan-curve tooltip, and a fan-control safety bug in `ApplyMaxCooling()`). Second pass: a broader audit for the same "silently swallowed write failure" bug class the `ApplyMaxCooling()` fix and 4.1.0's Logitech fix both belonged to — found and fixed matching bugs in Razer and Corsair RGB, plus fixed a `MainWindow` banner that conflated "unsupported" with "unverified," and finished `SettingsView.xaml`'s accessibility labeling (left half-done in an earlier cycle). All work is code-complete, test-verified (1000/1000), and artifacts are built and hashed. A general Discord chat sweep also surfaced a repeated ask for a Windows CLI, now logged as a real feature-request candidate, and confirmed via independent community feedback that RGB reliability and fan/performance-mode consistency remain the two most user-visible open issues — matching this roadmap's own priority ordering.
+**v4.1.6 is a patch found while triaging GitHub #159**, an exceptionally detailed field report on a different board/vendor than 4.1.5's Victus report. The significant fix: `PerformanceModeService` was attempting CPU/GPU EC power-limit writes to register addresses the code's own header comment documents as unconfirmed ("EXAMPLE - varies by model!", explicit hardware-damage warning) by default, on any board that didn't opt out — the gate reused a flag meant for real EC fan control, which defaults to `true`. A new, dedicated flag now defaults this off everywhere until a model's addresses are field-confirmed; no board has ever had this confirmed, so nothing regresses. Two GPU Power Boost status-text fixes ride along, both traced from the same report. The Victus/8A25 GPU Power Boost wattage question from 4.1.5 is still open — traced further via git history (the WMI payload is confirmed stable and reference-implementation-aligned, not the cause) but not fixed, holding for more field evidence per owner call.
 
-**What's intentionally *not* in this release:** the larger architectural items from 4.1.0 — privilege separation, a real RGB provider architecture (which would structurally prevent this release's whole bug class instead of patching each provider by hand), i18n, Linux tray/config persistence — remain scoped in the roadmap but not started. A handful of lower-confidence findings from the same audit (a possible fan-curve-ramp race condition, the Max-mode keepalive timer bypassing the shared write lock, inconsistent hardcoded RPM ceilings) are logged in the changelog's "Not Actioned" section rather than rushed.
+**What's intentionally *not* in this release:** the larger architectural items from 4.1.0 — privilege separation, a real RGB provider architecture, i18n, Linux tray/config persistence — remain scoped in the roadmap but not started. `SystemControlViewModel`'s EC-based GPU-boost fallback path (a different, still-ungated EC write of the same risk class as the one fixed here) was found in the same pass but not touched — logged for a dedicated fix.
 
 The active work is tracked in:
 
-- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - the current release notes.
+- [docs/CHANGELOG_v4.1.6.md](docs/CHANGELOG_v4.1.6.md) - the current release notes.
 - [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - the full scope, phase ordering, and execution checklist this and the prior cycles worked through.
-- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - the prior release's notes and validation status.
+- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - the prior release's notes and validation status.
 
 Prior-release work is kept for historical reference:
 
@@ -164,9 +172,9 @@ Release artifacts are published on the [GitHub Releases](https://github.com/thea
 
 | Artifact | Platform | Recommended For |
 |---|---|---|
-| `OmenCoreSetup-4.1.5.exe` | Windows | Most users. Installs app and can install PawnIO. |
-| `OmenCore-4.1.5-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
-| `OmenCore-4.1.5-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
+| `OmenCoreSetup-4.1.6.exe` | Windows | Most users. Installs app and can install PawnIO. |
+| `OmenCore-4.1.6-win-x64.zip` | Windows | Portable use, testing, or no installer preference. |
+| `OmenCore-4.1.6-linux-x64.zip` | Linux | CLI plus Avalonia GUI, self-contained runtime. |
 
 Final GitHub release notes must include SHA256 hashes for every artifact. The in-app updater requires release hashes before it will install an update.
 
@@ -174,20 +182,20 @@ Final GitHub release notes must include SHA256 hashes for every artifact. The in
 
 ### Windows
 
-1. Download `OmenCoreSetup-4.1.5.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
+1. Download `OmenCoreSetup-4.1.6.exe` from [Releases](https://github.com/theantipopau/omencore/releases/latest).
 2. Verify the SHA256 hash from the release notes.
 3. Run the installer as Administrator.
 4. Keep PawnIO selected unless you only want monitoring and WMI-only features.
 5. Launch OmenCore from the Start Menu.
 
-Portable users can download `OmenCore-4.1.5-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
+Portable users can download `OmenCore-4.1.6-win-x64.zip`, extract it to a normal folder, and run `OmenCore.exe` as Administrator.
 
 See [INSTALL.md](INSTALL.md) for the full Windows guide.
 
 ### Linux
 
 ```bash
-VERSION=4.1.5
+VERSION=4.1.6
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 mkdir -p OmenCore-linux-x64
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
@@ -383,7 +391,7 @@ dotnet build OmenCore.sln --configuration Release
 dotnet test OmenCore.sln
 ```
 
-**What "N/N tests passing" actually means:** the suite is a real xUnit test project (`src/OmenCoreApp.Tests`, 1000+ tests as of v4.1.5) that runs in CI on every push (`.github/workflows/ci.yml`) and locally before every release. It exercises hardware-abstraction logic in isolation — capability-database resolution (which model resolves to which `ProductId`/`ModelNamePattern` entry), fan-curve and safety-clamp math, the diagnostics-export pipeline, view-model state transitions, and regression tests pinned to specific field-reported bugs (reflection-driven against private methods/fields where the codebase's existing pattern calls for it, real mock SDK interfaces like `ICorsairSdkProvider` where one exists). **What it does not do:** verify that a given real board's EC/WMI actually responds the way the code assumes — that's a structurally different problem no unit test can cover, which is why this project has a separate, explicit "evidence-gate" convention (see the roadmap and changelogs) requiring field confirmation from real hardware before shipping any fan/thermal/OC/UV *behavior* change, independent of what the test suite says. A green test suite means the logic is provably self-consistent and regression-free; it is not a substitute for a real user confirming a fix works on their actual laptop, and this project's own docs never claim otherwise.
+**What "N/N tests passing" actually means:** the suite is a real xUnit test project (`src/OmenCoreApp.Tests`, 1000+ tests as of v4.1.6) that runs in CI on every push (`.github/workflows/ci.yml`) and locally before every release. It exercises hardware-abstraction logic in isolation — capability-database resolution (which model resolves to which `ProductId`/`ModelNamePattern` entry), fan-curve and safety-clamp math, the diagnostics-export pipeline, view-model state transitions, and regression tests pinned to specific field-reported bugs (reflection-driven against private methods/fields where the codebase's existing pattern calls for it, real mock SDK interfaces like `ICorsairSdkProvider` where one exists). **What it does not do:** verify that a given real board's EC/WMI actually responds the way the code assumes — that's a structurally different problem no unit test can cover, which is why this project has a separate, explicit "evidence-gate" convention (see the roadmap and changelogs) requiring field confirmation from real hardware before shipping any fan/thermal/OC/UV *behavior* change, independent of what the test suite says. A green test suite means the logic is provably self-consistent and regression-free; it is not a substitute for a real user confirming a fix works on their actual laptop, and this project's own docs never claim otherwise.
 
 ### Build Windows Artifacts
 
@@ -393,9 +401,9 @@ pwsh ./build-installer.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCoreSetup-4.1.5.exe`
-- `artifacts/OmenCore-4.1.5-win-x64.zip`
-- `artifacts/SHA256SUMS-4.1.5.txt`
+- `artifacts/OmenCoreSetup-4.1.6.exe`
+- `artifacts/OmenCore-4.1.6-win-x64.zip`
+- `artifacts/SHA256SUMS-4.1.6.txt`
 
 ### Build Linux Artifact
 
@@ -405,10 +413,10 @@ pwsh ./build-linux-package.ps1
 
 Expected outputs:
 
-- `artifacts/OmenCore-4.1.5-linux-x64.zip`
-- `artifacts/OmenCore-4.1.5-linux-x64.zip.sha256`
+- `artifacts/OmenCore-4.1.6-linux-x64.zip`
+- `artifacts/OmenCore-4.1.6-linux-x64.zip.sha256`
 - `artifacts/version.json`
-- `artifacts/linux-version-verification-4.1.5-linux-x64.json`
+- `artifacts/linux-version-verification-4.1.6-linux-x64.json`
 
 ## Release Checklist
 
@@ -443,9 +451,9 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 ## Documentation
 
 - [INSTALL.md](INSTALL.md) - installation, upgrade, portable use, Linux setup, uninstall.
-- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - current release notes.
+- [docs/CHANGELOG_v4.1.6.md](docs/CHANGELOG_v4.1.6.md) - current release notes.
 - [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md) - current roadmap, scope, and execution checklist.
-- [docs/CHANGELOG_v4.1.0.md](docs/CHANGELOG_v4.1.0.md) - previous release notes.
+- [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) - previous release notes.
 - [docs/CHANGELOG_v3.9.0.md](docs/CHANGELOG_v3.9.0.md) - earlier release notes.
 - [docs/3.8.1-BUG-REPORTS.md](docs/3.8.1-BUG-REPORTS.md) - active field report tracking (covers GitHub #141-#146 and Discord reports through v3.8.2).
 - [docs/CHANGELOG_v3.8.2.md](docs/CHANGELOG_v3.8.2.md) - earlier release notes.
@@ -465,6 +473,7 @@ Windows logs are stored under `%LOCALAPPDATA%\OmenCore\`. Linux diagnostics can 
 
 | Version | Summary |
 |---|---|
+| 4.1.6 | Patch release: unconfirmed EC power-limit register writes (CPU PL1/PL2, GPU TGP) now blocked by default on every board via a new, dedicated capability flag decoupled from the EC fan-control flag it previously shared (safety-relevant, found via GitHub #159), plus two GPU Power Boost status-text fixes from the same report. |
 | 4.1.5 | Patch release: GPU Power Boost enabled on Victus board `8A25`, a locked fan-curve tooltip reworded to stop implying it's about verification status, `ApplyMaxCooling()` fixed to stop reporting success when the hardware write actually failed (including in the thermal-critical safety-override path), matching silent-write-failure bugs fixed in Razer and Corsair RGB, a `MainWindow` banner conflating "unsupported" with "unverified" split into two correctly-gated banners, and `SettingsView.xaml` accessibility labeling completed (156/156 controls). 1000/1000 tests. |
 | 4.1.0 | Minor release: field-report fixes for five GitHub issues/two Discord threads (telemetry-mismatch, freeze-heuristic false positive, Max-fan reassert loop, dead GPU-Power-Boost capability flag, board-naming ambiguity, Linux RGB sysfs path), a systemic Power Automation wattage bug found via an older-docs sweep, and four more bugs found by reading real users' diagnostics exports/logs directly (three broken diagnostics collectors never producing real data, a Logitech HID++ fallback silently failing while claiming success, a CPU-thermal-authority selector flip-flopping ~192 times in one session). 990/990 tests. |
 | 4.0.0 | Major release: sustainability/architecture cycle, not features-first — DI composition root started (19/~40 `MainViewModel` fields migrated), shared polling coordinator, community model-database contribution pipeline, persistent "Model Capabilities" diagnostics panel, accessibility labeling pass (~140 controls across 5 views), game-profile window-title disambiguation + WMI event-based detection + multi-game restore, dead-code removal, safety-gate string-match audit fix. No fan/thermal/EC control behavior changed. |
