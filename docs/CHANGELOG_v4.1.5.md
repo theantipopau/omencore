@@ -1,10 +1,20 @@
 # OmenCore v4.1.5 – GPU Power Boost, Fan-Control Safety, RGB Reliability, and Accessibility Fixes
 
-**Release Date:** TBD
-**Release Status:** Code-complete and test-verified in this environment (1000/1000 tests, 0 build warnings); artifacts not yet built or tagged.
+**Release Date:** 2026-08-02
+**Release Status:** Code-complete, test-verified (1000/1000 tests, 0 build warnings), merged to `main`, and artifacts built and hashed (see SHA256 hashes below).
 **Type:** Patch release — targeted fixes found while triaging field reports and auditing the codebase for the next cycle, no new feature surface
 **Base Version:** v4.1.0
 **Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (Post-4.1.0 Release): Field Reports Triaged 2026-08-01" and "Newly Reported (Discord Sweep 2026-08-02)" for the full traces this release acts on.
+
+## SHA256 Hashes
+
+```text
+6606761DDFFA602C902991137C7719018651B3FEFDA2B2DE617D57DEAEBC59C0  OmenCoreSetup-4.1.5.exe
+58D443C69F439FC3B009C74C325E9950B0058112FD9C669EE74F52133ED91EA0  OmenCore-4.1.5-win-x64.zip
+0BB6DB6F24288A37CD7C9E58F1A081428609A831DD1AEAC2FD58F3EE1AFEA061  OmenCore-4.1.5-linux-x64.zip
+```
+
+Also published as `artifacts/SHA256SUMS-4.1.5.txt`. Verify with `Get-FileHash <file> -Algorithm SHA256` (Windows) or `sha256sum <file>` (Linux) before installing.
 
 ---
 

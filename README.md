@@ -48,7 +48,7 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 ## Current Release
 
 **Version:** 4.1.5<br>
-**Status:** Code-complete and test-verified in this environment (1000/1000 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Status:** Code-complete, test-verified (1000/1000 tests, 0 build warnings), merged to `main`, and artifacts built and hashed<br>
 **Release notes:** [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
@@ -141,7 +141,7 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 ## Current Development Focus
 
-**v4.1.5 is a patch built in two passes** — see [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) for the full rationale and every trace. First pass: three targeted fixes from field reports (Victus GPU Power Boost, a misleading fan-curve tooltip, and a fan-control safety bug in `ApplyMaxCooling()`). Second pass: a broader audit for the same "silently swallowed write failure" bug class the `ApplyMaxCooling()` fix and 4.1.0's Logitech fix both belonged to — found and fixed matching bugs in Razer and Corsair RGB, plus fixed a `MainWindow` banner that conflated "unsupported" with "unverified," and finished `SettingsView.xaml`'s accessibility labeling (left half-done in an earlier cycle). All work is code-complete and test-verified (1000/1000) in this environment — artifacts have not yet been built. A general Discord chat sweep also surfaced a repeated ask for a Windows CLI, now logged as a real feature-request candidate, and confirmed via independent community feedback that RGB reliability and fan/performance-mode consistency remain the two most user-visible open issues — matching this roadmap's own priority ordering.
+**v4.1.5 is a patch built in two passes** — see [docs/CHANGELOG_v4.1.5.md](docs/CHANGELOG_v4.1.5.md) for the full rationale and every trace. First pass: three targeted fixes from field reports (Victus GPU Power Boost, a misleading fan-curve tooltip, and a fan-control safety bug in `ApplyMaxCooling()`). Second pass: a broader audit for the same "silently swallowed write failure" bug class the `ApplyMaxCooling()` fix and 4.1.0's Logitech fix both belonged to — found and fixed matching bugs in Razer and Corsair RGB, plus fixed a `MainWindow` banner that conflated "unsupported" with "unverified," and finished `SettingsView.xaml`'s accessibility labeling (left half-done in an earlier cycle). All work is code-complete, test-verified (1000/1000), and artifacts are built and hashed. A general Discord chat sweep also surfaced a repeated ask for a Windows CLI, now logged as a real feature-request candidate, and confirmed via independent community feedback that RGB reliability and fan/performance-mode consistency remain the two most user-visible open issues — matching this roadmap's own priority ordering.
 
 **What's intentionally *not* in this release:** the larger architectural items from 4.1.0 — privilege separation, a real RGB provider architecture (which would structurally prevent this release's whole bug class instead of patching each provider by hand), i18n, Linux tray/config persistence — remain scoped in the roadmap but not started. A handful of lower-confidence findings from the same audit (a possible fan-curve-ramp race condition, the Max-mode keepalive timer bypassing the shared write lock, inconsistent hardcoded RPM ceilings) are logged in the changelog's "Not Actioned" section rather than rushed.
 
