@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using FluentAssertions;
 using OmenCore.Corsair;
 using OmenCore.Models;
 using OmenCore.Services;
@@ -26,13 +27,16 @@ namespace OmenCoreApp.Tests.Services
         {
             public CorsairLightingPreset? LastPreset;
             public CorsairDevice Device = new() { Name = "Test Keyboard", DeviceType = CorsairDeviceType.Keyboard };
+            public bool ShouldFail;
+            public int ApplyLightingCallCount;
 
             public Task<bool> InitializeAsync() { return Task.FromResult(true); }
             public Task<IEnumerable<CorsairDevice>> DiscoverDevicesAsync() => Task.FromResult<IEnumerable<CorsairDevice>>(new[] { Device });
-            public Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
+            public Task<bool> ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
             {
+                ApplyLightingCallCount++;
                 LastPreset = preset;
-                return Task.CompletedTask;
+                return Task.FromResult(!ShouldFail);
             }
             public Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages) => Task.CompletedTask;
             public Task ApplyMacroAsync(CorsairDevice device, MacroProfile macro) => Task.CompletedTask;
@@ -80,6 +84,32 @@ namespace OmenCoreApp.Tests.Services
 
             Assert.NotNull(testProvider.LastPreset);
             Assert.Equal("TestPreset", testProvider.LastPreset.Name);
+        }
+
+        [Fact]
+        public async Task ApplyLightingToAllAsync_SdkReturnsFalse_ReportsFailureInsteadOfClaimingSuccess()
+        {
+            // Regression test: CorsairDeviceService previously treated "the SDK call didn't
+            // throw" as success, even when the SDK's own ApplyLightingAsync returned false
+            // (e.g. iCUE found the device missing from the RGB surface, or a direct-HID write
+            // failed after retries) without throwing. It then unconditionally logged
+            // "Applied ... to N device(s)" regardless. This pins that a false return from the
+            // SDK now propagates as a real failure.
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var testProvider = new TestProvider { ShouldFail = true };
+            var corsairService = new CorsairDeviceService(testProvider, logging);
+            var initField = typeof(CorsairDeviceService).GetField("_initialized", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new Exception("_initialized field not found");
+            initField.SetValue(corsairService, true);
+
+            await corsairService.DiscoverAsync();
+
+            var applied = await corsairService.ApplyLightingToAllAsync("#112233");
+
+            applied.Should().BeFalse("the SDK reported failure for every device, so the sync as a whole must not be reported as successful");
+            testProvider.ApplyLightingCallCount.Should().Be(1, "the write should still have been attempted");
         }
     }
 }

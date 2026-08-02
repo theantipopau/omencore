@@ -518,6 +518,29 @@ namespace OmenCore.ViewModels
         /// True if Secure Boot is enabled (legacy unsigned drivers are blocked).
         /// </summary>
         public bool SecureBootEnabled => DetectedCapabilities?.SecureBootEnabled ?? false;
+
+        /// <summary>
+        /// True when this machine isn't an HP OMEN/Victus system at all - OmenCore's hardware
+        /// backends were not built for this device and most features will be unavailable.
+        /// Distinct from <see cref="ShowUnverifiedModelBanner"/> (a real HP OMEN/Victus whose
+        /// specific SKU just hasn't been field-confirmed yet): previously a single banner's
+        /// visibility was gated only on this condition while its text also claimed to cover the
+        /// "unverified model" case, so a genuinely supported-but-unverified OMEN/Victus got no
+        /// banner at all despite the text implying it would.
+        /// </summary>
+        public bool ShowUnsupportedSystemBanner => !(SystemInfo?.IsHpGaming ?? false);
+
+        /// <summary>
+        /// True when this is a real HP OMEN/Victus system, but its exact model either isn't in
+        /// the capability database at all (falls back to generic defaults) or has a database
+        /// entry that hasn't been field-confirmed yet (<see cref="ModelCapabilities.UserVerified"/>
+        /// is false). Distinct from <see cref="ShowUnsupportedSystemBanner"/> - this system is
+        /// expected to work, some behavior is just inferred rather than confirmed.
+        /// </summary>
+        public bool ShowUnverifiedModelBanner =>
+            (SystemInfo?.IsHpGaming ?? false) &&
+            DetectedCapabilities != null &&
+            (!DetectedCapabilities.IsKnownModel || DetectedCapabilities.ModelConfig?.UserVerified == false);
         
         /// <summary>
         /// Warning message for limited functionality.

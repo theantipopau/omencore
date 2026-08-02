@@ -141,29 +141,42 @@ namespace OmenCore.Services
         /// <summary>
         /// Apply RGB lighting preset to a device.
         /// </summary>
-        public async Task ApplyLightingPresetAsync(CorsairDevice device, CorsairLightingPreset preset)
+        public async Task<bool> ApplyLightingPresetAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
             if (device == null || preset == null)
             {
                 _logging.Warn("Cannot apply lighting: device or preset is null");
-                return;
+                return false;
             }
 
             try
             {
-                await _sdk.ApplyLightingAsync(device, preset);
-                _logging.Info($"Applied lighting preset '{preset.Name}' to {device.Name}");
+                var applied = await _sdk.ApplyLightingAsync(device, preset);
+                if (applied)
+                {
+                    _logging.Info($"Applied lighting preset '{preset.Name}' to {device.Name}");
+                }
+                else
+                {
+                    _logging.Warn($"Lighting preset '{preset.Name}' was not applied to {device.Name}");
+                }
+                return applied;
             }
             catch (Exception ex)
             {
                 _logging.Error($"Failed to apply lighting to {device.Name}", ex);
+                return false;
             }
         }
 
         /// <summary>
         /// Apply a solid color to all Corsair devices.
+        /// Returns true if at least one device accepted the write; previously this always
+        /// logged "Applied ... to N device(s)" even when every per-device write threw, so a
+        /// fully-failed sync was indistinguishable from a fully-successful one in the log
+        /// and in RgbManager's sync summary.
         /// </summary>
-        public async Task ApplyLightingToAllAsync(string colorHex)
+        public async Task<bool> ApplyLightingToAllAsync(string colorHex)
         {
             var preset = new CorsairLightingPreset
             {
@@ -173,11 +186,15 @@ namespace OmenCore.Services
                 PrimaryColor = colorHex
             };
 
+            var succeeded = 0;
             foreach (var device in _devices)
             {
                 try
                 {
-                    await _sdk.ApplyLightingAsync(device, preset);
+                    if (await _sdk.ApplyLightingAsync(device, preset))
+                    {
+                        succeeded++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -185,13 +202,14 @@ namespace OmenCore.Services
                 }
             }
 
-            _logging.Info($"Applied color {colorHex} to {_devices.Count} device(s)");
+            LogApplyResult("color " + colorHex, succeeded, _devices.Count);
+            return succeeded > 0;
         }
 
         /// <summary>
         /// Apply a breathing / pulse effect to all Corsair devices.
         /// </summary>
-        public async Task ApplyBreathingToAllAsync(string hexColor, string? secondaryHex = null, double speed = 1.0)
+        public async Task<bool> ApplyBreathingToAllAsync(string hexColor, string? secondaryHex = null, double speed = 1.0)
         {
             var preset = new CorsairLightingPreset
             {
@@ -203,11 +221,15 @@ namespace OmenCore.Services
                 Speed = speed
             };
 
+            var succeeded = 0;
             foreach (var device in _devices)
             {
                 try
                 {
-                    await _sdk.ApplyLightingAsync(device, preset);
+                    if (await _sdk.ApplyLightingAsync(device, preset))
+                    {
+                        succeeded++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -215,13 +237,14 @@ namespace OmenCore.Services
                 }
             }
 
-            _logging.Info($"Applied breathing {hexColor} (speed {speed:F1}) to {_devices.Count} device(s)");
+            LogApplyResult($"breathing {hexColor} (speed {speed:F1})", succeeded, _devices.Count);
+            return succeeded > 0;
         }
 
         /// <summary>
         /// Apply spectrum / rainbow cycle to all Corsair devices.
         /// </summary>
-        public async Task ApplySpectrumToAllAsync(double speed = 1.0)
+        public async Task<bool> ApplySpectrumToAllAsync(double speed = 1.0)
         {
             var preset = new CorsairLightingPreset
             {
@@ -230,11 +253,15 @@ namespace OmenCore.Services
                 Speed = speed
             };
 
+            var succeeded = 0;
             foreach (var device in _devices)
             {
                 try
                 {
-                    await _sdk.ApplyLightingAsync(device, preset);
+                    if (await _sdk.ApplyLightingAsync(device, preset))
+                    {
+                        succeeded++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -242,13 +269,14 @@ namespace OmenCore.Services
                 }
             }
 
-            _logging.Info($"Applied spectrum cycle (speed {speed:F1}) to {_devices.Count} device(s)");
+            LogApplyResult($"spectrum cycle (speed {speed:F1})", succeeded, _devices.Count);
+            return succeeded > 0;
         }
 
         /// <summary>
         /// Apply wave / sweep effect to all Corsair devices.
         /// </summary>
-        public async Task ApplyWaveToAllAsync(double speed = 1.0)
+        public async Task<bool> ApplyWaveToAllAsync(double speed = 1.0)
         {
             var preset = new CorsairLightingPreset
             {
@@ -257,11 +285,15 @@ namespace OmenCore.Services
                 Speed = speed
             };
 
+            var succeeded = 0;
             foreach (var device in _devices)
             {
                 try
                 {
-                    await _sdk.ApplyLightingAsync(device, preset);
+                    if (await _sdk.ApplyLightingAsync(device, preset))
+                    {
+                        succeeded++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -269,7 +301,30 @@ namespace OmenCore.Services
                 }
             }
 
-            _logging.Info($"Applied wave (speed {speed:F1}) to {_devices.Count} device(s)");
+            LogApplyResult($"wave (speed {speed:F1})", succeeded, _devices.Count);
+            return succeeded > 0;
+        }
+
+        private void LogApplyResult(string what, int succeeded, int total)
+        {
+            if (total == 0)
+            {
+                _logging.Warn($"Applied {what} to no devices - no Corsair devices discovered");
+                return;
+            }
+
+            if (succeeded == total)
+            {
+                _logging.Info($"Applied {what} to {succeeded}/{total} device(s)");
+            }
+            else if (succeeded > 0)
+            {
+                _logging.Warn($"Applied {what} to only {succeeded}/{total} device(s) - {total - succeeded} write(s) failed");
+            }
+            else
+            {
+                _logging.Warn($"Failed to apply {what} to any of {total} device(s) - all writes failed");
+            }
         }
 
         /// <summary>
@@ -305,12 +360,16 @@ namespace OmenCore.Services
                 ColorHex = normalizedPrimary
             };
 
+            var modeSyncedSucceeded = 0;
             foreach (var device in _devices)
             {
                 try
                 {
                     var preset = device.DeviceType == CorsairDeviceType.Keyboard ? keyboardPreset : staticPreset;
-                    await _sdk.ApplyLightingAsync(device, preset);
+                    if (await _sdk.ApplyLightingAsync(device, preset))
+                    {
+                        modeSyncedSucceeded++;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -318,7 +377,7 @@ namespace OmenCore.Services
                 }
             }
 
-            _logging.Info($"Applied Corsair mode-synced pattern for '{modeName}' using {normalizedPrimary}/{secondaryHex} to {_devices.Count} device(s)");
+            LogApplyResult($"mode-synced pattern for '{modeName}' using {normalizedPrimary}/{secondaryHex}", modeSyncedSucceeded, _devices.Count);
         }
 
         private static string NormalizeHex(string? hex, string fallback)

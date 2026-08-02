@@ -328,13 +328,13 @@ namespace OmenCore.Services.Corsair
             _devices.Add(dev);
         }
 
-        public async Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
+        public async Task<bool> ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
             var hidDevice = _devices.FirstOrDefault(d => d.DeviceInfo.DeviceId == device.DeviceId);
             if (hidDevice == null)
             {
                 _logging.Warn($"Device not found: {device.Name}");
-                return;
+                return false;
             }
 
             try
@@ -363,10 +363,12 @@ namespace OmenCore.Services.Corsair
                         await SendColorCommandAsync(hidDevice, ApplyBrightness(r), ApplyBrightness(g), ApplyBrightness(b));
                         break;
                 }
+                return true;
             }
             catch (Exception ex)
             {
                 _logging.Error($"Failed to apply lighting to {device.Name}: {ex.Message}");
+                return false;
             }
         }
 

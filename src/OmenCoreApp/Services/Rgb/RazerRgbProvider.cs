@@ -112,21 +112,41 @@ namespace OmenCore.Services.Rgb
                 return Task.CompletedTask;
             }
             
-            if (effectId.Equals("effect:spectrum", StringComparison.OrdinalIgnoreCase))
-            {
-                _razerService.SetSpectrumEffect();
-                return Task.CompletedTask;
-            }
-            
-            if (effectId.Equals("effect:wave", StringComparison.OrdinalIgnoreCase))
-            {
-                _razerService.SetWaveEffect();
-                return Task.CompletedTask;
-            }
-            
             if (effectId.Equals("off", StringComparison.OrdinalIgnoreCase))
             {
                 _razerService.SetStaticColor(0, 0, 0);
+                return Task.CompletedTask;
+            }
+
+            // Generic "effect:<name>" contract documented on IRgbProvider.ApplyEffectAsync -
+            // matches the prefix pattern CorsairRgbProvider already uses, so effect ids that
+            // aren't wired up as their own dedicated branch above (breathing, off, static,
+            // rainbow) still resolve instead of silently no-opping.
+            if (effectId.StartsWith("effect:", StringComparison.OrdinalIgnoreCase))
+            {
+                var effectName = effectId["effect:".Length..].Trim().ToLowerInvariant();
+                switch (effectName)
+                {
+                    case "static":
+                        _razerService.SetStaticColor(255, 255, 255);
+                        break;
+                    case "breathing":
+                        _razerService.SetBreathingEffect(255, 0, 0);
+                        break;
+                    case "spectrum":
+                    case "rainbow":
+                        _razerService.SetSpectrumEffect();
+                        break;
+                    case "wave":
+                        _razerService.SetWaveEffect();
+                        break;
+                    case "off":
+                        _razerService.SetStaticColor(0, 0, 0);
+                        break;
+                    default:
+                        _logging.Warn($"Unknown Razer effect: {effectName}");
+                        break;
+                }
                 return Task.CompletedTask;
             }
 

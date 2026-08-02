@@ -115,12 +115,12 @@ namespace OmenCoreApp.Tests
             "SettingsViewModel.cs:4356",
             "CorsairHidDirect.cs:252",
             "CorsairHidDirect.cs:299",
-            "CorsairHidDirect.cs:403",
-            "CorsairHidDirect.cs:421",
-            "CorsairHidDirect.cs:773",
-            "CorsairHidDirect.cs:786",
-            "CorsairHidDirect.cs:842",
-            "CorsairHidDirect.cs:861",
+            "CorsairHidDirect.cs:405", // shifted from :403 after ApplyLightingAsync return-bool fix (write-failure propagation)
+            "CorsairHidDirect.cs:423", // shifted from :421 after ApplyLightingAsync return-bool fix (write-failure propagation)
+            "CorsairHidDirect.cs:775", // shifted from :773 after ApplyLightingAsync return-bool fix (write-failure propagation)
+            "CorsairHidDirect.cs:788", // shifted from :786 after ApplyLightingAsync return-bool fix (write-failure propagation)
+            "CorsairHidDirect.cs:844", // shifted from :842 after ApplyLightingAsync return-bool fix (write-failure propagation)
+            "CorsairHidDirect.cs:863", // shifted from :861 after ApplyLightingAsync return-bool fix (write-failure propagation)
             "KeyboardLightingServiceV2.cs:551",
             "LogitechHidDirect.cs:269",
             "LogitechHidDirect.cs:494",

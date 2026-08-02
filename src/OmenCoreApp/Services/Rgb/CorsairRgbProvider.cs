@@ -111,11 +111,15 @@ namespace OmenCore.Services.Rgb
                 }
 
                 // Apply the named preset to each device
+                var presetSucceeded = 0;
                 foreach (var device in _service.Devices)
                 {
                     try
                     {
-                        await _service.ApplyLightingPresetAsync(device, cfgPreset);
+                        if (await _service.ApplyLightingPresetAsync(device, cfgPreset))
+                        {
+                            presetSucceeded++;
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -123,7 +127,14 @@ namespace OmenCore.Services.Rgb
                     }
                 }
 
-                _logging.Info($"Applied Corsair preset '{presetName}' to {_service.Devices.Count} device(s)");
+                if (presetSucceeded == _service.Devices.Count)
+                {
+                    _logging.Info($"Applied Corsair preset '{presetName}' to {presetSucceeded}/{_service.Devices.Count} device(s)");
+                }
+                else
+                {
+                    _logging.Warn($"Applied Corsair preset '{presetName}' to only {presetSucceeded}/{_service.Devices.Count} device(s)");
+                }
                 return;
             }
 
@@ -131,25 +142,33 @@ namespace OmenCore.Services.Rgb
             if (effectId.StartsWith("effect:", StringComparison.OrdinalIgnoreCase))
             {
                 var effectName = effectId["effect:".Length..].Trim().ToLowerInvariant();
+                bool effectSucceeded;
                 switch (effectName)
                 {
                     case "breathing":
-                        await _service.ApplyBreathingToAllAsync("#FF0000");
+                        effectSucceeded = await _service.ApplyBreathingToAllAsync("#FF0000");
                         break;
                     case "spectrum":
                     case "colorcycle":
                     case "rainbow":
-                        await _service.ApplySpectrumToAllAsync();
+                        effectSucceeded = await _service.ApplySpectrumToAllAsync();
                         break;
                     case "wave":
-                        await _service.ApplyWaveToAllAsync();
+                        effectSucceeded = await _service.ApplyWaveToAllAsync();
                         break;
                     case "off":
                         await TurnOffAsync();
+                        effectSucceeded = true;
                         break;
                     default:
                         _logging.Warn($"Unknown Corsair effect: {effectName}");
+                        effectSucceeded = false;
                         break;
+                }
+
+                if (!effectSucceeded && effectName != "off")
+                {
+                    _logging.Warn($"Corsair effect '{effectName}' did not apply to any device");
                 }
             }
         }

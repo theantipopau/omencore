@@ -123,7 +123,7 @@ namespace OmenCoreApp.Tests.Services
                         && p.Name == "Performance Gradient"
                         && p.PrimaryColor == "#FF0000"
                         && p.SecondaryColor != "#FF0000")))
-                .Returns(Task.CompletedTask)
+                .ReturnsAsync(true)
                 .Verifiable();
 
             sdk.Setup(s => s.ApplyLightingAsync(
@@ -132,7 +132,7 @@ namespace OmenCoreApp.Tests.Services
                         p.Effect == LightingEffectType.Static
                         && p.Name == "Performance Static"
                         && p.PrimaryColor == "#FF0000")))
-                .Returns(Task.CompletedTask)
+                .ReturnsAsync(true)
                 .Verifiable();
 
             var service = new CorsairDeviceService(sdk.Object, logging);

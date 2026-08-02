@@ -27,8 +27,10 @@ namespace OmenCore.Services.Corsair
 
         /// <summary>
         /// Apply RGB lighting effect to a device.
+        /// Returns true only if the write actually reached the device; implementations must
+        /// not swallow a failure into a non-throwing false-success completion.
         /// </summary>
-        Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset);
+        Task<bool> ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset);
 
         /// <summary>
         /// Configure DPI stages for a mouse.
@@ -91,10 +93,10 @@ namespace OmenCore.Services.Corsair
             return Task.FromResult<IEnumerable<CorsairDevice>>(Array.Empty<CorsairDevice>());
         }
 
-        public Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
+        public Task<bool> ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
             _logging.Info($"[Stub] Applied lighting preset '{preset.Name}' to {device.Name}");
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
@@ -315,10 +317,10 @@ namespace OmenCore.Services.Corsair
             };
         }
 
-        public async Task ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
+        public Task<bool> ApplyLightingAsync(CorsairDevice device, CorsairLightingPreset preset)
         {
             if (!_initialized)
-                return;
+                return Task.FromResult(false);
 
             try
             {
@@ -327,7 +329,7 @@ namespace OmenCore.Services.Corsair
                 if (rgbDevice == null)
                 {
                     _logging.Warn($"Device {device.Name} not found in RGB surface");
-                    return;
+                    return Task.FromResult(false);
                 }
 
                 var primary = ParseHexColor(preset.PrimaryColor, new Color(255, 255, 255));
@@ -365,13 +367,13 @@ namespace OmenCore.Services.Corsair
 
                 _surface.Update();
                 _logging.Info($"Applied lighting preset '{preset.Name}' to {device.Name}");
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 _logging.Error($"Failed to apply lighting to {device.Name}", ex);
+                return Task.FromResult(false);
             }
-
-            await Task.CompletedTask;
         }
 
         private static Color ParseHexColor(string? hexColor, Color fallback)

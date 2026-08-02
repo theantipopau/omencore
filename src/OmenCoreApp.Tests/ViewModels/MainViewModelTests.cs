@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using FluentAssertions;
+using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services;
 using OmenCore.Services.Diagnostics;
@@ -57,6 +58,86 @@ namespace OmenCoreApp.Tests.ViewModels
 
             vm.ExportTelemetryCommand.Execute(null);
             fake.Called.Should().BeTrue();
+        }
+
+        private static void SetSystemInfo(MainViewModel vm, bool isHpOmen, bool isHpVictus)
+        {
+            var prop = typeof(MainViewModel).GetProperty(nameof(MainViewModel.SystemInfo))
+                ?? throw new Exception("SystemInfo property not found");
+            prop.SetValue(vm, new SystemInfo { IsHpOmen = isHpOmen, IsHpVictus = isHpVictus });
+        }
+
+        private static void SetDetectedCapabilities(MainViewModel vm, DeviceCapabilities? capabilities)
+        {
+            var prop = typeof(MainViewModel).GetProperty(nameof(MainViewModel.DetectedCapabilities))
+                ?? throw new Exception("DetectedCapabilities property not found");
+            prop.SetValue(vm, capabilities);
+        }
+
+        [Theory]
+        [InlineData(false, false, "not HP OMEN or Victus at all")]
+        public void ShowUnsupportedSystemBanner_TrueForNonHpGamingSystems(bool isOmen, bool isVictus, string because)
+        {
+            using var vm = new MainViewModel();
+            SetSystemInfo(vm, isOmen, isVictus);
+
+            vm.ShowUnsupportedSystemBanner.Should().BeTrue(because);
+            vm.ShowUnverifiedModelBanner.Should().BeFalse("a non-HP-gaming system isn't a 'verified vs unverified HP model' question at all");
+        }
+
+        [Theory]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public void ShowUnsupportedSystemBanner_FalseForHpGamingSystems(bool isOmen, bool isVictus)
+        {
+            using var vm = new MainViewModel();
+            SetSystemInfo(vm, isOmen, isVictus);
+
+            vm.ShowUnsupportedSystemBanner.Should().BeFalse("a real HP OMEN/Victus system is supported, even if its exact model isn't verified yet");
+        }
+
+        [Fact]
+        public void ShowUnverifiedModelBanner_TrueForKnownHpGamingModel_NotYetUserVerified()
+        {
+            // Regression test for the banner-conflation bug: a genuinely supported HP OMEN/Victus
+            // whose specific database entry hasn't been field-confirmed previously got NO banner
+            // at all, despite the (single, shared) banner text claiming to cover exactly this case
+            // - because visibility was gated only on IsHpGaming, not on verification status.
+            using var vm = new MainViewModel();
+            SetSystemInfo(vm, isHpOmen: true, isHpVictus: false);
+            SetDetectedCapabilities(vm, new DeviceCapabilities
+            {
+                IsKnownModel = true,
+                ModelConfig = new ModelCapabilities { UserVerified = false }
+            });
+
+            vm.ShowUnverifiedModelBanner.Should().BeTrue("this is a real OMEN whose specific model entry hasn't been field-confirmed");
+            vm.ShowUnsupportedSystemBanner.Should().BeFalse("this system is a supported HP OMEN, not an unsupported one");
+        }
+
+        [Fact]
+        public void ShowUnverifiedModelBanner_TrueForUnknownModel_OnHpGamingSystem()
+        {
+            using var vm = new MainViewModel();
+            SetSystemInfo(vm, isHpOmen: true, isHpVictus: false);
+            SetDetectedCapabilities(vm, new DeviceCapabilities { IsKnownModel = false, ModelConfig = null });
+
+            vm.ShowUnverifiedModelBanner.Should().BeTrue("the model fell back to generic defaults with no database entry at all");
+        }
+
+        [Fact]
+        public void ShowUnverifiedModelBanner_FalseForKnownAndUserVerifiedModel()
+        {
+            using var vm = new MainViewModel();
+            SetSystemInfo(vm, isHpOmen: true, isHpVictus: false);
+            SetDetectedCapabilities(vm, new DeviceCapabilities
+            {
+                IsKnownModel = true,
+                ModelConfig = new ModelCapabilities { UserVerified = true }
+            });
+
+            vm.ShowUnverifiedModelBanner.Should().BeFalse("this model has been field-confirmed, so neither warning banner applies");
+            vm.ShowUnsupportedSystemBanner.Should().BeFalse();
         }
 
         [Fact]

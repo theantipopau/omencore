@@ -382,10 +382,15 @@ namespace OmenCore.Razer
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("static", r, g, b));
                         return true;
                     }
+
+                    _logging.Warn("Razer static color write failed - no Chroma SDK session write succeeded");
+                    return false;
                 }
-                
-                _logging.Info("Razer static color applied (session mode)");
-                return true;
+
+                // "Basic mode" (Synapse detected but no Chroma SDK session) has no alternate
+                // write path in this class - there is nothing to actually apply here.
+                _logging.Warn("Razer static color not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {
@@ -450,9 +455,13 @@ namespace OmenCore.Razer
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("breathing", r, g, b));
                         return true;
                     }
+
+                    _logging.Warn("Razer breathing effect write failed - no Chroma SDK session write succeeded");
+                    return false;
                 }
-                
-                return true;
+
+                _logging.Warn("Razer breathing effect not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {
@@ -513,9 +522,13 @@ namespace OmenCore.Razer
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("spectrum"));
                         return true;
                     }
+
+                    _logging.Warn("Razer spectrum effect write failed - no Chroma SDK session write succeeded");
+                    return false;
                 }
-                
-                return true;
+
+                _logging.Warn("Razer spectrum effect not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {
@@ -574,9 +587,13 @@ namespace OmenCore.Razer
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("wave"));
                         return true;
                     }
+
+                    _logging.Warn("Razer wave effect write failed - no Chroma SDK session write succeeded");
+                    return false;
                 }
-                
-                return true;
+
+                _logging.Warn("Razer wave effect not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {
@@ -624,9 +641,13 @@ namespace OmenCore.Razer
                         EffectApplied?.Invoke(this, new RazerEffectEventArgs("reactive", r, g, b));
                         return true;
                     }
+
+                    _logging.Warn("Razer reactive effect write failed - no Chroma SDK session write succeeded");
+                    return false;
                 }
-                
-                return true;
+
+                _logging.Warn("Razer reactive effect not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {
@@ -673,8 +694,9 @@ namespace OmenCore.Razer
                 {
                     return TryRunBoolWithTimeout(() => ApplyCustomKeyboardEffectAsync(colors), EffectApplyTimeout, "ApplyCustomKeyboardEffectAsync");
                 }
-                
-                return true;
+
+                _logging.Warn("Razer custom keyboard effect not applied - no active Chroma SDK session (basic mode has no write path)");
+                return false;
             }
             catch (Exception ex)
             {

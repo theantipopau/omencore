@@ -628,23 +628,45 @@
                             </Grid>
                         </Border>
                         <Border Style="{StaticResource PremiumPanelCard}"
-                            Background="#2A4C3517" 
-                                BorderBrush="{StaticResource WarningBrush}" 
-                                BorderThickness="2" 
-                                Padding="14,10" 
+                            Background="#2A4C3517"
+                                BorderBrush="{StaticResource WarningBrush}"
+                                BorderThickness="2"
+                                Padding="14,10"
                                 Margin="24,12,24,12"
-                                Visibility="{Binding SystemInfo.IsHpGaming, Converter={StaticResource InverseBoolToVisibility}}">
+                                Visibility="{Binding ShowUnsupportedSystemBanner, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
                                 <StackPanel>
-                                    <TextBlock Text="Warning: Unsupported or Unverified Gaming System Detected" 
-                                               FontWeight="Bold" 
-                                               Foreground="{StaticResource TextPrimaryBrush}" 
+                                    <TextBlock Text="Warning: Unsupported System Detected"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
                                                FontSize="14" />
-                                    <TextBlock Text="OmenCore is tuned for validated HP OMEN and Victus models. Your system may be non-HP, non-OMEN HP, or an unverified model fallback, so some features may be limited or unavailable." 
-                                               TextWrapping="Wrap" 
-                                               Foreground="{StaticResource TextPrimaryBrush}" 
-                                               FontSize="12" 
+                                    <TextBlock Text="OmenCore is built for HP OMEN and Victus gaming laptops. This system isn't detected as either, so most hardware-control features will be unavailable - this is a hardware/firmware limitation, not something a model-database update can fix."
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               FontSize="12"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource PremiumPanelCard}"
+                            Background="#2A4C3517"
+                                BorderBrush="{StaticResource WarningBrush}"
+                                BorderThickness="2"
+                                Padding="14,10"
+                                Margin="24,12,24,12"
+                                Visibility="{Binding ShowUnverifiedModelBanner, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <StackPanel>
+                                    <TextBlock Text="Notice: Model Not Yet Field-Confirmed"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               FontSize="14" />
+                                    <TextBlock Text="This is a real HP OMEN/Victus system, but this exact model's capabilities are inferred rather than confirmed by another user - see the Diagnostics tab for exactly which features that affects. Most functionality should still work; please report anything that looks wrong."
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               FontSize="12"
                                                Margin="0,3,0,0" />
                                 </StackPanel>
                             </StackPanel>

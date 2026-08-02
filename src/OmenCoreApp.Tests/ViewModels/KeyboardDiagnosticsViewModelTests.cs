@@ -18,7 +18,7 @@ namespace OmenCoreApp.Tests.ViewModels
                 var list = new[] { new OmenCore.Corsair.CorsairDevice { Name = "K70 RGB", DeviceType = OmenCore.Corsair.CorsairDeviceType.Keyboard } };
                 return Task.FromResult<IEnumerable<OmenCore.Corsair.CorsairDevice>>(list);
             }
-            public Task ApplyLightingAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.CorsairLightingPreset preset) => Task.CompletedTask;
+            public Task<bool> ApplyLightingAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.CorsairLightingPreset preset) => Task.FromResult(true);
             public Task ApplyDpiStagesAsync(OmenCore.Corsair.CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages) => Task.CompletedTask;
             public Task ApplyMacroAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.MacroProfile macro) => Task.CompletedTask;
             public Task SyncWithThemeAsync(IEnumerable<OmenCore.Corsair.CorsairDevice> devices, OmenCore.Models.LightingProfile theme) => Task.CompletedTask;
