@@ -843,7 +843,7 @@ namespace OmenCore.ViewModels
             {
                 if (!_uptimeTimer.IsEnabled)
                 {
-                    _uptimeTimer.Start();
+            // Timer start deferred to SetUptimeTimerEnabled when dashboard becomes active
                 }
             }
             else if (_uptimeTimer.IsEnabled)
