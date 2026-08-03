@@ -891,6 +891,31 @@ namespace OmenCore.Hardware
                     return false;
                 }
 
+                // If Max mode was active, SetFanMode(...) alone does not release the BIOS
+                // SetFanMax latch - ResetFromMaxMode() treats them as two separate, both-
+                // required commands (see its Step 1/Step 2). This method previously cleared
+                // _isMaxModeActive below without ever sending SetFanMax(false), so the
+                // hardware stayed latched at max while the in-memory state claimed
+                // otherwise. The next RestoreAutoControl() call would then see
+                // _isMaxModeActive == false and skip its own reset entirely, since
+                // ResetFromMaxMode() has its own identical "only if _isMaxModeActive" gate
+                // (a deliberate optimization to skip a 4-5s WMI stall when genuinely not in
+                // max mode - here that optimization was firing on stale state instead).
+                // Real field report (board 8DCD): fans stuck at max after switching
+                // Performance Mode away while Max fans was active, only closing the app
+                // (which unconditionally resets EC/WMI on shutdown) released them.
+                if (_isMaxModeActive)
+                {
+                    if (_wmiBios.SetFanMax(false))
+                    {
+                        _logging?.Info("  Released Max fan latch before switching performance mode");
+                    }
+                    else
+                    {
+                        _logging?.Warn("  Failed to release Max fan latch while switching performance mode");
+                    }
+                }
+
                 _lastMode = fanMode;
                 IsManualControlActive = false;
                 _isMaxModeActive = false;

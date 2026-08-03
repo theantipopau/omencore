@@ -1,10 +1,10 @@
-# OmenCore v4.1.6 – EC Power-Limit Safety, GPU Boost Diagnostics Clarity
+# OmenCore v4.1.6 – EC Power-Limit Safety, Max-Fan Latch Fix, GPU Boost Diagnostics Clarity
 
 **Release Date:** TBD
-**Release Status:** Code-complete and test-verified in this environment (1002/1002 tests, 0 build warnings); artifacts not yet built or tagged.
-**Type:** Patch release — a safety-relevant fail-safe default plus two diagnostics-clarity fixes, all found while triaging an exceptionally detailed field report (GitHub #159)
+**Release Status:** Code-complete and test-verified in this environment (1005/1005 tests, 0 build warnings); artifacts not yet built or tagged.
+**Type:** Patch release — a safety-relevant fail-safe default, a fan-control bug fix, and two diagnostics-clarity fixes, found while triaging field reports (GitHub #159, Discord SAINTOP/board `8DCD`)
 **Base Version:** v4.1.5
-**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items" for the full traces this release acts on.
+**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items" and "Newly Reported (2026-08-03, Post-4.1.5): Board `8DCD` Fans Stuck at Max After Leaving Max Mode" for the full traces this release acts on.
 
 ---
 
@@ -21,6 +21,14 @@ Found by tracing GitHub #159 (ShantanuVasagadekar, OMEN 16-n0xxx AMD, board `8A4
 `SystemControlViewModel`'s GPU Power Boost status message had a branch that appended `" (NVAPI power limits available)"` whenever `GpuNvapiAvailable` was true — but that property only means NVAPI itself initialized (a GPU was detected via NVAPI), not that power-limit writes are actually supported. The correct property for that, `GpuPowerLimitAvailable`, already existed and was used correctly one branch above it. GitHub #159 showed exactly this mismatch in practice: the log reported `NVAPI: NVAPI returned no writable power policy entries` and `Supports Power Limit: False`, while the UI simultaneously displayed the misleading "available" note.
 
 **Fix:** the branch now checks `GpuPowerLimitAvailable` instead of `GpuNvapiAvailable`, matching the property that's actually being described. Pure text-logic fix, no control-availability behavior changed.
+
+## Fixed: Switching Performance Mode While Max Fans Was Active Left Fans Stuck at Maximum
+
+Reported by Discord user SAINTOP (HP Victus 15 fa2082wm, board `8DCD`): enabling Performance Mode + Maximum Fans worked as expected, but switching back to Balanced — from either the General tab or Custom tab with fan control set to Auto — left the fans running at maximum speed. Only fully closing OmenCore released them. A related symptom was also reported: after eventually reaching Auto via Quick Access, fans would later spike to maximum and cycle repeatedly between maximum and auto on their own.
+
+**Root cause:** `WmiFanController.SetPerformanceMode(string)` sent `_wmiBios.SetFanMode(...)` and, on success, cleared the internal `_isMaxModeActive`/`IsManualControlActive` tracking flags — but never sent `_wmiBios.SetFanMax(false)`. These are two independently-required BIOS commands (`ResetFromMaxMode()`'s own Step 1/Step 2 structure already establishes this). With the flag falsely cleared, every subsequent `RestoreAutoControl()` call saw `_isMaxModeActive == false` and skipped the reset that would have released the real hardware latch — matching the report exactly, since both the General-tab Balanced switch and the Custom-tab Balanced+Auto switch route through `SetPerformanceMode` first.
+
+**Fix:** `SetPerformanceMode` now sends `SetFanMax(false)` before clearing its tracking flags whenever `_isMaxModeActive` was true, actually releasing the hardware latch instead of only the in-memory state. This is a one-way risk-reduction fix (can only cause a needed release to be sent, never a new write behavior) and doesn't require new field validation under this project's evidence-gate rule, consistent with the board-`8A18` Max-mode fix shipped in 4.1.0. 3 new tests in `WmiFanControllerPerformanceModeMaxReleaseTests.cs` cover: the latch is released when switching away from an active Max hold, no redundant `SetFanMax` call is sent when Max mode was never active, and `RestoreAutoControl()` correctly finds nothing left to do afterward. Likely also resolves the spontaneous max/auto cycling symptom as a side effect (the firmware fighting a contradictory latched-but-told-otherwise state), though that hasn't been independently confirmed — see `docs/ROADMAP_v4.0.0.md` for detail.
 
 ## Fixed: GPU Power Boost Status Didn't Flag When the Displayed Level Doesn't Match Hardware
 
