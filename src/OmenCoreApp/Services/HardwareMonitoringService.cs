@@ -982,6 +982,12 @@ namespace OmenCore.Services
                 // Use average RPM from the two fan sensors as an efficiency proxy (0-100 scale)
                 FanEfficiency = sample.Fan1Rpm > 0 || sample.Fan2Rpm > 0
                     ? Math.Min(100, ((sample.Fan1Rpm + sample.Fan2Rpm) / 2.0) / 50.0)
+                    : 0,
+                // The same mean, unscaled. The fan chart's axis is labelled "RPM", so it needs the
+                // RPM figure rather than the 0-100 proxy above; plotting the proxy there rendered
+                // ~2800 RPM as "28 RPM".
+                FanRpmAverage = sample.Fan1Rpm > 0 || sample.Fan2Rpm > 0
+                    ? (sample.Fan1Rpm + sample.Fan2Rpm) / 2.0
                     : 0
             };
 
@@ -1147,7 +1153,9 @@ namespace OmenCore.Services
                 ChartType.PowerConsumption => metrics.PowerConsumption,
                 ChartType.BatteryHealth => metrics.BatteryChargePercentage >= 0 ? metrics.BatteryChargePercentage : 0,
                 ChartType.Temperature => (metrics.CpuTemperature + metrics.GpuTemperature) / 2,
-                ChartType.FanSpeeds => metrics.FanEfficiency, // Real average fan efficiency derived from RPM sample data
+                // Must match GetLabelForChartType, which labels this series "RPM". FanEfficiency is
+                // a 0-100 proxy, so charting it under an RPM axis understated the reading by ~50x.
+                ChartType.FanSpeeds => metrics.FanRpmAverage,
                 _ => 0
             };
         }

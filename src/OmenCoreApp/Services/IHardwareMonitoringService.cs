@@ -28,6 +28,16 @@ namespace OmenCore.Services
         public double GpuTemperature { get; set; }
         public double PowerEfficiency { get; set; }
         public double FanEfficiency { get; set; }
+
+        /// <summary>
+        /// Mean of the two fan tachometer readings, in RPM. Distinct from
+        /// <see cref="FanEfficiency"/>, which is that same mean rescaled to a 0-100 proxy: the fan
+        /// chart is labelled "RPM" and must plot this, not the proxy. Zero when no fan telemetry
+        /// source is reporting, which on some boards is the normal state rather than a stopped fan
+        /// - a true RPM tachometer is not available on every model.
+        /// </summary>
+        public double FanRpmAverage { get; set; }
+
         public DateTime Timestamp { get; set; }
     }
 
