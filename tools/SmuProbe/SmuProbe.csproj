@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RootNamespace>OmenCore.Tools.SmuProbe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\OmenCoreApp\OmenCoreApp.csproj" />
+  </ItemGroup>
+
+  <!--
+    PawnIOLib and the RyzenSMU module are declared as None items in OmenCoreApp.csproj, which
+    does not flow across a ProjectReference. Copy the two this probe needs so it can run from
+    its own output directory instead of the app's.
+  -->
+  <ItemGroup>
+    <None Include="..\..\src\OmenCoreApp\drivers\PawnIOLib.dll"
+          Condition="Exists('..\..\src\OmenCoreApp\drivers\PawnIOLib.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>drivers\PawnIOLib.dll</Link>
+    </None>
+    <None Include="..\..\src\OmenCoreApp\drivers\RyzenSMU.bin"
+          Condition="Exists('..\..\src\OmenCoreApp\drivers\RyzenSMU.bin')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>drivers\RyzenSMU.bin</Link>
+    </None>
+  </ItemGroup>
+</Project>
