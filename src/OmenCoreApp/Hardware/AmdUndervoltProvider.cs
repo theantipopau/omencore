@@ -214,7 +214,6 @@ namespace OmenCore.Hardware
                 case RyzenFamily.Phoenix:
                 case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
-                case RyzenFamily.StrixPoint:
                     result = _smu.SendPsmu(0x5D, ref args);
                     if (result != RyzenSmu.SmuStatus.Ok)
                     {
@@ -227,6 +226,29 @@ namespace OmenCore.Hardware
                     }
                     break;
 
+                // Strix Point takes All-Core CO on MP1 0x4C, matching RyzenAdj's set_coall
+                // (lib/api.c, FAM_STRIXPOINT). Previously grouped with Phoenix above and sent
+                // PSMU 0x5D.
+                //
+                // Measured on board 8D87 / Ryzen AI 9 HX 375 (family 1Ah model 24h) with
+                // tools/SmuProbe --outcome: CO -25 raises sustained all-core clock by
+                // +4.9% (3148 -> 3301 MHz, mean of 3 alternating pairs, spread 4.8-4.9%)
+                // against a sham control of +/-0.1%. The offset toggles cleanly - clock
+                // returns to baseline every time it is removed.
+                //
+                // 0x5D was NOT the reason Curve Optimizer did not work here: it is also
+                // accepted on this part. The transport was - RyzenSmu loaded no PawnIO module
+                // at all and called PCI-config ioctls that no bundled module exports. 0x4C is
+                // used because RyzenAdj specifies it for FAM_STRIXPOINT and it is therefore the
+                // better-supported path, not because 0x5D was measured to fail.
+                case RyzenFamily.StrixPoint:
+                    result = _smu.SendMp1(0x4C, ref args);
+                    break;
+
+                // Left as-is deliberately. RyzenAdj's set_coall sends only MP1 0x4C here, with
+                // no PSMU follow-up, so requiring the 0x5D call to also succeed may report a
+                // working CO write as failed. Not changed without Strix Halo hardware to test
+                // on - that is a different part (Ryzen AI MAX) than the one fixed above.
                 case RyzenFamily.StrixHalo:
                     result = _smu.SendMp1(0x4C, ref args);
                     if (result == RyzenSmu.SmuStatus.Ok)
