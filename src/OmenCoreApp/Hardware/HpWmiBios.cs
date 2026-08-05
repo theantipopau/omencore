@@ -112,6 +112,7 @@ namespace OmenCore.Hardware
         private const uint CMD_GPU_GET_POWER = 0x21;  // GetGpuPower (OmenMon 0x21)
         private const uint CMD_GPU_SET_POWER = 0x22;  // SetGpuPower (OmenMon 0x22)
         private const uint CMD_GPU_GET_MODE = 0x52;   // GetGpuMode - uses Legacy cmd
+        private const uint CMD_ADAPTER_GET = 0x0F;    // GetAdapter (smart adapter status + wattage) - uses Legacy cmd
         private const uint CMD_GPU_SET_MODE = 0x52;   // SetGpuMode - uses GpuMode cmd
         private const uint CMD_TEMP_GET = 0x23;       // GetTemperature (OmenMon 0x23)
         private const uint CMD_BACKLIGHT_SET = 0x05;  // SetBacklight - uses Keyboard cmd
@@ -163,6 +164,27 @@ namespace OmenCore.Hardware
             Extended4 = 0x04
         }
 
+        /// <summary>
+        /// Build the 4-byte <c>Default 0x22</c> GPU power payload.
+        /// </summary>
+        /// <remarks>
+        /// Three things about this payload that are easy to re-derive incorrectly:
+        ///
+        /// <para><b>Byte 2 (<c>dState</c>) is hardcoded to 1, matching HP.</b> It is not a knob. On
+        /// MAX-series firmware the 0x22 handler sets the ACPI <c>DSTA</c> field and then immediately
+        /// calls the EC query that overwrites <c>DSTA</c> from the EC's own adapter verdict, so the
+        /// value written here does not survive the call that writes it. Verified on both a compliant
+        /// and an under-rated adapter. Do not add a parameter for it expecting to steer anything.</para>
+        ///
+        /// <para><b>Byte 3 is a GPS temperature threshold in °C, not a spare byte.</b> The
+        /// <c>peakTemperature</c> naming here is correct; a firmware note describing it as a spare is
+        /// wrong on this board. This method sends 0. See <see cref="HpGpsTemperatureThresholdC"/> for
+        /// what HP sends and why matching it is deferred.</para>
+        ///
+        /// <para><b>0x22 is not always 4 bytes.</b> HP has a second call site (<c>SetTGPAsync</c>)
+        /// that issues the same command with a single byte. Nothing here needs that arity today, but
+        /// code reading a 0x22 payload out of a trace should not assume it is 4 bytes wide.</para>
+        /// </remarks>
         public static (byte customTgp, byte ppab, byte dState, byte peakTemperature) BuildGpuPowerPayload(GpuPowerLevel level)
         {
             byte customTgp = 0;
@@ -189,8 +211,44 @@ namespace OmenCore.Hardware
                     break;
             }
 
+            // Byte 3 stays 0. See HpGpsTemperatureThresholdC for what HP sends and why matching it
+            // is deferred rather than declined.
             return (customTgp, ppab, 0x01, 0x00);
         }
+
+        /// <summary>
+        /// The GPS temperature threshold (°C) written in byte 3 of the <c>Default 0x22</c> payload -
+        /// HP's <c>GpsMaxTemperature</c>, the un-throttled setpoint.
+        ///
+        /// <para>Byte 3 is not a per-preset constant in HP's code. It is the output of their
+        /// <c>IRHandler</c>, a closed loop driven by the chassis infra-red (skin) temperature sensor,
+        /// bounded by two <c>PlatformSettings</c> values (<c>GpsMaxTemperature = 87</c>,
+        /// <c>GpsMinTemperature = 75</c>, both JSON-overridable per platform):</para>
+        /// <code>
+        /// IrTemp >= Overheat        -> GpsMinTemperature (75), and dState may be bumped
+        /// Gps &lt;= IrTemp &lt; Overheat  -> clamp(GpuTemp - irGap, 75, 87)
+        /// IrTemp &lt;= Release         -> GpsMaxTemperature (87)
+        /// </code>
+        ///
+        /// <para><b>Recorded, deliberately not applied.</b> Sending 87 is not simply "matching HP",
+        /// and three things argue against it until someone measures:</para>
+        /// <list type="bullet">
+        /// <item>87 is what HP emits <i>only while the IR sensor reports the chassis is cool</i>. It
+        /// is the loop's most permissive output, revised down to 75 the moment skin temperature
+        /// crosses overheat. This application has no such loop and would never revise it, so it would
+        /// pin the firmware permanently in HP's chassis-is-cool state rather than reproduce HP's
+        /// behaviour.</item>
+        /// <item>Both bounds are overridable from HP's per-platform JSON. 87 is one build's default,
+        /// not a universal constant, and <see cref="BuildGpuPowerPayload"/> is not board-gated.</item>
+        /// <item>It cannot be verified by outcome: the <c>0x21</c> readback returns cTGP, PPAB and
+        /// dState only - byte 3 is not observable. There is no way to confirm the firmware did
+        /// anything with it.</item>
+        /// </list>
+        ///
+        /// <para>What would settle it: a before/after on real hardware in watts <i>and</i> GPU and
+        /// skin temperature, on a board where the value can be attributed.</para>
+        /// </summary>
+        public const byte HpGpsTemperatureThresholdC = 87;
 
         public static bool IsGpuPowerReadbackMatch(GpuPowerLevel requestedLevel, bool customTgp, int ppabLevel)
         {
@@ -225,10 +283,254 @@ namespace OmenCore.Hardware
             V2 = 0x02   // OMEN Max 2025+ (new fan commands)
         }
 
+        /// <summary>
+        /// HP's smart adapter verdict, reported in byte 0 of the <c>Legacy 0x0F</c> reply.
+        ///
+        /// Six values, not five: most third-party tables (including OmenMon-Reborn's) stop at 4 and
+        /// treat everything above <see cref="MeetsRequirement"/> as a fault. <see cref="ConnectedTypeC"/>
+        /// is not a fault - it means USB-C PD is supplying the machine, and HP applies a different
+        /// comparison to it (see <see cref="AdapterInfo.IsLowWattage"/>).
+        ///
+        /// <see cref="Error"/> is documented both as -1 and as 0xFF on the wire, so the backing type
+        /// is <c>sbyte</c> - a byte of 0xFF must decode to <see cref="Error"/> and not to 255.
+        /// </summary>
+        public enum SmartAdapterStatus : sbyte
+        {
+            Error = -1,
+            NotSupported = 0,
+            MeetsRequirement = 1,
+            BelowRequirement = 2,
+            BatteryPower = 3,
+            NotFunctioning = 4,
+            ConnectedTypeC = 5
+        }
+
+        /// <summary>
+        /// Decoded <c>Legacy 0x0F</c> reply: the machine's own view of the power adapter attached to it.
+        ///
+        /// This is the only interface in the BIOS that reports the *connected* adapter's wattage as a
+        /// real number rather than a binary meets/below verdict. Paired with
+        /// <see cref="SystemDesignData.ShippingAdapterPowerRatingWatts"/> (the wattage the SKU shipped
+        /// with) it gives both halves of the comparison the firmware itself is making.
+        ///
+        /// Why it matters: on boards that clamp GPU power when the supply is under-rated, a user on a
+        /// low-wattage adapter otherwise sees only the symptom (a GPU pinned well below its rating)
+        /// with nothing anywhere in the UI to explain it.
+        /// </summary>
+        public readonly struct AdapterInfo
+        {
+            /// <summary>Byte 0 - the firmware's verdict on the attached supply.</summary>
+            public SmartAdapterStatus Status { get; init; }
+
+            /// <summary>Byte 1 bit 7 - whether this chassis has a barrel jack at all.</summary>
+            public bool SupportsBarrelConnector { get; init; }
+
+            /// <summary>Byte 2 x 5 - the USB-C *design* rating in watts (a chassis property, not the attached supply).</summary>
+            public int UsbcDesignRatingWatts { get; init; }
+
+            /// <summary>
+            /// Byte 3 x 5 - the connected adapter's rating in watts, or 0 when the firmware reports
+            /// the 0xFF "unknown" sentinel. Check <see cref="PowerRatingKnown"/> before reading a 0
+            /// here as "nothing plugged in".
+            /// </summary>
+            public int PowerRatingWatts { get; init; }
+
+            /// <summary>False when byte 3 was the 0xFF unknown sentinel.</summary>
+            public bool PowerRatingKnown { get; init; }
+
+            /// <summary>The raw 4-byte reply, for diagnostics.</summary>
+            public byte[] RawData { get; init; }
+
+            /// <summary>
+            /// Whether the firmware considers the attached supply under-rated, matching the rule HP's
+            /// own software applies (<c>HP.Omen.Core.Model.Device.IsLowWattage</c>).
+            ///
+            /// The rule has two branches. For USB-C PD the connected rating is compared against the
+            /// chassis USB-C design rating, and a barrel-capable chassis reporting a 0 design rating
+            /// counts as under-rated outright. For everything else, any status other than
+            /// MeetsRequirement is under-rated. Type-C is deliberately not folded into that second
+            /// branch - doing so misreports a PD supply that is exactly what the chassis was designed
+            /// for.
+            /// </summary>
+            public bool IsLowWattage => !HasVerdict
+                ? false
+                : Status == SmartAdapterStatus.ConnectedTypeC
+                    ? (PowerRatingWatts > 0 && PowerRatingWatts < UsbcDesignRatingWatts)
+                      || (SupportsBarrelConnector && UsbcDesignRatingWatts == 0)
+                    : Status != SmartAdapterStatus.MeetsRequirement;
+
+            /// <summary>
+            /// False when the firmware gave no usable answer - <see cref="SmartAdapterStatus.Error"/>
+            /// or <see cref="SmartAdapterStatus.NotSupported"/>.
+            ///
+            /// HP only evaluates its low-wattage rule after a successful query. Applying the
+            /// "anything that isn't MeetsRequirement" branch to a non-answer turns "no verdict" into
+            /// "bad adapter" - which, on a board that replies with zeroes, produces a confident
+            /// on-screen instruction to go and check a power supply that is probably fine.
+            /// </summary>
+            public bool HasVerdict => Status != SmartAdapterStatus.Error
+                                   && Status != SmartAdapterStatus.NotSupported;
+
+            public override string ToString()
+            {
+                var watts = PowerRatingKnown ? $"{PowerRatingWatts}W" : "unknown wattage";
+                return $"{Status} ({watts})";
+            }
+        }
+
+        /// <summary>
+        /// Decoded <c>Default 0x28</c> reply - HP's <c>SystemDesignData</c> block.
+        ///
+        /// The firmware answers 128 bytes here and this class historically parsed exactly one of them
+        /// (byte 3, the thermal policy version). The rest is a per-board capability declaration, and
+        /// HP's own software gates features on it at runtime rather than on a board-ID table.
+        /// </summary>
+        public readonly struct SystemDesignData
+        {
+            /// <summary>Bytes 0-1, 16-bit LE - the wattage of the adapter this SKU shipped with.</summary>
+            public int ShippingAdapterPowerRatingWatts { get; init; }
+
+            /// <summary>Byte 3 - thermal policy version, the one field this class already read.</summary>
+            public ThermalPolicyVersion ThermalPolicyVersion { get; init; }
+
+            /// <summary>Byte 4 bit 0.</summary>
+            public bool IsSwFanControlSupport { get; init; }
+
+            /// <summary>Byte 4 bit 1.</summary>
+            public bool IsExtremeModeSupport { get; init; }
+
+            /// <summary>Byte 4 bit 2. Observed false on a board that reports <see cref="IsExtremeModeSupport"/> true; unexplained.</summary>
+            public bool IsExtremeModeUnlock { get; init; }
+
+            /// <summary>Byte 4 bit 3.</summary>
+            public bool IsDTBiosControl { get; init; }
+
+            /// <summary>
+            /// Byte 4 bit 4. Changes the wire format of <c>Default 0x29 SetPL4</c> from one byte to two.
+            /// Nothing in this repo issues 0x29 yet; this is decoded so that whatever does can branch on
+            /// it rather than assuming a width. Guessing wrong here is a silent write-corruption bug on
+            /// any board where the bit is set.
+            /// </summary>
+            public bool IsTwoBytePL4Support { get; init; }
+
+            /// <summary>Byte 5.</summary>
+            public int PL4DefaultValue { get; init; }
+
+            /// <summary>Byte 6 bit 0.</summary>
+            public bool IsBiosDefinedOcSupport { get; init; }
+
+            /// <summary>Byte 7 - GPU mode switch capability bitfield.</summary>
+            public byte GpuModeSwitch { get; init; }
+
+            /// <summary>Byte 8 - the CPU power budget the platform uses while the dGPU is loaded, in watts.</summary>
+            public int DefaultCpuPowerLimitWithGpuWatts { get; init; }
+
+            /// <summary>Byte 9 low nibble.</summary>
+            public int LoadLineSupportLevels { get; init; }
+
+            /// <summary>Byte 9 high nibble.</summary>
+            public int DefaultLoadLine { get; init; }
+
+            /// <summary>Byte 10 bit 0.</summary>
+            public bool ChangeIrSensorToBoard { get; init; }
+
+            /// <summary>Byte 10 bit 2.</summary>
+            public bool IsPchOverheatSupport { get; init; }
+
+            /// <summary>Byte 10 bit 3.</summary>
+            public bool IsVrSensorSupport { get; init; }
+
+            /// <summary>Byte 11 bit 0.</summary>
+            public bool IsHotkeySupportFnP { get; init; }
+
+            /// <summary>Byte 11 bit 1.</summary>
+            public bool IsHotkeySupportFnF1 { get; init; }
+
+            /// <summary>The first 12 bytes of the reply, for diagnostics.</summary>
+            public byte[] RawData { get; init; }
+        }
+
+        /// <summary>
+        /// Decode the 4-byte <c>Legacy 0x0F</c> reply. Static and side-effect free so it can be tested
+        /// against captured replies without hardware.
+        /// </summary>
+        /// <remarks>
+        /// Byte map, from HP's own accessors (<c>GetSmartAdapterStatus</c>, <c>GetSupportBarrel</c>,
+        /// <c>GetUsbcDesignRating</c>, <c>GetPowerRating</c>):
+        /// <code>
+        /// [0]        SmartAdapterStatus
+        /// [1] bit 7  barrel jack supported
+        /// [2] x 5    USB-C design rating, W
+        /// [3] x 5    connected adapter rating, W  (0xFF = unknown)
+        /// </code>
+        /// </remarks>
+        public static AdapterInfo? DecodeAdapterData(byte[]? data)
+        {
+            if (data == null || data.Length < 4)
+                return null;
+
+            // 0xFF is HP's "I don't know" sentinel, not 1275 W. Decoding it as a wattage would make an
+            // unknown adapter look like the healthiest one on record.
+            bool ratingKnown = data[3] != 0xFF;
+
+            return new AdapterInfo
+            {
+                Status = (SmartAdapterStatus)data[0],
+                SupportsBarrelConnector = (data[1] & 0x80) != 0,
+                UsbcDesignRatingWatts = data[2] * 5,
+                PowerRatingWatts = ratingKnown ? data[3] * 5 : 0,
+                PowerRatingKnown = ratingKnown,
+                RawData = new[] { data[0], data[1], data[2], data[3] }
+            };
+        }
+
+        /// <summary>
+        /// Decode HP's <c>SystemDesignData</c> block from a <c>Default 0x28</c> reply. Static and
+        /// side-effect free so it can be tested against captured replies without hardware.
+        /// </summary>
+        public static SystemDesignData? DecodeSystemDesignData(byte[]? data)
+        {
+            // 12 bytes is everything HP's accessors read, even though the command returns 128.
+            if (data == null || data.Length < 12)
+                return null;
+
+            return new SystemDesignData
+            {
+                ShippingAdapterPowerRatingWatts = data[0] | (data[1] << 8),
+                ThermalPolicyVersion = (ThermalPolicyVersion)data[3],
+                IsSwFanControlSupport = (data[4] & 0x01) != 0,
+                IsExtremeModeSupport = (data[4] & 0x02) != 0,
+                IsExtremeModeUnlock = (data[4] & 0x04) != 0,
+                IsDTBiosControl = (data[4] & 0x08) != 0,
+                IsTwoBytePL4Support = (data[4] & 0x10) != 0,
+                PL4DefaultValue = data[5],
+                IsBiosDefinedOcSupport = (data[6] & 0x01) != 0,
+                GpuModeSwitch = data[7],
+                DefaultCpuPowerLimitWithGpuWatts = data[8],
+                LoadLineSupportLevels = data[9] & 0x0F,
+                DefaultLoadLine = (data[9] & 0xF0) >> 4,
+                // Two bits, not one: HP's rule is bit 0 clear AND bit 1 set. Reading bit 0 alone gets
+                // the wrong answer on a byte 10 of 0x03, which is what this board actually reports.
+                ChangeIrSensorToBoard = (data[10] & 0x03) == 0x02,
+                IsPchOverheatSupport = (data[10] & 0x04) != 0,
+                IsVrSensorSupport = (data[10] & 0x08) != 0,
+                IsHotkeySupportFnP = (data[11] & 0x01) != 0,
+                IsHotkeySupportFnF1 = (data[11] & 0x02) != 0,
+                RawData = data.Take(12).ToArray()
+            };
+        }
+
         public bool IsAvailable => _isAvailable;
         public bool IsConnected => _isAvailable; // Alias for IsAvailable
         public string Status { get; private set; } = "Not initialized";
         public ThermalPolicyVersion ThermalPolicy { get; private set; } = ThermalPolicyVersion.V1;
+
+        /// <summary>
+        /// HP's <c>SystemDesignData</c> capability block, decoded from the same <c>Default 0x28</c>
+        /// reply this class already issues at startup. Null until that query succeeds, or on firmware
+        /// that answers with fewer than 12 bytes.
+        /// </summary>
+        public SystemDesignData? SystemDesign { get; private set; }
         public int FanCount { get; private set; } = 2;
         
         /// <summary>
@@ -266,6 +568,7 @@ namespace OmenCore.Hardware
         // Cache static WMI data to avoid repeated queries
         private bool _staticDataCached = false;
         private readonly object _cacheLock = new();
+
 
         public HpWmiBios(LoggingService? logging = null)
         {
@@ -518,7 +821,32 @@ namespace OmenCore.Hardware
                 {
                     ThermalPolicy = (ThermalPolicyVersion)result[3];
                     _logging?.Info($"  Thermal Policy: V{(int)ThermalPolicy}");
-                    
+
+                    // The same reply carries HP's whole SystemDesignData capability block. Decoding it
+                    // costs nothing extra - it is the bytes we already asked for - and it is what HP's
+                    // own software gates features on at runtime.
+                    SystemDesign = DecodeSystemDesignData(result);
+                    if (SystemDesign is SystemDesignData design)
+                    {
+                        _logging?.Info(
+                            $"  System design: shipping adapter {design.ShippingAdapterPowerRatingWatts}W, " +
+                            $"CPU-with-GPU budget {design.DefaultCpuPowerLimitWithGpuWatts}W, " +
+                            $"SW fan control {design.IsSwFanControlSupport}, BIOS OC {design.IsBiosDefinedOcSupport}, " +
+                            $"2-byte PL4 {design.IsTwoBytePL4Support}");
+
+                        // Recorded, deliberately not acted on: a board has been seen declaring Extreme
+                        // Mode supported while reporting it locked. Nothing is known about what unlocks it.
+                        if (design.IsExtremeModeSupport && !design.IsExtremeModeUnlock)
+                        {
+                            _logging?.Debug("  Extreme Mode declared supported but reports locked (no action taken)");
+                        }
+                    }
+
+                    // Note the ordering: ThermalPolicy is assigned from the firmware byte above and may
+                    // be overridden by the model-name check below. SystemDesign.ThermalPolicyVersion is
+                    // NOT overridden - it stays the value the firmware actually reported, so diagnostics
+                    // can show when the two disagree.
+
                     // OMEN Max 2025+ detection - check model name as well
                     // Some OMEN Max models report V1 but need V2 commands for fan reading
                     if (ThermalPolicy >= ThermalPolicyVersion.V2)
@@ -529,12 +857,34 @@ namespace OmenCore.Hardware
                     {
                         // Check model name for OMEN Max which may report V1 but need V2
                         var modelName = GetModelName();
-                        if (!string.IsNullOrEmpty(modelName) && 
+                        if (!string.IsNullOrEmpty(modelName) &&
                             modelName.Contains("MAX", StringComparison.OrdinalIgnoreCase) &&
                             modelName.Contains("OMEN", StringComparison.OrdinalIgnoreCase))
                         {
-                            _logging?.Info($"  ⚠️ OMEN Max detected by name but reports V1 - forcing V2 for fan commands");
-                            ThermalPolicy = ThermalPolicyVersion.V2;
+                            // Ask the firmware instead of asserting from the model name. Some OMEN Max
+                            // models do report V1 and answer the V2 fan commands - that is what this
+                            // branch exists for - but others report V1 and mean it. Board 8D87 (OMEN
+                            // MAX 16, 2025 AMD) is the second kind: it refuses 0x37 with BIOS return
+                            // code 6 and 0x38 with 4, at every input and output buffer size tried.
+                            //
+                            // This matters beyond which command to send, because DetectMaxFanLevel
+                            // reads ThermalPolicy to decide what UNIT fan levels are in - V2 means
+                            // percent and MaxFanLevel 100, V1 means krpm/100 and MaxFanLevel 55.
+                            // Force-switching a board whose levels are krpm/100 into the percentage
+                            // range makes WmiFanController.MapFanPercentToWmiLevel an identity, so a
+                            // request for 50% writes raw level 50 - roughly 5000 rpm, near maximum
+                            // rather than half. That is the same V1/V2 unit mismatch recorded in
+                            // ModelCapabilityDatabaseTests.GetCapabilities_8C77_Wf1xxx_UsesExactV1WmiProfileNotV2Mismatch,
+                            // which reached the reporter's device as a crash.
+                            if (ProbeV2FanCommands())
+                            {
+                                _logging?.Info("  ✓ OMEN Max reports V1 but answers the V2 fan commands - using V2");
+                                ThermalPolicy = ThermalPolicyVersion.V2;
+                            }
+                            else
+                            {
+                                _logging?.Info($"  OMEN Max detected by name, but the V2 fan commands were refused - keeping firmware-reported {ThermalPolicy}");
+                            }
                         }
                     }
 
@@ -561,6 +911,42 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to query system data: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Ask the firmware whether it implements the V2 (OMEN Max 2025+) fan commands, instead of
+        /// inferring it from the model name.
+        ///
+        /// The two directions are not equally trustworthy, so they are not treated the same way:
+        ///
+        /// <b>Refusal is authoritative.</b> A refused command comes back with a non-zero BIOS return
+        /// code - 6 for 0x37 and 4 for 0x38 on board 8D87 - and <see cref="SendBiosCommand"/> returns
+        /// null for it. The ACPI timeout path cannot produce those codes; it returns zero (see the
+        /// remark on <see cref="SendBiosCommand"/>), so a null here really is the firmware saying no.
+        ///
+        /// <b>Acceptance is weak</b> for exactly that reason: a timeout looks like success. So both
+        /// V2 commands must be accepted before overriding the policy version the firmware itself
+        /// reported. Getting this wrong in the permissive direction changes the unit fan levels are
+        /// interpreted in, which is a user-visible fan-speed error, so the conservative default is to
+        /// believe the firmware's own byte.
+        ///
+        /// Deliberately does not require a non-zero reading: a stopped fan legitimately reads zero,
+        /// and the question here is whether the command exists, not what it currently says.
+        /// </summary>
+        private bool ProbeV2FanCommands()
+        {
+            try
+            {
+                if (SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_LEVEL_V2, new byte[4], 128) == null)
+                    return false;
+
+                return SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_RPM, new byte[4], 128) != null;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Debug($"V2 fan command probe failed, assuming not supported: {ex.Message}");
                 return false;
             }
         }
@@ -1037,8 +1423,29 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Decode the <c>Legacy 0x52</c> reply into a <see cref="GpuMode"/>, or null when the board
+        /// did not report one this method understands.
+        ///
+        /// The validation is the point. <see cref="GpuMode"/> declares 0x00-0x02, and casting an
+        /// out-of-range byte straight to the enum produces an undeclared value that compares equal to
+        /// none of Hybrid/Discrete/Optimus while printing as a bare number in logs - so a caller sees
+        /// neither a valid mode nor a failure. Same defect shape as the SmartAdapterStatus decode,
+        /// where a 0xFF wire byte rendered as the literal "255" instead of Error.
+        /// </summary>
+        public static GpuMode? DecodeGpuMode(byte[]? result)
+        {
+            if (result == null || result.Length < 1) return null;
+            if (!Enum.IsDefined(typeof(GpuMode), result[0])) return null;
+            return (GpuMode)result[0];
+        }
+
+        /// <summary>
         /// Get GPU mode (Hybrid/Discrete/Optimus).
         /// OmenMon: Cmd.Legacy, 0x52 (returns BIOS error 4 on unsupported)
+        ///
+        /// A zero reply decodes to <see cref="GpuMode.Hybrid"/>, which on this transport is also what
+        /// an ACPI timeout looks like - see the remark on <see cref="SendBiosCommand"/>. Treat a
+        /// Hybrid reading as weak evidence unless something else corroborates it.
         /// </summary>
         public GpuMode? GetGpuMode()
         {
@@ -1048,16 +1455,44 @@ namespace OmenCore.Hardware
             {
                 // Use Legacy command for GPU mode get (OmenMon)
                 var result = SendBiosCommand(BiosCmd.Legacy, CMD_GPU_GET_MODE, null, 4);
-                if (result != null && result.Length >= 1)
+                var mode = DecodeGpuMode(result);
+                if (mode == null && result != null && result.Length >= 1)
                 {
-                    return (GpuMode)result[0];
+                    _logging?.Warn($"GPU mode byte 0x{result[0]:X2} is outside the declared GpuMode range - ignoring");
                 }
+                return mode;
             }
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to get GPU mode: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Read the power adapter's status and wattage. Read-only; issues <c>Legacy 0x0F</c>.
+        ///
+        /// Returns null when the board does not answer, or when WMI is unavailable for any other
+        /// reason. Deliberately does <b>not</b> cache "unsupported": a null here is indistinguishable
+        /// from a transient WMI failure - <c>SendBiosCommand</c> returns null for a disabled command
+        /// path, a dead CIM session and a genuine unimplemented command alike - so latching would let
+        /// one hiccup permanently, and silently, assert something false about the hardware. Nothing
+        /// polls this; it is read when the user opens Diagnostics, so a round trip per call is free.
+        /// </summary>
+        public AdapterInfo? GetAdapter()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Legacy, CMD_ADAPTER_GET, null, 4);
+                return DecodeAdapterData(result);
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to get adapter status: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
@@ -1106,19 +1541,49 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
+        /// Decode the <c>Keyboard 0x01</c> reply into a <see cref="KbdType"/>, or null when the byte
+        /// is not one this method declares.
+        ///
+        /// Board 8D87 returns 0xFF here. Cast straight to the enum that becomes <c>(KbdType)255</c> -
+        /// outside the declared 0x00-0x03 range, logged as a bare "255", and indistinguishable to
+        /// callers from a real keyboard type. Null says what is actually true: the board did not
+        /// answer this question.
+        /// </summary>
+        public static KbdType? DecodeKeyboardType(byte[]? result)
+        {
+            if (result == null || result.Length < 1) return null;
+            if (!Enum.IsDefined(typeof(KbdType), result[0])) return null;
+            return (KbdType)result[0];
+        }
+
+        /// <summary>
         /// Get keyboard type.
         /// OmenMon: Cmd.Keyboard, 0x01
+        ///
+        /// Not every board answers this. Board 8D87 (OMEN MAX 16, 2025 AMD) returns 0xFF here, which
+        /// is not a KbdType at all, so this returns null on it. The keyboard topology probe HP's own
+        /// software gates on for that platform is a different command - Default 0x2B, null input,
+        /// 4-byte reply, whose byte 0 is NbKeyboardLightingType (3 = per-key RGB) - and it answers
+        /// correctly where Keyboard 0x01 does not. Adding it needs confirmation on more than one
+        /// board, so it is noted rather than done here; ModelCapabilities.HasPerKeyRgb carries the
+        /// answer for 8D87 in the meantime.
         /// </summary>
         public KbdType? GetKeyboardType()
         {
             if (!_isAvailable) return null;
-            
+
             try
             {
                 var result = SendBiosCommand(BiosCmd.Keyboard, CMD_KBD_TYPE_GET, new byte[4], 4);
                 if (result != null && result.Length > 0)
                 {
-                    var kbdType = (KbdType)result[0];
+                    var kbdType = DecodeKeyboardType(result);
+                    if (kbdType == null)
+                    {
+                        _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - reporting unknown");
+                        return null;
+                    }
+
                     _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
                     return kbdType;
                 }
@@ -1580,6 +2045,35 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Send a command to the BIOS via CIM/WMI using OmenMon's exact implementation.
+        ///
+        /// <b>A zero return code is not proof that the EC answered.</b> These WMI methods are ACPI
+        /// handlers that post the request into an EC mailbox and then poll a doorbell for about
+        /// 100 ms. On timeout they return the result package with the return code still zero and the
+        /// output buffer untouched, because the return code is only assigned on the dispatch switch's
+        /// default arm. So a zero return code means "the ACPI method ran", never "the hardware
+        /// replied", and a success carrying an all-zero buffer is indistinguishable from a timeout.
+        ///
+        /// That matters because the mailbox is a single shared buffer with no locking between OS
+        /// agents, and OMEN Gaming Hub polls it continuously. Running alongside it is not the
+        /// supported configuration, but it is a common one, and the failure is silent: during
+        /// reverse-engineering on board 8D87, repeated identical reads returned four different
+        /// values that were traceable to OGH's replies to its own questions - one byte tracked
+        /// MSAcpi_ThermalZoneTemperature exactly. Stopping OGH made every reading stable.
+        ///
+        /// Callers should therefore validate the reply's content, not just its return code:
+        /// <list type="bullet">
+        /// <item>treat an all-zero buffer from a command that must report something non-zero as a
+        /// failure, the way <see cref="GetFanLevel"/> already does before falling back;</item>
+        /// <item>range-check decoded values where a range is known, the way
+        /// <see cref="ParseFanRpmBuffer"/> already does;</item>
+        /// <item>for anything that drives a write, prefer reading a second time and requiring
+        /// agreement over trusting a single reply.</item>
+        /// </list>
+        ///
+        /// A non-zero return code is the trustworthy direction: the firmware produced it
+        /// deliberately, and the timeout path cannot. Note that 5 specifically means the output
+        /// buffer was the wrong size, not that the command is unsupported - a genuine refusal
+        /// persists across every size.
         /// </summary>
         /// <param name="command">The BIOS command class (Default, Keyboard, Legacy, GpuMode)</param>
         /// <param name="commandType">The specific command type/ID</param>

@@ -33,7 +33,10 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData("8A25", OmenModelFamily.Victus)]
         [InlineData("8C58", OmenModelFamily.Transcend)]
         [InlineData("8E41", OmenModelFamily.Transcend)]
-        [InlineData("8D87", OmenModelFamily.OMEN2024Plus)]
+        // 8D87 is deliberately NOT in this list: the shared assertion below pins newly added
+        // entries as UserVerified = false, and 8D87 is now fully owner-verified. Its ProductId,
+        // Family and UserVerified are covered by GetCapabilities_8D87_OmenMaxAk0xxx_* below and by
+        // ModelCapabilityDatabase8D87Tests, so nothing is lost by removing the row.
         [InlineData("8574", OmenModelFamily.Legacy)]
         [InlineData("8600", OmenModelFamily.Legacy)]
         [InlineData("8787", OmenModelFamily.Legacy)]
@@ -97,7 +100,8 @@ namespace OmenCoreApp.Tests.Hardware
             caps.MaxModeDropChecksBeforeReapply.Should().Be(1,
                 "8D87 field chat reports fans become disobedient after a while, so MAX-series Max hold should reassert on first low telemetry sample");
             caps.HasPerKeyRgb.Should().BeTrue();
-            caps.UserVerified.Should().BeFalse();
+            caps.UserVerified.Should().BeTrue(
+                "every board-specific claim in the entry is now owner-verified on the hardware, the last of them being the performance modes measured in delivered watts");
         }
 
         [Fact]

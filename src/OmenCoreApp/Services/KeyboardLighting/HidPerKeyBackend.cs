@@ -20,11 +20,11 @@ namespace OmenCore.Services.KeyboardLighting
     ///   0x0538 – OMEN 16 (2023) Intel/AMD internal keyboard
     ///   0x0547 – OMEN 16 (2024) internal keyboard
     ///   0x0549 – OMEN 17 (2024) internal keyboard
-    ///   0x054E – OMEN MAX 16 (2025) ah0xxx – pending field verification
-    ///   0x054F – OMEN MAX 16 (2025) ak0xxx – pending field verification
     ///
-    /// Unrecognized HP HID devices (VID 0x03F0) are logged at Info level so field
-    /// reports can supply the correct PID for addition to the list above.
+    /// The internal keyboard is not always under HP's own vendor ID - on OMEN MAX 16 ak0xxx
+    /// it is Darfon 0x0D62:0x54BF - so the scan covers the ODM vendor IDs too and logs every
+    /// candidate with its output report length. A device is only opened if it is listed in
+    /// KnownPerKeyPids AND has a 65-byte output report; scanning is not using.
     ///
     /// Current capability: zone-mapped static colors (maps 4 WMI zone colors across
     /// the full key matrix). Full per-key editor addressing is a follow-up once PIDs
@@ -42,18 +42,45 @@ namespace OmenCore.Services.KeyboardLighting
         // HP Inc. USB vendor ID
         private const int HP_VID = 0x03F0;
 
-        // Known OMEN per-key laptop keyboard controller PIDs.
-        // Sources: OpenRGB device database, OmenHubLighter decompilation, community reports.
-        // PIDs marked [probable] are inferred from adjacent model generations and need
-        // confirmation from a field log on actual hardware.
-        private static readonly Dictionary<int, string> KnownPerKeyPids = new()
+        /// <summary>
+        /// Vendor IDs worth scanning. Restricting this to HP_VID made whole models invisible:
+        /// on OMEN MAX 16 ak0xxx (board 8D87) the internal keyboard enumerates under Darfon
+        /// (0x0D62), HP's keyboard ODM, and nothing at all under 0x03F0 except a HyperX
+        /// wireless receiver and, if docked, a Thunderbolt dock. Scanning is not using: a
+        /// device still has to appear in <see cref="KnownPerKeyPids"/> before anything is
+        /// written to it. This list only decides what gets *looked at and logged*.
+        /// </summary>
+        private static readonly Dictionary<int, string> ScannedVendorIds = new()
         {
-            { 0x0538, "OMEN 16 (2023) Intel/AMD keyboard" },
-            { 0x053A, "OMEN Sequoia / external gaming keyboard" },
-            { 0x0547, "OMEN 16 (2024) keyboard" },
-            { 0x0549, "OMEN 17 (2024) keyboard" },
-            { 0x054E, "OMEN MAX 16 (2025) ah0xxx keyboard [probable - needs field confirmation]" },
-            { 0x054F, "OMEN MAX 16 (2025) ak0xxx keyboard [probable - needs field confirmation]" },
+            { HP_VID, "HP" },
+            { 0x0D62, "Darfon (HP keyboard ODM)" },
+        };
+
+        // Known OMEN per-key laptop keyboard controller PIDs, keyed by (VID, PID).
+        // Sources: OpenRGB device database, OmenHubLighter decompilation, community reports.
+        // A device is only opened and written to if it appears here AND its output report
+        // length matches PACKET_SIZE - see the report-length check in InitializeAsync.
+        private static readonly Dictionary<(int Vid, int Pid), string> KnownPerKeyPids = new()
+        {
+            { (HP_VID, 0x0538), "OMEN 16 (2023) Intel/AMD keyboard" },
+            { (HP_VID, 0x053A), "OMEN Sequoia / external gaming keyboard" },
+            { (HP_VID, 0x0547), "OMEN 16 (2024) keyboard" },
+            { (HP_VID, 0x0549), "OMEN 17 (2024) keyboard" },
+
+            // NOT listed, deliberately, and the reason is worth keeping:
+            //
+            //   0x03F0:0x054E / 0x054F were guesses at the OMEN MAX 16 keyboards, inferred from
+            //   adjacent generations. Measured on an ak0xxx (8D87): neither exists. The internal
+            //   keyboard is 0x0D62:0x54BF "HP Gaming Keyboard II", on the board's own USB
+            //   controller with a null serial and RemovalPolicy = ExpectNoRemoval, exposing two
+            //   vendor collections at exactly 65-byte output reports (MI_00 and MI_03) - the
+            //   right shape for PACKET_SIZE. What is NOT established is whether it speaks the
+            //   command set below (CMD_BYTE 0x0F / SUB_* from the 0x03F0 family), and adding it
+            //   here would send those bytes to it on every start to find out.
+            //
+            // Add it once someone has confirmed the protocol on hardware they are willing to
+            // power-cycle - not before. A wrong PID that does nothing is a much cheaper mistake
+            // than a right PID with a wrong protocol.
         };
 
         // HID packet layout.
@@ -97,45 +124,60 @@ namespace OmenCore.Services.KeyboardLighting
         {
             try
             {
-                _logging.Info("[HidPerKey] Scanning for HP OMEN per-key keyboard (VID 0x03F0)...");
+                var vendorList = string.Join(", ", ScannedVendorIds.Select(v => $"0x{v.Key:X4} {v.Value}"));
+                _logging.Info($"[HidPerKey] Scanning for OMEN per-key keyboard ({vendorList})...");
 
-                var allHpHidDevices = DeviceList.Local
+                var scannedDevices = DeviceList.Local
                     .GetHidDevices()
-                    .Where(d => d.VendorID == HP_VID)
+                    .Where(d => ScannedVendorIds.ContainsKey(d.VendorID))
                     .ToList();
 
-                if (allHpHidDevices.Count == 0)
+                if (scannedDevices.Count == 0)
                 {
-                    _logging.Info("[HidPerKey] No HP HID devices found (VID 0x03F0)");
+                    _logging.Info($"[HidPerKey] No candidate HID devices found ({vendorList})");
                     _initialized = false;
                     return Task.FromResult(false);
                 }
 
-                _logging.Info($"[HidPerKey] Found {allHpHidDevices.Count} HP HID device(s):");
+                _logging.Info($"[HidPerKey] Found {scannedDevices.Count} candidate HID device(s):");
 
                 HidDevice? candidate = null;
-                foreach (var d in allHpHidDevices)
+                foreach (var d in scannedDevices)
                 {
+                    var vid  = d.VendorID;
                     var pid  = d.ProductID;
                     var name = SafeGetProductName(d);
 
-                    if (KnownPerKeyPids.TryGetValue(pid, out var knownName))
+                    // A composite keyboard exposes several collections under one PID - a keyboard
+                    // collection, a consumer-control one, a mouse one, and the vendor collection
+                    // that carries lighting. Only the last has an output report the size of a
+                    // per-key packet, so this is what distinguishes it. Selecting on PID alone
+                    // took whichever collection Windows happened to enumerate first.
+                    var outputLength = SafeGetMaxOutputReportLength(d);
+                    var usable = outputLength == PACKET_SIZE;
+
+                    if (KnownPerKeyPids.TryGetValue((vid, pid), out var knownName) && usable)
                     {
-                        _logging.Info($"[HidPerKey]   OK PID 0x{pid:X4} - {knownName} ('{name}')");
-                        candidate ??= d; // prefer first recognized device
+                        _logging.Info($"[HidPerKey]   OK {vid:X4}:{pid:X4} out={outputLength} - {knownName} ('{name}')");
+                        candidate ??= d;
                     }
                     else
                     {
-                        // Log every unrecognized HP device so field reports can supply the correct PID.
-                        _logging.Info($"[HidPerKey]   ? PID 0x{pid:X4} - '{name}' (not in per-key PID list; " +
-                            "if this is an OMEN MAX 16 keyboard, report this PID for inclusion)");
+                        // Log every candidate with its report length. The lengths are the part
+                        // that makes a field report actionable: a device with out=65 is a
+                        // plausible lighting endpoint, one with out=0 never is.
+                        var why = usable
+                            ? "not in the per-key device list"
+                            : $"output report {outputLength} != {PACKET_SIZE}, not a lighting endpoint";
+                        _logging.Info($"[HidPerKey]   ? {vid:X4}:{pid:X4} out={outputLength} - '{name}' ({why})");
                     }
                 }
 
                 if (candidate == null)
                 {
-                    _logging.Info("[HidPerKey] No recognized OMEN per-key keyboard PID found. " +
-                        "If your OMEN MAX 16 is connected, please report the PID(s) logged above.");
+                    _logging.Info("[HidPerKey] No confirmed OMEN per-key keyboard found; zone lighting " +
+                        "will fall back to WMI, which on some models reaches only the light bar. " +
+                        "Please report the VID:PID and out= values logged above.");
                     _initialized = false;
                     return Task.FromResult(false);
                 }
@@ -432,6 +474,25 @@ namespace OmenCore.Services.KeyboardLighting
             {
                 _logging.Warn($"[HidPerKey] Reopen failed: {ex.Message}");
                 _stream = null;
+            }
+        }
+
+        /// <summary>
+        /// Output report length, or -1 if the device will not report it. Some collections
+        /// throw here rather than answering, and an unreadable length must not read as 0 -
+        /// 0 is a meaningful value meaning "no output reports at all".
+        /// </summary>
+        private int SafeGetMaxOutputReportLength(HidDevice d)
+        {
+            try
+            {
+                return d.GetMaxOutputReportLength();
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"[HidPerKey] Could not read output report length for " +
+                               $"{d.VendorID:X4}:{d.ProductID:X4}: {ex.Message}");
+                return -1;
             }
         }
 

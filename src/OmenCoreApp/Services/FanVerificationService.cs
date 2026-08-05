@@ -353,13 +353,7 @@ namespace OmenCore.Services
 
                     if (result.VerificationPassed)
                     {
-                        var verificationBasis = result.VerificationEvidence switch
-                        {
-                            "Level" => $"level readback matched ({result.ActualLevelAfter}/{result.ExpectedLevel})",
-                            "RPM+Level" => $"RPM + level matched (~{result.ExpectedRpm}, {result.ActualLevelAfter}/{result.ExpectedLevel})",
-                            _ => $"RPM matched (expected ~{result.ExpectedRpm})"
-                        };
-                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM, level {result.ActualLevelAfter} ({verificationBasis}, deviation {result.DeviationPercent:F1}%, score {result.VerificationScore}/100 {result.ScoreRating})");
+                        _logging.Info(DescribeVerificationPass(fanIndex, result));
                         break;
                     }
                     else if (attempt < VerificationRetries)
@@ -496,13 +490,7 @@ namespace OmenCore.Services
 
                     if (result.VerificationPassed)
                     {
-                        var verificationBasis = result.VerificationEvidence switch
-                        {
-                            "Level" => $"level readback matched ({result.ActualLevelAfter}/{result.ExpectedLevel})",
-                            "RPM+Level" => $"RPM + level matched (~{result.ExpectedRpm}, {result.ActualLevelAfter}/{result.ExpectedLevel})",
-                            _ => $"RPM matched (expected ~{result.ExpectedRpm})"
-                        };
-                        _logging.Info($"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM, level {result.ActualLevelAfter} ({verificationBasis}, deviation {result.DeviationPercent:F1}%, score {result.VerificationScore}/100 {result.ScoreRating})");
+                        _logging.Info(DescribeVerificationPass(fanIndex, result));
                         break;
                     }
                     else if (attempt < VerificationRetries)
@@ -690,6 +678,19 @@ namespace OmenCore.Services
                 return false;
             }
 
+            // A level readback is the firmware echoing back the value we just wrote. That is real
+            // evidence the command was accepted, but it is NOT evidence the fan moved, and on a
+            // board whose RPM tachometer is unavailable it is the ONLY thing that can ever be
+            // checked - so accepting it unconditionally makes this method incapable of failing.
+            // Requesting a non-zero speed and measuring a flat zero from a physical source is a
+            // contradiction at any percentage, so it is rejected here rather than at >40% only.
+            if (IsPhysicalRpmSource(result.RpmSource) &&
+                result.ActualRpmAfter <= 0 &&
+                result.RequestedPercent > 0)
+            {
+                return false;
+            }
+
             if (result.RequestedPercent <= 40)
             {
                 return true;
@@ -772,6 +773,33 @@ namespace OmenCore.Services
             if (rpmMatched) return "RPM";
             if (levelMatched) return "Level";
             return "None";
+        }
+
+        /// <summary>
+        /// Render a passing verification for the log, stating WHICH evidence carried it.
+        /// </summary>
+        /// <remarks>
+        /// A pass on level evidence alone is a weaker claim than a pass corroborated by a
+        /// tachometer, and the two used to be logged with identical wording - so a result with no
+        /// physical RPM reading at all was reported as "✓ verified" alongside its own
+        /// "score 5/100 Failed". The score is not restated here: it grades RPM accuracy and
+        /// stability, which is not what was measured when the evidence is level-only, so quoting it
+        /// on that path invited exactly the contradiction it produced.
+        /// </remarks>
+        private static string DescribeVerificationPass(int fanIndex, FanApplyResult result)
+        {
+            if (result.VerificationEvidence == "Level")
+            {
+                return $"✓ Fan {fanIndex} command accepted: level {result.ActualLevelAfter}/{result.ExpectedLevel} " +
+                       $"read back from firmware. Fan motion NOT confirmed - {result.RpmDisplay}.";
+            }
+
+            var basis = result.VerificationEvidence == "RPM+Level"
+                ? $"RPM + level matched (~{result.ExpectedRpm}, {result.ActualLevelAfter}/{result.ExpectedLevel})"
+                : $"RPM matched (expected ~{result.ExpectedRpm})";
+
+            return $"✓ Fan {fanIndex} verified: {result.ActualRpmAfter} RPM, level {result.ActualLevelAfter} " +
+                   $"({basis}, deviation {result.DeviationPercent:F1}%, score {result.VerificationScore}/100 {result.ScoreRating})";
         }
 
         private bool VerifyAppliedState(FanApplyResult result)

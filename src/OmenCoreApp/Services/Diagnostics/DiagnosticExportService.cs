@@ -111,6 +111,7 @@ namespace OmenCore.Services.Diagnostics
                     CollectEcStateAsync(exportPath, effectiveEcAccess),
                     CollectHardwareInfoAsync(exportPath, effectiveMonitoringService),
                     CollectWmiCommandHistoryAsync(exportPath, effectiveWmiController, effectiveFanService),
+                    CollectPowerAdapterSnapshotAsync(exportPath, effectiveWmiController),
                     CollectTuningAndFanFocusAsync(exportPath, effectiveWmiController, effectiveFanService),
                     CollectMonitoringCadenceAndFanHoldAsync(exportPath, effectiveMonitoringService, effectiveFanService, effectiveWmiController),
                     CollectResumeRecoveryDiagnosticsAsync(exportPath)
@@ -2487,6 +2488,109 @@ namespace OmenCore.Services.Diagnostics
             catch (Exception ex)
             {
                 _logging.Warn($"Failed to collect WMI command history: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Capture the machine's own view of its power adapter and its SystemDesignData capability
+        /// block. Both are read-only BIOS queries.
+        ///
+        /// This is in the export because an under-rated adapter is invisible in every other artifact:
+        /// the firmware silently reduces power limits, and the resulting report reads as "GPU stuck
+        /// well below its rating" with nothing to attribute it to. Carrying the adapter verdict means
+        /// a reviewer can rule that out in one line instead of a round trip to the reporter.
+        /// </summary>
+        private async Task CollectPowerAdapterSnapshotAsync(string exportPath, object? wmiController)
+        {
+            try
+            {
+                if (wmiController is not HpWmiBios bios)
+                {
+                    await Task.CompletedTask;
+                    return;
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine("=== POWER ADAPTER + SYSTEM DESIGN DATA ===");
+                sb.AppendLine($"Captured: {DateTime.UtcNow:O}");
+                sb.AppendLine("Source: BIOS Legacy 0x0F (adapter) and Default 0x28 (system design). Both read-only.");
+                sb.AppendLine();
+
+                sb.AppendLine("--- Adapter (Legacy 0x0F) ---");
+
+                // Deliberately dispatched off the task-list thread and awaited. This is the only
+                // collector that issues a hardware command rather than reading cached state, and
+                // SendBiosCommand appends to the same WMI command history that
+                // CollectWmiCommandHistoryAsync is capturing concurrently - running it inline made the
+                // export non-deterministically include its own query in the artifact describing the
+                // session, and perturbed the success-rate statistics reported alongside it.
+                var adapter = await Task.Run(() => bios.GetAdapter());
+                if (adapter is HpWmiBios.AdapterInfo info)
+                {
+                    sb.AppendLine($"Raw:                    {BitConverter.ToString(info.RawData)}");
+                    sb.AppendLine($"Status:                 {info.Status} ({(int)info.Status})");
+                    sb.AppendLine($"Connected rating:       {(info.PowerRatingKnown ? $"{info.PowerRatingWatts} W" : "unknown (0xFF sentinel)")}");
+                    sb.AppendLine($"USB-C design rating:    {info.UsbcDesignRatingWatts} W");
+                    sb.AppendLine($"Barrel jack supported:  {info.SupportsBarrelConnector}");
+                    sb.AppendLine($"Firmware gave a usable verdict: {info.HasVerdict}");
+                    sb.AppendLine($"Low wattage (HP logic): {(info.HasVerdict ? info.IsLowWattage.ToString() : "n/a - no verdict")}");
+
+                    if (info.IsLowWattage)
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine("NOTE: the firmware considers this supply under-rated. Some HP firmware reduces");
+                        sb.AppendLine("      CPU and GPU power limits in this state. Rule this out before reading any");
+                        sb.AppendLine("      low-power-limit symptom in this export as an OmenCore or driver fault.");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine("Not reported (board does not answer Legacy 0x0F, or WMI unavailable).");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("--- System design data (Default 0x28) ---");
+                if (bios.SystemDesign is HpWmiBios.SystemDesignData design)
+                {
+                    sb.AppendLine($"Raw (first 12 bytes):        {BitConverter.ToString(design.RawData)}");
+                    sb.AppendLine($"Shipping adapter rating:     {design.ShippingAdapterPowerRatingWatts} W");
+                    sb.AppendLine($"Thermal policy (firmware):   V{(int)design.ThermalPolicyVersion}");
+                    sb.AppendLine($"Thermal policy (in use):     V{(int)bios.ThermalPolicy}");
+                    if (design.ThermalPolicyVersion != bios.ThermalPolicy)
+                    {
+                        sb.AppendLine("  ^ These disagree: the firmware reported one version and OmenCore is running");
+                        sb.AppendLine("    another. That override is a model-name substring match, not a per-board");
+                        sb.AppendLine("    decision - worth checking if fan behaviour on this machine looks wrong.");
+                    }
+                    sb.AppendLine($"SW fan control support:      {design.IsSwFanControlSupport}");
+                    sb.AppendLine($"Extreme mode support:        {design.IsExtremeModeSupport}");
+                    sb.AppendLine($"Extreme mode unlocked:       {design.IsExtremeModeUnlock}");
+                    sb.AppendLine($"DT BIOS control:             {design.IsDTBiosControl}");
+                    sb.AppendLine($"Two-byte PL4 support:        {design.IsTwoBytePL4Support}");
+                    sb.AppendLine($"PL4 default value:           {design.PL4DefaultValue}");
+                    sb.AppendLine($"BIOS-defined OC support:     {design.IsBiosDefinedOcSupport}");
+                    sb.AppendLine($"GPU mode switch:             0x{design.GpuModeSwitch:X2}");
+                    sb.AppendLine($"CPU power limit with GPU:    {design.DefaultCpuPowerLimitWithGpuWatts} W");
+                    sb.AppendLine($"Load line levels / default:  {design.LoadLineSupportLevels} / {design.DefaultLoadLine}");
+                    sb.AppendLine($"IR sensor on board:          {design.ChangeIrSensorToBoard}");
+                    sb.AppendLine($"PCH overheat support:        {design.IsPchOverheatSupport}");
+                    sb.AppendLine($"VR sensor support:           {design.IsVrSensorSupport}");
+                    sb.AppendLine($"Hotkey Fn+P / Fn+F1:         {design.IsHotkeySupportFnP} / {design.IsHotkeySupportFnF1}");
+                    sb.AppendLine("  ^ These are known to read false on boards that do have the keys.");
+                    sb.AppendLine("    Treat as firmware's declaration, not as a hardware inventory.");
+                }
+                else
+                {
+                    sb.AppendLine("Not available (0x28 query failed, or the reply was shorter than 12 bytes).");
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "power-adapter.txt"), sb.ToString());
+                _logging.Info("Collected power adapter snapshot");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect power adapter snapshot: {ex.Message}");
             }
         }
 
