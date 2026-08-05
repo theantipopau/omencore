@@ -95,6 +95,7 @@ namespace OmenCore.Controls
         private Point _dragStartOffset;
         private readonly List<Ellipse> _pointEllipses = new();
         private Line? _currentTempLine;
+        private Border? _currentTempLabel;
         private bool _suppressRender;  // Prevents re-render during programmatic updates
         private long _lastDragRenderTicks;
         private const int MinDragRenderIntervalMs = 33;
@@ -350,6 +351,7 @@ namespace OmenCore.Controls
             XAxisLabels.Children.Clear();
             _pointEllipses.Clear();
             _currentTempLine = null;
+            _currentTempLabel = null;
             
             var width = ChartCanvas.ActualWidth;
             var height = ChartCanvas.ActualHeight;
@@ -585,13 +587,17 @@ namespace OmenCore.Controls
             ChartCanvas.Children.Add(polygon);
         }
         
-        private void DrawCurrentTempIndicator(double width, double height)
+        // insertIndex: when null (full RenderCurve pass), appended in normal draw order,
+        // below the draggable points drawn after it. When set (partial update from
+        // UpdateCurrentTempIndicator), inserted at that index instead of appended, so the
+        // indicator stays under the point ellipses instead of being drawn on top of them.
+        private void DrawCurrentTempIndicator(double width, double height, int? insertIndex = null)
         {
             if (CurrentTemperature < MinTemperature || CurrentTemperature > MaxTemperature)
                 return;
-                
+
             var x = (CurrentTemperature - MinTemperature) / (double)(MaxTemperature - MinTemperature) * width;
-            
+
             // Vertical line at current temperature
             _currentTempLine = new Line
             {
@@ -604,10 +610,9 @@ namespace OmenCore.Controls
                 StrokeDashArray = new DoubleCollection { 4, 2 },
                 Opacity = 0.8
             };
-            ChartCanvas.Children.Add(_currentTempLine);
-            
+
             // Temperature label at top
-            var label = new Border
+            _currentTempLabel = new Border
             {
                 Background = new SolidColorBrush(Color.FromRgb(31, 195, 255)),
                 CornerRadius = new CornerRadius(3),
@@ -620,15 +625,57 @@ namespace OmenCore.Controls
                     FontWeight = FontWeights.SemiBold
                 }
             };
-            Canvas.SetLeft(label, x - 18);
-            Canvas.SetTop(label, -5);
-            ChartCanvas.Children.Add(label);
+            Canvas.SetLeft(_currentTempLabel, x - 18);
+            Canvas.SetTop(_currentTempLabel, -5);
+
+            if (insertIndex.HasValue)
+            {
+                var idx = Math.Min(insertIndex.Value, ChartCanvas.Children.Count);
+                ChartCanvas.Children.Insert(idx, _currentTempLine);
+                ChartCanvas.Children.Insert(idx + 1, _currentTempLabel);
+            }
+            else
+            {
+                ChartCanvas.Children.Add(_currentTempLine);
+                ChartCanvas.Children.Add(_currentTempLabel);
+            }
         }
-        
+
         private void UpdateCurrentTempIndicator()
         {
-            // Re-render to update indicator position
-            RenderCurve();
+            // A full RenderCurve() clears and rebuilds gridlines, the curve line/fill, and
+            // every draggable point (each with its own fresh DropShadowEffect) - this method
+            // runs on every telemetry tick while the Fan Control tab is open, across 3
+            // FanCurveEditor instances (combined/CPU/GPU) at once, so a full rebuild here was
+            // a continuous, real source of UI jank. Move just the indicator line/label
+            // instead, re-inserted below the point ellipses to preserve the original z-order.
+            if (_suppressRender) return;
+
+            var width = ChartCanvas.ActualWidth;
+            var height = ChartCanvas.ActualHeight;
+            if (width <= 0 || height <= 0) return;
+
+            // Nothing rendered yet to anchor the indicator to (e.g. still in the empty
+            // state) - a full render is needed first so gridlines/points exist at all.
+            if (ChartCanvas.Children.Count == 0)
+            {
+                RenderCurve();
+                return;
+            }
+
+            if (_currentTempLine != null)
+            {
+                ChartCanvas.Children.Remove(_currentTempLine);
+                _currentTempLine = null;
+            }
+            if (_currentTempLabel != null)
+            {
+                ChartCanvas.Children.Remove(_currentTempLabel);
+                _currentTempLabel = null;
+            }
+
+            var insertIndex = Math.Max(0, ChartCanvas.Children.Count - _pointEllipses.Count);
+            DrawCurrentTempIndicator(width, height, insertIndex);
         }
         
         private void DrawCurvePoints(List<FanCurvePoint> points)

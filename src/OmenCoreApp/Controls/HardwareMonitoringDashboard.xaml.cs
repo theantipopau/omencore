@@ -653,14 +653,26 @@ namespace OmenCore.Controls
             return 50.0;
         }
 
+        // Marks a TextBlock whose Foreground already has the critical pulse animation
+        // running, so repeated calls while a value stays critical don't tear down and
+        // recreate the brush/animation on every telemetry tick (was previously compared
+        // against the static Brushes.Red singleton, which a freshly-allocated
+        // SolidColorBrush can never reference-equal, so the check never actually skipped).
+        private static readonly object CriticalAnimationTag = new();
+
         private void AnimateMetricIfCritical(TextBlock? textBlock, bool isCritical)
         {
             if (textBlock == null) return;
-            
+
             try
             {
-                if (isCritical && textBlock.Foreground != Brushes.Red)
+                if (isCritical)
                 {
+                    if (ReferenceEquals(textBlock.Tag, CriticalAnimationTag))
+                    {
+                        return; // Already pulsing for this critical streak - don't restart.
+                    }
+
                     // Pulse animation for critical values
                     var animation = new ColorAnimation
                     {
@@ -673,9 +685,15 @@ namespace OmenCore.Controls
                     var brush = new SolidColorBrush();
                     textBlock.Foreground = brush;
                     brush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+                    textBlock.Tag = CriticalAnimationTag;
                 }
-                else if (!isCritical)
+                else
                 {
+                    if (ReferenceEquals(textBlock.Tag, CriticalAnimationTag))
+                    {
+                        textBlock.Tag = null;
+                    }
+
                     // Use a fallback color if AccentColor resource is not available
                     var accentColor = Application.Current?.Resources["AccentColor"];
                     if (accentColor is Color color)

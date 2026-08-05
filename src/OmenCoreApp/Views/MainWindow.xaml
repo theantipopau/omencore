@@ -27,12 +27,19 @@
     
     <!-- DataContext will be set via dependency injection in code-behind -->
     
+    <!--
+        No Border.Effect here on purpose: this Border wraps the entire window content
+        (title bar, sidebar, every tab). AllowsTransparency="True" + WindowStyle="None"
+        already force this whole window into software-composited rendering (a Win32
+        layered window) - stacking a DropShadowEffect on top of that means every redraw
+        of anything inside the window (resize, drag, any content change) additionally
+        renders the full window subtree to an offscreen surface and runs a blur pixel
+        shader over it, on the root of the entire visual tree. That's a real, continuous
+        cost on the single most common interaction (resize/move), for a shadow subtle
+        enough most users won't consciously notice its absence.
+    -->
     <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12"
             Background="{StaticResource BackgroundDarkBrush}">
-        <Border.Effect>
-            <!-- Subtle shadow for depth on systems that support it -->
-            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.25" />
-        </Border.Effect>
         <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
