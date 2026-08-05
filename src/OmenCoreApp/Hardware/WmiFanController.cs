@@ -38,8 +38,36 @@ namespace OmenCore.Hardware
         /// </summary>
         private const int MaxPlausibleFanRpm = 8000;
 
-        /// <summary>Set once the EC tachometer read has failed, to stop retrying every tick.</summary>
+        /// <summary>
+        /// Consecutive EC transaction failures before the tachometer path backs off. A single
+        /// timeout is normal: the ACPI EC port pair is shared with the firmware's own traffic and
+        /// a busy tick returns "output buffer not full" rather than an answer. Measured on 8D87 -
+        /// one run of the app logged a single timeout 39 seconds in and none before or after,
+        /// while the run before it logged none at all.
+        /// </summary>
+        private const int EcTachometerFailuresBeforeBackoff = 3;
+
+        /// <summary>
+        /// How long to stop asking after a run of failures. Long enough that a genuinely dead EC
+        /// costs almost no traffic, short enough that a recovered one is picked up in seconds.
+        /// </summary>
+        private static readonly TimeSpan EcTachometerBackoff = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Consecutive implausible readings before the offsets are written off for this board.
+        /// A tachometer is read as two separate byte transactions, so a single garbage pair can
+        /// be a torn read; a run of them means the offsets are pointed at something else.
+        /// </summary>
+        private const int EcTachometerImplausibleReadsBeforeGivingUp = 3;
+
+        /// <summary>
+        /// Set only when the offsets are judged wrong for this board - a permanent condition.
+        /// A failed *transaction* never sets this; it backs off and retries instead.
+        /// </summary>
         private bool _ecTachometerUnavailable;
+        private int _ecTachometerFailureStreak;
+        private int _ecTachometerImplausibleStreak;
+        private DateTime _ecTachometerRetryAfterUtc = DateTime.MinValue;
         private readonly LibreHardwareMonitorImpl? _hwMonitor;
         private readonly LoggingService? _logging;
         private readonly bool _strictFanModeReadback;
@@ -1873,7 +1901,10 @@ namespace OmenCore.Hardware
         /// <summary>
         /// Read the fan tachometers straight out of EC RAM, for models whose profile supplies
         /// their offsets. Returns null when this model has none, when EC access is unavailable,
-        /// or when the values read back are not plausible fan speeds.
+        /// when the transaction fails, or when the values read back are not plausible fan speeds.
+        ///
+        /// Both failure kinds are treated as transient until proven otherwise - see the streak
+        /// counters above. A single refused transaction is ordinary EC contention.
         ///
         /// A zero from here is reported as a zero. That is the point: on a board where the only
         /// other RPM source is the commanded level echoed back, "0 RPM" and "no reading" were
@@ -1889,7 +1920,8 @@ namespace OmenCore.Hardware
         {
             if (_ecFanTachometerOffsets is not { Length: >= 2 } offsets ||
                 _ecAccess?.IsAvailable != true ||
-                _ecTachometerUnavailable)
+                _ecTachometerUnavailable ||
+                DateTime.UtcNow < _ecTachometerRetryAfterUtc)
             {
                 return null;
             }
@@ -1905,24 +1937,49 @@ namespace OmenCore.Hardware
                 // rather than publish a number no fan could produce.
                 if (fan1Rpm > MaxPlausibleFanRpm || fan2Rpm > MaxPlausibleFanRpm)
                 {
+                    if (++_ecTachometerImplausibleStreak < EcTachometerImplausibleReadsBeforeGivingUp)
+                    {
+                        _logging?.Debug($"[FanRPM] EC tachometers read {fan1Rpm}/{fan2Rpm} RPM, beyond " +
+                                        $"{MaxPlausibleFanRpm} - discarding as a torn read " +
+                                        $"({_ecTachometerImplausibleStreak}/{EcTachometerImplausibleReadsBeforeGivingUp})");
+                        return null;
+                    }
+
                     _logging?.Warn($"[FanRPM] EC tachometers at 0x{offsets[0]:X2}/0x{offsets[1]:X2} " +
-                                   $"read {fan1Rpm}/{fan2Rpm} RPM, beyond {MaxPlausibleFanRpm} - " +
-                                   "treating the offsets as wrong for this board and falling back");
+                                   $"read {fan1Rpm}/{fan2Rpm} RPM, beyond {MaxPlausibleFanRpm}, " +
+                                   $"{_ecTachometerImplausibleStreak} times running - treating the " +
+                                   "offsets as wrong for this board and falling back for good");
                     _ecTachometerUnavailable = true;
                     return null;
                 }
 
+                _ecTachometerFailureStreak = 0;
+                _ecTachometerImplausibleStreak = 0;
                 return (fan1Rpm, fan2Rpm);
             }
             catch (Exception ex)
             {
-                // PawnIOEcAccess throws rather than returning 0 on a failed transaction, which
-                // is what makes a returned 0 above trustworthy. Stop asking after the first
-                // failure; an EC that will not answer this tick will not answer the next either,
-                // and retrying every tick is how EC contention gets amplified.
-                _logging?.Warn($"[FanRPM] EC tachometer read failed ({ex.GetType().Name}: {ex.Message}); " +
-                               "falling back to WMI fan level for RPM");
-                _ecTachometerUnavailable = true;
+                // PawnIOEcAccess throws rather than returning 0 on a failed transaction, which is
+                // what makes a returned 0 above trustworthy. A failure is not evidence the EC will
+                // keep refusing: the port pair is shared with the firmware's own traffic, so a
+                // single "output buffer not full" is contention, not absence. Back off after a run
+                // of them so a genuinely dead EC costs no traffic, but always come back - giving up
+                // on the first timeout leaves the board on the fan-level estimate for the rest of
+                // the session, which is what shipped and what a verification run then scored.
+                if (++_ecTachometerFailureStreak >= EcTachometerFailuresBeforeBackoff)
+                {
+                    _ecTachometerRetryAfterUtc = DateTime.UtcNow + EcTachometerBackoff;
+                    _ecTachometerFailureStreak = 0;
+                    _logging?.Warn($"[FanRPM] EC tachometer read failed ({ex.GetType().Name}: {ex.Message}) " +
+                                   $"{EcTachometerFailuresBeforeBackoff} times running; using the WMI fan " +
+                                   $"level for RPM and retrying in {EcTachometerBackoff.TotalSeconds:F0}s");
+                }
+                else
+                {
+                    _logging?.Debug($"[FanRPM] EC tachometer read failed ({ex.GetType().Name}: {ex.Message}); " +
+                                    "falling back to the WMI fan level for this tick");
+                }
+
                 return null;
             }
         }

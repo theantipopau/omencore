@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -35,6 +36,46 @@ namespace OmenCoreApp.Tests.Hardware
             {
                 ReadAddresses.Add(address);
                 return _bytes.TryGetValue(address, out var b) ? b : (byte)0x00;
+            }
+
+            public void WriteByte(ushort address, byte value) { }
+            public void Dispose() { }
+        }
+
+        /// <summary>
+        /// EC stub driven by a script of per-tick outcomes: a null entry throws the way a busy
+        /// ACPI EC port pair does, a tuple serves that fan pair. The last entry repeats once the
+        /// script runs out, so "fails once then works" and "never works" are both expressible.
+        /// </summary>
+        private sealed class ScriptedEcAccess : IEcAccess
+        {
+            private readonly Queue<(int fan1, int fan2)?> _script;
+            private (int fan1, int fan2)? _current;
+
+            public ScriptedEcAccess(params (int fan1, int fan2)?[] ticks)
+                => _script = new Queue<(int fan1, int fan2)?>(ticks);
+
+            public List<ushort> ReadAddresses { get; } = new();
+            public bool IsAvailable => true;
+            public bool Initialize(string devicePath) => true;
+
+            public byte ReadByte(ushort address)
+            {
+                ReadAddresses.Add(address);
+
+                // A tick begins at the first tachometer's low byte.
+                if (address == 0x70 && _script.Count > 0)
+                {
+                    _current = _script.Dequeue();
+                }
+
+                if (_current is null)
+                {
+                    throw new TimeoutException("EC output buffer not full");
+                }
+
+                var rpm = address is 0x70 or 0x71 ? _current.Value.fan1 : _current.Value.fan2;
+                return address is 0x71 or 0x5D ? (byte)(rpm >> 8) : (byte)(rpm & 0xFF);
             }
 
             public void WriteByte(ushort address, byte value) { }
@@ -200,6 +241,79 @@ namespace OmenCoreApp.Tests.Hardware
 
             ec.ReadAddresses.Should().BeEmpty();
             fans[0].SpeedRpm.Should().Be(2000);
+        }
+
+        [Fact]
+        public void OneFailedTransaction_DoesNotDisableTheTachometerForTheSession()
+        {
+            // Measured on 8D87: the app logged a single "EC output buffer not full" 39 seconds
+            // after start and, because the first failure was treated as permanent, spent the
+            // next eight minutes on the fan-level estimate - including a full verification run,
+            // which then scored six passes on evidence that was the commanded level echoed back.
+            // The port pair is shared with the firmware's own traffic; one refusal is contention.
+            var ec = new ScriptedEcAccess(null, (2760, 2220));
+
+            using var controller = CreateController(ec, new ushort[] { 0x70, 0x5C });
+
+            var duringFailure = Read(controller);
+            duringFailure[0].RpmSource.Should().Be(RpmSource.Estimated, "the tick itself has no reading");
+
+            var afterRecovery = Read(controller);
+            afterRecovery[0].SpeedRpm.Should().Be(2760);
+            afterRecovery[0].RpmSource.Should().Be(RpmSource.EcDirect, "the next tick must try again");
+        }
+
+        [Fact]
+        public void SustainedFailures_StopHammeringTheEc()
+        {
+            // The other half of the trade: retrying every tick forever would amplify exactly the
+            // contention that caused the failure. After a short run of failures it backs off, so
+            // an EC that genuinely will not answer costs almost no traffic.
+            var ec = new ScriptedEcAccess(null, null, null, null, null);
+
+            using var controller = CreateController(ec, new ushort[] { 0x70, 0x5C });
+
+            for (var tick = 0; tick < 8; tick++)
+            {
+                Read(controller);
+            }
+
+            ec.ReadAddresses.Count.Should().BeLessThan(8, "the backoff must actually stop the traffic");
+            ec.ReadAddresses.Should().OnlyContain(a => a == 0x70, "a tick that throws never reaches the second byte");
+        }
+
+        [Fact]
+        public void OneImplausibleReading_IsDiscardedAsATornRead_NotAsWrongOffsets()
+        {
+            // A tachometer is two separate byte transactions, so a single absurd pair can be a
+            // read torn across an EC update. Writing the offsets off on the strength of one is
+            // the same over-reaction as giving up after one timeout.
+            var ec = new ScriptedEcAccess((65535, 65535), (2760, 2220));
+
+            using var controller = CreateController(ec, new ushort[] { 0x70, 0x5C });
+
+            Read(controller)[0].RpmSource.Should().Be(RpmSource.Estimated);
+            Read(controller)[0].SpeedRpm.Should().Be(2760, "one bad pair is not proof the offsets are wrong");
+        }
+
+        [Fact]
+        public void RepeatedImplausibleReadings_WriteOffTheOffsetsForGood()
+        {
+            // A run of them is proof. Offsets pointed at something that is not a tachometer -
+            // 0x34/0x35 on this board's neighbours land in an ASCII serial number - must be
+            // abandoned rather than retried, because they will read "fine" forever.
+            var ec = new ScriptedEcAccess((65535, 65535), (65535, 65535), (65535, 65535), (2760, 2220));
+
+            using var controller = CreateController(ec, new ushort[] { 0x70, 0x5C });
+
+            for (var tick = 0; tick < 3; tick++)
+            {
+                Read(controller);
+            }
+
+            var afterGivingUp = Read(controller);
+            afterGivingUp[0].SpeedRpm.Should().Be(2000, "the offsets are written off; this is the level estimate");
+            afterGivingUp[0].RpmSource.Should().Be(RpmSource.Estimated);
         }
 
         [Fact]

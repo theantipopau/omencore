@@ -60,7 +60,7 @@ namespace OmenCore.ViewModels
         public bool IsDiagnosticActive
         {
             get => _isDiagnosticActive;
-            private set { _isDiagnosticActive = value; OnPropertyChanged(); }
+            private set { _isDiagnosticActive = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
 
         public bool IsVerificationAvailable => _verifier?.IsAvailable ?? false;
@@ -76,6 +76,18 @@ namespace OmenCore.ViewModels
 
             RefreshStateCommand = new RelayCommand(_ => _ = UpdateCurrentStateAsync());
             ApplyAndVerifyCommand = new AsyncRelayCommand(_ => ApplyAndVerifyAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive);
+
+            // Constructed once and kept. These were previously expression-bodied properties that
+            // returned a new command on every get: the button bound to whatever instance existed
+            // when the binding first evaluated - at load, with no results yet - and since nothing
+            // held that instance, its CanExecute could never be re-run. Copy Results was disabled
+            // for the life of the window.
+            RunGuidedDiagnosticCommand = new AsyncRelayCommand(
+                _ => RunGuidedDiagnosticAsync(),
+                _ => IsVerificationAvailable && !IsDiagnosticActive && !IsGuidedTestRunning);
+            CopyGuidedResultCommand = new RelayCommand(
+                _ => CopyGuidedResult(),
+                _ => !string.IsNullOrEmpty(GuidedTestResult) && !IsGuidedTestRunning);
 
             // Default to CPU fan
             SelectedFanIndex = 0;
@@ -191,7 +203,7 @@ namespace OmenCore.ViewModels
         public bool IsGuidedTestRunning
         {
             get => _isGuidedTestRunning;
-            private set { _isGuidedTestRunning = value; OnPropertyChanged(); }
+            private set { _isGuidedTestRunning = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
         
         /// <summary>
@@ -209,7 +221,7 @@ namespace OmenCore.ViewModels
         public string GuidedTestResult
         {
             get => _guidedTestResult;
-            private set { _guidedTestResult = value; OnPropertyChanged(); }
+            private set { _guidedTestResult = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
         
         /// <summary>
@@ -221,13 +233,27 @@ namespace OmenCore.ViewModels
             private set { _guidedTestProgress = value; OnPropertyChanged(); }
         }
         
-        public ICommand RunGuidedDiagnosticCommand => new AsyncRelayCommand(_ => RunGuidedDiagnosticAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive && !IsGuidedTestRunning);
-
+        public ICommand RunGuidedDiagnosticCommand { get; }
 
         /// <summary>
         /// Copy the guided diagnostic result summary to the clipboard.
         /// </summary>
-        public ICommand CopyGuidedResultCommand => new RelayCommand(_ => CopyGuidedResult(), _ => !string.IsNullOrEmpty(GuidedTestResult) && !IsGuidedTestRunning);
+        public ICommand CopyGuidedResultCommand { get; }
+
+        /// <summary>
+        /// Re-evaluate every command whose CanExecute depends on test state.
+        ///
+        /// This has to be explicit. RelayCommand raises CanExecuteChanged only when asked - it
+        /// does not chain off CommandManager.RequerySuggested - so a command that is not held in
+        /// a field and poked here can never change its enabled state after the binding first
+        /// evaluates it.
+        /// </summary>
+        private void RaiseTestCommandStates()
+        {
+            (RunGuidedDiagnosticCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (CopyGuidedResultCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ApplyAndVerifyCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        }
 
         private void CopyGuidedResult()
         {
