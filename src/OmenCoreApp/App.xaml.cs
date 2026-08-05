@@ -955,7 +955,7 @@ namespace OmenCore
             services.AddSingleton(_ => new BiosUpdateService(Logging));
             services.AddSingleton(_ => new TelemetryService(Logging, Configuration));
             services.AddSingleton(_ => new SystemOptimizationService(Logging));
-            services.AddSingleton(_ => new GpuSwitchService(Logging));
+            services.AddSingleton(sp => new GpuSwitchService(Logging, sp.GetRequiredService<HpWmiBios>()));
             services.AddSingleton(_ => new ProcessMonitoringService(Logging));
             services.AddSingleton(_ => new HotkeyService(Logging));
             services.AddSingleton(_ => new OmenKeyService(Logging, Configuration));

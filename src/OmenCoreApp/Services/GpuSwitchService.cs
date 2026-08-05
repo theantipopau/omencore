@@ -9,12 +9,19 @@ namespace OmenCore.Services
     public class GpuSwitchService
     {
         private readonly LoggingService _logging;
+        private readonly Hardware.HpWmiBios? _wmiBios;
         private bool _gpuModeSupported = false;
         private string _unsupportedReason = "";
 
-        public GpuSwitchService(LoggingService logging)
+        /// <summary>
+        /// <paramref name="wmiBios"/> is optional so the existing call sites - and the tests - keep
+        /// working without it. When supplied, <see cref="DetectCurrentMode"/> asks the firmware
+        /// instead of inferring the mode from which adapter happens to be painting a display.
+        /// </summary>
+        public GpuSwitchService(LoggingService logging, Hardware.HpWmiBios? wmiBios = null)
         {
             _logging = logging;
+            _wmiBios = wmiBios;
             CheckGpuModeSwitchingSupport();
         }
         
@@ -122,12 +129,32 @@ namespace OmenCore.Services
         public string UnsupportedReason => _unsupportedReason;
 
         /// <summary>
-        /// Detect current GPU mode through WMI and NVIDIA/AMD control panels
+        /// Detect the current GPU mode, preferring the firmware's own answer over inference.
+        ///
+        /// <para><b>Why the firmware comes first.</b> The adapter-activity methods below decide the
+        /// mode from which GPU is currently driving a display, and a healthy Optimus laptop spends
+        /// most of its time with the dGPU powered down by RTD3 - <c>Win32_VideoController</c> reports
+        /// it <c>Availability: 8</c> (Off Line) with no resolution, refresh rate or bit depth. That is
+        /// indistinguishable, to those methods, from a machine whose dGPU is switched off in firmware,
+        /// so Hybrid gets reported as Integrated whenever the dGPU happens to be asleep. Waking it to
+        /// find out would be worse than the wrong answer.</para>
+        ///
+        /// <para>Adapter activity stays as a fallback and as corroboration, because a zero reply from
+        /// <c>Legacy 0x52</c> is not unambiguous either: zero decodes to Hybrid and is also what an
+        /// ACPI timeout leaves in the buffer (see the remark on <c>HpWmiBios.SendBiosCommand</c>). So
+        /// a firmware Hybrid reading is cross-checked, and only a disagreement is logged - the
+        /// firmware still wins, since a sleeping dGPU is the far more likely explanation.</para>
         /// </summary>
         public GpuSwitchMode DetectCurrentMode()
         {
             try
             {
+                // Method 0: ask the firmware. Authoritative for Discrete/Optimus; cross-checked for
+                // Hybrid, which shares its encoding with an ACPI timeout.
+                var firmwareMode = DetectFirmwareGpuMode();
+                if (firmwareMode.HasValue)
+                    return firmwareMode.Value;
+
                 // Method 1: Check NVIDIA Optimus status via WMI
                 var nvidiaMode = DetectNvidiaOptimusMode();
                 if (nvidiaMode.HasValue)
@@ -160,6 +187,76 @@ namespace OmenCore.Services
             {
                 _logging.Error("Failed to detect GPU mode", ex);
                 return GpuSwitchMode.Hybrid;
+            }
+        }
+
+        /// <summary>
+        /// The firmware's own GPU mode via <c>Legacy 0x52</c>, or null when it cannot answer or
+        /// answers something this maps no meaning onto.
+        ///
+        /// Returning null on an unrecognised byte is deliberate rather than defensive. The firmware
+        /// enum covers Hybrid, Discrete and Optimus; a machine routed to iGPU-only (the BIOS calls it
+        /// UMA on board 8D87) is a state <c>GpuMode</c> does not declare, and no capture has pinned
+        /// what 0x52 reads there. Falling through to adapter inference is the honest answer for a byte
+        /// nobody has mapped - and inference is at its most reliable in exactly that case, because a
+        /// machine with no usable dGPU really does have only one adapter driving displays.
+        /// </summary>
+        /// <summary>
+        /// Map the firmware's <see cref="Hardware.HpWmiBios.GpuMode"/> onto the UI's
+        /// <see cref="GpuSwitchMode"/>, or null for a value this does not map.
+        ///
+        /// Static and public so the mapping is test-covered without a WMI round trip, following the
+        /// same pattern as <c>HpWmiBios.DecodeAdapterData</c> and <c>DecodeGpuMode</c>.
+        /// </summary>
+        public static GpuSwitchMode? MapFirmwareGpuMode(Hardware.HpWmiBios.GpuMode mode) => mode switch
+        {
+            Hardware.HpWmiBios.GpuMode.Discrete => GpuSwitchMode.Discrete,
+            // Optimus is a hybrid arrangement with dGPU-direct display routing available;
+            // GpuSwitchMode has no separate member, and Hybrid is what the UI means by it.
+            Hardware.HpWmiBios.GpuMode.Optimus => GpuSwitchMode.Hybrid,
+            Hardware.HpWmiBios.GpuMode.Hybrid => GpuSwitchMode.Hybrid,
+            _ => null
+        };
+
+        private GpuSwitchMode? DetectFirmwareGpuMode()
+        {
+            if (_wmiBios == null) return null;
+
+            try
+            {
+                var mode = _wmiBios.GetGpuMode();
+                if (mode == null) return null;
+
+                var mapped = MapFirmwareGpuMode(mode.Value);
+                if (mapped == null) return null;
+
+                // A Hybrid reading is the ambiguous one - 0x00 is also what an ACPI timeout leaves
+                // behind. Corroborate it, but do not overturn it: a dGPU asleep under RTD3 is the
+                // ordinary reason the adapter check would disagree here.
+                if (mode.Value == Hardware.HpWmiBios.GpuMode.Hybrid)
+                {
+                    var inferred = DetectNvidiaOptimusMode();
+                    if (inferred.HasValue && inferred.Value != GpuSwitchMode.Hybrid)
+                    {
+                        _logging.Info(
+                            $"GPU mode: firmware reports Hybrid, adapter activity suggests {inferred.Value} " +
+                            "- using the firmware's answer (a dGPU idled by RTD3 reads as inactive)");
+                    }
+                    else
+                    {
+                        _logging.Info("Detected GPU mode via firmware (Legacy 0x52): Hybrid");
+                    }
+
+                    return GpuSwitchMode.Hybrid;
+                }
+
+                _logging.Info($"Detected GPU mode via firmware (Legacy 0x52): {mode.Value}");
+                return mapped.Value;
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"Firmware GPU mode query failed, falling back to adapter inference: {ex.Message}");
+                return null;
             }
         }
 

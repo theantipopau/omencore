@@ -1730,7 +1730,7 @@ namespace OmenCore.ViewModels
 
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService, _ecOperationCoordinator);
             _systemOptimizationService = systemOptimizationService ?? new SystemOptimizationService(_logging);
-            _gpuSwitchService = gpuSwitchService ?? new GpuSwitchService(_logging);
+            _gpuSwitchService = gpuSwitchService ?? new GpuSwitchService(_logging, _wmiBios);
             
             // Keyboard diagnostics (must be after _keyboardLightingService is created)
             KeyboardDiagnostics = new KeyboardDiagnosticsViewModel(_corsairDeviceService, _logitechDeviceService, _keyboardLightingService, _razerService, _logging);
