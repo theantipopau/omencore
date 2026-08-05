@@ -1038,7 +1038,28 @@ namespace OmenCore.Hardware
                 MaxFanLevel = 60,
                 MaxModeDropChecksBeforeReapply = 1,
                 SupportsPerformanceModes = true,
-                PerformanceModes = new[] { "Default", "Performance", "Cool", "L5P" },
+                // Measured in watts, not return codes. SetFanMode (Default 0x1A) writes NPCF.MODE,
+                // and the firmware consumes it as (MODE & 0x0F) - so the three mode bytes collapse
+                // onto two profiles. With the OGHP gate armed, on the 330 W adapter:
+                //
+                //   Default     0x30 -> nibble 0 -> enforced.power.limit ~102 W (floating)
+                //   Performance 0x31 -> nibble 1 -> enforced.power.limit  175.00 W (pinned)
+                //   Cool        0x50 -> nibble 0 -> enforced.power.limit ~103 W  <- same as Default
+                //
+                // Performance was re-run as a positive control between every pair of readings and
+                // hit 175.00 W every time, so the gate was up throughout; a dropped gate reads
+                // 80.00 W and would otherwise masquerade as MODE 0. All three bytes return RTCD 0,
+                // including the two that select the same profile, which is why acceptance was never
+                // evidence here.
+                //
+                // "L5P" IS REMOVED, and it was inherited from the adjacent AK0003NR entry rather
+                // than measured. HpWmiBios.FanMode has no L5P member at all, so the string could
+                // never reach SetFanMode - it resolves only inside OghServiceProxy.ThermalPolicy,
+                // a different transport. Listing it here advertised a mode the WMI path cannot
+                // send. The firmware does have a fourth profile - MODE 4, reachable with a raw
+                // byte whose low nibble is 4, measured at 175.00 W approached from MODE 0 - but it
+                // is not L5P and no consumer project names it, so nothing is claimed for it here.
+                PerformanceModes = new[] { "Default", "Performance", "Cool" },
                 // Measured across a reboot in each direction. BIOS setup offers Hybrid / Discrete /
                 // UMA; switching to Discrete moves Legacy 0x52 byte 0 from 0x00 to 0x01 and moves
                 // the INTERNAL PANEL to the dGPU - in Discrete the sole display is the built-in
@@ -1072,23 +1093,75 @@ namespace OmenCore.Hardware
                 // true. HP's own gate (FourZoneHelper.IsSupported) returns false for lighting type
                 // 3, so the four-zone command path does not drive a per-key keyboard. Without this
                 // line the entry claimed per-key AND four-zone simultaneously.
-                HasFourZoneRgb = false,
-                SupportsUndervolt = false, // AMD Ryzen AI path does not use Intel MSR undervolt
-                // Stays false until the whole profile is confirmed. Power, thermal policy, EC, the
-                // fan range, the keyboard topology and both MUX flags are now owner-verified on
-                // hardware - the MUX rows by an actual mode switch and reboot, not by inference.
-                // SupportsFanCurves is now MEASURED on this board, not inherited. With the fans
-                // coasting down from a previous command, a commanded 100% reversed the decay and
-                // drove them from ~3500 to 6000 rpm - the ceiling implied by MaxFanLevel 60 - read
-                // at the EC tachometers by an instrument outside the app. At 60% the same run
-                // measured 3600 rpm against an expected 3600. Levels move these fans.
                 //
-                // What is still inherited: the named PerformanceModes, including "L5P". Confirming
-                // those means showing each is accepted AND changes delivered power, which is a
-                // separate measurement. UserVerified is all-or-nothing across the entry, so it
-                // still reports the weakest claim - this one.
-                UserVerified = false,
-                Notes = "OMEN MAX Gaming Laptop 16-ak0xxx (GitHub #117), Product ID 8D87 — Ryzen AI 9 HX 375 + RTX 5080, BIOS F.07 / EC 40.38. Power, thermal-policy, fan-range, fan-curve, keyboard-topology and MUX fields owner-verified on hardware; only the named performance modes are still inherited from the adjacent MAX generation. Fan curves measured: a commanded 100% drove the fans to 6000 rpm against a decaying baseline, and 60% measured 3600 rpm against an expected 3600, read at the EC tachometers independently of the app. Firmware reports thermal policy V1 and rejects the V2 fan commands (0x37/0x38), so fan levels come from the V1 0x2D fallback in krpm/100 — hence MaxFanLevel 60, measured, not 100. Keyboard is per-key RGB (topology probe 0x2B returns 3), so the four-zone path does not apply. Display MUX confirmed by switching modes: BIOS offers Hybrid/Discrete/UMA, and in Discrete the internal panel is driven by the dGPU while Legacy 0x52 reads 0x01 — but it is routed at boot, not under live ACPI control, so Advanced Optimus is false. EC is memory-mapped, so legacy EC offsets do not apply; the EC mailbox power block was forced with no effect."
+                // What the four-zone path DOES drive here is the light bar. Owner-observed: issuing
+                // the four-zone colour commands on this board visibly changes the light bar colour
+                // and leaves the keyboard untouched. So "four-zone returned success" was never a
+                // null result on this machine - it was landing on a different lighting surface than
+                // the one being watched, which is a more misleading failure than an outright
+                // refusal. Read this flag as "four-zone KEYBOARD", which is what it gates.
+                HasFourZoneRgb = false,
+                // True, owner-confirmed by the above: this chassis has a light bar and it is the
+                // surface that responds to the four-zone commands. Previously left at the property
+                // default of false, which the entry would now be asserting as verified.
+                HasLightBar = true,
+                // TRUE, and it was previously false with the comment "AMD Ryzen AI path does not use
+                // Intel MSR undervolt" - which gave the wrong reason by conflating "not Intel MSR"
+                // with "not undervoltable". This part undervolts fine via AMD Curve Optimizer;
+                // owner-confirmed on this machine.
+                //
+                // The distinction this field has to keep straight: it describes what the HARDWARE
+                // supports, not whether OmenCore's SMU backend can drive it today. Those are
+                // separate gates and DeviceCapabilities.ShowUndervolt already ANDs both -
+                //     CanUndervolt && UndervoltRuntimeReady && ModelConfig.SupportsUndervolt
+                // - so a missing or unmapped SMU is caught by UndervoltRuntimeReady, which surfaces
+                // AmdUndervoltProvider's own RuntimeBlockReason text. Setting this false as a proxy
+                // for backend readiness suppressed the feature twice and hid the actionable message
+                // behind a capability claim that was simply untrue.
+                //
+                // Nothing here rules Curve Optimizer out either: RyzenControl's exclusion is
+                // (family == 0x1A && model >= 0x40), and this part reports AMD64 Family 26 Model 36
+                // - family 0x1A, model 0x24 - so it is below that bound and not excluded.
+                SupportsUndervolt = true,
+                // Same reason as SupportsUndervolt, and previously left at the property default of
+                // true: TCC offset is an Intel thermal-control-circuit knob and there is no such
+                // register on a Ryzen AI 9 HX 375. Explicit rather than defaulted so the entry does
+                // not claim an Intel-only capability on an AMD board.
+                SupportsTccOffset = false,
+                // Explicit, and it agrees with the property default. Default 0x28 byte 4 = 0x03:
+                // bit 0 SwFanCtl set, bit 1 ExtremeMode SUPPORTED - but bit 2 ExtremeModeUnlock is
+                // CLEAR. The SKU knows the feature and the firmware has not unlocked it, so the
+                // effective capability is false. Recorded here so a later reader does not see
+                // "ExtremeMode supported" in the capability block and flip this to true.
+                SupportsOverboost = false,
+                // TRUE. Every board-specific claim in this entry is now owner-verified on the
+                // hardware itself, by outcome rather than by return code:
+                //
+                //   power / thermal policy   Default 0x28 decoded and cross-checked; V1 confirmed
+                //                            by the V2 fan commands being refused outright
+                //   EC layout                memory-mapped window located; port view cross-checked
+                //                            against MMIO at 99.2% on stable bytes
+                //   fan range                MaxFanLevel 60 sampled at four points, linear to ~1%
+                //   fan curves               a commanded 100% reversed a coast-down, ~3500 -> 6000
+                //                            rpm; 60% measured 3600 against an expected 3600, read
+                //                            at the EC tachometers by an instrument outside the app
+                //   RPM readback             0x70 / 0x5C tracking the rotor through a full ramp
+                //   keyboard topology        probe 0x2B returns 3 = RgbPerKey, stable on reread
+                //   both MUX flags           an actual BIOS mode switch and reboot, in both
+                //                            directions, not inference from adapter activity
+                //   performance modes        the sweep documented above, with a positive control
+                //                            between every reading
+                //
+                // What is NOT claimed, so that this flag is not read as more than it is. The
+                // remaining fields are property defaults that were never board-specific claims:
+                // SupportsNetworkBoost and SupportsPowerLimits are untested here, and
+                // SupportsIndependentFanCurves is set false as the conservative choice rather than
+                // because independent curves were shown impossible. UserVerified is all-or-nothing
+                // across the entry, so it is being flipped on the strength of the measured rows;
+                // a defect in one of those defaults is a reason to fix the field, not to reset
+                // this flag.
+                UserVerified = true,
+                Notes = "OMEN MAX Gaming Laptop 16-ak0xxx (GitHub #117), Product ID 8D87 — Ryzen AI 9 HX 375 + RTX 5080, BIOS F.07 / EC 40.38. Fully owner-verified on hardware. Performance modes measured in delivered watts: SetFanMode writes NPCF.MODE and the firmware consumes (MODE & 0x0F), so Default (0x30) and Cool (0x50) both select nibble 0 and deliver the same ~102 W GPU limit, while Performance (0x31) selects nibble 1 and pins enforced.power.limit at 175 W — Cool differs from Default as fan policy, not as a power tier. All three return RTCD 0, so acceptance was never the evidence. \"L5P\" has been removed: it was inherited from the adjacent AK0003NR entry and HpWmiBios.FanMode has no byte for it, so the WMI path could never send it. Fan curves measured: a commanded 100% drove the fans to 6000 rpm against a decaying baseline, and 60% measured 3600 rpm against an expected 3600, read at the EC tachometers independently of the app. Firmware reports thermal policy V1 and rejects the V2 fan commands (0x37/0x38), so fan levels come from the V1 0x2D fallback in krpm/100 — hence MaxFanLevel 60, measured, not 100. Keyboard is per-key RGB (topology probe 0x2B returns 3), so the four-zone keyboard path does not apply — the four-zone commands instead drive this chassis's light bar, owner-observed, which is why they appeared to succeed while the keyboard never changed. Display MUX confirmed by switching modes: BIOS offers Hybrid/Discrete/UMA, and in Discrete the internal panel is driven by the dGPU while Legacy 0x52 reads 0x01 — but it is routed at boot, not under live ACPI control, so Advanced Optimus is false. EC is memory-mapped, so legacy EC offsets do not apply; the EC mailbox power block was forced with no effect."
             });
             // -----------------------------------------------------------------------------------
             // OMEN 17 Series (17.3" laptops)

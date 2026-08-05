@@ -16,10 +16,10 @@ namespace OmenCoreApp.Tests.Hardware
             var caps = ModelCapabilityDatabase.GetCapabilities("8D87");
 
             caps.ProductId.Should().Be("8D87");
-            // Not flipped: fan curves and performance modes are still inherited because confirming
-            // them needs writes, and UserVerified is all-or-nothing so it must report the weakest
-            // claim in the entry. See docs/8D87-VERIFICATION-CHECKLIST.md for exactly what remains.
-            caps.UserVerified.Should().BeFalse();
+            // Flipped once the last inherited field - the named performance modes - was measured in
+            // delivered watts rather than return codes. Every board-specific claim in the entry is
+            // now owner-verified on the hardware.
+            caps.UserVerified.Should().BeTrue();
 
             // The EC on this board is memory-mapped and does not follow the legacy offset layout, so
             // neither EC fan control nor EC power-limit writes may be attempted on it. The power-limit
@@ -28,11 +28,43 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsFanControlEc.Should().BeFalse();
             caps.SupportsEcPowerLimits.Should().BeFalse();
 
-            // AMD Ryzen AI part: the Intel MSR undervolt path does not apply.
-            caps.SupportsUndervolt.Should().BeFalse();
+            // True: this part undervolts via AMD Curve Optimizer, owner-confirmed. The field
+            // describes the hardware, not whether OmenCore's SMU backend can drive it today -
+            // ShowUndervolt already ANDs this with UndervoltRuntimeReady, so backend gaps surface
+            // as AmdUndervoltProvider's RuntimeBlockReason rather than as a false capability claim.
+            // RyzenControl's exclusion is (family 0x1A && model >= 0x40); this part is family 0x1A
+            // model 0x24, below that bound, so Curve Optimizer is not ruled out here either.
+            caps.SupportsUndervolt.Should().BeTrue();
+
+            // Intel thermal-control-circuit knob; there is no such register on a Ryzen AI 9 HX 375.
+            caps.SupportsTccOffset.Should().BeFalse();
+
+            // Default 0x28 byte 4 = 0x03: ExtremeMode is SUPPORTED (bit 1) but ExtremeModeUnlock
+            // (bit 2) is CLEAR, so the effective capability is false. Guards against a later reader
+            // seeing "ExtremeMode supported" in the capability block and flipping this.
+            caps.SupportsOverboost.Should().BeFalse();
 
             // Independently corroborated by the observed performance-mode decay on this machine.
             caps.MaxModeDropChecksBeforeReapply.Should().Be(1);
+        }
+
+        [Fact]
+        public void Board8D87_PerformanceModes_Are_The_Three_The_Wmi_Path_Can_Actually_Send()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities("8D87");
+
+            // "L5P" was inherited from the adjacent AK0003NR entry and is NOT sendable: there is no
+            // L5P member in HpWmiBios.FanMode at all, so SetPerformanceMode can never produce it.
+            // The name resolves only inside OghServiceProxy.ThermalPolicy, a different transport.
+            caps.PerformanceModes.Should().Equal("Default", "Performance", "Cool");
+            caps.PerformanceModes.Should().NotContain("L5P");
+
+            // Measured in delivered watts on the hardware: SetFanMode writes NPCF.MODE and the
+            // firmware consumes (MODE & 0x0F), so Default (0x30) and Cool (0x50) both select
+            // nibble 0 and delivered ~102 W, while Performance (0x31) selects nibble 1 and pinned
+            // enforced.power.limit at 175 W. All three return RTCD 0, so the return code never
+            // distinguished them - Cool differs as fan policy, not as a power tier.
+            caps.SupportsPerformanceModes.Should().BeTrue();
         }
 
         [Fact]
@@ -68,6 +100,13 @@ namespace OmenCoreApp.Tests.Hardware
             var caps = ModelCapabilityDatabase.GetCapabilities("8D87");
 
             caps.HasPerKeyRgb.Should().BeTrue();
+
+            // The four-zone flag gates the four-zone KEYBOARD path, which HP's own
+            // FourZoneHelper.IsSupported refuses for lighting type 3. The four-zone commands are
+            // not inert on this chassis though - owner-observed, they drive the LIGHT BAR and leave
+            // the keyboard alone, which is why "four-zone succeeded" was never evidence here.
+            caps.HasFourZoneRgb.Should().BeFalse();
+            caps.HasLightBar.Should().BeTrue();
             caps.HasKeyboardBacklight.Should().BeTrue();
             caps.HasFourZoneRgb.Should().BeFalse("HP gates the four-zone path off for lighting type 3");
         }
