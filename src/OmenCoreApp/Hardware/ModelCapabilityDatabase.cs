@@ -1077,12 +1077,18 @@ namespace OmenCore.Hardware
                 // Stays false until the whole profile is confirmed. Power, thermal policy, EC, the
                 // fan range, the keyboard topology and both MUX flags are now owner-verified on
                 // hardware - the MUX rows by an actual mode switch and reboot, not by inference.
-                // What is still inherited: SupportsFanCurves and SupportsIndependentFanCurves, and
-                // the named PerformanceModes including "L5P" - all three need writes to confirm, and
-                // read-only identification work does not license them. The flag is all-or-nothing,
-                // so it reports the weakest claim in the entry.
+                // SupportsFanCurves is now MEASURED on this board, not inherited. With the fans
+                // coasting down from a previous command, a commanded 100% reversed the decay and
+                // drove them from ~3500 to 6000 rpm - the ceiling implied by MaxFanLevel 60 - read
+                // at the EC tachometers by an instrument outside the app. At 60% the same run
+                // measured 3600 rpm against an expected 3600. Levels move these fans.
+                //
+                // What is still inherited: the named PerformanceModes, including "L5P". Confirming
+                // those means showing each is accepted AND changes delivered power, which is a
+                // separate measurement. UserVerified is all-or-nothing across the entry, so it
+                // still reports the weakest claim - this one.
                 UserVerified = false,
-                Notes = "OMEN MAX Gaming Laptop 16-ak0xxx (GitHub #117), Product ID 8D87 — Ryzen AI 9 HX 375 + RTX 5080, BIOS F.07 / EC 40.38. Power, thermal-policy, fan-range, keyboard-topology and MUX fields owner-verified on hardware; fan curves and performance modes are still inherited from the adjacent MAX generation. Firmware reports thermal policy V1 and rejects the V2 fan commands (0x37/0x38), so fan levels come from the V1 0x2D fallback in krpm/100 — hence MaxFanLevel 60, measured, not 100. Keyboard is per-key RGB (topology probe 0x2B returns 3), so the four-zone path does not apply. Display MUX confirmed by switching modes: BIOS offers Hybrid/Discrete/UMA, and in Discrete the internal panel is driven by the dGPU while Legacy 0x52 reads 0x01 — but it is routed at boot, not under live ACPI control, so Advanced Optimus is false. EC is memory-mapped, so legacy EC offsets do not apply; the EC mailbox power block was forced with no effect."
+                Notes = "OMEN MAX Gaming Laptop 16-ak0xxx (GitHub #117), Product ID 8D87 — Ryzen AI 9 HX 375 + RTX 5080, BIOS F.07 / EC 40.38. Power, thermal-policy, fan-range, fan-curve, keyboard-topology and MUX fields owner-verified on hardware; only the named performance modes are still inherited from the adjacent MAX generation. Fan curves measured: a commanded 100% drove the fans to 6000 rpm against a decaying baseline, and 60% measured 3600 rpm against an expected 3600, read at the EC tachometers independently of the app. Firmware reports thermal policy V1 and rejects the V2 fan commands (0x37/0x38), so fan levels come from the V1 0x2D fallback in krpm/100 — hence MaxFanLevel 60, measured, not 100. Keyboard is per-key RGB (topology probe 0x2B returns 3), so the four-zone path does not apply. Display MUX confirmed by switching modes: BIOS offers Hybrid/Discrete/UMA, and in Discrete the internal panel is driven by the dGPU while Legacy 0x52 reads 0x01 — but it is routed at boot, not under live ACPI control, so Advanced Optimus is false. EC is memory-mapped, so legacy EC offsets do not apply; the EC mailbox power block was forced with no effect."
             });
             // -----------------------------------------------------------------------------------
             // OMEN 17 Series (17.3" laptops)

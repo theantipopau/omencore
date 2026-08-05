@@ -284,6 +284,7 @@ namespace OmenCore.ViewModels
             var testLevels = new[] { 30, 60, 100 };
             var fanNames = new[] { "CPU", "GPU" };
             var results = new System.Collections.Generic.List<(string fan, int target, bool passed, string rpm, double deviation, int score, string rating, string evidence)>();
+            var sourcesSeen = new System.Collections.Generic.List<RpmSource>();
             
             // v2.7.1: Save current preset before diagnostic
             _preTestPreset = _fanService.ActivePreset;
@@ -312,6 +313,7 @@ namespace OmenCore.ViewModels
                             var passed = result.VerificationPassed;
                             var evidence = string.IsNullOrWhiteSpace(result.VerificationEvidence) ? "None" : result.VerificationEvidence;
                             results.Add((fanName, targetPercent, passed, result.RpmDisplay, result.DeviationPercent, result.VerificationScore, result.ScoreRating, evidence));
+                            sourcesSeen.Add(result.RpmSource);
                             
                             // Add to history
                             History.Insert(0, result);
@@ -347,7 +349,14 @@ namespace OmenCore.ViewModels
                 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"=== DIAGNOSTIC COMPLETE: {(overallPassed ? "✅ PASS" : "❌ FAIL")} ===");
-                summary.AppendLine($"Backend: {_fanService.Backend} | RPM source: {RpmSourceDisplay}");
+                // Report the sources this run actually read from, not RpmSourceDisplay - that is
+                // the "current state" panel's property, refreshed on its own schedule, and it read
+                // "?" on a run whose every result was EcDirect. A header that disagrees with the
+                // lines beneath it is worse than no header.
+                var sourceLabel = sourcesSeen.Count == 0
+                    ? "none"
+                    : string.Join(" + ", sourcesSeen.Distinct().OrderBy(s => s.ToString()));
+                summary.AppendLine($"Backend: {_fanService.Backend} | RPM source: {sourceLabel}");
                 summary.AppendLine($"Tests: {passCount}/{totalTests} passed | Overall Score: {avgScore}/100 ({overallRating})");
                 summary.AppendLine();
                 
