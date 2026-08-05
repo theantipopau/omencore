@@ -3895,17 +3895,21 @@ namespace OmenCore.ViewModels
                     "Minimum" => "✓ Minimum (Base TGP, via EC)",
                     "Medium" => "✓ Medium (Custom TGP, via EC)",
                     "Maximum" => "✓ Maximum (Dynamic Boost +15W, via EC)",
-                    "Extended" => "✓ Extended (PPAB+ +25W, via EC)",
                     _ => "Applied via EC"
                 };
                 _logging.Info($"✓ GPU Power Boost set to: {GpuPowerBoostLevel} via EC (experimental)");
-                
+
                 // Save to config for persistence
                 SaveGpuPowerBoostToConfig();
                 return;
             }
-            
-            GpuPowerBoostStatus = "Failed - WMI/EC commands not supported on this model";
+
+            // "Extended" has no EC fallback (see TryApplyEcGpuBoost) - its register value is
+            // identical to Maximum, so there is nothing distinct to fall back to. Say so
+            // instead of the generic message, which read as if EC support were simply missing.
+            GpuPowerBoostStatus = string.Equals(GpuPowerBoostLevel, "Extended", StringComparison.OrdinalIgnoreCase)
+                ? "Not available - this BIOS doesn't apply Extended via WMI, and no distinct EC fallback level exists beyond Maximum"
+                : "Failed - WMI/EC commands not supported on this model";
             _logging.Warn($"Failed to set GPU Power Boost to: {GpuPowerBoostLevel} - WMI and EC methods unavailable");
         }
 
@@ -3933,7 +3937,21 @@ namespace OmenCore.ViewModels
                 model.Contains("16-wd", StringComparison.OrdinalIgnoreCase))
             {
                 _logging.Info("Model matches OMEN laptop, proceeding with EC boost implementation");
-                
+
+                // Register 0xCE only has 4 values (Quiet/Default/Performance/Extreme), and
+                // "Extreme" is already what "Maximum" maps to below - there is no distinct
+                // value left to represent "Extended". Writing 0xCE=3 here and calling it
+                // "Extended via EC" would claim a boost this register cannot deliver: real
+                // field logs (GitHub #159, board 8A44) show this path firing after a failed
+                // WMI Extended attempt and reporting "success" while only re-writing (or
+                // no-oping on) the exact same register value Maximum already uses. Refuse
+                // instead of claiming a result this fallback can't produce.
+                if (string.Equals(GpuPowerBoostLevel, "Extended", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logging.Info("EC GPU boost fallback has no register value distinct from Maximum for 'Extended' - refusing rather than falsely claiming it applied");
+                    return false;
+                }
+
                 try
                 {
                     return _ecOperationCoordinator.Execute(
@@ -3952,7 +3970,6 @@ namespace OmenCore.ViewModels
                         "Minimum" => 0,      // Quiet - no boost
                         "Medium" => 2,       // Performance - some boost
                         "Maximum" => 3,      // Extreme - full PPAB +15W
-                        "Extended" => 3,     // Use Extreme for Extended too
                         _ => 2
                     };
 

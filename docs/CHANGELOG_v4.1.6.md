@@ -38,9 +38,19 @@ When a user has a saved GPU Power Boost preference (e.g., "Maximum"), `DetectGpu
 
 ---
 
-## Traced, Not Fixed: GPU Power Boost Wattage Mismatch (Victus `8A25` and OMEN `8A44`)
+## Fixed: EC GPU-Boost Fallback Claimed "Extended" Applied When It Cannot Be Distinct From Maximum
 
-Neither this release nor the prior one changes the actual GPU-boost apply path. Full trace, including confirmation via git history that the WMI payload bytes are stable and OmenMon-reference-aligned (not the cause), is in the roadmap. Holding for more field evidence — specifically, whether the already-implemented "Extended" boost tier (`ppab=2`, one step above "Maximum") reaches the wattage OMEN Gaming Hub does on these boards.
+The roadmap's open question about the "Extended" GPU Power Boost tier (`ppab=2`, one step above "Maximum") has real field evidence now: board `8A44` (GitHub #159 reporter, full session logs attached) tried Extended 8 times via WMI — every attempt was accepted by the BIOS but readback came back `PPAB=1`, never 2. Extended does not reach beyond Maximum on this board's firmware.
+
+The same logs caught a second, more actionable problem: when the WMI attempt fails, `SystemControlViewModel.TryApplyEcGpuBoost()` (the EC-register fallback for GPU boost) was reached next, and it reported success — `✓ GPU Power Boost set to: Extended via EC (experimental)` — even though nothing distinct happened. Reading the code confirms why: this fallback writes a single performance-mode register (`0xCE`) that only has 4 possible values (Quiet/Default/Performance/Extreme), and `"Extended"` was mapped to the exact same value (`3`, "Extreme") as `"Maximum"`. In the reporter's logs, the register was already at `3` from a prior Maximum attempt, so the "Extended" write was a pure no-op (`Performance mode already at 0x03`) — yet it still logged success as if a distinct, higher boost had been applied. This is the same EC-write call site flagged as a risk in the 4.1.5 roadmap notes ("Not Actioned This Release") but not previously confirmed to misfire on real hardware.
+
+**Fix:** `TryApplyEcGpuBoost()` now refuses `"Extended"` outright instead of silently reusing Maximum's register value and claiming a distinct result — it returns `false` before touching the register, with a log line explaining why. `ApplyGpuPowerBoost()`'s final failure status is now level-aware: selecting Extended on hardware where neither WMI nor EC can deliver it now shows *"Not available - this BIOS doesn't apply Extended via WMI, and no distinct EC fallback level exists beyond Maximum"* instead of the generic "Failed - WMI/EC commands not supported on this model" message, which read as if EC support were simply missing rather than structurally incapable of representing this level. No control-availability changed for Minimum/Medium/Maximum — only the previously-false "Extended via EC" claim was removed.
+
+**Not fixed / not covered by tests:** `TryApplyEcGpuBoost()`'s model gate is still a broad `model.Contains("OMEN")` substring match with no capability-database flag, same as before — untouched this release, still flagged for a dedicated pass. No test added: exercising this path requires `SystemInfoService.GetSystemInfo()` to report a live "OMEN..." model string, which hits real WMI with no mockable seam — consistent with how `DetectGpuPowerBoost()` was verified earlier this cycle (build-clean + code review only).
+
+## Traced, Not Fixed: GPU Power Boost Wattage Mismatch on WMI (Victus `8A25` and OMEN `8A44`)
+
+Neither this release nor the prior one changes the actual WMI GPU-boost apply path (`HpWmiBios.SetGpuPower`). Full trace, including confirmation via git history that the WMI payload bytes are stable and OmenMon-reference-aligned (not the cause), is in the roadmap. Holding for more field evidence on why Maximum's wattage falls short of OGH's on these boards — the Extended-tier question above is now answered (doesn't help), but the underlying Maximum-vs-OGH gap is unrelated and still open.
 
 ## Not Actioned This Release
 
