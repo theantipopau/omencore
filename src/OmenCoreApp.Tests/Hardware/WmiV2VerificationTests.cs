@@ -730,6 +730,31 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Theory]
+        [InlineData(HpWmiBios.GpuPowerLevel.Minimum)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Medium)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Maximum)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended3)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended4)]
+        public void BuildGpuPowerPayload_KeepsDStateAndGpsTemperatureBytesFixed(HpWmiBios.GpuPowerLevel level)
+        {
+            var payload = HpWmiBios.BuildGpuPowerPayload(level);
+
+            // dState: hardcoded to 1 to match HP, and not a knob - MAX-series firmware overwrites
+            // the ACPI field this sets from the EC's adapter verdict during the same call.
+            payload.dState.Should().Be(0x01);
+
+            // Byte 3 is a GPS temperature threshold in °C, not a spare - the output of HP's IRHandler
+            // loop. HP emits 87 only while the chassis IR sensor reads cool, and revises it down to
+            // 75 on overheat. This app has no such loop, so sending 87 would pin the firmware in the
+            // most permissive state permanently rather than reproduce HP's behaviour - and the 0x21
+            // readback cannot observe byte 3, so it could not be verified by outcome either.
+            //
+            // Held at 0 until someone measures. This assertion exists so that a future change is
+            // deliberate rather than discovered in a field report.
+            payload.peakTemperature.Should().Be(0x00);
+        }
+
+        [Theory]
         [InlineData(HpWmiBios.GpuPowerLevel.Minimum, false, 0, true)]
         [InlineData(HpWmiBios.GpuPowerLevel.Medium, true, 0, true)]
         [InlineData(HpWmiBios.GpuPowerLevel.Maximum, true, 1, true)]

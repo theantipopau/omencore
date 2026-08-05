@@ -29,6 +29,12 @@ namespace OmenCore.Hardware
         bool SetGpuPower(HpWmiBios.GpuPowerLevel level);
         HpWmiBios.GpuMode? GetGpuMode();
 
+        // GetAdapter() and SystemDesign are deliberately NOT on this interface. Every consumer holds
+        // the concrete HpWmiBios, so putting them here would add unused surface whose only effect is
+        // to make "silently return null" the default for any future implementer - and null is
+        // rendered as the affirmative claim "this board does not report an adapter". A wrong
+        // diagnostic statement is a worse failure than a compile error.
+
         void Dispose();
     }
 }

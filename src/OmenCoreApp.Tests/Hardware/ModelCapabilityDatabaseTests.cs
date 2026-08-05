@@ -97,7 +97,8 @@ namespace OmenCoreApp.Tests.Hardware
             caps.MaxModeDropChecksBeforeReapply.Should().Be(1,
                 "8D87 field chat reports fans become disobedient after a while, so MAX-series Max hold should reassert on first low telemetry sample");
             caps.HasPerKeyRgb.Should().BeTrue();
-            caps.UserVerified.Should().BeFalse();
+            caps.UserVerified.Should().BeFalse(
+                "power and thermal fields are owner-verified but the keyboard/RGB and fan-range fields are not, and the flag is all-or-nothing");
         }
 
         [Fact]

@@ -211,6 +211,38 @@ namespace OmenCore.Hardware
         };
         
         /// <summary>
+        /// Boards on HP's <c>Vibrance25C1</c> platform - the 2025 OMEN MAX family that shares one
+        /// firmware base and one EC layout with <c>8D87</c>, the board that layout was reverse
+        /// engineered on.
+        ///
+        /// This is a <b>scope list for raw EC offsets, not a capability claim.</b> Only 8D87 has been
+        /// measured; the others are listed because they share the firmware, so an offset derived from
+        /// 8D87 is plausible on them and definitely wrong off-platform. Anything that writes a raw EC
+        /// offset derived from this platform should refuse to run on a board outside this list.
+        ///
+        /// Note that it is deliberately not a set of database entries: HP's own software gates power
+        /// features on the runtime <c>Default 0x28</c> capability query rather than on board ID, and
+        /// inventing three unmeasured profiles here would assert fan, RGB and MUX behaviour nobody
+        /// has confirmed. Prefer <see cref="HpWmiBios.SystemDesignData"/> for capability; use this
+        /// list only to bound raw-offset access.
+        /// </summary>
+        public static readonly IReadOnlyList<string> Vibrance25C1BoardIds = new[]
+        {
+            "8D87", // OMEN MAX 16-ak0xxx AMD - the measured board
+            "8D88",
+            "8DD5",
+            "8DD6"
+        };
+
+        /// <summary>
+        /// True when the board is on the <c>Vibrance25C1</c> platform. See
+        /// <see cref="Vibrance25C1BoardIds"/> for what this does and does not license.
+        /// </summary>
+        public static bool IsVibrance25C1Board(string? productId) =>
+            !string.IsNullOrWhiteSpace(productId) &&
+            Vibrance25C1BoardIds.Contains(productId, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Default capabilities used when model is not in the database.
         /// Assumes standard OMEN laptop capabilities.
         /// </summary>
@@ -926,6 +958,25 @@ namespace OmenCore.Hardware
             });
 
             // OMEN MAX 16 (2025) - ak0xxx family (GitHub #117 / Product ID 8D87)
+            //
+            // Field-confirmed by the board's owner (BIOS F.07, EC 40.38) via ACPI decompilation plus
+            // live measurement. See docs/8D87-OMEN-MAX-16-SUPPORT-PLAN.md. Two things worth knowing
+            // before editing this entry:
+            //
+            //   * The firmware reports thermal policy V1 (Default 0x28 byte 3 = 0x01), but HpWmiBios
+            //     force-switches this board to V2 on a model-name substring match. That switch is
+            //     wrong here - the board refuses the V2 fan commands - and MaxFanLevel = 60 below is
+            //     what currently contains the damage, because it reaches DetectMaxFanLevel as the
+            //     model override and returns before the V2 branch. The diagnostics export prints
+            //     both the firmware-reported and effective values when they disagree.
+            //   * The EC here is memory-mapped, not at the legacy port offsets. The legacy EC map
+            //     does not apply: 0x9F on this board is battery remaining capacity in mAh, not a GPU
+            //     tachometer. The real fan tachometers are 0x70 (fan 1) and 0x5C (fan 2), both
+            //     16-bit raw rpm in the state window at 0xFE700600. 0x7E is NOT the second
+            //     tachometer - it is a commanded setpoint gated by the level byte at 0x5B, it reads
+            //     0 whenever nothing has been commanded, and it stays fixed while the fan it
+            //     supposedly measures changes speed. OmenCore has never inherited the legacy
+            //     mistake; the note is here so nobody introduces it.
             AddModel(new ModelCapabilities
             {
                 ProductId = "8D87",
@@ -935,22 +986,73 @@ namespace OmenCore.Hardware
                 Family = OmenModelFamily.OMEN2024Plus,
                 SupportsFanControlWmi = true,
                 SupportsFanControlEc = false, // MAX-series EC layout diverges from legacy mappings
+                // The EC mailbox power block at 0xF5-0xF8 (mailbox window, not the state window) was
+                // forced to its high-power values with no effect - it is a mirror the SMU never reads
+                // back. PowerLimitController's own 0xC0-0xC5 offsets are a different window and have
+                // not been tested here, so this stays false for both reasons.
+                SupportsEcPowerLimits = false,
                 SupportsFanCurves = true,
                 SupportsIndependentFanCurves = false,
-                SupportsRpmReadback = true,
+                SupportsRpmReadback = true, // measured: V1 0x2D tracks the EC tachometers at four points
                 FanZoneCount = 2,
-                MaxFanLevel = 100,
+                // Measured, not inherited: 60. This board reports thermal policy V1 and REJECTS the
+                // V2 fan commands outright - 0x37 returns RTCD 6 and 0x38 returns RTCD 4, at every
+                // input and output buffer size tried. Fan levels therefore arrive through the V1
+                // 0x2D fallback in krpm/100, not percent, so MaxFanLevel = 100 made
+                // MapFanPercentToWmiLevel an identity: a request for 50% wrote raw level 50, which
+                // is ~5000 rpm - near maximum, not half. Sampled against the EC tachometers and
+                // OGH's own readout at four points (0/0, 22/2220, 47/4680, 60/6000), linear within
+                // ~1%, ceiling 60. This value reaches DetectMaxFanLevel as the model override and
+                // returns before the V2 branch, so it is what actually takes effect.
+                // Same defect class as GetCapabilities_8C77_Wf1xxx_UsesExactV1WmiProfileNotV2Mismatch.
+                MaxFanLevel = 60,
                 MaxModeDropChecksBeforeReapply = 1,
                 SupportsPerformanceModes = true,
                 PerformanceModes = new[] { "Default", "Performance", "Cool", "L5P" },
+                // Measured across a reboot in each direction. BIOS setup offers Hybrid / Discrete /
+                // UMA; switching to Discrete moves Legacy 0x52 byte 0 from 0x00 to 0x01 and moves
+                // the INTERNAL PANEL to the dGPU - in Discrete the sole display is the built-in
+                // CMN1652 at its native 2560x1600 driven by the RTX 5080, with the Radeon reporting
+                // no active mode and nvidia-smi reporting display_active = Enabled. The panel does
+                // not merely stay lit, it changes which GPU lights it, which is what HasMuxSwitch
+                // claims. Fully reversible: the restored capture matches the baseline on every WMI
+                // and AMD_PBS_SETUP field.
                 HasMuxSwitch = true,
                 SupportsGpuPowerBoost = true,
-                SupportsAdvancedOptimus = true,
+                // Measured false, and it was inherited true. Advanced Optimus is the *dynamic* kind
+                // of switching - the display mux moves under live ACPI control with no reboot - and
+                // that whole block is switched off in firmware: AMD_PBS_SETUP 0xB6 Smart Mux Support
+                // = 0 (Disabled), 0xC7 Smart Mux Acpi Control = 0, 0xCA MDM Support Level = 0 (No
+                // Support), 0xC8 Display Panel Multiplexer = 0.
+                //
+                // The mode switch above is what makes this conclusive rather than merely suggestive:
+                // that block still read 0 in Discrete and again after returning to Hybrid. It stays
+                // off through a switch that demonstrably works, so the routing decision is taken at
+                // boot by firmware and there is no runtime control surface. A mux without Advanced
+                // Optimus is exactly this board.
+                SupportsAdvancedOptimus = false,
+                // Measured via the keyboard topology probe - class 0x00020008, command 0x2B, null
+                // input, 4-byte return - which returns 0x03 = NbKeyboardLightingType.RgbPerKey,
+                // stable across repeated reads. That is the probe HP itself gates on for this
+                // platform; the Keyboard command class (0x00020009) is NOT the gate here and
+                // returns an 0xFF sentinel for the type query.
                 HasKeyboardBacklight = true,
                 HasPerKeyRgb = true,
+                // False, and deliberately explicit rather than left to the property default of
+                // true. HP's own gate (FourZoneHelper.IsSupported) returns false for lighting type
+                // 3, so the four-zone command path does not drive a per-key keyboard. Without this
+                // line the entry claimed per-key AND four-zone simultaneously.
+                HasFourZoneRgb = false,
                 SupportsUndervolt = false, // AMD Ryzen AI path does not use Intel MSR undervolt
+                // Stays false until the whole profile is confirmed. Power, thermal policy, EC, the
+                // fan range, the keyboard topology and both MUX flags are now owner-verified on
+                // hardware - the MUX rows by an actual mode switch and reboot, not by inference.
+                // What is still inherited: SupportsFanCurves and SupportsIndependentFanCurves, and
+                // the named PerformanceModes including "L5P" - all three need writes to confirm, and
+                // read-only identification work does not license them. The flag is all-or-nothing,
+                // so it reports the weakest claim in the entry.
                 UserVerified = false,
-                Notes = "GitHub #117 — OMEN MAX Gaming Laptop 16-ak0xxx, Product ID 8D87. Model profile inferred from adjacent MAX ak/ah generation; verify keyboard/fan behavior on real hardware."
+                Notes = "OMEN MAX Gaming Laptop 16-ak0xxx (GitHub #117), Product ID 8D87 — Ryzen AI 9 HX 375 + RTX 5080, BIOS F.07 / EC 40.38. Power, thermal-policy, fan-range, keyboard-topology and MUX fields owner-verified on hardware; fan curves and performance modes are still inherited from the adjacent MAX generation. Firmware reports thermal policy V1 and rejects the V2 fan commands (0x37/0x38), so fan levels come from the V1 0x2D fallback in krpm/100 — hence MaxFanLevel 60, measured, not 100. Keyboard is per-key RGB (topology probe 0x2B returns 3), so the four-zone path does not apply. Display MUX confirmed by switching modes: BIOS offers Hybrid/Discrete/UMA, and in Discrete the internal panel is driven by the dGPU while Legacy 0x52 reads 0x01 — but it is routed at boot, not under live ACPI control, so Advanced Optimus is false. EC is memory-mapped, so legacy EC offsets do not apply; the EC mailbox power block was forced with no effect."
             });
             // -----------------------------------------------------------------------------------
             // OMEN 17 Series (17.3" laptops)

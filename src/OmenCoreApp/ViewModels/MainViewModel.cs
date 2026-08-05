@@ -547,6 +547,126 @@ namespace OmenCore.ViewModels
         /// </summary>
         public string? CapabilityWarning { get; private set; }
 
+        // ═══════════════════════════════════════════════════════════════════════════════════
+        // Power adapter (Legacy 0x0F) - read-only, refreshed when the Diagnostics tab opens
+        // ═══════════════════════════════════════════════════════════════════════════════════
+
+        private HpWmiBios.AdapterInfo? _adapterInfo;
+
+        /// <summary>
+        /// True when the board answered the adapter query at least once. Boards that don't implement
+        /// it keep the whole panel hidden rather than showing an empty or misleading one.
+        /// </summary>
+        public bool HasPowerAdapterInfo => _adapterInfo is HpWmiBios.AdapterInfo info && info.HasVerdict;
+
+        /// <summary>
+        /// One-line adapter summary, e.g. "330 W - meets this machine's requirement".
+        /// </summary>
+        public string PowerAdapterSummary
+        {
+            get
+            {
+                if (_adapterInfo is not HpWmiBios.AdapterInfo info)
+                    return "Not reported by this board";
+
+                // On battery there is no adapter to describe, and the wattage byte reads 0 - pairing
+                // that with "running on battery" would render as the nonsensical "0 W - running on
+                // battery".
+                if (info.Status == HpWmiBios.SmartAdapterStatus.BatteryPower)
+                    return "None — running on battery";
+
+                var watts = info.PowerRatingKnown
+                    ? $"{info.PowerRatingWatts} W"
+                    : "Wattage not reported";
+
+                var verdict = info.Status switch
+                {
+                    HpWmiBios.SmartAdapterStatus.MeetsRequirement => "meets this machine's requirement",
+                    HpWmiBios.SmartAdapterStatus.BelowRequirement => "below this machine's requirement",
+                    HpWmiBios.SmartAdapterStatus.BatteryPower => "running on battery",
+                    HpWmiBios.SmartAdapterStatus.NotFunctioning => "not functioning correctly",
+                    HpWmiBios.SmartAdapterStatus.ConnectedTypeC => "USB-C Power Delivery",
+                    HpWmiBios.SmartAdapterStatus.NotSupported => "adapter detection not supported",
+                    _ => info.Status.ToString()
+                };
+
+                return $"{watts} — {verdict}";
+            }
+        }
+
+        /// <summary>
+        /// The wattage this SKU shipped with, when the firmware reports it. Shown next to the
+        /// connected wattage so the user can see both halves of the comparison the firmware makes.
+        /// </summary>
+        public string PowerAdapterRequirement
+        {
+            get
+            {
+                var shipping = _wmiBios?.SystemDesign?.ShippingAdapterPowerRatingWatts ?? 0;
+                return shipping > 0 ? $"{shipping} W" : "Not reported";
+            }
+        }
+
+        /// <summary>
+        /// A plain explanation when the supply is under-rated, or null when there is nothing to say.
+        ///
+        /// This exists because the symptom is otherwise unattributable: on boards that clamp GPU power
+        /// on an under-rated supply, the user sees a GPU pinned far below its rating and nothing
+        /// anywhere in the app connects that to the adapter they plugged in.
+        /// </summary>
+        public string? PowerAdapterExplanation
+        {
+            get
+            {
+                if (_adapterInfo is not HpWmiBios.AdapterInfo info || !info.HasVerdict)
+                    return null;
+
+                if (info.Status == HpWmiBios.SmartAdapterStatus.BatteryPower)
+                {
+                    return "Running on battery. Expect reduced CPU and GPU power limits until an adapter is connected.";
+                }
+
+                if (!info.IsLowWattage)
+                    return null;
+
+                var shipping = _wmiBios?.SystemDesign?.ShippingAdapterPowerRatingWatts ?? 0;
+                var connected = info.PowerRatingKnown ? $"{info.PowerRatingWatts} W" : "an unrecognised";
+                var required = shipping > 0 ? $" This machine shipped with a {shipping} W adapter." : string.Empty;
+
+                return $"The firmware reports {connected} adapter as below this machine's requirement.{required} " +
+                       "Some HP firmware reduces CPU and GPU power limits in this state, which can look like a fault " +
+                       "in OmenCore or in the GPU driver but is the platform protecting an under-rated supply. " +
+                       "If performance is lower than expected, check the adapter before anything else.";
+            }
+        }
+
+        /// <summary>True when <see cref="PowerAdapterExplanation"/> has something to show.</summary>
+        public bool HasPowerAdapterExplanation => PowerAdapterExplanation != null;
+
+        /// <summary>
+        /// Re-read the adapter state. Read-only WMI query; called when the Diagnostics tab is opened
+        /// rather than polled, because the value only changes when someone physically plugs or
+        /// unplugs something and this costs a WMI round trip.
+        /// </summary>
+        public void RefreshPowerAdapterStatus()
+        {
+            try
+            {
+                _adapterInfo = _wmiBios?.GetAdapter();
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"Adapter status refresh failed: {ex.Message}");
+                _adapterInfo = null;
+            }
+
+            OnPropertyChanged(nameof(HasPowerAdapterInfo));
+            OnPropertyChanged(nameof(PowerAdapterSummary));
+            OnPropertyChanged(nameof(PowerAdapterRequirement));
+            OnPropertyChanged(nameof(PowerAdapterExplanation));
+            OnPropertyChanged(nameof(HasPowerAdapterExplanation));
+        }
+
         /// <summary>
         /// Monitoring diagnostics line indicating whether a model-specific CPU temperature override is active.
         /// </summary>
