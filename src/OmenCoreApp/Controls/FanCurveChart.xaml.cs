@@ -14,6 +14,16 @@ namespace OmenCore.Controls
     {
         private ObservableCollection<FanCurvePoint>? _points;
 
+        // DashboardViewModel.UpdateFanCurvePoints() adds/removes one point at a time on
+        // essentially every telemetry sample (>=1/sec), and RebuildHistoricalTelemetryBuffers()
+        // replays up to 50 samples one at a time on every Dashboard tab switch - each of those
+        // is a separate CollectionChanged event, and OnPointsChanged previously called
+        // UpdateChart() (a full ChartCanvas.Children.Clear() + rebuild) for every single one.
+        // Same throttle-and-coalesce pattern already used by LoadChart/GpuVcChart.
+        private DateTime _lastRender = DateTime.MinValue;
+        private const int RenderThrottleMs = 100;
+        private bool _renderPending;
+
         public FanCurveChart()
         {
             InitializeComponent();
@@ -42,6 +52,25 @@ namespace OmenCore.Controls
 
         private void OnPointsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            var now = DateTime.UtcNow;
+            var elapsed = (now - _lastRender).TotalMilliseconds;
+
+            if (elapsed < RenderThrottleMs)
+            {
+                if (!_renderPending)
+                {
+                    _renderPending = true;
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        _renderPending = false;
+                        _lastRender = DateTime.UtcNow;
+                        UpdateChart();
+                    }, System.Windows.Threading.DispatcherPriority.Background);
+                }
+                return;
+            }
+
+            _lastRender = now;
             UpdateChart();
         }
 

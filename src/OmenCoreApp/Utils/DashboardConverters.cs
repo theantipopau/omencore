@@ -57,19 +57,29 @@ namespace OmenCore.Utils
     /// </summary>
     public class FanSpeedConverter : IValueConverter
     {
+        // Bound to a dashboard summary string updated on every telemetry tick - static/compiled
+        // instances avoid re-resolving the pattern from Regex's internal static cache on every
+        // conversion, in a hot binding path.
+        private static readonly System.Text.RegularExpressions.Regex CpuRpmPattern = new(
+            @"CPU:\s*(\d+)\s*RPM",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+        private static readonly System.Text.RegularExpressions.Regex GpuRpmPattern = new(
+            @"GPU:\s*(\d+)\s*RPM",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is not string summary || string.IsNullOrEmpty(summary))
                 return "-- RPM";
-            
+
             // Extract CPU and GPU RPM values
             int cpuRpm = 0, gpuRpm = 0;
-            
-            var cpuMatch = System.Text.RegularExpressions.Regex.Match(summary, @"CPU:\s*(\d+)\s*RPM", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            var cpuMatch = CpuRpmPattern.Match(summary);
             if (cpuMatch.Success)
                 int.TryParse(cpuMatch.Groups[1].Value, out cpuRpm);
-            
-            var gpuMatch = System.Text.RegularExpressions.Regex.Match(summary, @"GPU:\s*(\d+)\s*RPM", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            var gpuMatch = GpuRpmPattern.Match(summary);
             if (gpuMatch.Success)
                 int.TryParse(gpuMatch.Groups[1].Value, out gpuRpm);
             

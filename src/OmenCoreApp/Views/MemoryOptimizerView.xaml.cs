@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Controls;
 
 namespace OmenCore.Views
@@ -7,6 +8,8 @@ namespace OmenCore.Views
     /// </summary>
     public partial class MemoryOptimizerView : UserControl
     {
+        private ViewModels.MemoryOptimizerViewModel? _subscribedVm;
+
         public MemoryOptimizerView()
         {
             InitializeComponent();
@@ -17,27 +20,37 @@ namespace OmenCore.Views
             SizeChanged += (_, _) => UpdateMemoryBar();
             IsVisibleChanged += (_, e) => NotifyPageActive((bool)e.NewValue);
 
-            if (DataContext is ViewModels.MemoryOptimizerViewModel vm)
+            AttachViewModel(DataContext);
+            DataContextChanged += (_, e) => AttachViewModel(e.NewValue);
+        }
+
+        // Unsubscribes the previous VM's handler before attaching the new one - the
+        // constructor's initial DataContext check and DataContextChanged used to subscribe
+        // independently with no unsubscribe, so a DataContext reassignment (or the initial
+        // subscription plus a later change) left the old VM's PropertyChanged handler live,
+        // each accumulating another UpdateMemoryBar() call per MemoryBarWidth change.
+        private void AttachViewModel(object? dataContext)
+        {
+            if (_subscribedVm != null)
             {
-                vm.PropertyChanged += (_, e) =>
-                {
-                    if (e.PropertyName == nameof(vm.MemoryBarWidth))
-                        UpdateMemoryBar();
-                };
+                _subscribedVm.PropertyChanged -= OnViewModelPropertyChanged;
             }
 
-            DataContextChanged += (_, _) =>
+            _subscribedVm = dataContext as ViewModels.MemoryOptimizerViewModel;
+
+            if (_subscribedVm != null)
             {
-                if (DataContext is ViewModels.MemoryOptimizerViewModel newVm)
-                {
-                    newVm.PropertyChanged += (_, e) =>
-                    {
-                        if (e.PropertyName == nameof(newVm.MemoryBarWidth))
-                            UpdateMemoryBar();
-                    };
-                    UpdateMemoryBar();
-                }
-            };
+                _subscribedVm.PropertyChanged += OnViewModelPropertyChanged;
+                UpdateMemoryBar();
+            }
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ViewModels.MemoryOptimizerViewModel.MemoryBarWidth))
+            {
+                UpdateMemoryBar();
+            }
         }
 
         private void NotifyPageActive(bool active)
