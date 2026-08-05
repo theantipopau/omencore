@@ -1842,6 +1842,21 @@ namespace OmenCore.Hardware
                 return true;
             }
 
+            // Decide this BEFORE reading. EcFanModeRegister is the legacy port-EC offset, and on
+            // boards whose profile disables direct EC fan control it does not hold the fan mode at
+            // all - on 8D87 (memory-mapped EC) it reads 0x02 where 0x30 is expected. The mismatch
+            // was already being ignored, but only after three reads, two 40 ms sleeps and a WARN
+            // pair per fan-mode change: a scary log line and an EC transaction, both for an answer
+            // that could not be used either way.
+            if (!_strictFanModeReadback)
+            {
+                _logging?.Debug(
+                    $"Fan mode readback skipped for {operation}; model profile does not allow direct " +
+                    $"EC fan-mode verification (EC[0x{EcFanModeRegister:X2}] is the legacy offset and " +
+                    "is not authoritative on this board)");
+                return true;
+            }
+
             byte expected = (byte)expectedMode;
             byte? lastRead = null;
 
@@ -1871,12 +1886,6 @@ namespace OmenCore.Hardware
 
             var actualText = lastRead.HasValue ? $"0x{lastRead.Value:X2}" : "n/a";
             _logging?.Warn($"Fan mode readback mismatch for {operation}: expected EC[0x{EcFanModeRegister:X2}]=0x{expected:X2}, got {actualText}");
-            if (!_strictFanModeReadback)
-            {
-                _logging?.Warn($"Fan mode readback mismatch ignored for {operation}; model profile does not allow direct EC fan-mode verification");
-                return true;
-            }
-
             return false;
         }
 

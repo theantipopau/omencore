@@ -835,6 +835,52 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void SetPerformanceMode_WhenReadbackNonStrict_DoesNotReadTheLegacyFanModeOffsetAtAll()
+        {
+            // The mismatch was already ignored, but only after three reads of EC 0x95 and two 40 ms
+            // sleeps, then a WARN pair - per fan-mode change. On a board where that offset does not
+            // hold the fan mode (8D87's EC is memory-mapped; 0x95 reads 0x02 where 0x30 is expected)
+            // the answer could not be used either way, so issuing the transaction was pure cost and
+            // the WARN was noise about a non-event.
+            var fake = new ModeCaptureFakeWmiBios();
+            var ec = new FanModeReadbackEcAccess(0x30);
+            var controller = new WmiFanController(
+                null,
+                null,
+                0,
+                injectedWmiBios: fake,
+                ecAccess: ec,
+                strictFanModeReadback: false);
+
+            controller.SetPerformanceMode("Performance").Should().BeTrue();
+
+            ec.ReadAddresses.Should().NotContain((ushort)0x95,
+                "a profile that cannot act on the readback should not spend an EC transaction taking it");
+        }
+
+        [Fact]
+        public void SetPerformanceMode_WhenReadbackStrict_StillReadsTheFanModeOffset()
+        {
+            // Guard on the other side: the skip must be scoped to non-strict profiles. Boards where
+            // the readback IS authoritative must keep taking it, or the confirmation above becomes
+            // unreachable and SetPerformanceMode would project unverified modes as applied.
+            var fake = new ModeCaptureFakeWmiBios();
+            var ec = new FanModeReadbackEcAccess(0x31);
+            var controller = new WmiFanController(
+                null,
+                null,
+                0,
+                injectedWmiBios: fake,
+                ecAccess: ec,
+                strictFanModeReadback: true);
+
+            controller.SetPerformanceMode("Performance").Should().BeTrue();
+
+            ec.ReadAddresses.Should().Contain((ushort)0x95,
+                "strict profiles depend on this readback to confirm the mode actually took");
+        }
+
+        [Fact]
         public void ApplyPreset_V1AutoHandoff_ClearsManualFloorAfterTransitionKick()
         {
             var fake = new V1AutoHandoffFakeWmiBios();
@@ -902,9 +948,18 @@ namespace OmenCoreApp.Tests.Hardware
                 _fanMode = fanMode;
             }
 
+            /// <summary>Addresses read through this stub, in order.</summary>
+            public System.Collections.Generic.List<ushort> ReadAddresses { get; } = new();
+
             public bool IsAvailable => true;
             public bool Initialize(string devicePath) => true;
-            public byte ReadByte(ushort address) => address == 0x95 ? _fanMode : (byte)0x00;
+
+            public byte ReadByte(ushort address)
+            {
+                ReadAddresses.Add(address);
+                return address == 0x95 ? _fanMode : (byte)0x00;
+            }
+
             public void WriteByte(ushort address, byte value) { }
             public void Dispose() { }
         }
