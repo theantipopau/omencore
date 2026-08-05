@@ -80,6 +80,124 @@ namespace OmenCoreApp.Tests.Services
                 "a matched firmware level should not be reported as a Poor/near-failed result solely because the generic expected RPM curve was too aggressive");
         }
 
+        [Fact]
+        public void VerifyAppliedState_Fails_WhenAPhysicalSourceReportsZeroRpm_AtALowTarget()
+        {
+            // Board 8D87, from the owner's log: 50% requested, level 28 echoed back by firmware,
+            // five consecutive RPM samples of 0 from a WmiBios source. The old code accepted level
+            // evidence unconditionally below 40% and reported "✓ verified ... score 5/100 Failed" -
+            // a pass and its own failing score on one line. A non-zero request answered by a flat
+            // zero from a physical source is a contradiction at ANY percentage.
+            var logging = new LoggingService();
+            logging.Initialize();
+            var service = new FanVerificationService(wmiBios: null, fanService: null, logging);
+
+            var result = new FanApplyResult
+            {
+                RequestedPercent = 30,
+                ExpectedRpm = 1800,
+                ActualRpmAfter = 0,
+                RpmSource = OmenCore.Models.RpmSource.WmiBios,
+                ExpectedLevel = 17,
+                ActualLevelAfter = 17,
+                LevelReadbackMatched = true,
+                WmiCallSucceeded = true
+            };
+
+            var method = typeof(FanVerificationService).GetMethod("VerifyAppliedState", BindingFlags.Instance | BindingFlags.NonPublic);
+            method.Should().NotBeNull();
+
+            var verified = (bool)method!.Invoke(service, new object[] { result })!;
+            verified.Should().BeFalse("a physical RPM source reading zero contradicts a non-zero fan request, whatever the level readback says");
+        }
+
+        [Fact]
+        public void VerifyAppliedState_StillPasses_WhenRpmIsMerelyEstimated_AndLevelMatches()
+        {
+            // The guard above must not break the legitimate case it sits next to: on a V1 board the
+            // GetFanLevel value is surfaced as an Estimated RPM, which is not independent evidence
+            // either way. Level-only confirmation stays acceptable there - only a *physical* source
+            // contradicting the request is treated as disqualifying.
+            var logging = new LoggingService();
+            logging.Initialize();
+            var service = new FanVerificationService(wmiBios: null, fanService: null, logging);
+
+            var result = new FanApplyResult
+            {
+                RequestedPercent = 30,
+                ExpectedRpm = 1800,
+                ActualRpmAfter = 0,
+                RpmSource = OmenCore.Models.RpmSource.Estimated,
+                ExpectedLevel = 17,
+                ActualLevelAfter = 17,
+                LevelReadbackMatched = true,
+                WmiCallSucceeded = true
+            };
+
+            var method = typeof(FanVerificationService).GetMethod("VerifyAppliedState", BindingFlags.Instance | BindingFlags.NonPublic);
+            method.Should().NotBeNull();
+
+            var verified = (bool)method!.Invoke(service, new object[] { result })!;
+            verified.Should().BeTrue("an estimated RPM is not a physical measurement, so it cannot contradict the level readback");
+        }
+
+        [Fact]
+        public void DescribeVerificationPass_DoesNotClaimTheFanMoved_OnLevelOnlyEvidence()
+        {
+            // The log line is the deliverable here: level-only evidence proves the firmware accepted
+            // the command, not that the fan turned. It must not read identically to a tachometer-
+            // corroborated pass, and it must not quote an RPM accuracy score it did not measure.
+            var result = new FanApplyResult
+            {
+                RequestedPercent = 30,
+                ExpectedRpm = 1800,
+                ActualRpmAfter = 0,
+                RpmSource = OmenCore.Models.RpmSource.Estimated,
+                ExpectedLevel = 17,
+                ActualLevelAfter = 17,
+                LevelReadbackMatched = true,
+                WmiCallSucceeded = true,
+                VerificationPassed = true,
+                VerificationEvidence = "Level"
+            };
+
+            var method = typeof(FanVerificationService).GetMethod("DescribeVerificationPass", BindingFlags.Static | BindingFlags.NonPublic);
+            method.Should().NotBeNull();
+
+            var text = (string)method!.Invoke(null, new object[] { 0, result })!;
+            text.Should().Contain("Fan motion NOT confirmed");
+            text.Should().NotContain("verified:", "that wording is reserved for a pass a tachometer corroborated");
+            text.Should().NotContain("/100", "the RPM accuracy score is meaningless on the level-only path");
+        }
+
+        [Fact]
+        public void DescribeVerificationPass_ReportsTheScore_WhenRpmCorroboratedThePass()
+        {
+            var result = new FanApplyResult
+            {
+                RequestedPercent = 60,
+                ExpectedRpm = 3600,
+                ActualRpmAfter = 3500,
+                RpmSource = OmenCore.Models.RpmSource.WmiBios,
+                ExpectedLevel = 33,
+                ActualLevelAfter = 33,
+                LevelReadbackMatched = true,
+                WmiCallSucceeded = true,
+                VerificationPassed = true,
+                VerificationEvidence = "RPM+Level",
+                RpmStandardDeviation = 20,
+                ActualRpmBefore = 1200
+            };
+
+            var method = typeof(FanVerificationService).GetMethod("DescribeVerificationPass", BindingFlags.Static | BindingFlags.NonPublic);
+            method.Should().NotBeNull();
+
+            var text = (string)method!.Invoke(null, new object[] { 0, result })!;
+            text.Should().Contain("verified:");
+            text.Should().Contain("/100");
+            text.Should().NotContain("NOT confirmed");
+        }
+
         [Theory]
         [InlineData(0, 0, true)]
         [InlineData(0, 2, true)]

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Management;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -484,9 +483,26 @@ namespace OmenCore.Controls
                     PowerEfficiencyRating.Foreground = GetEfficiencyBrush(efficiency);
                 }
 
-                // Thermal status - FIXED with null safety
-                if (BatteryCyclesValue != null) BatteryCyclesValue.Text = "0";
-                if (BatteryLifeEstimate != null) BatteryLifeEstimate.Text = "~3.0 years remaining";
+                // Battery wear. Both of these were constants: the cycle count was literally
+                // "0" and the caption was literally "~3.0 years remaining", neither derived
+                // from the machine. The cycle count is readable (root\wmi:BatteryCycleCount)
+                // and is shown; remaining-life in years is not derivable from anything we
+                // measure, so the caption now reports the capacities it actually has.
+                var batteryInfo = BatteryInfoProvider.Get(App.Logging);
+                if (BatteryCyclesValue != null)
+                {
+                    BatteryCyclesValue.Text = batteryInfo.CycleCount?.ToString() ?? "--";
+                }
+                if (BatteryLifeEstimate != null)
+                {
+                    BatteryLifeEstimate.Text =
+                        batteryInfo.FullChargedCapacityMilliwattHours is int full &&
+                        batteryInfo.DesignedCapacityMilliwattHours is int design
+                            ? $"{full:N0} of {design:N0} mWh"
+                            : batteryInfo.CycleCount == null
+                                ? "Not reported by this battery"
+                                : "Capacity unavailable";
+                }
 
                 if (ThermalStatusValue != null)
                 {
@@ -572,62 +588,28 @@ namespace OmenCore.Controls
         /// Uses WMI BatteryStaticData for DesignCapacity and BatteryFullChargedCapacity for current capacity.
         /// Caches result for 5 minutes to avoid excessive WMI queries.
         /// </summary>
+        /// <summary>
+        /// Battery capacity health, or <see cref="double.NaN"/> when the pack does not report
+        /// both capacities. Delegates to <see cref="BatteryInfoProvider"/> so the dashboard and
+        /// the monitoring service read the same numbers from the same place - they used to run
+        /// separate copies of these WMI queries, which is how the cycle count came to be
+        /// hardcoded in one of them.
+        /// </summary>
         private async Task<double> GetBatteryHealthPercentAsync()
         {
-            // Return cached value if recent (battery health doesn't change often)
             if (_lastBatteryHealthCheck > DateTime.MinValue && (DateTime.Now - _lastBatteryHealthCheck).TotalMinutes < 5)
             {
                 return _cachedBatteryHealth;
             }
 
+            // Off the UI thread: BatteryInfoProvider is synchronous WMI, and a cold call has
+            // to wait on the battery class driver.
             return await Task.Run(() =>
             {
-                try
-                {
-                    uint designCapacity = 0;
-                    uint fullChargeCapacity = 0;
-
-                    // Get DesignCapacity from BatteryStaticData (requires admin/elevated access on some systems)
-                    using (var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT DesignedCapacity FROM BatteryStaticData"))
-                    {
-                        foreach (var obj in searcher.Get())
-                        {
-                            designCapacity = Convert.ToUInt32(obj["DesignedCapacity"]);
-                            break;
-                        }
-                    }
-
-                    // Get FullChargeCapacity from BatteryFullChargedCapacity
-                    using (var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT FullChargedCapacity FROM BatteryFullChargedCapacity"))
-                    {
-                        foreach (var obj in searcher.Get())
-                        {
-                            fullChargeCapacity = Convert.ToUInt32(obj["FullChargedCapacity"]);
-                            break;
-                        }
-                    }
-
-                    if (designCapacity > 0 && fullChargeCapacity > 0)
-                    {
-                        _cachedBatteryHealth = (fullChargeCapacity * 100.0) / designCapacity;
-                        _cachedBatteryHealth = Math.Min(100.0, Math.Max(0.0, _cachedBatteryHealth)); // Clamp to 0-100
-                        _lastBatteryHealthCheck = DateTime.Now;
-                        App.Logging.Debug($"[Dashboard] Battery health: {_cachedBatteryHealth:F1}% (FullCharge={fullChargeCapacity} mWh, Design={designCapacity} mWh)");
-                        return _cachedBatteryHealth;
-                    }
-
-                    App.Logging.Debug("[Dashboard] Battery capacity WMI data unavailable; capacity health will be shown as unavailable");
-                    _cachedBatteryHealth = double.NaN;
-                    _lastBatteryHealthCheck = DateTime.Now;
-                    return _cachedBatteryHealth;
-                }
-                catch (Exception ex)
-                {
-                    App.Logging.Debug($"[Dashboard] Failed to get battery health: {ex.Message}");
-                    _cachedBatteryHealth = double.NaN;
-                    _lastBatteryHealthCheck = DateTime.Now;
-                    return _cachedBatteryHealth;
-                }
+                var info = BatteryInfoProvider.Get(App.Logging);
+                _cachedBatteryHealth = info.HealthPercent ?? double.NaN;
+                _lastBatteryHealthCheck = DateTime.Now;
+                return _cachedBatteryHealth;
             });
         }
 

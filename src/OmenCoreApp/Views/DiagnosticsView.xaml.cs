@@ -11,6 +11,24 @@ namespace OmenCore.Views
         public DiagnosticsView()
         {
             InitializeComponent();
+            Loaded += OnLoaded;
+        }
+
+        /// <summary>
+        /// Refresh the adapter panel when the tab is shown. Read-only WMI query, and doing it here
+        /// rather than on a timer means the cost is paid only when someone is looking at it - while
+        /// still being current, since the value changes only on a physical plug/unplug.
+        /// </summary>
+        private void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
+        {
+            // Dispatched at Background priority rather than run inline: GetAdapter() is a WMI round
+            // trip, and on a board that does not implement the command it falls through to the legacy
+            // System.Management path, which has no timeout at all. Inline, that turns clicking this
+            // tab into a multi-second freeze on a machine with a degraded WMI repository. Let the tab
+            // paint first.
+            Dispatcher.InvokeAsync(
+                () => (DataContext as ViewModels.MainViewModel)?.RefreshPowerAdapterStatus(),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void OpenDiagnosticsFolder_Click(object sender, System.Windows.RoutedEventArgs e)

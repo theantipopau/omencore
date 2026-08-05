@@ -60,7 +60,7 @@ namespace OmenCore.ViewModels
         public bool IsDiagnosticActive
         {
             get => _isDiagnosticActive;
-            private set { _isDiagnosticActive = value; OnPropertyChanged(); }
+            private set { _isDiagnosticActive = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
 
         public bool IsVerificationAvailable => _verifier?.IsAvailable ?? false;
@@ -76,6 +76,18 @@ namespace OmenCore.ViewModels
 
             RefreshStateCommand = new RelayCommand(_ => _ = UpdateCurrentStateAsync());
             ApplyAndVerifyCommand = new AsyncRelayCommand(_ => ApplyAndVerifyAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive);
+
+            // Constructed once and kept. These were previously expression-bodied properties that
+            // returned a new command on every get: the button bound to whatever instance existed
+            // when the binding first evaluated - at load, with no results yet - and since nothing
+            // held that instance, its CanExecute could never be re-run. Copy Results was disabled
+            // for the life of the window.
+            RunGuidedDiagnosticCommand = new AsyncRelayCommand(
+                _ => RunGuidedDiagnosticAsync(),
+                _ => IsVerificationAvailable && !IsDiagnosticActive && !IsGuidedTestRunning);
+            CopyGuidedResultCommand = new RelayCommand(
+                _ => CopyGuidedResult(),
+                _ => !string.IsNullOrEmpty(GuidedTestResult) && !IsGuidedTestRunning);
 
             // Default to CPU fan
             SelectedFanIndex = 0;
@@ -191,7 +203,7 @@ namespace OmenCore.ViewModels
         public bool IsGuidedTestRunning
         {
             get => _isGuidedTestRunning;
-            private set { _isGuidedTestRunning = value; OnPropertyChanged(); }
+            private set { _isGuidedTestRunning = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
         
         /// <summary>
@@ -209,7 +221,7 @@ namespace OmenCore.ViewModels
         public string GuidedTestResult
         {
             get => _guidedTestResult;
-            private set { _guidedTestResult = value; OnPropertyChanged(); }
+            private set { _guidedTestResult = value; OnPropertyChanged(); RaiseTestCommandStates(); }
         }
         
         /// <summary>
@@ -221,13 +233,27 @@ namespace OmenCore.ViewModels
             private set { _guidedTestProgress = value; OnPropertyChanged(); }
         }
         
-        public ICommand RunGuidedDiagnosticCommand => new AsyncRelayCommand(_ => RunGuidedDiagnosticAsync(), _ => IsVerificationAvailable && !IsDiagnosticActive && !IsGuidedTestRunning);
-
+        public ICommand RunGuidedDiagnosticCommand { get; }
 
         /// <summary>
         /// Copy the guided diagnostic result summary to the clipboard.
         /// </summary>
-        public ICommand CopyGuidedResultCommand => new RelayCommand(_ => CopyGuidedResult(), _ => !string.IsNullOrEmpty(GuidedTestResult) && !IsGuidedTestRunning);
+        public ICommand CopyGuidedResultCommand { get; }
+
+        /// <summary>
+        /// Re-evaluate every command whose CanExecute depends on test state.
+        ///
+        /// This has to be explicit. RelayCommand raises CanExecuteChanged only when asked - it
+        /// does not chain off CommandManager.RequerySuggested - so a command that is not held in
+        /// a field and poked here can never change its enabled state after the binding first
+        /// evaluates it.
+        /// </summary>
+        private void RaiseTestCommandStates()
+        {
+            (RunGuidedDiagnosticCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (CopyGuidedResultCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ApplyAndVerifyCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        }
 
         private void CopyGuidedResult()
         {
@@ -258,6 +284,7 @@ namespace OmenCore.ViewModels
             var testLevels = new[] { 30, 60, 100 };
             var fanNames = new[] { "CPU", "GPU" };
             var results = new System.Collections.Generic.List<(string fan, int target, bool passed, string rpm, double deviation, int score, string rating, string evidence)>();
+            var sourcesSeen = new System.Collections.Generic.List<RpmSource>();
             
             // v2.7.1: Save current preset before diagnostic
             _preTestPreset = _fanService.ActivePreset;
@@ -286,6 +313,7 @@ namespace OmenCore.ViewModels
                             var passed = result.VerificationPassed;
                             var evidence = string.IsNullOrWhiteSpace(result.VerificationEvidence) ? "None" : result.VerificationEvidence;
                             results.Add((fanName, targetPercent, passed, result.RpmDisplay, result.DeviationPercent, result.VerificationScore, result.ScoreRating, evidence));
+                            sourcesSeen.Add(result.RpmSource);
                             
                             // Add to history
                             History.Insert(0, result);
@@ -321,7 +349,14 @@ namespace OmenCore.ViewModels
                 
                 var summary = new System.Text.StringBuilder();
                 summary.AppendLine($"=== DIAGNOSTIC COMPLETE: {(overallPassed ? "✅ PASS" : "❌ FAIL")} ===");
-                summary.AppendLine($"Backend: {_fanService.Backend} | RPM source: {RpmSourceDisplay}");
+                // Report the sources this run actually read from, not RpmSourceDisplay - that is
+                // the "current state" panel's property, refreshed on its own schedule, and it read
+                // "?" on a run whose every result was EcDirect. A header that disagrees with the
+                // lines beneath it is worse than no header.
+                var sourceLabel = sourcesSeen.Count == 0
+                    ? "none"
+                    : string.Join(" + ", sourcesSeen.Distinct().OrderBy(s => s.ToString()));
+                summary.AppendLine($"Backend: {_fanService.Backend} | RPM source: {sourceLabel}");
                 summary.AppendLine($"Tests: {passCount}/{totalTests} passed | Overall Score: {avgScore}/100 ({overallRating})");
                 summary.AppendLine();
                 
