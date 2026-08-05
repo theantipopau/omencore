@@ -423,7 +423,12 @@ namespace OmenCore.Hardware
                     ecAccess: _ecAccess,
                     strictFanModeReadback: !conservativeWmiProfile,
                     allowV1AutoModeFloorClear: allowV1AutoModeFloorClear,
-                    maxModeDropChecksBeforeReapply: _capabilities?.ModelConfig?.MaxModeDropChecksBeforeReapply);
+                    maxModeDropChecksBeforeReapply: _capabilities?.ModelConfig?.MaxModeDropChecksBeforeReapply,
+                    // Not gated on conservativeWmiProfile: that gate is about EC *writes*, and
+                    // these offsets are read-only. A board with EC fan control disabled can
+                    // still have a perfectly readable tachometer, and on the boards where
+                    // GetFanRpmDirect is refused it is the only physical RPM source there is.
+                    ecFanTachometerOffsets: _capabilities?.ModelConfig?.EcFanTachometerOffsets);
                 if (controller.IsAvailable)
                 {
                     if (conservativeWmiProfile)

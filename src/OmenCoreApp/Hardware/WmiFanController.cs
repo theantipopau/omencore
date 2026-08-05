@@ -24,6 +24,22 @@ namespace OmenCore.Hardware
     {
         private readonly IHpWmiBios _wmiBios;
         private readonly IEcAccess? _ecAccess;
+
+        /// <summary>
+        /// Per-fan EC offsets of 16-bit little-endian raw RPM tachometers, or null when this
+        /// model has none. See <see cref="ModelCapabilities.EcFanTachometerOffsets"/>; this is
+        /// a read-only capability and is not tied to EC fan control.
+        /// </summary>
+        private readonly ushort[]? _ecFanTachometerOffsets;
+
+        /// <summary>
+        /// Above this, a tachometer pair is not a fan speed - it is a mis-aimed offset reading
+        /// whatever else lives in EC RAM. Matches the existing WMI RPM sanity ceiling.
+        /// </summary>
+        private const int MaxPlausibleFanRpm = 8000;
+
+        /// <summary>Set once the EC tachometer read has failed, to stop retrying every tick.</summary>
+        private bool _ecTachometerUnavailable;
         private readonly LibreHardwareMonitorImpl? _hwMonitor;
         private readonly LoggingService? _logging;
         private readonly bool _strictFanModeReadback;
@@ -185,12 +201,14 @@ namespace OmenCore.Hardware
             IEcAccess? ecAccess = null,
             bool strictFanModeReadback = true,
             bool allowV1AutoModeFloorClear = true,
-            int? maxModeDropChecksBeforeReapply = null)
+            int? maxModeDropChecksBeforeReapply = null,
+            ushort[]? ecFanTachometerOffsets = null)
         {
             _hwMonitor = hwMonitor;
             _logging = logging;
             _wmiBios = injectedWmiBios ?? new HpWmiBios(logging);
             _ecAccess = ecAccess;
+            _ecFanTachometerOffsets = ecFanTachometerOffsets;
             _strictFanModeReadback = strictFanModeReadback;
             _allowV1AutoModeFloorClear = allowV1AutoModeFloorClear;
             _maxModeDropChecksBeforeReapply = Math.Clamp(
@@ -1335,6 +1353,24 @@ namespace OmenCore.Hardware
                     }
                 }
                 
+                // Try the EC tachometers before falling back to the fan level. Order matters:
+                // the level fallback below is the *commanded* value echoed back, so preferring
+                // it over a physical tachometer would replace a measurement with an estimate.
+                if (!gotValidData)
+                {
+                    var ecRpm = TryReadEcTachometers();
+                    if (ecRpm.HasValue)
+                    {
+                        fan1Rpm = ecRpm.Value.fan1Rpm;
+                        fan2Rpm = ecRpm.Value.fan2Rpm;
+                        fan1Percent = Math.Clamp((fan1Rpm * 100) / 5500, 0, 100);
+                        fan2Percent = Math.Clamp((fan2Rpm * 100) / 5500, 0, 100);
+                        gotValidData = true;
+                        rpmSource = RpmSource.EcDirect;
+                        _logging?.Debug($"[FanRPM] EC tachometers: CPU={fan1Rpm} ({fan1Percent}%), GPU={fan2Rpm} ({fan2Percent}%)");
+                    }
+                }
+
                 // Try fan level if direct RPM unavailable
                 if (!gotValidData)
                 {
@@ -1832,6 +1868,73 @@ namespace OmenCore.Hardware
 
             _lastCountdownExtendUtc = nowUtc;
             _wmiBios.ExtendFanCountdown();
+        }
+
+        /// <summary>
+        /// Read the fan tachometers straight out of EC RAM, for models whose profile supplies
+        /// their offsets. Returns null when this model has none, when EC access is unavailable,
+        /// or when the values read back are not plausible fan speeds.
+        ///
+        /// A zero from here is reported as a zero. That is the point: on a board where the only
+        /// other RPM source is the commanded level echoed back, "0 RPM" and "no reading" were
+        /// indistinguishable, and a fan-speed change could be declared verified against a
+        /// reading that came from the request itself.
+        ///
+        /// No transition debounce is applied, unlike the WMI paths below. Those filter readings
+        /// taken while the BIOS is still reporting a stale *target*; a tachometer has no target
+        /// to be stale about, and suppressing its output during spin-up or spin-down would
+        /// discard exactly the measurements that show the fan responding.
+        /// </summary>
+        private (int fan1Rpm, int fan2Rpm)? TryReadEcTachometers()
+        {
+            if (_ecFanTachometerOffsets is not { Length: >= 2 } offsets ||
+                _ecAccess?.IsAvailable != true ||
+                _ecTachometerUnavailable)
+            {
+                return null;
+            }
+
+            try
+            {
+                var fan1Rpm = ReadEcTachometer(offsets[0]);
+                var fan2Rpm = ReadEcTachometer(offsets[1]);
+
+                // A mis-aimed offset usually reads as something far too large rather than as an
+                // error - on this board's neighbours the legacy offsets land in an ASCII serial
+                // number and decode to a believable-looking four-digit RPM. Refuse the pair
+                // rather than publish a number no fan could produce.
+                if (fan1Rpm > MaxPlausibleFanRpm || fan2Rpm > MaxPlausibleFanRpm)
+                {
+                    _logging?.Warn($"[FanRPM] EC tachometers at 0x{offsets[0]:X2}/0x{offsets[1]:X2} " +
+                                   $"read {fan1Rpm}/{fan2Rpm} RPM, beyond {MaxPlausibleFanRpm} - " +
+                                   "treating the offsets as wrong for this board and falling back");
+                    _ecTachometerUnavailable = true;
+                    return null;
+                }
+
+                return (fan1Rpm, fan2Rpm);
+            }
+            catch (Exception ex)
+            {
+                // PawnIOEcAccess throws rather than returning 0 on a failed transaction, which
+                // is what makes a returned 0 above trustworthy. Stop asking after the first
+                // failure; an EC that will not answer this tick will not answer the next either,
+                // and retrying every tick is how EC contention gets amplified.
+                _logging?.Warn($"[FanRPM] EC tachometer read failed ({ex.GetType().Name}: {ex.Message}); " +
+                               "falling back to WMI fan level for RPM");
+                _ecTachometerUnavailable = true;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// One 16-bit little-endian raw RPM value at <paramref name="offset"/> / offset + 1.
+        /// </summary>
+        private int ReadEcTachometer(ushort offset)
+        {
+            int low = _ecAccess!.ReadByte(offset);
+            int high = _ecAccess.ReadByte((ushort)(offset + 1));
+            return low | (high << 8);
         }
 
         private bool ConfirmFanModeReadback(HpWmiBios.FanMode expectedMode, string operation)

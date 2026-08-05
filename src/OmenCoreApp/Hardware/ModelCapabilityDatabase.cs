@@ -58,6 +58,29 @@ namespace OmenCore.Hardware
         
         /// <summary>Whether RPM readback is available.</summary>
         public bool SupportsRpmReadback { get; set; } = true;
+
+        /// <summary>
+        /// EC RAM offsets of the fan tachometers, one per fan, each a 16-bit little-endian raw
+        /// RPM value at <c>offset</c> / <c>offset + 1</c>. Null (the default) means no EC
+        /// tachometer is known for this model and RPM comes from WMI, as before.
+        ///
+        /// Deliberately independent of <see cref="SupportsFanControlEc"/>. That flag gates EC
+        /// *writes*; this is a read, and the two have different risk profiles and different
+        /// evidence behind them - board 8D87 has EC fan control disabled and still has perfectly
+        /// readable tachometers. Nothing here may be used to derive a write address.
+        ///
+        /// Why this exists: on boards where the V2 command GetFanRpmDirect (0x38) is refused,
+        /// the only remaining RPM source is GetFanLevel x 100, which is the *commanded* level
+        /// echoed back. Under BIOS-automatic fan control nothing has been commanded, so that
+        /// reads 0 while the fans are physically turning - measured on 8D87 as 0 RPM reported
+        /// against 2760 RPM actual. An estimate derived from a command can never verify that a
+        /// command took effect; a tachometer can.
+        ///
+        /// Populate this only from a measured capture on the model in question. The legacy
+        /// single-byte offsets (0x34/0x35, krpm units) are NOT a safe default: on 8D87 they land
+        /// in the middle of the ASCII serial number and decode as a plausible-looking 6500 RPM.
+        /// </summary>
+        public ushort[]? EcFanTachometerOffsets { get; set; }
         
         /// <summary>Number of fan zones (typically 2: CPU + GPU).</summary>
         public int FanZoneCount { get; set; } = 2;
@@ -994,6 +1017,13 @@ namespace OmenCore.Hardware
                 SupportsFanCurves = true,
                 SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = true, // measured: V1 0x2D tracks the EC tachometers at four points
+                // Fan 1 at 0x70, fan 2 at 0x5C, both 16-bit little-endian raw RPM. Read through
+                // the ACPI EC port pair, which aliases the MMIO state window: measured 2026-08-05
+                // over PawnIO's LpcACPIEC - the same module PawnIOEcAccess loads - at 99.2%
+                // agreement on stable bytes with 7 of 7 entropy-carrying anchors matching, 0x70
+                // reading 2760 through both views simultaneously. Reads only; this board keeps
+                // SupportsFanControlEc = false and nothing here implies a write address.
+                EcFanTachometerOffsets = new ushort[] { 0x70, 0x5C },
                 FanZoneCount = 2,
                 // Measured, not inherited: 60. This board reports thermal policy V1 and REJECTS the
                 // V2 fan commands outright - 0x37 returns RTCD 6 and 0x38 returns RTCD 4, at every
