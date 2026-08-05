@@ -857,12 +857,34 @@ namespace OmenCore.Hardware
                     {
                         // Check model name for OMEN Max which may report V1 but need V2
                         var modelName = GetModelName();
-                        if (!string.IsNullOrEmpty(modelName) && 
+                        if (!string.IsNullOrEmpty(modelName) &&
                             modelName.Contains("MAX", StringComparison.OrdinalIgnoreCase) &&
                             modelName.Contains("OMEN", StringComparison.OrdinalIgnoreCase))
                         {
-                            _logging?.Info($"  ⚠️ OMEN Max detected by name but reports V1 - forcing V2 for fan commands");
-                            ThermalPolicy = ThermalPolicyVersion.V2;
+                            // Ask the firmware instead of asserting from the model name. Some OMEN Max
+                            // models do report V1 and answer the V2 fan commands - that is what this
+                            // branch exists for - but others report V1 and mean it. Board 8D87 (OMEN
+                            // MAX 16, 2025 AMD) is the second kind: it refuses 0x37 with BIOS return
+                            // code 6 and 0x38 with 4, at every input and output buffer size tried.
+                            //
+                            // This matters beyond which command to send, because DetectMaxFanLevel
+                            // reads ThermalPolicy to decide what UNIT fan levels are in - V2 means
+                            // percent and MaxFanLevel 100, V1 means krpm/100 and MaxFanLevel 55.
+                            // Force-switching a board whose levels are krpm/100 into the percentage
+                            // range makes WmiFanController.MapFanPercentToWmiLevel an identity, so a
+                            // request for 50% writes raw level 50 - roughly 5000 rpm, near maximum
+                            // rather than half. That is the same V1/V2 unit mismatch recorded in
+                            // ModelCapabilityDatabaseTests.GetCapabilities_8C77_Wf1xxx_UsesExactV1WmiProfileNotV2Mismatch,
+                            // which reached the reporter's device as a crash.
+                            if (ProbeV2FanCommands())
+                            {
+                                _logging?.Info("  ✓ OMEN Max reports V1 but answers the V2 fan commands - using V2");
+                                ThermalPolicy = ThermalPolicyVersion.V2;
+                            }
+                            else
+                            {
+                                _logging?.Info($"  OMEN Max detected by name, but the V2 fan commands were refused - keeping firmware-reported {ThermalPolicy}");
+                            }
                         }
                     }
 
@@ -889,6 +911,42 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to query system data: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Ask the firmware whether it implements the V2 (OMEN Max 2025+) fan commands, instead of
+        /// inferring it from the model name.
+        ///
+        /// The two directions are not equally trustworthy, so they are not treated the same way:
+        ///
+        /// <b>Refusal is authoritative.</b> A refused command comes back with a non-zero BIOS return
+        /// code - 6 for 0x37 and 4 for 0x38 on board 8D87 - and <see cref="SendBiosCommand"/> returns
+        /// null for it. The ACPI timeout path cannot produce those codes; it returns zero (see the
+        /// remark on <see cref="SendBiosCommand"/>), so a null here really is the firmware saying no.
+        ///
+        /// <b>Acceptance is weak</b> for exactly that reason: a timeout looks like success. So both
+        /// V2 commands must be accepted before overriding the policy version the firmware itself
+        /// reported. Getting this wrong in the permissive direction changes the unit fan levels are
+        /// interpreted in, which is a user-visible fan-speed error, so the conservative default is to
+        /// believe the firmware's own byte.
+        ///
+        /// Deliberately does not require a non-zero reading: a stopped fan legitimately reads zero,
+        /// and the question here is whether the command exists, not what it currently says.
+        /// </summary>
+        private bool ProbeV2FanCommands()
+        {
+            try
+            {
+                if (SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_LEVEL_V2, new byte[4], 128) == null)
+                    return false;
+
+                return SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_RPM, new byte[4], 128) != null;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Debug($"V2 fan command probe failed, assuming not supported: {ex.Message}");
                 return false;
             }
         }
@@ -1365,8 +1423,29 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Decode the <c>Legacy 0x52</c> reply into a <see cref="GpuMode"/>, or null when the board
+        /// did not report one this method understands.
+        ///
+        /// The validation is the point. <see cref="GpuMode"/> declares 0x00-0x02, and casting an
+        /// out-of-range byte straight to the enum produces an undeclared value that compares equal to
+        /// none of Hybrid/Discrete/Optimus while printing as a bare number in logs - so a caller sees
+        /// neither a valid mode nor a failure. Same defect shape as the SmartAdapterStatus decode,
+        /// where a 0xFF wire byte rendered as the literal "255" instead of Error.
+        /// </summary>
+        public static GpuMode? DecodeGpuMode(byte[]? result)
+        {
+            if (result == null || result.Length < 1) return null;
+            if (!Enum.IsDefined(typeof(GpuMode), result[0])) return null;
+            return (GpuMode)result[0];
+        }
+
+        /// <summary>
         /// Get GPU mode (Hybrid/Discrete/Optimus).
         /// OmenMon: Cmd.Legacy, 0x52 (returns BIOS error 4 on unsupported)
+        ///
+        /// A zero reply decodes to <see cref="GpuMode.Hybrid"/>, which on this transport is also what
+        /// an ACPI timeout looks like - see the remark on <see cref="SendBiosCommand"/>. Treat a
+        /// Hybrid reading as weak evidence unless something else corroborates it.
         /// </summary>
         public GpuMode? GetGpuMode()
         {
@@ -1376,10 +1455,12 @@ namespace OmenCore.Hardware
             {
                 // Use Legacy command for GPU mode get (OmenMon)
                 var result = SendBiosCommand(BiosCmd.Legacy, CMD_GPU_GET_MODE, null, 4);
-                if (result != null && result.Length >= 1)
+                var mode = DecodeGpuMode(result);
+                if (mode == null && result != null && result.Length >= 1)
                 {
-                    return (GpuMode)result[0];
+                    _logging?.Warn($"GPU mode byte 0x{result[0]:X2} is outside the declared GpuMode range - ignoring");
                 }
+                return mode;
             }
             catch (Exception ex)
             {
@@ -1460,19 +1541,49 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
+        /// Decode the <c>Keyboard 0x01</c> reply into a <see cref="KbdType"/>, or null when the byte
+        /// is not one this method declares.
+        ///
+        /// Board 8D87 returns 0xFF here. Cast straight to the enum that becomes <c>(KbdType)255</c> -
+        /// outside the declared 0x00-0x03 range, logged as a bare "255", and indistinguishable to
+        /// callers from a real keyboard type. Null says what is actually true: the board did not
+        /// answer this question.
+        /// </summary>
+        public static KbdType? DecodeKeyboardType(byte[]? result)
+        {
+            if (result == null || result.Length < 1) return null;
+            if (!Enum.IsDefined(typeof(KbdType), result[0])) return null;
+            return (KbdType)result[0];
+        }
+
+        /// <summary>
         /// Get keyboard type.
         /// OmenMon: Cmd.Keyboard, 0x01
+        ///
+        /// Not every board answers this. Board 8D87 (OMEN MAX 16, 2025 AMD) returns 0xFF here, which
+        /// is not a KbdType at all, so this returns null on it. The keyboard topology probe HP's own
+        /// software gates on for that platform is a different command - Default 0x2B, null input,
+        /// 4-byte reply, whose byte 0 is NbKeyboardLightingType (3 = per-key RGB) - and it answers
+        /// correctly where Keyboard 0x01 does not. Adding it needs confirmation on more than one
+        /// board, so it is noted rather than done here; ModelCapabilities.HasPerKeyRgb carries the
+        /// answer for 8D87 in the meantime.
         /// </summary>
         public KbdType? GetKeyboardType()
         {
             if (!_isAvailable) return null;
-            
+
             try
             {
                 var result = SendBiosCommand(BiosCmd.Keyboard, CMD_KBD_TYPE_GET, new byte[4], 4);
                 if (result != null && result.Length > 0)
                 {
-                    var kbdType = (KbdType)result[0];
+                    var kbdType = DecodeKeyboardType(result);
+                    if (kbdType == null)
+                    {
+                        _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - reporting unknown");
+                        return null;
+                    }
+
                     _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
                     return kbdType;
                 }
@@ -1934,6 +2045,35 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Send a command to the BIOS via CIM/WMI using OmenMon's exact implementation.
+        ///
+        /// <b>A zero return code is not proof that the EC answered.</b> These WMI methods are ACPI
+        /// handlers that post the request into an EC mailbox and then poll a doorbell for about
+        /// 100 ms. On timeout they return the result package with the return code still zero and the
+        /// output buffer untouched, because the return code is only assigned on the dispatch switch's
+        /// default arm. So a zero return code means "the ACPI method ran", never "the hardware
+        /// replied", and a success carrying an all-zero buffer is indistinguishable from a timeout.
+        ///
+        /// That matters because the mailbox is a single shared buffer with no locking between OS
+        /// agents, and OMEN Gaming Hub polls it continuously. Running alongside it is not the
+        /// supported configuration, but it is a common one, and the failure is silent: during
+        /// reverse-engineering on board 8D87, repeated identical reads returned four different
+        /// values that were traceable to OGH's replies to its own questions - one byte tracked
+        /// MSAcpi_ThermalZoneTemperature exactly. Stopping OGH made every reading stable.
+        ///
+        /// Callers should therefore validate the reply's content, not just its return code:
+        /// <list type="bullet">
+        /// <item>treat an all-zero buffer from a command that must report something non-zero as a
+        /// failure, the way <see cref="GetFanLevel"/> already does before falling back;</item>
+        /// <item>range-check decoded values where a range is known, the way
+        /// <see cref="ParseFanRpmBuffer"/> already does;</item>
+        /// <item>for anything that drives a write, prefer reading a second time and requiring
+        /// agreement over trusting a single reply.</item>
+        /// </list>
+        ///
+        /// A non-zero return code is the trustworthy direction: the firmware produced it
+        /// deliberately, and the timeout path cannot. Note that 5 specifically means the output
+        /// buffer was the wrong size, not that the command is unsupported - a genuine refusal
+        /// persists across every size.
         /// </summary>
         /// <param name="command">The BIOS command class (Default, Keyboard, Legacy, GpuMode)</param>
         /// <param name="commandType">The specific command type/ID</param>
