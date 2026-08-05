@@ -1,6 +1,6 @@
 # Board `8D87` — OMEN MAX 16 (2025, AMD) Support Plan
 
-**Status:** planning. Nothing in this document has been implemented.
+**Status:** Tier 1 is largely **implemented** — see §8 for what has landed and what has not. Tier 2 (the AMD SMU transport) is fixed; Tier 3 (the adapter gate) is not started and is gated on evidence stated in §5.1.
 **Target board:** `8D87` — HP OMEN MAX 16-ak0098nr, Ryzen AI 9 HX 375 (family `1Ah`/model `24h`, Strix Point) + RTX 5080 Laptop (`10DE:2C19`), BIOS F.07, EC 40.38.
 **Sibling boards on the same HP platform (`Vibrance25C1`):** `8D88`, `8DD5`, `8DD6`.
 **Related existing DB entry:** `AK0003NR` (`ModelNamePattern = "max 16 ak0"`), same family, different SKU.
@@ -9,34 +9,30 @@
 
 ## 0. Where this comes from, and how much to trust it
 
-Two external investigations, both outside this repo:
+Two evidence classes, from an investigation conducted outside this repo on one physical machine:
 
-| Source | Method | Evidence class |
-|---|---|---|
-| `D:\src\omen-max-16\investigation\03-nvpcf-tgp-mechanism.md` | ACPI decompilation + **live measurement** on the physical machine | Strongest available. Firmware-derived and instrumented. |
-| `D:\src\omen-max-16\investigation\04-ogh-binaries.md` | Static decompilation of HP's own OMEN Gaming Hub binaries (309 assemblies, not obfuscated) | Strong for **arity, field layout, HP's own naming**. No evidence at all for runtime behaviour. |
+| Class | Method | Good for | Not evidence for |
+|---|---|---|---|
+| **Measured** | ACPI decompilation plus **live instrumentation** — WMI replies, EC reads, `nvidia-smi enforced.power.limit`, Windows Energy Meter counters. | What the hardware actually does. | Layout of anything not exercised. |
+| **Static** | Decompilation of HP's own OMEN Gaming Hub binaries — 309 assemblies, **not obfuscated**. | Field layout, arity, control flow, HP's own naming and thresholds. | Runtime behaviour. |
 
-Supporting documents in the same series: `01-bios-f07-static.md` (static firmware), `02-power-gate-measurements.md` (measurement), `07-setup-variable-map.md`.
+Where they conflict, **static wins on layout and naming; measurement wins on behaviour.** One such
+conflict is load-bearing here: the `Default 0x28` `byte[0..1]` field was read behaviourally as a
+status-flag struct and is, per HP's own accessor, watts.
 
 > [!IMPORTANT]
-> **Do not read either source document to answer a question of fact.** They are lab notebooks: they
-> record method and measurement — how a thing was established, on what instrument, with what numbers —
-> and they are long. `03-nvpcf-tgp-mechanism.md` alone is over 2500 lines.
+> **The distilled evidence for every claim in this document lives in
+> [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md), in this repository.** It cites HP's assembly and line for
+> each static claim, and the control that makes each measurement trustworthy.
 >
-> The distilled current truth is in **`D:\src\omen-max-16\reference\`** — five short documents:
-> ``power-model.md``, ``ec-map.md``,
-> ``wmi-commands.md``,
-> ``board-8d87.md`` and
-> ``settled-negatives.md``, plus
-> ``capabilities-8d87.json`` for this plan's §3.6 database entry.
-> Cite the notebook for provenance; take facts from `reference/`.
+> The original lab notebooks are outside this repo and are deliberately not linked: they are long (one
+> is over 2,500 lines), they record method rather than conclusions, and they contain their own
+> retractions. Notebook filenames are listed in `8D87-EVIDENCE.md` §6 for provenance.
 
 **Two things to keep in mind while reading:**
 
-1. **The two sources disagree in places, and 04-ogh-binaries.md is usually the correction.** The mechanism doc's §7h concluded `0x28` bytes 0–1 were a status-flag field; 04-ogh-binaries.md §1a shows HP's own source names it `ShippingAdapterPowerRating` and compares it against 200 and 280. Where they conflict, the binary analysis wins on *layout and naming*, the mechanism doc wins on *runtime behaviour*. Both resolutions are already applied in `reference/`.
-2. **Five plausible findings on this board turned out to be false, and four failed the same way.** `PROH` at `0x8F`, `Default 0x10` as the arming command, `HPBA` as adapter-keyed, `P3TV` as a working lever, and "the exploit is a durable one-shot" were each established and then disproved — four of them because the *request* was checked instead of the *outcome*. A command that returns success is not a watt. That failure mode is directly relevant to how we implement this: see §5.2, and ``settled-negatives.md`` for the current statement of each.
-
-**This board's `UserVerified` status stays `false` for now.** The evidence above is excellent, but it comes from one machine and one investigator, not from this project's normal field-report channel. Individual items below carry their own evidence assessment.
+1. **Five plausible findings on this board turned out to be false, and four failed the same way.** `PROH` at `0x8F`, `Default 0x10` as the arming command, `HPBA` as adapter-keyed, `P3TV` as a working lever, and "the exploit is a durable one-shot" were each established and then disproved — four of them because the *request* was checked instead of the *outcome*. A command that returns success is not a watt. That failure mode is directly relevant to how we implement this: see §5.2, and [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §4 for the current statement of each closed question.
+2. **This is one machine and one investigator**, not this project's normal field-report channel. `UserVerified` on this board's entry is now `true` because every board-specific field in it was measured on the hardware — see [`8D87-VERIFICATION-CHECKLIST.md`](8D87-VERIFICATION-CHECKLIST.md) for which claim rests on what, and what the flag does not cover. Individual items below carry their own evidence assessment.
 
 ---
 
@@ -243,8 +239,8 @@ OmenCore cannot do that:
 > [!IMPORTANT]
 > **T3.1 has now been run. The ports alias the MMIO window for reads, and the latency objection
 > below did not survive measurement.** Full method and limits:
-> ``../investigation/08-ec-port-aliasing.md``; distilled in
-> ``../reference/settled-negatives.md``.
+> the `08-ec-port-aliasing.md` notebook; distilled for this repo in
+> [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md).
 
 - **T3.1 — DONE (2026-08-04).** Three runs sandwiching a PawnIO/`LpcACPIEC` port sweep between two MMIO captures, so that only bytes which held still across the whole window got a vote. **100 % / 100 % / 99.6 % agreement on judged bytes; 8 of 8 entropy-carrying anchors matched**, including both fan tachometers at 3000 rpm under deliberate CPU load and `PROH` itself. Correlation falls from 99.6 % at shift 0 to ~33 % at ±1 byte, which is what rules out coincidental resemblance rather than mere agreement. The one diverging byte was a temperature sensor that ticked mid-sweep — tracked across all three runs and explained, not waved away.
   - The warning not to accept partial agreement was honoured: §7h's withdrawn `CPUT`/`0x57` argument rested on a single static byte, and that argument is **not** what re-established this.
@@ -309,7 +305,7 @@ Every offset here (`0x59`, `0x90`, `0xE6`, `0xF6`/`0xF7`) came from *this* DSDT.
 ## 6. Explicitly do not
 
 **The full list of settled dead ends lives in one place:
-``../reference/settled-negatives.md``.** Read it before proposing
+[`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §4.** Read it before proposing
 any experiment on this board — it also records two claims that were retracted and then
 *un*-retracted, which is the layer most likely to be read wrong.
 
@@ -317,7 +313,7 @@ Specific to this repo, on top of that list:
 
 - **Do not** add EC power offsets `0xC0`–`0xC5` for this board. `SupportsEcPowerLimits` stays `false`.
 - **Do not** look for an EC register map in OGH's binaries. There is none — a grep across all four decompiled roots for `0xFE7006*`, `EmbeddedController`, `Ec{Read,Write}`, `LpcACPIEC` and raw port I/O returns zero hits. HP reaches the EC only through AML `GCxx` and the SMU only through AMD's own driver.
-- **Do not** investigate `hpomencustomcapdriver.sys`. It imports exactly `DbgPrintEx` and `RtlCopyUnicodeString` plus WDF loader stubs — no `MmMapIoSpace`, no port I/O, no `IoCreateDevice`. It is a stub and cannot touch the EC by construction. (`HpReadHWData.sys` is the one that is *not* a stub — see ``../investigation/06-hpreadhwdata-driver.md``.)
+- **Do not** investigate `hpomencustomcapdriver.sys`. It imports exactly `DbgPrintEx` and `RtlCopyUnicodeString` plus WDF loader stubs — no `MmMapIoSpace`, no port I/O, no `IoCreateDevice`. It is a stub and cannot touch the EC by construction. (`HpReadHWData.sys` is the one that is *not* a stub — see [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §2.7.)
 - **Do not** raise TDC/EDC.
 - **Do not** reintroduce WinRing0 or inpoutx64. Note the upstream investigation's own `tools/lever/` scripts use `inpoutx64` for MMIO — **that does not port here**, and this repo removed it deliberately over Defender detections.
 
@@ -325,7 +321,7 @@ Three from the shared list are worth repeating because they are easy to re-deriv
 
 - **Do not** try to write `DSTA` directly via `GC22`. It sets `DSTA` and then calls `_Q73`, which overwrites it from `PROH`. Measured on both adapters.
 - **Do not** treat `EWDS` (mailbox `0x0E`) as a size field. Declared once, referenced by no AML, reads 0 in 1666/1666 captured events.
-- **Do not** treat `Default 0x28` as *connected* adapter state — it is byte-identical on 330 W and 200 W, and describes the SKU. But it is **not** contentless: `byte[0..1]` is `ShippingAdapterPowerRating` in watts (330 here), and `Legacy 0x0F` `byte[3] × 5` gives the connected rating. See ``../reference/wmi-commands.md``.
+- **Do not** treat `Default 0x28` as *connected* adapter state — it is byte-identical on 330 W and 200 W, and describes the SKU. But it is **not** contentless: `byte[0..1]` is `ShippingAdapterPowerRating` in watts (330 here), and `Legacy 0x0F` `byte[3] × 5` gives the connected rating. See [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §2.1 and §2.5.
 
 ---
 
@@ -335,7 +331,7 @@ Carried forward from both documents, with our own added.
 
 **Blocking for us:**
 
-1. **Do ports `0x62`/`0x66` alias the MMIO window for *writes*, and on a second adapter state?** They do alias for **reads** — measured, three sandwiched runs; see §5.1 and ``../investigation/08-ec-port-aliasing.md``. The write direction is unproven, and nothing may write EC RAM through the ports until it is closed.
+1. **Do ports `0x62`/`0x66` alias the MMIO window for *writes*, and on a second adapter state?** They do alias for **reads** — measured, three sandwiched runs; see §5.1 and [`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §6. The write direction is unproven, and nothing may write EC RAM through the ports until it is closed.
 2. **Does the PawnIO release driver load third-party modules?** Decides Option B. **Now much less urgent** — Option A succeeded, so Option B is no longer on the critical path for either stage.
 3. **Does the `OGHP` race actually win over ports?** Feasible on the latency numbers; unproven in fact. Requires the dedicated hold path described in §5.1.
 
@@ -356,9 +352,24 @@ Carried forward from both documents, with our own added.
 
 **Phase 0 — decide the transport. ✅ DONE (2026-08-04).** T3.1 came back positive: the ports alias for reads and the transport is fast enough for *both* levers, not just `PROH`. Tier 3 exists. Two things moved as a result — Option B (custom PawnIO module) leaves the critical path, and the `OGHP` blocker is now a wrapper fix (`Thread.Sleep(1)` + per-call mutex in `PawnIOEcAccess.WriteByte`) rather than a transport dead end. The remaining gate before any EC write is confirming the aliasing holds **for writes** and on a **second adapter state**.
 
-**Phase 1 — Tier 1.** T1.4 → T1.5 → T1.6 first: adapter awareness is the highest value-per-risk item in the whole plan, it is read-only, and it makes every subsequent field report better. Then T1.8/T1.9/T1.10 (payload correctness), T1.11/T1.12 (`0x28`), T1.15/T1.16 (model DB). T1.1/T1.2/T1.3 (`MODE`) last in this phase, since they are the first real behaviour change.
+**Phase 1 — Tier 1. ✅ LARGELY DONE.** Landed: adapter awareness (`Legacy 0x0F`), the full `0x28`
+decode, the `0x22` payload correction, the model-DB entry with `UserVerified = true`, real fan
+tachometers at `0x70`/`0x5C`, a V2-capability *probe* replacing the model-name force-switch (which
+closes open question 11), the GPU mode read from `Legacy 0x52`, and the performance-mode measurement
+that removed `"L5P"`.
 
-**Phase 2 — Tier 2.** T2.1 (verify, then fix `pawnio_load`) → T2.2/T2.3 → T2.6 (verification harness) → T2.5. This is the biggest measured user-facing win (25 → 51 W CPU) and it needs no EC writes and no races.
+Not landed from Tier 1: `MODE 4` as a user-facing control (T1.2), and `OTPP` (§7.7) which remains
+untested.
+
+**Phase 2 — Tier 2. ⚠️ TRANSPORT DONE, LIMITS NOT.** T2.1 turned out to be three faults, not one: no
+`pawnio_load` call, ioctl names no bundled module exports, and a stale bundled module that rejected
+this CPU outright. All three are fixed and the transport is verified end to end — Curve Optimizer
+measures **+4.9% sustained clock at CO −25** against a ±0.1% sham control
+([`8D87-EVIDENCE.md`](8D87-EVIDENCE.md) §3.4).
+
+Still open in Tier 2: **T2.2/T2.3 — the four SMU power limits** (`stapm`, `fast`, `slow`, `apu-slow`)
+that lift the 25 W APU clamp to ~51 W. The transport they need now works; the limits themselves are
+not implemented. T2.4 stands: **do not raise TDC/EDC.**
 
 **Phase 3 — Tier 3.** Phase 0 succeeded, so this is live. T3.2 → T3.3 (Stage 2) → T3.5 (proportional). **T3.4 (Stage 1) is no longer conditional on transport speed** — 0.325 ms per transaction clears the 2 ms window — but it does depend on the dedicated hold path in §5.1, and it stays behind the safety gating in §5.2.3 regardless.
 
