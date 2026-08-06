@@ -199,7 +199,22 @@ Measured: 330 W → `01 C2 00 42` (`0x42` × 5 = 330). 200 W → `02 C2 00 28` (
 
 ---
 
-## 4. Tier 2 — the CPU 25 W clamp. Mostly built, plumbing is dead.
+## 4. Tier 2 — the CPU 25 W clamp. Plumbing fixed; limits implemented.
+
+> **Status, 2026-08-05.** **T2.1, T2.2 and T2.3 are done** and measured on hardware. T2.1 landed as the AMD SMU transport fix; T2.2 and T2.3 as the fast/slow/apu-slow limits and a silicon-scoped ceiling. **T2.4 stands — TDC/EDC remain untouched.** T2.5 (re-assertion) is now known to be *required*, not optional: see the box at the end of this section. T2.6's verification guidance was wrong and has been corrected below.
+>
+> Measured with `tools/SmuProbe --limits`, using an external RyzenAdj as an independent reader. Every phase pinned to its requested limit within 10 mW, and the returning phase came back exactly, so the excursion is the limit rather than drift:
+>
+> | phase | requested | read back | SMU drawing | TDC | Tctl |
+> |---|---|---|---|---|---|
+> | A stock | 45 W | 45.000 W | 44.99 W | 41.3/70 A | 66 °C |
+> | B low | 20 W | 20.000 W | 19.99 W | 21.2/70 A | 54 °C |
+> | A' stock | 45 W | 45.000 W | 45.00 W | 41.3/70 A | 68 °C |
+> | C high | **70 W** | 70.000 W | **70.00 W** | 57.5/70 A | 85 °C |
+>
+> Stock was genuinely binding — 44.99 W drawn against 45.000 W — which is what makes the upward direction answerable rather than merely unrefuted.
+
+## 4a. Tier 2 detail
 
 **Evidence:** measured end-to-end with RyzenAdj v0.19.0 on the physical machine (§7m). 25.02 W → 45.73 W → ~51 W sustained / 60.7 W peak.
 
@@ -212,9 +227,21 @@ The strongest single piece of evidence in the entire investigation is here and w
 - **T2.1 (blocker)** Fix `RyzenSmu.Initialize()`. It opens a PawnIO handle but never calls `pawnio_load`, so `ioctl_pci_read_config_dword` / `ioctl_pci_write_config_dword` have no module behind them. Compare `PawnIOEcAccess.LoadEcModule()`, which does load `LpcACPIEC`. **This is a confirmed defect, not a hypothesis** — `RyzenSmu.cs:102-104` resolves only `pawnio_open`/`pawnio_execute`/`pawnio_close`, and it is the only PawnIO consumer in the repo that skips `pawnio_load`. Gate the fix so it does not enable an untested path for every AMD board.
 - **T2.2** Add `fast-limit`, `slow-limit`, `apu-slow-limit` alongside the existing `SetStapmLimit`. Message IDs must come from RyzenAdj's Strix Point table — **do not guess them**, and do not infer them from the existing `0x14`/`0x31` stapm pair.
 - **T2.3** Raise `SetStapmLimit`'s clamp. It currently caps at 54,000 mW (`AmdUndervoltProvider.cs:302`); the measured target is 100 W with a 125 W fast limit. Pick the new ceiling deliberately and document why.
-- **T2.4** **Do not raise TDC/EDC.** With the four power limits raised the part becomes current-bound at 53.977 A against a 54.000 A limit. §7m's argument for leaving it alone is sound and should be preserved verbatim in the code comment: a power limit is self-limiting (throttle or brownout, both fixed by a reboot); a current limit governs how hard the VRM is driven, and sustained overcurrent is not self-correcting. Every write in that investigation used a value the firmware writes itself; we don't know what TDC/EDC read on the 330 W adapter.
-- **T2.5** Re-assert after power-source changes, sleep/resume, and adapter swaps — the EC recomputes everything on those transitions. Steady-state operation needs nothing.
-- **T2.6** Verify by measured APU package power, not by SMU return code. Windows exposes `\Energy Meter(Apu Power)\Power` in milliwatts (also `CPU Power`, `GPU Power`, `NPU Power`). The separate `Power Meter` counter set reads all-zero on this machine — do not use it.
+- **T2.4** **Do not raise TDC/EDC.** The risk argument is unchanged and should be preserved verbatim in the code comment: a power limit is self-limiting (throttle or brownout, both fixed by a reboot); a current limit governs how hard the VRM is driven, and sustained overcurrent is not self-correcting.
+
+> **T2.4 correction (2026-08-06).** This item said the part becomes current-bound at 53.977 A against a **54.000 A** limit, and that the 330 W reading was unknown. The limit is **not a fixed property of the part.** `TDC`/`EDC LIMIT VDD` reads **70.000 A** idle at stock — on the 330 W adapter *and* on the 280 W adapter, which is the same adapter the 54 A figure came from — so 54 A is what it read under that particular raised-limit load, not a rating. **Do not ship 54 A as a constant** (`AmdUndervoltProvider`'s old 15–54 W clamp was a symptom of treating it as one), and do not raise either number.
+- **T2.5** Re-assert after power-source changes, sleep/resume, and adapter swaps — the EC recomputes everything on those transitions. **Stronger than originally written: re-assertion is required, not just advisable.**
+
+> **T2.5 correction (2026-08-05).** "Steady-state operation needs nothing" is not what was observed. After a `--limits` run that restored all four limits to 45 W, they later read **71 / 71 / 60 / 45 W**, stable across samples. Nothing in OmenCore wrote that — every write sets all four to the same value — and the numbers are not arbitrary: **60 W is exactly this board's NVPCF `ATPP` (`0x1E0` = 480/8) and 70 W is `ACBT` (`0x230` = 560/8)**. The ACPI power path pushes its own values into the same registers.
+>
+> The limits held solidly for the whole of a sustained load and read back exactly, then were taken back once the load ended. So a user-set limit that is meant to persist needs a re-assertion loop; one call and an `Ok` status will silently drift back.
+- **T2.6** Verify by measured power, not by SMU return code. **The guidance here has been corrected — see the box below.**
+
+> **T2.6 correction (2026-08-05).** This item originally said to verify with `\Energy Meter(Apu Power)\Power`. That counter is **a different and narrower domain than the SMU's PPT, and must not be compared against a watt figure the SMU was given.** Measured on this machine at three limits: 28.82 W counter against 44.99 W SMU, 12.01 against 19.99, 43.11 against 70.00 — a consistent ~62 %. It tracks direction faithfully and absolute level not at all.
+>
+> A first pass at this measurement used the counter as its only axis and concluded the load "was not power-bound" at 27 W against a 45 W limit — while the SMU read 44.994 W drawn against 45.000 W at that same moment. That is this repo's recurring proxy-instead-of-outcome mistake, reproduced inside the harness built to avoid it.
+>
+> **Use the SMU's own `STAPM VALUE` / `PPT VALUE` as the measurement**, read over an independent transport, with the Windows counter kept as a direction-only witness. `tools/SmuProbe --limits` does exactly this.
 - **T2.7** Do not attempt to reproduce HP's mechanism. How the EC gets 25 W into the SMU is still unknown and is excluded from AML, AMD PMF, NVPCF/Dynamic Boost, Windows PPM, HP's userland, and the EC mailbox block — leaving SMM as the surviving hypothesis. It is a curiosity, not a blocker.
 
 ---
@@ -299,6 +326,94 @@ Every offset here (`0x59`, `0x90`, `0xE6`, `0xF6`/`0xF7`) came from *this* DSDT.
 - **T3.3** Stage-2 unlock: hold `PROH = 1`, fire `GC22` to run `_Q73`, release. Verify against delivered watts. Re-apply on revert.
 - **T3.4** Stage-1 arm, **only if** a fast enough transport exists: hold `OGHP` (mask `0x02`, preserving `DBST` at bit 4 — it is a read-modify-write, unlike `PROH`) from a ≤2 ms loop, fire `GC22` inside the window, release. Measured minimums: 2 ms hold, 5000 ms settle before re-read. 5 ms hold fails; 1200 ms settle fails.
 - **T3.5** Proportional TGP mode: read the connected wattage (T1.4), pick a cap the supply can plausibly sustain, apply it driver-side rather than requesting the full 175 W. This is the *responsible* version of the feature and it is only possible because `Legacy 0x0F` exposes a real number.
+
+---
+
+## 5a. Keyboard lighting — per-key, and over an open standard
+
+**Not in the original three tiers.** It turned out to be independent of the power path and far
+cheaper than expected, so it is recorded here rather than deferred.
+
+### 5a.1 This board is per-key, and the four-zone path is a decoy
+
+The capability gate HP's own software uses is **`Default 0x2B`** — class `0x00020008`, no input
+payload, 4-byte reply whose byte 0 is `NbKeyboardLightingType`. Measured **`0x03` = `RgbPerKey`
+on ten of ten reads**.
+
+The trap, and it is a good one: the four-zone colour block (`Keyboard 0x02`) **still reads back
+plausibly on a per-key board**. HP computes `ZONE_NUM` as `(uint)(type - 4) <= 1`, so type 3
+falls through to 4 zones. Reading that block alone yields four tidy RGB triples at offset 25 and
+a confident wrong answer. Gate on the topology probe first.
+
+On this chassis the four-zone commands drive the **light bar**, not the keyboard — owner-observed.
+So "four-zone returned success" was never a null result here; it was landing on a different
+lighting surface than the one being watched, which is more misleading than a refusal.
+
+### 5a.2 `Keyboard 0x01` is an accumulator, not a keyboard-type getter
+
+Widely documented as `GetKbdType`. It is not. Ten identical consecutive calls returned:
+
+```
+0x0F, 0x1F, 0x3F, 0x7F, 0xFF, then 0xFF for every call after
+```
+
+It grows until it saturates. Nothing about the hardware changed between those calls. An earlier
+note in this repo recorded "returns an 0xFF sentinel" — that was a saturated counter, not a
+sentinel. And once saturated, its bit 0 reads "lighting supported" whether or not that is true,
+so even HP's own `& 1` reading is untrustworthy here.
+
+### 5a.3 The keyboard is a standard HID LampArray — no reverse engineering needed
+
+The internal keyboard (`0D62:54BF`, "HP Gaming Keyboard II", Darfon — HP's ODM) implements
+**HID usage page `0x59`, "Lighting And Illumination"**: the standardised per-key surface that
+Windows Dynamic Lighting drives.
+
+```
+LampCount        120
+Kind             1 = Keyboard
+BoundingBox      342 x 125 x 1 mm
+MinUpdateInterval 33 ms
+per lamp         8-bit R/G/B/intensity, programmable, carries the HID usage of its key
+```
+
+Geometry is self-consistent — the numpad lamps sit at x = 279–328 mm, Tab at x = 12 mm.
+
+**This changes the cost of the feature entirely.** The plan had been to ask the GitHub #151
+reporter for HID captures and infer a vendor command set. That is no longer the critical path
+for this board: the protocol is specified, and `HidLampArray` implements it.
+
+### 5a.4 What is verified, and what cannot be
+
+The device **accepted** the control report (id 6) and range-update reports (id 5) — it took them
+without stalling, so the report layouts are structurally right.
+
+**That is not proof the keys changed colour, and no software check can be.** The LampArray spec
+has no colour readback anywhere. `tools/LightingProbe --self-test` exists for exactly this: it
+drives the keyboard in thirds (red / green / blue, so a *partial* result stays readable) and
+tells a person what they should be seeing.
+
+### 5a.5 The open question — arbitration with Windows Dynamic Lighting
+
+Dynamic Lighting is **on** on this machine (`AmbientLightingEnabled = 1`) and owns the LampArray;
+it is why `LampArray.FromIdAsync` (WinRT) times out on the keyboard interface while direct HID
+works. Three options, and they differ in what OmenCore does to a Windows feature the user may
+want running:
+
+1. WinRT `LampArray`, playing by Windows' arbitration rules.
+2. Direct HID, contending with Dynamic Lighting at ~30 Hz.
+3. Ask the user to turn Dynamic Lighting off, then direct HID.
+
+**Deliberately unresolved.** The mechanism for (2) is built because it is the one proven to work
+here; nothing is wired into the UI until the policy is chosen.
+
+### 5a.6 Work items
+
+- **T5a.1** *(done)* Topology probe `Default 0x2B`; capability detection reads it instead of assuming four-zone.
+- **T5a.2** *(done)* `HasBacklight` asks for a 128-byte reply. A 4-byte request returns **RTCD 5 = wrong output buffer size**, which the old code read as "unsupported" — reporting no backlight on a lit keyboard.
+- **T5a.3** *(done)* `HidLampArray` + `tools/LightingProbe`.
+- **T5a.4** Decide the arbitration policy (§5a.5), then wire per-key control into the UI.
+- **T5a.5** Map lamp id → key. Each lamp reports the HID usage of its key, so a usable key-name mapping is a table lookup rather than a calibration exercise. **Note the free-running response**: this keyboard's lamp-attributes reply ignores the requested id (asking 0–3 returns 41–44), so read the id the device reports.
+- **T5a.6** Settle `8D41`, the Intel sibling. It claims per-key *and* four-zone and is marked `UserVerified`, so it is somebody's real report and is left alone. One command from an owner resolves it: `LightingProbe --wmi`.
 
 ---
 
