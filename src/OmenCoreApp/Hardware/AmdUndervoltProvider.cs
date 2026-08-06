@@ -334,13 +334,22 @@ namespace OmenCore.Hardware
         private uint ClampPowerLimit(uint valueMw) =>
             Math.Clamp(valueMw, MinPowerLimitMw, MaxPowerLimitMw);
 
+        // SMU message IDs for the power limits, taken verbatim from RyzenAdj's lib/api.c rather
+        // than inferred. Named so the citation sits next to the value and a test can pin them:
+        // a silently changed message ID is the kind of thing that returns Ok and does nothing.
+        internal const uint Mp1SetStapmLimit = 0x14;   // set_stapm_limit
+        internal const uint PsmuSetStapmLimit = 0x31;  // set_stapm_limit, fallback on MP1 error
+        internal const uint Mp1SetFastLimit = 0x15;    // set_fast_limit
+        internal const uint Mp1SetSlowLimit = 0x16;    // set_slow_limit
+        internal const uint Mp1SetApuSlowLimit = 0x23; // set_apu_slow_limit
+
         /// <summary>
-        /// Whether this CPU family has confirmed message IDs for the fast, slow and APU-slow
-        /// power limits. Only families whose IDs are taken verbatim from RyzenAdj's lib/api.c
-        /// are listed; the rest return <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> rather than
-        /// have a plausible-looking ID guessed for them.
+        /// Whether this CPU family has confirmed message IDs for the fast and slow power limits.
+        /// Only families whose IDs are taken verbatim from RyzenAdj's lib/api.c are listed; the
+        /// rest return <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> rather than have a
+        /// plausible-looking ID guessed for them. Raven, Picasso and Dali use a different scheme.
         /// </summary>
-        private bool SupportsPptLimits => _cpuInfo.Family switch
+        internal static bool FamilySupportsPptLimits(RyzenFamily family) => family switch
         {
             RyzenFamily.RenoirLucienne => true,
             RyzenFamily.VanGogh => true,
@@ -357,9 +366,9 @@ namespace OmenCore.Hardware
         /// <summary>
         /// Whether this CPU family exposes the separate APU slow (PPT LIMIT APU) domain.
         /// RyzenAdj's set_apu_slow_limit omits Renoir, Lucienne, Cezanne, Van Gogh and
-        /// Mendocino, so this is a narrower list than <see cref="SupportsPptLimits"/>.
+        /// Mendocino, so this is a narrower list than <see cref="FamilySupportsPptLimits"/>.
         /// </summary>
-        private bool SupportsApuSlowLimit => _cpuInfo.Family switch
+        internal static bool FamilySupportsApuSlowLimit(RyzenFamily family) => family switch
         {
             RyzenFamily.Rembrandt => true,
             RyzenFamily.Phoenix => true,
@@ -368,6 +377,10 @@ namespace OmenCore.Hardware
             RyzenFamily.StrixHalo => true,
             _ => false
         };
+
+        private bool SupportsPptLimits => FamilySupportsPptLimits(_cpuInfo.Family);
+
+        private bool SupportsApuSlowLimit => FamilySupportsApuSlowLimit(_cpuInfo.Family);
 
         /// <summary>
         /// Set STAPM (sustained power) limit in mW.
@@ -404,7 +417,7 @@ namespace OmenCore.Hardware
                     // value, so a STAPM limit that MP1 had already accepted was reported as
                     // failed whenever the PSMU mailbox declined the same message - and the
                     // caller then surfaced an error for a write that did land.
-                    result = SendWithPsmuFallback(mp1Message: 0x14, psmuMessage: 0x31, valueMw);
+                    result = SendWithPsmuFallback(Mp1SetStapmLimit, PsmuSetStapmLimit, valueMw);
                     break;
             }
 
@@ -453,7 +466,7 @@ namespace OmenCore.Hardware
         public RyzenSmu.SmuStatus SetFastLimit(uint valueMw)
         {
             if (!SupportsPptLimits) return RyzenSmu.SmuStatus.UnknownCmd;
-            return SendMp1(0x15, ClampPowerLimit(valueMw));
+            return SendMp1(Mp1SetFastLimit, ClampPowerLimit(valueMw));
         }
 
         /// <summary>
@@ -464,7 +477,7 @@ namespace OmenCore.Hardware
         public RyzenSmu.SmuStatus SetSlowLimit(uint valueMw)
         {
             if (!SupportsPptLimits) return RyzenSmu.SmuStatus.UnknownCmd;
-            return SendMp1(0x16, ClampPowerLimit(valueMw));
+            return SendMp1(Mp1SetSlowLimit, ClampPowerLimit(valueMw));
         }
 
         /// <summary>
@@ -478,7 +491,7 @@ namespace OmenCore.Hardware
         public RyzenSmu.SmuStatus SetApuSlowLimit(uint valueMw)
         {
             if (!SupportsApuSlowLimit) return RyzenSmu.SmuStatus.UnknownCmd;
-            return SendMp1(0x23, ClampPowerLimit(valueMw));
+            return SendMp1(Mp1SetApuSlowLimit, ClampPowerLimit(valueMw));
         }
 
         /// <summary>
