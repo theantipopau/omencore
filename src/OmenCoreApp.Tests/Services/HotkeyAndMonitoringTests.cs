@@ -547,7 +547,20 @@ namespace OmenCoreApp.Tests.Services
             var batteryHistory = (await svc.GetHistoricalDataAsync(ChartType.BatteryHealth, TimeSpan.FromMinutes(5))).ToList();
 
             metrics.BatteryChargePercentage.Should().Be(68);
-            metrics.BatteryHealthPercentage.Should().Be(-1, "charge percent is not a battery health estimate");
+
+            // The regression this guards is health being filled in from charge. It used to be
+            // asserted as exactly -1, which only held while health was hardcoded to that; now that
+            // UpdateDashboardMetrics reads real capacities, -1 means "this machine has no battery
+            // or does not report capacity". So the assertion passed on CI and failed on any laptop
+            // with a battery - the machines this application exists for.
+            //
+            // Assert what the test is named for instead: health must not be the charge value, and
+            // must be either the unknown sentinel or a plausible percentage.
+            metrics.BatteryHealthPercentage.Should().NotBe(68, "charge percent is not a battery health estimate");
+            (metrics.BatteryHealthPercentage == -1 ||
+             (metrics.BatteryHealthPercentage > 0 && metrics.BatteryHealthPercentage <= 100))
+                .Should().BeTrue("health is either unknown (-1) or a real percentage");
+
             alerts.Should().NotContain(alert => alert.Title == "Battery Health Warning");
             batteryHistory.Should().ContainSingle(point => point.Value == 68);
         }
