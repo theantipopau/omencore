@@ -119,6 +119,7 @@ namespace OmenCore.Hardware
         private const uint CMD_COLOR_GET = 0x02;      // GetColorTable - uses Keyboard cmd
         private const uint CMD_COLOR_SET = 0x03;      // SetColorTable - uses Keyboard cmd
         private const uint CMD_KBD_TYPE_GET = 0x01;   // GetKbdType - uses Keyboard cmd
+        private const uint CMD_KBD_PLATFORM_INFO = 0x2B; // Keyboard lighting topology - uses Default cmd
         private const uint CMD_BRIGHTNESS_GET = 0x04; // GetBrightness - uses Keyboard cmd (v2.9.0)
         private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight / GetLedAnimation - uses Keyboard cmd
         private const uint CMD_ANIMATION_SET = 0x07;  // SetLedAnimation - uses Keyboard cmd (v2.9.0)
@@ -1557,16 +1558,118 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Keyboard lighting topology, as HP's own software models it (NbKeyboardLightingType).
+        /// This is a different and wider enumeration than <see cref="KbdType"/>: it describes what
+        /// the lighting looks like, not what the key layout is.
+        /// </summary>
+        public enum KeyboardLightingType
+        {
+            None = -1,
+            /// <summary>Backlit but not addressable - no colour control.</summary>
+            Normal = 0,
+            FourZoneWithNumpad = 1,
+            FourZoneWithoutNumpad = 2,
+            /// <summary>Per-key addressable RGB. The four-zone command path does not apply.</summary>
+            RgbPerKey = 3,
+            OneZoneWithNumpad = 4,
+            OneZoneWithoutNumpad = 5
+        }
+
+        /// <summary>
+        /// Read the keyboard lighting topology: Default 0x2B, no input payload, 4-byte reply whose
+        /// byte 0 is NbKeyboardLightingType. This is the probe HP's own software gates keyboard
+        /// lighting on, and it is on the Default class, not the Keyboard one - the constant is
+        /// named WMI_CMD_TYPE_GET_PLATFORM_INFO and sits on the gaming-input surface.
+        ///
+        /// Measured on board 8D87 (OMEN MAX 16, 2025 AMD): returns 0x03 = RgbPerKey, which agrees
+        /// with the keyboard's own HID descriptors (a 120-lamp HID LampArray, kind Keyboard).
+        ///
+        /// Sends no payload deliberately. The transport rounds input size into buckets and a
+        /// zero-length input is a genuinely different framing from a 4-byte zero-filled one, not a
+        /// cosmetic difference - see the note on <see cref="GetKeyboardType"/>.
+        /// </summary>
+        public KeyboardLightingType? GetKeyboardLightingType()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Default, CMD_KBD_PLATFORM_INFO, null, 4);
+                if (result == null || result.Length == 0)
+                {
+                    return null;
+                }
+
+                // Signed: None is -1, which arrives as 0xFF.
+                var value = (KeyboardLightingType)(sbyte)result[0];
+                if (!Enum.IsDefined(typeof(KeyboardLightingType), value))
+                {
+                    _logging?.Info($"Keyboard lighting topology byte 0x{result[0]:X2} is not a known type - reporting unknown");
+                    return null;
+                }
+
+                _logging?.Info($"Keyboard lighting topology: {value} (0x{result[0]:X2})");
+                return value;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read keyboard lighting topology: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Whether the BIOS reports any addressable keyboard lighting: Keyboard 0x01, bit 0 of
+        /// byte 0, which is the only bit HP's own code reads.
+        ///
+        /// TREAT AS WEAK EVIDENCE, and prefer <see cref="GetKeyboardLightingType"/> wherever it
+        /// answers. This command is widely described as "GetKbdType" and it is not one. Measured
+        /// on board 8D87 across ten identical consecutive calls, byte 0 was:
+        ///
+        ///     0x0F, 0x1F, 0x3F, 0x7F, 0xFF, then 0xFF for every call after
+        ///
+        /// It grows on each call and saturates. A value that changes when nothing about the
+        /// hardware changed cannot be a keyboard type, and once it has saturated at 0xFF bit 0 is
+        /// set no matter what the answer should have been - so on a board behaving like this,
+        /// "supported" is what this returns whether or not it is true. The same probe run against
+        /// the topology command returned a stable 0x03 ten times out of ten.
+        ///
+        /// Kept because it is the right reading of this command on boards where the byte IS
+        /// stable, and because naming the failure is more useful than deleting the evidence of it.
+        /// Nothing in OmenCore gates on it.
+        /// </summary>
+        public bool? IsKeyboardLightingSupported()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_KBD_TYPE_GET, null, 4);
+                if (result == null || result.Length == 0) return null;
+
+                bool supported = (result[0] & 0x01) != 0;
+                _logging?.Info($"Keyboard lighting supported: {supported} (byte 0 = 0x{result[0]:X2})");
+                return supported;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read keyboard lighting support: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get keyboard type.
         /// OmenMon: Cmd.Keyboard, 0x01
         ///
-        /// Not every board answers this. Board 8D87 (OMEN MAX 16, 2025 AMD) returns 0xFF here, which
-        /// is not a KbdType at all, so this returns null on it. The keyboard topology probe HP's own
-        /// software gates on for that platform is a different command - Default 0x2B, null input,
-        /// 4-byte reply, whose byte 0 is NbKeyboardLightingType (3 = per-key RGB) - and it answers
-        /// correctly where Keyboard 0x01 does not. Adding it needs confirmation on more than one
-        /// board, so it is noted rather than done here; ModelCapabilities.HasPerKeyRgb carries the
-        /// answer for 8D87 in the meantime.
+        /// Not every board answers this, and on some it is not answering the question at all.
+        /// Board 8D87 (OMEN MAX 16, 2025 AMD) returns a byte that CHANGES BETWEEN IDENTICAL CALLS
+        /// - 0x0F, 0x1F, 0x3F, 0x7F, then 0xFF from the fifth call on - so it is an accumulator
+        /// that saturates, not a type. See <see cref="IsKeyboardLightingSupported"/>.
+        ///
+        /// So when this command yields something outside the declared range, fall through to
+        /// <see cref="GetKeyboardLightingType"/>, which is the probe HP's own software uses, and
+        /// map it back. A board where Keyboard 0x01 does answer is left on that path unchanged.
         /// </summary>
         public KbdType? GetKeyboardType()
         {
@@ -1578,38 +1681,68 @@ namespace OmenCore.Hardware
                 if (result != null && result.Length > 0)
                 {
                     var kbdType = DecodeKeyboardType(result);
-                    if (kbdType == null)
+                    if (kbdType != null)
                     {
-                        _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - reporting unknown");
-                        return null;
+                        _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
+                        return kbdType;
                     }
 
-                    _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
-                    return kbdType;
+                    _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - trying the lighting topology probe");
                 }
             }
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to get keyboard type: {ex.Message}");
             }
-            return null;
+
+            return MapLightingTypeToKbdType(GetKeyboardLightingType());
         }
+
+        /// <summary>
+        /// Map the lighting topology onto the narrower <see cref="KbdType"/>, for callers that
+        /// still ask that question. Only RgbPerKey has an exact counterpart; the zone topologies
+        /// describe lighting rather than layout, so they deliberately do not claim a key layout.
+        /// </summary>
+        internal static KbdType? MapLightingTypeToKbdType(KeyboardLightingType? lighting) => lighting switch
+        {
+            KeyboardLightingType.RgbPerKey => KbdType.PerKeyRgb,
+            _ => null
+        };
         
         /// <summary>
         /// Check if keyboard backlight is supported.
-        /// OmenMon: Cmd.Keyboard, 0x06
+        ///
+        /// Asks the lighting topology first. That is what HP's own software gates on, and it gives
+        /// a direct answer: anything other than None or Normal has addressable backlighting.
+        ///
+        /// The Keyboard 0x06 fallback below is kept for boards that answer it, but it is a weaker
+        /// reading of a command that is not really this question - HP's constant for Keyboard 0x06
+        /// is GET_LED_ANIMATION, and it wants a 128-byte reply. Asking for 4 bytes returns RTCD 5,
+        /// which means WRONG OUTPUT BUFFER SIZE, not "unsupported". Board 8D87 hit exactly that:
+        /// the old call reported no backlight on a machine whose backlight was lit, because a
+        /// size complaint was being read as a capability answer.
         /// </summary>
         public bool HasBacklight()
         {
             if (!_isAvailable) return false;
-            
+
+            var topology = GetKeyboardLightingType();
+            if (topology != null)
+            {
+                bool lit = topology is not (KeyboardLightingType.None or KeyboardLightingType.Normal);
+                _logging?.Info($"Keyboard backlight supported: {lit} (topology {topology})");
+                return lit;
+            }
+
             try
             {
-                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_HAS_BACKLIGHT, new byte[4], 4);
+                // 128, not 4. See above - the reply is animation state, and the shorter buffer is
+                // rejected rather than answered.
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_HAS_BACKLIGHT, new byte[4], 128);
                 if (result != null && result.Length > 0)
                 {
                     var supported = result[0] != 0;
-                    _logging?.Info($"Keyboard backlight supported: {supported}");
+                    _logging?.Info($"Keyboard backlight supported: {supported} (animation byte 0 = 0x{result[0]:X2})");
                     return supported;
                 }
             }
@@ -2517,6 +2650,7 @@ namespace OmenCore.Hardware
             CMD_COLOR_GET => "ColorGet",
             CMD_COLOR_SET => "ColorSet",
             CMD_KBD_TYPE_GET => "KbdTypeGet",
+            CMD_KBD_PLATFORM_INFO => "KbdLightingTopology",
             CMD_BRIGHTNESS_GET => "BrightnessGet",
             CMD_HAS_BACKLIGHT => "HasBacklight",
             CMD_ANIMATION_SET => "AnimationSet",

@@ -862,11 +862,26 @@ namespace OmenCore.Hardware
             {
                 if (_wmiBios?.IsAvailable == true)
                 {
-                    // Try to detect backlight capability
-                    Capabilities.HasKeyboardBacklight = true;
-                    Capabilities.Lighting = LightingCapability.FourZone;
-                    Capabilities.HasZoneLighting = true;
-                    _logging?.Info("  → 4-zone keyboard backlight detected");
+                    // Ask the firmware what the keyboard actually is before claiming a topology.
+                    // This used to report "4-zone keyboard backlight detected" for every board
+                    // with a working WMI BIOS, without ever probing - which is wrong wherever the
+                    // keyboard is per-key, and wrong in a way that reads like a detection result.
+                    // Board 8D87 (OMEN MAX 16) is per-key: its keyboard is a 120-lamp HID
+                    // LampArray, and the four-zone command path does not drive it.
+                    var topology = _wmiBios.GetKeyboardLightingType();
+                    if (topology != null)
+                    {
+                        ApplyLightingTopology(topology.Value);
+                    }
+                    else
+                    {
+                        // No topology probe on this board. Keep the previous assumption rather
+                        // than regress boards that rely on it, but say that it is an assumption.
+                        Capabilities.HasKeyboardBacklight = true;
+                        Capabilities.Lighting = LightingCapability.FourZone;
+                        Capabilities.HasZoneLighting = true;
+                        _logging?.Info("  → Keyboard lighting topology not reported; assuming 4-zone");
+                    }
                 }
                 else if (Capabilities.OghRunning)
                 {
@@ -884,6 +899,63 @@ namespace OmenCore.Hardware
             catch (Exception ex)
             {
                 _logging?.Warn($"Lighting detection error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Translate the firmware's keyboard lighting topology into capability flags.
+        ///
+        /// Zone and per-key lighting are mutually exclusive here: they are different command
+        /// surfaces, and a board reporting both would offer the user a zone control that writes
+        /// to a path its keyboard does not listen on.
+        /// </summary>
+        private void ApplyLightingTopology(HpWmiBios.KeyboardLightingType topology)
+        {
+            switch (topology)
+            {
+                case HpWmiBios.KeyboardLightingType.RgbPerKey:
+                    Capabilities.HasKeyboardBacklight = true;
+                    Capabilities.HasPerKeyLighting = true;
+                    Capabilities.HasZoneLighting = false;
+                    Capabilities.Lighting = LightingCapability.PerKey;
+                    _logging?.Info("  → Per-key RGB keyboard reported by firmware");
+                    break;
+
+                case HpWmiBios.KeyboardLightingType.FourZoneWithNumpad:
+                case HpWmiBios.KeyboardLightingType.FourZoneWithoutNumpad:
+                    Capabilities.HasKeyboardBacklight = true;
+                    Capabilities.HasZoneLighting = true;
+                    Capabilities.Lighting = LightingCapability.FourZone;
+                    _logging?.Info("  → 4-zone keyboard backlight reported by firmware");
+                    break;
+
+                case HpWmiBios.KeyboardLightingType.OneZoneWithNumpad:
+                case HpWmiBios.KeyboardLightingType.OneZoneWithoutNumpad:
+                    // One addressable zone. LightingCapability has no OneZone member, and FourZone
+                    // is the closest thing meaning "zoned colour control" - the zone COUNT comes
+                    // from ModelCapabilities, not from this enum, so nothing downstream reads a
+                    // count out of it. Named awkwardly rather than wrongly.
+                    Capabilities.HasKeyboardBacklight = true;
+                    Capabilities.HasZoneLighting = true;
+                    Capabilities.Lighting = LightingCapability.FourZone;
+                    _logging?.Info("  → Single-zone RGB keyboard backlight reported by firmware");
+                    break;
+
+                case HpWmiBios.KeyboardLightingType.Normal:
+                    // Backlit, but with no colour control at all.
+                    Capabilities.HasKeyboardBacklight = true;
+                    Capabilities.HasZoneLighting = false;
+                    Capabilities.Lighting = LightingCapability.SingleColor;
+                    _logging?.Info("  → Keyboard is backlit but not colour-addressable");
+                    break;
+
+                case HpWmiBios.KeyboardLightingType.None:
+                    Capabilities.HasKeyboardBacklight = false;
+                    Capabilities.HasZoneLighting = false;
+                    Capabilities.HasPerKeyLighting = false;
+                    Capabilities.Lighting = LightingCapability.None;
+                    _logging?.Info("  → No keyboard lighting reported by firmware");
+                    break;
             }
         }
 
