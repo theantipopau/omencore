@@ -239,6 +239,53 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Upper bound, in milliwatts, on the SMU power limit OmenCore will ask this silicon for.
+        ///
+        /// This is a sanity bound on the request, not a safety mechanism: the SMU enforces its own
+        /// thermal and current limits regardless of what is asked, an over-ambitious power limit
+        /// throttles rather than damages, and nothing written here survives a reboot. What it does
+        /// prevent is a 100 that was meant to be a 10 reaching a 15 W handheld part.
+        ///
+        /// The previous flat 54,000 was low enough to be the binding constraint itself. Measured
+        /// on board 8D87 / Ryzen AI 9 HX 375 with tools/SmuProbe --limits, against an external
+        /// ryzenadj as an independent reader: the firmware's own stock limit is 45 W, the part is
+        /// genuinely pinned there under an all-core vector load (44.99 W drawn against 45.000 W),
+        /// and raising the four limits to 70 W takes it to 70.00 W drawn - 25 W past the stock
+        /// ceiling, at 57.5 A of a 70 A TDC limit and 85 C of a 100 C thermal limit. So a 54 W
+        /// bound was capping the feature 9 W above stock and giving up most of its range.
+        ///
+        /// Families are grouped by their configurable-TDP class, and anything not characterised
+        /// keeps the old 54 W bound rather than inheriting a generous one.
+        /// </summary>
+        public static uint GetMaxPowerLimitMw()
+        {
+            if (!_initialized) Init();
+            return GetMaxPowerLimitMw(Family);
+        }
+
+        internal static uint GetMaxPowerLimitMw(RyzenFamily family) => family switch
+        {
+            // Handheld and entry mobile parts, nominally 15 W and cooled for it.
+            RyzenFamily.VanGogh => 30_000,
+            RyzenFamily.Mendocino => 30_000,
+
+            // Ryzen AI MAX - a 55-120 W configurable part, in chassis built for it.
+            RyzenFamily.StrixHalo => 150_000,
+
+            // Mainstream 15-54 W mobile APUs. RyzenAdj's own users run these parts at 90-125 W
+            // and the 8D87 investigation sustained ~51 W (60.7 W peak) against a 100 W request.
+            RyzenFamily.RenoirLucienne => 100_000,
+            RyzenFamily.CezanneBarcelo => 100_000,
+            RyzenFamily.Rembrandt => 100_000,
+            RyzenFamily.Phoenix => 100_000,
+            RyzenFamily.HawkPoint => 100_000,
+            RyzenFamily.StrixPoint => 100_000,
+
+            // Desktop parts reached through the same code path, and anything unrecognised.
+            _ => 54_000
+        };
+
+        /// <summary>
         /// Configure SMU mailbox addresses for the detected CPU family.
         ///
         /// These are SMU register addresses, not PCI config offsets: the PawnIO RyzenSMU module

@@ -511,6 +511,16 @@ namespace OmenCore.ViewModels
             }
         }
 
+        /// <summary>
+        /// Top of the STAPM slider, in watts. Comes from the detected silicon rather than being
+        /// fixed at 54: on a Strix Point part the firmware's own stock limit is already 45 W, so
+        /// a 54 W ceiling left the control with barely any range above stock.
+        /// </summary>
+        public uint AmdStapmLimitMaxWatts => Hardware.RyzenControl.GetMaxPowerLimitMw() / 1000;
+
+        /// <summary>Bottom of the STAPM slider, in watts.</summary>
+        public uint AmdStapmLimitMinWatts => 15;
+
         private uint _amdStapmLimitWatts = 25;
         public uint AmdStapmLimitWatts
         {
@@ -519,7 +529,7 @@ namespace OmenCore.ViewModels
             {
                 if (_amdStapmLimitWatts != value)
                 {
-                    _amdStapmLimitWatts = Math.Clamp(value, 15u, 54u);
+                    _amdStapmLimitWatts = Math.Clamp(value, AmdStapmLimitMinWatts, AmdStapmLimitMaxWatts);
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(AmdStapmLimitText));
                 }

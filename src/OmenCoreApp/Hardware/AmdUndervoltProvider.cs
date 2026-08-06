@@ -323,11 +323,15 @@ namespace OmenCore.Hardware
         internal const uint MinPowerLimitMw = 15_000;
 
         /// <summary>
-        /// Highest SMU power limit this provider will ask for, in milliwatts.
+        /// Highest SMU power limit this provider will ask for on this silicon, in milliwatts.
+        /// See <see cref="RyzenControl.GetMaxPowerLimitMw()"/> for what this bound is and is not.
         /// </summary>
-        internal const uint MaxPowerLimitMw = 54_000;
+        public uint MaxPowerLimitMw => RyzenControl.GetMaxPowerLimitMw(_cpuInfo.Family);
 
-        private static uint ClampPowerLimit(uint valueMw) =>
+        /// <summary>Lowest limit this provider will ask for, in milliwatts.</summary>
+        public uint MinPowerLimitWattsFloor => MinPowerLimitMw / 1000;
+
+        private uint ClampPowerLimit(uint valueMw) =>
             Math.Clamp(valueMw, MinPowerLimitMw, MaxPowerLimitMw);
 
         /// <summary>
@@ -510,29 +514,29 @@ namespace OmenCore.Hardware
 
                 return new AmdPowerLimitReport
                 {
-                    Stapm = Apply(limits.StapmLimit, SetStapmLimit),
-                    Fast = Apply(limits.FastLimit, SetFastLimit),
-                    Slow = Apply(limits.SlowLimit, SetSlowLimit),
-                    ApuSlow = Apply(limits.ApuSlowLimit, SetApuSlowLimit)
+                    Stapm = ApplyOne(limits.StapmLimit, SetStapmLimit),
+                    Fast = ApplyOne(limits.FastLimit, SetFastLimit),
+                    Slow = ApplyOne(limits.SlowLimit, SetSlowLimit),
+                    ApuSlow = ApplyOne(limits.ApuSlowLimit, SetApuSlowLimit)
                 };
             }
+        }
 
-            static AmdPowerLimitStep Apply(uint requestedMw, Func<uint, RyzenSmu.SmuStatus> setter)
+        private AmdPowerLimitStep ApplyOne(uint requestedMw, Func<uint, RyzenSmu.SmuStatus> setter)
+        {
+            if (requestedMw == 0)
             {
-                if (requestedMw == 0)
-                {
-                    return new AmdPowerLimitStep { Requested = false };
-                }
-
-                uint clamped = ClampPowerLimit(requestedMw);
-                return new AmdPowerLimitStep
-                {
-                    Requested = true,
-                    RequestedMw = clamped,
-                    WasClamped = clamped != requestedMw,
-                    Status = setter(clamped)
-                };
+                return new AmdPowerLimitStep { Requested = false };
             }
+
+            uint clamped = ClampPowerLimit(requestedMw);
+            return new AmdPowerLimitStep
+            {
+                Requested = true,
+                RequestedMw = clamped,
+                WasClamped = clamped != requestedMw,
+                Status = setter(clamped)
+            };
         }
 
         /// <summary>
