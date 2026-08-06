@@ -343,13 +343,44 @@ namespace OmenCore.Hardware
                 case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
                 case RyzenFamily.StrixPoint:
-                    result = _smu.SendMp1(0x14, ref args);
-                    if (result == RyzenSmu.SmuStatus.Ok)
-                        result = _smu.SendPsmu(0x31, ref args);
+                    // PSMU 0x31 is a fallback for when MP1 0x14 is rejected, not a second half
+                    // that also has to succeed. RyzenAdj's set_stapm_limit sends MP1 0x14 and
+                    // only retries on PSMU when that errors ("Retry with PSMU" in lib/api.c).
+                    //
+                    // Chaining them on success instead meant the PSMU status became the return
+                    // value, so a STAPM limit that MP1 had already accepted was reported as
+                    // failed whenever the PSMU mailbox declined the same message - and the
+                    // caller then surfaced an error for a write that did land.
+                    result = SendWithPsmuFallback(mp1Message: 0x14, psmuMessage: 0x31, valueMw);
                     break;
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Send an SMU message on MP1, falling back to the PSMU mailbox only if MP1 rejects it.
+        ///
+        /// Each mailbox gets its own argument buffer: <see cref="RyzenSmu.SendMp1"/> takes its
+        /// arguments by reference and overwrites them with the SMU's response, so reusing one
+        /// buffer would send the first call's reply as the second call's payload.
+        /// </summary>
+        private RyzenSmu.SmuStatus SendWithPsmuFallback(uint mp1Message, uint psmuMessage, uint value)
+        {
+            uint[] mp1Args = new uint[6];
+            mp1Args[0] = value;
+
+            var result = _smu.SendMp1(mp1Message, ref mp1Args);
+            if (result == RyzenSmu.SmuStatus.Ok)
+            {
+                return result;
+            }
+
+            uint[] psmuArgs = new uint[6];
+            psmuArgs[0] = value;
+
+            var fallback = _smu.SendPsmu(psmuMessage, ref psmuArgs);
+            return fallback == RyzenSmu.SmuStatus.Ok ? fallback : result;
         }
 
         /// <summary>
