@@ -507,6 +507,13 @@ namespace OmenCore.Hardware
         /// and there is no readback on the PawnIO path to check against. Confirm with
         /// tools/SmuProbe --limits, which reads the PM table over an independent transport.
         ///
+        /// NOR ARE THEY DURABLE. Observed on board 8D87: limits written here held for the whole
+        /// of a sustained load and read back exactly, then the platform took them back once the
+        /// load ended - the four limits later read 71/71/60/45 W, which nothing here wrote, and
+        /// whose 60 W is exactly this board's NVPCF ATPP value. The ACPI power path pushes its
+        /// own numbers into the same registers. A caller that needs a limit to persist has to
+        /// re-assert it; treating one call as set-and-forget will silently drift back.
+        ///
         /// TDC and EDC (vrm-current / vrmmax-current) are deliberately absent. A power limit is
         /// self-limiting - ask for more watts than the cooling or the supply can deliver and you
         /// get throttling, and a reboot clears it. A current limit governs how hard the VRM is
