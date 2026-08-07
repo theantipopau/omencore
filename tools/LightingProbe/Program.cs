@@ -9,14 +9,27 @@
 //   LightingProbe.exe --map         walk every lamp and build an id -> key map [read-only]
 //   LightingProbe.exe --autonomous <on|off>  device effect engine on/off  [no colour written]
 //   LightingProbe.exe --self-test   drive a pattern a human can check       [WRITES colours]
+//   LightingProbe.exe --key <key>   light ONE key, blank the rest    [WRITES, needs --commit]
 //
 // The default modes write nothing: no colour is set, no brightness is changed, no BIOS state is
-// modified. --self-test is the exception, and it exists because the LampArray spec has no colour
-// readback - so whether a write reached the keys is a question only a person looking at the
-// keyboard can answer. It restores the device to its own effects on the way out.
+// modified. --self-test and --key are the exceptions, and they exist because the LampArray spec has
+// no colour readback - so whether a write reached the keys is a question only a person looking at
+// the keyboard can answer. Both restore the device to its own effects on the way out.
 //
-//   --hold <seconds>   how long --self-test holds the pattern (default 10)
+//   --hold <seconds>   run a repaint loop for N seconds (--self-test defaults to 10; --key does
+//                      ONE write unless this is given)
 //   --static           --self-test writes once and leaves it, with no hold loop
+//   --key <key>        key name (F4, Esc, A, Space), HID usage (0x3D), or a bare lamp id
+//   --color RRGGBB     colour for --key (default FF0000)
+//   --commit           required by --key; without it the key is resolved and nothing is sent
+//
+// --key is the narrower test: bands prove reports land somewhere, one lit key proves the lamp INDEX
+// is right, which is what a per-key feature needs. Run --map first for the authoritative table.
+//
+// Measured 2026-08-06 on 8D87, after the keyboard was recovered from its stuck state: --key F4
+// lights exactly F4, the map is correct, and ONE report is enough - it stays lit after the process
+// exits. So per-key control does not need a repaint thread. The 30 Hz loop in --self-test was a
+// workaround for a stuck keyboard plus a strobe bug in this tool, not for the protocol.
 //
 // The vendor per-key path on interface mi_03 is NOT here. It speaks HP's own DojoPerKeyRGB format
 // straight to the MCU and verifies nothing in this repo, so it lives with the machine
@@ -28,6 +41,9 @@ using OmenCore.Tools.LightingProbe;
 
 if (args.Contains("--self-test"))
     return SelfTest.Run(args);
+
+if (args.Contains("--key"))
+    return SetKey.Run(args);
 
 if (args.Contains("--map"))
     return LampMap.Run();
