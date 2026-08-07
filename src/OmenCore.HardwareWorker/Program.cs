@@ -504,10 +504,12 @@ class Program
                 // started by the app, restarted after a resume, and respawned when it is orphaned.
                 // The update loop was taught to leave a D3 dGPU alone; this path was still pulling
                 // it back to D0 behind it.
-                if (IsSleepingNvidiaGpu(hw))
+                // Renamed by the NVML quiesce: the same question now has a second reason to answer
+                // yes, and a re-open triggered by a restart must not read the card either.
+                if (ShouldSkipNvidiaGpu(hw))
                 {
-                    LogToFile($"[{DateTime.Now:O}] [GPU Detected] NVIDIA: {hw.Name} — parked in D3, sensors not read\n");
-                    Console.WriteLine($"[GPU Detected] NVIDIA: {hw.Name} (parked in D3, sensors not read)");
+                    LogToFile($"[{DateTime.Now:O}] [GPU Detected] NVIDIA: {hw.Name} — parked or restarting, sensors not read\n");
+                    Console.WriteLine($"[GPU Detected] NVIDIA: {hw.Name} (parked or restarting, sensors not read)");
                     continue;
                 }
 
