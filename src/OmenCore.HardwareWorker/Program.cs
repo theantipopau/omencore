@@ -1436,6 +1436,11 @@ class Program
                 {
                     response = "OK";
                     _running = false;
+                    // Logged because the log is the only way to tell a requested exit from a
+                    // parent that simply died — and those two get very different treatment
+                    // (see MonitorParentProcess).
+                    Console.WriteLine("SHUTDOWN received. Worker exiting.");
+                    LogToFile($"[{DateTime.Now:O}] SHUTDOWN received from client. Worker exiting.\n");
                 }
                 else if (request == "DISABLE_BATTERY")
                 {
