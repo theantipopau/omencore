@@ -2785,44 +2785,70 @@ namespace OmenCore.ViewModels
             return true;
         }
 
+        /// <summary>
+        /// Paint one colour across every lighting surface these reactive features drive.
+        ///
+        /// Temperature, throttling and performance mode differ only in which colour they pick and
+        /// which effect string the RGB manager gets; the fan-out itself is the same, and used to be
+        /// three copies of it. <paramref name="rgbEffect"/> is the one genuine difference — the
+        /// throttling indicator pulses where the others hold steady.
+        /// </summary>
+        private async Task FanOutLightingColorAsync(string colorHex, string rgbEffect, string reason)
+        {
+            var color = ParseDrawingColor(colorHex);
+
+            if (_keyboardLightingService?.IsAvailable == true)
+            {
+                await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+            }
+
+            // The light bar is a separate device on a separate transport, so it takes its own call.
+            // It was missing from all three features, which left temperature-responsive lighting
+            // driving every RGB peripheral in the house while the strip on the front of the chassis
+            // — the one light the user is actually looking at — never moved.
+            //
+            // Brightness comes from the light bar card when the user has opened it, so the reactive
+            // colour does not quietly undo a brightness they chose. This deliberately reads the
+            // backing field: touching the property would construct that view-model, and hence probe
+            // hardware, from a monitoring callback.
+            if (_keyboardLightingService?.IsLightBarAvailable == true)
+            {
+                _keyboardLightingService.SetLightBarColors(
+                    new[] { (color.R, color.G, color.B) },
+                    (byte)(_deviceLighting?.BarBrightness ?? 100));
+            }
+
+            if (_rgbManager != null)
+            {
+                await _rgbManager.ApplyEffectToAllAsync(rgbEffect);
+            }
+
+            if (_corsairService != null && CorsairDevices.Count > 0)
+            {
+                await _corsairService.ApplyLightingToAllAsync(colorHex);
+            }
+
+            if (_logitechService != null && LogitechDevices.Count > 0)
+            {
+                foreach (var device in LogitechDevices)
+                {
+                    await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
+                }
+            }
+
+            if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
+            {
+                await Task.Run(() => _razerService.SetStaticColor(color.R, color.G, color.B));
+            }
+
+            _logging.Info($"Applied {reason} lighting: {colorHex}");
+        }
+
         private async Task ApplyTemperatureBasedLightingAsync(string colorHex)
         {
             try
             {
-                // Apply to keyboard lighting
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    var color = ParseDrawingColor(colorHex);
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"color:{colorHex}");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(colorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var color = System.Drawing.ColorTranslator.FromHtml(colorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(color.R, color.G, color.B));
-                }
+                await FanOutLightingColorAsync(colorHex, $"color:{colorHex}", "temperature-based");
             }
             catch (Exception ex)
             {
@@ -2833,47 +2859,13 @@ namespace OmenCore.ViewModels
                 _temperatureLightingApplyInFlight = false;
             }
         }
-        
+
         private async Task ApplyThrottlingLightingAsync(MonitoringSample sample)
         {
             try
             {
-                // Apply throttling color to indicate thermal/power throttling
-                var color = ParseDrawingColor(ThrottlingColorHex);
-                
-                // Apply to keyboard lighting with pulsing effect
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB with pulsing
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"pulse:{ThrottlingColorHex}:1000");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(ThrottlingColorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, ThrottlingColorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var razerColor = System.Drawing.ColorTranslator.FromHtml(ThrottlingColorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(razerColor.R, razerColor.G, razerColor.B));
-                }
+                await FanOutLightingColorAsync(
+                    ThrottlingColorHex, $"pulse:{ThrottlingColorHex}:1000", "throttling indicator");
             }
             catch (Exception ex)
             {
@@ -2884,69 +2876,20 @@ namespace OmenCore.ViewModels
                 _throttlingLightingApplyInFlight = false;
             }
         }
-        
+
         private async Task ApplyPerformanceModeLightingAsync(string modeName)
         {
             try
             {
-                string colorHex;
-                
-                // Map performance mode to color
-                switch (modeName.ToLower())
+                var colorHex = modeName.ToLower() switch
                 {
-                    case "balanced":
-                        colorHex = BalancedModeColorHex;
-                        break;
-                    case "performance":
-                    case "high performance":
-                        colorHex = PerformanceModeColorHex;
-                        break;
-                    case "quiet":
-                    case "power saver":
-                        colorHex = QuietModeColorHex;
-                        break;
-                    default:
-                        colorHex = CustomModeColorHex;
-                        break;
-                }
-                
-                var color = ParseDrawingColor(colorHex);
-                
-                // Apply to keyboard lighting
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"color:{colorHex}");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(colorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var razerColor = System.Drawing.ColorTranslator.FromHtml(colorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(razerColor.R, razerColor.G, razerColor.B));
-                }
-                
-                _logging.Info($"Applied performance mode lighting for '{modeName}' with color {colorHex}");
+                    "balanced" => BalancedModeColorHex,
+                    "performance" or "high performance" => PerformanceModeColorHex,
+                    "quiet" or "power saver" => QuietModeColorHex,
+                    _ => CustomModeColorHex
+                };
+
+                await FanOutLightingColorAsync(colorHex, $"color:{colorHex}", $"performance mode '{modeName}'");
             }
             catch (Exception ex)
             {
