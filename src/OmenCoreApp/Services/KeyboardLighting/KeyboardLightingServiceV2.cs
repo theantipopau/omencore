@@ -158,10 +158,19 @@ namespace OmenCore.Services.KeyboardLighting
             else
             {
                 _logging.Info("[KeyboardLightingV2] No model-specific config found, trying all backends...");
-                
-                // Try backends in order: WMI BIOS → EC Direct
+
+                // HidPerKey FIRST, and its absence from this list was a real bug: a per-key keyboard
+                // on any board the model database does not recognise was invisible, because the
+                // fallback only ever tried the two four-zone paths. Those "succeed" on a per-key
+                // chassis by landing on the light bar, so detection stopped at a backend that
+                // cannot touch the keyboard.
+                //
+                // Putting it first is safe because the per-key backends identify their own device
+                // and decline when it is absent - unlike the WMI paths, which answer for whatever
+                // surface the firmware wires them to.
                 var methodsToTry = new[]
                 {
+                    KeyboardMethod.HidPerKey,
                     KeyboardMethod.ColorTable2020,
                     KeyboardMethod.EcDirect
                 };
@@ -262,6 +271,86 @@ namespace OmenCore.Services.KeyboardLighting
             }
         }
         
+        /// <summary>
+        /// The active backend's measured lamp map - every addressable key with its real position
+        /// and the HID usage it lights - or empty when the backend cannot supply one.
+        ///
+        /// EMPTY IS THE NORMAL ANSWER on most hardware, and callers must treat it as "no real
+        /// layout is known here" rather than as a failure. Only a backend that has interrogated
+        /// the device returns anything; nothing here infers a layout from a model name.
+        /// </summary>
+        public IReadOnlyList<Hardware.HidLampArray.LampInfo> GetMeasuredKeyMap() =>
+            (_activeBackend as DojoPerKeyBackend)?.GetKeyMap()
+            ?? (IReadOnlyList<Hardware.HidLampArray.LampInfo>)Array.Empty<Hardware.HidLampArray.LampInfo>();
+
+        /// <summary>
+        /// Colour individually addressed keys, leaving every unnamed key alone.
+        /// Keys are lamp ids from <see cref="GetMeasuredKeyMap"/>.
+        /// </summary>
+        public async Task<bool> SetKeyColorsAsync(IReadOnlyDictionary<ushort, Color> keyColors)
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                return dojo.SetKeyColors(keyColors);
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Set the LampArray intensity used by subsequent per-key colour writes, without repainting.
+        /// </summary>
+        public bool SetPerKeyBrightness(int brightness)
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+            dojo.SetLampIntensity(brightness);
+            return true;
+        }
+
+        /// <summary>Whether this exact keyboard was confirmed on hardware, rather than matched from
+        /// HP's device table. False is not a failure — it means "expected to work, unproven here".</summary>
+        public bool IsVerifiedPerKeyDevice =>
+            (_activeBackend as DojoPerKeyBackend)?.IsVerifiedDevice ?? false;
+
+        /// <summary>USB identity of the per-key keyboard, for display and field reports.</summary>
+        public string PerKeyDeviceIdentity =>
+            (_activeBackend as DojoPerKeyBackend)?.DeviceIdentity ?? string.Empty;
+
+        /// <summary>Whether the active backend can run the device's own animation engine.</summary>
+        public bool SupportsDeviceEffects =>
+            (_activeBackend as DojoPerKeyBackend)?.SupportsDeviceEffects ?? false;
+
+        /// <summary>
+        /// Install one of the device's built-in effects, with the fields that effect consumes.
+        ///
+        /// Distinct from <see cref="IKeyboardBackend.SetEffectAsync"/>, whose four-effect vocabulary
+        /// is all the shared interface can express. The device has twelve.
+        /// </summary>
+        public async Task<RgbApplyResult> SetDeviceEffectAsync(Hardware.DojoKeyboardMcu.EffectRecord record)
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo)
+                return new RgbApplyResult { FailureReason = "No device-effect capable backend is active" };
+
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                return dojo.SetDeviceEffect(record);
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
+        }
+
+        /// <summary>The effect the device is currently holding, or null if it will not answer.</summary>
+        public Hardware.DojoKeyboardMcu.EffectRecord? ReadDeviceEffect() =>
+            (_activeBackend as DojoPerKeyBackend)?.ReadDeviceEffect();
+
         private async Task<IKeyboardBackend?> TryInitializeBackend(KeyboardMethod method)
         {
             IKeyboardBackend? backend = null;
@@ -304,9 +393,19 @@ namespace OmenCore.Services.KeyboardLighting
                         break;
                         
                     case KeyboardMethod.HidPerKey:
-                        // Use the USB HID per-key backend (HidSharp, VID 0x03F0).
-                        // Scans for known OMEN per-key keyboard PIDs and falls back
-                        // cleanly if no matching device is found.
+                        // Two per-key backends, for two different keyboards - not a primary and a
+                        // fallback. DojoPerKeyBackend serves Darfon 0D62:54BF (OMEN MAX 16, board
+                        // 8D87), whose protocol was measured on hardware; HidPerKeyBackend serves
+                        // the 0x03F0 OMEN family and speaks a command set this keyboard does not.
+                        // Neither can stand in for the other, so each declines cleanly when its
+                        // device is absent and the loop moves on.
+                        var dojo = new DojoPerKeyBackend(_logging);
+                        if (await dojo.InitializeAsync() && dojo.IsAvailable)
+                        {
+                            return dojo;
+                        }
+
+                        dojo.Dispose();
                         backend = new HidPerKeyBackend(_logging);
                         break;
                         

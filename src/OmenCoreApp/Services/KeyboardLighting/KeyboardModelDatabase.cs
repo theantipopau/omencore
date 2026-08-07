@@ -484,12 +484,18 @@ namespace OmenCore.Services.KeyboardLighting
                 PreferredMethod = KeyboardMethod.HidPerKey,
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.ColorTable2020 },
                 ModelYear = 2025,
-                UserVerified = false,
-                Notes = "GitHub #117 — OMEN MAX Gaming Laptop 16-ak0xxx (Product ID 8D87). " +
-                    "HidPerKeyBackend (VID 0x03F0) is now active for this model; USB PID 0x054F is probable but requires " +
-                    "field confirmation. If per-key probe fails (unrecognized PID), WMI ColorTable fallback provides " +
-                    "light-bar zone control. Field report noted light bar responds but keyboard body does not — " +
-                    "this is expected until the correct USB PID is confirmed and per-key segment writes are verified."
+                UserVerified = true,
+                Notes = "GitHub #117 — OMEN MAX Gaming Laptop 16-ak0xxx (Product ID 8D87), BIOS F.07 / EC 40.38. " +
+                    "Owner-verified on hardware. The keyboard is Darfon 0D62:54BF, NOT a 0x03F0 device — the earlier " +
+                    "guess of USB PID 0x054F does not exist on this machine, and HidPerKeyBackend's command set is a " +
+                    "different keyboard's. DojoPerKeyBackend serves it over two interfaces: mi_04 (HID LampArray) for " +
+                    "static per-key colour, 120 addressable lamps; mi_03 (vendor HID) for the device's own effect " +
+                    "engine, all twelve animations confirmed by eye. Neither needs administrator. " +
+                    "The old 'light bar responds but keyboard body does not' report is explained: the four-zone WMI " +
+                    "commands reach this chassis's light bar, which is a separate device, so they always looked like " +
+                    "successful keyboard writes. Keyboard brightness is LampArray intensity only — the MCU refuses its " +
+                    "own brightness command (0x0C) at every value, and no effect consumes the brightness field, so a " +
+                    "running device effect cannot be dimmed."
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════

@@ -102,7 +102,13 @@ namespace OmenCoreApp.Tests.Services
             cfg!.ModelName.Should().Contain("OMEN MAX 16");
             cfg.PreferredMethod.Should().Be(KeyboardMethod.HidPerKey);
             cfg.KeyboardType.Should().Be(KeyboardType.PerKeyRgb);
-            cfg.UserVerified.Should().BeFalse();
+
+            // Was BeFalse. This board is now owner-verified on hardware: the keyboard is Darfon
+            // 0d62:54bf, driven over mi_04 for static per-key colour and mi_03 for the twelve
+            // device effects, all confirmed by eye. UserVerified is a claim about evidence, and
+            // the evidence changed - so the assertion follows it rather than pinning the entry to
+            // what was known when the test was written.
+            cfg.UserVerified.Should().BeTrue();
         }
 
         [Fact]
