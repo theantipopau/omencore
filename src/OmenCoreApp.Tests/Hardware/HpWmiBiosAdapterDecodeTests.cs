@@ -54,6 +54,27 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void DecodeAdapterData_Decodes_UsbC_Dock_Capture()
+        {
+            // Measured: 100 W USB-C PD dock on the same machine. 0x14 * 5 = 100.
+            //
+            // This is the capture the Type-C branch below was written against, and it is the one
+            // that shows why the branch cannot be simplified to the wattage comparison: the design
+            // rating reads 0 with the source live and negotiating 100 W, so the comparison is
+            // 100 < 0 and only the barrel special case reaches the right answer. The EC clamps the
+            // GPU to 35 W on this dock, so "under-rated" is the correct verdict to arrive at.
+            var decoded = HpWmiBios.DecodeAdapterData(new byte[] { 0x05, 0xC2, 0x00, 0x14 });
+
+            decoded.Should().NotBeNull();
+            decoded!.Value.Status.Should().Be(HpWmiBios.SmartAdapterStatus.ConnectedTypeC);
+            decoded.Value.PowerRatingWatts.Should().Be(100);
+            decoded.Value.PowerRatingKnown.Should().BeTrue();
+            decoded.Value.UsbcDesignRatingWatts.Should().Be(0);
+            decoded.Value.SupportsBarrelConnector.Should().BeTrue();
+            decoded.Value.IsLowWattage.Should().BeTrue();
+        }
+
+        [Fact]
         public void DecodeAdapterData_Treats_0xFF_As_Unknown_Not_1275W()
         {
             // 0xFF is HP's "unknown" sentinel. Decoding it arithmetically would report 1275 W and
