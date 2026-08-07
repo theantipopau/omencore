@@ -228,7 +228,7 @@ internal static class SetKey
     /// Inverse of LampMap.KeyName for the names worth typing, plus raw usages. Deliberately small:
     /// --map prints the authoritative table, so this only has to cover the convenient cases.
     /// </summary>
-    private static bool TryParseUsage(string s, out byte usage)
+    internal static bool TryParseUsage(string s, out byte usage)
     {
         usage = 0;
         string k = s.Trim();

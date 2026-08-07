@@ -10,6 +10,11 @@
 //   LightingProbe.exe --autonomous <on|off>  device effect engine on/off  [no colour written]
 //   LightingProbe.exe --self-test   drive a pattern a human can check       [WRITES colours]
 //   LightingProbe.exe --key <key>   light ONE key, blank the rest    [WRITES, needs --commit]
+//   LightingProbe.exe --read-effect     what the keyboard MCU is holding        [read-only]
+//   LightingProbe.exe --effect <name>   install a device-side animation  [WRITES, --commit]
+//   LightingProbe.exe --zones <colors>  static per-key colour, 4 bands  [WRITES, --commit]
+//   LightingProbe.exe --keys W=FF0000,A=00FF00   colour named keys only  [WRITES, --commit]
+//   LightingProbe.exe --lightbar <colors>        the LIGHT BAR, not the keyboard  [--commit]
 //
 // The default modes write nothing: no colour is set, no brightness is changed, no BIOS state is
 // modified. --self-test and --key are the exceptions, and they exist because the LampArray spec has
@@ -31,16 +36,38 @@
 // exits. So per-key control does not need a repaint thread. The 30 Hz loop in --self-test was a
 // workaround for a stuck keyboard plus a strobe bug in this tool, not for the protocol.
 //
-// The vendor per-key path on interface mi_03 is NOT here. It speaks HP's own DojoPerKeyRGB format
-// straight to the MCU and verifies nothing in this repo, so it lives with the machine
-// investigation that produced it: omen-max-16/tools/hid/. What it found matters to this code
-// though - that MCU acknowledges every colour write and displays none of them, and the mi_04
-// LampArray below accepts writes it does not honour - so neither path can light this keyboard yet.
+// BOTH INTERFACES WORK, and they do different jobs. mi_04 (the LampArray, above) is the static
+// per-key colour path. mi_03 is the MCU's own command surface, where the animation engine lives:
+// all twelve effects OMEN Gaming Hub offers are one command-3 frame each, rendered device-side. It
+// is reached through --effect / --read-effect below, which drive OmenCore's DojoPerKeyBackend - the
+// shipping type - rather than a copy of the protocol. Map and evidence:
+// omen-max-16/reference/keyboard-mcu.md.
+//
+// An earlier note here said the MCU acknowledges colour writes and displays none of them, and that
+// neither path could light this keyboard. Both halves were artefacts of a stuck EC state that has
+// since been cleared, and of reading the wrong HP SDK for the protocol.
 
 using OmenCore.Tools.LightingProbe;
 
 if (args.Contains("--self-test"))
     return SelfTest.Run(args);
+
+// Drives the per-key editor's view-model, whose failures were all above the transport.
+if (args.Contains("--map-editor"))
+    return MapEditor.Run(args);
+
+// The light bar is a different device on a different transport, so it gets its own entry rather
+// than a flag inside the keyboard path.
+if (args.Any(a => a.StartsWith("--lightbar", StringComparison.Ordinal)))
+    return LightBar.Run(args);
+
+// Ahead of --key: --read-effect and friends are the MCU path, and --key is the LampArray one.
+if (args.Contains("--effect") || args.Contains("--read-effect") || args.Contains("--zones") ||
+    args.Contains("--keys") || args.Contains("--brightness") || args.Contains("--backlight") ||
+    args.Contains("--restore-default") || args.Contains("--persist"))
+{
+    return PerKey.Run(args);
+}
 
 if (args.Contains("--key"))
     return SetKey.Run(args);
