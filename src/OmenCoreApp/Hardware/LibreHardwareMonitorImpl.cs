@@ -343,6 +343,17 @@ namespace OmenCore.Hardware
                     hw.HardwareType == HardwareType.GpuAmd ||
                     hw.HardwareType == HardwareType.GpuIntel)
                 {
+                    // A diagnostic line is not worth waking a parked dGPU for, and this runs on every
+                    // InitializeComputer() - so once at startup and again on every Reinitialize(),
+                    // which is what TryRestartAsync does after a resume. Reading sensors here goes
+                    // through NVML, which wakes the device to answer: the poll loops were taught to
+                    // leave it alone and this path was still pulling it back to D0 behind them.
+                    if (IsSleepingNvidiaGpu(hw))
+                    {
+                        _logger?.Invoke($"[GPU Detected] NVIDIA: {hw.Name} — parked in D3, sensors not read");
+                        continue;
+                    }
+
                     hw.Update();
                     var tempSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Temperature).ToList();
                     var loadSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Load).ToList();
