@@ -674,6 +674,108 @@ namespace OmenCore.ViewModels
         /// <summary>True when <see cref="PowerAdapterExplanation"/> has something to show.</summary>
         public bool HasPowerAdapterExplanation => PowerAdapterExplanation != null;
 
+        // ── The override ─────────────────────────────────────────────────────────────────────────
+        //
+        // Offered only where there is something to undo: an under-rated supply, on a machine with a
+        // dGPU to restart. On a supply that meets the requirement there is no clamp to discard and
+        // restarting the device would cost a black screen for nothing.
+
+        // Initialised here rather than in the constructor: RefreshPowerAdapterStatus() touches the
+        // command, and the Diagnostics view is free to call it before the constructor body has run
+        // its command block.
+        private readonly AdapterPowerOverrideService _adapterOverrideService =
+            new AdapterPowerOverrideService(App.Logging);
+
+        private string _adapterOverrideStatus = string.Empty;
+        private bool _adapterOverrideBusy;
+
+        // Built on first use rather than in the constructor. A field initializer cannot reference
+        // instance members (CS0236), and initialising it in the constructor body would leave a window
+        // where RefreshPowerAdapterStatus() - which the Diagnostics view is free to call - touches a
+        // null. Lazy removes the ordering question rather than answering it.
+        private AsyncRelayCommand? _applyAdapterOverrideCommand;
+
+        /// <summary>
+        /// Whether to offer the override at all. Kept separate from whether it can run, so a machine
+        /// that qualifies but is missing something gets a disabled button with a reason rather than
+        /// no button and no explanation.
+        /// </summary>
+        public bool CanOfferAdapterOverride =>
+            _adapterInfo is HpWmiBios.AdapterInfo info
+            && info.HasVerdict
+            && info.IsLowWattage
+            && _adapterOverrideService.FindDiscreteGpu() != null;
+
+        /// <summary>True when the override can actually be attempted right now.</summary>
+        public bool CanApplyAdapterOverride =>
+            CanOfferAdapterOverride && !_adapterOverrideBusy && _adapterOverrideService.IsAvailable(out _);
+
+        /// <summary>Why the button is disabled, or empty when it is not.</summary>
+        public string AdapterOverrideBlockedReason =>
+            !CanOfferAdapterOverride || _adapterOverrideBusy || _adapterOverrideService.IsAvailable(out var reason)
+                ? string.Empty
+                : reason;
+
+        public bool HasAdapterOverrideBlockedReason => AdapterOverrideBlockedReason.Length > 0;
+
+        /// <summary>The result of the last attempt, or empty before the first one.</summary>
+        public string AdapterOverrideStatus
+        {
+            get => _adapterOverrideStatus;
+            private set
+            {
+                if (_adapterOverrideStatus == value) return;
+                _adapterOverrideStatus = value;
+                OnPropertyChanged(nameof(AdapterOverrideStatus));
+                OnPropertyChanged(nameof(HasAdapterOverrideStatus));
+            }
+        }
+
+        public bool HasAdapterOverrideStatus => !string.IsNullOrEmpty(_adapterOverrideStatus);
+
+        /// <summary>True while a restart is in flight, so the UI can say so and refuse a second.</summary>
+        public bool AdapterOverrideBusy
+        {
+            get => _adapterOverrideBusy;
+            private set
+            {
+                if (_adapterOverrideBusy == value) return;
+                _adapterOverrideBusy = value;
+                OnPropertyChanged(nameof(AdapterOverrideBusy));
+                OnPropertyChanged(nameof(CanApplyAdapterOverride));
+                _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Restart the dGPU so its driver reloads without the adapter verdict. Destructive enough to
+        /// need the confirmation the view puts in front of it: it drops the display outputs for a few
+        /// seconds and destroys every graphics and compute context on the device.
+        /// </summary>
+        public ICommand ApplyAdapterOverrideCommand =>
+            _applyAdapterOverrideCommand ??=
+                new AsyncRelayCommand(_ => ApplyAdapterOverrideAsync(), _ => CanApplyAdapterOverride);
+
+        private async Task ApplyAdapterOverrideAsync()
+        {
+            AdapterOverrideBusy = true;
+            AdapterOverrideStatus = "Restarting the GPU...";
+
+            try
+            {
+                var result = await _adapterOverrideService.ApplyAsync().ConfigureAwait(true);
+                AdapterOverrideStatus = result.Message;
+
+                // The verdict itself has not changed - the supply is the same one - but the limit
+                // has, and the panel is the place someone will look to see whether it worked.
+                RefreshPowerAdapterStatus();
+            }
+            finally
+            {
+                AdapterOverrideBusy = false;
+            }
+        }
+
         /// <summary>
         /// Re-read the adapter state. Read-only WMI query; called when the Diagnostics tab is opened
         /// rather than polled, because the value only changes when someone physically plugs or
@@ -696,6 +798,12 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(PowerAdapterRequirement));
             OnPropertyChanged(nameof(PowerAdapterExplanation));
             OnPropertyChanged(nameof(HasPowerAdapterExplanation));
+
+            OnPropertyChanged(nameof(CanOfferAdapterOverride));
+            OnPropertyChanged(nameof(CanApplyAdapterOverride));
+            OnPropertyChanged(nameof(AdapterOverrideBlockedReason));
+            OnPropertyChanged(nameof(HasAdapterOverrideBlockedReason));
+            _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
         }
 
         /// <summary>

@@ -113,6 +113,37 @@
                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </Border>
 
+                    <!-- The override. Offered only on an under-rated supply, because on one that meets
+                         the requirement there is no clamp to discard and this would cost a black
+                         screen for nothing. Confirmation lives in the click handler, not here. -->
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding CanOfferAdapterOverride, Converter={StaticResource BoolToVisibility}}">
+                        <Separator Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Restart the GPU to drop the power clamp" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="The firmware tells the GPU driver about the adapter once, when it evaluates it. A driver that has just started has not been told, so restarting the device clears the clamp until the firmware next re-evaluates - which it does on its own schedule."/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   Text="Your screens will go black for a few seconds and anything using the GPU will lose it. Do not do this with a game or a render running."/>
+
+                        <Button Content="Restart GPU and drop the clamp"
+                                Click="ApplyAdapterOverride_Click"
+                                IsEnabled="{Binding CanApplyAdapterOverride}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,10,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="{Binding AdapterOverrideBlockedReason}" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAdapterOverrideBlockedReason, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <TextBlock Text="{Binding AdapterOverrideStatus}" FontSize="11" Margin="0,8,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAdapterOverrideStatus, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+
                     <TextBlock Text="Read from the BIOS each time this tab is opened. This is the machine's own view of the supply attached to it, not a measurement."
                                FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
                 </StackPanel>

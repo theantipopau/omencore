@@ -31,6 +31,35 @@ namespace OmenCore.Views
                 System.Windows.Threading.DispatcherPriority.Background);
         }
 
+        /// <summary>
+        /// Confirm before restarting the GPU, because the cost is immediate and visible and the
+        /// benefit is not. The dialog is here rather than in the view-model so the command stays
+        /// callable without a window behind it.
+        /// </summary>
+        private void ApplyAdapterOverride_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (DataContext is not ViewModels.MainViewModel vm) return;
+
+            var answer = System.Windows.MessageBox.Show(
+                "This disables and re-enables the discrete GPU.\n\n" +
+                "Your screens will go black for a few seconds, and any game, render or compute job " +
+                "using the GPU will lose it and may crash.\n\n" +
+                "The higher power limit lasts only until the firmware next re-evaluates the adapter. " +
+                "It is not permanent, and it is not a substitute for the right power supply.\n\n" +
+                "Restart the GPU now?",
+                "Restart the GPU?",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning,
+                System.Windows.MessageBoxResult.No);
+
+            if (answer != System.Windows.MessageBoxResult.Yes) return;
+
+            if (vm.ApplyAdapterOverrideCommand.CanExecute(null))
+            {
+                vm.ApplyAdapterOverrideCommand.Execute(null);
+            }
+        }
+
         private void OpenDiagnosticsFolder_Click(object sender, System.Windows.RoutedEventArgs e)
         {
             var logDir = App.Logging.LogDirectory;
