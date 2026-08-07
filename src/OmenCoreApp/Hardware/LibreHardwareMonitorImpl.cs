@@ -748,16 +748,86 @@ namespace OmenCore.Hardware
         private const int NvmlRetryCooldownSeconds = 60;       // v2.8.6: Retry NVML after 60s cooldown
 
         /// <summary>
-        /// True when this is the discrete NVIDIA GPU and it is parked in D3. LHM reaches that
-        /// GPU through NVML, which wakes the device to answer — so polling it is what stops it
-        /// ever being idle. See <see cref="GpuPowerStateProbe"/>.
+        /// True when the discrete NVIDIA GPU must be left alone this pass. Two reasons, both about
+        /// NVML: it is parked in D3 and reading it is what wakes it (see
+        /// <see cref="GpuPowerStateProbe"/>), or it is being restarted and the handle LHM cached at
+        /// <c>Computer.Open()</c> no longer points at a device (see <see cref="GpuRestartGate"/>).
         /// </summary>
-        private bool IsSleepingNvidiaGpu(IHardware hardware)
+        private bool ShouldSkipNvidiaGpu(IHardware hardware)
         {
             if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
 
+            if (GpuRestartGate.IsRestarting)
+            {
+                _gpuHandlesStale = true;
+                return true;
+            }
+
             _gpuSleepProbe ??= new GpuPowerStateProbe(_logger);
             return _gpuSleepProbe.IsAsleep();
+        }
+
+        /// <summary>
+        /// Decides whether a device may be updated, and for the NVIDIA dGPU holds a slot in the NVML
+        /// in-flight semaphore for as long as the update runs. Null means do not touch it.
+        ///
+        /// The slot is the half of <see cref="GpuRestartGate"/> that covers a call already in
+        /// progress. Skipping on the marker alone leaves the poll that was inside NVML when the device
+        /// went away, and that one is not recoverable — it faults in the driver and takes the process
+        /// with it.
+        /// </summary>
+        private IDisposable? BeginHardwareUpdate(IHardware hardware)
+        {
+            if (hardware.HardwareType != HardwareType.GpuNvidia) return NoLease.Instance;
+
+            if (ShouldSkipNvidiaGpu(hardware)) return null;
+
+            if (!GpuRestartGate.TryEnterNvml(out var lease))
+            {
+                // Refused between the two checks: a restart started, or every slot is taken. Either
+                // way the handle is to be treated as stale.
+                _gpuHandlesStale = true;
+                return null;
+            }
+
+            return lease ?? NoLease.Instance;
+        }
+
+        /// <summary>Nothing to release — the caller was cleared to proceed and holds no slot.</summary>
+        private sealed class NoLease : IDisposable
+        {
+            public static readonly NoLease Instance = new();
+            public void Dispose() { }
+        }
+
+        /// <summary>
+        /// Set while a GPU restart is in flight, cleared by reopening the <c>Computer</c> once it is
+        /// over. Skipping the device during the restart is what keeps this process alive; it does not
+        /// make the cached NVML handle valid again, so the reopen is not optional.
+        /// </summary>
+        private bool _gpuHandlesStale;
+
+        /// <summary>
+        /// Call at the top of any pass that is about to update hardware, while <c>_lock</c> is held —
+        /// this replaces <c>_computer</c>, so it cannot run inside a traversal of it.
+        /// </summary>
+        private void ReopenAfterGpuRestartIfNeeded()
+        {
+            if (!_gpuHandlesStale || GpuRestartGate.IsRestarting) return;
+            _gpuHandlesStale = false;
+
+            _logger?.Invoke("[GPU] dGPU was restarted — reopening LibreHardwareMonitor so NVML re-enumerates it");
+
+            try
+            {
+                _computer?.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[GPU] Close before NVML re-enumeration failed: {ex.Message}");
+            }
+
+            InitializeComputer();
         }
 
         /// <summary>
@@ -776,7 +846,11 @@ namespace OmenCore.Hardware
         private bool TryUpdateGpuHardware(IHardware hardware)
         {
             // Nothing below is measurable on a parked GPU, and measuring is what un-parks it.
-            if (IsSleepingNvidiaGpu(hardware)) return false;
+            // Nothing below is survivable on a restarting one. BeginHardwareUpdate answers both, and
+            // for the NVIDIA GPU the lease it returns is a slot in the NVML in-flight semaphore that
+            // has to be held across Update() - see GpuRestartGate.
+            using var lease = BeginHardwareUpdate(hardware);
+            if (lease is null) return false;
 
             if (_nvmlDisabled)
             {
@@ -837,8 +911,10 @@ namespace OmenCore.Hardware
                 // Worker-only quarantine signal should not persist when running in-process.
                 _cachedAmdGpuTelemetryQuarantined = false;
                 _cachedAmdGpuTelemetryQuarantineReason = string.Empty;
-                
-                _computer?.Accept(new UpdateVisitor(IsSleepingNvidiaGpu));
+
+                ReopenAfterGpuRestartIfNeeded();
+
+                _computer?.Accept(new UpdateVisitor(BeginHardwareUpdate));
 
                 foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                 {
@@ -1829,8 +1905,10 @@ namespace OmenCore.Hardware
                 
                 try
                 {
+                    ReopenAfterGpuRestartIfNeeded();
+
                     // Update hardware readings to get fresh fan data
-                    _computer?.Accept(new UpdateVisitor(IsSleepingNvidiaGpu));
+                    _computer?.Accept(new UpdateVisitor(BeginHardwareUpdate));
 
                     foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                     {
@@ -2336,13 +2414,16 @@ namespace OmenCore.Hardware
     /// </summary>
     internal class UpdateVisitor : IVisitor
     {
-        private readonly Func<IHardware, bool>? _skip;
+        private readonly Func<IHardware, IDisposable?>? _begin;
 
-        /// <param name="skip">
-        /// Returns true for hardware that must not be updated this pass. Used to leave a
-        /// sleeping dGPU alone — updating it is what wakes it.
+        /// <param name="begin">
+        /// Called before each device is updated. Returns null for hardware that must not be touched
+        /// this pass — a sleeping dGPU, which updating is what wakes, or one being restarted. Anything
+        /// else it returns is disposed once the update returns, which is how a lease on the NVML
+        /// in-flight semaphore can span the call: <see cref="GpuRestartGate"/> needs the whole of
+        /// <c>Update()</c> inside the slot, not just the decision to make it.
         /// </param>
-        public UpdateVisitor(Func<IHardware, bool>? skip = null) => _skip = skip;
+        public UpdateVisitor(Func<IHardware, IDisposable?>? begin = null) => _begin = begin;
 
         public void VisitComputer(IComputer computer)
         {
@@ -2351,9 +2432,23 @@ namespace OmenCore.Hardware
 
         public void VisitHardware(IHardware hardware)
         {
-            if (_skip?.Invoke(hardware) == true) return;
+            IDisposable? lease = null;
 
-            hardware.Update();
+            if (_begin != null)
+            {
+                lease = _begin(hardware);
+                if (lease == null) return;
+            }
+
+            try
+            {
+                hardware.Update();
+            }
+            finally
+            {
+                lease?.Dispose();
+            }
+
             foreach (var subHardware in hardware.SubHardware)
                 subHardware.Accept(this);
         }

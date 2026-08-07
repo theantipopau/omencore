@@ -596,16 +596,57 @@ class Program
     }
 
     /// <summary>
-    /// True when this is the discrete NVIDIA GPU and it is parked in D3. Reading it is what
-    /// would wake it, so the state comes from the PnP manager instead.
+    /// True when the discrete NVIDIA GPU must be left alone this pass — either because it is parked
+    /// in D3 and reading it is what would wake it, or because something is restarting it and the
+    /// NVML handle we hold no longer points at a device.
     /// </summary>
-    private static bool IsSleepingNvidiaGpu(IHardware hardware)
+    private static bool ShouldSkipNvidiaGpu(IHardware hardware)
     {
         if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
+
+        if (OmenCore.Hardware.GpuRestartGate.IsRestarting)
+        {
+            _gpuHandlesStale = true;
+            return true;
+        }
 
         _gpuSleepProbe ??= new OmenCore.Hardware.GpuPowerStateProbe(
             msg => LogToFile($"[{DateTime.Now:O}] {msg}\n"));
         return _gpuSleepProbe.IsAsleep();
+    }
+
+    /// <summary>
+    /// Set while a GPU restart is in flight, cleared by reopening the <c>Computer</c> once it is over.
+    /// Skipping the device during the restart keeps this process alive; it does not make the cached
+    /// NVML handle valid again, and the next call through it would fault exactly as it would have
+    /// during the restart.
+    /// </summary>
+    private static bool _gpuHandlesStale;
+
+    private static void ReopenAfterGpuRestartIfNeeded()
+    {
+        if (!_gpuHandlesStale || OmenCore.Hardware.GpuRestartGate.IsRestarting) return;
+        _gpuHandlesStale = false;
+
+        LogToFile($"[{DateTime.Now:O}] dGPU was restarted — reopening LibreHardwareMonitor so NVML re-enumerates it\n");
+
+        try
+        {
+            _computer?.Close();
+        }
+        catch (Exception ex)
+        {
+            LogToFile($"[{DateTime.Now:O}] Close before NVML re-enumeration failed: {ex.Message}\n");
+        }
+
+        try
+        {
+            InitializeHardware();
+        }
+        catch (Exception ex)
+        {
+            LogToFile($"[{DateTime.Now:O}] Reopen after GPU restart failed: {ex.Message}\n");
+        }
     }
 
     /// <summary>
@@ -628,6 +669,9 @@ class Program
 
     private static void UpdateHardwareReadings()
     {
+        // Before anything is read, not after: this is what makes the handle valid again.
+        ReopenAfterGpuRestartIfNeeded();
+
         if (_computer == null) return;
 
         PruneErrorLogCacheIfNeeded();
@@ -680,10 +724,25 @@ class Program
                         continue;
                     }
 
-                    if (IsSleepingNvidiaGpu(hardware))
+                    if (ShouldSkipNvidiaGpu(hardware))
                     {
                         // Leave a parked dGPU parked. LHM reaches it through NVML, which wakes
                         // the device to answer, so this poll loop would hold it in D0 forever.
+                        // The same skip covers a dGPU being restarted, where the NVML handle is
+                        // stale and calling through it takes the process down.
+                        ZeroGpuTelemetry(sample);
+                        continue;
+                    }
+
+                    // For the NVIDIA GPU, hold a slot in the in-flight semaphore across Update().
+                    // The skip above stops a call being started once a restart is announced; this is
+                    // what makes the restarter wait for a call already running. Only the pair of them
+                    // is a guarantee - see GpuRestartGate.
+                    IDisposable? nvmlLease = null;
+                    if (hardware.HardwareType == HardwareType.GpuNvidia &&
+                        !OmenCore.Hardware.GpuRestartGate.TryEnterNvml(out nvmlLease))
+                    {
+                        _gpuHandlesStale = true;
                         ZeroGpuTelemetry(sample);
                         continue;
                     }
@@ -691,7 +750,7 @@ class Program
                     // CRITICAL: Isolate each hardware device update in its own try-catch
                     // If storage drives go to sleep, their SafeFileHandle gets disposed,
                     // but we must not let that crash CPU/GPU monitoring
-                    
+
                     // First, try to update the hardware device itself
                     try
                     {
@@ -709,7 +768,15 @@ class Program
                         // Storage SafeFileHandle disposed - skip this device
                         continue;
                     }
-                    
+                    finally
+                    {
+                        // Released the moment Update() returns rather than at the end of the device's
+                        // processing: everything after this reads sensor values off the last update
+                        // and does not re-enter NVML, so holding the slot longer would only make the
+                        // restarter wait for work that cannot fault.
+                        nvmlLease?.Dispose();
+                    }
+
                     // Process the hardware data (CPU, GPU, RAM, etc.)
                     ProcessHardware(hardware, sample);
                     ProcessFanSensors(hardware.Sensors, sample);

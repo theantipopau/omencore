@@ -15,10 +15,10 @@ namespace OmenCoreApp.Tests.Services
     {
         // BuildMessage is private and static, and it is the whole reporting surface. Reaching it by
         // reflection beats making it public purely so a test can see it.
-        private static string BuildMessage(double? before, double? after) =>
+        private static string BuildMessage(double? before, double? after, bool nvidiaSmiInstalled = true) =>
             (string)typeof(AdapterPowerOverrideService)
                 .GetMethod("BuildMessage", BindingFlags.NonPublic | BindingFlags.Static)!
-                .Invoke(null, new object?[] { before, after })!;
+                .Invoke(null, new object?[] { before, after, nvidiaSmiInstalled })!;
 
         [Fact]
         public void A_Limit_That_Rose_Is_Reported_With_Both_Numbers_And_Its_Expiry()
@@ -48,10 +48,24 @@ namespace OmenCoreApp.Tests.Services
         [Fact]
         public void An_Unreadable_Limit_Says_So_Rather_Than_Claiming_Nothing_Happened()
         {
-            var message = BuildMessage(null, null);
+            var message = BuildMessage(null, null, nvidiaSmiInstalled: false);
 
             message.Should().Contain("unknown");
             message.Should().Contain("nvidia-smi");
+        }
+
+        [Fact]
+        public void A_Missing_Reading_Does_Not_Blame_A_Tool_That_Is_Installed()
+        {
+            // The measured case: nvidia-smi sat in System32 and read 35 W before the restart, then
+            // answered "No devices were found" while the driver was still loading. Reporting that as
+            // "nvidia-smi was not available" sends someone to install a tool they already have.
+            var message = BuildMessage(35.0, null, nvidiaSmiInstalled: true);
+
+            message.Should().NotContain("not installed");
+            message.Should().Contain("35 W", because: "the reading that did succeed is still worth having");
+            message.Should().Contain("Check again",
+                because: "the limit may well have moved; the reading was early, not absent");
         }
 
         [Fact]

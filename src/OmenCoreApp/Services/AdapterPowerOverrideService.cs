@@ -46,6 +46,25 @@ namespace OmenCore.Services
         // reported as such rather than hanging the caller.
         private static readonly TimeSpan EnableTimeout = TimeSpan.FromSeconds(60);
 
+        // How long to wait for every GPU poller to acknowledge that it is out of NVML. Each holds a
+        // slot only for the duration of one call, so this is reached only if a poller is wedged
+        // inside the driver - in which case pulling the device would kill it, and refusing is right.
+        private static readonly TimeSpan QuiesceTimeout = TimeSpan.FromSeconds(15);
+
+        // Used only when the handshake is unavailable, which leaves the marker file and a stopwatch.
+        // One poll interval plus margin: a guess, and the code says so where it uses it.
+        private static readonly TimeSpan BlindQuiesceWait = TimeSpan.FromSeconds(3);
+
+        // The gate's own expiry, in case this process dies mid-restart. Generous on purpose: an
+        // expiry that fires while the GPU is still coming up puts the poll loops back on a stale NVML
+        // handle, which is the crash the gate exists to prevent.
+        private static readonly TimeSpan GateMaxDuration = TimeSpan.FromMinutes(3);
+
+        // pnputil returns as soon as the enable is queued; the driver takes seconds longer to load and
+        // NVML re-enumerates later still. Asking nvidia-smi too early gets "No devices were found",
+        // which reads exactly like "nvidia-smi is not installed" if you believe the first answer.
+        private static readonly TimeSpan PowerLimitReadTimeout = TimeSpan.FromSeconds(40);
+
         public AdapterPowerOverrideService(LoggingService logging)
         {
             _logging = logging ?? throw new ArgumentNullException(nameof(logging));
@@ -125,8 +144,42 @@ namespace OmenCore.Services
             _logging.Info($"Adapter power override: restarting {device.Name} ({device.InstanceId}); " +
                           $"enforced limit before = {Describe(before)}");
 
+            // Everything below happens with GPU telemetry suspended in this process and in the
+            // hardware worker. Both of them hold an NVML device handle that the restart invalidates,
+            // and NVML faults rather than failing when called through a stale one - an
+            // AccessViolationException, which .NET does not let managed code catch. The first run of
+            // this override killed both processes that way, in the same second, in the poll that
+            // landed while the GPU was coming back.
+            using var gate = Hardware.GpuRestartGate.Begin(
+                GateMaxDuration, msg => _logging.Info($"Adapter power override: {msg}"));
+
             try
             {
+                // The gate stops a poller *starting* an NVML call. This waits for the ones already
+                // running to come out, which is the half that cannot be done with a timer: a call
+                // inside the driver when the device disappears is not recoverable at any speed.
+                var quiesced = await Task.Run(
+                    () => Hardware.GpuRestartGate.WaitForPollersToLeaveNvml(
+                        QuiesceTimeout, msg => _logging.Info($"Adapter power override: {msg}")),
+                    cancellationToken).ConfigureAwait(false);
+
+                if (!quiesced)
+                {
+                    // Either a poller is wedged inside NVML, or there is no handshake to be had. The
+                    // first is a reason to refuse: restarting the device under it is the crash this
+                    // whole mechanism exists to prevent, and no wait makes it safe.
+                    if (Hardware.GpuRestartGate.HandshakeAvailable)
+                    {
+                        return new OverrideResult(false,
+                            "GPU telemetry did not stand down, so the GPU was not restarted. Something " +
+                            "is still reading the card. Close other monitoring tools and try again.",
+                            before, null);
+                    }
+
+                    _logging.Warn("Adapter power override: no NVML handshake — falling back to a timed wait");
+                    await Task.Delay(BlindQuiesceWait, cancellationToken).ConfigureAwait(false);
+                }
+
                 var disable = await RunPnpUtilAsync("/disable-device", device.InstanceId, cancellationToken)
                     .ConfigureAwait(false);
                 if (!disable.Success)
@@ -162,10 +215,10 @@ namespace OmenCore.Services
                         before, null);
                 }
 
-                var after = ReadEnforcedPowerLimitWatts();
+                var after = await WaitForEnforcedPowerLimitAsync(PowerLimitReadTimeout).ConfigureAwait(false);
                 _logging.Info($"Adapter power override: enforced limit after = {Describe(after)}");
 
-                return new OverrideResult(true, BuildMessage(before, after), before, after);
+                return new OverrideResult(true, BuildMessage(before, after, NvidiaSmiIsInstalled()), before, after);
             }
             catch (OperationCanceledException)
             {
@@ -180,7 +233,13 @@ namespace OmenCore.Services
             }
         }
 
-        private static string BuildMessage(double? before, double? after)
+        /// <param name="nvidiaSmiInstalled">
+        /// Separates the two ways a reading goes missing. They look identical from a null and are not
+        /// the same news: one means install nothing and expect nothing, the other means the GPU did
+        /// not answer and the restart may still have worked. The first version of this reported both
+        /// as "nvidia-smi was not available" on a machine that had nvidia-smi in System32.
+        /// </param>
+        private static string BuildMessage(double? before, double? after, bool nvidiaSmiInstalled)
         {
             if (before is double b && after is double a)
             {
@@ -196,8 +255,20 @@ namespace OmenCore.Services
                        "limit was not being clamped at the time.";
             }
 
-            return "The GPU restarted. The power limit could not be read, so whether it changed is " +
-                   "unknown - nvidia-smi was not available.";
+            if (!nvidiaSmiInstalled)
+            {
+                return "The GPU restarted. Whether the power limit changed is unknown - nvidia-smi is " +
+                       "not installed, and it is the only thing here that can read the limit. It ships " +
+                       "with the NVIDIA driver.";
+            }
+
+            var half = before is double known
+                ? $"The limit before the restart was {known:0.#} W. "
+                : string.Empty;
+
+            return "The GPU restarted. " + half + "nvidia-smi did not report a limit afterwards, so " +
+                   "whether it changed is unknown - the driver may still have been loading. Check again " +
+                   "in a moment.";
         }
 
         private static string Describe(double? watts) =>
@@ -242,31 +313,45 @@ namespace OmenCore.Services
             return null;
         }
 
+        /// <summary>
+        /// Waits for the device to report itself started.
+        ///
+        /// Two consecutive readings, because the first one lies: pnputil returns as soon as the enable
+        /// is queued, and Win32_PnPEntity can still be answering with the status it held before the
+        /// device was touched. Believing that single reading made the whole restart appear to finish
+        /// in under four seconds, and the power limit was then read off a driver that had not loaded.
+        /// </summary>
         private async Task<bool> WaitForDeviceAsync(string instanceId, TimeSpan timeout)
         {
             var deadline = DateTime.UtcNow + timeout;
+            var consecutiveOk = 0;
 
             while (DateTime.UtcNow < deadline)
             {
+                await Task.Delay(500).ConfigureAwait(false);
+
                 try
                 {
                     var escaped = instanceId.Replace("\\", "\\\\").Replace("'", "\\'");
                     using var searcher = new ManagementObjectSearcher(
                         $"SELECT Status FROM Win32_PnPEntity WHERE DeviceID = '{escaped}'");
 
+                    var ok = false;
                     foreach (ManagementObject device in searcher.Get())
                     {
                         // "OK" is what a started device reports. A device that is present but stopped
                         // reports "Error" or "Degraded", so presence alone is not the test.
-                        if ((device["Status"] as string) == "OK") return true;
+                        if ((device["Status"] as string) == "OK") ok = true;
                     }
+
+                    consecutiveOk = ok ? consecutiveOk + 1 : 0;
+                    if (consecutiveOk >= 2) return true;
                 }
                 catch (Exception ex)
                 {
                     _logging.Debug($"Waiting for {instanceId}: {ex.Message}");
+                    consecutiveOk = 0;
                 }
-
-                await Task.Delay(500).ConfigureAwait(false);
             }
 
             return false;
@@ -380,6 +465,36 @@ namespace OmenCore.Services
 
             return null;
         }
+
+        /// <summary>
+        /// Retries until the GPU answers or the deadline passes.
+        ///
+        /// A device that has just been re-enabled reports itself started well before NVML will
+        /// enumerate it, and nvidia-smi answers "No devices were found" in the gap. That is not the
+        /// same as no reading being available, and taking the first null as final is what produced a
+        /// report of "nvidia-smi was not available" on a machine where it was installed and working.
+        /// </summary>
+        private async Task<double?> WaitForEnforcedPowerLimitAsync(TimeSpan timeout)
+        {
+            // Nothing to wait for if the tool is not there. Retrying a missing file for forty seconds
+            // would hold GPU telemetry suspended for the whole of it, to learn what one File.Exists
+            // already said.
+            if (!NvidiaSmiIsInstalled()) return null;
+
+            var deadline = DateTime.UtcNow + timeout;
+
+            while (true)
+            {
+                var watts = ReadEnforcedPowerLimitWatts();
+                if (watts is not null) return watts;
+
+                if (DateTime.UtcNow >= deadline) return null;
+                await Task.Delay(2000).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>Whether nvidia-smi is on disk at all, as opposed to present but unable to answer.</summary>
+        private static bool NvidiaSmiIsInstalled() => NvidiaSmiCandidates().Any(File.Exists);
 
         private static IEnumerable<string> NvidiaSmiCandidates()
         {
