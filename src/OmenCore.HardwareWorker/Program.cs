@@ -499,6 +499,18 @@ class Program
                     continue;
                 }
 
+                // A diagnostic line is not worth waking a parked dGPU for. This runs from
+                // InitializeHardware, so once every time the worker starts - and the worker is
+                // started by the app, restarted after a resume, and respawned when it is orphaned.
+                // The update loop was taught to leave a D3 dGPU alone; this path was still pulling
+                // it back to D0 behind it.
+                if (IsSleepingNvidiaGpu(hw))
+                {
+                    LogToFile($"[{DateTime.Now:O}] [GPU Detected] NVIDIA: {hw.Name} — parked in D3, sensors not read\n");
+                    Console.WriteLine($"[GPU Detected] NVIDIA: {hw.Name} (parked in D3, sensors not read)");
+                    continue;
+                }
+
                 hw.Update();
                 var tempSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Temperature).ToList();
                 var loadSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Load).ToList();
