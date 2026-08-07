@@ -646,6 +646,53 @@ namespace OmenCore.ViewModels
 
         public bool IsPerKeyHardwareCapable => _keyboardLightingService?.IsPerKeyCapableHardware ?? false;
 
+        private KeyboardMapViewModel? _keyboardMap;
+
+        /// <summary>
+        /// The measured-layout editor, built lazily because constructing it interrogates the
+        /// keyboard for its lamp map and that should not happen while the view is being composed.
+        /// </summary>
+        public KeyboardMapViewModel KeyboardMap =>
+            _keyboardMap ??= new KeyboardMapViewModel(_keyboardLightingService, _logging);
+
+        /// <summary>Whether the backend read a real key layout off this keyboard.</summary>
+        public bool HasMeasuredKeyMap => KeyboardMap.IsAvailable;
+
+        /// <summary>
+        /// The fixed 6 x 14 editor is shown only where there is no measured layout to show instead.
+        /// Both at once would be two editors for one keyboard, disagreeing about what is on it.
+        /// </summary>
+        public bool IsFixedGridEditorVisible => IsPerKeyLightingAvailable && !HasMeasuredKeyMap;
+
+        private DeviceLightingViewModel? _deviceLighting;
+
+        /// <summary>The keyboard's built-in effect engine and the light bar - hardware-rendered
+        /// surfaces, as opposed to the host-painted per-key picture above.</summary>
+        public DeviceLightingViewModel DeviceLighting =>
+            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging);
+
+        public bool HasDeviceEffects => DeviceLighting.SupportsDeviceEffects;
+        public bool HasLightBar => DeviceLighting.IsLightBarAvailable;
+
+        private Hardware.ModelCapabilities? _capabilities;
+
+        private Hardware.ModelCapabilities Capabilities =>
+            _capabilities ??= Hardware.ModelCapabilityDatabase.GetCapabilities(Hardware.OmenBoard.Product);
+
+        /// <summary>
+        /// Whether this chassis has a four-zone KEYBOARD, which is what the zone editor edits.
+        ///
+        /// Read from the capability database rather than inferred, and the distinction it keeps
+        /// straight is the one that made this board so confusing to diagnose: on a per-key machine
+        /// the four-zone commands still succeed, but they land on the LIGHT BAR. So the zone editor
+        /// appeared to work while the keyboard never changed, and every report of it read as "the
+        /// keyboard is broken" rather than "this is the wrong surface".
+        ///
+        /// Hiding it here is only safe because the light bar now has a card of its own. Before
+        /// that, this editor was the only way to reach the bar at all.
+        /// </summary>
+        public bool HasFourZoneKeyboard => Capabilities.HasFourZoneRgb;
+
         public string PerKeyCapabilitySummary =>
             BuildPerKeyCapabilitySummary(IsPerKeyLightingAvailable, IsPerKeyHardwareCapable);
 
