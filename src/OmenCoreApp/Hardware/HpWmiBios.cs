@@ -2071,7 +2071,246 @@ namespace OmenCore.Hardware
             }
             return null;
         }
-        
+
+        #endregion
+
+        #region Light bar
+
+        // The light bar is a SEPARATE DEVICE from the keyboard, and on a per-key chassis it is the
+        // only thing the four-zone commands above can still reach. It has four zones, zone 0
+        // LEFTMOST, and one write command that carries static colour, animation, brightness and off
+        // all at once - which is why the payload below looks like several unrelated features
+        // sharing a buffer. It is.
+        //
+        // Measured on board 8D87 (OMEN MAX 16-ak0xxx, BIOS F.07). Map and evidence:
+        // omen-max-16/reference/wmi-commands.md#the-light-bar.
+
+        private const uint CMD_LIGHTBAR_SET = 0x0B;    // Keyboard class. Static, animation, off.
+        private const uint CMD_LIGHTBAR_GET_COLOR = 0x04;  // Default class. One zone per call.
+
+        /// <summary>Zones on the bar, left to right.</summary>
+        public const int LightBarZoneCount = 4;
+
+        /// <summary>TargetDevice at payload[0]. 1 is the four-zone keyboard animation path.</summary>
+        private const byte LightBarTarget = 0x00;
+
+        /// <summary>
+        /// The one colour this device must never be asked for.
+        ///
+        /// Its colour handling substitutes exactly two input values, and only two - #FF0000 becomes
+        /// #FE0000, which is cosmetically free, and #FFFFFF becomes #FEA3DA, which is VISIBLY
+        /// PURPLE-WHITE next to a real white. #FF0001 and #FFFFFE pass through byte-exact, so this
+        /// is a two-entry lookup rather than a gamma curve or a clamp, and one entry off is enough
+        /// to miss it. Asking for white and getting pink is the first thing a consumer of this API
+        /// would hit and the last thing they could explain, so it is routed around here rather than
+        /// documented and left to bite.
+        /// </summary>
+        private const uint LightBarPinkWhite = 0xFFFFFF;
+        private const byte LightBarWhiteRed = 0xFF, LightBarWhiteGreen = 0xFF, LightBarWhiteBlue = 0xFE;
+
+        /// <summary>Device-side animations. NOT the keyboard MCU's numbering - the same names have
+        /// different values there, and Ghosting, Ripple and OMEN X do not exist on this path.</summary>
+        public enum LightBarEffect : byte
+        {
+            Static = 0,
+            LightingSync = 1,
+            ColorCycle = 2,
+            Starlight = 3,
+            Breathing = 4,
+            Wave = 6,
+            Raindrop = 7,
+            AudioPulse = 8,
+            Confetti = 9,
+            Sun = 10,
+            Swipe = 11
+        }
+
+        public enum LightBarTheme : byte
+        {
+            Galaxy = 16, Volcano = 32, Jungle = 48, Ocean = 64, Custom = 80
+        }
+
+        public enum LightBarSpeed : byte { Slow = 0, Medium = 1, Fast = 2 }
+
+        /// <summary>Only two directions exist here, unlike the keyboard's eight.</summary>
+        public enum LightBarDirection : byte { Left = 4, Right = 8 }
+
+        /// <summary>
+        /// Paint the bar with up to four static colours, zone 0 leftmost.
+        ///
+        /// Fewer than four colours repeats the last one across the remaining zones, so a single
+        /// colour fills the bar.
+        /// </summary>
+        public bool SetLightBarColors(IReadOnlyList<(byte R, byte G, byte B)> zoneColors, byte brightness = 100)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set light bar: WMI BIOS not available");
+                return false;
+            }
+
+            if (zoneColors == null || zoneColors.Count == 0)
+            {
+                _logging?.Warn("SetLightBarColors: no colours given");
+                return false;
+            }
+
+            var payload = new byte[128];
+            payload[0] = LightBarTarget;
+            payload[1] = (byte)LightBarEffect.Static;
+            payload[3] = Math.Clamp(brightness, (byte)0, (byte)100);
+            payload[6] = LightBarZoneCount;
+
+            for (int zone = 0; zone < LightBarZoneCount; zone++)
+            {
+                var c = SubstituteWhite(zoneColors[Math.Min(zone, zoneColors.Count - 1)]);
+                int at = 7 + (zone * 3);
+                payload[at] = c.R;
+                payload[at + 1] = c.G;
+                payload[at + 2] = c.B;
+            }
+
+            return SendLightBar(payload, $"static, brightness {payload[3]}");
+        }
+
+        /// <summary>
+        /// Run one of the bar's built-in animations.
+        ///
+        /// Two of them look broken when driven naively and neither is a fault. Swipe has no preset
+        /// palette, so with a preset theme it renders BLACK - give it custom colours. Audio Pulse IS
+        /// its two level bytes: at 0 it is black by definition, and reproducing it means feeding
+        /// <paramref name="tribe"/> and <paramref name="bass"/> from an audio thread at around 5 Hz.
+        /// Held at a constant level it shows a constant colour rather than pulsing.
+        ///
+        /// NO READBACK EXISTS for animation state on this board - HP's own getter (Keyboard 0x0C)
+        /// answers FAIL. A true return means the firmware took the frame and nothing more.
+        /// </summary>
+        public bool SetLightBarAnimation(
+            LightBarEffect effect,
+            LightBarTheme theme = LightBarTheme.Galaxy,
+            LightBarSpeed speed = LightBarSpeed.Medium,
+            LightBarDirection direction = LightBarDirection.Left,
+            byte brightness = 100,
+            IReadOnlyList<(byte R, byte G, byte B)>? customColors = null,
+            byte tribe = 0,
+            byte bass = 0)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set light bar animation: WMI BIOS not available");
+                return false;
+            }
+
+            var payload = new byte[128];
+            payload[0] = LightBarTarget;
+            payload[1] = (byte)effect;
+
+            // Lighting sync carries no parameters at all; sending them is meaningless rather than
+            // harmful, but leaving the frame bare is what HP does.
+            if (effect != LightBarEffect.LightingSync)
+            {
+                // Speed, direction and theme share one byte. HP builds it by masking then adding -
+                // &= 252 then speed, &= 243 then direction, &= 15 then theme - which is how you can
+                // tell these are three fields in one byte rather than three adjacent bytes.
+                payload[2] = (byte)(((byte)speed & 0x03) | ((byte)direction & 0x0C) | ((byte)theme & 0xF0));
+                payload[3] = Math.Clamp(brightness, (byte)0, (byte)100);
+                payload[4] = tribe;
+                payload[5] = bass;
+
+                if (theme == LightBarTheme.Custom && customColors is { Count: > 0 })
+                {
+                    payload[6] = (byte)Math.Min(customColors.Count, LightBarZoneCount);
+                    for (int i = 0; i < payload[6]; i++)
+                    {
+                        var c = SubstituteWhite(customColors[i]);
+                        int at = 7 + (i * 3);
+                        payload[at] = c.R;
+                        payload[at + 1] = c.G;
+                        payload[at + 2] = c.B;
+                    }
+                }
+            }
+
+            if (effect == LightBarEffect.Swipe && theme != LightBarTheme.Custom)
+                _logging?.Warn("Light bar Swipe has no preset palette and will render BLACK; use Custom colours");
+
+            if (effect == LightBarEffect.AudioPulse && tribe == 0 && bass == 0)
+                _logging?.Warn("Light bar Audio Pulse IS its two level bytes; at 0 it renders BLACK");
+
+            return SendLightBar(payload, $"{effect}, theme {theme}, speed {speed}");
+        }
+
+        /// <summary>Turn the bar off - an all-zero payload, which is exactly what HP sends.</summary>
+        public bool SetLightBarOff() => SendLightBar(new byte[128], "off");
+
+        /// <summary>
+        /// Read one zone's colour back, or null if the read failed.
+        ///
+        /// COLOUR is readable on this path; ANIMATION and BRIGHTNESS are not. That is the opposite
+        /// of the keyboard MCU, where the whole effect record reads back and colour does not, so a
+        /// caller carrying assumptions from one device to the other will be wrong both ways.
+        /// </summary>
+        public (byte R, byte G, byte B)? GetLightBarZoneColor(int zone)
+        {
+            if (!_isAvailable || zone < 0 || zone >= LightBarZoneCount) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Default, CMD_LIGHTBAR_GET_COLOR,
+                                             new byte[] { (byte)zone, 0, 0, 0 }, 4);
+                if (result is { Length: >= 3 }) return (result[0], result[1], result[2]);
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read light bar zone {zone}: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>All four zone colours, left to right. Nulls where a zone would not answer.</summary>
+        public (byte R, byte G, byte B)?[] GetLightBarColors()
+        {
+            var zones = new (byte R, byte G, byte B)?[LightBarZoneCount];
+            for (int zone = 0; zone < LightBarZoneCount; zone++)
+                zones[zone] = GetLightBarZoneColor(zone);
+            return zones;
+        }
+
+        private static (byte R, byte G, byte B) SubstituteWhite((byte R, byte G, byte B) c)
+        {
+            uint packed = ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
+            return packed == LightBarPinkWhite
+                ? (LightBarWhiteRed, LightBarWhiteGreen, LightBarWhiteBlue)
+                : c;
+        }
+
+        private bool SendLightBar(byte[] payload, string what)
+        {
+            try
+            {
+                // OutSize 128, NOT 0. The firmware answers this command with a 128-byte reply even
+                // though the write needs nothing back, and asking for 0 makes SendBiosCommand
+                // return null on a write that succeeded - so the colours landed while this method
+                // reported failure. Measured: the readback showed the requested colours while the
+                // return value said False. This is the OutSize the measured PowerShell lever uses.
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_LIGHTBAR_SET, payload, 128);
+                if (result != null)
+                {
+                    _logging?.Info($"Light bar: {what} accepted");
+                    return true;
+                }
+
+                _logging?.Warn($"Light bar: {what} returned null");
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"Light bar: {what} failed: {ex.Message}", ex);
+            }
+
+            return false;
+        }
+
         #endregion
 
         /// <summary>

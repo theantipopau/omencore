@@ -68,6 +68,11 @@ namespace OmenCore.Hardware
         public ushort ProductId { get; private init; }
         public string DevicePath { get; private init; } = string.Empty;
 
+        /// <summary>Physical extent of the whole array, in micrometres.</summary>
+        public uint BoundingBoxWidthUm { get; private init; }
+        public uint BoundingBoxHeightUm { get; private init; }
+        public uint BoundingBoxDepthUm { get; private init; }
+
         private HidLampArray(IntPtr handle, int reportLength)
         {
             _handle = handle;
@@ -90,6 +95,73 @@ namespace OmenCore.Hardware
             }
 
             return found;
+        }
+
+        /// <summary>Device kind 1, Keyboard.</summary>
+        public const uint KindKeyboard = 1;
+
+        /// <summary>Device kind 5, Scene. What the light bar enumerates as.</summary>
+        public const uint KindScene = 5;
+
+        /// <summary>
+        /// Open the light bar, which enumerates as a Scene-kind LampArray of its own - on 8D87
+        /// "HID VHF Driver" 0461:0001, four lamps across a 323 x 5 mm strip, ids 0..3 left to right.
+        ///
+        /// THIS IS THE PATH THAT DOES NOT NEED ADMINISTRATOR. HP's WMI BIOS surface, which is the
+        /// only way to reach the bar's brightness and its nine built-in animations, requires
+        /// elevation because invoking methods in root\wmi does. HID feature reports do not: Windows
+        /// Dynamic Lighting is an unelevated user-mode component that drives exactly these devices,
+        /// which is the existence proof.
+        ///
+        /// What is given up by coming in this way is real - colour only, no brightness, no
+        /// animations, and no readback - so this is a fallback with a cost, not a free win.
+        /// </summary>
+        /// <param name="board">
+        /// Baseboard product id to gate on, or null to read the current machine's. Only boards where
+        /// this has been confirmed on hardware are served - see <see cref="OmenBoard.SupportsHidLightBar"/>
+        /// for why that is an allowlist and not a probe.
+        /// </param>
+        public static HidLampArray? OpenLightBar(string? board = null)
+        {
+            if (!OmenBoard.SupportsHidLightBar(board)) return null;
+
+            HidLampArray? bar = null;
+
+            foreach (var candidate in OpenAll())
+            {
+                if (bar == null && LooksLikeALightBar(candidate))
+                    bar = candidate;
+                else
+                    candidate.Dispose();
+            }
+
+            return bar;
+        }
+
+        /// <summary>
+        /// Whether a LampArray is shaped like a light bar.
+        ///
+        /// Kind and lamp count alone are NOT enough, and this is the whole safety property of
+        /// <see cref="OpenLightBar"/>: "Scene, four lamps" would also match a dock, an external
+        /// strip, a mousepad, or a fan hub - and matching one of those means writing colour to a
+        /// device the user never asked about. The geometry is what actually identifies a bar. On
+        /// 8D87 it measures 323 x 5 mm, a ratio of 65:1, which nothing else plausibly is.
+        ///
+        /// Only ever consulted on hardware this code has not seen, so it is deliberately a shape
+        /// test rather than a VID:PID allowlist - an allowlist of one entry would be a claim about
+        /// every other OMEN, made from a sample of one machine.
+        /// </summary>
+        private static bool LooksLikeALightBar(HidLampArray a)
+        {
+            const uint MinWidthUm = 100_000;  // 100 mm - a bar spans the chassis
+            const uint MaxHeightUm = 20_000;  //  20 mm - and is a strip, not a panel
+            const uint MinAspect = 10;
+
+            return a.Kind == KindScene
+                && a.LampCount is >= 2 and <= 8
+                && a.BoundingBoxWidthUm >= MinWidthUm
+                && a.BoundingBoxHeightUm is > 0 and <= MaxHeightUm
+                && a.BoundingBoxWidthUm / a.BoundingBoxHeightUm >= MinAspect;
         }
 
         private static HidLampArray? TryOpen(string path)
@@ -150,6 +222,9 @@ namespace OmenCore.Hardware
                 return new HidLampArray(h, featureLength)
                 {
                     LampCount = BitConverter.ToUInt16(buffer, 1),
+                    BoundingBoxWidthUm = BitConverter.ToUInt32(buffer, 3),
+                    BoundingBoxHeightUm = BitConverter.ToUInt32(buffer, 7),
+                    BoundingBoxDepthUm = BitConverter.ToUInt32(buffer, 11),
                     Kind = BitConverter.ToUInt32(buffer, 15),
                     MinUpdateInterval = TimeSpan.FromMilliseconds(BitConverter.ToUInt32(buffer, 19) / 1000.0),
                     VendorId = attrs.VendorID,
