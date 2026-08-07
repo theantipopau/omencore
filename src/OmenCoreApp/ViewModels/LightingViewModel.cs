@@ -2652,14 +2652,30 @@ namespace OmenCore.ViewModels
         
         #region Temperature-Responsive Lighting Methods
         
+        // Turning a reactive toggle on paints straight away rather than waiting for the next
+        // monitoring sample. Without this the feature looks broken: the poll cadence is 2-10 s
+        // depending on window state, and the temperature band usually does not change when the
+        // toggle is flipped, so the same-colour refresh interval could hold the first paint back
+        // for 30 s. "No effect" and "an effect that starts within half a minute" are the same
+        // thing from the user's chair.
         private void StartTemperatureMonitoring()
         {
-            if (_hardwareMonitoringService != null)
-            {
-                _logging.Info("Started temperature-responsive lighting monitoring");
-            }
+            if (!WarnIfMonitoringUnavailable("temperature-responsive")) return;
+
+            _logging.Info("Started temperature-responsive lighting monitoring");
+            var sample = _hardwareMonitoringService!.Samples.LastOrDefault();
+            if (sample == null) return;
+
+            // Clear the rate limiter's memory so this paint is not suppressed as a repeat of one
+            // made while the toggle was last on.
+            _lastTemperatureLightingApplyUtc = DateTime.MinValue;
+            _lastTemperatureLightingColorHex = null;
+
+            var colorHex = GetTemperatureLightingColor(sample);
+            if (ShouldApplyTemperatureLighting(colorHex))
+                _ = ApplyTemperatureBasedLightingAsync(colorHex);
         }
-        
+
         private void StopTemperatureMonitoring()
         {
             if (_hardwareMonitoringService != null)
@@ -2667,15 +2683,22 @@ namespace OmenCore.ViewModels
                 _logging.Info("Stopped temperature-responsive lighting monitoring");
             }
         }
-        
+
         private void StartPerformanceModeMonitoring()
         {
-            if (_performanceModeService != null)
+            if (_performanceModeService == null)
             {
-                _logging.Info("Started performance mode synced lighting monitoring");
+                _logging.Warn("Performance mode synced lighting enabled with no performance mode " +
+                              "service; it will not respond to mode changes");
+                return;
             }
+
+            _logging.Info("Started performance mode synced lighting monitoring");
+            var mode = _performanceModeService.GetCurrentMode();
+            if (!string.IsNullOrEmpty(mode))
+                _ = ApplyPerformanceModeLightingAsync(mode);
         }
-        
+
         private void StopPerformanceModeMonitoring()
         {
             if (_performanceModeService != null)
@@ -2683,21 +2706,39 @@ namespace OmenCore.ViewModels
                 _logging.Info("Stopped performance mode synced lighting monitoring");
             }
         }
-        
+
         private void StartThrottlingMonitoring()
         {
-            if (_hardwareMonitoringService != null)
-            {
-                _logging.Info("Started throttling indicator lighting monitoring");
-            }
+            if (!WarnIfMonitoringUnavailable("throttling indicator")) return;
+
+            _logging.Info("Started throttling indicator lighting monitoring");
+
+            // Unlike the other two this one is conditional on the machine's state, so there is
+            // nothing to paint unless it is throttling right now. Silence here is correct.
+            var sample = _hardwareMonitoringService!.Samples.LastOrDefault();
+            if (sample?.IsThrottling == true && ShouldApplyThrottlingLighting())
+                _ = ApplyThrottlingLightingAsync(sample);
         }
-        
+
         private void StopThrottlingMonitoring()
         {
             if (_hardwareMonitoringService != null)
             {
                 _logging.Info("Stopped throttling indicator lighting monitoring");
             }
+        }
+
+        /// <summary>
+        /// True when hardware monitoring is wired up. A null service used to be silent, which is
+        /// how three reactive features shipped inert — the toggle moved, nothing subscribed.
+        /// </summary>
+        private bool WarnIfMonitoringUnavailable(string feature)
+        {
+            if (_hardwareMonitoringService != null) return true;
+
+            _logging.Warn($"{feature} lighting enabled with no hardware monitoring service; " +
+                          "it will not respond to temperature changes");
+            return false;
         }
         
         private void OnMonitoringSampleUpdated(object? sender, MonitoringSample sample)

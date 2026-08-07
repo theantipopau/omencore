@@ -3421,6 +3421,12 @@ namespace OmenCore.ViewModels
                         _configService,
                         _razerService,
                         rgbManager,
+                        // Without these two the reactive lighting features are inert: the
+                        // view-model subscribes to SampleUpdated and ModeApplied in its
+                        // constructor, so a null service means the toggles turn on a feature
+                        // that is never told a temperature or a mode change.
+                        hardwareMonitoringService: _hardwareMonitoringService,
+                        performanceModeService: _performanceModeService,
                         sceneService: _rgbSceneService,
                         screenSamplingService: _screenSamplingService,
                         audioReactiveRgbService: _audioReactiveRgbService);
