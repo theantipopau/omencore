@@ -28,6 +28,7 @@ class Program
     private const string MutexName = "Global\\OmenCore_HardwareWorker_Mutex";
     
     private static Computer? _computer;
+    private static OmenCore.Hardware.GpuPowerStateProbe? _gpuSleepProbe;
     private static readonly object _lock = new();
     private static HardwareSample _lastSample = new();
     private static bool _running = true;
@@ -594,6 +595,37 @@ class Program
         return UpdateIntervalMs;
     }
 
+    /// <summary>
+    /// True when this is the discrete NVIDIA GPU and it is parked in D3. Reading it is what
+    /// would wake it, so the state comes from the PnP manager instead.
+    /// </summary>
+    private static bool IsSleepingNvidiaGpu(IHardware hardware)
+    {
+        if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
+
+        _gpuSleepProbe ??= new OmenCore.Hardware.GpuPowerStateProbe(
+            msg => LogToFile($"[{DateTime.Now:O}] {msg}\n"));
+        return _gpuSleepProbe.IsAsleep();
+    }
+
+    /// <summary>
+    /// A sleeping dGPU draws no meaningful power and has no die temperature to report. The
+    /// sample is seeded from the previous cycle, so without this the last values measured
+    /// before it slept would be served indefinitely as though they were current.
+    /// </summary>
+    private static void ZeroGpuTelemetry(HardwareSample sample)
+    {
+        sample.GpuTemperature = 0;
+        sample.GpuHotspot = 0;
+        sample.GpuLoad = 0;
+        sample.GpuPower = 0;
+        sample.GpuClock = 0;
+        sample.GpuMemoryClock = 0;
+        sample.GpuVoltage = 0;
+        sample.GpuCurrent = 0;
+        sample.VramUsage = 0;
+    }
+
     private static void UpdateHardwareReadings()
     {
         if (_computer == null) return;
@@ -645,6 +677,14 @@ class Program
                     if (_amdGpuTelemetryQuarantined && hardware.HardwareType == HardwareType.GpuAmd)
                     {
                         // Skip unstable AMD ADL-backed updates after quarantine is activated.
+                        continue;
+                    }
+
+                    if (IsSleepingNvidiaGpu(hardware))
+                    {
+                        // Leave a parked dGPU parked. LHM reaches it through NVML, which wakes
+                        // the device to answer, so this poll loop would hold it in D0 forever.
+                        ZeroGpuTelemetry(sample);
                         continue;
                     }
 

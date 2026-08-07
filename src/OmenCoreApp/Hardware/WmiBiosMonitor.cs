@@ -205,6 +205,8 @@ namespace OmenCore.Hardware
         private DateTime _lastGpuFreezeWarnAt = DateTime.MinValue;
         private int _consecutiveGpuInactiveReads;
         private bool _gpuInactive;
+        // Set from the dGPU's actual PnP power state rather than inferred from telemetry.
+        private bool _gpuAsleepFromProbe;
         private int _updateReadingsCount;
         
         // GPU metrics from NVAPI
@@ -765,6 +767,7 @@ namespace OmenCore.Hardware
                                 try
                                 {
                                     var lightSample = _nvapi.GetLoadAndVramOnly();
+                                    _gpuAsleepFromProbe = lightSample.GpuAsleep;
                                     double nvapiLoad = -1;
 
                                     if (lightSample.GpuTemperatureC > 0)
@@ -864,27 +867,15 @@ namespace OmenCore.Hardware
                     try
                     {
                         var gpuSample = _nvapi.GetMonitoringSample();
-                        
-                        _cachedGpuLoad = gpuSample.GpuLoadPercent;
-                        _gpuLoadSource = "NVAPI";
-                        _cachedGpuPowerWatts = StabilizePowerReading(
-                            NormalizeGpuPowerWatts(gpuSample.GpuPowerWatts, gpuSample.GpuLoadPercent, "NVAPI"),
-                            ref _lastValidGpuPowerWatts,
-                            ref _consecutiveZeroGpuPowerReads,
-                            gpuSample.GpuLoadPercent,
-                            gpuSample.GpuTemperatureC > 0 ? gpuSample.GpuTemperatureC : _cachedGpuTemp);
-                        _cachedGpuClockMhz = gpuSample.CoreClockMhz;
-                        _cachedGpuMemClockMhz = gpuSample.MemoryClockMhz;
-                        _cachedGpuVramUsedMb = gpuSample.VramUsedMb;
-                        _cachedGpuVramTotalMb = gpuSample.VramTotalMb;
-                        
-                        // If NVAPI returns a GPU temp, prefer it over WMI BIOS
-                        // (NVAPI reads directly from the GPU die sensor, higher precision)
-                        if (gpuSample.GpuTemperatureC > 0)
-                        {
-                            _cachedGpuTemp = gpuSample.GpuTemperatureC;
-                        }
-                        
+                        _gpuAsleepFromProbe = gpuSample.GpuAsleep;
+
+                        // A parked dGPU has nothing to report, and reporting it is what
+                        // un-parks it. Leave the caches as they were rather than writing
+                        // zeroes over them — VRAM capacity in particular is static, and
+                        // zeroing it would read as a 0 GB card. SanitizeGpuTelemetry turns
+                        // the probe result into TelemetryDataState.Inactive.
+                        if (!gpuSample.GpuAsleep) ApplyGpuSample(gpuSample);
+
                         _nvapiConsecutiveFailures = 0; // Reset on success
                     }
                     catch (Exception ex)
@@ -1893,8 +1884,55 @@ namespace OmenCore.Hardware
             }
         }
 
+        /// <summary>
+        /// Copies an NVAPI snapshot into the telemetry caches. Only called for a sample that
+        /// was actually measured — see the D3 guard at the call site.
+        /// </summary>
+        private void ApplyGpuSample(GpuMonitoringSample gpuSample)
+        {
+            _cachedGpuLoad = gpuSample.GpuLoadPercent;
+            _gpuLoadSource = "NVAPI";
+            _cachedGpuPowerWatts = StabilizePowerReading(
+                NormalizeGpuPowerWatts(gpuSample.GpuPowerWatts, gpuSample.GpuLoadPercent, "NVAPI"),
+                ref _lastValidGpuPowerWatts,
+                ref _consecutiveZeroGpuPowerReads,
+                gpuSample.GpuLoadPercent,
+                gpuSample.GpuTemperatureC > 0 ? gpuSample.GpuTemperatureC : _cachedGpuTemp);
+            _cachedGpuClockMhz = gpuSample.CoreClockMhz;
+            _cachedGpuMemClockMhz = gpuSample.MemoryClockMhz;
+            _cachedGpuVramUsedMb = gpuSample.VramUsedMb;
+            _cachedGpuVramTotalMb = gpuSample.VramTotalMb;
+
+            // If NVAPI returns a GPU temp, prefer it over WMI BIOS
+            // (NVAPI reads directly from the GPU die sensor, higher precision)
+            if (gpuSample.GpuTemperatureC > 0)
+            {
+                _cachedGpuTemp = gpuSample.GpuTemperatureC;
+            }
+        }
+
         private void SanitizeGpuTelemetry()
         {
+            // The PnP power state is authoritative and costs nothing to read, so when it says
+            // D3 there is no need to infer inactivity from telemetry — nor any way to, since
+            // the readings that would carry the evidence are the ones being skipped.
+            //
+            // Conditioned on NVAPI still being live: the flag is only refreshed by the paths
+            // that poll it, so if NVAPI drops out while the GPU is asleep it would otherwise
+            // latch the GPU as inactive for the rest of the session.
+            if (_gpuAsleepFromProbe && _nvapi?.IsAvailable == true && !_nvapiMonitoringDisabled)
+            {
+                _consecutiveGpuInactiveReads = 0;
+                _gpuInactive = true;
+                _cachedGpuTemp = 0;
+                _cachedGpuLoad = 0;
+                _cachedGpuPowerWatts = 0;
+                _cachedGpuClockMhz = 0;
+                _cachedGpuMemClockMhz = 0;
+                _cachedGpuVramUsedMb = 0;
+                return;
+            }
+
             // Hybrid iGPU+dGPU systems can surface a small non-zero GPU power value even when
             // the discrete GPU is effectively inactive (Optimus power-saving path). Treat dGPU
             // as active only when we see stronger discrete-activity signals.
