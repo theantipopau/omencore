@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using FluentAssertions;
@@ -13,21 +14,38 @@ namespace OmenCoreApp.Tests.Hardware
     /// telemetry off for the rest of the session, and a gate that fails closed on an unreadable
     /// marker would do the same.
     ///
-    /// These share one real file path, so the collection is serialised.
+    /// Every test here runs against a private marker file and a private semaphore. It has to: the
+    /// production names belong to a running OmenCore, which is using them for exactly the purpose
+    /// under test. Draining the real sixteen slots stops a live app's GPU telemetry, and a marker
+    /// left behind by a killed test host suspends it until the expiry runs out. Serialising the
+    /// tests against each other does not help, because the other participant is not a test.
     /// </summary>
     [Collection("GpuRestartGate")]
     public class GpuRestartGateTests : IDisposable
     {
-        public GpuRestartGateTests() => Cleanup();
+        private readonly string _stateDirectory;
+        private readonly IDisposable _isolation;
 
-        public void Dispose() => Cleanup();
-
-        private static void Cleanup()
+        public GpuRestartGateTests()
         {
-            try { File.Delete(GpuRestartGate.MarkerPath); }
-            catch (IOException) { /* Nothing to clean up. */ }
-            catch (UnauthorizedAccessException) { /* Nothing to clean up. */ }
-            WaitOutTheCache();
+            // Named for the instance rather than shared: xUnit constructs one per test, and a leaked
+            // marker or slot then cannot reach the next one.
+            var id = Guid.NewGuid().ToString("n");
+            _stateDirectory = Path.Combine(Path.GetTempPath(), "omencore-gate-tests", id);
+            Directory.CreateDirectory(_stateDirectory);
+
+            _isolation = GpuRestartGate.UseIsolatedStateForTests(
+                Path.Combine(_stateDirectory, "gpu-restart.marker"),
+                $@"Local\OmenCore.Nvml.InFlight.Test.{id}");
+        }
+
+        public void Dispose()
+        {
+            _isolation.Dispose();
+
+            try { Directory.Delete(_stateDirectory, recursive: true); }
+            catch (IOException) { /* Left behind under temp; harmless. */ }
+            catch (UnauthorizedAccessException) { /* Left behind under temp; harmless. */ }
         }
 
         // IsRestarting memoises for 150 ms so the poll loops can ask on every reading. Tests that
@@ -91,13 +109,13 @@ namespace OmenCoreApp.Tests.Hardware
             {
                 WaitOutTheCache();
 
-                GpuRestartGate.TryEnterNvml(out var refused).Should().BeFalse();
+                GpuRestartGate.TryEnterNvml(out var refused).Should().Be(NvmlAccess.DeviceRestarting);
                 refused.Should().BeNull(because: "a refused caller has nothing to dispose");
             }
 
             WaitOutTheCache();
 
-            GpuRestartGate.TryEnterNvml(out var lease).Should().BeTrue();
+            GpuRestartGate.TryEnterNvml(out var lease).Should().Be(NvmlAccess.Granted);
             lease.Should().NotBeNull();
             lease!.Dispose();
         }
@@ -111,7 +129,7 @@ namespace OmenCoreApp.Tests.Hardware
             GpuRestartGate.HandshakeAvailable.Should().BeTrue(
                 because: "without it the override falls back to guessing, and this test proves nothing");
 
-            GpuRestartGate.TryEnterNvml(out var inFlight).Should().BeTrue();
+            GpuRestartGate.TryEnterNvml(out var inFlight).Should().Be(NvmlAccess.Granted);
 
             try
             {
@@ -128,6 +146,36 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void Running_Out_Of_Slots_Is_Not_Reported_As_A_Restart()
+        {
+            // These are different facts and the callers act differently on them. DeviceRestarting
+            // means the cached NVML handle is about to be invalid, so the poller re-opens its
+            // Computer - and that re-enumeration wakes a dGPU that was asleep. Doing that because a
+            // semaphore was momentarily contended is a wake for nothing, and a leaked slot would make
+            // it every pass, for the life of the process.
+            var held = new List<IDisposable>();
+
+            try
+            {
+                for (var i = 0; i < 16; i++)
+                {
+                    GpuRestartGate.TryEnterNvml(out var lease).Should().Be(NvmlAccess.Granted);
+                    held.Add(lease!);
+                }
+
+                GpuRestartGate.TryEnterNvml(out var refused).Should().Be(NvmlAccess.NoSlotAvailable);
+                refused.Should().BeNull();
+            }
+            finally
+            {
+                foreach (var lease in held) lease.Dispose();
+            }
+
+            GpuRestartGate.TryEnterNvml(out var recovered).Should().Be(NvmlAccess.Granted);
+            recovered!.Dispose();
+        }
+
+        [Fact]
         public void Draining_Returns_Every_Slot_It_Took()
         {
             // A drain that kept a slot would starve the pollers one call at a time, and the symptom -
@@ -135,21 +183,21 @@ namespace OmenCoreApp.Tests.Hardware
             GpuRestartGate.WaitForPollersToLeaveNvml(TimeSpan.FromSeconds(5)).Should().BeTrue();
             GpuRestartGate.WaitForPollersToLeaveNvml(TimeSpan.FromSeconds(5)).Should().BeTrue();
 
-            GpuRestartGate.TryEnterNvml(out var lease).Should().BeTrue();
+            GpuRestartGate.TryEnterNvml(out var lease).Should().Be(NvmlAccess.Granted);
             lease!.Dispose();
         }
 
         [Fact]
         public void A_Lease_Disposed_Twice_Returns_One_Slot()
         {
-            GpuRestartGate.TryEnterNvml(out var lease).Should().BeTrue();
+            GpuRestartGate.TryEnterNvml(out var lease).Should().Be(NvmlAccess.Granted);
             lease!.Dispose();
             lease.Dispose();
 
             // If the second dispose had released a second count, the semaphore would now be over its
             // maximum and the next drain would succeed while a poller was still inside.
             GpuRestartGate.WaitForPollersToLeaveNvml(TimeSpan.FromSeconds(5)).Should().BeTrue();
-            GpuRestartGate.TryEnterNvml(out var again).Should().BeTrue();
+            GpuRestartGate.TryEnterNvml(out var again).Should().Be(NvmlAccess.Granted);
 
             try
             {

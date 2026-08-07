@@ -600,15 +600,16 @@ class Program
     /// in D3 and reading it is what would wake it, or because something is restarting it and the
     /// NVML handle we hold no longer points at a device.
     /// </summary>
+    /// <remarks>
+    /// Deliberately free of side effects. It is called from LogDetectedHardware, which runs inside
+    /// InitializeHardware - which is what the reopen calls. A version that set the stale flag would
+    /// re-arm the reopen from inside the reopen.
+    /// </remarks>
     private static bool ShouldSkipNvidiaGpu(IHardware hardware)
     {
         if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
 
-        if (OmenCore.Hardware.GpuRestartGate.IsRestarting)
-        {
-            _gpuHandlesStale = true;
-            return true;
-        }
+        if (OmenCore.Hardware.GpuRestartGate.IsRestarting) return true;
 
         _gpuSleepProbe ??= new OmenCore.Hardware.GpuPowerStateProbe(
             msg => LogToFile($"[{DateTime.Now:O}] {msg}\n"));
@@ -622,6 +623,10 @@ class Program
     /// during the restart.
     /// </summary>
     private static bool _gpuHandlesStale;
+
+    // Logged once per process. Slot starvation should not happen with two pollers and sixteen slots,
+    // so it is worth saying; saying it on every poll would bury the fact it reports.
+    private static bool _nvmlSlotStarvationLogged;
 
     private static void ReopenAfterGpuRestartIfNeeded()
     {
@@ -730,6 +735,14 @@ class Program
                         // the device to answer, so this poll loop would hold it in D0 forever.
                         // The same skip covers a dGPU being restarted, where the NVML handle is
                         // stale and calling through it takes the process down.
+                        if (hardware.HardwareType == HardwareType.GpuNvidia &&
+                            OmenCore.Hardware.GpuRestartGate.IsRestarting)
+                        {
+                            // The only place the flag is raised. Recording it here rather than in the
+                            // predicate keeps the predicate callable from inside the reopen it causes.
+                            _gpuHandlesStale = true;
+                        }
+
                         ZeroGpuTelemetry(sample);
                         continue;
                     }
@@ -739,12 +752,32 @@ class Program
                     // what makes the restarter wait for a call already running. Only the pair of them
                     // is a guarantee - see GpuRestartGate.
                     IDisposable? nvmlLease = null;
-                    if (hardware.HardwareType == HardwareType.GpuNvidia &&
-                        !OmenCore.Hardware.GpuRestartGate.TryEnterNvml(out nvmlLease))
+                    if (hardware.HardwareType == HardwareType.GpuNvidia)
                     {
-                        _gpuHandlesStale = true;
-                        ZeroGpuTelemetry(sample);
-                        continue;
+                        var access = OmenCore.Hardware.GpuRestartGate.TryEnterNvml(out nvmlLease);
+
+                        if (access == OmenCore.Hardware.NvmlAccess.DeviceRestarting)
+                        {
+                            _gpuHandlesStale = true;
+                            ZeroGpuTelemetry(sample);
+                            continue;
+                        }
+
+                        if (access != OmenCore.Hardware.NvmlAccess.Granted)
+                        {
+                            // Every slot taken. Skip this pass only: the handle is still valid, and
+                            // re-enumerating on the strength of a contended semaphore would wake a
+                            // dGPU that is asleep - permanently, if a slot has been leaked.
+                            if (!_nvmlSlotStarvationLogged)
+                            {
+                                _nvmlSlotStarvationLogged = true;
+                                LogToFile($"[{DateTime.Now:O}] No NVML slot available — skipping GPU updates. " +
+                                          "If this persists, a process died holding one.\n");
+                            }
+
+                            ZeroGpuTelemetry(sample);
+                            continue;
+                        }
                     }
 
                     // CRITICAL: Isolate each hardware device update in its own try-catch

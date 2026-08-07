@@ -6,6 +6,27 @@ using System.Threading;
 namespace OmenCore.Hardware
 {
     /// <summary>
+    /// Why a caller may or may not talk to NVML right now.
+    /// </summary>
+    public enum NvmlAccess
+    {
+        /// <summary>Proceed. The caller holds a slot and must dispose the lease when done.</summary>
+        Granted,
+
+        /// <summary>
+        /// The device is being restarted. Do not call, and treat any cached NVML handle as invalid —
+        /// it will not survive.
+        /// </summary>
+        DeviceRestarting,
+
+        /// <summary>
+        /// Every slot is taken. Skip this pass and try the next one. This says nothing about the
+        /// cached handle, which is still good: no restart has been announced.
+        /// </summary>
+        NoSlotAvailable
+    }
+
+    /// <summary>
     /// A "do not touch the discrete GPU" flag held while the device is being restarted.
     ///
     /// LibreHardwareMonitor reads NVIDIA telemetry through NVML, and the <c>NvmlDevice</c> handle it
@@ -45,11 +66,14 @@ namespace OmenCore.Hardware
         private static long _cachedAtTicks = -1;
         private static bool _cachedValue;
 
+        private static string? _markerPathOverride;
+        private static string? _semaphoreNameOverride;
+
         /// <summary>
         /// The marker, beside the logs the worker already writes, so both processes resolve the same
         /// path without being told it. They run as the same user — the app spawns the worker.
         /// </summary>
-        public static string MarkerPath => Path.Combine(
+        public static string MarkerPath => _markerPathOverride ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "OmenCore",
             "gpu-restart.marker");
@@ -170,7 +194,66 @@ namespace OmenCore.Hardware
         /// telemetry path that throws on an unprivileged machine would be a worse bug than the one
         /// this is here to prevent.
         /// </summary>
-        private const string NvmlSemaphoreName = @"Local\OmenCore.Nvml.InFlight";
+        private const string DefaultNvmlSemaphoreName = @"Local\OmenCore.Nvml.InFlight";
+
+        private static string NvmlSemaphoreName => _semaphoreNameOverride ?? DefaultNvmlSemaphoreName;
+
+        /// <summary>
+        /// Point the gate at a private marker and a private semaphore, for the duration of a test.
+        ///
+        /// Without this, testing the gate means writing the real marker and draining the real
+        /// semaphore — which a running OmenCore is using for exactly the purpose under test. A suite
+        /// that drains those sixteen slots stops the live app's GPU telemetry, and a marker left
+        /// behind by a killed test host suspends it for as long as the expiry runs. Serialising the
+        /// tests against each other does nothing about either: the other participant is not a test.
+        /// </summary>
+        internal static IDisposable UseIsolatedStateForTests(string markerPath, string semaphoreName)
+        {
+            var previousMarker = _markerPathOverride;
+            var previousSemaphore = _semaphoreNameOverride;
+
+            ResetSharedState();
+            _markerPathOverride = markerPath;
+            _semaphoreNameOverride = semaphoreName;
+
+            return new StateOverride(() =>
+            {
+                ResetSharedState();
+                _markerPathOverride = previousMarker;
+                _semaphoreNameOverride = previousSemaphore;
+            });
+        }
+
+        /// <summary>
+        /// Drop the cached marker answer and the semaphore handle, so the next caller re-resolves both
+        /// from whatever the names now point at.
+        /// </summary>
+        private static void ResetSharedState()
+        {
+            lock (Sync)
+            {
+                _cachedAtTicks = -1;
+
+                try { _nvmlSlotsSemaphore?.Dispose(); }
+                catch (Exception) { /* Nothing useful to do while tearing down. */ }
+
+                _nvmlSlotsSemaphore = null;
+                _nvmlSemaphoreUnavailable = false;
+            }
+        }
+
+        private sealed class StateOverride : IDisposable
+        {
+            private readonly Action _restore;
+            private int _restored;
+
+            public StateOverride(Action restore) => _restore = restore;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _restored, 1) == 0) _restore();
+            }
+        }
 
         private static Semaphore? _nvmlSlotsSemaphore;
         private static bool _nvmlSemaphoreUnavailable;
@@ -216,9 +299,15 @@ namespace OmenCore.Hardware
         /// The marker is re-read <i>after</i> the slot is taken, and that ordering is the whole proof:
         /// a caller that passes the check while holding a slot cannot have been passed by a restarter,
         /// because the restarter sets the marker before it starts draining.
+        ///
+        /// <b>The two ways of being refused are not the same news</b>, which is why this does not
+        /// return a bool. <see cref="NvmlAccess.DeviceRestarting"/> means the cached handle is about
+        /// to be invalid and has to be re-acquired. <see cref="NvmlAccess.NoSlotAvailable"/> means
+        /// only that the caller was unlucky — treating it as a restart triggers a needless
+        /// re-enumeration, which wakes a dGPU that was asleep, and a leaked slot would make that
+        /// permanent.
         /// </summary>
-        /// <returns>False when the caller must not touch the GPU at all.</returns>
-        public static bool TryEnterNvml(out IDisposable? lease)
+        public static NvmlAccess TryEnterNvml(out IDisposable? lease)
         {
             lease = null;
 
@@ -226,7 +315,7 @@ namespace OmenCore.Hardware
             if (semaphore == null)
             {
                 // Degraded to marker-only. Answer the question the marker can answer.
-                return !IsRestarting;
+                return IsRestarting ? NvmlAccess.DeviceRestarting : NvmlAccess.Granted;
             }
 
             bool taken;
@@ -236,19 +325,19 @@ namespace OmenCore.Hardware
             }
             catch (Exception)
             {
-                return !IsRestarting;
+                return IsRestarting ? NvmlAccess.DeviceRestarting : NvmlAccess.Granted;
             }
 
-            if (!taken) return false;
+            if (!taken) return NvmlAccess.NoSlotAvailable;
 
             if (IsRestarting)
             {
                 Release(semaphore);
-                return false;
+                return NvmlAccess.DeviceRestarting;
             }
 
             lease = new NvmlLease(semaphore);
-            return true;
+            return NvmlAccess.Granted;
         }
 
         /// <summary>

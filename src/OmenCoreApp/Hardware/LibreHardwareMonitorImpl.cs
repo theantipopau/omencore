@@ -348,9 +348,11 @@ namespace OmenCore.Hardware
                     // which is what TryRestartAsync does after a resume. Reading sensors here goes
                     // through NVML, which wakes the device to answer: the poll loops were taught to
                     // leave it alone and this path was still pulling it back to D0 behind them.
-                    if (IsSleepingNvidiaGpu(hw))
+                    // Renamed by the NVML quiesce below: the same question now has a second reason to
+                    // answer yes, and a re-open triggered by a restart must not read the card either.
+                    if (ShouldSkipNvidiaGpu(hw))
                     {
-                        _logger?.Invoke($"[GPU Detected] NVIDIA: {hw.Name} — parked in D3, sensors not read");
+                        _logger?.Invoke($"[GPU Detected] NVIDIA: {hw.Name} — parked or restarting, sensors not read");
                         continue;
                     }
 
@@ -764,15 +766,16 @@ namespace OmenCore.Hardware
         /// <see cref="GpuPowerStateProbe"/>), or it is being restarted and the handle LHM cached at
         /// <c>Computer.Open()</c> no longer points at a device (see <see cref="GpuRestartGate"/>).
         /// </summary>
+        /// <remarks>
+        /// Deliberately free of side effects. It is called from <see cref="LogDetectedGpus"/>, which
+        /// runs inside <see cref="InitializeComputer"/> — which is what the reopen calls. A version
+        /// that set the stale flag would re-arm the reopen from inside the reopen.
+        /// </remarks>
         private bool ShouldSkipNvidiaGpu(IHardware hardware)
         {
             if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
 
-            if (GpuRestartGate.IsRestarting)
-            {
-                _gpuHandlesStale = true;
-                return true;
-            }
+            if (GpuRestartGate.IsRestarting) return true;
 
             _gpuSleepProbe ??= new GpuPowerStateProbe(_logger);
             return _gpuSleepProbe.IsAsleep();
@@ -791,18 +794,43 @@ namespace OmenCore.Hardware
         {
             if (hardware.HardwareType != HardwareType.GpuNvidia) return NoLease.Instance;
 
-            if (ShouldSkipNvidiaGpu(hardware)) return null;
-
-            if (!GpuRestartGate.TryEnterNvml(out var lease))
+            if (GpuRestartGate.IsRestarting)
             {
-                // Refused between the two checks: a restart started, or every slot is taken. Either
-                // way the handle is to be treated as stale.
+                // The only place the flag is raised on this path. Recording it here rather than in
+                // the predicate keeps the predicate callable from inside the reopen it triggers.
                 _gpuHandlesStale = true;
                 return null;
             }
 
-            return lease ?? NoLease.Instance;
+            if (ShouldSkipNvidiaGpu(hardware)) return null;
+
+            switch (GpuRestartGate.TryEnterNvml(out var lease))
+            {
+                case NvmlAccess.Granted:
+                    return lease ?? NoLease.Instance;
+
+                case NvmlAccess.DeviceRestarting:
+                    // A restart started between the check above and the slot request.
+                    _gpuHandlesStale = true;
+                    return null;
+
+                default:
+                    // Every slot taken. Skip this pass and nothing more: the handle is still valid,
+                    // and re-enumerating on the strength of a contended semaphore would wake a dGPU
+                    // that is asleep - for no reason, and permanently if a slot has been leaked.
+                    if (!_nvmlSlotStarvationLogged)
+                    {
+                        _nvmlSlotStarvationLogged = true;
+                        _logger?.Invoke("[GPU] No NVML slot available - skipping this GPU update. If this " +
+                                        "persists, a slot has been leaked by a process that died holding one.");
+                    }
+                    return null;
+            }
         }
+
+        // Logged once per process. Slot starvation should not happen with two pollers and sixteen
+        // slots, so it is worth saying; saying it on every poll would bury the fact it reports.
+        private bool _nvmlSlotStarvationLogged;
 
         /// <summary>Nothing to release — the caller was cleared to proceed and holds no slot.</summary>
         private sealed class NoLease : IDisposable
