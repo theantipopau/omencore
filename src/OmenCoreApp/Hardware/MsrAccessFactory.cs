@@ -48,7 +48,9 @@ namespace OmenCore.Hardware
             ActiveBackend = MsrBackend.None;
             if (IsPawnIOInstalled())
             {
-                StatusMessage = "PawnIO installed but MSR initialization failed — driver may need a reboot to activate";
+                StatusMessage = CpuUndervoltProviderFactory.DetectVendorOnly() == CpuUndervoltProviderFactory.CpuVendor.AMD
+                    ? "PawnIO installed, but its bundled MSR module only supports Intel CPUs — AMD MSR support is not yet implemented (rebooting will not change this)"
+                    : "PawnIO installed but MSR initialization failed — driver may need a reboot to activate";
                 logging?.Warn(StatusMessage);
             }
             else

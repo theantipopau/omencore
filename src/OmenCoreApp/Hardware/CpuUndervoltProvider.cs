@@ -46,6 +46,17 @@ namespace OmenCore.Hardware
             }
         }
 
+        /// <summary>
+        /// Detect and return the CPU vendor without constructing an undervolt provider
+        /// (Create() also spins up the backend probe, which is more than callers who
+        /// only need the vendor — e.g. an early-bringup log message — should trigger).
+        /// </summary>
+        public static CpuVendor DetectVendorOnly()
+        {
+            DetectCpu();
+            return DetectedVendor;
+        }
+
         private static void DetectCpu()
         {
             if (DetectedVendor != CpuVendor.Unknown) return;

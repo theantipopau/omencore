@@ -66,12 +66,16 @@ namespace OmenCore.Hardware
                     msrAccess.Dispose();
                     logging.Info("PawnIO MSR not available — throttling detection disabled");
 
-                    // Check if PawnIO is installed but MSR module failed to load
-                    // (indicates post-installation reboot needed)
+                    // Check if PawnIO is installed but MSR module failed to load.
+                    // On Intel this usually means a post-installation reboot is needed;
+                    // on AMD the bundled MSR module (IntelMSR.bin) is never even attempted
+                    // for the right CPU, so no reboot will fix it — see IsAmdCpu() below.
                     if (PawnIOMsrAccess.IsPawnIOInstalled())
                     {
                         pawnIOInstalledButMsrFailed = true;
-                        logging.Warn("[PawnIO] Installed but MSR initialization failed — driver may need a reboot to activate");
+                        logging.Warn(IsAmdCpu()
+                            ? "[PawnIO] MSR access unavailable — the bundled MSR module only supports Intel CPUs; AMD MSR support is not yet implemented (rebooting will not change this)"
+                            : "[PawnIO] Installed but MSR initialization failed — driver may need a reboot to activate");
                     }
                 }
             }
@@ -90,7 +94,9 @@ namespace OmenCore.Hardware
             // If PawnIO is installed but MSR failed, show notification to user
             if (pawnIOInstalledButMsrFailed)
             {
-                logging.Info("⚠️  CPU power reading will report 0W. Please restart your computer to fully activate PawnIO driver.");
+                logging.Info(IsAmdCpu()
+                    ? "⚠️  CPU power reading will report 0W on AMD systems — the bundled PawnIO MSR module is Intel-only. Power/throttling telemetry falls back to LibreHardwareMonitor where available; restarting will not change this."
+                    : "⚠️  CPU power reading will report 0W. Please restart your computer to fully activate PawnIO driver.");
             }
 
             // 3. Create self-sustaining WmiBiosMonitor as PRIMARY monitoring bridge
@@ -185,5 +191,8 @@ namespace OmenCore.Hardware
         public string EcBackend { get; } = "Detecting...";
         public IFanController FanController { get; }
         public string FanBackend { get; } = "Detecting...";
+
+        private static bool IsAmdCpu() =>
+            CpuUndervoltProviderFactory.DetectVendorOnly() == CpuUndervoltProviderFactory.CpuVendor.AMD;
     }
 }
