@@ -63,11 +63,25 @@ namespace OmenCore.Services
         public NotificationService(LoggingService logging)
         {
             _logging = logging;
-            
+
             // Get icon paths
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
             _altIconPath = Path.Combine(appDir, "Assets", "omen-alt.png");
-            
+
+            // Opt-out for automated runs. ThermalProtectionTests constructs a real NotificationService
+            // and drives the thermal check with a mock 95 C, so running the suite fires genuine Windows
+            // emergency-temperature toasts on the developer's own machine - alarming, and about
+            // temperatures that do not exist. No hardware is involved either way; only the toast is
+            // real. This mirrors OMENCORE_DISABLE_FILE_LOG, which CI already sets for the same class of
+            // reason, and keeps the opt-out here rather than in the thirteen test files that construct
+            // this service.
+            if (Environment.GetEnvironmentVariable("OMENCORE_DISABLE_NOTIFICATIONS") == "1")
+            {
+                _isEnabled = false;
+                _logging.Info("NotificationService initialized (disabled by OMENCORE_DISABLE_NOTIFICATIONS)");
+                return;
+            }
+
             _logging.Info("NotificationService initialized");
         }
 
