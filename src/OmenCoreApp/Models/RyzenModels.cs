@@ -71,6 +71,13 @@ namespace OmenCore.Models
         public uint SlowLimit { get; set; }
 
         /// <summary>
+        /// APU slow limit (PPT LIMIT APU) in mW. Distinct from <see cref="SlowLimit"/>: it
+        /// governs the combined APU package rather than the CPU PPT domain, and on parts that
+        /// expose it, it becomes the binding limit once the other three are raised.
+        /// </summary>
+        public uint ApuSlowLimit { get; set; }
+
+        /// <summary>
         /// Temperature limit in degrees Celsius.
         /// </summary>
         public uint TctlTemp { get; set; }
