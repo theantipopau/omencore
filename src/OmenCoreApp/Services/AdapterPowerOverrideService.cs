@@ -27,11 +27,15 @@ namespace OmenCore.Services
     /// No EC write of any kind is involved, which is what makes it implementable here: this app
     /// reaches the EC through PawnIO's port allowlist and cannot write the field the clamp lives in.
     ///
-    /// THIS IS NOT PERMANENT AND IT IS NOT FREE. The firmware re-evaluates the adapter on its own
-    /// schedule, and the next evaluation notifies the freshly started driver exactly as the first one
-    /// did. How long that takes has not been measured. Restarting a display device also drops its
-    /// outputs for a few seconds and destroys every graphics and compute context on it, which is why
-    /// nothing here runs without being asked.
+    /// WHAT BRINGS THE CLAMP BACK. Another notification, and nothing else: the driver cannot read the
+    /// adapter verdict, so only a fresh <c>Notify</c> can tell it. Plugging a different supply in does
+    /// that, and so does a reboot. Measured on 8D87, a deliberate <c>GC22 (1,1,2)</c> also restores
+    /// exactly 35.00 W with the GPU healthy - and any later restart discards the verdict again. It has
+    /// not been observed coming back on its own after a restart, but nothing here guarantees it will
+    /// not, and 80 W is the ordinary gate-down default limit rather than an overdraw.
+    ///
+    /// IT IS NOT FREE. Restarting a display device drops its outputs for a few seconds and destroys
+    /// every graphics and compute context on it, which is why nothing here runs without being asked.
     /// </summary>
     public sealed class AdapterPowerOverrideService
     {
@@ -251,8 +255,9 @@ namespace OmenCore.Services
                 if (a > b + 0.5)
                 {
                     return $"The GPU restarted and its power limit went from {b:0.#} W to {a:0.#} W. " +
-                           "This lasts until the firmware next re-evaluates the adapter, which it does " +
-                           "on its own schedule - it is not a permanent change.";
+                           "It holds until the firmware tells the driver about the adapter again - " +
+                           "changing supply does that, and so does a reboot. It is not a permanent " +
+                           "change and it does not survive one.";
                 }
 
                 return $"The GPU restarted, but its power limit is unchanged at {a:0.#} W. " +

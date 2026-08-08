@@ -30,8 +30,15 @@ namespace OmenCoreApp.Tests.Services
             message.Should().Contain("35 W");
             message.Should().Contain("80 W");
             message.Should().Contain("not a permanent change",
-                because: "the firmware re-evaluates the adapter on its own schedule and the clamp " +
-                         "comes back; a user told only the new number will think it stuck");
+                because: "a user told only the new number will think it stuck");
+
+            // What puts the clamp back is another notification - the driver cannot read the verdict
+            // and has no way to ask. Changing supply delivers one and so does a reboot; nothing on a
+            // timer has been observed to. The earlier copy promised a re-evaluation "on its own
+            // schedule", which described the forced-rung case, where the EC restores the verdict
+            // itself - not the restart this message is about.
+            message.Should().Contain("tells the driver about the adapter again");
+            message.Should().NotContain("on its own schedule");
         }
 
         [Fact]

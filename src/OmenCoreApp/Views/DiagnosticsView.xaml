@@ -141,20 +141,36 @@
 
                         <Separator Margin="0,12,0,10"/>
 
-                        <TextBlock Text="Restart the GPU to drop the power clamp" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="Drop the adapter power clamp" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="The firmware tells the GPU driver about the adapter once, when it evaluates it. A driver that has just started has not been told, so restarting the device clears the clamp until the firmware next re-evaluates - which it does on its own schedule."/>
+                                   Text="The firmware tells the GPU driver about the adapter once, when it evaluates it, and the driver has no way to ask. A driver that has just started has not been told, so restarting the device clears the clamp - and only another notification puts it back. Changing supply does that, and so does a reboot."/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="The same supply clamps the CPU by a different route: three of the four AMD SMU power limits pinned low, which no device restart touches. Those are written directly, and held - the platform pushes its own numbers back into them once a load ends."/>
+                        <TextBlock Text="{Binding AdapterOverrideScope}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Visibility="{Binding HasAdapterOverrideScope, Converter={StaticResource BoolToVisibility}}"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
                                    Foreground="{StaticResource WarningBrush}"
                                    Text="Your screens will go black for a few seconds and anything using the GPU will lose it. Do not do this with a game or a render running."/>
 
-                        <Button Content="Restart GPU and drop the clamp"
+                        <Button Content="Drop the clamp"
                                 Click="ApplyAdapterOverride_Click"
                                 IsEnabled="{Binding CanApplyAdapterOverride}"
                                 Style="{StaticResource OutlineButtonSmall}" Margin="0,10,0,0"
                                 HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="{Binding ApuClampStatus}" FontSize="11" Margin="0,8,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasApuClampStatus, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <Button Content="Stop holding the CPU limits"
+                                Command="{Binding ReleaseApuClampCommand}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding IsApuClampHeld, Converter={StaticResource BoolToVisibility}}"/>
 
                         <TextBlock Text="{Binding AdapterOverrideBlockedReason}" FontSize="11" Margin="0,6,0,0"
                                    Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"

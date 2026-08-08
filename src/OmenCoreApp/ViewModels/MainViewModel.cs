@@ -664,10 +664,17 @@ namespace OmenCore.ViewModels
                     verdict = $"The firmware reports {connected} adapter as below this machine's requirement.{required}";
                 }
 
+                // Deliberately does not say the platform is "protecting" the supply, which is what
+                // this used to say and is not what was measured. On board 8D87 the hardware power
+                // brake never asserted in any of 131 load samples, battery rate held at exactly 0 W
+                // with the clamp on, and the clamp is not even proportional to the shortfall. It is
+                // an advertised number, and telling a user their machine is defending itself sends
+                // them to buy a power supply they may well not need.
                 return verdict + " " +
                        "Some HP firmware reduces CPU and GPU power limits in this state, which can look like a fault " +
-                       "in OmenCore or in the GPU driver but is the platform protecting an under-rated supply. " +
-                       "If performance is lower than expected, check the adapter before anything else.";
+                       "in OmenCore or in the GPU driver but is a policy the firmware applies to a supply it does not " +
+                       "rate highly enough - a limit it advertises, rather than a measurement of what the supply can " +
+                       "deliver. If performance is lower than expected, this is the first thing to rule out.";
             }
         }
 
@@ -735,8 +742,8 @@ namespace OmenCore.ViewModels
 
         /// <summary>
         /// The reading itself, with the time it was taken. The time is not decoration: the clamp
-        /// comes back when the firmware next re-evaluates the adapter, so a reading is a statement
-        /// about a moment and a panel that implied otherwise would be lying by omission.
+        /// comes back whenever the firmware tells the driver about the adapter again, so a reading is
+        /// a statement about a moment and a panel that implied otherwise would be lying by omission.
         /// </summary>
         public string GpuPowerLimitSummary
         {
@@ -908,6 +915,145 @@ namespace OmenCore.ViewModels
             _checkGpuPowerLimitCommand?.RaiseCanExecuteChanged();
         }
 
+        // ── The CPU half of the same clamp ───────────────────────────────────────────────────────
+        //
+        // The under-rated supply clamps the APU as well as the GPU, and the two are separate
+        // mechanisms: the GPU's arrives as a driver notification a device restart discards, the
+        // CPU's arrives as three of the four AMD SMU power limits pinned at 25 W. Lifting one and
+        // not the other leaves the machine half fixed, which is how this looked for a while - the
+        // GPU going 35 W to 80 W while the CPU sat at 25 W with nothing in the app connecting the
+        // two. So the button does both, and says which parts of it applied.
+        //
+        // Narrower gating than the GPU restart, because it needs three things the restart does not:
+        // an AMD part whose SMU message IDs are known rather than guessed, a firmware that states
+        // its own CPU-with-GPU budget to use as the target, and a supply with room for the result.
+
+        private ApuPowerClampService? _apuClampService;
+        private string _apuClampStatus = string.Empty;
+
+        /// <summary>
+        /// Built on first use and only on a part that has one. Constructing it means touching the
+        /// SMU provider, which a machine with no AMD APU has no reason to do.
+        /// </summary>
+        private ApuPowerClampService? ApuClamp
+        {
+            get
+            {
+                if (_apuClampService != null) return _apuClampService;
+
+                if (_undervoltService?.Provider is not AmdUndervoltProvider amd) return null;
+
+                _apuClampService = new ApuPowerClampService(_logging, amd);
+                return _apuClampService;
+            }
+        }
+
+        /// <summary>
+        /// The CPU power limit this machine's firmware states for the case where the GPU is loaded
+        /// too, in watts, or 0 when it does not say. Read from HP's Default 0x28 block rather than
+        /// chosen here - see <see cref="ApuPowerClampService.TargetWattsFor"/>.
+        /// </summary>
+        public uint ApuClampTargetWatts => ApuPowerClampService.TargetWattsFor(_wmiBios?.SystemDesign);
+
+        /// <summary>
+        /// Whether the CPU half will be attempted alongside the GPU restart.
+        /// </summary>
+        public bool CanOfferApuClampLift =>
+            CanOfferAdapterOverride
+            && ApuClamp != null
+            && ApuClampTargetWatts > 0
+            && ApuPowerClampService.CpuIsSupported(RyzenControl.Family)
+            && _adapterInfo is HpWmiBios.AdapterInfo info
+            && ApuPowerClampService.SupplyCanCarryIt(
+                   info, _wmiBios?.SystemDesign?.ShippingAdapterPowerRatingWatts ?? 0, out _);
+
+        /// <summary>
+        /// What the button will do, in one sentence, before it is pressed.
+        ///
+        /// Says explicitly when only the GPU half applies. A user on a supply this refuses to raise
+        /// the CPU limit on would otherwise press a button whose heading mentions the CPU and get a
+        /// result that does not, with nothing saying why.
+        /// </summary>
+        public string AdapterOverrideScope
+        {
+            get
+            {
+                if (!CanOfferAdapterOverride) return string.Empty;
+
+                if (CanOfferApuClampLift)
+                {
+                    return $"This restarts the GPU to drop its clamp, and raises the four CPU power " +
+                           $"limits to the {ApuClampTargetWatts} W this machine's firmware states for " +
+                           "a loaded CPU and GPU together.";
+                }
+
+                var why = ApuClampReason();
+                return "This restarts the GPU to drop its clamp. The CPU side is not included" +
+                       (why.Length > 0 ? $": {why}" : ".");
+            }
+        }
+
+        public bool HasAdapterOverrideScope => AdapterOverrideScope.Length > 0;
+
+        /// <summary>Why the CPU half is not on offer, or empty when it is.</summary>
+        private string ApuClampReason()
+        {
+            if (ApuClamp == null || !ApuPowerClampService.CpuIsSupported(RyzenControl.Family))
+            {
+                return "this CPU is not one whose SMU power-limit messages are known";
+            }
+
+            if (ApuClampTargetWatts == 0)
+            {
+                return "this machine's firmware did not report a CPU power budget to aim at";
+            }
+
+            if (_adapterInfo is HpWmiBios.AdapterInfo info &&
+                !ApuPowerClampService.SupplyCanCarryIt(
+                    info, _wmiBios?.SystemDesign?.ShippingAdapterPowerRatingWatts ?? 0, out var reason))
+            {
+                // The service phrases these as whole sentences for a panel of their own; folded into
+                // the middle of one here, so the leading capital has to go.
+                return char.ToLowerInvariant(reason[0]) + reason[1..];
+            }
+
+            return string.Empty;
+        }
+
+        /// <summary>True while the four SMU limits are being re-asserted on an interval.</summary>
+        public bool IsApuClampHeld => _apuClampService?.IsHeld == true;
+
+        /// <summary>What the CPU half did, or empty before it has been tried.</summary>
+        public string ApuClampStatus
+        {
+            get => _apuClampStatus;
+            private set
+            {
+                if (_apuClampStatus == value) return;
+                _apuClampStatus = value;
+                OnPropertyChanged(nameof(ApuClampStatus));
+                OnPropertyChanged(nameof(HasApuClampStatus));
+            }
+        }
+
+        public bool HasApuClampStatus => _apuClampStatus.Length > 0;
+
+        private RelayCommand? _releaseApuClampCommand;
+
+        /// <summary>
+        /// Stop re-asserting the CPU limits. Not an undo - it cannot put the clamp back, and does
+        /// not try. It stops OmenCore writing, and the platform reclaims the registers on its own.
+        /// </summary>
+        public ICommand ReleaseApuClampCommand =>
+            _releaseApuClampCommand ??= new RelayCommand(_ =>
+            {
+                _apuClampService?.Release();
+                ApuClampStatus = "OmenCore has stopped re-asserting the CPU power limits. The " +
+                                 "platform will write its own numbers back into them; a reboot " +
+                                 "restores stock.";
+                OnPropertyChanged(nameof(IsApuClampHeld));
+            }, _ => IsApuClampHeld);
+
         /// <summary>True when the override can actually be attempted right now.</summary>
         public bool CanApplyAdapterOverride =>
             CanOfferAdapterOverride && !_adapterOverrideBusy && _adapterOverrideService.IsAvailable(out _);
@@ -983,6 +1129,24 @@ namespace OmenCore.ViewModels
                     _gpuPowerLimitUnanswered = false;
                 }
 
+                // The CPU half, after the GPU is back rather than before it. The two are independent
+                // - no EC write, no driver state, nothing the restart touches - so the only thing
+                // ordering buys is not having SMU traffic in flight while the device is down. Only
+                // on a restart that reported success: with the dGPU in an unknown state, raising the
+                // CPU limit is not the next thing anyone needs.
+                if (result.Applied && CanOfferApuClampLift && ApuClamp is ApuPowerClampService clamp)
+                {
+                    AdapterOverrideStatus = result.Message + " Now raising the CPU power limits...";
+
+                    var lift = await Task.Run(() => clamp.Engage(ApuClampTargetWatts))
+                                         .ConfigureAwait(true);
+
+                    ApuClampStatus = lift.Message;
+                    OnPropertyChanged(nameof(IsApuClampHeld));
+                    _releaseApuClampCommand?.RaiseCanExecuteChanged();
+                    AdapterOverrideStatus = result.Message;
+                }
+
                 // The verdict itself has not changed - the supply is the same one - but the limit
                 // has, and the panel is the place someone will look to see whether it worked.
                 RefreshPowerAdapterStatus();
@@ -1022,6 +1186,13 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(HasAdapterOverrideBlockedReason));
             _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
             OnGpuPowerLimitChanged();
+
+            OnPropertyChanged(nameof(CanOfferApuClampLift));
+            OnPropertyChanged(nameof(ApuClampTargetWatts));
+            OnPropertyChanged(nameof(AdapterOverrideScope));
+            OnPropertyChanged(nameof(HasAdapterOverrideScope));
+            OnPropertyChanged(nameof(IsApuClampHeld));
+            _releaseApuClampCommand?.RaiseCanExecuteChanged();
 
             // Take one reading where the panel is actually offering the restart, so the number is
             // on screen before the decision is. Only there: a machine with a supply that meets its
@@ -5432,6 +5603,10 @@ namespace OmenCore.ViewModels
             _fanService.PresetApplied -= OnFanPresetApplied;
             _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
             _fanService.Dispose();
+
+            // Before the undervolt service, which owns the SMU transport this writes through.
+            // Releasing stops the re-assert timer; it does not put the clamp back.
+            _apuClampService?.Dispose();
             _undervoltService.Dispose();
             _hardwareMonitoringService.SampleUpdated -= HardwareMonitoringServiceOnSampleUpdated;
             _hardwareMonitoringService.HealthStatusChanged -= HardwareMonitoringServiceOnHealthStatusChanged;

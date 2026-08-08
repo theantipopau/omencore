@@ -40,14 +40,31 @@ namespace OmenCore.Views
         {
             if (DataContext is not ViewModels.MainViewModel vm) return;
 
+            // Names both halves, because they carry different costs and only one of them is
+            // visible while it happens. A dialog that mentioned only the GPU restart would be
+            // asking consent for the part that is obvious and not for the part that writes to
+            // the SMU every thirty seconds afterwards.
+            var cpuHalf = vm.CanOfferApuClampLift
+                ? $"It then raises the four CPU power limits to {vm.ApuClampTargetWatts} W and keeps " +
+                  "re-asserting them, because the platform writes its own numbers back into those " +
+                  "registers once a load ends. OmenCore cannot read them back, so that half is what " +
+                  "the SMU accepted rather than what it is running.\n\n"
+                : string.Empty;
+
             var answer = System.Windows.MessageBox.Show(
                 "This disables and re-enables the discrete GPU.\n\n" +
                 "Your screens will go black for a few seconds, and any game, render or compute job " +
                 "using the GPU will lose it and may crash.\n\n" +
-                "The higher power limit lasts only until the firmware next re-evaluates the adapter. " +
-                "It is not permanent, and it is not a substitute for the right power supply.\n\n" +
-                "Restart the GPU now?",
-                "Restart the GPU?",
+                cpuHalf +
+                "Neither figure is an overclock. The GPU lands on the limit its own driver reports as " +
+                "default, and the CPU limits are set to the number this machine's firmware states for " +
+                "a loaded CPU and GPU together. The clamp is a policy the firmware applies to a supply " +
+                "it does not rate highly enough, not a measurement of what that supply can deliver.\n\n" +
+                "Nothing here survives a reboot: the GPU limit holds until the firmware tells the " +
+                "driver about the adapter again - changing supply does that - and the CPU limits " +
+                "until you stop holding them.\n\n" +
+                "Drop the clamp now?",
+                "Drop the adapter power clamp?",
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Warning,
                 System.Windows.MessageBoxResult.No);
