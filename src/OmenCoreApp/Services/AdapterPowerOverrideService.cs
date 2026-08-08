@@ -65,9 +65,14 @@ namespace OmenCore.Services
         // which reads exactly like "nvidia-smi is not installed" if you believe the first answer.
         private static readonly TimeSpan PowerLimitReadTimeout = TimeSpan.FromSeconds(40);
 
+        // Answers "is the dGPU parked" out of the PnP manager's bookkeeping, without touching the
+        // device. Used to decide whether reading the power limit is nearly free or costs a wake.
+        private readonly Hardware.GpuPowerStateProbe _powerStateProbe;
+
         public AdapterPowerOverrideService(LoggingService logging)
         {
             _logging = logging ?? throw new ArgumentNullException(nameof(logging));
+            _powerStateProbe = new Hardware.GpuPowerStateProbe(msg => _logging.Debug(msg));
         }
 
         /// <summary>The outcome of an override attempt, in the terms the panel reports it.</summary>
@@ -407,13 +412,44 @@ namespace OmenCore.Services
         // ── nvidia-smi ───────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The enforced limit in watts, or null when nvidia-smi is absent or unhelpful.
+        /// The pair of limits the clamp separates.
         ///
-        /// This is the number the clamp moves, and it is a REQUESTED limit rather than a measurement -
-        /// a GPU can report a raised limit while delivering nothing. Reported here because it is the
-        /// only figure available without running a load, and the caller says so.
+        /// <paramref name="EnforcedWatts"/> is what the GPU will actually hold itself to and is the
+        /// number the clamp moves. <paramref name="DefaultWatts"/> is the card's own nominal limit,
+        /// which the clamp leaves alone - measured on board 8D87 as 35 W enforced against an 80 W
+        /// default while clamped, and 80 W against 80 W once the driver restarts without the verdict.
+        /// The gap between them is therefore the whole visible evidence that something outside the
+        /// card is holding it down.
+        ///
+        /// Both are REQUESTED limits rather than measurements: a GPU can report a raised limit while
+        /// delivering nothing. They are what is available without running a load, and callers say so.
         /// </summary>
-        public double? ReadEnforcedPowerLimitWatts()
+        public sealed record PowerLimits(double? EnforcedWatts, double? DefaultWatts)
+        {
+            /// <summary>
+            /// True when the card is being held below its own default. Half a watt of slack because
+            /// these are floating-point readings of the same nominal number, not because a real
+            /// clamp is ever that small - the measured one is 45 W.
+            /// </summary>
+            public bool EnforcedIsBelowDefault =>
+                EnforcedWatts is double enforced
+                && DefaultWatts is double standard
+                && enforced < standard - 0.5;
+        }
+
+        /// <summary>
+        /// The enforced limit in watts, or null when nvidia-smi is absent or unhelpful.
+        /// </summary>
+        public double? ReadEnforcedPowerLimitWatts() => ReadPowerLimitsWatts().EnforcedWatts;
+
+        /// <summary>
+        /// Both limits, in one nvidia-smi call.
+        ///
+        /// One call rather than two on purpose: each one wakes a parked dGPU and holds it awake for
+        /// the driver's inactivity timeout, so asking twice for two fields of the same answer would
+        /// double a cost that is already the reason this is never on a timer.
+        /// </summary>
+        public PowerLimits ReadPowerLimitsWatts()
         {
             foreach (var exe in NvidiaSmiCandidates())
             {
@@ -429,7 +465,7 @@ namespace OmenCore.Services
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     };
-                    psi.ArgumentList.Add("--query-gpu=enforced.power.limit");
+                    psi.ArgumentList.Add("--query-gpu=enforced.power.limit,power.default_limit");
                     psi.ArgumentList.Add("--format=csv,noheader,nounits");
 
                     using var process = Process.Start(psi);
@@ -447,15 +483,11 @@ namespace OmenCore.Services
                         try { process.Kill(); }
                         catch (Exception killEx) { _logging.Debug($"nvidia-smi kill: {killEx.Message}"); }
                         _logging.Warn("nvidia-smi did not answer within 45 s - the GPU may be stalled.");
-                        return null;
+                        return new PowerLimits(null, null);
                     }
 
-                    var first = text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
-                    if (first is not null &&
-                        double.TryParse(first, NumberStyles.Float, CultureInfo.InvariantCulture, out var watts))
-                    {
-                        return watts;
-                    }
+                    var limits = ParsePowerLimits(text);
+                    if (limits.EnforcedWatts is not null) return limits;
                 }
                 catch (Exception ex)
                 {
@@ -463,8 +495,51 @@ namespace OmenCore.Services
                 }
             }
 
-            return null;
+            return new PowerLimits(null, null);
         }
+
+        /// <summary>
+        /// Decodes one row of "enforced, default" out of csv,noheader,nounits output.
+        ///
+        /// Each field is decoded independently because they fail independently: nvidia-smi answers
+        /// "[N/A]" or "[Not Supported]" per field, and a card that will not report its default limit
+        /// still reports the enforced one. Losing the enforced reading over the other field being
+        /// absent would throw away the only number this feature is about.
+        /// </summary>
+        private static PowerLimits ParsePowerLimits(string text)
+        {
+            var row = text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+            if (row is null) return new PowerLimits(null, null);
+
+            var fields = row.Split(',');
+
+            static double? Field(string[] fields, int index) =>
+                index < fields.Length &&
+                double.TryParse(fields[index].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture,
+                                out var watts)
+                    ? watts
+                    : null;
+
+            return new PowerLimits(Field(fields, 0), Field(fields, 1));
+        }
+
+        /// <summary>
+        /// Whether the dGPU is parked in D3 right now.
+        ///
+        /// Costs nothing and wakes nothing - it is read from the PnP manager's bookkeeping. Callers
+        /// use it to decide whether reading the power limit is nearly free or is worth asking about
+        /// first, because nvidia-smi answers by waking the card and keeping it awake afterwards.
+        ///
+        /// False when the state cannot be determined, matching the probe: an unknown state is not a
+        /// reason to refuse a reading the user can see the cost of.
+        /// </summary>
+        public bool DiscreteGpuIsParked() => _powerStateProbe.IsAsleep();
+
+        /// <summary>
+        /// Whether nvidia-smi is on disk at all. Public because the panel has to distinguish "no
+        /// reading yet" from "no way to take one" before it offers a button that would do nothing.
+        /// </summary>
+        public bool CanReadPowerLimit => NvidiaSmiIsInstalled();
 
         /// <summary>
         /// Retries until the GPU answers or the deadline passes.

@@ -120,6 +120,27 @@
                                 Visibility="{Binding CanOfferAdapterOverride, Converter={StaticResource BoolToVisibility}}">
                         <Separator Margin="0,0,0,10"/>
 
+                        <!-- The reading goes above the button, not below it: the point is to answer
+                             "is anything actually clamped here" before someone pays a black screen
+                             to find out. -->
+                        <TextBlock Text="Current GPU power limit" FontSize="11"
+                                   Foreground="{StaticResource TextTertiaryBrush}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitSummary}" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Visibility="{Binding HasGpuPowerLimitReading, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitAttribution}" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasGpuPowerLimitAttribution, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitPrompt}" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasGpuPowerLimitPrompt, Converter={StaticResource BoolToVisibility}}"/>
+                        <Button Content="{Binding CheckGpuPowerLimitLabel}"
+                                Command="{Binding CheckGpuPowerLimitCommand}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <Separator Margin="0,12,0,10"/>
+
                         <TextBlock Text="Restart the GPU to drop the power clamp" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"

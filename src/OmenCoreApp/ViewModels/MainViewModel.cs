@@ -706,6 +706,208 @@ namespace OmenCore.ViewModels
             && info.IsLowWattage
             && _adapterOverrideService.FindDiscreteGpu() != null;
 
+        // ── What the GPU is limited to right now ─────────────────────────────────────────────────
+        //
+        // The override's entire claim is that the card is being held below its own limit, and the
+        // price of testing that claim is a black screen and every GPU context on the machine. So the
+        // number goes in front of the button, not behind it: with it, "is there anything to gain
+        // here" is answered before anyone presses anything.
+        //
+        // Two figures, because one alone says nothing. `enforced.power.limit` is what the clamp
+        // moves; `power.default_limit` is the card's own limit, which the clamp leaves alone. On
+        // board 8D87 that reads 35 W against 80 W while clamped and 80 W against 80 W once the driver
+        // has restarted without the verdict - so the gap between them, not the absolute number, is
+        // the evidence.
+        //
+        // Read on opening the panel, never on a timer, and never while the dGPU is parked: nvidia-smi
+        // answers by waking the card and holding it awake for the driver's inactivity timeout. A
+        // parked GPU gets a button and the cost stated instead.
+
+        private AdapterPowerOverrideService.PowerLimits? _gpuPowerLimits;
+        private DateTime? _gpuPowerLimitReadAt;
+        private bool _gpuPowerLimitBusy;
+        private bool _gpuPowerLimitUnanswered;
+
+        private AsyncRelayCommand? _checkGpuPowerLimitCommand;
+
+        /// <summary>True once a reading has been taken and the enforced limit is known.</summary>
+        public bool HasGpuPowerLimitReading => _gpuPowerLimits?.EnforcedWatts is not null;
+
+        /// <summary>
+        /// The reading itself, with the time it was taken. The time is not decoration: the clamp
+        /// comes back when the firmware next re-evaluates the adapter, so a reading is a statement
+        /// about a moment and a panel that implied otherwise would be lying by omission.
+        /// </summary>
+        public string GpuPowerLimitSummary
+        {
+            get
+            {
+                if (_gpuPowerLimits?.EnforcedWatts is not double enforced) return string.Empty;
+
+                var reference = _gpuPowerLimits.DefaultWatts is double standard
+                    ? $" of this card's own {standard:0.#} W limit"
+                    : string.Empty;
+
+                var when = _gpuPowerLimitReadAt is DateTime taken
+                    ? $" — read at {taken:HH:mm}"
+                    : string.Empty;
+
+                return $"{enforced:0.#} W{reference}{when}";
+            }
+        }
+
+        /// <summary>
+        /// Whether that reading looks like the adapter clamp, in the terms the evidence supports.
+        ///
+        /// Stated as what it is consistent with rather than as a diagnosis. A GPU held below its own
+        /// default limit is exactly what the clamp looks like from here, and it is also what a
+        /// third-party tuning tool's power limit looks like from here; this panel cannot tell them
+        /// apart and does not pretend to.
+        /// </summary>
+        public string GpuPowerLimitAttribution
+        {
+            get
+            {
+                if (_gpuPowerLimits is not AdapterPowerOverrideService.PowerLimits limits ||
+                    limits.EnforcedWatts is not double enforced)
+                {
+                    return string.Empty;
+                }
+
+                if (limits.DefaultWatts is not double standard)
+                {
+                    return "Whether that is being held down cannot be told from here - nvidia-smi did " +
+                           "not report this card's default limit, so there is nothing to compare it to.";
+                }
+
+                if (!limits.EnforcedIsBelowDefault)
+                {
+                    return "That is the card's own limit, so nothing is holding it down at the moment " +
+                           "and the restart below has no clamp to discard.";
+                }
+
+                return $"Something is holding this card {standard - enforced:0.#} W below its own limit. " +
+                       "With an under-rated supply attached, that is what the firmware's clamp looks " +
+                       "like, and it is what the restart below discards. Another tool that sets a GPU " +
+                       "power limit would look the same from here, and restarting the device would not " +
+                       "clear that one.";
+            }
+        }
+
+        public bool HasGpuPowerLimitAttribution => GpuPowerLimitAttribution.Length > 0;
+
+        /// <summary>
+        /// What to say when there is no reading: why not, and what taking one would cost. Empty once
+        /// a reading exists.
+        /// </summary>
+        public string GpuPowerLimitPrompt
+        {
+            get
+            {
+                if (_gpuPowerLimitBusy) return "Reading the current limit...";
+                if (HasGpuPowerLimitReading) return string.Empty;
+
+                if (!_adapterOverrideService.CanReadPowerLimit)
+                {
+                    return "The current limit cannot be read here: nvidia-smi is not installed, and it " +
+                           "is the only thing that reports it. It ships with the NVIDIA driver.";
+                }
+
+                if (_gpuPowerLimitUnanswered)
+                {
+                    return "The GPU did not report its power limit. It may have been busy waking up - " +
+                           "try again in a moment.";
+                }
+
+                return "The GPU is parked and asleep. Reading its power limit wakes it, and the driver " +
+                       "keeps it awake for a couple of minutes afterwards.";
+            }
+        }
+
+        public bool HasGpuPowerLimitPrompt => GpuPowerLimitPrompt.Length > 0;
+
+        /// <summary>Label that says which of the two things the button does.</summary>
+        public string CheckGpuPowerLimitLabel =>
+            HasGpuPowerLimitReading ? "Read the limit again" : "Read the current limit";
+
+        public bool CanCheckGpuPowerLimit =>
+            !_gpuPowerLimitBusy && _adapterOverrideService.CanReadPowerLimit && !_adapterOverrideBusy;
+
+        /// <summary>
+        /// Take a reading on request. Also the way back from a parked GPU, where nothing is read
+        /// automatically - the user pressing this is the consent for the wake.
+        /// </summary>
+        public ICommand CheckGpuPowerLimitCommand =>
+            _checkGpuPowerLimitCommand ??=
+                new AsyncRelayCommand(_ => ReadGpuPowerLimitAsync(onlyIfAwake: false),
+                                      _ => CanCheckGpuPowerLimit);
+
+        private async Task ReadGpuPowerLimitAsync(bool onlyIfAwake)
+        {
+            if (_gpuPowerLimitBusy || !_adapterOverrideService.CanReadPowerLimit)
+            {
+                OnGpuPowerLimitChanged();
+                return;
+            }
+
+            // Only the automatic read defers to a parked GPU. A user who pressed the button has been
+            // told what it costs and has answered.
+            if (onlyIfAwake && _adapterOverrideService.DiscreteGpuIsParked())
+            {
+                OnGpuPowerLimitChanged();
+                return;
+            }
+
+            SetGpuPowerLimitBusy(true);
+
+            try
+            {
+                // Off the UI thread: nvidia-smi takes milliseconds on a woken card and tens of
+                // seconds on one that is coming back, and the panel stays live either way.
+                var limits = await Task.Run(() => _adapterOverrideService.ReadPowerLimitsWatts())
+                                       .ConfigureAwait(true);
+
+                if (limits.EnforcedWatts is null)
+                {
+                    _gpuPowerLimitUnanswered = true;
+                }
+                else
+                {
+                    _gpuPowerLimits = limits;
+                    _gpuPowerLimitReadAt = DateTime.Now;
+                    _gpuPowerLimitUnanswered = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"GPU power limit read failed: {ex.Message}");
+                _gpuPowerLimitUnanswered = true;
+            }
+            finally
+            {
+                SetGpuPowerLimitBusy(false);
+            }
+        }
+
+        private void SetGpuPowerLimitBusy(bool busy)
+        {
+            _gpuPowerLimitBusy = busy;
+            OnGpuPowerLimitChanged();
+        }
+
+        private void OnGpuPowerLimitChanged()
+        {
+            OnPropertyChanged(nameof(HasGpuPowerLimitReading));
+            OnPropertyChanged(nameof(GpuPowerLimitSummary));
+            OnPropertyChanged(nameof(GpuPowerLimitAttribution));
+            OnPropertyChanged(nameof(HasGpuPowerLimitAttribution));
+            OnPropertyChanged(nameof(GpuPowerLimitPrompt));
+            OnPropertyChanged(nameof(HasGpuPowerLimitPrompt));
+            OnPropertyChanged(nameof(CheckGpuPowerLimitLabel));
+            OnPropertyChanged(nameof(CanCheckGpuPowerLimit));
+            _checkGpuPowerLimitCommand?.RaiseCanExecuteChanged();
+        }
+
         /// <summary>True when the override can actually be attempted right now.</summary>
         public bool CanApplyAdapterOverride =>
             CanOfferAdapterOverride && !_adapterOverrideBusy && _adapterOverrideService.IsAvailable(out _);
@@ -744,6 +946,10 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(AdapterOverrideBusy));
                 OnPropertyChanged(nameof(CanApplyAdapterOverride));
                 _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
+
+                // The restart takes the device away and brings it back. Reading the limit through
+                // the middle of that is the crash the whole quiesce dance exists to prevent.
+                OnGpuPowerLimitChanged();
             }
         }
 
@@ -765,6 +971,17 @@ namespace OmenCore.ViewModels
             {
                 var result = await _adapterOverrideService.ApplyAsync().ConfigureAwait(true);
                 AdapterOverrideStatus = result.Message;
+
+                // The restart already read the limit on its way out, so take that reading rather
+                // than asking the card a second time for an answer we were just given. The card's
+                // default limit is a property of the card and does not move across a restart.
+                if (result.EnforcedWattsAfter is double after)
+                {
+                    _gpuPowerLimits = new AdapterPowerOverrideService.PowerLimits(
+                        after, _gpuPowerLimits?.DefaultWatts);
+                    _gpuPowerLimitReadAt = DateTime.Now;
+                    _gpuPowerLimitUnanswered = false;
+                }
 
                 // The verdict itself has not changed - the supply is the same one - but the limit
                 // has, and the panel is the place someone will look to see whether it worked.
@@ -804,6 +1021,19 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(AdapterOverrideBlockedReason));
             OnPropertyChanged(nameof(HasAdapterOverrideBlockedReason));
             _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
+            OnGpuPowerLimitChanged();
+
+            // Take one reading where the panel is actually offering the restart, so the number is
+            // on screen before the decision is. Only there: a machine with a supply that meets its
+            // requirement has no clamp to look for, and waking its dGPU every time someone opens
+            // Diagnostics would cost idle power all session to answer a question nobody asked.
+            //
+            // Fire and forget on purpose. This is called from the view's tab-open handler, which
+            // cannot wait tens of seconds for a GPU that is coming back from D3.
+            if (CanOfferAdapterOverride && !HasGpuPowerLimitReading && !_gpuPowerLimitUnanswered)
+            {
+                _ = ReadGpuPowerLimitAsync(onlyIfAwake: true);
+            }
         }
 
         /// <summary>

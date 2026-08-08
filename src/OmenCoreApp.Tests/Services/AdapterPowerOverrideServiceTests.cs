@@ -85,6 +85,59 @@ namespace OmenCoreApp.Tests.Services
             new AdapterPowerOverrideService.OverrideResult(true, "", 35.0, null).LimitRose.Should().BeFalse();
         }
 
+        // ── Reading the pair of limits the clamp separates ────────────────────────────────────
+
+        private static AdapterPowerOverrideService.PowerLimits ParsePowerLimits(string text) =>
+            (AdapterPowerOverrideService.PowerLimits)typeof(AdapterPowerOverrideService)
+                .GetMethod("ParsePowerLimits", BindingFlags.NonPublic | BindingFlags.Static)!
+                .Invoke(null, new object?[] { text })!;
+
+        [Fact]
+        public void Both_Limits_Are_Read_From_One_Row()
+        {
+            // csv,noheader,nounits as nvidia-smi prints it on board 8D87 while clamped.
+            var limits = ParsePowerLimits("35.00, 80.00\n");
+
+            limits.EnforcedWatts.Should().Be(35.0);
+            limits.DefaultWatts.Should().Be(80.0);
+            limits.EnforcedIsBelowDefault.Should().BeTrue();
+        }
+
+        [Fact]
+        public void A_Card_At_Its_Own_Limit_Is_Not_Reported_As_Held_Down()
+        {
+            // The same board after the restart: enforced has risen to the default and there is
+            // nothing left to discard. Reporting this as a clamp would send someone to restart a
+            // GPU for nothing.
+            ParsePowerLimits("80.00, 80.00").EnforcedIsBelowDefault.Should().BeFalse();
+
+            // Floating-point slack, not a real gap.
+            ParsePowerLimits("79.7, 80.00").EnforcedIsBelowDefault.Should().BeFalse();
+        }
+
+        [Fact]
+        public void A_Missing_Default_Does_Not_Cost_The_Enforced_Reading()
+        {
+            // nvidia-smi answers per field, and the enforced limit is the number the feature is
+            // about. Losing it because the other field was unsupported would leave the panel with
+            // nothing to show on a card that answered the question asked.
+            var limits = ParsePowerLimits("35.00, [N/A]");
+
+            limits.EnforcedWatts.Should().Be(35.0);
+            limits.DefaultWatts.Should().BeNull();
+            limits.EnforcedIsBelowDefault.Should().BeFalse(
+                because: "with nothing to compare against, 'held down' is not a claim that can be made");
+        }
+
+        [Fact]
+        public void No_Output_Is_Not_A_Reading_Of_Zero()
+        {
+            var limits = ParsePowerLimits("");
+
+            limits.EnforcedWatts.Should().BeNull();
+            limits.DefaultWatts.Should().BeNull();
+        }
+
         [Fact]
         public void IsAvailable_Gives_A_Reason_When_It_Refuses()
         {
