@@ -230,7 +230,16 @@ namespace OmenCore.Hardware
         {
             // HP reuses 8BB1 across OMEN 17 and Victus 15-fa1xxx boards, so the WMI
             // model name is required to select the safer capability profile.
-            "8BB1"
+            "8BB1",
+
+            // HP reuses 8BCA across the OMEN 16 (2023) Intel wf0xxx SKU and an AMD xf0xxx
+            // SKU on the same board/chassis design - GitHub #163 / Discord (Trirez), a Ryzen 7
+            // 7840HS + RTX 4070 machine resolving to the Intel wf0xxx profile via exact
+            // ProductId, with no way to control the keyboard because the resolved profile
+            // doesn't match the real hardware. The WMI model NAME does differ between the two
+            // ("16-wf0xxx" vs "16-xf0xxx"), even though HP's own baseboard/ProductId reporting
+            // does not - see the 8BCA-AMD entry below.
+            "8BCA"
         };
         
         /// <summary>
@@ -585,6 +594,8 @@ namespace OmenCore.Hardware
             });
             
             // OMEN 16 (2023) - wf series
+            // 8BCA is ambiguous (see _ambiguousProductIds) - this entry is only reached when
+            // the WMI model name does NOT match the "16-xf0" pattern below.
             AddModel(new ModelCapabilities
             {
                 ProductId = "8BCA",
@@ -597,6 +608,37 @@ namespace OmenCore.Hardware
                 SupportsGpuPowerBoost = true,
                 HasFourZoneRgb = true,
                 UserVerified = true
+            });
+
+            // OMEN 16 (2023) - xf0xxx AMD variant, sharing ProductId 8BCA with the wf0xxx
+            // Intel SKU above (GitHub #163 / Discord report, Trirez: HP OMEN 16 XF0079AX,
+            // Ryzen 7 7840HS + RTX 4070). Same board/chassis, same ProductId per HP's own
+            // baseboard reporting, but a different WMI model name ("16-xf0xxx" vs "16-wf0xxx")
+            // - which is what GetPreferredCapabilities uses to pick this entry once 8BCA is
+            // marked ambiguous, the same mechanism already used for 8BB1/Victus 15-fa1xxx.
+            //
+            // Capabilities here are the Intel sibling's chassis-level defaults (fan control
+            // method, MUX, four-zone RGB) rather than a guess - these are EC/WMI features of
+            // the shared board design, not CPU-vendor-dependent. SupportsUndervolt is the one
+            // deliberately different: false, because this part has no Intel MSR undervolt path
+            // (matches every other AMD entry in this database). UserVerified stays false since
+            // only the WMI model name and CPU/GPU pairing are confirmed so far - the keyboard
+            // and MUX behavior on this specific variant haven't been independently checked.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BCA-AMD",
+                ModelName = "OMEN 16 (2023) xf0xxx AMD",
+                ModelNamePattern = "16-xf0",
+                ModelYear = 2023,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #163 — HP OMEN 16 XF0079AX (Ryzen 7 7840HS + RTX 4070), ProductId 8BCA shared with the wf0xxx Intel SKU. Disambiguated by WMI model name (16-xf0xxx). Capabilities carried over from the wf0xxx sibling (same board/chassis) except SupportsUndervolt=false (AMD, no Intel MSR path); not yet independently confirmed on this specific variant."
             });
 
             // OMEN 16 (2024) - wf1 series (Intel) — Issue #68: ProductId 8BAB, Board 8C78, BIOS F.29

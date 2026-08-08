@@ -2019,9 +2019,17 @@ namespace OmenCore.Services.BloatwareManager
                 risk = RemovalRisk.Low;
                 return true;
             }
-            if (name.Contains("Disney", StringComparison.OrdinalIgnoreCase) ||
-                name.Contains("Spotify", StringComparison.OrdinalIgnoreCase) ||
-                name.Contains("Netflix", StringComparison.OrdinalIgnoreCase) && name.Contains("Microsoft"))
+            // Netflix's OEM-promotional tile is published under a distinct Microsoft-branded
+            // package name, so the && Microsoft qualifier genuinely separates it from a real
+            // Netflix install. Disney and Spotify have no such qualifier available - a real,
+            // actively-used Spotify install from the Microsoft Store has the identical AppX
+            // package identity (SpotifyAB.SpotifyMusic) as a pre-provisioned promotional stub,
+            // so a bare name match can't tell them apart. Reported as a false positive (a real,
+            // in-use Spotify install flagged as "Promotional app shortcut, Low risk, safe to
+            // remove"). Removed rather than "fixed" with a qualifier, since none exists: telling
+            // a user their actively-used, paid app is safe-to-remove bloat is a worse failure
+            // than under-flagging a genuine promotional tile.
+            if (name.Contains("Netflix", StringComparison.OrdinalIgnoreCase) && name.Contains("Microsoft"))
             {
                 category = BloatwareCategory.Promotional;
                 description = "Promotional app shortcut";

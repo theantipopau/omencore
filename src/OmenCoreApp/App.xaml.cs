@@ -1,11 +1,13 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Markup;
 using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,9 +55,41 @@ namespace OmenCore
 
         public App()
         {
+            ForceInvariantNumberFormatting();
+
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        }
+
+        /// <summary>
+        /// Forces period-decimal number formatting everywhere, regardless of the user's Windows
+        /// locale. This app has no localization (no .resx files, no translated strings anywhere)
+        /// - display text is hardcoded English throughout the codebase, in hundreds of call sites
+        /// (interpolated strings like $"{temp:F1}", XAML `StringFormat=` bindings, code-behind
+        /// `.ToString("F1")` calls). None of them pass an explicit culture, so on a comma-decimal
+        /// Windows locale (pt-BR, de-DE, etc.) every one of those renders with a comma instead of
+        /// a period - e.g. a dashboard reading "95,0%" instead of "95.0%", confusing at best and
+        /// actively misparseable if a user pastes a value into anything expecting a period.
+        ///
+        /// Fixing the display sites individually isn't practical (400+ occurrences across 50+
+        /// files) or the right fix anyway - the app never intended locale-sensitive number
+        /// formatting, it just inherited the OS default by never overriding it. This sets the
+        /// default culture for every thread the app creates (UI thread and any background
+        /// Task.Run/ThreadPool work alike) and overrides the WPF FrameworkElement.Language
+        /// metadata default, which is what XAML `StringFormat=` bindings actually format against
+        /// - CultureInfo.CurrentCulture alone does not reach those. Must run before any window,
+        /// timer, or background thread is created, so it's the first thing this constructor does.
+        /// </summary>
+        private static void ForceInvariantNumberFormatting()
+        {
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+            CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+
+            FrameworkElement.LanguageProperty.OverrideMetadata(
+                typeof(FrameworkElement),
+                new FrameworkPropertyMetadata(XmlLanguage.GetLanguage(CultureInfo.InvariantCulture.IetfLanguageTag)));
         }
 
         /// <summary>

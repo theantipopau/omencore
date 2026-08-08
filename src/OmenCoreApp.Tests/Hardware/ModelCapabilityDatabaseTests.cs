@@ -489,6 +489,39 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         /// <summary>
+        /// GitHub #163 / Discord (Trirez): HP OMEN 16 XF0079AX, Ryzen 7 7840HS + RTX 4070,
+        /// resolved to the Intel wf0xxx 8BCA entry via exact ProductId - same board/ProductId
+        /// as the AMD xf0xxx SKU, but the wrong CPU vendor's profile, breaking keyboard control.
+        /// The WMI model name does distinguish the two ("16-xf0xxx" vs "16-wf0xxx") even though
+        /// the ProductId does not, so 8BCA is disambiguated the same way as 8BB1/Victus 15-fa1xxx.
+        /// </summary>
+        [Fact]
+        public void GetPreferredCapabilities_Ambiguous8Bca_UsesModelNameDisambiguationForAmdVariant()
+        {
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities("8BCA", "OMEN by HP Gaming Laptop 16-xf0xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8BCA-AMD");
+            caps.ModelName.Should().Contain("AMD");
+            caps.SupportsUndervolt.Should().BeFalse("AMD part, no Intel MSR undervolt path");
+            ModelCapabilityDatabase.IsAmbiguousProductId("8BCA").Should().BeTrue();
+        }
+
+        /// <summary>
+        /// The original Intel wf0xxx profile must still resolve correctly for its own WMI model
+        /// name - marking 8BCA ambiguous must not break the sibling it was already serving.
+        /// </summary>
+        [Fact]
+        public void GetPreferredCapabilities_8Bca_StillResolvesIntelSiblingByModelName()
+        {
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities("8BCA", "OMEN by HP Gaming Laptop 16-wf0xxx");
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8BCA");
+            caps.ModelName.Should().Contain("Intel");
+        }
+
+        /// <summary>
         /// Issue #128: ProductId 88EC must resolve to explicit Victus e0xxx mapping,
         /// not a broad family fallback. This ensures consistent identity on field systems.
         /// </summary>
