@@ -646,6 +646,53 @@ namespace OmenCore.ViewModels
 
         public bool IsPerKeyHardwareCapable => _keyboardLightingService?.IsPerKeyCapableHardware ?? false;
 
+        private KeyboardMapViewModel? _keyboardMap;
+
+        /// <summary>
+        /// The measured-layout editor, built lazily because constructing it interrogates the
+        /// keyboard for its lamp map and that should not happen while the view is being composed.
+        /// </summary>
+        public KeyboardMapViewModel KeyboardMap =>
+            _keyboardMap ??= new KeyboardMapViewModel(_keyboardLightingService, _logging);
+
+        /// <summary>Whether the backend read a real key layout off this keyboard.</summary>
+        public bool HasMeasuredKeyMap => KeyboardMap.IsAvailable;
+
+        /// <summary>
+        /// The fixed 6 x 14 editor is shown only where there is no measured layout to show instead.
+        /// Both at once would be two editors for one keyboard, disagreeing about what is on it.
+        /// </summary>
+        public bool IsFixedGridEditorVisible => IsPerKeyLightingAvailable && !HasMeasuredKeyMap;
+
+        private DeviceLightingViewModel? _deviceLighting;
+
+        /// <summary>The keyboard's built-in effect engine and the light bar - hardware-rendered
+        /// surfaces, as opposed to the host-painted per-key picture above.</summary>
+        public DeviceLightingViewModel DeviceLighting =>
+            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging);
+
+        public bool HasDeviceEffects => DeviceLighting.SupportsDeviceEffects;
+        public bool HasLightBar => DeviceLighting.IsLightBarAvailable;
+
+        private Hardware.ModelCapabilities? _capabilities;
+
+        private Hardware.ModelCapabilities Capabilities =>
+            _capabilities ??= Hardware.ModelCapabilityDatabase.GetCapabilities(Hardware.OmenBoard.Product);
+
+        /// <summary>
+        /// Whether this chassis has a four-zone KEYBOARD, which is what the zone editor edits.
+        ///
+        /// Read from the capability database rather than inferred, and the distinction it keeps
+        /// straight is the one that made this board so confusing to diagnose: on a per-key machine
+        /// the four-zone commands still succeed, but they land on the LIGHT BAR. So the zone editor
+        /// appeared to work while the keyboard never changed, and every report of it read as "the
+        /// keyboard is broken" rather than "this is the wrong surface".
+        ///
+        /// Hiding it here is only safe because the light bar now has a card of its own. Before
+        /// that, this editor was the only way to reach the bar at all.
+        /// </summary>
+        public bool HasFourZoneKeyboard => Capabilities.HasFourZoneRgb;
+
         public string PerKeyCapabilitySummary =>
             BuildPerKeyCapabilitySummary(IsPerKeyLightingAvailable, IsPerKeyHardwareCapable);
 
@@ -2605,14 +2652,30 @@ namespace OmenCore.ViewModels
         
         #region Temperature-Responsive Lighting Methods
         
+        // Turning a reactive toggle on paints straight away rather than waiting for the next
+        // monitoring sample. Without this the feature looks broken: the poll cadence is 2-10 s
+        // depending on window state, and the temperature band usually does not change when the
+        // toggle is flipped, so the same-colour refresh interval could hold the first paint back
+        // for 30 s. "No effect" and "an effect that starts within half a minute" are the same
+        // thing from the user's chair.
         private void StartTemperatureMonitoring()
         {
-            if (_hardwareMonitoringService != null)
-            {
-                _logging.Info("Started temperature-responsive lighting monitoring");
-            }
+            if (!WarnIfMonitoringUnavailable("temperature-responsive")) return;
+
+            _logging.Info("Started temperature-responsive lighting monitoring");
+            var sample = _hardwareMonitoringService!.Samples.LastOrDefault();
+            if (sample == null) return;
+
+            // Clear the rate limiter's memory so this paint is not suppressed as a repeat of one
+            // made while the toggle was last on.
+            _lastTemperatureLightingApplyUtc = DateTime.MinValue;
+            _lastTemperatureLightingColorHex = null;
+
+            var colorHex = GetTemperatureLightingColor(sample);
+            if (ShouldApplyTemperatureLighting(colorHex))
+                _ = ApplyTemperatureBasedLightingAsync(colorHex);
         }
-        
+
         private void StopTemperatureMonitoring()
         {
             if (_hardwareMonitoringService != null)
@@ -2620,15 +2683,22 @@ namespace OmenCore.ViewModels
                 _logging.Info("Stopped temperature-responsive lighting monitoring");
             }
         }
-        
+
         private void StartPerformanceModeMonitoring()
         {
-            if (_performanceModeService != null)
+            if (_performanceModeService == null)
             {
-                _logging.Info("Started performance mode synced lighting monitoring");
+                _logging.Warn("Performance mode synced lighting enabled with no performance mode " +
+                              "service; it will not respond to mode changes");
+                return;
             }
+
+            _logging.Info("Started performance mode synced lighting monitoring");
+            var mode = _performanceModeService.GetCurrentMode();
+            if (!string.IsNullOrEmpty(mode))
+                _ = ApplyPerformanceModeLightingAsync(mode);
         }
-        
+
         private void StopPerformanceModeMonitoring()
         {
             if (_performanceModeService != null)
@@ -2636,21 +2706,39 @@ namespace OmenCore.ViewModels
                 _logging.Info("Stopped performance mode synced lighting monitoring");
             }
         }
-        
+
         private void StartThrottlingMonitoring()
         {
-            if (_hardwareMonitoringService != null)
-            {
-                _logging.Info("Started throttling indicator lighting monitoring");
-            }
+            if (!WarnIfMonitoringUnavailable("throttling indicator")) return;
+
+            _logging.Info("Started throttling indicator lighting monitoring");
+
+            // Unlike the other two this one is conditional on the machine's state, so there is
+            // nothing to paint unless it is throttling right now. Silence here is correct.
+            var sample = _hardwareMonitoringService!.Samples.LastOrDefault();
+            if (sample?.IsThrottling == true && ShouldApplyThrottlingLighting())
+                _ = ApplyThrottlingLightingAsync(sample);
         }
-        
+
         private void StopThrottlingMonitoring()
         {
             if (_hardwareMonitoringService != null)
             {
                 _logging.Info("Stopped throttling indicator lighting monitoring");
             }
+        }
+
+        /// <summary>
+        /// True when hardware monitoring is wired up. A null service used to be silent, which is
+        /// how three reactive features shipped inert — the toggle moved, nothing subscribed.
+        /// </summary>
+        private bool WarnIfMonitoringUnavailable(string feature)
+        {
+            if (_hardwareMonitoringService != null) return true;
+
+            _logging.Warn($"{feature} lighting enabled with no hardware monitoring service; " +
+                          "it will not respond to temperature changes");
+            return false;
         }
         
         private void OnMonitoringSampleUpdated(object? sender, MonitoringSample sample)
@@ -2738,44 +2826,70 @@ namespace OmenCore.ViewModels
             return true;
         }
 
+        /// <summary>
+        /// Paint one colour across every lighting surface these reactive features drive.
+        ///
+        /// Temperature, throttling and performance mode differ only in which colour they pick and
+        /// which effect string the RGB manager gets; the fan-out itself is the same, and used to be
+        /// three copies of it. <paramref name="rgbEffect"/> is the one genuine difference — the
+        /// throttling indicator pulses where the others hold steady.
+        /// </summary>
+        private async Task FanOutLightingColorAsync(string colorHex, string rgbEffect, string reason)
+        {
+            var color = ParseDrawingColor(colorHex);
+
+            if (_keyboardLightingService?.IsAvailable == true)
+            {
+                await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
+            }
+
+            // The light bar is a separate device on a separate transport, so it takes its own call.
+            // It was missing from all three features, which left temperature-responsive lighting
+            // driving every RGB peripheral in the house while the strip on the front of the chassis
+            // — the one light the user is actually looking at — never moved.
+            //
+            // Brightness comes from the light bar card when the user has opened it, so the reactive
+            // colour does not quietly undo a brightness they chose. This deliberately reads the
+            // backing field: touching the property would construct that view-model, and hence probe
+            // hardware, from a monitoring callback.
+            if (_keyboardLightingService?.IsLightBarAvailable == true)
+            {
+                _keyboardLightingService.SetLightBarColors(
+                    new[] { (color.R, color.G, color.B) },
+                    (byte)(_deviceLighting?.BarBrightness ?? 100));
+            }
+
+            if (_rgbManager != null)
+            {
+                await _rgbManager.ApplyEffectToAllAsync(rgbEffect);
+            }
+
+            if (_corsairService != null && CorsairDevices.Count > 0)
+            {
+                await _corsairService.ApplyLightingToAllAsync(colorHex);
+            }
+
+            if (_logitechService != null && LogitechDevices.Count > 0)
+            {
+                foreach (var device in LogitechDevices)
+                {
+                    await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
+                }
+            }
+
+            if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
+            {
+                await Task.Run(() => _razerService.SetStaticColor(color.R, color.G, color.B));
+            }
+
+            _logging.Info($"Applied {reason} lighting: {colorHex}");
+        }
+
         private async Task ApplyTemperatureBasedLightingAsync(string colorHex)
         {
             try
             {
-                // Apply to keyboard lighting
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    var color = ParseDrawingColor(colorHex);
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"color:{colorHex}");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(colorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var color = System.Drawing.ColorTranslator.FromHtml(colorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(color.R, color.G, color.B));
-                }
+                await FanOutLightingColorAsync(colorHex, $"color:{colorHex}", "temperature-based");
             }
             catch (Exception ex)
             {
@@ -2786,47 +2900,13 @@ namespace OmenCore.ViewModels
                 _temperatureLightingApplyInFlight = false;
             }
         }
-        
+
         private async Task ApplyThrottlingLightingAsync(MonitoringSample sample)
         {
             try
             {
-                // Apply throttling color to indicate thermal/power throttling
-                var color = ParseDrawingColor(ThrottlingColorHex);
-                
-                // Apply to keyboard lighting with pulsing effect
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB with pulsing
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"pulse:{ThrottlingColorHex}:1000");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(ThrottlingColorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, ThrottlingColorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var razerColor = System.Drawing.ColorTranslator.FromHtml(ThrottlingColorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(razerColor.R, razerColor.G, razerColor.B));
-                }
+                await FanOutLightingColorAsync(
+                    ThrottlingColorHex, $"pulse:{ThrottlingColorHex}:1000", "throttling indicator");
             }
             catch (Exception ex)
             {
@@ -2837,69 +2917,20 @@ namespace OmenCore.ViewModels
                 _throttlingLightingApplyInFlight = false;
             }
         }
-        
+
         private async Task ApplyPerformanceModeLightingAsync(string modeName)
         {
             try
             {
-                string colorHex;
-                
-                // Map performance mode to color
-                switch (modeName.ToLower())
+                var colorHex = modeName.ToLower() switch
                 {
-                    case "balanced":
-                        colorHex = BalancedModeColorHex;
-                        break;
-                    case "performance":
-                    case "high performance":
-                        colorHex = PerformanceModeColorHex;
-                        break;
-                    case "quiet":
-                    case "power saver":
-                        colorHex = QuietModeColorHex;
-                        break;
-                    default:
-                        colorHex = CustomModeColorHex;
-                        break;
-                }
-                
-                var color = ParseDrawingColor(colorHex);
-                
-                // Apply to keyboard lighting
-                if (_keyboardLightingService?.IsAvailable == true)
-                {
-                    await _keyboardLightingService.SetAllZoneColors(new[] { color, color, color, color });
-                }
-                
-                // Apply to system RGB
-                if (_rgbManager != null)
-                {
-                    await _rgbManager.ApplyEffectToAllAsync($"color:{colorHex}");
-                }
-                
-                // Apply to Corsair devices
-                if (_corsairService != null && CorsairDevices.Count > 0)
-                {
-                    await _corsairService.ApplyLightingToAllAsync(colorHex);
-                }
-                
-                // Apply to Logitech devices
-                if (_logitechService != null && LogitechDevices.Count > 0)
-                {
-                    foreach (var device in LogitechDevices)
-                    {
-                        await _logitechService.ApplyStaticColorAsync(device, colorHex, LogitechBrightness);
-                    }
-                }
-                
-                // Apply to Razer devices
-                if (_razerService?.IsAvailable == true && _razerDevices.Count > 0)
-                {
-                    var razerColor = System.Drawing.ColorTranslator.FromHtml(colorHex);
-                    await Task.Run(() => _razerService.SetStaticColor(razerColor.R, razerColor.G, razerColor.B));
-                }
-                
-                _logging.Info($"Applied performance mode lighting for '{modeName}' with color {colorHex}");
+                    "balanced" => BalancedModeColorHex,
+                    "performance" or "high performance" => PerformanceModeColorHex,
+                    "quiet" or "power saver" => QuietModeColorHex,
+                    _ => CustomModeColorHex
+                };
+
+                await FanOutLightingColorAsync(colorHex, $"color:{colorHex}", $"performance mode '{modeName}'");
             }
             catch (Exception ex)
             {

@@ -1015,11 +1015,26 @@ namespace OmenCore.Hardware
                 SupportsGpuPowerBoost = true,
                 SupportsAdvancedOptimus = true,
                 HasKeyboardBacklight = true,
-                HasFourZoneRgb = true,
+                // False, corrected from an inherited true. This entry's ModelNamePattern
+                // ("max 16 ak0") matches the same AMD OMEN MAX 16 hardware as the 8D87 entry
+                // below, where the keyboard topology probe (Default 0x2B) returns RgbPerKey and
+                // the four-zone commands were owner-observed driving the LIGHT BAR rather than the
+                // keyboard. This entry was never UserVerified, so these two flags were defaults
+                // rather than a report.
+                HasFourZoneRgb = false,
                 HasPerKeyRgb = true,
+                HasLightBar = true,
                 SupportsUndervolt = false, // AMD Ryzen — Intel-style undervolt unsupported
                 UserVerified = false,
-                Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers."
+                // WARNING: this entry describes the same hardware as the 8D87 entry below and
+                // disagrees with it on more than lighting - MaxFanLevel (100 here, measured 60
+                // there), an "L5P" mode that HpWmiBios.FanMode cannot send, SupportsAdvancedOptimus
+                // (true here, measured false there) and SupportsUndervolt (false here, measured
+                // true there). Only the lighting flags were corrected, because only lighting was
+                // in scope for the change that touched this. The rest is a real divergence and
+                // whichever entry wins a lookup decides the behaviour.
+                Notes = "OMEN MAX 16 ak0003nr — AMD HX 375 + RTX 5080. ThermalPolicy V2 (WMI V2) support; avoid EC writes that target legacy registers. " +
+                        "Overlaps board 8D87; see the warning above before trusting the non-lighting fields here."
             });
 
             // OMEN MAX 16 (2025) - ak0xxx family (GitHub #117 / Product ID 8D87)
@@ -1125,10 +1140,22 @@ namespace OmenCore.Hardware
                 // Optimus is exactly this board.
                 SupportsAdvancedOptimus = false,
                 // Measured via the keyboard topology probe - class 0x00020008, command 0x2B, null
-                // input, 4-byte return - which returns 0x03 = NbKeyboardLightingType.RgbPerKey,
-                // stable across repeated reads. That is the probe HP itself gates on for this
-                // platform; the Keyboard command class (0x00020009) is NOT the gate here and
-                // returns an 0xFF sentinel for the type query.
+                // input, 4-byte return - which returns 0x03 = NbKeyboardLightingType.RgbPerKey on
+                // all ten of ten repeated reads. That is the probe HP itself gates on for this
+                // platform.
+                //
+                // The Keyboard command class (0x00020009) command 0x01 is NOT the gate here, and
+                // the earlier note that it "returns an 0xFF sentinel" understated the problem: it
+                // is not a sentinel, it is an accumulator. Ten identical consecutive calls
+                // returned 0x0F, 0x1F, 0x3F, 0x7F, 0xFF, and then 0xFF for every call after. It
+                // grows until it saturates, which is why a later reading looks like a fixed 0xFF.
+                // Nothing about the hardware changes between those calls, so the byte cannot be a
+                // keyboard type - and once saturated its bit 0 reads "lighting supported" whether
+                // or not that is true.
+                //
+                // Corroborated independently by the keyboard's own HID descriptors: it is a
+                // 120-lamp HID LampArray of kind Keyboard, 342 x 125 mm, 8-bit RGB per lamp, with
+                // per-lamp HID key bindings. See tools/LightingProbe.
                 HasKeyboardBacklight = true,
                 HasPerKeyRgb = true,
                 // False, and deliberately explicit rather than left to the property default of

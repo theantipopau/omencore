@@ -119,6 +119,7 @@ namespace OmenCore.Hardware
         private const uint CMD_COLOR_GET = 0x02;      // GetColorTable - uses Keyboard cmd
         private const uint CMD_COLOR_SET = 0x03;      // SetColorTable - uses Keyboard cmd
         private const uint CMD_KBD_TYPE_GET = 0x01;   // GetKbdType - uses Keyboard cmd
+        private const uint CMD_KBD_PLATFORM_INFO = 0x2B; // Keyboard lighting topology - uses Default cmd
         private const uint CMD_BRIGHTNESS_GET = 0x04; // GetBrightness - uses Keyboard cmd (v2.9.0)
         private const uint CMD_HAS_BACKLIGHT = 0x06;  // HasBacklight / GetLedAnimation - uses Keyboard cmd
         private const uint CMD_ANIMATION_SET = 0x07;  // SetLedAnimation - uses Keyboard cmd (v2.9.0)
@@ -1557,16 +1558,118 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Keyboard lighting topology, as HP's own software models it (NbKeyboardLightingType).
+        /// This is a different and wider enumeration than <see cref="KbdType"/>: it describes what
+        /// the lighting looks like, not what the key layout is.
+        /// </summary>
+        public enum KeyboardLightingType
+        {
+            None = -1,
+            /// <summary>Backlit but not addressable - no colour control.</summary>
+            Normal = 0,
+            FourZoneWithNumpad = 1,
+            FourZoneWithoutNumpad = 2,
+            /// <summary>Per-key addressable RGB. The four-zone command path does not apply.</summary>
+            RgbPerKey = 3,
+            OneZoneWithNumpad = 4,
+            OneZoneWithoutNumpad = 5
+        }
+
+        /// <summary>
+        /// Read the keyboard lighting topology: Default 0x2B, no input payload, 4-byte reply whose
+        /// byte 0 is NbKeyboardLightingType. This is the probe HP's own software gates keyboard
+        /// lighting on, and it is on the Default class, not the Keyboard one - the constant is
+        /// named WMI_CMD_TYPE_GET_PLATFORM_INFO and sits on the gaming-input surface.
+        ///
+        /// Measured on board 8D87 (OMEN MAX 16, 2025 AMD): returns 0x03 = RgbPerKey, which agrees
+        /// with the keyboard's own HID descriptors (a 120-lamp HID LampArray, kind Keyboard).
+        ///
+        /// Sends no payload deliberately. The transport rounds input size into buckets and a
+        /// zero-length input is a genuinely different framing from a 4-byte zero-filled one, not a
+        /// cosmetic difference - see the note on <see cref="GetKeyboardType"/>.
+        /// </summary>
+        public KeyboardLightingType? GetKeyboardLightingType()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Default, CMD_KBD_PLATFORM_INFO, null, 4);
+                if (result == null || result.Length == 0)
+                {
+                    return null;
+                }
+
+                // Signed: None is -1, which arrives as 0xFF.
+                var value = (KeyboardLightingType)(sbyte)result[0];
+                if (!Enum.IsDefined(typeof(KeyboardLightingType), value))
+                {
+                    _logging?.Info($"Keyboard lighting topology byte 0x{result[0]:X2} is not a known type - reporting unknown");
+                    return null;
+                }
+
+                _logging?.Info($"Keyboard lighting topology: {value} (0x{result[0]:X2})");
+                return value;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read keyboard lighting topology: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Whether the BIOS reports any addressable keyboard lighting: Keyboard 0x01, bit 0 of
+        /// byte 0, which is the only bit HP's own code reads.
+        ///
+        /// TREAT AS WEAK EVIDENCE, and prefer <see cref="GetKeyboardLightingType"/> wherever it
+        /// answers. This command is widely described as "GetKbdType" and it is not one. Measured
+        /// on board 8D87 across ten identical consecutive calls, byte 0 was:
+        ///
+        ///     0x0F, 0x1F, 0x3F, 0x7F, 0xFF, then 0xFF for every call after
+        ///
+        /// It grows on each call and saturates. A value that changes when nothing about the
+        /// hardware changed cannot be a keyboard type, and once it has saturated at 0xFF bit 0 is
+        /// set no matter what the answer should have been - so on a board behaving like this,
+        /// "supported" is what this returns whether or not it is true. The same probe run against
+        /// the topology command returned a stable 0x03 ten times out of ten.
+        ///
+        /// Kept because it is the right reading of this command on boards where the byte IS
+        /// stable, and because naming the failure is more useful than deleting the evidence of it.
+        /// Nothing in OmenCore gates on it.
+        /// </summary>
+        public bool? IsKeyboardLightingSupported()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_KBD_TYPE_GET, null, 4);
+                if (result == null || result.Length == 0) return null;
+
+                bool supported = (result[0] & 0x01) != 0;
+                _logging?.Info($"Keyboard lighting supported: {supported} (byte 0 = 0x{result[0]:X2})");
+                return supported;
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read keyboard lighting support: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get keyboard type.
         /// OmenMon: Cmd.Keyboard, 0x01
         ///
-        /// Not every board answers this. Board 8D87 (OMEN MAX 16, 2025 AMD) returns 0xFF here, which
-        /// is not a KbdType at all, so this returns null on it. The keyboard topology probe HP's own
-        /// software gates on for that platform is a different command - Default 0x2B, null input,
-        /// 4-byte reply, whose byte 0 is NbKeyboardLightingType (3 = per-key RGB) - and it answers
-        /// correctly where Keyboard 0x01 does not. Adding it needs confirmation on more than one
-        /// board, so it is noted rather than done here; ModelCapabilities.HasPerKeyRgb carries the
-        /// answer for 8D87 in the meantime.
+        /// Not every board answers this, and on some it is not answering the question at all.
+        /// Board 8D87 (OMEN MAX 16, 2025 AMD) returns a byte that CHANGES BETWEEN IDENTICAL CALLS
+        /// - 0x0F, 0x1F, 0x3F, 0x7F, then 0xFF from the fifth call on - so it is an accumulator
+        /// that saturates, not a type. See <see cref="IsKeyboardLightingSupported"/>.
+        ///
+        /// So when this command yields something outside the declared range, fall through to
+        /// <see cref="GetKeyboardLightingType"/>, which is the probe HP's own software uses, and
+        /// map it back. A board where Keyboard 0x01 does answer is left on that path unchanged.
         /// </summary>
         public KbdType? GetKeyboardType()
         {
@@ -1578,38 +1681,68 @@ namespace OmenCore.Hardware
                 if (result != null && result.Length > 0)
                 {
                     var kbdType = DecodeKeyboardType(result);
-                    if (kbdType == null)
+                    if (kbdType != null)
                     {
-                        _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - reporting unknown");
-                        return null;
+                        _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
+                        return kbdType;
                     }
 
-                    _logging?.Info($"Keyboard type: {kbdType} (0x{result[0]:X2})");
-                    return kbdType;
+                    _logging?.Info($"Keyboard type byte 0x{result[0]:X2} is outside the declared KbdType range - trying the lighting topology probe");
                 }
             }
             catch (Exception ex)
             {
                 _logging?.Warn($"Failed to get keyboard type: {ex.Message}");
             }
-            return null;
+
+            return MapLightingTypeToKbdType(GetKeyboardLightingType());
         }
+
+        /// <summary>
+        /// Map the lighting topology onto the narrower <see cref="KbdType"/>, for callers that
+        /// still ask that question. Only RgbPerKey has an exact counterpart; the zone topologies
+        /// describe lighting rather than layout, so they deliberately do not claim a key layout.
+        /// </summary>
+        internal static KbdType? MapLightingTypeToKbdType(KeyboardLightingType? lighting) => lighting switch
+        {
+            KeyboardLightingType.RgbPerKey => KbdType.PerKeyRgb,
+            _ => null
+        };
         
         /// <summary>
         /// Check if keyboard backlight is supported.
-        /// OmenMon: Cmd.Keyboard, 0x06
+        ///
+        /// Asks the lighting topology first. That is what HP's own software gates on, and it gives
+        /// a direct answer: anything other than None or Normal has addressable backlighting.
+        ///
+        /// The Keyboard 0x06 fallback below is kept for boards that answer it, but it is a weaker
+        /// reading of a command that is not really this question - HP's constant for Keyboard 0x06
+        /// is GET_LED_ANIMATION, and it wants a 128-byte reply. Asking for 4 bytes returns RTCD 5,
+        /// which means WRONG OUTPUT BUFFER SIZE, not "unsupported". Board 8D87 hit exactly that:
+        /// the old call reported no backlight on a machine whose backlight was lit, because a
+        /// size complaint was being read as a capability answer.
         /// </summary>
         public bool HasBacklight()
         {
             if (!_isAvailable) return false;
-            
+
+            var topology = GetKeyboardLightingType();
+            if (topology != null)
+            {
+                bool lit = topology is not (KeyboardLightingType.None or KeyboardLightingType.Normal);
+                _logging?.Info($"Keyboard backlight supported: {lit} (topology {topology})");
+                return lit;
+            }
+
             try
             {
-                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_HAS_BACKLIGHT, new byte[4], 4);
+                // 128, not 4. See above - the reply is animation state, and the shorter buffer is
+                // rejected rather than answered.
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_HAS_BACKLIGHT, new byte[4], 128);
                 if (result != null && result.Length > 0)
                 {
                     var supported = result[0] != 0;
-                    _logging?.Info($"Keyboard backlight supported: {supported}");
+                    _logging?.Info($"Keyboard backlight supported: {supported} (animation byte 0 = 0x{result[0]:X2})");
                     return supported;
                 }
             }
@@ -1938,7 +2071,246 @@ namespace OmenCore.Hardware
             }
             return null;
         }
-        
+
+        #endregion
+
+        #region Light bar
+
+        // The light bar is a SEPARATE DEVICE from the keyboard, and on a per-key chassis it is the
+        // only thing the four-zone commands above can still reach. It has four zones, zone 0
+        // LEFTMOST, and one write command that carries static colour, animation, brightness and off
+        // all at once - which is why the payload below looks like several unrelated features
+        // sharing a buffer. It is.
+        //
+        // Measured on board 8D87 (OMEN MAX 16-ak0xxx, BIOS F.07). Map and evidence:
+        // omen-max-16/reference/wmi-commands.md#the-light-bar.
+
+        private const uint CMD_LIGHTBAR_SET = 0x0B;    // Keyboard class. Static, animation, off.
+        private const uint CMD_LIGHTBAR_GET_COLOR = 0x04;  // Default class. One zone per call.
+
+        /// <summary>Zones on the bar, left to right.</summary>
+        public const int LightBarZoneCount = 4;
+
+        /// <summary>TargetDevice at payload[0]. 1 is the four-zone keyboard animation path.</summary>
+        private const byte LightBarTarget = 0x00;
+
+        /// <summary>
+        /// The one colour this device must never be asked for.
+        ///
+        /// Its colour handling substitutes exactly two input values, and only two - #FF0000 becomes
+        /// #FE0000, which is cosmetically free, and #FFFFFF becomes #FEA3DA, which is VISIBLY
+        /// PURPLE-WHITE next to a real white. #FF0001 and #FFFFFE pass through byte-exact, so this
+        /// is a two-entry lookup rather than a gamma curve or a clamp, and one entry off is enough
+        /// to miss it. Asking for white and getting pink is the first thing a consumer of this API
+        /// would hit and the last thing they could explain, so it is routed around here rather than
+        /// documented and left to bite.
+        /// </summary>
+        private const uint LightBarPinkWhite = 0xFFFFFF;
+        private const byte LightBarWhiteRed = 0xFF, LightBarWhiteGreen = 0xFF, LightBarWhiteBlue = 0xFE;
+
+        /// <summary>Device-side animations. NOT the keyboard MCU's numbering - the same names have
+        /// different values there, and Ghosting, Ripple and OMEN X do not exist on this path.</summary>
+        public enum LightBarEffect : byte
+        {
+            Static = 0,
+            LightingSync = 1,
+            ColorCycle = 2,
+            Starlight = 3,
+            Breathing = 4,
+            Wave = 6,
+            Raindrop = 7,
+            AudioPulse = 8,
+            Confetti = 9,
+            Sun = 10,
+            Swipe = 11
+        }
+
+        public enum LightBarTheme : byte
+        {
+            Galaxy = 16, Volcano = 32, Jungle = 48, Ocean = 64, Custom = 80
+        }
+
+        public enum LightBarSpeed : byte { Slow = 0, Medium = 1, Fast = 2 }
+
+        /// <summary>Only two directions exist here, unlike the keyboard's eight.</summary>
+        public enum LightBarDirection : byte { Left = 4, Right = 8 }
+
+        /// <summary>
+        /// Paint the bar with up to four static colours, zone 0 leftmost.
+        ///
+        /// Fewer than four colours repeats the last one across the remaining zones, so a single
+        /// colour fills the bar.
+        /// </summary>
+        public bool SetLightBarColors(IReadOnlyList<(byte R, byte G, byte B)> zoneColors, byte brightness = 100)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set light bar: WMI BIOS not available");
+                return false;
+            }
+
+            if (zoneColors == null || zoneColors.Count == 0)
+            {
+                _logging?.Warn("SetLightBarColors: no colours given");
+                return false;
+            }
+
+            var payload = new byte[128];
+            payload[0] = LightBarTarget;
+            payload[1] = (byte)LightBarEffect.Static;
+            payload[3] = Math.Clamp(brightness, (byte)0, (byte)100);
+            payload[6] = LightBarZoneCount;
+
+            for (int zone = 0; zone < LightBarZoneCount; zone++)
+            {
+                var c = SubstituteWhite(zoneColors[Math.Min(zone, zoneColors.Count - 1)]);
+                int at = 7 + (zone * 3);
+                payload[at] = c.R;
+                payload[at + 1] = c.G;
+                payload[at + 2] = c.B;
+            }
+
+            return SendLightBar(payload, $"static, brightness {payload[3]}");
+        }
+
+        /// <summary>
+        /// Run one of the bar's built-in animations.
+        ///
+        /// Two of them look broken when driven naively and neither is a fault. Swipe has no preset
+        /// palette, so with a preset theme it renders BLACK - give it custom colours. Audio Pulse IS
+        /// its two level bytes: at 0 it is black by definition, and reproducing it means feeding
+        /// <paramref name="tribe"/> and <paramref name="bass"/> from an audio thread at around 5 Hz.
+        /// Held at a constant level it shows a constant colour rather than pulsing.
+        ///
+        /// NO READBACK EXISTS for animation state on this board - HP's own getter (Keyboard 0x0C)
+        /// answers FAIL. A true return means the firmware took the frame and nothing more.
+        /// </summary>
+        public bool SetLightBarAnimation(
+            LightBarEffect effect,
+            LightBarTheme theme = LightBarTheme.Galaxy,
+            LightBarSpeed speed = LightBarSpeed.Medium,
+            LightBarDirection direction = LightBarDirection.Left,
+            byte brightness = 100,
+            IReadOnlyList<(byte R, byte G, byte B)>? customColors = null,
+            byte tribe = 0,
+            byte bass = 0)
+        {
+            if (!_isAvailable)
+            {
+                _logging?.Warn("Cannot set light bar animation: WMI BIOS not available");
+                return false;
+            }
+
+            var payload = new byte[128];
+            payload[0] = LightBarTarget;
+            payload[1] = (byte)effect;
+
+            // Lighting sync carries no parameters at all; sending them is meaningless rather than
+            // harmful, but leaving the frame bare is what HP does.
+            if (effect != LightBarEffect.LightingSync)
+            {
+                // Speed, direction and theme share one byte. HP builds it by masking then adding -
+                // &= 252 then speed, &= 243 then direction, &= 15 then theme - which is how you can
+                // tell these are three fields in one byte rather than three adjacent bytes.
+                payload[2] = (byte)(((byte)speed & 0x03) | ((byte)direction & 0x0C) | ((byte)theme & 0xF0));
+                payload[3] = Math.Clamp(brightness, (byte)0, (byte)100);
+                payload[4] = tribe;
+                payload[5] = bass;
+
+                if (theme == LightBarTheme.Custom && customColors is { Count: > 0 })
+                {
+                    payload[6] = (byte)Math.Min(customColors.Count, LightBarZoneCount);
+                    for (int i = 0; i < payload[6]; i++)
+                    {
+                        var c = SubstituteWhite(customColors[i]);
+                        int at = 7 + (i * 3);
+                        payload[at] = c.R;
+                        payload[at + 1] = c.G;
+                        payload[at + 2] = c.B;
+                    }
+                }
+            }
+
+            if (effect == LightBarEffect.Swipe && theme != LightBarTheme.Custom)
+                _logging?.Warn("Light bar Swipe has no preset palette and will render BLACK; use Custom colours");
+
+            if (effect == LightBarEffect.AudioPulse && tribe == 0 && bass == 0)
+                _logging?.Warn("Light bar Audio Pulse IS its two level bytes; at 0 it renders BLACK");
+
+            return SendLightBar(payload, $"{effect}, theme {theme}, speed {speed}");
+        }
+
+        /// <summary>Turn the bar off - an all-zero payload, which is exactly what HP sends.</summary>
+        public bool SetLightBarOff() => SendLightBar(new byte[128], "off");
+
+        /// <summary>
+        /// Read one zone's colour back, or null if the read failed.
+        ///
+        /// COLOUR is readable on this path; ANIMATION and BRIGHTNESS are not. That is the opposite
+        /// of the keyboard MCU, where the whole effect record reads back and colour does not, so a
+        /// caller carrying assumptions from one device to the other will be wrong both ways.
+        /// </summary>
+        public (byte R, byte G, byte B)? GetLightBarZoneColor(int zone)
+        {
+            if (!_isAvailable || zone < 0 || zone >= LightBarZoneCount) return null;
+
+            try
+            {
+                var result = SendBiosCommand(BiosCmd.Default, CMD_LIGHTBAR_GET_COLOR,
+                                             new byte[] { (byte)zone, 0, 0, 0 }, 4);
+                if (result is { Length: >= 3 }) return (result[0], result[1], result[2]);
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read light bar zone {zone}: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>All four zone colours, left to right. Nulls where a zone would not answer.</summary>
+        public (byte R, byte G, byte B)?[] GetLightBarColors()
+        {
+            var zones = new (byte R, byte G, byte B)?[LightBarZoneCount];
+            for (int zone = 0; zone < LightBarZoneCount; zone++)
+                zones[zone] = GetLightBarZoneColor(zone);
+            return zones;
+        }
+
+        private static (byte R, byte G, byte B) SubstituteWhite((byte R, byte G, byte B) c)
+        {
+            uint packed = ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
+            return packed == LightBarPinkWhite
+                ? (LightBarWhiteRed, LightBarWhiteGreen, LightBarWhiteBlue)
+                : c;
+        }
+
+        private bool SendLightBar(byte[] payload, string what)
+        {
+            try
+            {
+                // OutSize 128, NOT 0. The firmware answers this command with a 128-byte reply even
+                // though the write needs nothing back, and asking for 0 makes SendBiosCommand
+                // return null on a write that succeeded - so the colours landed while this method
+                // reported failure. Measured: the readback showed the requested colours while the
+                // return value said False. This is the OutSize the measured PowerShell lever uses.
+                var result = SendBiosCommand(BiosCmd.Keyboard, CMD_LIGHTBAR_SET, payload, 128);
+                if (result != null)
+                {
+                    _logging?.Info($"Light bar: {what} accepted");
+                    return true;
+                }
+
+                _logging?.Warn($"Light bar: {what} returned null");
+            }
+            catch (Exception ex)
+            {
+                _logging?.Error($"Light bar: {what} failed: {ex.Message}", ex);
+            }
+
+            return false;
+        }
+
         #endregion
 
         /// <summary>
@@ -2517,6 +2889,7 @@ namespace OmenCore.Hardware
             CMD_COLOR_GET => "ColorGet",
             CMD_COLOR_SET => "ColorSet",
             CMD_KBD_TYPE_GET => "KbdTypeGet",
+            CMD_KBD_PLATFORM_INFO => "KbdLightingTopology",
             CMD_BRIGHTNESS_GET => "BrightnessGet",
             CMD_HAS_BACKLIGHT => "HasBacklight",
             CMD_ANIMATION_SET => "AnimationSet",

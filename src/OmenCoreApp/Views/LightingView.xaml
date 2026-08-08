@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:OmenCore.Controls"
+             xmlns:views="clr-namespace:OmenCore.Views"
              xmlns:utils="clr-namespace:OmenCore.Utils"
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1000">
@@ -1262,6 +1263,13 @@
 
                         <StackPanel Visibility="{Binding IsHpOmenKeyboardCardContentVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                         
+                        <!-- Four-zone keyboard controls. Hidden on chassis whose capability entry says
+                             there is no four-zone KEYBOARD: on a per-key machine these commands still
+                             succeed, but they land on the light bar, so the editor appeared to work
+                             while the keyboard never changed. The light bar has its own card now, so
+                             hiding this no longer removes the only way to reach it. -->
+                        <StackPanel Visibility="{Binding HasFourZoneKeyboard, Converter={StaticResource BooleanToVisibilityConverter}}">
+
                         <!-- Quick Color Buttons -->
                         <TextBlock Text="⚡ QUICK COLORS (click to apply to all zones)" 
                                    FontSize="11" FontWeight="SemiBold"
@@ -1468,6 +1476,9 @@
                             </StackPanel>
                         </Grid>
                         
+                        </StackPanel>
+                        <!-- end four-zone keyboard controls -->
+
                         <!-- Preset Selection and Apply Buttons -->
                         <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
@@ -1553,8 +1564,18 @@
                                                TextWrapping="Wrap"/>
                                 </Border>
 
+                                <!-- Measured-layout editor. Shown only where the backend has read a real
+                                     lamp map off the device; everywhere else this is collapsed and the
+                                     fixed grid below is exactly what it always was. -->
+                                <StackPanel Visibility="{Binding HasMeasuredKeyMap, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Measured layout — every key at the position the keyboard reported"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                    <views:KeyboardMapEditor DataContext="{Binding KeyboardMap}"/>
+                                </StackPanel>
+
                                 <!-- Per-key editor when supported -->
-                                <StackPanel Visibility="{Binding IsPerKeyLightingAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Visibility="{Binding IsFixedGridEditorVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <!-- Brush color row -->
                                     <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
@@ -1630,6 +1651,114 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Keyboard effect engine. Rendered by the keyboard itself: one frame is sent and the
+                     device animates it with OmenCore closed. Shown only where a backend can reach it. -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        DataContext="{Binding DeviceLighting}"
+                        Visibility="{Binding SupportsDeviceEffects, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Keyboard effects" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock Text="Run by the keyboard's own controller. These keep running when OmenCore is closed, and replace any per-key colours."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                        <WrapPanel Margin="0,0,0,12">
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="Effect" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <ComboBox Width="160" Style="{StaticResource ModernComboBox}"
+                                          ItemsSource="{Binding Effects}"
+                                          SelectedItem="{Binding SelectedEffect, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="Theme" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <ComboBox Width="120" Style="{StaticResource ModernComboBox}"
+                                          ItemsSource="{Binding Themes}"
+                                          SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                                          IsEnabled="{Binding UseCustomColors, Converter={StaticResource InverseBooleanConverter}}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="Speed" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <ComboBox Width="100" Style="{StaticResource ModernComboBox}"
+                                          ItemsSource="{Binding Speeds}" SelectedItem="{Binding Speed, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="Direction" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <ComboBox Width="130" Style="{StaticResource ModernComboBox}"
+                                          ItemsSource="{Binding Directions}" SelectedItem="{Binding Direction, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <CheckBox Content="Custom colours" IsChecked="{Binding UseCustomColors, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                      Margin="0,0,16,0"/>
+                            <TextBox Width="80" Margin="0,0,8,0" MaxLength="7"
+                                     Text="{Binding PrimaryColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding UseCustomColors}"/>
+                            <TextBox Width="80" Margin="0,0,16,0" MaxLength="7"
+                                     Text="{Binding SecondaryColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding UseCustomColors}"/>
+                            <Button Content="Apply effect" Style="{StaticResource ModernButton}" Padding="16,6"
+                                    Command="{Binding ApplyEffectCommand}" Margin="0,0,8,0"/>
+                            <Button Content="What's on it now?" Style="{StaticResource ModernButton}" Padding="12,6"
+                                    Command="{Binding ReadEffectCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding EffectAdvice}" FontSize="11" Foreground="#E0A030"
+                                   TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding Status}" FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Light bar. A different device on a different transport, so a separate card. -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        DataContext="{Binding DeviceLighting}"
+                        Visibility="{Binding IsLightBarAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Light bar" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock Text="The strip on the front of the chassis — four zones, left to right. Separate from the keyboard."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="Colour" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox Width="80" Margin="0,0,16,0" MaxLength="7"
+                                     Text="{Binding BarColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Content="Apply colour" Style="{StaticResource ModernButton}" Padding="14,6"
+                                    Command="{Binding ApplyLightBarColorCommand}" Margin="0,0,8,0"/>
+                            <Button Content="Off" Style="{StaticResource ModernButton}" Padding="14,6"
+                                    Command="{Binding LightBarOffCommand}"/>
+                        </StackPanel>
+
+                        <!-- Brightness and animations are WMI-only, so they are hidden rather than
+                             shown disabled when OmenCore is not elevated. -->
+                        <StackPanel Visibility="{Binding SupportsLightBarEffects, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <TextBlock Text="Brightness" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Slider Width="160" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                        Value="{Binding BarBrightness, Mode=TwoWay}" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding BarBrightness}" FontSize="12" Width="34"
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <ComboBox Width="140" Style="{StaticResource ModernComboBox}" Margin="16,0,8,0"
+                                          ItemsSource="{Binding LightBarEffects}"
+                                          SelectedItem="{Binding SelectedBarEffect, Mode=TwoWay}"/>
+                                <Button Content="Run animation" Style="{StaticResource ModernButton}" Padding="14,6"
+                                        Command="{Binding ApplyLightBarEffectCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding LightBarLimitation}" FontSize="11" Foreground="#E0A030"
+                                   TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding BarStatus}" FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Advanced Lighting Effects -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
@@ -1649,7 +1778,7 @@
                                     <TextBlock Text="🌡️ Temperature-Responsive Lighting"
                                                FontSize="14" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Keyboard and RGB devices change color based on CPU/GPU temperature"
+                                    <TextBlock Text="Keyboard, light bar and RGB devices change color based on CPU/GPU temperature"
                                                FontSize="11"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                Margin="0,2,0,0"/>
@@ -1748,7 +1877,7 @@
                                     <TextBlock Text="⚡ Performance Mode Synced Lighting"
                                                FontSize="14" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="RGB devices change color based on current performance mode"
+                                    <TextBlock Text="Keyboard, light bar and RGB devices change color based on current performance mode"
                                                FontSize="11"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                Margin="0,2,0,0"/>
