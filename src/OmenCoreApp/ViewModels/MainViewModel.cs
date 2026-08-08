@@ -1044,7 +1044,7 @@ namespace OmenCore.ViewModels
             return string.Empty;
         }
 
-        /// <summary>True while the four SMU limits are being re-asserted on an interval.</summary>
+        /// <summary>True while OmenCore will put the four SMU limits back after an event.</summary>
         public bool IsApuClampHeld => _apuClampService?.IsHeld == true;
 
         /// <summary>What the CPU half did, or empty before it has been tried.</summary>
@@ -1065,16 +1065,17 @@ namespace OmenCore.ViewModels
         private RelayCommand? _releaseApuClampCommand;
 
         /// <summary>
-        /// Stop re-asserting the CPU limits. Not an undo - it cannot put the clamp back, and does
-        /// not try. It stops OmenCore writing, and the platform reclaims the registers on its own.
+        /// Stop putting the CPU limits back. Not an undo - it cannot restore the clamp, and does
+        /// not try. It stops OmenCore writing at all, and the platform reclaims the registers on the
+        /// next event that touches them.
         /// </summary>
         public ICommand ReleaseApuClampCommand =>
             _releaseApuClampCommand ??= new RelayCommand(_ =>
             {
                 _apuClampService?.Release();
-                ApuClampStatus = "OmenCore has stopped re-asserting the CPU power limits. The " +
-                                 "platform will write its own numbers back into them; a reboot " +
-                                 "restores stock.";
+                ApuClampStatus = "OmenCore will no longer put the CPU power limits back. The " +
+                                 "platform reclaims them on the next resume or change of supply; a " +
+                                 "reboot restores stock.";
                 OnPropertyChanged(nameof(IsApuClampHeld));
             }, _ => IsApuClampHeld);
 

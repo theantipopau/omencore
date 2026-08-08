@@ -148,7 +148,7 @@
                                    Text="The firmware tells the GPU driver about the adapter once, when it evaluates it, and the driver has no way to ask. A driver that has just started has not been told, so restarting the device clears the clamp - and only another notification puts it back. Changing supply does that, and so does a reboot."/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="The same supply clamps the CPU by a different route: three of the four AMD SMU power limits pinned low, which no device restart touches. Those are written directly, and held - the platform pushes its own numbers back into them once a load ends."/>
+                                   Text="The same supply clamps the CPU by a different route: three of the four AMD SMU power limits pinned low, which no device restart touches. Those are written directly, and put back after a resume or a change of supply - the events that take them away."/>
                         <TextBlock Text="{Binding AdapterOverrideScope}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    Visibility="{Binding HasAdapterOverrideScope, Converter={StaticResource BoolToVisibility}}"/>
@@ -185,7 +185,7 @@
                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"
                                    Foreground="{StaticResource TextTertiaryBrush}"
-                                   Text="Applied at startup, after a resume, and when the supply changes, then re-asserted every 30 seconds. Nothing is taken away from anything that is running."/>
+                                   Text="Applied at startup, after a resume, and when the supply changes - the events that take these limits away. Nothing is written in between, and nothing is taken away from anything that is running."/>
 
                         <CheckBox IsChecked="{Binding AutoLiftGpuWhenParked}" Margin="0,10,0,0"
                                   Content="Restart the GPU to drop its clamp - but only while it is asleep"
