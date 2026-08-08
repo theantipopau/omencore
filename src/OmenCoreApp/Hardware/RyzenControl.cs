@@ -239,15 +239,19 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
-        /// Configure SMU addresses for the detected CPU family.
+        /// Configure SMU mailbox addresses for the detected CPU family.
+        ///
+        /// These are SMU register addresses, not PCI config offsets: the PawnIO RyzenSMU module
+        /// owns the PCI-config indirect access itself (address register 0xC4, data register 0xC8)
+        /// and exposes the SMU register window directly, so no PCI offsets are configured here.
+        /// The module also range-checks every address against the same 0x3B10xxx window these
+        /// values fall in - see <see cref="RyzenSmu.IsSmuRegisterAddressSupported"/>.
+        ///
+        /// Values cross-checked against RyzenAdj's nb_smu_ops.h mailbox table.
         /// </summary>
         public static void ConfigureSmuAddresses(RyzenSmu smu)
         {
             if (!_initialized) Init();
-
-            smu.SmuPciAddr = 0x00000000;
-            smu.SmuOffsetAddr = 0xB8;
-            smu.SmuOffsetData = 0xBC;
 
             switch (Family)
             {
