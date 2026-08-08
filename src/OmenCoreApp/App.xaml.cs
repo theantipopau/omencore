@@ -1105,7 +1105,25 @@ namespace OmenCore
             {
                 Logging.Warn($"[App] OnExit: MainViewModel.Dispose() failed: {ex.Message}");
             }
-            
+
+            // Backstop. The dispose chain above reaches HardwareWorkerClient only through
+            // WmiBiosMonitor's temp-fallback monitor, but the app also starts a worker itself in
+            // TryStartHardwareWorkerBootstrap — so a worker can outlive a chain that was never
+            // built or that threw partway. A worker still alive here has no parent left to
+            // reconnect to; it would keep polling hardware for the whole orphan timeout after the
+            // user quit. The worker only survives a *crash* on purpose, and OnExit is not one.
+            try
+            {
+                if (!HardwareWorkerClient.StopWorkerProcessBlocking(msg => Logging.Info($"[App] OnExit: {msg}")))
+                {
+                    Logging.Warn("[App] OnExit: hardware worker may still be running");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"[App] OnExit: hardware worker shutdown failed: {ex.Message}");
+            }
+
             // Release single instance mutex
             if (_singleInstanceMutex != null)
             {

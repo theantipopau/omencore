@@ -25,8 +25,15 @@ namespace OmenCore.Hardware
     {
         private const string PipeName = "OmenCore_HardwareWorker";
         private const string WorkerExeName = "OmenCore.HardwareWorker.exe";
+        private const string WorkerProcessName = "OmenCore.HardwareWorker";
         private const int ConnectionTimeoutMs = 5000;  // Increased for slow boot
         private const int RequestTimeoutMs = 2000;
+        // How long the worker gets to unwind its poll loop and release the LHM driver
+        // handles after acknowledging SHUTDOWN, before it is terminated instead.
+        private const int ShutdownGraceMs = 1500;
+        private const int KillWaitMs = 1000;
+        // Outer bound on the whole stop sequence for callers that cannot await it.
+        private const int BlockingStopTimeoutMs = 5000;
         private const int MaxRestartAttempts = 5;
         private const int RestartCooldownMs = 5000;
         private const int WorkerStartupDelayMs = 2000;  // Increased for hardware scan time
@@ -46,7 +53,11 @@ namespace OmenCore.Hardware
         private readonly bool _orphanTimeoutEnabled;
         private readonly int _orphanTimeoutMinutes;
         private bool _ownsWorkerProcess;
-        
+        // Whether this client ever launched or attached to a worker. Gates the by-name lookup
+        // in StopAsync: a client that never connected has no claim on whatever worker happens
+        // to be running.
+        private bool _attachedToWorker;
+
         private HardwareSample _cachedSample = new();
         private DateTime _lastSuccessfulRead = DateTime.MinValue;
         private int _restartAttempts = 0;
@@ -195,7 +206,8 @@ namespace OmenCore.Hardware
                 }
 
                 _ownsWorkerProcess = true;
-                
+                _attachedToWorker = true;
+
                 LogWorker($"Worker started with PID {_workerProcess.Id}", startupCorrelationId);
                 
                 // Wait for worker to initialize pipe server (longer delay for boot scenarios)
@@ -263,7 +275,8 @@ namespace OmenCore.Hardware
                 await RegisterAsParentAsync(correlationId);
 
                 ReleaseOwnedWorkerProcessHandle();
-                
+                _attachedToWorker = true;
+
                 _restartAttempts = 0;
                 return true;
             }
@@ -629,6 +642,147 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
+        /// Locate the running worker, whether or not this client launched it.
+        ///
+        /// This client usually does *not* own the process: App's startup bootstrap and
+        /// WmiBiosMonitor.TryPrelaunchHardwareWorker both start the worker before any client
+        /// exists, so StartAsync takes the attach-over-the-pipe path and
+        /// TryConnectToExistingWorkerAsync deliberately drops the handle. Without this lookup
+        /// StopAsync can ask the worker to exit but has no way to confirm or enforce it.
+        ///
+        /// Scoped to the current logon session so another signed-in user's worker is never touched.
+        /// </summary>
+        private static Process? FindRunningWorker(Action<string>? logger)
+        {
+            Process[] candidates;
+            int sessionId;
+            try
+            {
+                candidates = Process.GetProcessesByName(WorkerProcessName);
+                using var self = Process.GetCurrentProcess();
+                sessionId = self.SessionId;
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"[Worker] Could not enumerate worker processes: {ex.Message}");
+                return null;
+            }
+
+            Process? match = null;
+            foreach (var candidate in candidates)
+            {
+                var isOurs = false;
+                try
+                {
+                    isOurs = match == null && candidate.SessionId == sessionId;
+                }
+                catch (Exception ex)
+                {
+                    // SessionId is unreadable for processes we cannot open — treat as not ours.
+                    logger?.Invoke($"[Worker] Skipping worker candidate: {ex.Message}");
+                }
+
+                if (isOurs)
+                {
+                    match = candidate;
+                }
+                else
+                {
+                    candidate.Dispose();
+                }
+            }
+
+            return match;
+        }
+
+        /// <summary>
+        /// Confirm the worker is gone, and make it so if it is not.
+        ///
+        /// A SHUTDOWN reply of "OK" only means the request was parsed — the worker still has to
+        /// unwind its poll loop and release the LibreHardwareMonitor driver handles — so the exit
+        /// is verified rather than assumed. Pass <paramref name="owned"/> when the caller holds a
+        /// handle it will dispose itself; otherwise the worker is resolved by name.
+        ///
+        /// Returns true when no worker process remains.
+        /// </summary>
+        private static async Task<bool> StopWorkerProcessAsync(Process? owned, Action<string>? logger)
+        {
+            var worker = owned ?? FindRunningWorker(logger);
+            if (worker == null) return true;
+
+            try
+            {
+                if (!HasExited(worker, logger))
+                {
+                    var pid = worker.Id;
+                    using var cts = new CancellationTokenSource(ShutdownGraceMs);
+                    try
+                    {
+                        await worker.WaitForExitAsync(cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        logger?.Invoke($"[Worker] Worker PID {pid} still running {ShutdownGraceMs} ms after SHUTDOWN; terminating");
+                        worker.Kill();
+                        worker.WaitForExit(KillWaitMs);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"[Worker] Error while stopping worker process: {ex.Message}");
+            }
+
+            // Report what is true of the process, not whether the calls above threw. A worker
+            // that exited underneath us and a Kill() that quietly failed both surface as
+            // exceptions, and only one of those is success — so ask the process, not the
+            // control flow. Read before Dispose closes the handle.
+            var stopped = HasExited(worker, logger);
+            if (stopped)
+            {
+                logger?.Invoke("[Worker] Worker process stopped");
+            }
+
+            if (owned == null) worker.Dispose();
+            return stopped;
+        }
+
+        /// <summary>
+        /// Whether the process is actually gone, treating an unanswerable question as "still
+        /// running" so a caller never reports a stop it could not observe.
+        /// </summary>
+        private static bool HasExited(Process process, Action<string>? logger)
+        {
+            try
+            {
+                return process.HasExited;
+            }
+            catch (Exception ex)
+            {
+                logger?.Invoke($"[Worker] Could not read worker process state: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Bounded, blocking stop for shutdown paths that cannot await — notably App.OnExit,
+        /// which runs on the dispatcher thread after the message loop has stopped. Task.Run
+        /// keeps the wait off that SynchronizationContext so it cannot deadlock, and the
+        /// timeout keeps a wedged worker from hanging the app's exit.
+        /// </summary>
+        public static bool StopWorkerProcessBlocking(Action<string>? logger)
+        {
+            var task = Task.Run(() => StopWorkerProcessAsync(null, logger));
+            if (!task.Wait(BlockingStopTimeoutMs))
+            {
+                logger?.Invoke($"[Worker] Worker shutdown did not finish within {BlockingStopTimeoutMs} ms");
+                return false;
+            }
+
+            return task.Result;
+        }
+
+        /// <summary>
         /// Stop the worker process gracefully
         /// </summary>
         public async Task StopAsync()
@@ -637,55 +791,62 @@ namespace OmenCore.Hardware
             {
                 if (_pipeClient?.IsConnected == true)
                 {
-                    await SendRequestAsync("SHUTDOWN");
-                    await Task.Delay(500);
+                    var response = await SendRequestAsync("SHUTDOWN");
+                    _logger?.Invoke($"[Worker] SHUTDOWN sent; worker replied '{response}'");
+                }
+                else
+                {
+                    _logger?.Invoke("[Worker] No pipe connection at shutdown; stopping the worker process directly");
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Invoke($"[Worker] Error sending shutdown command: {ex.Message}");
             }
-            
-            try
-            {
-                if (_workerProcess != null && !_workerProcess.HasExited)
-                {
-                    _workerProcess.Kill();
-                    _workerProcess.WaitForExit(1000);
-                }
 
-                ReleaseOwnedWorkerProcessHandle();
-            }
-            catch (Exception ex)
+            // Only hunt for a worker by name if this client actually attached to one. A client
+            // that never connected has no claim on whatever worker happens to be running.
+            var owned = _ownsWorkerProcess ? _workerProcess : null;
+            if (owned != null || _attachedToWorker)
             {
-                _logger?.Invoke($"[Worker] Error killing worker process: {ex.Message}");
+                await StopWorkerProcessAsync(owned, _logger);
             }
+
+            ReleaseOwnedWorkerProcessHandle();
         }
-        
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-            
+
             try
             {
-                // Fire and forget shutdown with exception handling
-                _ = Task.Run(async () =>
+                // Blocking and bounded, deliberately. This runs from App.OnExit, which returns
+                // straight into process teardown, so the previous fire-and-forget Task.Run never
+                // got far enough to deliver SHUTDOWN: the worker saw its parent vanish, read that
+                // as a crash, and stayed up for the full orphan timeout. Task.Run keeps the wait
+                // off the UI SynchronizationContext so it cannot deadlock.
+                if (!Task.Run(StopAsync).Wait(BlockingStopTimeoutMs))
                 {
-                    try
-                    {
-                        await StopAsync();
-                    }
-                    finally
-                    {
-                        _pipeClient?.Dispose();
-                        _workerProcess?.Dispose();
-                    }
-                });
+                    _logger?.Invoke($"[Worker] Shutdown did not finish within {BlockingStopTimeoutMs} ms; abandoning worker");
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[Worker] Dispose error: {ex.Message}");
+                _logger?.Invoke($"[Worker] Dispose error: {ex.Message}");
+            }
+            finally
+            {
+                try
+                {
+                    _pipeClient?.Dispose();
+                    _workerProcess?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Invoke($"[Worker] Dispose cleanup error: {ex.Message}");
+                }
             }
         }
     }
