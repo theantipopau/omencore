@@ -95,21 +95,55 @@ namespace OmenCore.Services
             get { lock (_sync) { return _heldWatts; } }
         }
 
+        /// <summary>Where the number being asked for came from, so the UI can say.</summary>
+        public enum TargetSource
+        {
+            /// <summary>Nothing to ask for.</summary>
+            None,
+
+            /// <summary>The STAPM value the user set in AMD CPU Power Limits.</summary>
+            UserSetting,
+
+            /// <summary>HP's <c>Default 0x28</c> CPU-with-GPU budget for this SKU.</summary>
+            Firmware
+        }
+
+        /// <summary>The watts to ask for, and where that number came from.</summary>
+        public sealed record Target(uint Watts, TargetSource Source);
+
         /// <summary>
-        /// Whether this machine's firmware states a CPU-with-GPU power budget, and what it is.
+        /// What to raise the four limits to.
         ///
-        /// This is the target, and it is read from the machine rather than chosen. HP's own
-        /// <c>Default 0x28</c> capability block carries the CPU power limit this SKU is designed to
-        /// run at while the GPU is also loaded - 60 W on board 8D87, which is exactly the combined
-        /// case this feature creates. Asking for the firmware's own number for the situation keeps
-        /// the rule the whole investigation ran on: only ever write values this firmware writes
-        /// itself. A machine that does not answer 0x28 gets no target and no offer, rather than a
-        /// constant borrowed from a board it was not measured on.
+        /// The user's own STAPM setting wins. There is already a slider in AMD CPU Power Limits that
+        /// means "the sustained package power I want", and having a second feature quietly hold a
+        /// different number would make that slider a lie - it would read 51 W while something else
+        /// re-asserted 60 W underneath it every thirty seconds. One number, one place to set it.
+        ///
+        /// Only when nothing has been saved there does this fall back to the firmware's own figure:
+        /// HP's <c>Default 0x28</c> block states the CPU power limit this SKU is designed to run at
+        /// while the GPU is also loaded - 60 W on board 8D87, which is exactly the combined case this
+        /// feature creates. That keeps the rule the investigation ran on, which is to write values
+        /// this firmware writes itself. A machine that answers neither gets no target and no offer,
+        /// rather than a constant borrowed from a board it was not measured on.
         /// </summary>
-        public static uint TargetWattsFor(HpWmiBios.SystemDesignData? design) =>
-            design is HpWmiBios.SystemDesignData data && data.DefaultCpuPowerLimitWithGpuWatts > 0
-                ? (uint)data.DefaultCpuPowerLimitWithGpuWatts
-                : 0;
+        public static Target TargetFor(AmdPowerLimits? saved, HpWmiBios.SystemDesignData? design)
+        {
+            // Null rather than the default value is the test: AmdPowerLimits is only written to the
+            // config when someone applies the panel, so a null means nobody has chosen, while a 25
+            // means somebody chose 25 - which is their business even though it happens to be what
+            // the clamp already holds.
+            if (saved is AmdPowerLimits limits && limits.StapmLimitWatts > 0)
+            {
+                return new Target(limits.StapmLimitWatts, TargetSource.UserSetting);
+            }
+
+            if (design is HpWmiBios.SystemDesignData data && data.DefaultCpuPowerLimitWithGpuWatts > 0)
+            {
+                return new Target((uint)data.DefaultCpuPowerLimitWithGpuWatts, TargetSource.Firmware);
+            }
+
+            return new Target(0, TargetSource.None);
+        }
 
         /// <summary>
         /// Whether the supply is one this should be offered on at all.

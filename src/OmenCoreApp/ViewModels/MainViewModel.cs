@@ -949,11 +949,35 @@ namespace OmenCore.ViewModels
         }
 
         /// <summary>
-        /// The CPU power limit this machine's firmware states for the case where the GPU is loaded
-        /// too, in watts, or 0 when it does not say. Read from HP's Default 0x28 block rather than
-        /// chosen here - see <see cref="ApuPowerClampService.TargetWattsFor"/>.
+        /// What the four limits will be raised to, and where that number came from. The STAPM value
+        /// set in AMD CPU Power Limits if there is one, otherwise the firmware's own CPU-with-GPU
+        /// budget - see <see cref="ApuPowerClampService.TargetFor"/>.
         /// </summary>
-        public uint ApuClampTargetWatts => ApuPowerClampService.TargetWattsFor(_wmiBios?.SystemDesign);
+        public ApuPowerClampService.Target ApuClampTarget =>
+            ApuPowerClampService.TargetFor(_config.AmdPowerLimits, _wmiBios?.SystemDesign);
+
+        public uint ApuClampTargetWatts => ApuClampTarget.Watts;
+
+        /// <summary>
+        /// Names the number and its origin in one phrase, so the panel can say "the 51 W you set"
+        /// rather than presenting a figure that appears from nowhere and disagrees with a slider
+        /// two tabs away.
+        /// </summary>
+        public string ApuClampTargetDescription
+        {
+            get
+            {
+                var target = ApuClampTarget;
+                return target.Source switch
+                {
+                    ApuPowerClampService.TargetSource.UserSetting =>
+                        $"the {target.Watts} W you set in AMD CPU Power Limits",
+                    ApuPowerClampService.TargetSource.Firmware =>
+                        $"the {target.Watts} W this machine's firmware states for a loaded CPU and GPU",
+                    _ => string.Empty
+                };
+            }
+        }
 
         /// <summary>
         /// Whether the CPU half will be attempted alongside the GPU restart.
@@ -982,9 +1006,8 @@ namespace OmenCore.ViewModels
 
                 if (CanOfferApuClampLift)
                 {
-                    return $"This restarts the GPU to drop its clamp, and raises the four CPU power " +
-                           $"limits to the {ApuClampTargetWatts} W this machine's firmware states for " +
-                           "a loaded CPU and GPU together.";
+                    return "This restarts the GPU to drop its clamp, and raises the four CPU power " +
+                           $"limits to {ApuClampTargetDescription}.";
                 }
 
                 var why = ApuClampReason();
@@ -1005,7 +1028,8 @@ namespace OmenCore.ViewModels
 
             if (ApuClampTargetWatts == 0)
             {
-                return "this machine's firmware did not report a CPU power budget to aim at";
+                return "there is no CPU power limit to aim at - set one in AMD CPU Power Limits, or " +
+                       "this machine's firmware would have to report its own";
             }
 
             if (_adapterInfo is HpWmiBios.AdapterInfo info &&

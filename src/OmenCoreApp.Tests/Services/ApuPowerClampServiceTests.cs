@@ -31,29 +31,63 @@ namespace OmenCoreApp.Tests.Services
 
         // ── The target comes from the machine, not from here ──────────────────────────────────
 
-        [Fact]
-        public void The_Target_Is_The_Firmwares_Own_Cpu_With_Gpu_Budget()
+        private static HpWmiBios.SystemDesignData? Board8D87Design()
         {
             byte[] reply = new byte[16];
             reply[0] = 0x4A; reply[1] = 0x01;   // 330 W shipping adapter
             reply[8] = 60;                       // DefaultCpuPowerLimitWithGpu
+            return HpWmiBios.DecodeSystemDesignData(reply);
+        }
 
-            var design = HpWmiBios.DecodeSystemDesignData(reply);
+        [Fact]
+        public void The_Users_Own_Stapm_Setting_Wins()
+        {
+            // There is already a slider that means "the sustained package power I want". A second
+            // feature holding a different number would make that slider a lie - it would read 51 W
+            // while this re-asserted 60 W underneath it twice a minute.
+            var target = ApuPowerClampService.TargetFor(
+                new AmdPowerLimits { StapmLimitWatts = 51 }, Board8D87Design());
 
-            ApuPowerClampService.TargetWattsFor(design).Should().Be(60,
-                because: "the number asked for has to be one this firmware states for this machine; " +
-                         "a constant carried over from the board it was measured on is how a limit " +
-                         "meant for a 54 W part reaches a 15 W one");
+            target.Watts.Should().Be(51u);
+            target.Source.Should().Be(ApuPowerClampService.TargetSource.UserSetting);
+        }
+
+        [Fact]
+        public void The_Firmwares_Own_Budget_Is_The_Fallback()
+        {
+            // Null, not a default value: AmdPowerLimits reaches the config only when someone applies
+            // the panel, so null is "nobody has chosen" and any value is a choice.
+            var target = ApuPowerClampService.TargetFor(null, Board8D87Design());
+
+            target.Watts.Should().Be(60u,
+                because: "the firmware's own CPU-with-GPU figure is a number this machine writes " +
+                         "itself, unlike a constant carried over from the board it was measured on");
+            target.Source.Should().Be(ApuPowerClampService.TargetSource.Firmware);
+        }
+
+        [Fact]
+        public void A_Deliberate_Low_Setting_Is_Still_The_Users_Choice()
+        {
+            // 25 W happens to be what the clamp already holds, so this makes the lift a no-op. That
+            // is what the slider says to do, and second-guessing it would be the feature overriding
+            // the control it is meant to serve.
+            var target = ApuPowerClampService.TargetFor(
+                new AmdPowerLimits { StapmLimitWatts = 25 }, Board8D87Design());
+
+            target.Watts.Should().Be(25u);
+            target.Source.Should().Be(ApuPowerClampService.TargetSource.UserSetting);
         }
 
         [Fact]
         public void A_Machine_That_States_No_Budget_Gets_No_Target()
         {
-            ApuPowerClampService.TargetWattsFor(null).Should().Be(0u);
+            ApuPowerClampService.TargetFor(null, null).Watts.Should().Be(0u);
+            ApuPowerClampService.TargetFor(null, null).Source
+                .Should().Be(ApuPowerClampService.TargetSource.None);
 
             byte[] silent = new byte[16];        // byte[8] left at zero
-            ApuPowerClampService.TargetWattsFor(HpWmiBios.DecodeSystemDesignData(silent))
-                .Should().Be(0u, because: "no target means no offer, not a guessed one");
+            ApuPowerClampService.TargetFor(null, HpWmiBios.DecodeSystemDesignData(silent))
+                .Watts.Should().Be(0u, because: "no target means no offer, not a guessed one");
         }
 
         // ── Which supplies this is offered on ─────────────────────────────────────────────────

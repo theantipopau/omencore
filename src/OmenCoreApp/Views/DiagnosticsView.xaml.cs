@@ -45,7 +45,7 @@ namespace OmenCore.Views
             // asking consent for the part that is obvious and not for the part that writes to
             // the SMU every thirty seconds afterwards.
             var cpuHalf = vm.CanOfferApuClampLift
-                ? $"It then raises the four CPU power limits to {vm.ApuClampTargetWatts} W and keeps " +
+                ? $"It then raises the four CPU power limits to {vm.ApuClampTargetDescription} and keeps " +
                   "re-asserting them, because the platform writes its own numbers back into those " +
                   "registers once a load ends. OmenCore cannot read them back, so that half is what " +
                   "the SMU accepted rather than what it is running.\n\n"
