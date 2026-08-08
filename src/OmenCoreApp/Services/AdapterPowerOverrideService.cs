@@ -133,7 +133,15 @@ namespace OmenCore.Services
         /// press, never on a timer. Anything that asks a dGPU about itself on a schedule keeps it out
         /// of RTD3 and costs idle power for the whole session.
         /// </summary>
-        public async Task<OverrideResult> ApplyAsync(CancellationToken cancellationToken = default)
+        /// <param name="onlyIfParked">
+        /// Refuse unless the dGPU is still parked when the moment comes to pull it. For the
+        /// automatic path, where the decision to restart was made on a power-state reading taken
+        /// some seconds earlier and a GPU can wake in far less than that. The check is here rather
+        /// than at the caller because here is the last instant it can be taken - everything between
+        /// a caller's check and this line is time the answer can go stale in.
+        /// </param>
+        public async Task<OverrideResult> ApplyAsync(CancellationToken cancellationToken = default,
+                                                     bool onlyIfParked = false)
         {
             if (!IsAvailable(out var reason))
             {
@@ -187,6 +195,17 @@ namespace OmenCore.Services
 
                     _logging.Warn("Adapter power override: no NVML handshake — falling back to a timed wait");
                     await Task.Delay(BlindQuiesceWait, cancellationToken).ConfigureAwait(false);
+                }
+
+                // Last look before the device goes away. The quiesce above can wait up to 15 s, which
+                // is plenty of time for someone to launch something.
+                if (onlyIfParked && !DiscreteGpuIsParked())
+                {
+                    _logging.Info("Adapter power override: the dGPU woke while preparing - not restarting it.");
+                    return new OverrideResult(false,
+                        "The GPU woke up before the restart began, so it was left alone. Use the " +
+                        "button when nothing needs it.",
+                        before, null);
                 }
 
                 var disable = await RunPnpUtilAsync("/disable-device", device.InstanceId, cancellationToken)

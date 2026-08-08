@@ -131,6 +131,17 @@ namespace OmenCore.Models
         public bool EnableStartupHardwareRestore { get; set; } = false;
 
         /// <summary>
+        /// Whether to lift an under-rated adapter's power clamps without being asked each time.
+        ///
+        /// Deliberately outside <see cref="EnableStartupHardwareRestore"/>. That gate is about
+        /// re-applying settings the user chose; this is about a clamp the user never chose, it
+        /// re-applies on power events rather than only at startup, and its GPU half has a condition
+        /// no other startup restore has - see <see cref="AdapterClampLiftSettings"/>. Both halves
+        /// default to off regardless.
+        /// </summary>
+        public AdapterClampLiftSettings AdapterClampLift { get; set; } = new();
+
+        /// <summary>
         /// Optional per-category startup restore switch for fan state.
         /// Null preserves legacy behavior: enabled when the broad startup restore gate is enabled.
         /// </summary>

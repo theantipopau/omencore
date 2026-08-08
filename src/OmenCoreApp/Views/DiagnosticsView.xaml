@@ -172,6 +172,32 @@
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsApuClampHeld, Converter={StaticResource BoolToVisibility}}"/>
 
+                        <!-- Doing it without being asked every boot. Both off by default; the GPU one
+                             carries its condition in the label, because that condition is the only
+                             reason it can be automatic at all. -->
+                        <Separator Margin="0,12,0,10"/>
+
+                        <TextBlock Text="Do this on its own" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                        <CheckBox IsChecked="{Binding AutoLiftCpuLimits}" Margin="0,8,0,0"
+                                  Content="Keep the CPU power limits raised"
+                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="Applied at startup, after a resume, and when the supply changes, then re-asserted every 30 seconds. Nothing is taken away from anything that is running."/>
+
+                        <CheckBox IsChecked="{Binding AutoLiftGpuWhenParked}" Margin="0,10,0,0"
+                                  Content="Restart the GPU to drop its clamp - but only while it is asleep"
+                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="Only when the driver has parked the GPU and the display is running on the integrated one, so there is nothing to interrupt and no screen to black out. If it is awake when the moment comes, it is left alone and you are told - use the button above instead."/>
+
+                        <TextBlock Text="{Binding AutoClampLiftStatus}" FontSize="11" Margin="0,10,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAutoClampLiftStatus, Converter={StaticResource BoolToVisibility}}"/>
+
                         <TextBlock Text="{Binding AdapterOverrideBlockedReason}" FontSize="11" Margin="0,6,0,0"
                                    Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"
                                    Visibility="{Binding HasAdapterOverrideBlockedReason, Converter={StaticResource BoolToVisibility}}"/>

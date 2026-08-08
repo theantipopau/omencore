@@ -1157,6 +1157,186 @@ namespace OmenCore.ViewModels
             }
         }
 
+        // ── Lifting it without being asked each time ─────────────────────────────────────────────
+        //
+        // A clamp that has to be dismissed by hand every boot is a clamp that is on most of the
+        // time. Both halves are off by default and both stay off until someone turns them on; what
+        // they change is whether the same two actions happen on their own afterwards.
+        //
+        // The two halves are not equally free, and the settings reflect that rather than hiding it.
+        // The CPU half is an SMU message that takes nothing away from anything, so it runs whenever
+        // the supply qualifies. The GPU half destroys every context on the device, so it runs only
+        // while the device is parked - which is to say, only when the driver has already decided
+        // nothing is using it.
+
+        public AdapterClampLiftSettings ClampLiftSettings => _config.AdapterClampLift;
+
+        /// <summary>Write and hold the CPU limits whenever the supply is clamped.</summary>
+        public bool AutoLiftCpuLimits
+        {
+            get => _config.AdapterClampLift.LiftCpuLimits;
+            set
+            {
+                if (_config.AdapterClampLift.LiftCpuLimits == value) return;
+                _config.AdapterClampLift.LiftCpuLimits = value;
+                _configService.Save(_config);
+                OnPropertyChanged(nameof(AutoLiftCpuLimits));
+
+                // Turning it on is the consent; waiting for the next reboot to act on it would be
+                // a setting that appears not to work.
+                if (value) _ = RunAutomaticClampLiftAsync("setting enabled");
+            }
+        }
+
+        /// <summary>Restart the dGPU to drop its clamp, but only while it is parked.</summary>
+        public bool AutoLiftGpuWhenParked
+        {
+            get => _config.AdapterClampLift.LiftGpuWhenParked;
+            set
+            {
+                if (_config.AdapterClampLift.LiftGpuWhenParked == value) return;
+                _config.AdapterClampLift.LiftGpuWhenParked = value;
+                _configService.Save(_config);
+                OnPropertyChanged(nameof(AutoLiftGpuWhenParked));
+
+                if (value) _ = RunAutomaticClampLiftAsync("setting enabled");
+            }
+        }
+
+        /// <summary>What the automatic path last did, or empty if it has not run.</summary>
+        public string AutoClampLiftStatus
+        {
+            get => _autoClampLiftStatus;
+            private set
+            {
+                if (_autoClampLiftStatus == value) return;
+                _autoClampLiftStatus = value;
+                OnPropertyChanged(nameof(AutoClampLiftStatus));
+                OnPropertyChanged(nameof(HasAutoClampLiftStatus));
+            }
+        }
+
+        private string _autoClampLiftStatus = string.Empty;
+        public bool HasAutoClampLiftStatus => _autoClampLiftStatus.Length > 0;
+
+        // One at a time. Startup, a resume and a power-state change can arrive within a second of
+        // each other, and two of these overlapping would have two restarts racing for one device.
+        private readonly SemaphoreSlim _autoClampLiftGate = new(1, 1);
+
+        /// <summary>
+        /// Act on the automatic settings, if they are on and the machine is in a state they apply to.
+        ///
+        /// Runs at startup, when the verified power state changes - an adapter swap is the event
+        /// that puts the GPU clamp back - and on resume, where the platform has re-asserted its own
+        /// SMU numbers. Never on a timer: nothing here polls the hardware to find work.
+        /// </summary>
+        private async Task RunAutomaticClampLiftAsync(string trigger)
+        {
+            var settings = _config.AdapterClampLift;
+            if (!settings.LiftCpuLimits && !settings.LiftGpuWhenParked) return;
+
+            if (!await _autoClampLiftGate.WaitAsync(0).ConfigureAwait(true)) return;
+
+            try
+            {
+                // A fresh read rather than whatever the Diagnostics tab last saw: this can run before
+                // that tab has ever been opened, and on a resume the supply may not be the one that
+                // went to sleep. Off the calling thread because it is a WMI round trip and one of
+                // the callers is a system power-event handler.
+                await Task.Run(RefreshPowerAdapterStatus).ConfigureAwait(true);
+
+                if (_adapterInfo is not HpWmiBios.AdapterInfo info) return;
+
+                var cpu = AdapterClampLiftPolicy.DecideCpu(settings, info, CanOfferApuClampLift);
+
+                // Read from the firmware rather than inferred from which GPU happens to be awake -
+                // that inference is what this app used to do and it was wrong.
+                var displayMode = await Task.Run(() => _wmiBios?.GetGpuMode()).ConfigureAwait(true);
+
+                var gpu = AdapterClampLiftPolicy.DecideGpu(
+                    settings, info, CanOfferAdapterOverride,
+                    gpuIsParked: _adapterOverrideService.DiscreteGpuIsParked(),
+                    displayMode: displayMode);
+
+                _logging.Info($"Automatic clamp lift ({trigger}): CPU {cpu}, GPU {gpu}");
+
+                if (cpu == ClampLiftDecision.Apply && ApuClamp is ApuPowerClampService clamp)
+                {
+                    var lift = await Task.Run(() => clamp.Engage(ApuClampTargetWatts)).ConfigureAwait(true);
+                    ApuClampStatus = lift.Message;
+                    OnPropertyChanged(nameof(IsApuClampHeld));
+                    _releaseApuClampCommand?.RaiseCanExecuteChanged();
+                }
+
+                if (gpu == ClampLiftDecision.Apply)
+                {
+                    AdapterOverrideBusy = true;
+                    try
+                    {
+                        // onlyIfParked: this decision was taken seconds ago and the service re-checks
+                        // it at the last instant. A GPU that woke in between keeps its clamp, which
+                        // is the right way round - the clamp costs watts, the restart costs someone's
+                        // work.
+                        var result = await _adapterOverrideService
+                            .ApplyAsync(CancellationToken.None, onlyIfParked: true)
+                            .ConfigureAwait(true);
+
+                        AdapterOverrideStatus = result.Message;
+
+                        if (result.EnforcedWattsAfter is double after)
+                        {
+                            _gpuPowerLimits = new AdapterPowerOverrideService.PowerLimits(
+                                after, _gpuPowerLimits?.DefaultWatts);
+                            _gpuPowerLimitReadAt = DateTime.Now;
+                            OnGpuPowerLimitChanged();
+                        }
+                    }
+                    finally
+                    {
+                        AdapterOverrideBusy = false;
+                    }
+                }
+
+                AutoClampLiftStatus = DescribeAutoLift(cpu, gpu, trigger);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Automatic clamp lift failed ({trigger})", ex);
+            }
+            finally
+            {
+                _autoClampLiftGate.Release();
+            }
+        }
+
+        /// <summary>
+        /// One line about what just happened without being asked, in particular when the answer is
+        /// "nothing". A GPU half that silently declines because the device was awake looks exactly
+        /// like a setting that does not work.
+        /// </summary>
+        private static string DescribeAutoLift(ClampLiftDecision cpu, ClampLiftDecision gpu, string trigger)
+        {
+            var parts = new List<string>();
+
+            if (cpu == ClampLiftDecision.Apply) parts.Add("CPU limits raised and held");
+            if (gpu == ClampLiftDecision.Apply) parts.Add("GPU restarted while it was parked");
+
+            if (gpu == ClampLiftDecision.DeferredGpuAwake)
+            {
+                parts.Add("the GPU was awake, so it was left alone - use the button when nothing needs it");
+            }
+
+            if (gpu == ClampLiftDecision.DeferredDiscreteDisplay)
+            {
+                parts.Add("the display is running on the discrete GPU, so restarting it would black " +
+                          "the screen - that one stays manual");
+            }
+
+            return parts.Count == 0
+                ? string.Empty
+                : $"Automatic ({trigger}): {string.Join("; ", parts)}.";
+        }
+
         /// <summary>
         /// Re-read the adapter state. Read-only WMI query; called when the Diagnostics tab is opened
         /// rather than polled, because the value only changes when someone physically plugs or
@@ -2352,6 +2532,12 @@ namespace OmenCore.ViewModels
             // Subscribe to suspend/resume early so protection works even if Settings is never opened.
             _powerAutomationService.SystemSuspending += OnSystemSuspending;
             _powerAutomationService.SystemResuming += OnSystemResuming;
+
+            // The two events that put an adapter clamp back. Swapping a supply is what delivers the
+            // GPU driver a fresh verdict, and a resume is where the platform re-asserts its own SMU
+            // numbers. Subscribed here rather than in the Settings view-model, which is lazy: a
+            // setting that only works once someone opens Settings is not a setting that works.
+            _powerAutomationService.PowerStateChanged += OnPowerStateChangedForClampLift;
             
             // Initialize OSD service (will only activate if enabled in settings)
             // Pass ThermalProvider from FanService for temperature data
@@ -2540,6 +2726,19 @@ namespace OmenCore.ViewModels
             _hardwareMonitoringService?.Resume();
             _fanService?.HandleSystemResume();
             _ = Task.Run(() => PostResumeSelfCheckAsync(resumeCycleId));
+
+            // The SMU limits do not survive a suspend, and the adapter may not be the one that went
+            // to sleep. Both are reasons to look again rather than assume the state held.
+            _ = RunAutomaticClampLiftAsync("resume");
+        }
+
+        /// <summary>
+        /// An adapter swap is the event that hands the GPU driver a fresh verdict, so it is the one
+        /// that undoes the restart. Only fires on a verified, debounced transition.
+        /// </summary>
+        private void OnPowerStateChangedForClampLift(object? sender, PowerStateChangedEventArgs e)
+        {
+            _ = RunAutomaticClampLiftAsync(e.IsOnAcPower ? "adapter connected" : "on battery");
         }
 
         private async Task PostResumeSelfCheckAsync(int resumeCycleId)
@@ -2662,6 +2861,14 @@ namespace OmenCore.ViewModels
             {
                 // Brief delay to let hardware stabilize after boot
                 await Task.Delay(2000);
+
+                // The adapter clamp, if it has been turned on. Deliberately first: the dGPU is at
+                // its most reliably parked right after boot, before anything has had a reason to
+                // wake it, and that is the one window where the GPU half can act on its own. Not
+                // awaited - a WMI call that hangs must not take the rest of the startup restore
+                // with it.
+                _ = RunAutomaticClampLiftAsync("startup");
+
                 var startupPerformanceRestoreEnabled = ShouldRunStartupHardwareRestore(StartupRestoreCategory.Performance);
                 var startupFanRestoreEnabled = ShouldRunStartupHardwareRestore(StartupRestoreCategory.Fans);
                 
