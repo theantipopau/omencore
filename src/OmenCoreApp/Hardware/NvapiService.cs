@@ -17,6 +17,7 @@ namespace OmenCore.Hardware
     public class NvapiService : IDisposable
     {
         private readonly Services.LoggingService _logging;
+        private readonly GpuPowerStateProbe _powerStateProbe;
         private bool _initialized;
         private bool _disposed;
         private NvPhysicalGpuHandle[] _gpuHandles = new NvPhysicalGpuHandle[NVAPI_MAX_PHYSICAL_GPUS];
@@ -293,6 +294,7 @@ namespace OmenCore.Hardware
         public NvapiService(Services.LoggingService logging)
         {
             _logging = logging;
+            _powerStateProbe = new GpuPowerStateProbe(msg => logging.Info($"[NVAPI] {msg}"));
         }
 
         /// <summary>
@@ -1249,6 +1251,9 @@ namespace OmenCore.Hardware
         {
             if (!_initialized || _primaryGpu == null) return 0;
 
+            // Reading a thermal sensor wakes the die. See GpuPowerStateProbe.
+            if (_powerStateProbe.IsAsleep()) return 0;
+
             try
             {
                 var sensors = _primaryGpu.ThermalInformation.ThermalSensors;
@@ -1303,6 +1308,10 @@ namespace OmenCore.Hardware
         {
             if (!_initialized || _primaryGpu == null) return 0;
 
+            // Reading power topology wakes the GPU, so the figure it returns describes a
+            // device that was asleep until it was asked. See GpuPowerStateProbe.
+            if (_powerStateProbe.IsAsleep()) return 0;
+
             try
             {
                 var entries = _primaryGpu.PowerTopologyInformation.PowerTopologyEntries;
@@ -1328,6 +1337,13 @@ namespace OmenCore.Hardware
             var sample = new GpuMonitoringSample { GpuName = GpuName };
 
             if (!_initialized || _primaryGpu == null) return sample;
+
+            // Every read below wakes a sleeping dGPU. See GpuPowerStateProbe.
+            if (_powerStateProbe.IsAsleep())
+            {
+                sample.GpuAsleep = true;
+                return sample;
+            }
 
             try
             {
@@ -1393,6 +1409,13 @@ namespace OmenCore.Hardware
             var sample = new GpuMonitoringSample { GpuName = GpuName };
 
             if (!_initialized || _primaryGpu == null) return sample;
+
+            // Every read below wakes a sleeping dGPU. See GpuPowerStateProbe.
+            if (_powerStateProbe.IsAsleep())
+            {
+                sample.GpuAsleep = true;
+                return sample;
+            }
 
             try
             {
@@ -1704,5 +1727,12 @@ namespace OmenCore.Hardware
         public double MemoryClockMhz { get; set; }
         public double VramUsedMb { get; set; }
         public double VramTotalMb { get; set; }
+
+        /// <summary>
+        /// The dGPU was in D3 and was deliberately not woken, so every figure above is
+        /// unset rather than measured. Distinguishes "asleep" from "idle at 0 W" -- which
+        /// matters, because reading the difference is what destroys it.
+        /// </summary>
+        public bool GpuAsleep { get; set; }
     }
 }

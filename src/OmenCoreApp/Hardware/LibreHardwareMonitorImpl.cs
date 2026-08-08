@@ -92,6 +92,7 @@ namespace OmenCore.Hardware
         private static readonly TimeSpan _lowOverheadCacheLifetime = TimeSpan.FromMilliseconds(3000); // 3 seconds in low overhead
 
         private readonly Action<string>? _logger;
+        private GpuPowerStateProbe? _gpuSleepProbe;
         private PerformanceCounter? _cpuLoadCounter;
         private bool _cpuLoadCounterPrimed;
         private readonly Dictionary<string, PerformanceCounter> _gpuEngineCounters = new(StringComparer.OrdinalIgnoreCase);
@@ -342,6 +343,17 @@ namespace OmenCore.Hardware
                     hw.HardwareType == HardwareType.GpuAmd ||
                     hw.HardwareType == HardwareType.GpuIntel)
                 {
+                    // A diagnostic line is not worth waking a parked dGPU for, and this runs on every
+                    // InitializeComputer() - so once at startup and again on every Reinitialize(),
+                    // which is what TryRestartAsync does after a resume. Reading sensors here goes
+                    // through NVML, which wakes the device to answer: the poll loops were taught to
+                    // leave it alone and this path was still pulling it back to D0 behind them.
+                    if (IsSleepingNvidiaGpu(hw))
+                    {
+                        _logger?.Invoke($"[GPU Detected] NVIDIA: {hw.Name} — parked in D3, sensors not read");
+                        continue;
+                    }
+
                     hw.Update();
                     var tempSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Temperature).ToList();
                     var loadSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Load).ToList();
@@ -747,6 +759,19 @@ namespace OmenCore.Hardware
         private const int NvmlRetryCooldownSeconds = 60;       // v2.8.6: Retry NVML after 60s cooldown
 
         /// <summary>
+        /// True when this is the discrete NVIDIA GPU and it is parked in D3. LHM reaches that
+        /// GPU through NVML, which wakes the device to answer — so polling it is what stops it
+        /// ever being idle. See <see cref="GpuPowerStateProbe"/>.
+        /// </summary>
+        private bool IsSleepingNvidiaGpu(IHardware hardware)
+        {
+            if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
+
+            _gpuSleepProbe ??= new GpuPowerStateProbe(_logger);
+            return _gpuSleepProbe.IsAsleep();
+        }
+
+        /// <summary>
         /// Safely updates GPU hardware with timeout protection.
         /// NVML can hang or throw exceptions during high GPU load (e.g., benchmarks).
         /// </summary>
@@ -761,6 +786,9 @@ namespace OmenCore.Hardware
         /// </remarks>
         private bool TryUpdateGpuHardware(IHardware hardware)
         {
+            // Nothing below is measurable on a parked GPU, and measuring is what un-parks it.
+            if (IsSleepingNvidiaGpu(hardware)) return false;
+
             if (_nvmlDisabled)
             {
                 // v2.8.6: NVML disabled due to repeated failures—check if cooldown expired
@@ -821,7 +849,7 @@ namespace OmenCore.Hardware
                 _cachedAmdGpuTelemetryQuarantined = false;
                 _cachedAmdGpuTelemetryQuarantineReason = string.Empty;
                 
-                _computer?.Accept(new UpdateVisitor());
+                _computer?.Accept(new UpdateVisitor(IsSleepingNvidiaGpu));
 
                 foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                 {
@@ -1813,7 +1841,7 @@ namespace OmenCore.Hardware
                 try
                 {
                     // Update hardware readings to get fresh fan data
-                    _computer?.Accept(new UpdateVisitor());
+                    _computer?.Accept(new UpdateVisitor(IsSleepingNvidiaGpu));
 
                     foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                     {
@@ -2319,6 +2347,14 @@ namespace OmenCore.Hardware
     /// </summary>
     internal class UpdateVisitor : IVisitor
     {
+        private readonly Func<IHardware, bool>? _skip;
+
+        /// <param name="skip">
+        /// Returns true for hardware that must not be updated this pass. Used to leave a
+        /// sleeping dGPU alone — updating it is what wakes it.
+        /// </param>
+        public UpdateVisitor(Func<IHardware, bool>? skip = null) => _skip = skip;
+
         public void VisitComputer(IComputer computer)
         {
             computer.Traverse(this);
@@ -2326,6 +2362,8 @@ namespace OmenCore.Hardware
 
         public void VisitHardware(IHardware hardware)
         {
+            if (_skip?.Invoke(hardware) == true) return;
+
             hardware.Update();
             foreach (var subHardware in hardware.SubHardware)
                 subHardware.Accept(this);

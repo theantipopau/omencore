@@ -33,4 +33,12 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared with the app rather than duplicated: either process polling a sleeping
+         dGPU is enough to keep it awake, so the check has to exist in both. The file is
+         deliberately dependency-free (cfgmgr32 P/Invoke only) so it links cleanly here. -->
+    <Compile Include="..\OmenCoreApp\Hardware\GpuPowerStateProbe.cs"
+             Link="Hardware\GpuPowerStateProbe.cs" />
+  </ItemGroup>
+
 </Project>
