@@ -318,9 +318,25 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Set STAPM (sustained power) limit in mW.
+        ///
+        /// Restricted to <see cref="RyzenFamily.StrixPoint"/>. The transport fix that made this
+        /// method's SMU writes actually reach the silicon (previously the module never loaded,
+        /// so every call here was a guaranteed no-op regardless of family) also newly activates
+        /// it for every other family with a configured mailbox address below - eleven of them,
+        /// none with field evidence. Unlike Curve Optimizer (undervolt only, self-limiting,
+        /// clamped +-30 and the thing this transport fix was explicitly about), this is a power
+        /// LIMIT increase - the same class of write this project already treats as needing
+        /// field validation before shipping (see PowerLimitController/SupportsEcPowerLimits).
+        /// Remove this gate only once a specific family has been measured, the way Strix Point
+        /// was.
         /// </summary>
         public RyzenSmu.SmuStatus SetStapmLimit(uint valueMw)
         {
+            if (_cpuInfo.Family != RyzenFamily.StrixPoint)
+            {
+                return RyzenSmu.SmuStatus.Failed;
+            }
+
             valueMw = Math.Clamp(valueMw, 15_000u, 54_000u);
 
             uint[] args = new uint[6];
@@ -354,9 +370,19 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Set temperature limit in degrees Celsius.
+        ///
+        /// Restricted to <see cref="RyzenFamily.StrixPoint"/> for the same reason as
+        /// <see cref="SetStapmLimit"/>: the transport fix newly activates real writes on
+        /// seventeen configured families, none with field evidence, and this is a CPU thermal
+        /// limit increase, not the Curve Optimizer change this fix was actually about.
         /// </summary>
         public RyzenSmu.SmuStatus SetTctlTemp(uint tempC)
         {
+            if (_cpuInfo.Family != RyzenFamily.StrixPoint)
+            {
+                return RyzenSmu.SmuStatus.Failed;
+            }
+
             tempC = Math.Clamp(tempC, 75u, 105u);
 
             uint[] args = new uint[6];
