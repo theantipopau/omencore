@@ -2,9 +2,9 @@
 
 **Release Date:** TBD
 **Release Status:** Code-complete and test-verified in this environment (1171/1171 tests, 0 build warnings); artifacts not yet built or tagged.
-**Type:** Patch release — a safety-relevant fail-safe default, a fan-control bug fix, two diagnostics-clarity fixes, an EC GPU-boost false-success fix, a large community-contributed board-8D87 support/correctness pass, six UI-responsiveness fixes, three independent locale/bloatware/model-identity fixes, and a second batch of six reviewed-and-merged community PRs — found while triaging field reports (GitHub #159, #163, Discord SAINTOP/board `8DCD`, Reddit, Discord AMBA/board `8DD0`, Discord Trirez/board `8BCA`), a community contribution (tempestnano), and a standing "laggy UI" complaint
+**Type:** Patch release — a safety-relevant fail-safe default, a fan-control bug fix, two diagnostics-clarity fixes, an EC GPU-boost false-success fix, a large community-contributed board-8D87 support/correctness pass, seven UI-responsiveness fixes, three independent locale/bloatware/model-identity fixes, a misleading-diagnostics fix for AMD MSR access, and a second batch of six reviewed-and-merged community PRs — found while triaging field reports (GitHub #159, #163, #170, Discord SAINTOP/board `8DCD`, Reddit, Discord AMBA/board `8DD0`, Discord Trirez/board `8BCA`), a community contribution (tempestnano), and a standing "laggy UI" complaint
 **Base Version:** v4.1.5
-**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items", "Newly Reported (2026-08-03, Post-4.1.5): Board `8DCD` Fans Stuck at Max After Leaving Max Mode", "Community Contribution: Board 8D87 Profile, Telemetry, and Robustness (tempestnano)", and "Second Field-Report Batch and Community PR Review (2026-08-07)" for the full traces this release acts on.
+**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items", "Newly Reported (2026-08-03, Post-4.1.5): Board `8DCD` Fans Stuck at Max After Leaving Max Mode", "Community Contribution: Board 8D87 Profile, Telemetry, and Robustness (tempestnano)", "Second Field-Report Batch and Community PR Review (2026-08-07)", "Standing Feedback: 'Laggy UI' — Audited and Fixed Three Concrete Sources (4.1.6 cycle)", and "FIXED (4.1.6 cycle): AMD MSR 'Reboot to Activate' Message Was Misleading (GitHub #170)" for the full traces this release acts on.
 
 ---
 
@@ -100,6 +100,15 @@ A second audit pass, deliberately covering different ground than the first (fan 
 - **`DashboardConverters.FanSpeedConverter` re-resolved two regex patterns from `Regex`'s internal static cache on every conversion**, in a binding path updated on essentially every telemetry tick. **Fix:** both patterns are now `static readonly`, compiled `Regex` instances.
 
 No test coverage added — same reasoning as the first UI pass (WPF rendering/binding code, no existing UI-test infrastructure, build-clean + code review). Full suite: 1097/1097 passing after these changes.
+
+## Improved: UI Responsiveness, Third Pass (OSD Overlay Per-Tick Brush Allocations)
+
+A third audit pass, prompted by a follow-up sweep of the same category of bug rather than a new field report — deliberately different files than either of the first two passes.
+
+- **`OsdOverlayWindow` allocated a brand-new, non-frozen `SolidColorBrush` every second for every status-colored readout it shows.** `UpdateCpuTempColor()`, `UpdateGpuTempColor()`, and `UpdateGpuHotspotTempColor()` each `new SolidColorBrush(...)`'d one of four fixed RGB values depending on which threshold band the reading fell in, called from `UpdateStats()` on the OSD's 1-second telemetry timer (`OsdStatsTimerIntervalMs`) — and the same pattern was independently repeated for the battery-percentage color and the network-latency color (the latter on its own 5-second timer). None of the six call sites needed a new brush at all: the same four RGB values (green/yellow/orange/red) recur across all of them, and the file already had the right pattern sitting a few lines away — `FpsGoodBrush`/`FpsWarningBrush`/`FpsCriticalBrush`, a set of `static readonly`, `Freeze()`d brushes built once via `CreateFrozenBrush()` and reused for the FPS accent color. The OSD overlay is the one window most likely to be on screen *specifically* while a game is running (that's its entire purpose), making this a real, continuous allocation during exactly the sessions where frame-time smoothness matters most — the same framing already used for the Dashboard pulse-animation fix in the first pass.
+- **Fix:** added `StatusGoodBrush`/`StatusWarningBrush`/`StatusOrangeBrush`/`StatusCriticalBrush` (reusing the existing `FpsGoodBrush`/`FpsWarningBrush`/`FpsCriticalBrush` instances for the three colors already frozen, plus one new frozen orange) and pointed all six call sites at them instead of allocating. Pure allocation-elimination — the threshold logic and displayed colors are byte-for-byte unchanged.
+
+No test coverage added — same reasoning as the first two passes (WPF binding code, no existing UI-test infrastructure, build-clean + code review). Not benchmarked, same caveat as the first two passes. Full suite: 1171/1171 passing after this change.
 
 ## Traced, Not Fixed: Background Resource Conservation
 

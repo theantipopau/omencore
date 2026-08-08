@@ -485,6 +485,10 @@ Re-run to cover ground the first pass didn't, rather than re-checking the same t
 
 Full suite: 1097/1097 passing. Same "not benchmarked, verified via code review + build" caveat as the first pass applies.
 
+### Third pass — OSD overlay per-tick brush allocations
+
+`OsdOverlayWindow` (detail in `CHANGELOG_v4.1.6.md`'s "Improved: UI Responsiveness, Third Pass" section) was allocating a fresh, non-frozen `SolidColorBrush` on its own 1-second stats timer for CPU temp, GPU temp, GPU hotspot temp, and battery percentage, plus again on its separate 5-second network-latency timer — six call sites total, all picking from the same four fixed RGB values, none of them reusing the `FpsGoodBrush`/`FpsWarningBrush`/`FpsCriticalBrush` frozen-brush pattern already present a few lines away in the same file for the FPS accent color. This is the window most likely to be visible specifically while a game is running, so the allocation was continuous during exactly the sessions frame-time smoothness matters most — same class of bug as the Dashboard pulse animation from the first pass, just a different file. Fixed by adding four shared `Status*Brush` statics (reusing three of the existing frozen FPS brushes, one new frozen orange) and pointing all six sites at them. Pure allocation removal — threshold logic and displayed colors unchanged. Full suite: 1171/1171 passing.
+
 ## Standing Feedback: Background Resource Conservation — Two Real Findings, Neither Actioned (4.1.6 cycle)
 
 **Request:** alongside the UI-responsiveness work, look for opportunities to reduce the app's idle/tray CPU and memory footprint over a long-running (often multi-hour, gaming-session-length) background session.

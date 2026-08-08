@@ -44,6 +44,13 @@ namespace OmenCore.Views
         private static readonly Brush FpsWarningBrush = CreateFrozenBrush(255, 213, 0);
         private static readonly Brush FpsCriticalBrush = CreateFrozenBrush(255, 68, 68);
         private static readonly Brush FpsUnavailableBrush = CreateFrozenBrush(170, 170, 170);
+        // Shared status-color brushes for temp/battery/latency readouts (same 4-color scale as FPS above).
+        // Frozen and reused instead of allocated per tick — this window redraws every second while an OSD
+        // is on screen over a running game, which is exactly when extra GC pressure hurts frame time most.
+        private static readonly Brush StatusGoodBrush = FpsGoodBrush;
+        private static readonly Brush StatusWarningBrush = FpsWarningBrush;
+        private static readonly Brush StatusOrangeBrush = CreateFrozenBrush(255, 149, 0);
+        private static readonly Brush StatusCriticalBrush = FpsCriticalBrush;
         
         [DllImport("user32.dll")]
         private static extern int GetWindowLong(IntPtr hwnd, int index);
@@ -649,13 +656,13 @@ namespace OmenCore.Views
                     
                     // Color based on latency
                     if (_lastPingMs < 30)
-                        NetworkLatencyColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green
+                        NetworkLatencyColor = StatusGoodBrush;
                     else if (_lastPingMs < 60)
-                        NetworkLatencyColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow
+                        NetworkLatencyColor = StatusWarningBrush;
                     else if (_lastPingMs < 100)
-                        NetworkLatencyColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange
+                        NetworkLatencyColor = StatusOrangeBrush;
                     else
-                        NetworkLatencyColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red
+                        NetworkLatencyColor = StatusCriticalBrush;
                 }
                 else
                 {
@@ -783,18 +790,18 @@ namespace OmenCore.Views
                             BatteryPercent = $"{icon} {pct:F0}%";
                             
                             if (pct > 60)
-                                BatteryColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green
+                                BatteryColor = StatusGoodBrush;
                             else if (pct > 30)
-                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow
+                                BatteryColor = StatusWarningBrush;
                             else if (pct > 15)
-                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange
+                                BatteryColor = StatusOrangeBrush;
                             else
-                                BatteryColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red
+                                BatteryColor = StatusCriticalBrush;
                         }
                         else
                         {
                             BatteryPercent = "AC";
-                            BatteryColor = new SolidColorBrush(Color.FromRgb(0, 255, 136));
+                            BatteryColor = StatusGoodBrush;
                         }
                     }
                     
@@ -1048,13 +1055,13 @@ namespace OmenCore.Views
         private void UpdateCpuTempColor()
         {
             if (_cpuTemp < 60)
-                CpuTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<60°C)
+                CpuTempColor = StatusGoodBrush; // <60°C
             else if (_cpuTemp < 75)
-                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (60-75°C)
+                CpuTempColor = StatusWarningBrush; // 60-75°C
             else if (_cpuTemp < 85)
-                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (75-85°C)
+                CpuTempColor = StatusOrangeBrush; // 75-85°C
             else
-                CpuTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>85°C)
+                CpuTempColor = StatusCriticalBrush; // >85°C
         }
 
         private void ApplyFpsSnapshot(OsdFpsDisplaySnapshot snapshot)
@@ -1092,28 +1099,28 @@ namespace OmenCore.Views
         private void UpdateGpuTempColor()
         {
             if (_gpuTemp < 65)
-                GpuTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<65°C)
+                GpuTempColor = StatusGoodBrush; // <65°C
             else if (_gpuTemp < 75)
-                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (65-75°C)
+                GpuTempColor = StatusWarningBrush; // 65-75°C
             else if (_gpuTemp < 85)
-                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (75-85°C)
+                GpuTempColor = StatusOrangeBrush; // 75-85°C
             else
-                GpuTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>85°C)
+                GpuTempColor = StatusCriticalBrush; // >85°C
         }
-        
+
         /// <summary>
         /// Update GPU hotspot temperature text color based on value
         /// </summary>
         private void UpdateGpuHotspotTempColor()
         {
             if (_gpuHotspotTemp < 75)
-                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(0, 255, 136)); // Green (<75°C)
+                GpuHotspotTempColor = StatusGoodBrush; // <75°C
             else if (_gpuHotspotTemp < 85)
-                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 213, 0)); // Yellow (75-85°C)
+                GpuHotspotTempColor = StatusWarningBrush; // 75-85°C
             else if (_gpuHotspotTemp < 95)
-                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 149, 0)); // Orange (85-95°C)
+                GpuHotspotTempColor = StatusOrangeBrush; // 85-95°C
             else
-                GpuHotspotTempColor = new SolidColorBrush(Color.FromRgb(255, 68, 68)); // Red (>95°C)
+                GpuHotspotTempColor = StatusCriticalBrush; // >95°C
         }
     }
 }
