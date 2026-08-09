@@ -659,7 +659,9 @@
                                     <TextBlock Text="STAPM" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Text="Sustained power" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}"/>
                                 </StackPanel>
-                                <Slider Grid.Column="1" Minimum="15" Maximum="54" TickFrequency="1"
+                                <Slider Grid.Column="1" TickFrequency="1"
+                                        Minimum="{Binding SystemControl.AmdStapmLimitMinWatts}"
+                                        Maximum="{Binding SystemControl.AmdStapmLimitMaxWatts}"
                                         Value="{Binding SystemControl.AmdStapmLimitWatts, Mode=TwoWay}"
                                         IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="16,0"/>
                                 <StackPanel Grid.Column="2" HorizontalAlignment="Right">
