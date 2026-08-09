@@ -17,17 +17,20 @@ namespace OmenCore.Services.KeyboardLighting
     /// else entirely. Both are kept: they serve different hardware, and neither is a fallback for
     /// the other.
     ///
-    /// TWO INTERFACES, TWO JOBS, and using the wrong one is the main way to get lost here:
+    /// TWO INTERFACES, and routing colour to the right one is the main way to get lost here:
     ///
-    ///   mi_04, <see cref="HidLampArray"/>     STATIC colour, addressed per key. One report lands
-    ///                                         and persists with no host process running.
-    ///   mi_03, <see cref="DojoKeyboardMcu"/>  the device's own ANIMATION ENGINE. Twelve effects,
-    ///                                         one frame each, rendered without the host.
+    ///   mi_03, <see cref="DojoKeyboardMcu"/>  the MCU's own protocol. STATIC COLOUR MAP (commands
+    ///                                         0x05/0x06/0x07, 176-entry key map) and the twelve
+    ///                                         device ANIMATIONS (command 0x03). The MCU holds the
+    ///                                         map, draws it, and restores it after the Fn overlay.
+    ///   mi_04, <see cref="HidLampArray"/>     HID LampArray, per-key addressed by lamp id. Used
+    ///                                         for the per-key editor's individual key painting.
+    ///                                         Requires host ownership, which means the MCU stops
+    ///                                         drawing — and cannot restore after Fn.
     ///
-    /// So a static picture and a running effect are mutually exclusive states of the same keyboard,
-    /// and switching between them means handing ownership over: taking host control of the lamps
-    /// for a picture, giving it back for an effect. Painting lamps while an effect runs produces a
-    /// fight the device wins.
+    /// Uniform and zone colour go through mi_03, so the MCU owns the picture and the Fn key works.
+    /// Per-key painting (the editor) goes through mi_04 for individual addressing, with an mi_03
+    /// base layer as a fallback the MCU can restore to after Fn.
     ///
     /// Effects can be read back off the MCU and are checked here. Colours cannot - the LampArray
     /// spec has no colour readback - so "did that key turn red" has no software answer, and the
@@ -135,32 +138,36 @@ namespace OmenCore.Services.KeyboardLighting
 
             try
             {
-                if (_lamps == null)
-                {
-                    result.FailureReason = "No LampArray interface; static colour needs mi_04";
-                    return Task.FromResult(result);
-                }
-
                 var normalized = Normalize(zoneColors);
-                TakeHostControl();
-
-                // A uniform picture is one range report instead of fifteen chained multi-updates.
-                // Worth the special case for more than speed: the range report is the primitive
-                // this device is measured on, so when a uniform fill lands and a four-colour one
-                // does not, the difference is the batching rather than the colour path.
                 bool uniform = normalized.All(c => c.ToArgb() == normalized[0].ToArgb());
 
-                if (uniform && _lampMap.Count > 0)
+                if (uniform && _mcu != null)
                 {
+                    // MI_03: the MCU holds the colour map and redraws after the Fn overlay.
+                    // No host control needed — the device is autonomous and draws its own picture.
+                    ReleaseHostControlIfHeld();
+                    var c = normalized[0];
+                    result.BackendReportedSuccess = _mcu.SetStaticColor(c.R, c.G, c.B);
+                    _logging.Info($"[DojoPerKey] Uniform fill via mi_03: " +
+                                  $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
+                }
+                else if (uniform && _lamps != null && _lampMap.Count > 0)
+                {
+                    TakeHostControl();
                     var c = normalized[0];
                     ushort first = _lampMap.Min(l => l.LampId);
                     ushort last = _lampMap.Max(l => l.LampId);
                     result.BackendReportedSuccess = _lamps.SetRange(first, last, c.R, c.G, c.B, _brightness);
-                    _logging.Info($"[DojoPerKey] Uniform fill over lamps {first}-{last}: " +
+                    _logging.Info($"[DojoPerKey] Uniform fill over lamps {first}-{last} (mi_04 fallback): " +
                                   $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
                 }
-                else
+                else if (_lamps != null && _lampMap.Count > 0)
                 {
+                    // Mixed zones: set mi_03 base with zone 0's colour as Fn fallback, then
+                    // mi_04 for the actual per-zone picture.
+                    _mcu?.SetStaticColor(normalized[0].R, normalized[0].G, normalized[0].B);
+                    TakeHostControl();
+
                     var lamps = new List<HidLampArray.LampColor>(_lampMap.Count);
                     for (int i = 0; i < _lampMap.Count; i++)
                     {
@@ -173,11 +180,16 @@ namespace OmenCore.Services.KeyboardLighting
                                   $"{(lamps.Count + HidLampArray.MaxLampsPerUpdate - 1) / HidLampArray.MaxLampsPerUpdate} " +
                                   $"batches: {(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
                 }
+                else
+                {
+                    result.FailureReason = "No interface available for static colour";
+                    return Task.FromResult(result);
+                }
 
                 if (result.BackendReportedSuccess)
                     _lastZoneColors = normalized;
                 else
-                    result.FailureReason = "The device refused one or more lamp update reports";
+                    result.FailureReason = "The device refused one or more colour writes";
             }
             catch (Exception ex)
             {
@@ -360,11 +372,21 @@ namespace OmenCore.Services.KeyboardLighting
         /// Colour individual keys, addressed by lamp id. Ids come from <see cref="GetKeyMap"/>;
         /// each carries the HID usage of the key it sits under.
         ///
+        /// Uses mi_04 for individual addressing, but first writes an mi_03 base layer so the MCU
+        /// has something to restore after the Fn overlay. The mi_03 base is a uniform fill with
+        /// the most common colour — not a perfect match, but not a black keyboard.
+        ///
         /// Accepted, not verified - there is no colour readback to check it against.
         /// </summary>
         public bool SetKeyColors(IReadOnlyDictionary<ushort, Color> keyColors)
         {
             if (_lamps == null || keyColors.Count == 0) return false;
+
+            if (_mcu != null && keyColors.Count > 0)
+            {
+                var dominant = MostCommonColor(keyColors.Values);
+                _mcu.SetStaticColor(dominant.R, dominant.G, dominant.B);
+            }
 
             TakeHostControl();
 
@@ -376,6 +398,14 @@ namespace OmenCore.Services.KeyboardLighting
             _logging.Info($"[DojoPerKey] {lamps.Count} lamps at intensity {_brightness}: " +
                           $"{(ok ? "accepted" : "REFUSED")}");
             return ok;
+        }
+
+        private static Color MostCommonColor(IEnumerable<Color> colors)
+        {
+            return colors
+                .GroupBy(c => c.ToArgb())
+                .OrderByDescending(g => g.Count())
+                .First().First();
         }
 
         /// <summary>
@@ -637,6 +667,14 @@ namespace OmenCore.Services.KeyboardLighting
             _hostOwnsLamps = true;
         }
 
+        private void ReleaseHostControlIfHeld()
+        {
+            if (!_hostOwnsLamps || _lamps == null) return;
+
+            _lamps.SetAutonomousMode(true);
+            _hostOwnsLamps = false;
+        }
+
         private RgbApplyResult NewResult() => new() { Method = Method, SupportsVerification = false };
 
         private static Color[] Normalize(Color[] zoneColors)
@@ -652,15 +690,17 @@ namespace OmenCore.Services.KeyboardLighting
             if (_disposed) return;
             _disposed = true;
 
-            // DO NOT hand the lamps back here. A static picture's whole value is that it survives
-            // the process that painted it - one report lands and holds with nothing maintaining it.
-            // Restoring autonomous mode on the way out gives the keyboard back to its own effect
-            // engine, which repaints all 120 keys within a frame and erases the picture before
-            // anyone can look at it. Measured: --zones over a running Wave appeared to do nothing
-            // at all, because this line ran microseconds after the colours landed.
+            // Hand the lamps back so the MCU can draw its own lighting. Without this, the keyboard
+            // stays in host-control mode permanently — it outlives the process, survives a reboot
+            // (the internal USB bus stays powered), and the MCU cannot restore its picture after the
+            // Fn overlay or any other device-side redraw. That is the root cause of the reported
+            // Fn-key bug: the overlay goes up, and nothing comes back.
             //
-            // Callers that really do want the device animating again say so with
-            // ReleaseToDeviceEffects, or install an effect, which hands ownership over on purpose.
+            // With static colour routed through mi_03, the MCU holds the picture and draws it
+            // autonomously, so releasing here does not erase anything — it lets the MCU resume
+            // drawing what it already has.
+            ReleaseHostControlIfHeld();
+
             _lamps?.Dispose();
             _mcu?.Dispose();
             _lamps = null;

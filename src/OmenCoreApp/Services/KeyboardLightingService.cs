@@ -869,8 +869,23 @@ namespace OmenCore.Services
                 // Log telemetry summary before disposing
                 LogTelemetrySummary();
                 _v2Service?.Dispose();
+                ReleaseLightBarLampArray();
                 _disposed = true;
             }
+        }
+
+        private void ReleaseLightBarLampArray()
+        {
+            try
+            {
+                using var bar = Hardware.HidLampArray.OpenLightBar();
+                if (bar != null)
+                {
+                    bar.SetAutonomousMode(true);
+                    _logging.Info("[KeyboardLighting] Released light bar LampArray back to device control");
+                }
+            }
+            catch { }
         }
         
         /// <summary>
