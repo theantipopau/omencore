@@ -284,6 +284,17 @@ namespace OmenCore.Services.KeyboardLighting
             ?? (IReadOnlyList<Hardware.HidLampArray.LampInfo>)Array.Empty<Hardware.HidLampArray.LampInfo>();
 
         /// <summary>
+        /// The keyboard's key/LED layout, or null when the board is not in the catalogue.
+        ///
+        /// FINER THAN <see cref="GetMeasuredKeyMap"/>, and the two do not line up. LampArray reports
+        /// 120 lamps on 8D87 where the colour map has 176 LEDs: an F key is one lamp and two LEDs,
+        /// Num0 is two lamps and three LEDs, and the Omen and Copilot keys are LEDs with no lamp at
+        /// all. So a caller that wants every addressable light has to come through here, not through
+        /// the lamp map, and pair it with <see cref="SetLedColorsAsync"/>.
+        /// </summary>
+        public KeyboardLayout? GetKeyboardLayout() => (_activeBackend as DojoPerKeyBackend)?.Layout;
+
+        /// <summary>
         /// Colour individually addressed keys, leaving every unnamed key alone.
         /// Keys are lamp ids from <see cref="GetMeasuredKeyMap"/>.
         /// </summary>
@@ -295,6 +306,26 @@ namespace OmenCore.Services.KeyboardLighting
             try
             {
                 return dojo.SetKeyColors(keyColors);
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Colour individual LEDs of the MCU's colour map, addressed by the positions in
+        /// <see cref="KeyboardKey.Leds"/>. Every position not named takes <paramref name="background"/>,
+        /// because the map is written whole - there is no partial update on this path.
+        /// </summary>
+        public async Task<bool> SetLedColorsAsync(IReadOnlyDictionary<int, Color> ledColors, Color background)
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                return dojo.SetLedColors(ledColors, background);
             }
             finally
             {

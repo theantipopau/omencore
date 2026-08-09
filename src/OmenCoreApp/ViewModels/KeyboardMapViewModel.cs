@@ -12,8 +12,16 @@ using OmenCore.Utils;
 namespace OmenCore.ViewModels
 {
     /// <summary>
-    /// Per-key editor backed by the keyboard's MEASURED lamp map - every key at the position the
-    /// device reported, rather than a grid of assumed shape.
+    /// Per-LED editor backed by the keyboard's own layout - every light the colour map can address,
+    /// at the position HP's layout table puts it, rather than a grid of assumed shape.
+    ///
+    /// IT IS BUILT FROM THE LAYOUT, NOT FROM LAMPARRAY, and the difference is the whole point. The
+    /// device's LampArray reports 120 lamps on 8D87; the MCU colour map has 176 LEDs. They are not
+    /// the same enumeration and they do not nest: an F key is one lamp but two LEDs, Num0 is two
+    /// lamps but three LEDs, and the Omen, Calculator, Settings, Power, Fn and Copilot keys are LEDs
+    /// with no lamp at all. Drawing from lamps therefore hid one LED of every dual-legend key, drew
+    /// Num0 as two cells that fought over the same three LEDs, and omitted eight keys entirely.
+    /// Where no layout is known the lamp map is still used, because a coarse editor beats none.
     ///
     /// This exists alongside the 6 x 14 grid editor rather than replacing it: that one is a fixed
     /// abstraction that works on any per-key model, while this needs a backend that has actually
@@ -43,6 +51,13 @@ namespace OmenCore.ViewModels
         private const double PixelsPerMm = 2.6;
         private const double KeySizeMm = 15.0;
         private const double MinKeyWidth = 14.0;
+
+        // Layout mode. The table's units are HP's own UI pixels, which differ per keyboard, so the
+        // board is normalised to its bounds and scaled to a fixed width - matching what the lamp
+        // path produces, so switching between them does not resize the window. KeyInset leaves a
+        // hairline between neighbouring caps; the rectangles butt up against each other exactly.
+        private const double TargetCanvasWidth = 900.0;
+        private const double KeyInset = 1.0;
 
         private string _brushColorHex = "#FF0000";
         private string _status = string.Empty;
@@ -244,6 +259,7 @@ namespace OmenCore.ViewModels
             // because they are different hardware on different transports - HID lamps for the
             // keyboard, HP's WMI command or the bar's own LampArray for the bar.
             var colors = new Dictionary<ushort, System.Drawing.Color>();
+            var leds = new Dictionary<int, System.Drawing.Color>();
             var barZones = new (byte R, byte G, byte B)[LightBarZoneCount];
             bool anyBar = false;
 
@@ -258,9 +274,19 @@ namespace OmenCore.ViewModels
                     continue;
                 }
 
-                // Flattened back to lamps, because that is what the keyboard addresses. A wide key
-                // contributes each of its lamps with the same colour.
                 var color = ToDrawingColor(parsed);
+
+                // Layout mode addresses the colour map directly, one position per cell. That is what
+                // lets the two halves of a dual-legend key differ - flattening to lamps cannot, since
+                // both halves are one lamp.
+                if (key.IsLed)
+                {
+                    foreach (int position in key.LedPositions) leds[position] = color;
+                    continue;
+                }
+
+                // Fallback: flattened back to lamps, because that is what the keyboard addresses.
+                // A wide key contributes each of its lamps with the same colour.
                 foreach (ushort lampId in key.LampIds) colors[lampId] = color;
             }
 
@@ -268,6 +294,11 @@ namespace OmenCore.ViewModels
             // so setting it after would need a second full repaint to take effect.
             await _keyboard.SetPerKeyBrightnessAsync(Brightness);
 
+            // Black, not the brush: every cell in the editor is in the dictionary, so the background
+            // only reaches positions the layout does not claim - padding, and anything the table
+            // omits. Painting those with a colour would light bytes nobody chose.
+            bool ledsOk = leds.Count == 0 ||
+                          await _keyboard.SetLedColorsAsync(leds, System.Drawing.Color.Black);
             bool keysOk = colors.Count == 0 || await _keyboard.SetKeyColorsAsync(colors);
             bool barOk = !anyBar || _keyboard.SetLightBarColors(barZones, (byte)Brightness);
 
@@ -275,18 +306,21 @@ namespace OmenCore.ViewModels
             // in the LampArray spec, so the software cannot confirm a key changed - only that the
             // device took the report. The bar's colours ARE readable, but not through this call.
             var parts = new List<string>();
+            if (leds.Count > 0) parts.Add($"{leds.Count} LEDs {(ledsOk ? "accepted" : "REFUSED")}");
             if (colors.Count > 0) parts.Add($"{colors.Count} keys {(keysOk ? "accepted" : "REFUSED")}");
             if (anyBar) parts.Add($"4 bar zones {(barOk ? "accepted" : "REFUSED")}");
 
             Status = string.Join(", ", parts) + ". Only looking confirms it.";
-            _logging.Info($"[KeyboardMap] Apply: {colors.Count} keys keysOk={keysOk}, " +
-                          $"bar={anyBar} barOk={barOk}");
+            _logging.Info($"[KeyboardMap] Apply: {leds.Count} LEDs ledsOk={ledsOk}, " +
+                          $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}");
         }
 
         // ── Loading ────────────────────────────────────────────────────────────────
 
         private void Load()
         {
+            if (LoadFromLayout()) return;
+
             var map = _keyboard?.GetMeasuredKeyMap() ?? Array.Empty<HidLampArray.LampInfo>();
             if (map.Count == 0)
             {
@@ -384,6 +418,158 @@ namespace OmenCore.ViewModels
 
             _logging.Info($"[KeyboardMap] Loaded {keyCount} keys from the measured lamp map" +
                           (HasLightBar ? ", plus 4 light bar zones" : string.Empty));
+        }
+
+        /// <summary>
+        /// Draw the board from the layout table: one cell per LED, grouped inside its key's cap.
+        /// False when this board has no layout, which sends the caller to the lamp map instead.
+        /// </summary>
+        private bool LoadFromLayout()
+        {
+            var layout = _keyboard?.GetKeyboardLayout();
+            if (layout == null || layout.Keys.Count == 0 || layout.Bounds.Length != 4) return false;
+
+            double left = layout.Bounds[0], top = layout.Bounds[1];
+            double spanX = Math.Max(1, layout.Bounds[2] - left);
+            double spanY = Math.Max(1, layout.Bounds[3] - top);
+
+            // One scale for both axes, so the keyboard keeps its proportions instead of being
+            // stretched to whatever aspect the canvas happens to have.
+            double scale = TargetCanvasWidth / spanX;
+            CanvasWidth = spanX * scale;
+            CanvasHeight = spanY * scale;
+
+            int ledCells = 0;
+
+            foreach (var key in layout.Keys)
+            {
+                if (key.Rect.Length != 4 || key.Leds.Length == 0) continue;
+
+                double x = (key.Rect[0] - left) * scale;
+                double y = (key.Rect[1] - top) * scale;
+                double w = Math.Max(1, (key.Rect[2] * scale) - KeyInset);
+                double h = Math.Max(1, (key.Rect[3] * scale) - KeyInset);
+
+                bool horizontal = SplitsHorizontally(key.Leds.Length, key.Rect[2], key.Rect[3]);
+                int n = key.Leds.Length;
+
+                for (int i = 0; i < n; i++)
+                {
+                    // Sub-cells are laid out in COLOUR-MAP ORDER along the cap, and that order is
+                    // not a physical position - the layout table carries no sub-key geometry at all.
+                    // So cell 1 is the key's first LED, not its left or top one. On Esc the first is
+                    // the one under the legend and the second the one below it; nothing guarantees
+                    // another row runs the same way. Light one and look.
+                    double cx = horizontal ? x + (w * i / n) : x;
+                    double cy = horizontal ? y : y + (h * i / n);
+                    double cw = horizontal ? w / n : w;
+                    double ch = horizontal ? h : h / n;
+
+                    Keys.Add(new KeyLampViewModel
+                    {
+                        LedPositions = new[] { key.Leds[i] },
+                        HpKeyName = key.Name,
+                        LedOrdinal = i + 1,
+                        LedCount = n,
+
+                        // Only the first sub-cell is captioned. A cap split five ways is a few
+                        // pixels wide and five copies of "Space" is unreadable; the tooltip names
+                        // the key and the exact map position for every cell.
+                        Label = i == 0 ? (key.Label ?? ShortName(key.Name)) : string.Empty,
+
+                        X = cx,
+                        Y = cy,
+                        Width = cw,
+                        Height = ch,
+                        ColorHex = BrushColorHex
+                    });
+
+                    ledCells++;
+                }
+            }
+
+            if (ledCells == 0) return false;
+
+            AddLightBarZones(KeySizeMm * PixelsPerMm);
+
+            string verified = layout.Verified
+                ? string.Empty
+                : " This layout has not been confirmed on hardware.";
+
+            Status = $"{ledCells} LEDs across {layout.Keys.Count} keys ({layout.Id})" +
+                     (HasLightBar ? " and 4 light bar zones." : ".") +
+                     " Click to select, or drag a box. Hold Ctrl to add." + verified;
+
+            _logging.Info($"[KeyboardMap] Loaded {ledCells} LED cells from layout {layout.Id} " +
+                          $"({layout.Keys.Count} keys, verified={layout.Verified})" +
+                          (HasLightBar ? ", plus 4 light bar zones" : string.Empty));
+
+            return true;
+        }
+
+        /// <summary>
+        /// Which way a key's LEDs are drawn across its cap.
+        ///
+        /// TWO LEDs ALWAYS STACK. A two-LED key is a dual-legend key - a digit over its shifted
+        /// glyph, an F number over its media icon - and the two legends are printed one above the
+        /// other whatever the cap's aspect ratio says. Esc is 26 x 19, wider than tall, and its two
+        /// LEDs are one under the legend and one below it, so splitting on aspect would draw that
+        /// pair side by side and it would be wrong on the entire top and number rows.
+        ///
+        /// Three or more is a long cap, and those run along it: Space five across, the numpad's
+        /// Plus and Enter four down their tall rectangles.
+        /// </summary>
+        internal static bool SplitsHorizontally(int leds, double width, double height) =>
+            leds > 2 && width >= height;
+
+        /// <summary>
+        /// HP's key name trimmed to something that fits a cap: "KeyBracketsL" is the table's name,
+        /// "[" is what is printed on the keyboard. Built-in layouts ship no labels of their own -
+        /// only the external keyboard does - so this fills that gap rather than showing raw names.
+        /// </summary>
+        internal static string ShortName(string name)
+        {
+            string bare = name.StartsWith("Key", StringComparison.Ordinal) ? name[3..] : name;
+
+            return bare switch
+            {
+                "Back" => "Bsp",
+                "BracketsL" => "[",
+                "BracketsR" => "]",
+                "Backslash" => "\\",
+                "Colon" => ";",
+                "Quote" => "'",
+                "Tilde" => "`",
+                "Comma" => ",",
+                "Dot" => ".",
+                "Slash" => "/",
+                "Hyphen" => "-",
+                "Equal" => "=",
+                "Caps" => "Cap",
+                "Enter" => "Ent",
+                "ShiftL" => "Shift",
+                "ShiftR" => "RShift",
+                "CtrlL" => "Ctrl",
+                "CtrlR" => "RCtrl",
+                "AltL" => "Alt",
+                "AltR" => "RAlt",
+                "ArrUP" => "↑",
+                "ArrDown" => "↓",
+                "ArrLeft" => "←",
+                "ArrRight" => "→",
+                "NumPad" => "Num",
+                "NumSlash" => "Num /",
+                "NumStar" => "Num *",
+                "NumDash" => "Num -",
+                "NumPlus" => "Num +",
+                "NumEnter" => "Num ⏎",
+                "NumDel" => "Num .",
+                "FNL" => "Fn",
+                "Copliot" => "Copilot",   // HP's spelling in the table; the key is Copilot
+                "Setting" => "Set",
+                "Calc" => "Calc",
+                _ => bare
+            };
         }
 
         /// <summary>
@@ -595,8 +781,26 @@ namespace OmenCore.ViewModels
         /// <summary>
         /// Every lamp under this key. Usually one, but a wide key carries several - Space has five
         /// on 8D87 - and colouring the key means colouring all of them.
+        ///
+        /// Empty in layout mode, where <see cref="LedPositions"/> is the address instead.
         /// </summary>
         public IReadOnlyList<ushort> LampIds { get; init; } = Array.Empty<ushort>();
+
+        /// <summary>
+        /// Positions in the MCU's colour map that this cell paints. One entry in layout mode - the
+        /// cell IS one LED, which is the point of it - and empty on the lamp-map fallback.
+        /// </summary>
+        public IReadOnlyList<int> LedPositions { get; init; } = Array.Empty<int>();
+
+        /// <summary>True when this cell addresses the colour map directly rather than a lamp.</summary>
+        public bool IsLed => LedPositions.Count > 0;
+
+        /// <summary>HP's name for the key this LED sits under, e.g. "KeySpace". Layout mode only.</summary>
+        public string HpKeyName { get; init; } = string.Empty;
+
+        /// <summary>Which of the key's LEDs this is, 1-based, and how many the key has.</summary>
+        public int LedOrdinal { get; init; }
+        public int LedCount { get; init; }
 
         public byte KeyUsage { get; init; }
         public string Label { get; init; } = string.Empty;
@@ -630,6 +834,15 @@ namespace OmenCore.ViewModels
             {
                 if (IsLightBar)
                     return $"Light bar zone {ZoneIndex + 1} of 4, left to right";
+
+                if (IsLed)
+                {
+                    // The map position is the useful half of this: it is what the probe's
+                    // --positions takes, so a cell in the editor and a cell on the command line
+                    // are the same thing and can be checked against each other.
+                    string which = LedCount > 1 ? $", LED {LedOrdinal} of {LedCount}" : string.Empty;
+                    return $"{HpKeyName}{which} — colour map position {LedPositions[0]}";
+                }
 
                 string lamps = LampIds.Count == 1
                     ? $"lamp {LampIds[0]}"

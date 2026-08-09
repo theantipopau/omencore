@@ -140,5 +140,49 @@ namespace OmenCoreApp.Tests.ViewModels
             Assert.Single(keys);
             Assert.Equal(5, keys[0].Count);
         }
+
+        // ── Splitting a cap into its LEDs ──────────────────────────────────────────
+        //
+        // The layout-driven editor draws one cell per LED inside the key's own rectangle, so which
+        // way a cap divides decides where the user clicks. Rectangles below are the real ones from
+        // HP's Dojo/Global table.
+
+        [Fact]
+        public void Two_leds_stack_even_on_a_cap_wider_than_it_is_tall()
+        {
+            // Esc is 26 x 19 - wider than tall - and its two LEDs are one under the legend and one
+            // below it. Splitting on aspect ratio would draw them side by side, and that is wrong
+            // for every key on the top and number rows.
+            Assert.False(KeyboardMapViewModel.SplitsHorizontally(2, 26, 19));
+            Assert.False(KeyboardMapViewModel.SplitsHorizontally(2, 25, 25));   // Key1
+        }
+
+        [Fact]
+        public void A_long_cap_divides_along_its_length()
+        {
+            Assert.True(KeyboardMapViewModel.SplitsHorizontally(5, 137, 25));   // Space, five across
+            Assert.True(KeyboardMapViewModel.SplitsHorizontally(7, 52, 25));    // Left Shift
+            Assert.True(KeyboardMapViewModel.SplitsHorizontally(4, 31, 25));    // Tab
+            Assert.True(KeyboardMapViewModel.SplitsHorizontally(3, 49, 25));    // Num 0
+        }
+
+        [Fact]
+        public void A_tall_cap_divides_down_it()
+        {
+            // The numpad's Plus and Enter are 23 x 54, two rows high with four LEDs down them.
+            Assert.False(KeyboardMapViewModel.SplitsHorizontally(4, 23, 54));
+            Assert.False(KeyboardMapViewModel.SplitsHorizontally(4, 23, 55));
+        }
+
+        [Fact]
+        public void Hp_key_names_shorten_to_what_is_printed_on_the_cap()
+        {
+            Assert.Equal("[", KeyboardMapViewModel.ShortName("KeyBracketsL"));
+            Assert.Equal("Space", KeyboardMapViewModel.ShortName("KeySpace"));
+            Assert.Equal("↑", KeyboardMapViewModel.ShortName("KeyArrUP"));
+
+            // HP's table spells it "KeyCopliot". The key is Copilot.
+            Assert.Equal("Copilot", KeyboardMapViewModel.ShortName("KeyCopliot"));
+        }
     }
 }

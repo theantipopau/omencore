@@ -1163,6 +1163,20 @@ namespace OmenCore.Services
             return await _v2Service.SetKeyColorsAsync(keyColors);
         }
 
+        /// <summary>The keyboard's key/LED layout, or null when this board is not in the catalogue.</summary>
+        public KeyboardLighting.KeyboardLayout? GetKeyboardLayout() => _v2Service?.GetKeyboardLayout();
+
+        /// <summary>
+        /// Colour individual LEDs by colour-map position. Finer than <see cref="SetKeyColorsAsync"/>,
+        /// which can only reach whole keys; positions come from the layout's <c>Leds</c>.
+        /// </summary>
+        public async Task<bool> SetLedColorsAsync(IReadOnlyDictionary<int, System.Drawing.Color> ledColors,
+                                                  System.Drawing.Color background)
+        {
+            if (_v2Service == null) return false;
+            return await _v2Service.SetLedColorsAsync(ledColors, background);
+        }
+
         /// <summary>
         /// Per-key brightness: the LampArray intensity applied to subsequent colour writes.
         ///
