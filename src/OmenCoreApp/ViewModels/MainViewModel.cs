@@ -633,7 +633,38 @@ namespace OmenCore.ViewModels
                 var connected = info.PowerRatingKnown ? $"{info.PowerRatingWatts} W" : "an unrecognised";
                 var required = shipping > 0 ? $" This machine shipped with a {shipping} W adapter." : string.Empty;
 
-                return $"The firmware reports {connected} adapter as below this machine's requirement.{required} " +
+                // Attribute the verdict to whoever actually reached it. On a barrel adapter the
+                // firmware says BelowRequirement outright and quoting it is accurate. On USB-C it
+                // says ConnectedTypeC - a description of the supply, not a complaint about it - and
+                // the under-rated judgement comes from HP's rule about the chassis rather than from
+                // the firmware. Saying "the firmware reports it as below requirement" there states
+                // something the firmware did not say, in the one panel a user opens to find out what
+                // the firmware said.
+                string verdict;
+                if (info.Status == HpWmiBios.SmartAdapterStatus.ConnectedTypeC)
+                {
+                    var supply = info.PowerRatingKnown
+                        ? $"This machine is running from a {info.PowerRatingWatts} W USB-C Power Delivery supply. "
+                        : "This machine is running from a USB-C Power Delivery supply of unreported wattage. ";
+
+                    // Two different reasons reach "under-rated" on Type-C, and they are not
+                    // interchangeable. Either the chassis advertises a USB-C design rating and this
+                    // supply came in under it, or it advertises none at all and expects a barrel
+                    // adapter - in which case no USB-C source would satisfy it, whatever it offers.
+                    var reason = info.UsbcDesignRatingWatts > 0
+                        ? $"That is below the {info.UsbcDesignRatingWatts} W this machine's USB-C input is designed for."
+                        : "This chassis expects a barrel adapter and advertises no USB-C design rating, so HP's " +
+                          "own rule treats any USB-C source as below its requirement.";
+
+                    verdict = supply + "The firmware describes it as USB-C rather than calling it " +
+                              $"under-rated. {reason}{required}";
+                }
+                else
+                {
+                    verdict = $"The firmware reports {connected} adapter as below this machine's requirement.{required}";
+                }
+
+                return verdict + " " +
                        "Some HP firmware reduces CPU and GPU power limits in this state, which can look like a fault " +
                        "in OmenCore or in the GPU driver but is the platform protecting an under-rated supply. " +
                        "If performance is lower than expected, check the adapter before anything else.";

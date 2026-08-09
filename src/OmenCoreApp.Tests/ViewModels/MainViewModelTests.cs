@@ -645,5 +645,54 @@ namespace OmenCoreApp.Tests.ViewModels
             StartupRestorePolicy.IsEnabled(config, StartupRestoreCategory.Fans).Should().BeFalse(
                 because: "the broad safety gate remains the master switch");
         }
+
+        // ── The adapter panel's explanation text ──────────────────────────────────────────────
+        //
+        // The panel exists to tell a user what the firmware said about their supply, so the one
+        // thing it must not do is attribute a verdict to the firmware that the firmware did not
+        // reach. Both cases below are real captures from board 8D87.
+
+        private static void SetAdapterInfo(MainViewModel vm, byte[] reply)
+        {
+            var decoded = HpWmiBios.DecodeAdapterData(reply);
+            decoded.Should().NotBeNull(because: "the capture is a valid 4-byte reply");
+
+            typeof(MainViewModel)
+                .GetField("_adapterInfo", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .SetValue(vm, decoded);
+        }
+
+        [Fact]
+        public void PowerAdapterExplanation_Quotes_The_Firmware_On_A_Barrel_Adapter()
+        {
+            using var vm = new MainViewModel();
+            SetAdapterInfo(vm, new byte[] { 0x02, 0xC2, 0x00, 0x38 });   // 280 W, BelowRequirement
+
+            var text = vm.PowerAdapterExplanation;
+
+            text.Should().NotBeNull();
+            text.Should().Contain("280 W");
+            text.Should().Contain("firmware reports",
+                because: "on a barrel adapter the firmware really does say BelowRequirement");
+        }
+
+        [Fact]
+        public void PowerAdapterExplanation_Does_Not_Put_BelowRequirement_In_The_Firmwares_Mouth_On_UsbC()
+        {
+            using var vm = new MainViewModel();
+            SetAdapterInfo(vm, new byte[] { 0x05, 0xC2, 0x00, 0x14 });   // 100 W dock, ConnectedTypeC
+
+            var text = vm.PowerAdapterExplanation;
+
+            // The warning must still appear - HP's rule does call this supply under-rated, and the
+            // GPU really is clamped - so the bug would be fixed just as wrongly by silencing it.
+            text.Should().NotBeNull(because: "the barrel special case makes this supply low-wattage");
+            text.Should().Contain("100 W");
+            text.Should().Contain("USB-C");
+
+            text.Should().NotContain("adapter as below this machine's requirement",
+                because: "the firmware reported ConnectedTypeC, a description of the supply; the " +
+                         "under-rated judgement is HP's rule about the chassis, not the firmware's verdict");
+        }
     }
 }
