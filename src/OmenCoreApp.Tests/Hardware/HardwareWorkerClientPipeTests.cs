@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipes;
 using System.Linq;
 using System.Reflection;
@@ -108,6 +110,92 @@ namespace OmenCoreApp.Tests.Hardware
             {
                 results[i].Should().Be($"ECHO:REQ{i}", "each caller must receive the response to its own request, never another caller's");
             }
+        }
+
+        /// <summary>
+        /// Dispose() used to wrap StopAsync in an un-awaited Task.Run. App.OnExit returns
+        /// straight into process teardown, so that task never got far enough to put SHUTDOWN
+        /// on the pipe: the worker saw its parent vanish, could not tell a deliberate exit
+        /// from a crash, and stayed up polling hardware for the whole orphan timeout.
+        ///
+        /// The assertion is deliberately made with no waiting or polling after Dispose returns —
+        /// that is the whole property under test.
+        /// </summary>
+        [Fact]
+        public async Task Dispose_DeliversShutdown_BeforeReturning()
+        {
+            var (server, clientStream) = await CreateConnectedTestPipeAsync();
+            using var serverDisposable = server;
+
+            var (client, pipeField, _) = CreateClientWithReflectionAccess();
+            pipeField.SetValue(client, clientStream);
+
+            string? received = null;
+            var serverTask = Task.Run(async () =>
+            {
+                var buffer = new byte[256];
+                var bytesRead = await server.ReadAsync(buffer, 0, buffer.Length);
+                received = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+
+                var reply = Encoding.UTF8.GetBytes("OK");
+                await server.WriteAsync(reply, 0, reply.Length);
+                await server.FlushAsync();
+            });
+
+            await Task.Run(() => client.Dispose());
+
+            received.Should().Be("SHUTDOWN",
+                "Dispose must have delivered the shutdown request before returning — a caller that exits the process immediately afterwards gives a fire-and-forget task no chance to run");
+
+            await serverTask;
+        }
+
+        /// <summary>
+        /// The blocking shutdown must stay bounded: a wedged worker that never answers the pipe
+        /// cannot be allowed to hang the app's exit. Failing to stop it is recoverable (the
+        /// worker's own orphan watchdog still applies); an app that will not close is not.
+        /// </summary>
+        [Fact]
+        public async Task Dispose_ReturnsWithinTheBound_WhenTheWorkerNeverAnswers()
+        {
+            var (server, clientStream) = await CreateConnectedTestPipeAsync();
+            using var serverDisposable = server;
+
+            var (client, pipeField, _) = CreateClientWithReflectionAccess();
+            pipeField.SetValue(client, clientStream);
+
+            // Server never reads or replies — the request times out inside SendRequestAsync.
+            var stopwatch = Stopwatch.StartNew();
+            await Task.Run(() => client.Dispose());
+            stopwatch.Stop();
+
+            stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15),
+                "the stop sequence is bounded by BlockingStopTimeoutMs and must not wait on an unresponsive worker indefinitely");
+        }
+
+        /// <summary>
+        /// StopAsync resolves the worker by process name because the client usually did not
+        /// launch it — but only if it ever attached to one. A client that never connected must
+        /// not reach out and terminate whatever OmenCore.HardwareWorker happens to be running,
+        /// which on a developer machine is a live worker belonging to the installed app.
+        /// </summary>
+        [Fact]
+        public async Task StopAsync_DoesNotTouchAnyProcess_WhenTheClientNeverAttached()
+        {
+            var log = new List<string>();
+            var client = new HardwareWorkerClient(log.Add);
+
+            var attached = typeof(HardwareWorkerClient)
+                .GetField("_attachedToWorker", BindingFlags.Instance | BindingFlags.NonPublic);
+            attached.Should().NotBeNull();
+            attached!.GetValue(client).Should().Be(false, "a freshly constructed client has not started or attached to a worker");
+
+            await client.StopAsync();
+
+            log.Should().NotContain(line => line.Contains("terminating", StringComparison.OrdinalIgnoreCase),
+                "an unattached client must never terminate a worker process it does not own");
+            log.Should().NotContain(line => line.Contains("Worker PID", StringComparison.Ordinal),
+                "an unattached client must not even resolve a worker process");
         }
     }
 }
