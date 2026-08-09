@@ -234,6 +234,14 @@ namespace OmenCore.Hardware
 
         // Windows GPU engine counters fallback (self-reliant, no worker dependency)
         private readonly Dictionary<string, PerformanceCounter> _gpuEngineCounters = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Guards <see cref="_gpuEngineCounters"/>. Two threads reach it: the monitoring path, which
+        /// adds and removes counters as GPU engine instances come and go, and Dispose, which runs on
+        /// whatever thread tears the app down. Dispose does not hold <c>_updateGate</c> — it disposes
+        /// it — so the dictionary needs a lock of its own.
+        /// </summary>
+        private readonly object _gpuEngineCounterSync = new();
         private bool _gpuEngineCountersPrimed;
         private DateTime _lastGpuEngineCounterRefreshUtc = DateTime.MinValue;
         private static readonly TimeSpan GpuEngineCounterRefreshInterval = TimeSpan.FromSeconds(20);
@@ -1738,16 +1746,27 @@ namespace OmenCore.Hardware
             try
             {
                 RefreshGpuEngineCountersIfNeeded();
-                if (_gpuEngineCounters.Count == 0)
+
+                // Snapshot rather than enumerate. NextValue() below is a counter read that can take
+                // milliseconds per instance, and holding the lock across all of them would put Dispose
+                // behind a poll it is trying to stop. A counter disposed out from under the snapshot
+                // throws, which the existing catch already turns into a zero reading.
+                KeyValuePair<string, PerformanceCounter>[] counters;
+                lock (_gpuEngineCounterSync)
+                {
+                    counters = _gpuEngineCounters.ToArray();
+                }
+
+                if (counters.Length == 0)
                 {
                     return 0;
                 }
 
                 if (!_gpuEngineCountersPrimed)
                 {
-                    foreach (var counter in _gpuEngineCounters.Values)
+                    foreach (var counter in counters)
                     {
-                        _ = counter.NextValue();
+                        _ = counter.Value.NextValue();
                     }
 
                     _gpuEngineCountersPrimed = true;
@@ -1756,7 +1775,7 @@ namespace OmenCore.Hardware
 
                 double totalLoad = 0;
                 double preferredEnginePeak = 0;
-                foreach (var kvp in _gpuEngineCounters)
+                foreach (var kvp in counters)
                 {
                     var instanceName = kvp.Key;
                     var value = kvp.Value.NextValue();
@@ -1784,9 +1803,14 @@ namespace OmenCore.Hardware
 
         private void RefreshGpuEngineCountersIfNeeded()
         {
-            if (DateTime.UtcNow - _lastGpuEngineCounterRefreshUtc < GpuEngineCounterRefreshInterval && _gpuEngineCounters.Count > 0)
+            if (_disposed) return;
+
+            lock (_gpuEngineCounterSync)
             {
-                return;
+                if (DateTime.UtcNow - _lastGpuEngineCounterRefreshUtc < GpuEngineCounterRefreshInterval && _gpuEngineCounters.Count > 0)
+                {
+                    return;
+                }
             }
 
             var category = new PerformanceCounterCategory("GPU Engine");
@@ -1801,25 +1825,34 @@ namespace OmenCore.Hardware
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var staleInstances = _gpuEngineCounters.Keys.Except(instanceNames, StringComparer.OrdinalIgnoreCase).ToList();
-            foreach (var stale in staleInstances)
+            // Enumerating the category is the slow part and needs no lock; only the mutation does.
+            lock (_gpuEngineCounterSync)
             {
-                _gpuEngineCounters[stale].Dispose();
-                _gpuEngineCounters.Remove(stale);
-            }
+                // Re-checked inside the lock: Dispose may have run while the category was being
+                // enumerated, and repopulating the dictionary afterwards would leak every counter
+                // created here, since nothing disposes it a second time.
+                if (_disposed) return;
 
-            foreach (var instanceName in instanceNames)
-            {
-                if (_gpuEngineCounters.ContainsKey(instanceName))
+                var staleInstances = _gpuEngineCounters.Keys.Except(instanceNames, StringComparer.OrdinalIgnoreCase).ToList();
+                foreach (var stale in staleInstances)
                 {
-                    continue;
+                    _gpuEngineCounters[stale].Dispose();
+                    _gpuEngineCounters.Remove(stale);
                 }
 
-                _gpuEngineCounters[instanceName] = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName, true);
-                _gpuEngineCountersPrimed = false;
-            }
+                foreach (var instanceName in instanceNames)
+                {
+                    if (_gpuEngineCounters.ContainsKey(instanceName))
+                    {
+                        continue;
+                    }
 
-            _lastGpuEngineCounterRefreshUtc = DateTime.UtcNow;
+                    _gpuEngineCounters[instanceName] = new PerformanceCounter("GPU Engine", "Utilization Percentage", instanceName, true);
+                    _gpuEngineCountersPrimed = false;
+                }
+
+                _lastGpuEngineCounterRefreshUtc = DateTime.UtcNow;
+            }
         }
 
         private void TryApplyPowerFallback()
@@ -2580,11 +2613,22 @@ namespace OmenCore.Hardware
             _wmiBios.Dispose();
             _cpuPerfCounter?.Dispose();
             _tempFallbackMonitor?.Dispose();
-            foreach (var counter in _gpuEngineCounters.Values)
+
+            // Taken out of the dictionary under the lock, then disposed outside it. Enumerating the
+            // live collection is what threw: the monitoring path adds and removes counters as GPU
+            // engine instances appear, and it does not stop merely because Dispose has started.
+            PerformanceCounter[] counters;
+            lock (_gpuEngineCounterSync)
             {
-                counter.Dispose();
+                counters = _gpuEngineCounters.Values.ToArray();
+                _gpuEngineCounters.Clear();
             }
-            _gpuEngineCounters.Clear();
+
+            foreach (var counter in counters)
+            {
+                try { counter.Dispose(); }
+                catch (Exception) { /* One counter failing to close must not strand the rest. */ }
+            }
         }
     }
 }
