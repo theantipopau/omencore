@@ -694,5 +694,70 @@ namespace OmenCoreApp.Tests.ViewModels
                 because: "the firmware reported ConnectedTypeC, a description of the supply; the " +
                          "under-rated judgement is HP's rule about the chassis, not the firmware's verdict");
         }
+
+        // ── The limit shown before the restart button ─────────────────────────────────────────
+        //
+        // The restart costs a black screen and every GPU context on the machine, so the panel has to
+        // say whether there is anything to gain before it is pressed. The readings below are the
+        // measured ones from board 8D87: 35 W enforced against an 80 W default while clamped, and
+        // 80 W against 80 W once the driver has restarted without the verdict.
+
+        private static void SetGpuPowerLimits(MainViewModel vm, double? enforced, double? standard)
+        {
+            typeof(MainViewModel)
+                .GetField("_gpuPowerLimits", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .SetValue(vm, new AdapterPowerOverrideService.PowerLimits(enforced, standard));
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Shows_The_Enforced_Limit_Against_The_Cards_Own()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, 80.0);
+
+            vm.HasGpuPowerLimitReading.Should().BeTrue();
+            vm.GpuPowerLimitSummary.Should().Contain("35 W");
+            vm.GpuPowerLimitSummary.Should().Contain("80 W",
+                because: "35 W alone says nothing; the gap to the card's own limit is the evidence");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Names_The_Clamp_Without_Ruling_Out_Another_Tool()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, 80.0);
+
+            var text = vm.GpuPowerLimitAttribution;
+
+            text.Should().Contain("45 W below", because: "the size of the gap is the finding");
+            text.Should().Contain("clamp");
+            text.Should().Contain("Another tool",
+                because: "a third-party power limit looks identical from here, and this panel cannot " +
+                         "tell them apart; claiming the adapter did it would be a diagnosis it has " +
+                         "not earned");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Says_When_There_Is_Nothing_To_Discard()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 80.0, 80.0);
+
+            // The state after a successful restart, and the state on a board that never clamps.
+            // Someone reading this must not be left thinking a restart is still owed to them.
+            vm.GpuPowerLimitAttribution.Should().Contain("no clamp to discard");
+            vm.GpuPowerLimitAttribution.Should().NotContain("below its own limit");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Does_Not_Guess_When_The_Card_Withheld_Its_Default()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, null);
+
+            vm.GpuPowerLimitSummary.Should().Contain("35 W");
+            vm.GpuPowerLimitAttribution.Should().Contain("cannot be told",
+                because: "35 W is only low relative to something, and that something was not reported");
+        }
     }
 }

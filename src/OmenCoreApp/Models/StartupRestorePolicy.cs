@@ -11,6 +11,21 @@ namespace OmenCore.Models
         Tuning
     }
 
+    /// <summary>
+    /// How the previous Windows session ended, as the OS itself records it.
+    /// </summary>
+    public enum LastShutdownState
+    {
+        /// <summary>Could not be determined. Treated as clean - see <see cref="StartupRestorePolicy.MayReapplyTuning"/>.</summary>
+        Unknown,
+
+        /// <summary>The last shutdown completed normally.</summary>
+        Clean,
+
+        /// <summary>The machine went down without shutting down: a bugcheck, a hard power loss, or a hang.</summary>
+        Unclean
+    }
+
     public static class StartupRestorePolicy
     {
         public static bool IsEnabled(AppConfig config, StartupRestoreCategory category)
@@ -57,15 +72,44 @@ namespace OmenCore.Models
         }
 
         /// <summary>
+        /// Whether a confirmed tuning value may reapply itself unattended, given how the last
+        /// Windows session ended.
+        ///
+        /// Confirmation via Test Apply -> Keep is permanent, and that is the gap this closes: an
+        /// overclock proved stable once reapplies on every boot for as long as it stays in the
+        /// config, and nothing reconsiders it afterwards. An overclock is exactly the setting whose
+        /// failure mode is the machine going down without warning, and reapplying it unattended into
+        /// the boot that follows such a crash is how a machine gets into a loop it cannot be talked
+        /// out of. A value that was stable at the wall is a different proposition on battery, and
+        /// the clocks are re-asserted on every RTD3 wake, not once at apply time.
+        ///
+        /// One crash is enough to stop reapplying, and it does not disable the value or forget it -
+        /// it withdraws the *unattended* authorization, so the user re-confirms deliberately.
+        ///
+        /// <see cref="LastShutdownState.Unknown"/> allows. Being unable to read how the last session
+        /// ended is not evidence that it ended badly, and failing closed would silently stop a
+        /// working feature on any machine whose event log this cannot read.
+        /// </summary>
+        public static bool MayReapplyTuning(LastShutdownState lastShutdown) =>
+            lastShutdown != LastShutdownState.Unclean;
+
+        /// <summary>
         /// Explains, in user-facing terms, why a confirmed tuning value (e.g. a GPU OC profile
         /// confirmed via Test Apply -> Keep) will or will not be reapplied at OmenCore startup.
         /// Saving or selecting a value never implies startup authorization on its own.
         /// </summary>
-        public static string DescribeTuningStartupReapplyState(AppConfig config, bool confirmedForStartup, string? model)
+        public static string DescribeTuningStartupReapplyState(
+            AppConfig config, bool confirmedForStartup, string? model,
+            LastShutdownState lastShutdown = LastShutdownState.Unknown)
         {
             if (!confirmedForStartup)
             {
                 return "Not confirmed - use Test Apply, then Keep, to enable startup reapply";
+            }
+
+            if (!MayReapplyTuning(lastShutdown))
+            {
+                return "Blocked - the last session ended in a crash; use Test Apply, then Keep, to re-confirm";
             }
 
             if (!config.EnableStartupHardwareRestore)

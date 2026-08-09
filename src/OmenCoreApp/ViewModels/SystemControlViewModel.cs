@@ -21,6 +21,12 @@ namespace OmenCore.ViewModels
         private readonly GpuSwitchService _gpuSwitchService;
         private readonly LoggingService _logging;
         private readonly ConfigurationService _configService;
+
+        // Read once and cached: how the last session ended cannot change while this one is running,
+        // and the answer gates an unattended overclock reapply that happens seconds after launch.
+        private LastShutdownState? _lastShutdownStateCache;
+        private LastShutdownState _lastShutdownState =>
+            _lastShutdownStateCache ??= new LastShutdownProbe(_logging).Read();
         private readonly HpWmiBios? _wmiBios;
         private readonly OghServiceProxy? _oghProxy;
         private readonly SystemInfoService? _systemInfoService;
@@ -1314,7 +1320,7 @@ namespace OmenCore.ViewModels
                 var config = _configService.Config;
                 var confirmedForStartup = config.GpuOc?.ApplyOnStartup == true;
                 var model = _systemInfoService?.GetSystemInfo().Model;
-                return $"Startup: {StartupRestorePolicy.DescribeTuningStartupReapplyState(config, confirmedForStartup, model)}";
+                return $"Startup: {StartupRestorePolicy.DescribeTuningStartupReapplyState(config, confirmedForStartup, model, _lastShutdownState)}";
             }
         }
 
@@ -4715,6 +4721,20 @@ namespace OmenCore.ViewModels
                     if (!ShouldRunStartupHardwareRestore(StartupRestoreCategory.Tuning))
                     {
                         _logging.Warn("Startup tuning restore is disabled - skipping automatic GPU OC reapply");
+                        return;
+                    }
+
+                    // Confirmation via Test Apply -> Keep is permanent, so without this an overclock
+                    // proved stable once reapplies on every boot forever - including the boot right
+                    // after it took the machine down. The value is kept and the offsets stay in the
+                    // config; what is withdrawn is the authorization to apply them with nobody
+                    // watching, which the user restores by confirming again.
+                    if (!StartupRestorePolicy.MayReapplyTuning(_lastShutdownState))
+                    {
+                        _logging.Warn("Last session ended in a crash - not reapplying the GPU OC automatically. " +
+                                      "The saved offsets are unchanged; use Test Apply, then Keep, to re-confirm.");
+                        GpuOcStatus = "Startup reapply held back - the last session ended in a crash. " +
+                                      "Use Test Apply, then Keep, to re-confirm.";
                         return;
                     }
 

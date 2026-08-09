@@ -33,4 +33,18 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared with the app rather than duplicated: either process polling a sleeping
+         dGPU is enough to keep it awake, so the check has to exist in both. The file is
+         deliberately dependency-free (cfgmgr32 P/Invoke only) so it links cleanly here. -->
+    <Compile Include="..\OmenCoreApp\Hardware\GpuPowerStateProbe.cs"
+             Link="Hardware\GpuPowerStateProbe.cs" />
+
+    <!-- Same reason, one step further: a restarting dGPU invalidates the NVML handle this
+         process caches, and calling through it kills the process outright. Both pollers have
+         to stand down, so both need to see the same flag. -->
+    <Compile Include="..\OmenCoreApp\Hardware\GpuRestartGate.cs"
+             Link="Hardware\GpuRestartGate.cs" />
+  </ItemGroup>
+
 </Project>

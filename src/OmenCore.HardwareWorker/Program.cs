@@ -28,6 +28,7 @@ class Program
     private const string MutexName = "Global\\OmenCore_HardwareWorker_Mutex";
     
     private static Computer? _computer;
+    private static OmenCore.Hardware.GpuPowerStateProbe? _gpuSleepProbe;
     private static readonly object _lock = new();
     private static HardwareSample _lastSample = new();
     private static bool _running = true;
@@ -214,29 +215,43 @@ class Program
     }
 
     /// <summary>
-    /// Watchdog that exits the worker if no client connects for configured timeout after parent dies.
-    /// Prevents orphaned worker processes from running indefinitely.
+    /// Exits the worker once no client has talked to it for the configured timeout.
+    ///
+    /// The timeout turns on client silence alone, and deliberately not on whether the parent looks
+    /// alive. <see cref="_parentAlive"/> is a guess: it is cleared only by
+    /// <see cref="MonitorParentProcess"/> noticing an exit, and that can miss - the PID can be reused
+    /// by an unrelated long-lived process, or the parent can still be running while hung before it
+    /// ever connects. Either way the flag stays true, and gating the exit on it meant a worker with
+    /// no client ran unbounded.
+    ///
+    /// It is not a hypothetical. On 2026-08-08 a worker outlived its parent by 22 minutes that way,
+    /// polling the discrete GPU twice a second on battery and waking it out of D3 each time, until
+    /// the video watchdog timed out and took the machine down with a 0x116.
+    ///
+    /// Client silence is the signal that actually answers "is anyone using this": a live OmenCore
+    /// polls on its monitoring interval, a second by default, so a five-minute silence is three
+    /// hundred missed polls rather than a slow client.
     /// </summary>
     private static async Task OrphanWatchdog()
     {
         while (_running)
         {
             await Task.Delay(30_000); // Check every 30 seconds
-            
+
             // Skip timeout check if disabled
             if (!_orphanTimeoutEnabled) continue;
-            
-            // Only enforce timeout if parent is dead
-            if (_parentAlive) continue;
-            
+
             var timeSinceActivity = DateTime.Now - _lastClientActivity;
             var timeoutMs = _orphanTimeoutMinutes * 60 * 1000;
             if (timeSinceActivity.TotalMilliseconds > timeoutMs)
             {
+                // Whether the parent still looks alive is worth recording rather than acting on: a
+                // worker exiting here while _parentAlive is true is the case that used to run forever.
                 Console.WriteLine($"No client activity for {timeSinceActivity.TotalMinutes:F1} minutes. Exiting orphaned worker.");
-                LogToFile($"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");
+                LogToFile($"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min " +
+                          $"(parent PID {_parentProcessId} {(_parentAlive ? "still looks alive" : "gone")}). Worker exiting.\n");
                 _running = false;
-                
+
                 try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
                 Environment.Exit(0);
             }
@@ -498,6 +513,20 @@ class Program
                     continue;
                 }
 
+                // A diagnostic line is not worth waking a parked dGPU for. This runs from
+                // InitializeHardware, so once every time the worker starts - and the worker is
+                // started by the app, restarted after a resume, and respawned when it is orphaned.
+                // The update loop was taught to leave a D3 dGPU alone; this path was still pulling
+                // it back to D0 behind it.
+                // Renamed by the NVML quiesce: the same question now has a second reason to answer
+                // yes, and a re-open triggered by a restart must not read the card either.
+                if (ShouldSkipNvidiaGpu(hw))
+                {
+                    LogToFile($"[{DateTime.Now:O}] [GPU Detected] NVIDIA: {hw.Name} — parked or restarting, sensors not read\n");
+                    Console.WriteLine($"[GPU Detected] NVIDIA: {hw.Name} (parked or restarting, sensors not read)");
+                    continue;
+                }
+
                 hw.Update();
                 var tempSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Temperature).ToList();
                 var loadSensors = hw.Sensors.Where(s => s.SensorType == SensorType.Load).ToList();
@@ -579,8 +608,11 @@ class Program
     {
         var idleSeconds = (DateTime.Now - _lastClientActivity).TotalSeconds;
 
-        // Orphaned worker with no active client can poll slower to avoid wasting CPU.
-        if (!_parentAlive && idleSeconds >= 30)
+        // A worker nobody has spoken to in half a minute can poll slower, whatever the parent's
+        // state. This used to require _parentAlive to be false as well, which meant a worker whose
+        // parent-liveness guess was stuck kept polling at the full rate with no client to serve -
+        // and the polling is what wakes a parked dGPU. See OrphanWatchdog for how that ended.
+        if (idleSeconds >= 30)
         {
             return OrphanIdleUpdateIntervalMs;
         }
@@ -594,8 +626,88 @@ class Program
         return UpdateIntervalMs;
     }
 
+    /// <summary>
+    /// True when the discrete NVIDIA GPU must be left alone this pass — either because it is parked
+    /// in D3 and reading it is what would wake it, or because something is restarting it and the
+    /// NVML handle we hold no longer points at a device.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately free of side effects. It is called from LogDetectedHardware, which runs inside
+    /// InitializeHardware - which is what the reopen calls. A version that set the stale flag would
+    /// re-arm the reopen from inside the reopen.
+    /// </remarks>
+    private static bool ShouldSkipNvidiaGpu(IHardware hardware)
+    {
+        if (hardware.HardwareType != HardwareType.GpuNvidia) return false;
+
+        if (OmenCore.Hardware.GpuRestartGate.IsRestarting) return true;
+
+        _gpuSleepProbe ??= new OmenCore.Hardware.GpuPowerStateProbe(
+            msg => LogToFile($"[{DateTime.Now:O}] {msg}\n"));
+        return _gpuSleepProbe.IsAsleep();
+    }
+
+    /// <summary>
+    /// Set while a GPU restart is in flight, cleared by reopening the <c>Computer</c> once it is over.
+    /// Skipping the device during the restart keeps this process alive; it does not make the cached
+    /// NVML handle valid again, and the next call through it would fault exactly as it would have
+    /// during the restart.
+    /// </summary>
+    private static bool _gpuHandlesStale;
+
+    // Logged once per process. Slot starvation should not happen with two pollers and sixteen slots,
+    // so it is worth saying; saying it on every poll would bury the fact it reports.
+    private static bool _nvmlSlotStarvationLogged;
+
+    private static void ReopenAfterGpuRestartIfNeeded()
+    {
+        if (!_gpuHandlesStale || OmenCore.Hardware.GpuRestartGate.IsRestarting) return;
+        _gpuHandlesStale = false;
+
+        LogToFile($"[{DateTime.Now:O}] dGPU was restarted — reopening LibreHardwareMonitor so NVML re-enumerates it\n");
+
+        try
+        {
+            _computer?.Close();
+        }
+        catch (Exception ex)
+        {
+            LogToFile($"[{DateTime.Now:O}] Close before NVML re-enumeration failed: {ex.Message}\n");
+        }
+
+        try
+        {
+            InitializeHardware();
+        }
+        catch (Exception ex)
+        {
+            LogToFile($"[{DateTime.Now:O}] Reopen after GPU restart failed: {ex.Message}\n");
+        }
+    }
+
+    /// <summary>
+    /// A sleeping dGPU draws no meaningful power and has no die temperature to report. The
+    /// sample is seeded from the previous cycle, so without this the last values measured
+    /// before it slept would be served indefinitely as though they were current.
+    /// </summary>
+    private static void ZeroGpuTelemetry(HardwareSample sample)
+    {
+        sample.GpuTemperature = 0;
+        sample.GpuHotspot = 0;
+        sample.GpuLoad = 0;
+        sample.GpuPower = 0;
+        sample.GpuClock = 0;
+        sample.GpuMemoryClock = 0;
+        sample.GpuVoltage = 0;
+        sample.GpuCurrent = 0;
+        sample.VramUsage = 0;
+    }
+
     private static void UpdateHardwareReadings()
     {
+        // Before anything is read, not after: this is what makes the handle valid again.
+        ReopenAfterGpuRestartIfNeeded();
+
         if (_computer == null) return;
 
         PruneErrorLogCacheIfNeeded();
@@ -648,10 +760,61 @@ class Program
                         continue;
                     }
 
+                    if (ShouldSkipNvidiaGpu(hardware))
+                    {
+                        // Leave a parked dGPU parked. LHM reaches it through NVML, which wakes
+                        // the device to answer, so this poll loop would hold it in D0 forever.
+                        // The same skip covers a dGPU being restarted, where the NVML handle is
+                        // stale and calling through it takes the process down.
+                        if (hardware.HardwareType == HardwareType.GpuNvidia &&
+                            OmenCore.Hardware.GpuRestartGate.IsRestarting)
+                        {
+                            // The only place the flag is raised. Recording it here rather than in the
+                            // predicate keeps the predicate callable from inside the reopen it causes.
+                            _gpuHandlesStale = true;
+                        }
+
+                        ZeroGpuTelemetry(sample);
+                        continue;
+                    }
+
+                    // For the NVIDIA GPU, hold a slot in the in-flight semaphore across Update().
+                    // The skip above stops a call being started once a restart is announced; this is
+                    // what makes the restarter wait for a call already running. Only the pair of them
+                    // is a guarantee - see GpuRestartGate.
+                    IDisposable? nvmlLease = null;
+                    if (hardware.HardwareType == HardwareType.GpuNvidia)
+                    {
+                        var access = OmenCore.Hardware.GpuRestartGate.TryEnterNvml(out nvmlLease);
+
+                        if (access == OmenCore.Hardware.NvmlAccess.DeviceRestarting)
+                        {
+                            _gpuHandlesStale = true;
+                            ZeroGpuTelemetry(sample);
+                            continue;
+                        }
+
+                        if (access != OmenCore.Hardware.NvmlAccess.Granted)
+                        {
+                            // Every slot taken. Skip this pass only: the handle is still valid, and
+                            // re-enumerating on the strength of a contended semaphore would wake a
+                            // dGPU that is asleep - permanently, if a slot has been leaked.
+                            if (!_nvmlSlotStarvationLogged)
+                            {
+                                _nvmlSlotStarvationLogged = true;
+                                LogToFile($"[{DateTime.Now:O}] No NVML slot available — skipping GPU updates. " +
+                                          "If this persists, a process died holding one.\n");
+                            }
+
+                            ZeroGpuTelemetry(sample);
+                            continue;
+                        }
+                    }
+
                     // CRITICAL: Isolate each hardware device update in its own try-catch
                     // If storage drives go to sleep, their SafeFileHandle gets disposed,
                     // but we must not let that crash CPU/GPU monitoring
-                    
+
                     // First, try to update the hardware device itself
                     try
                     {
@@ -669,7 +832,15 @@ class Program
                         // Storage SafeFileHandle disposed - skip this device
                         continue;
                     }
-                    
+                    finally
+                    {
+                        // Released the moment Update() returns rather than at the end of the device's
+                        // processing: everything after this reads sensor values off the last update
+                        // and does not re-enter NVML, so holding the slot longer would only make the
+                        // restarter wait for work that cannot fault.
+                        nvmlLease?.Dispose();
+                    }
+
                     // Process the hardware data (CPU, GPU, RAM, etc.)
                     ProcessHardware(hardware, sample);
                     ProcessFanSensors(hardware.Sensors, sample);
@@ -1352,13 +1523,22 @@ class Program
                 Console.WriteLine("Waiting for client connection...");
                 await server.WaitForConnectionAsync();
                 Console.WriteLine("Client connected.");
-                _lastClientActivity = DateTime.Now;
-                
+
+                // To the file, not just the console, because the console goes nowhere. Whether a
+                // client ever connected is the question that separates "the app is using this
+                // worker" from "this worker is running for nobody", and on 2026-08-08 it was the
+                // question the logs could not answer.
+                var connectedAt = DateTime.Now;
+                LogToFile($"[{connectedAt:O}] Client connected (parent PID {_parentProcessId}).\n");
+                _lastClientActivity = connectedAt;
+
                 await HandleClient(server);
-                
+
                 // Client disconnected — update activity timestamp
                 // so orphan watchdog starts counting from NOW, not from last request
                 _lastClientActivity = DateTime.Now;
+                LogToFile($"[{DateTime.Now:O}] Client session ended after " +
+                          $"{(DateTime.Now - connectedAt).TotalSeconds:F0}s. Waiting for next connection.\n");
                 Console.WriteLine("Client session ended. Waiting for next connection...");
             }
             catch (Exception ex)
