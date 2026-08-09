@@ -1182,6 +1182,87 @@ namespace OmenCore.ViewModels
             }
         }
 
+        // ── Noticing when the clamp comes back ───────────────────────────────────────────────────
+        //
+        // The GPU clamp returns when the firmware tells the driver about the adapter again, and
+        // there is no event for that on this side - the first sign is the enforced limit dropping.
+        // So this watches for it, and only announces.
+        //
+        // It can watch at all because of an asymmetry worth stating: reading the limit costs a wake
+        // on a parked GPU and costs nothing on an awake one. So this reads only when the card is
+        // already awake, which the PnP power state answers for free. A parked GPU is never touched,
+        // never woken, and never watched - and that is not a gap, because a clamp on a GPU nobody is
+        // using is not costing anyone anything yet.
+        //
+        // It does not restart the device. Being able to see the clamp requires the GPU to be awake,
+        // which means something is using it, which is the exact circumstance in which pulling it out
+        // from under them would be wrong.
+
+        private System.Threading.Timer? _gpuClampWatchTimer;
+        private const string GpuClampWatchTimerName = "GpuClampWatch";
+
+        // Only a transition is worth announcing. Starting up already clamped is the ordinary state
+        // this panel exists to explain, not news; the notification is for the clamp coming back
+        // after it had been dropped, which is the case nothing else would tell you about.
+        private bool _gpuClampSeenLifted;
+
+        private static readonly TimeSpan GpuClampWatchInterval = TimeSpan.FromSeconds(60);
+
+        private void EnsureGpuClampWatch()
+        {
+            if (_gpuClampWatchTimer != null) return;
+
+            _gpuClampWatchTimer = new System.Threading.Timer(_ => PollGpuClampState(), null,
+                                                             GpuClampWatchInterval, GpuClampWatchInterval);
+
+            BackgroundTimerRegistry.Register(
+                GpuClampWatchTimerName,
+                nameof(MainViewModel),
+                "Watches for the adapter's GPU power clamp returning. Reads nothing while the dGPU " +
+                "is parked, so it cannot hold the card out of RTD3.",
+                (int)GpuClampWatchInterval.TotalMilliseconds,
+                BackgroundTimerTier.Optional);
+        }
+
+        private void PollGpuClampState()
+        {
+            try
+            {
+                if (!CanOfferAdapterOverride) return;
+
+                // Free, and answered from the PnP manager's bookkeeping rather than by asking the
+                // device. This is the line that keeps the whole watcher honest.
+                if (_adapterOverrideService.DiscreteGpuIsParked()) return;
+
+                // Also free, because something else already has the card awake.
+                var limits = _adapterOverrideService.ReadPowerLimitsWatts();
+                if (limits.EnforcedWatts is not double enforced) return;
+
+                _gpuPowerLimits = limits;
+                _gpuPowerLimitReadAt = DateTime.Now;
+                _gpuPowerLimitUnanswered = false;
+                OnGpuPowerLimitChanged();
+
+                if (!limits.EnforcedIsBelowDefault)
+                {
+                    _gpuClampSeenLifted = true;
+                    return;
+                }
+
+                if (_gpuClampSeenLifted && limits.DefaultWatts is double standard)
+                {
+                    _gpuClampSeenLifted = false;
+                    _logging.Info($"Adapter GPU clamp returned: enforced {enforced:F2} W against a " +
+                                  $"{standard:F2} W default. Not restarting the GPU - something is using it.");
+                    _notificationService.ShowAdapterClampReturned(enforced, standard);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"GPU clamp watch failed: {ex.Message}");
+            }
+        }
+
         // ── Lifting it without being asked each time ─────────────────────────────────────────────
         //
         // A clamp that has to be dismissed by hand every boot is a clamp that is on most of the
@@ -1391,6 +1472,10 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(HasAdapterOverrideBlockedReason));
             _applyAdapterOverrideCommand?.RaiseCanExecuteChanged();
             OnGpuPowerLimitChanged();
+
+            // Started once the panel has something to watch, rather than at construction: on a
+            // machine with an adequate supply there is no clamp and nothing to notice.
+            if (CanOfferAdapterOverride) EnsureGpuClampWatch();
 
             OnPropertyChanged(nameof(CanOfferApuClampLift));
             OnPropertyChanged(nameof(ApuClampTargetWatts));
@@ -5836,8 +5921,12 @@ namespace OmenCore.ViewModels
             _performanceModeService.ModeApplied -= OnPerformanceModeApplied;
             _fanService.Dispose();
 
+            _gpuClampWatchTimer?.Dispose();
+            _gpuClampWatchTimer = null;
+            BackgroundTimerRegistry.Unregister(GpuClampWatchTimerName);
+
             // Before the undervolt service, which owns the SMU transport this writes through.
-            // Releasing stops the re-assert timer; it does not put the clamp back.
+            // Releasing stops OmenCore putting the limits back; it does not restore the clamp.
             _apuClampService?.Dispose();
             _undervoltService.Dispose();
             _hardwareMonitoringService.SampleUpdated -= HardwareMonitoringServiceOnSampleUpdated;
