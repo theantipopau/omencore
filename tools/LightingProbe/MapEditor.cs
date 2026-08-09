@@ -34,9 +34,15 @@ internal static class MapEditor
         var keyboard = new KeyboardLightingService(logging, wmiBios: bios);
         var vm = new KeyboardMapViewModel(keyboard, logging);
 
+        var layout = keyboard.GetKeyboardLayout();
+
         Console.WriteLine($"  IsPerKey            : {keyboard.IsPerKey}");
         Console.WriteLine($"  SupportsDeviceEffects: {keyboard.SupportsDeviceEffects}");
         Console.WriteLine($"  GetMeasuredKeyMap   : {keyboard.GetMeasuredKeyMap().Count} lamps");
+        Console.WriteLine($"  GetKeyboardLayout   : " + (layout == null
+            ? "none - this board is not in the catalogue"
+            : $"{layout.Id}, {layout.Keys.Count} keys, {layout.Leds} LEDs" +
+              (layout.Verified ? " (confirmed on hardware)" : " (NOT confirmed on hardware)")));
         Console.WriteLine($"  available           : {vm.IsAvailable}");
 
         if (!vm.IsAvailable)
@@ -48,8 +54,17 @@ internal static class MapEditor
         }
 
         int barZones = vm.Keys.Count(k => k.IsLightBar);
-        Console.WriteLine($"  keys      : {vm.Keys.Count - barZones} " +
-                          $"(from {keyboard.GetMeasuredKeyMap().Count} lamps)");
+        var cells = vm.Keys.Where(k => !k.IsLightBar).ToList();
+
+        // Which enumeration the editor drew from. They are not interchangeable: the layout has one
+        // cell per LED, the lamp map one per lamp, and there are 176 of the first against 120 of the
+        // second on this board. Every count below means a different thing depending on this line.
+        bool byLed = cells.Count > 0 && cells[0].IsLed;
+
+        Console.WriteLine($"  drawn from: {(byLed ? "the layout table, one cell per LED" : "the lamp map, one cell per lamp")}");
+        Console.WriteLine($"  cells     : {cells.Count} " + (byLed
+            ? $"(the layout declares {layout?.Leds} LEDs)"
+            : $"(from {keyboard.GetMeasuredKeyMap().Count} lamps)"));
         Console.WriteLine($"  light bar : {(vm.HasLightBar ? "present" : "not available")}, " +
                           $"{barZones} zones in the map");
 
@@ -71,21 +86,22 @@ internal static class MapEditor
 
         // The grouping is the fix for the crushed modifier column, so show the widest keys: if
         // Space is five separate keys rather than one, it is visible right here.
-        Console.WriteLine("\n  widest keys (multi-lamp keys should be the wide ones):");
-        foreach (var key in vm.Keys.Where(k => !k.IsLightBar).OrderByDescending(k => k.Width).Take(8))
+        Console.WriteLine(byLed
+            ? "\n  widest cells (a wide cap's LEDs, so these should be single-LED slices):"
+            : "\n  widest keys (multi-lamp keys should be the wide ones):");
+        foreach (var key in cells.OrderByDescending(k => k.Width).Take(8))
         {
-            Console.WriteLine($"    {key.Label,-6} {key.LampIds.Count} lamp(s), " +
-                              $"{key.Width:F0} wide at ({key.X:F0}, {key.Y:F0})");
+            Console.WriteLine($"    {Describe(key),-28} {key.Width:F0} wide at ({key.X:F0}, {key.Y:F0})");
         }
 
         // The left three columns were crushed because filler lamps - usage 0x03, ~9 mm from their
         // neighbour, one per left-hand row - were drawn at a full key width and overlapped three
         // deep. Check no key now overlaps the next one in its row.
-        Console.WriteLine("\n  left-edge keys, first three rows (filler lamps should be slivers):");
-        foreach (var key in vm.Keys.Where(k => k.X < 90).OrderBy(k => k.Y).ThenBy(k => k.X).Take(10))
+        Console.WriteLine("\n  left-edge cells, first three rows (filler lamps should be slivers):");
+        foreach (var key in cells.Where(k => k.X < 90).OrderBy(k => k.Y).ThenBy(k => k.X).Take(10))
         {
-            Console.WriteLine($"    {key.Label,-6} x {key.X,5:F0} .. {key.X + key.Width,5:F0}  " +
-                              $"({key.Width,4:F0} wide, {key.LampIds.Count} lamp)");
+            Console.WriteLine($"    {Describe(key),-28} x {key.X,5:F0} .. {key.X + key.Width,5:F0}  " +
+                              $"({key.Width,4:F0} wide)");
         }
 
         int overlaps = 0;
@@ -112,17 +128,47 @@ internal static class MapEditor
 
         // Rows must share a Y after snapping, or the keyboard looks wobbly. The bar sits on its own
         // Y below the keys and is not a keyboard row, so it is excluded from the count.
-        var rows = vm.Keys.Where(k => !k.IsLightBar)
-                          .Select(k => Math.Round(k.Y)).Distinct().OrderBy(y => y).ToList();
+        var rows = cells.Select(k => Math.Round(k.Y)).Distinct().OrderBy(y => y).ToList();
         Console.WriteLine($"\n  rows      : {rows.Count} distinct Y values ({string.Join(", ", rows)})");
-        Console.WriteLine(rows.Count is >= 5 and <= 8
-            ? "              plausible for a 6-row laptop keyboard with a numpad"
-            : "              SUSPICIOUS - snapping may not be working");
+
+        if (byLed)
+        {
+            // A cap divides into its LEDs, and a vertical division puts a cell at a Y no key row
+            // sits at. So distinct Ys outnumber rows here BY DESIGN, and the 5-to-8 check that
+            // guards the lamp path would fail on a correct build. Coverage is the check that means
+            // something in this mode - see below.
+            Console.WriteLine("              more than one per row, as expected - a stacked cap puts "
+                              + "its second LED on its own Y");
+        }
+        else
+        {
+            Console.WriteLine(rows.Count is >= 5 and <= 8
+                ? "              plausible for a 6-row laptop keyboard with a numpad"
+                : "              SUSPICIOUS - snapping may not be working");
+        }
+
+        // The check the layout path exists for: every byte of the colour map is reachable from the
+        // editor, and no two cells claim the same one. A duplicate is the bug that made half of
+        // Num0 inert - two cells resolving to one LED, the second silently overwriting the first.
+        if (byLed && layout != null)
+        {
+            var positions = cells.SelectMany(k => k.LedPositions).ToList();
+            var duplicated = positions.GroupBy(p => p).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            var missing = Enumerable.Range(0, layout.Leds).Except(positions).ToList();
+
+            Console.WriteLine($"\n  coverage  : {positions.Distinct().Count()} of {layout.Leds} "
+                              + $"colour-map positions, {duplicated.Count} claimed twice");
+            Console.WriteLine(duplicated.Count == 0 && missing.Count == 0
+                ? "              every LED addressable exactly once"
+                : $"              GAPS OR COLLISIONS - missing [{string.Join(", ", missing.Take(12))}], "
+                  + $"duplicated [{string.Join(", ", duplicated.Take(12))}]");
+        }
 
         // Every key starts at the brush colour, not black. A black default means the first Apply
-        // blanks whatever the user did not paint.
-        int black = vm.Keys.Count(k => k.ColorHex is "#000000" or "000000");
-        Console.WriteLine($"\n  initial   : {vm.Keys.Count - black} keys at the brush colour, {black} black");
+        // blanks whatever the user did not paint. Bar zones are excluded: those read their colour
+        // back off the hardware, so a dark one is the bar being dark, not a bad default.
+        int black = cells.Count(k => k.ColorHex is "#000000" or "000000");
+        Console.WriteLine($"\n  initial   : {cells.Count - black} keys at the brush colour, {black} black");
         Console.WriteLine(black == 0
             ? "              good - a first Apply will not blank the keyboard"
             : "              WARNING - those keys would go dark on the first Apply");
@@ -173,4 +219,16 @@ internal static class MapEditor
 
         return 0;
     }
+
+    /// <summary>
+    /// Name a cell the way its tooltip does, so probe output and the window agree.
+    ///
+    /// The two modes address different things and printing one shape for both is what made this
+    /// harness report "0 lamp" against a correct layout-driven build: the cells were right, the
+    /// field being printed was simply not the one they carry.
+    /// </summary>
+    private static string Describe(OmenCore.ViewModels.KeyLampViewModel key) =>
+        key.IsLed
+            ? $"{key.HpKeyName} LED {key.LedOrdinal}/{key.LedCount} @{key.LedPositions[0]}"
+            : $"{key.Label} ({key.LampIds.Count} lamp{(key.LampIds.Count == 1 ? "" : "s")})";
 }

@@ -231,6 +231,41 @@ namespace OmenCore.Services
         }
 
         /// <summary>
+        /// The adapter's GPU power clamp has come back after being dropped.
+        ///
+        /// Announces rather than acts. Dropping the clamp again means restarting the display
+        /// device, which destroys every graphics and compute context on it - and the only way this
+        /// can be noticed at all is by reading a GPU that is awake, which means something is using
+        /// it. Taking that away from whoever is using it, because a number changed, is not a
+        /// decision to make on their behalf.
+        /// </summary>
+        public void ShowAdapterClampReturned(double enforcedWatts, double defaultWatts)
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                new ToastContentBuilder()
+                    .AddText("GPU power clamp is back")
+                    .AddText($"The GPU is limited to {enforcedWatts:F0} W again, of its own {defaultWatts:F0} W.")
+                    .AddText("Restart the GPU from Diagnostics when nothing needs it.")
+                    .SetToastDuration(ToastDuration.Long)
+                    .Show();
+
+                AddWarning("GPU power clamp is back",
+                    $"Limited to {enforcedWatts:F0} W of {defaultWatts:F0} W. The firmware told the " +
+                    "driver about the adapter again - restarting the GPU drops it.");
+
+                _logging.Info($"Notification: adapter GPU clamp returned - enforced {enforcedWatts:F2} W " +
+                              $"against a {defaultWatts:F2} W default");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Show a critical temperature notification (throttling imminent)
         /// </summary>
         public void ShowCriticalTemperature(string component, double temperature)

@@ -19,8 +19,10 @@ namespace OmenCore.Hardware
     ///          twelve effects OMEN Gaming Hub offers are one frame each, rendered device-side with
     ///          no host involvement. Has a real state readback.
     ///
-    /// So "per-key RGB" splits cleanly: a static picture goes to mi_04, a running effect goes here.
-    /// A caller that sends an effect and then paints lamps is fighting itself.
+    /// The MCU also owns the STATIC COLOUR MAP via commands 0x05/0x06/0x07 - the same path OGH
+    /// uses. A colour set this way is held by the MCU and survives the Fn overlay, because the
+    /// MCU can redraw its own picture. The LampArray (mi_04) path requires host ownership, and
+    /// a picture set that way is lost after Fn because the MCU has no base layer to restore.
     ///
     /// PROTOCOL PROVENANCE. Derived from OMEN Gaming Hub 1101.2607.3.0 - McuSDK2.dll's
     /// <c>GeneralCommandHelper</c> and <c>StarmadeKbLightingEffectCommandHelper</c> - and confirmed
@@ -94,8 +96,20 @@ namespace OmenCore.Hardware
         private const byte CmdStoreLightingToFlash = 0x0A;
         private const byte CmdSetBrightness = 0x0C;
         private const byte CmdSetLightingEffect = 0x03;
+        private const byte CmdSetKeyR = 0x05;
+        private const byte CmdSetKeyG = 0x06;
+        private const byte CmdSetKeyB = 0x07;
         private const byte CmdRestoreDefault = 0x10;
         private const byte CmdGetLightingEffect = 0x83;
+
+        // OGH's key map on 8D87 is 176 entries, matching HP's own layout resource: the pre-26C1
+        // DojoKBKeysGlobalData.json declares 180 and SetNullBytes zeroes 176-179 as padding. Every
+        // position below that is a real LED - 8D87 is cycle 25C1, so the cycle > 260 row that would
+        // blank 137, 138 and 146 does not apply, and lighting those positions confirms they are
+        // KeyDot and the last cell of KeyShiftR. Three pages per channel, BLength declared as 0 on
+        // all nine pages while each carries PayloadCapacity colour bytes.
+        public const int ColorMapLength = 176;
+        private const int ColorPages = 3;
 
         /// <summary>LightingEffectTarget.ALL_LED_AREA - the only target a keyboard has.</summary>
         private const byte TargetAllLedArea = 0x00;
@@ -437,13 +451,87 @@ namespace OmenCore.Hardware
         public bool RestoreFirmwareDefaults() =>
             Send(CmdRestoreDefault, RestoreIndex, RestoreMagic);
 
+        /// <summary>
+        /// Set every key to one colour via the MCU's own static colour map (commands 0x05/0x06/0x07).
+        ///
+        /// This is the path OGH uses for per-key colour: command 0x09 with payload 0x01 switches
+        /// to the static display mode, then three channels of colour pages fill the 176-entry map.
+        /// The MCU holds the map and redraws it after the Fn overlay — which is the property the
+        /// LampArray path does not have, and the reason this method exists.
+        ///
+        /// Volatile until <see cref="StoreToFlash"/>.
+        /// </summary>
+        public bool SetStaticColor(byte r, byte g, byte b)
+        {
+            var rc = new byte[ColorMapLength];
+            var gc = new byte[ColorMapLength];
+            var bc = new byte[ColorMapLength];
+            Array.Fill(rc, r);
+            Array.Fill(gc, g);
+            Array.Fill(bc, b);
+
+            return SetStaticColorMap(rc, gc, bc);
+        }
+
+        /// <summary>
+        /// Set every key INDIVIDUALLY via the same static colour map, one entry per LED position.
+        ///
+        /// This is the only way a per-key picture survives the Fn overlay. The MCU redraws its base
+        /// layer from its own state when Fn is released, and this map is that state; a picture
+        /// painted onto the mi_04 LampArray is not, so the display stays on the overlay frame
+        /// indefinitely. Anything that wants a picture to STAY belongs here rather than there.
+        ///
+        /// Each channel is indexed by LED position and must be <see cref="ColorMapLength"/> long.
+        /// Every position is live on this board, so a colour reaches all of them.
+        ///
+        /// Volatile until <see cref="StoreToFlash"/>.
+        /// </summary>
+        public bool SetStaticColorMap(ReadOnlySpan<byte> r, ReadOnlySpan<byte> g, ReadOnlySpan<byte> b)
+        {
+            if (r.Length != ColorMapLength || g.Length != ColorMapLength || b.Length != ColorMapLength)
+                throw new ArgumentException(
+                    $"Each channel must be {ColorMapLength} entries, one per LED position; " +
+                    $"got {r.Length}/{g.Length}/{b.Length}.");
+
+            // Command 0x09 with payload 0x01 selects the static display mode. OGH sends it ahead of
+            // every colour round and so does this - without it the colour pages land in a map the
+            // effect engine is not displaying.
+            if (!Send(CmdSetLightingOnOff, 0, new byte[] { 0x01 })) return false;
+
+            return SendColorPages(CmdSetKeyR, r)
+                && SendColorPages(CmdSetKeyG, g)
+                && SendColorPages(CmdSetKeyB, b);
+        }
+
+        private bool SendColorPages(byte command, ReadOnlySpan<byte> channel)
+        {
+            for (byte page = 0; page < ColorPages; page++)
+            {
+                int from = page * PayloadCapacity;
+                int fill = Math.Min(PayloadCapacity, ColorMapLength - from);
+
+                // The payload is always the full 60 bytes even on the last page, where only 56 of
+                // them are map entries - HP's page 2 carries 56 colour bytes and four zeros. BLength
+                // is declared 0 on all nine pages, which is what the capture shows on the wire.
+                var payload = new byte[PayloadCapacity];
+                for (int i = 0; i < fill; i++)
+                    payload[i] = channel[from + i];
+
+                if (!Send(command, page, 0, payload)) return false;
+            }
+            return true;
+        }
+
         // ── Wire ───────────────────────────────────────────────────────────────────
 
         /// <summary>Write a frame and require an <c>EC AC</c> reply. False covers refused,
         /// unanswered and failed-to-write alike; the caller cannot act differently on those.</summary>
-        private bool Send(byte command, byte index, byte[] payload)
+        private bool Send(byte command, byte index, byte[] payload) =>
+            Send(command, index, payload.Length, payload);
+
+        private bool Send(byte command, byte index, int bLength, byte[] payload)
         {
-            if (!Write(command, index, payload.Length, payload)) return false;
+            if (!Write(command, index, bLength, payload)) return false;
 
             byte[]? reply = Read();
             if (reply == null || reply.Length < PayloadAt + 2) return false;

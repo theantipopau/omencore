@@ -17,17 +17,20 @@ namespace OmenCore.Services.KeyboardLighting
     /// else entirely. Both are kept: they serve different hardware, and neither is a fallback for
     /// the other.
     ///
-    /// TWO INTERFACES, TWO JOBS, and using the wrong one is the main way to get lost here:
+    /// TWO INTERFACES, and routing colour to the right one is the main way to get lost here:
     ///
-    ///   mi_04, <see cref="HidLampArray"/>     STATIC colour, addressed per key. One report lands
-    ///                                         and persists with no host process running.
-    ///   mi_03, <see cref="DojoKeyboardMcu"/>  the device's own ANIMATION ENGINE. Twelve effects,
-    ///                                         one frame each, rendered without the host.
+    ///   mi_03, <see cref="DojoKeyboardMcu"/>  the MCU's own protocol. STATIC COLOUR MAP (commands
+    ///                                         0x05/0x06/0x07, 176-entry key map) and the twelve
+    ///                                         device ANIMATIONS (command 0x03). The MCU holds the
+    ///                                         map, draws it, and restores it after the Fn overlay.
+    ///   mi_04, <see cref="HidLampArray"/>     HID LampArray, per-key addressed by lamp id. Used
+    ///                                         for the per-key editor's individual key painting.
+    ///                                         Requires host ownership, which means the MCU stops
+    ///                                         drawing — and cannot restore after Fn.
     ///
-    /// So a static picture and a running effect are mutually exclusive states of the same keyboard,
-    /// and switching between them means handing ownership over: taking host control of the lamps
-    /// for a picture, giving it back for an effect. Painting lamps while an effect runs produces a
-    /// fight the device wins.
+    /// Uniform and zone colour go through mi_03, so the MCU owns the picture and the Fn key works.
+    /// Per-key painting (the editor) goes through mi_04 for individual addressing, with an mi_03
+    /// base layer as a fallback the MCU can restore to after Fn.
     ///
     /// Effects can be read back off the MCU and are checked here. Colours cannot - the LampArray
     /// spec has no colour readback - so "did that key turn red" has no software answer, and the
@@ -44,6 +47,14 @@ namespace OmenCore.Services.KeyboardLighting
         private HidLampArray? _lamps;
         private IReadOnlyList<HidLampArray.LampInfo> _lampMap = Array.Empty<HidLampArray.LampInfo>();
         private ushort[] _lampZone = Array.Empty<ushort>();
+
+        /// <summary>Which keyboard this is, and so which LED bytes make up each key. Null when the
+        /// board is not in the catalogue, which costs per-key Fn survival and nothing else.</summary>
+        private KeyboardLayout? _layout;
+
+        /// <summary>lamp id -> the mi_03 colour map positions that light the same key, resolved
+        /// through the lamp's HID usage. Empty when <see cref="_layout"/> is null.</summary>
+        private Dictionary<ushort, int[]> _lampToLeds = new();
 
         private Color[] _lastZoneColors = Enumerable.Repeat(Color.Black, ZoneCountConst).ToArray();
         private byte _brightness = 255;
@@ -135,32 +146,49 @@ namespace OmenCore.Services.KeyboardLighting
 
             try
             {
-                if (_lamps == null)
-                {
-                    result.FailureReason = "No LampArray interface; static colour needs mi_04";
-                    return Task.FromResult(result);
-                }
-
                 var normalized = Normalize(zoneColors);
-                TakeHostControl();
-
-                // A uniform picture is one range report instead of fifteen chained multi-updates.
-                // Worth the special case for more than speed: the range report is the primitive
-                // this device is measured on, so when a uniform fill lands and a four-colour one
-                // does not, the difference is the batching rather than the colour path.
                 bool uniform = normalized.All(c => c.ToArgb() == normalized[0].ToArgb());
 
-                if (uniform && _lampMap.Count > 0)
+                if (uniform && _mcu != null)
                 {
+                    // MI_03: the MCU holds the colour map and redraws after the Fn overlay.
+                    // No host control needed — the device is autonomous and draws its own picture.
+                    ReleaseHostControlIfHeld();
+                    var c = normalized[0];
+                    result.BackendReportedSuccess = _mcu.SetStaticColor(c.R, c.G, c.B);
+                    _logging.Info($"[DojoPerKey] Uniform fill via mi_03: " +
+                                  $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
+                }
+                else if (uniform && _lamps != null && _lampMap.Count > 0)
+                {
+                    TakeHostControl();
                     var c = normalized[0];
                     ushort first = _lampMap.Min(l => l.LampId);
                     ushort last = _lampMap.Max(l => l.LampId);
                     result.BackendReportedSuccess = _lamps.SetRange(first, last, c.R, c.G, c.B, _brightness);
-                    _logging.Info($"[DojoPerKey] Uniform fill over lamps {first}-{last}: " +
+                    _logging.Info($"[DojoPerKey] Uniform fill over lamps {first}-{last} (mi_04 fallback): " +
                                   $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
                 }
-                else
+                else if (_mcu != null && _lampToLeds.Count > 0)
                 {
+                    // Mixed zones through the mi_03 map, so the bands survive the Fn overlay.
+                    // Painting mi_04 instead needs host control, and host control is exactly what
+                    // stops the MCU redrawing - the zones would vanish on the first Fn press.
+                    var perLamp = new Dictionary<ushort, Color>(_lampMap.Count);
+                    for (int i = 0; i < _lampMap.Count; i++)
+                        perLamp[_lampMap[i].LampId] = normalized[_lampZone[i]];
+
+                    result.BackendReportedSuccess = SetKeyColors(perLamp);
+                    _logging.Info($"[DojoPerKey] {ZoneCountConst} zones over the mi_03 colour map: " +
+                                  $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
+                }
+                else if (_lamps != null && _lampMap.Count > 0)
+                {
+                    // No layout for this board, so lamp ids cannot become colour-map positions.
+                    // Uniform mi_03 base as the Fn fallback, per-zone picture on mi_04 above it.
+                    _mcu?.SetStaticColor(normalized[0].R, normalized[0].G, normalized[0].B);
+                    TakeHostControl();
+
                     var lamps = new List<HidLampArray.LampColor>(_lampMap.Count);
                     for (int i = 0; i < _lampMap.Count; i++)
                     {
@@ -171,13 +199,19 @@ namespace OmenCore.Services.KeyboardLighting
                     result.BackendReportedSuccess = _lamps.SetLamps(lamps);
                     _logging.Info($"[DojoPerKey] {lamps.Count} lamps in " +
                                   $"{(lamps.Count + HidLampArray.MaxLampsPerUpdate - 1) / HidLampArray.MaxLampsPerUpdate} " +
-                                  $"batches: {(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
+                                  $"batches (no layout; will NOT survive Fn): " +
+                                  $"{(result.BackendReportedSuccess ? "accepted" : "REFUSED")}");
+                }
+                else
+                {
+                    result.FailureReason = "No interface available for static colour";
+                    return Task.FromResult(result);
                 }
 
                 if (result.BackendReportedSuccess)
                     _lastZoneColors = normalized;
                 else
-                    result.FailureReason = "The device refused one or more lamp update reports";
+                    result.FailureReason = "The device refused one or more colour writes";
             }
             catch (Exception ex)
             {
@@ -360,11 +394,47 @@ namespace OmenCore.Services.KeyboardLighting
         /// Colour individual keys, addressed by lamp id. Ids come from <see cref="GetKeyMap"/>;
         /// each carries the HID usage of the key it sits under.
         ///
+        /// Goes to mi_03 as a full per-key colour map whenever the layout is known, because that
+        /// map is the MCU's own state and is what it redraws from when the Fn overlay clears. The
+        /// picture then survives Fn with no host involvement at all.
+        ///
+        /// The earlier version painted mi_04 and took host control, which suppressed the mi_03 map
+        /// it had just written; pressing Fn left the keyboard on the overlay frame until something
+        /// repainted it. Host control and a durable picture are mutually exclusive on this device —
+        /// taking it is what stops the MCU drawing. So this path must not take it.
+        ///
+        /// mi_04 is the fallback for an unknown board only, where there is no way to turn a lamp id
+        /// into a colour-map position. That path cannot survive Fn, and says so.
+        ///
         /// Accepted, not verified - there is no colour readback to check it against.
         /// </summary>
         public bool SetKeyColors(IReadOnlyDictionary<ushort, Color> keyColors)
         {
-            if (_lamps == null || keyColors.Count == 0) return false;
+            if (keyColors.Count == 0) return false;
+
+            if (_mcu != null && _lampToLeds.Count > 0 && _layout != null)
+            {
+                // Every LED of a key takes the key's colour. Callers wanting the legends of a
+                // dual-legend key coloured separately address the positions with SetLedColors.
+                var leds = new Dictionary<int, Color>(keyColors.Count * 2);
+                int placed = 0;
+                foreach (var (lampId, color) in keyColors)
+                {
+                    if (!_lampToLeds.TryGetValue(lampId, out var positions)) continue;
+                    foreach (int position in positions) leds[position] = color;
+                    placed++;
+                }
+
+                bool mapped = SetLedColors(leds, MostCommonColor(keyColors.Values));
+                _logging.Info($"[DojoPerKey] {placed} of {keyColors.Count} keys into the mi_03 colour map " +
+                              $"({_layout.Id}): {(mapped ? "accepted" : "REFUSED")}");
+                if (mapped) return true;
+
+                _logging.Warn("[DojoPerKey] mi_03 colour map refused; falling back to mi_04, which " +
+                              "will not survive the Fn overlay.");
+            }
+
+            if (_lamps == null) return false;
 
             TakeHostControl();
 
@@ -373,9 +443,70 @@ namespace OmenCore.Services.KeyboardLighting
                 .ToList();
 
             bool ok = _lamps.SetLamps(lamps);
-            _logging.Info($"[DojoPerKey] {lamps.Count} lamps at intensity {_brightness}: " +
-                          $"{(ok ? "accepted" : "REFUSED")}");
+            _logging.Info($"[DojoPerKey] {lamps.Count} lamps at intensity {_brightness} over mi_04 " +
+                          $"(no layout for this board; will NOT survive Fn): {(ok ? "accepted" : "REFUSED")}");
             return ok;
+        }
+
+        /// <summary>
+        /// The detected keyboard, or null when the board is unknown. A UI enumerating keys to
+        /// colour reads it from here — each <see cref="KeyboardKey"/> carries the colour-map
+        /// positions that light it, which is what <see cref="SetLedColors"/> takes.
+        /// </summary>
+        public KeyboardLayout? Layout => _layout;
+
+        /// <summary>
+        /// Colour INDIVIDUAL LEDs, addressed by colour-map position rather than by key.
+        ///
+        /// A key is not one LED. Dual-legend keys have two, Space has five, backspace six, and the
+        /// map is per-LED natively — so the legends of one key can take different colours, which
+        /// is what the keyboard already does for the Fn overlay. <see cref="KeyboardKey.Leds"/>
+        /// lists the positions of a key, in the order HP's table declares them.
+        ///
+        /// WHICH LED IS WHICH ON THE KEY IS NOT KNOWN FROM DATA. The layout tables give every LED
+        /// of a key the key's own rectangle, so the order is a byte order and not a geometry, and
+        /// it is not consistent between rows: on Esc position 0 is the LED under the legend and 1
+        /// is below it, while on the number row the digit takes the lower position and the shifted
+        /// glyph the higher. A UI that labels them should say "LED 1 of 2", not "top" and "bottom",
+        /// unless someone has looked at that key on that keyboard.
+        ///
+        /// <paramref name="background"/> fills every position the caller did not name, so a partial
+        /// update does not black out the rest of the keyboard.
+        ///
+        /// Goes to mi_03 without taking host control, so the picture survives the Fn overlay.
+        /// Accepted, not verified — there is no colour readback on this device.
+        /// </summary>
+        public bool SetLedColors(IReadOnlyDictionary<int, Color> ledColors, Color background)
+        {
+            if (_mcu == null) return false;
+
+            var r = new byte[DojoKeyboardMcu.ColorMapLength];
+            var g = new byte[DojoKeyboardMcu.ColorMapLength];
+            var b = new byte[DojoKeyboardMcu.ColorMapLength];
+            Array.Fill(r, background.R);
+            Array.Fill(g, background.G);
+            Array.Fill(b, background.B);
+
+            foreach (var (position, color) in ledColors)
+            {
+                if (position < 0 || position >= DojoKeyboardMcu.ColorMapLength) continue;
+                r[position] = color.R;
+                g[position] = color.G;
+                b[position] = color.B;
+            }
+
+            // The MCU only draws its own map while it owns the display, so release first. Taking
+            // host control here is what broke the Fn overlay: it suppresses the map being written.
+            ReleaseHostControlIfHeld();
+            return _mcu.SetStaticColorMap(r, g, b);
+        }
+
+        private static Color MostCommonColor(IEnumerable<Color> colors)
+        {
+            return colors
+                .GroupBy(c => c.ToArgb())
+                .OrderByDescending(g => g.Count())
+                .First().First();
         }
 
         /// <summary>
@@ -594,7 +725,58 @@ namespace OmenCore.Services.KeyboardLighting
 
             _lampMap = byId.Values.ToList();
             _lampZone = AssignZones(_lampMap);
+            BuildKeyBridge();
         }
+
+        /// <summary>
+        /// Work out which keyboard this is, then map each lamp to the colour-map positions that
+        /// light the same key.
+        ///
+        /// Detection is by board id, which also fixes the firmware cycle — the same model ships on
+        /// both sides of a cycle boundary with different LED maps, so the model name alone is not
+        /// enough. An unknown board leaves the bridge empty rather than guessing: the wrong layout
+        /// lights the wrong keys and looks like a working feature.
+        /// </summary>
+        private void BuildKeyBridge()
+        {
+            var catalog = KeyboardLayoutCatalog.Instance;
+            string board = OmenBoard.Product;
+
+            _layout = SelectedLayoutId != null ? catalog.ById(SelectedLayoutId) : catalog.ForBoard(board);
+            _lampToLeds = new Dictionary<ushort, int[]>();
+
+            if (_layout == null)
+            {
+                _logging.Warn($"[DojoPerKey] Board '{board}' is not in the keyboard layout catalogue. " +
+                              "Per-key colour will not survive the Fn overlay until a layout is " +
+                              "chosen manually.");
+                return;
+            }
+
+            int unmapped = 0;
+            foreach (var lamp in _lampMap)
+            {
+                string? keyName = HidUsageKeyNames.Name(lamp.KeyUsage);
+                var key = keyName == null ? null : _layout.ByName(keyName);
+                if (key == null) { unmapped++; continue; }
+
+                _lampToLeds[lamp.LampId] = key.Leds;
+            }
+
+            _logging.Info($"[DojoPerKey] Layout {_layout.Id} ({_layout.Leds} LEDs, {_layout.Keys.Count} keys" +
+                          $"{(_layout.Verified ? "" : ", UNVERIFIED on this hardware")}) for board '{board}'; " +
+                          $"{_lampToLeds.Count} of {_lampMap.Count} lamps bridged to colour-map positions" +
+                          $"{(unmapped > 0 ? $", {unmapped} without a usable HID usage (vendor keys)" : "")}.");
+        }
+
+        /// <summary>
+        /// Force a layout instead of detecting one, for a board the catalogue does not know or gets
+        /// wrong. Null returns to detection. Takes effect on the next connect.
+        ///
+        /// Only Dojo/Global has been confirmed on hardware; everything else in the catalogue is
+        /// derived and unverified, which is the reason this override exists at all.
+        /// </summary>
+        public static string? SelectedLayoutId { get; set; }
 
         /// <summary>
         /// Zone each lamp by where it physically sits, left to right.
@@ -637,6 +819,14 @@ namespace OmenCore.Services.KeyboardLighting
             _hostOwnsLamps = true;
         }
 
+        private void ReleaseHostControlIfHeld()
+        {
+            if (!_hostOwnsLamps || _lamps == null) return;
+
+            _lamps.SetAutonomousMode(true);
+            _hostOwnsLamps = false;
+        }
+
         private RgbApplyResult NewResult() => new() { Method = Method, SupportsVerification = false };
 
         private static Color[] Normalize(Color[] zoneColors)
@@ -652,15 +842,17 @@ namespace OmenCore.Services.KeyboardLighting
             if (_disposed) return;
             _disposed = true;
 
-            // DO NOT hand the lamps back here. A static picture's whole value is that it survives
-            // the process that painted it - one report lands and holds with nothing maintaining it.
-            // Restoring autonomous mode on the way out gives the keyboard back to its own effect
-            // engine, which repaints all 120 keys within a frame and erases the picture before
-            // anyone can look at it. Measured: --zones over a running Wave appeared to do nothing
-            // at all, because this line ran microseconds after the colours landed.
+            // Hand the lamps back so the MCU can draw its own lighting. Without this, the keyboard
+            // stays in host-control mode permanently — it outlives the process, survives a reboot
+            // (the internal USB bus stays powered), and the MCU cannot restore its picture after the
+            // Fn overlay or any other device-side redraw. That is the root cause of the reported
+            // Fn-key bug: the overlay goes up, and nothing comes back.
             //
-            // Callers that really do want the device animating again say so with
-            // ReleaseToDeviceEffects, or install an effect, which hands ownership over on purpose.
+            // With static colour routed through mi_03, the MCU holds the picture and draws it
+            // autonomously, so releasing here does not erase anything — it lets the MCU resume
+            // drawing what it already has.
+            ReleaseHostControlIfHeld();
+
             _lamps?.Dispose();
             _mcu?.Dispose();
             _lamps = null;

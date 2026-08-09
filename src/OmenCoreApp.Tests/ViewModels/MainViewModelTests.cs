@@ -645,5 +645,119 @@ namespace OmenCoreApp.Tests.ViewModels
             StartupRestorePolicy.IsEnabled(config, StartupRestoreCategory.Fans).Should().BeFalse(
                 because: "the broad safety gate remains the master switch");
         }
+
+        // ── The adapter panel's explanation text ──────────────────────────────────────────────
+        //
+        // The panel exists to tell a user what the firmware said about their supply, so the one
+        // thing it must not do is attribute a verdict to the firmware that the firmware did not
+        // reach. Both cases below are real captures from board 8D87.
+
+        private static void SetAdapterInfo(MainViewModel vm, byte[] reply)
+        {
+            var decoded = HpWmiBios.DecodeAdapterData(reply);
+            decoded.Should().NotBeNull(because: "the capture is a valid 4-byte reply");
+
+            typeof(MainViewModel)
+                .GetField("_adapterInfo", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .SetValue(vm, decoded);
+        }
+
+        [Fact]
+        public void PowerAdapterExplanation_Quotes_The_Firmware_On_A_Barrel_Adapter()
+        {
+            using var vm = new MainViewModel();
+            SetAdapterInfo(vm, new byte[] { 0x02, 0xC2, 0x00, 0x38 });   // 280 W, BelowRequirement
+
+            var text = vm.PowerAdapterExplanation;
+
+            text.Should().NotBeNull();
+            text.Should().Contain("280 W");
+            text.Should().Contain("firmware reports",
+                because: "on a barrel adapter the firmware really does say BelowRequirement");
+        }
+
+        [Fact]
+        public void PowerAdapterExplanation_Does_Not_Put_BelowRequirement_In_The_Firmwares_Mouth_On_UsbC()
+        {
+            using var vm = new MainViewModel();
+            SetAdapterInfo(vm, new byte[] { 0x05, 0xC2, 0x00, 0x14 });   // 100 W dock, ConnectedTypeC
+
+            var text = vm.PowerAdapterExplanation;
+
+            // The warning must still appear - HP's rule does call this supply under-rated, and the
+            // GPU really is clamped - so the bug would be fixed just as wrongly by silencing it.
+            text.Should().NotBeNull(because: "the barrel special case makes this supply low-wattage");
+            text.Should().Contain("100 W");
+            text.Should().Contain("USB-C");
+
+            text.Should().NotContain("adapter as below this machine's requirement",
+                because: "the firmware reported ConnectedTypeC, a description of the supply; the " +
+                         "under-rated judgement is HP's rule about the chassis, not the firmware's verdict");
+        }
+
+        // ── The limit shown before the restart button ─────────────────────────────────────────
+        //
+        // The restart costs a black screen and every GPU context on the machine, so the panel has to
+        // say whether there is anything to gain before it is pressed. The readings below are the
+        // measured ones from board 8D87: 35 W enforced against an 80 W default while clamped, and
+        // 80 W against 80 W once the driver has restarted without the verdict.
+
+        private static void SetGpuPowerLimits(MainViewModel vm, double? enforced, double? standard)
+        {
+            typeof(MainViewModel)
+                .GetField("_gpuPowerLimits", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .SetValue(vm, new AdapterPowerOverrideService.PowerLimits(enforced, standard));
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Shows_The_Enforced_Limit_Against_The_Cards_Own()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, 80.0);
+
+            vm.HasGpuPowerLimitReading.Should().BeTrue();
+            vm.GpuPowerLimitSummary.Should().Contain("35 W");
+            vm.GpuPowerLimitSummary.Should().Contain("80 W",
+                because: "35 W alone says nothing; the gap to the card's own limit is the evidence");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Names_The_Clamp_Without_Ruling_Out_Another_Tool()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, 80.0);
+
+            var text = vm.GpuPowerLimitAttribution;
+
+            text.Should().Contain("45 W below", because: "the size of the gap is the finding");
+            text.Should().Contain("clamp");
+            text.Should().Contain("Another tool",
+                because: "a third-party power limit looks identical from here, and this panel cannot " +
+                         "tell them apart; claiming the adapter did it would be a diagnosis it has " +
+                         "not earned");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Says_When_There_Is_Nothing_To_Discard()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 80.0, 80.0);
+
+            // The state after a successful restart, and the state on a board that never clamps.
+            // Someone reading this must not be left thinking a restart is still owed to them.
+            vm.GpuPowerLimitAttribution.Should().Contain("no clamp to discard");
+            vm.GpuPowerLimitAttribution.Should().NotContain("below its own limit");
+        }
+
+        [Fact]
+        public void GpuPowerLimit_Does_Not_Guess_When_The_Card_Withheld_Its_Default()
+        {
+            using var vm = new MainViewModel();
+            SetGpuPowerLimits(vm, 35.0, null);
+
+            vm.GpuPowerLimitSummary.Should().Contain("35 W");
+            vm.GpuPowerLimitAttribution.Should().Contain("cannot be told",
+                because: "35 W is only low relative to something, and that something was not reported");
+        }
     }
 }

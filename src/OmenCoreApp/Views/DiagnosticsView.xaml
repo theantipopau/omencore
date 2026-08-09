@@ -113,6 +113,100 @@
                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </Border>
 
+                    <!-- The override. Offered only on an under-rated supply, because on one that meets
+                         the requirement there is no clamp to discard and this would cost a black
+                         screen for nothing. Confirmation lives in the click handler, not here. -->
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding CanOfferAdapterOverride, Converter={StaticResource BoolToVisibility}}">
+                        <Separator Margin="0,0,0,10"/>
+
+                        <!-- The reading goes above the button, not below it: the point is to answer
+                             "is anything actually clamped here" before someone pays a black screen
+                             to find out. -->
+                        <TextBlock Text="Current GPU power limit" FontSize="11"
+                                   Foreground="{StaticResource TextTertiaryBrush}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitSummary}" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Visibility="{Binding HasGpuPowerLimitReading, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitAttribution}" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasGpuPowerLimitAttribution, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding GpuPowerLimitPrompt}" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasGpuPowerLimitPrompt, Converter={StaticResource BoolToVisibility}}"/>
+                        <Button Content="{Binding CheckGpuPowerLimitLabel}"
+                                Command="{Binding CheckGpuPowerLimitCommand}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <Separator Margin="0,12,0,10"/>
+
+                        <TextBlock Text="Drop the adapter power clamp" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="The firmware tells the GPU driver about the adapter once, when it evaluates it, and the driver has no way to ask. A driver that has just started has not been told, so restarting the device clears the clamp - and only another notification puts it back. Changing supply does that, and so does a reboot."/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="The same supply clamps the CPU by a different route: three of the four AMD SMU power limits pinned low, which no device restart touches. Those are written directly, and put back after a resume or a change of supply - the events that take them away."/>
+                        <TextBlock Text="{Binding AdapterOverrideScope}" TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Visibility="{Binding HasAdapterOverrideScope, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource WarningBrush}"
+                                   Text="Your screens will go black for a few seconds and anything using the GPU will lose it. Do not do this with a game or a render running."/>
+
+                        <Button Content="Drop the clamp"
+                                Click="ApplyAdapterOverride_Click"
+                                IsEnabled="{Binding CanApplyAdapterOverride}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,10,0,0"
+                                HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="{Binding ApuClampStatus}" FontSize="11" Margin="0,8,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasApuClampStatus, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <Button Content="Stop holding the CPU limits"
+                                Command="{Binding ReleaseApuClampCommand}"
+                                Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding IsApuClampHeld, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <!-- Doing it without being asked every boot. Both off by default; the GPU one
+                             carries its condition in the label, because that condition is the only
+                             reason it can be automatic at all. -->
+                        <Separator Margin="0,12,0,10"/>
+
+                        <TextBlock Text="Do this on its own" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                        <CheckBox IsChecked="{Binding AutoLiftCpuLimits}" Margin="0,8,0,0"
+                                  Content="Keep the CPU power limits raised"
+                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="Applied at startup, after a resume, and when the supply changes - the events that take these limits away. Nothing is written in between, and nothing is taken away from anything that is running."/>
+
+                        <CheckBox IsChecked="{Binding AutoLiftGpuWhenParked}" Margin="0,10,0,0"
+                                  Content="Restart the GPU to drop its clamp - but only while it is asleep"
+                                  Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Margin="22,2,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="Only when the driver has parked the GPU and the display is running on the integrated one, so there is nothing to interrupt and no screen to black out. If it is awake when the moment comes, it is left alone and you are told - use the button above instead."/>
+
+                        <TextBlock Text="{Binding AutoClampLiftStatus}" FontSize="11" Margin="0,10,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAutoClampLiftStatus, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <TextBlock Text="{Binding AdapterOverrideBlockedReason}" FontSize="11" Margin="0,6,0,0"
+                                   Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAdapterOverrideBlockedReason, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <TextBlock Text="{Binding AdapterOverrideStatus}" FontSize="11" Margin="0,8,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasAdapterOverrideStatus, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+
                     <TextBlock Text="Read from the BIOS each time this tab is opened. This is the machine's own view of the supply attached to it, not a measurement."
                                FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
                 </StackPanel>

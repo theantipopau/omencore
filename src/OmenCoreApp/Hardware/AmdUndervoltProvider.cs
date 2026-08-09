@@ -317,27 +317,86 @@ namespace OmenCore.Hardware
         }
 
         /// <summary>
+        /// Lowest SMU power limit this provider will ask for, in milliwatts. Below roughly this
+        /// the part cannot hold its own idle floor and the limit stops being meaningful.
+        /// </summary>
+        internal const uint MinPowerLimitMw = 15_000;
+
+        /// <summary>
+        /// Highest SMU power limit this provider will ask for on this silicon, in milliwatts.
+        /// See <see cref="RyzenControl.GetMaxPowerLimitMw()"/> for what this bound is and is not.
+        /// </summary>
+        public uint MaxPowerLimitMw => RyzenControl.GetMaxPowerLimitMw(_cpuInfo.Family);
+
+        /// <summary>Lowest limit this provider will ask for, in milliwatts.</summary>
+        public uint MinPowerLimitWattsFloor => MinPowerLimitMw / 1000;
+
+        private uint ClampPowerLimit(uint valueMw) =>
+            Math.Clamp(valueMw, MinPowerLimitMw, MaxPowerLimitMw);
+
+        // SMU message IDs for the power limits, taken verbatim from RyzenAdj's lib/api.c rather
+        // than inferred. Named so the citation sits next to the value and a test can pin them:
+        // a silently changed message ID is the kind of thing that returns Ok and does nothing.
+        internal const uint Mp1SetStapmLimit = 0x14;   // set_stapm_limit
+        internal const uint PsmuSetStapmLimit = 0x31;  // set_stapm_limit, fallback on MP1 error
+        internal const uint Mp1SetFastLimit = 0x15;    // set_fast_limit
+        internal const uint Mp1SetSlowLimit = 0x16;    // set_slow_limit
+        internal const uint Mp1SetApuSlowLimit = 0x23; // set_apu_slow_limit
+
+        /// <summary>
+        /// Whether this CPU family has confirmed message IDs for the fast and slow power limits.
+        /// Only families whose IDs are taken verbatim from RyzenAdj's lib/api.c are listed; the
+        /// rest return <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> rather than have a
+        /// plausible-looking ID guessed for them. Raven, Picasso and Dali use a different scheme.
+        /// </summary>
+        internal static bool FamilySupportsPptLimits(RyzenFamily family) => family switch
+        {
+            RyzenFamily.RenoirLucienne => true,
+            RyzenFamily.VanGogh => true,
+            RyzenFamily.CezanneBarcelo => true,
+            RyzenFamily.Rembrandt => true,
+            RyzenFamily.Phoenix => true,
+            RyzenFamily.Mendocino => true,
+            RyzenFamily.HawkPoint => true,
+            RyzenFamily.StrixPoint => true,
+            RyzenFamily.StrixHalo => true,
+            _ => false
+        };
+
+        /// <summary>
+        /// Whether this CPU family exposes the separate APU slow (PPT LIMIT APU) domain.
+        /// RyzenAdj's set_apu_slow_limit omits Renoir, Lucienne, Cezanne, Van Gogh and
+        /// Mendocino, so this is a narrower list than <see cref="FamilySupportsPptLimits"/>.
+        /// </summary>
+        internal static bool FamilySupportsApuSlowLimit(RyzenFamily family) => family switch
+        {
+            RyzenFamily.Rembrandt => true,
+            RyzenFamily.Phoenix => true,
+            RyzenFamily.HawkPoint => true,
+            RyzenFamily.StrixPoint => true,
+            RyzenFamily.StrixHalo => true,
+            _ => false
+        };
+
+        private bool SupportsPptLimits => FamilySupportsPptLimits(_cpuInfo.Family);
+
+        private bool SupportsApuSlowLimit => FamilySupportsApuSlowLimit(_cpuInfo.Family);
+
+        /// <summary>
         /// Set STAPM (sustained power) limit in mW.
         ///
-        /// Restricted to <see cref="RyzenFamily.StrixPoint"/>. The transport fix that made this
-        /// method's SMU writes actually reach the silicon (previously the module never loaded,
-        /// so every call here was a guaranteed no-op regardless of family) also newly activates
-        /// it for every other family with a configured mailbox address below - eleven of them,
-        /// none with field evidence. Unlike Curve Optimizer (undervolt only, self-limiting,
-        /// clamped +-30 and the thing this transport fix was explicitly about), this is a power
-        /// LIMIT increase - the same class of write this project already treats as needing
-        /// field validation before shipping (see PowerLimitController/SupportsEcPowerLimits).
-        /// Remove this gate only once a specific family has been measured, the way Strix Point
-        /// was.
+        /// Was gated to <see cref="RyzenFamily.StrixPoint"/> only earlier this cycle, since the
+        /// transport fix that made this method's SMU writes actually reach the silicon (previously
+        /// the module never loaded, so every call here was a guaranteed no-op) also newly activated
+        /// it for every other family with a configured mailbox address below, with zero field
+        /// evidence beyond Strix Point at the time. That gate was lifted once the adapter-clamp-lift
+        /// feature (<see cref="ApuPowerClampService"/>) needed the other families and the project
+        /// owner accepted the broader-family risk on that basis - see
+        /// <see cref="ClampPowerLimit(uint)"/> for the per-family bound this now clamps to.
         /// </summary>
         public RyzenSmu.SmuStatus SetStapmLimit(uint valueMw)
         {
-            if (_cpuInfo.Family != RyzenFamily.StrixPoint)
-            {
-                return RyzenSmu.SmuStatus.Failed;
-            }
-
-            valueMw = Math.Clamp(valueMw, 15_000u, 54_000u);
+            valueMw = ClampPowerLimit(valueMw);
 
             uint[] args = new uint[6];
             args[0] = valueMw;
@@ -359,13 +418,154 @@ namespace OmenCore.Hardware
                 case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
                 case RyzenFamily.StrixPoint:
-                    result = _smu.SendMp1(0x14, ref args);
-                    if (result == RyzenSmu.SmuStatus.Ok)
-                        result = _smu.SendPsmu(0x31, ref args);
+                    // PSMU 0x31 is a fallback for when MP1 0x14 is rejected, not a second half
+                    // that also has to succeed. RyzenAdj's set_stapm_limit sends MP1 0x14 and
+                    // only retries on PSMU when that errors ("Retry with PSMU" in lib/api.c).
+                    //
+                    // Chaining them on success instead meant the PSMU status became the return
+                    // value, so a STAPM limit that MP1 had already accepted was reported as
+                    // failed whenever the PSMU mailbox declined the same message - and the
+                    // caller then surfaced an error for a write that did land.
+                    result = SendWithPsmuFallback(Mp1SetStapmLimit, PsmuSetStapmLimit, valueMw);
                     break;
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Send an SMU message on MP1, falling back to the PSMU mailbox only if MP1 rejects it.
+        ///
+        /// Each mailbox gets its own argument buffer: <see cref="RyzenSmu.SendMp1"/> takes its
+        /// arguments by reference and overwrites them with the SMU's response, so reusing one
+        /// buffer would send the first call's reply as the second call's payload.
+        /// </summary>
+        private RyzenSmu.SmuStatus SendWithPsmuFallback(uint mp1Message, uint psmuMessage, uint value)
+        {
+            uint[] mp1Args = new uint[6];
+            mp1Args[0] = value;
+
+            var result = _smu.SendMp1(mp1Message, ref mp1Args);
+            if (result == RyzenSmu.SmuStatus.Ok)
+            {
+                return result;
+            }
+
+            uint[] psmuArgs = new uint[6];
+            psmuArgs[0] = value;
+
+            var fallback = _smu.SendPsmu(psmuMessage, ref psmuArgs);
+            return fallback == RyzenSmu.SmuStatus.Ok ? fallback : result;
+        }
+
+        private RyzenSmu.SmuStatus SendMp1(uint message, uint value)
+        {
+            uint[] args = new uint[6];
+            args[0] = value;
+            return _smu.SendMp1(message, ref args);
+        }
+
+        /// <summary>
+        /// Set the PPT fast limit (short boost budget) in mW.
+        ///
+        /// MP1 0x15, from RyzenAdj's set_fast_limit (lib/api.c). This is the limit the part
+        /// boosts against for a few seconds before <see cref="SetSlowLimit"/> takes over, so a
+        /// fast limit below the slow limit truncates boost rather than raising sustained power.
+        /// </summary>
+        public RyzenSmu.SmuStatus SetFastLimit(uint valueMw)
+        {
+            if (!SupportsPptLimits) return RyzenSmu.SmuStatus.UnknownCmd;
+            return SendMp1(Mp1SetFastLimit, ClampPowerLimit(valueMw));
+        }
+
+        /// <summary>
+        /// Set the PPT slow limit (sustained CPU budget) in mW.
+        ///
+        /// MP1 0x16, from RyzenAdj's set_slow_limit (lib/api.c).
+        /// </summary>
+        public RyzenSmu.SmuStatus SetSlowLimit(uint valueMw)
+        {
+            if (!SupportsPptLimits) return RyzenSmu.SmuStatus.UnknownCmd;
+            return SendMp1(Mp1SetSlowLimit, ClampPowerLimit(valueMw));
+        }
+
+        /// <summary>
+        /// Set the APU slow limit (PPT LIMIT APU) in mW.
+        ///
+        /// MP1 0x23, from RyzenAdj's set_apu_slow_limit (lib/api.c). Governs the whole APU
+        /// package rather than the CPU PPT domain, and on parts that expose it separately it
+        /// becomes the binding limit once STAPM, fast and slow are raised past it - so raising
+        /// the other three without this one moves the wall rather than removing it.
+        /// </summary>
+        public RyzenSmu.SmuStatus SetApuSlowLimit(uint valueMw)
+        {
+            if (!SupportsApuSlowLimit) return RyzenSmu.SmuStatus.UnknownCmd;
+            return SendMp1(Mp1SetApuSlowLimit, ClampPowerLimit(valueMw));
+        }
+
+        /// <summary>
+        /// Apply STAPM, fast, slow and APU-slow together, which is how they are meant to move:
+        /// raising one alone just hands the ceiling to the next.
+        ///
+        /// A zero value in <paramref name="limits"/> means "leave this one alone". Every limit
+        /// is attempted regardless of whether the ones before it succeeded - they are
+        /// independent SMU messages and a part that refuses one may well accept the others.
+        ///
+        /// The returned statuses say the mailbox accepted each message. They are NOT evidence
+        /// that the limits are in force: this SMU returns Ok for messages that change nothing,
+        /// and there is no readback on the PawnIO path to check against. Confirm with
+        /// tools/SmuProbe --limits, which reads the PM table over an independent transport.
+        ///
+        /// NOR ARE THEY DURABLE. Observed on board 8D87: limits written here held for the whole
+        /// of a sustained load and read back exactly, then the platform took them back once the
+        /// load ended - the four limits later read 71/71/60/45 W, which nothing here wrote, and
+        /// whose 60 W is exactly this board's NVPCF ATPP value. The ACPI power path pushes its
+        /// own numbers into the same registers. A caller that needs a limit to persist has to
+        /// re-assert it; treating one call as set-and-forget will silently drift back.
+        ///
+        /// TDC and EDC (vrm-current / vrmmax-current) are deliberately absent. A power limit is
+        /// self-limiting - ask for more watts than the cooling or the supply can deliver and you
+        /// get throttling, and a reboot clears it. A current limit governs how hard the VRM is
+        /// driven, sustained overcurrent is not self-correcting, and "a reboot fixes it" stops
+        /// being true. Different risk class, and not one this file should open by default.
+        /// </summary>
+        public AmdPowerLimitReport ApplyPowerLimits(RyzenPowerLimits limits)
+        {
+            if (limits is null) throw new ArgumentNullException(nameof(limits));
+
+            lock (_stateLock)
+            {
+                if (!_smu.IsAvailable)
+                {
+                    throw new InvalidOperationException(
+                        "Ryzen SMU is not available. Install PawnIO driver and run as Administrator.");
+                }
+
+                return new AmdPowerLimitReport
+                {
+                    Stapm = ApplyOne(limits.StapmLimit, SetStapmLimit),
+                    Fast = ApplyOne(limits.FastLimit, SetFastLimit),
+                    Slow = ApplyOne(limits.SlowLimit, SetSlowLimit),
+                    ApuSlow = ApplyOne(limits.ApuSlowLimit, SetApuSlowLimit)
+                };
+            }
+        }
+
+        private AmdPowerLimitStep ApplyOne(uint requestedMw, Func<uint, RyzenSmu.SmuStatus> setter)
+        {
+            if (requestedMw == 0)
+            {
+                return new AmdPowerLimitStep { Requested = false };
+            }
+
+            uint clamped = ClampPowerLimit(requestedMw);
+            return new AmdPowerLimitStep
+            {
+                Requested = true,
+                RequestedMw = clamped,
+                WasClamped = clamped != requestedMw,
+                Status = setter(clamped)
+            };
         }
 
         /// <summary>
@@ -437,5 +637,60 @@ namespace OmenCore.Hardware
             _disposed = true;
             _smu.Dispose();
         }
+    }
+
+    /// <summary>
+    /// What one SMU power-limit message did.
+    /// </summary>
+    public class AmdPowerLimitStep
+    {
+        /// <summary>False when the caller passed 0, meaning "leave this limit alone".</summary>
+        public bool Requested { get; set; }
+
+        /// <summary>The milliwatt value actually sent, after clamping.</summary>
+        public uint RequestedMw { get; set; }
+
+        /// <summary>True when the caller's value was outside the allowed range and was clamped.</summary>
+        public bool WasClamped { get; set; }
+
+        /// <summary>
+        /// Mailbox status. <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> means this CPU family has
+        /// no confirmed message ID for the limit, not that the hardware refused it.
+        /// </summary>
+        public RyzenSmu.SmuStatus Status { get; set; } = RyzenSmu.SmuStatus.Failed;
+
+        /// <summary>True when the mailbox accepted the message. Not proof the limit is in force.</summary>
+        public bool Accepted => !Requested || Status == RyzenSmu.SmuStatus.Ok;
+
+        public override string ToString() =>
+            !Requested ? "unchanged"
+                       : $"{RequestedMw / 1000.0:0.###} W -> {Status}{(WasClamped ? " (clamped)" : "")}";
+    }
+
+    /// <summary>
+    /// Outcome of an <see cref="AmdUndervoltProvider.ApplyPowerLimits"/> call.
+    ///
+    /// "Accepted" throughout means the SMU mailbox took the message, not that the silicon is
+    /// running at the new limit. See the remarks on ApplyPowerLimits.
+    /// </summary>
+    public class AmdPowerLimitReport
+    {
+        public AmdPowerLimitStep Stapm { get; set; } = new();
+        public AmdPowerLimitStep Fast { get; set; } = new();
+        public AmdPowerLimitStep Slow { get; set; } = new();
+        public AmdPowerLimitStep ApuSlow { get; set; } = new();
+
+        /// <summary>Every requested limit was accepted by its mailbox.</summary>
+        public bool AllAccepted => Stapm.Accepted && Fast.Accepted && Slow.Accepted && ApuSlow.Accepted;
+
+        /// <summary>At least one limit was requested and accepted.</summary>
+        public bool AnyAccepted =>
+            (Stapm.Requested && Stapm.Status == RyzenSmu.SmuStatus.Ok) ||
+            (Fast.Requested && Fast.Status == RyzenSmu.SmuStatus.Ok) ||
+            (Slow.Requested && Slow.Status == RyzenSmu.SmuStatus.Ok) ||
+            (ApuSlow.Requested && ApuSlow.Status == RyzenSmu.SmuStatus.Ok);
+
+        public override string ToString() =>
+            $"stapm {Stapm}; fast {Fast}; slow {Slow}; apu-slow {ApuSlow}";
     }
 }
