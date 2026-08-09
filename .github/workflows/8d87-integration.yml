@@ -1,0 +1,265 @@
+name: 8D87 integration
+
+# Lives only on the 8d87/integration branch. That branch is a merge product of the
+# 8D87 feature branches, so it is the only place where all of them are compiled
+# together -- upstream CI runs on main and on pull requests to main, neither of
+# which covers it. See INTEGRATION.md.
+#
+# Do not propose this file upstream. It is scaffolding for one fork.
+
+on:
+  push:
+    branches: [ '8d87/integration' ]
+  # Inert as things stand, and kept only so it works if this file ever reaches a
+  # default branch. GitHub offers manual dispatch only for workflows present on
+  # the default branch, so `gh workflow run 8d87-integration.yml` answers 404
+  # while this file lives on 8d87/integration alone. Push is the real trigger;
+  # to re-run, use `gh run rerun <id>` or the button in the web UI.
+  workflow_dispatch:
+
+concurrency:
+  group: 8d87-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build-and-test:
+    name: Build and full test suite
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore "OmenCore.sln"
+
+      - name: Build
+        run: dotnet build "OmenCore.sln" -c Debug --no-restore
+
+      # The whole suite, not a filter. Running it locally is slow enough that it
+      # gets skipped, which is how a regression reaches a pull request.
+      - name: Test
+        env:
+          OMENCORE_DISABLE_FILE_LOG: '1'
+          OMENCORE_DISABLE_NOTIFICATIONS: '1'
+        run: >
+          dotnet test "OmenCore.sln" -c Debug --no-build
+          --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory "${{ github.workspace }}/test-results"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: warn
+
+  probe-tools:
+    name: Build the probe tools
+    runs-on: windows-latest
+    # These are not in OmenCore.sln, so nothing else ever compiles them. A break
+    # here is invisible to upstream CI and to a local `dotnet build` of the
+    # solution -- it only surfaces when someone runs the instrument.
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - tools/SmuProbe/SmuProbe.csproj
+          - tools/LightingProbe/LightingProbe.csproj
+          - tools/ViewProbe/ViewProbe.csproj
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build ${{ matrix.project }}
+        run: dotnet build "${{ matrix.project }}" -c Debug
+
+  release-build:
+    name: Release build
+    runs-on: windows-latest
+    # The installer ships Release, and nothing else in CI compiles that
+    # configuration. Cheap insurance against a Debug-only green.
+    permissions:
+      # Needed by the rolling pre-release step at the end of this job. Everything
+      # else here is read-only, so the token is scoped at the job rather than the
+      # workflow.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore "OmenCore.sln"
+
+      - name: Build
+        run: dotnet build "OmenCore.sln" -c Release --no-restore
+
+      # A runnable build of the merged 8D87 work, so hardware findings can be
+      # confirmed against what CI compiled rather than a local tree. Publishes
+      # what build-installer.ps1 publishes, minus the Inno Setup step: the
+      # installer is not the point, running it is.
+      - name: Publish a runnable build
+        shell: pwsh
+        run: |
+          $publishDir = "publish/8d87-integration"
+
+          # The app is self-contained and single-file from its csproj. The
+          # hardware worker is a second executable published beside it -- the
+          # app looks for it next to itself and drops to in-process monitoring
+          # when it is missing, which is a quieter build than the one that ships.
+          dotnet publish "src/OmenCoreApp/OmenCoreApp.csproj" `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishTrimmed=false `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:IncludeAllContentForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o $publishDir
+
+          dotnet publish "src/OmenCore.HardwareWorker/OmenCore.HardwareWorker.csproj" `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishTrimmed=false `
+            -p:PublishSingleFile=true `
+            -o $publishDir
+
+          Get-ChildItem $publishDir -Recurse -File |
+            ForEach-Object { '{0,12:N0}  {1}' -f $_.Length, $_.FullName.Substring((Resolve-Path $publishDir).Path.Length + 1) }
+
+      # What makes this download runnable is not obvious from the file list, and
+      # each of these three fails quietly rather than loudly.
+      - name: Check the build is one someone can run
+        shell: pwsh
+        run: |
+          $publishDir = "publish/8d87-integration"
+
+          # Two executables. The app looks for the worker beside itself and
+          # falls back to in-process monitoring without complaint, so a missing
+          # worker is a working app that is not the one that ships.
+          foreach ($exe in 'OmenCore.exe', 'OmenCore.HardwareWorker.exe') {
+            if (-not (Test-Path (Join-Path $publishDir $exe))) {
+              throw "Publish did not produce $exe"
+            }
+          }
+
+          # Self-contained, not framework-dependent. The apphost for the latter
+          # is ~150 KB and needs a runtime installed; it is the same file name
+          # either way, so size is what tells them apart.
+          $app = Get-Item (Join-Path $publishDir 'OmenCore.exe')
+          if ($app.Length -lt 50MB) {
+            throw "OmenCore.exe is $([int]($app.Length / 1MB)) MB -- too small to embed a runtime"
+          }
+
+          # IncludeAllContentForSelfExtract embeds drivers/ into the bundle and
+          # the app extracts it at run time, so there is no folder to look for.
+          # The bundle manifest still lists each entry by relative path, which is
+          # the only check available short of running the app.
+          #
+          # Match on the full 'drivers/<name>' with the directory component, not
+          # the bare file name: LibreHardwareMonitor carries managed resources
+          # called ...Resources.PawnIo.RyzenSMU.bin, so a bare-name search finds
+          # a hit in every build and can never fail. Each driver include in the
+          # csproj is Condition="Exists(...)", so a blob missing from a checkout
+          # is dropped silently rather than breaking the build -- which is the
+          # failure this is here to catch.
+          $text = [System.Text.Encoding]::ASCII.GetString(
+            [System.IO.File]::ReadAllBytes($app.FullName))
+          foreach ($blob in 'RyzenSMU.bin', 'IsaBridgeEC.bin', 'IntelMSR.bin', 'PawnIOLib.dll') {
+            if (-not $text.Contains("drivers/$blob")) {
+              throw "OmenCore.exe does not embed drivers/$blob"
+            }
+          }
+
+          "OmenCore.exe: {0:N0} bytes, runtime and drivers embedded" -f $app.Length
+
+      - name: Upload the runnable build
+        uses: actions/upload-artifact@v4
+        with:
+          # The SHA is in the name because this branch is rebuilt rather than
+          # advanced, so "latest" is not a thing a download can be trusted to be.
+          name: omencore-8d87-${{ github.sha }}-win-x64
+          path: publish/8d87-integration/
+          if-no-files-found: error
+          # ~160 MB a push, against a fork's storage quota, on a branch that is
+          # pushed often. Long enough to test a build, short enough not to hoard.
+          retention-days: 14
+
+      # Artifacts expire in 14 days and need a GitHub login to download. A
+      # pre-release does neither, which matters when the thing being tested is a
+      # hardware finding someone wants to reproduce weeks later.
+      #
+      # One rolling tag, deleted and recreated each push, so the download URL is
+      # stable. The commit it was built from is in the title and the body, since
+      # this branch is rebuilt rather than advanced and the tag alone identifies
+      # nothing.
+      - name: Publish a rolling pre-release
+        # Never on the upstream repo. This branch and its CI are fork
+        # scaffolding, and a release is the one step here that would be visible
+        # to that project's users.
+        if: github.repository != 'theantipopau/omencore'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag       = '8d87-integration'
+          $sha       = '${{ github.sha }}'.Substring(0, 7)
+          $publishDir = "publish/8d87-integration"
+          $zip       = "omencore-8d87-$sha-win-x64.zip"
+
+          Compress-Archive -Path "$publishDir/*" -DestinationPath $zip -CompressionLevel Optimal
+          "{0,12:N0}  {1}" -f (Get-Item $zip).Length, $zip
+
+          # --cleanup-tag so the tag does not survive the release it belonged to;
+          # a stale tag pointing at a rebuilt branch is worse than no tag.
+          gh release delete $tag --yes --cleanup-tag 2>$null
+          if ($LASTEXITCODE -ne 0) { "No previous $tag release to remove." }
+
+          # Single-quoted here-string: the body is markdown and full of backticks,
+          # which a double-quoted one would eat as escape characters. The commit
+          # goes in by substitution instead of interpolation.
+          $notes = @'
+          Build of the `8d87/integration` branch at `__SHA__`.
+
+          **Pre-release, and not a supported build.** This branch is a merge product of the
+          8D87 feature branches, rebuilt rather than advanced, so this tag points somewhere
+          different after every push. It exists so hardware findings can be reproduced against
+          what CI compiled.
+
+          Self-contained: no .NET runtime needed. Unzip and run `OmenCore.exe` as
+          Administrator - the EC and SMU paths need it, and keep `OmenCore.HardwareWorker.exe`
+          beside it or the app quietly drops to in-process monitoring.
+          '@ -replace '__SHA__', $sha
+
+          # --prerelease is what puts the Pre-release badge on it for anyone visiting the repo.
+          # --latest=false is belt and braces: GitHub already excludes pre-releases from "Latest",
+          # so /releases/latest 404s while this is the only release, but that is a default rather
+          # than a promise. Being explicit means a future gh or API default cannot quietly promote
+          # a rebuilt merge branch to the thing visitors are offered first.
+          gh release create $tag $zip `
+            --prerelease `
+            --latest=false `
+            --title "8D87 integration ($sha)" `
+            --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+
+          # Verified rather than assumed - a release that silently stopped being a pre-release is
+          # exactly the kind of thing nobody notices until someone downloads it as a supported build.
+          $flags = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" --jq '"\(.prerelease) \(.draft)"'
+          if ($flags -ne 'true false') { throw "Release flags wrong: expected 'true false' (prerelease draft), got '$flags'" }
+          "Release published as a pre-release (prerelease=true, draft=false)."
