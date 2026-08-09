@@ -251,7 +251,38 @@ namespace OmenCore.Services
                     }
                 }
 
-                _logging.Info($"✓ Performance mode '{effectiveMode.Name}' applied successfully");
+                // Say what actually happened. Every path above can decline to do anything - EC writes
+                // blocked for the model, the WMI policy fallback not permitted, fan policy decoupled
+                // by default - and on a board where all three decline, the only real effect of an
+                // "applied successfully" is the Windows power plan. Reporting success there trains a
+                // user to believe a mode switch did something it did not, and hides the one line that
+                // would tell them why: the skip reason. The flags are already tracked for the trace
+                // entry below; this just stops discarding them on the way to the log.
+                var appliedEffects = new List<string>();
+                if (!string.IsNullOrEmpty(effectiveMode.LinkedPowerPlanGuid)) appliedEffects.Add("Windows power plan");
+                if (ecPowerLimitApplied) appliedEffects.Add("EC power limits");
+                if (wmiPolicyFallbackApplied) appliedEffects.Add("WMI thermal policy");
+                if (LinkFanToPerformanceMode && fanPolicyAction.StartsWith("Linked", StringComparison.Ordinal))
+                    appliedEffects.Add(fanPolicyAction == "Linked fan policy" ? "fan policy" : "fan curve");
+
+                var hardwareEffectApplied = ecPowerLimitApplied || wmiPolicyFallbackApplied ||
+                    (LinkFanToPerformanceMode && fanPolicyAction.StartsWith("Linked", StringComparison.Ordinal));
+
+                if (appliedEffects.Count == 0)
+                {
+                    _logging.Warn($"⚠️ Performance mode '{effectiveMode.Name}': nothing was applied" +
+                        (string.IsNullOrEmpty(ecPowerLimitSkipReason) ? "" : $" ({ecPowerLimitSkipReason})"));
+                }
+                else if (!hardwareEffectApplied)
+                {
+                    _logging.Info($"✓ Performance mode '{effectiveMode.Name}' applied: {string.Join(", ", appliedEffects)}" +
+                        " — no hardware power or fan change" +
+                        (string.IsNullOrEmpty(ecPowerLimitSkipReason) ? "" : $" ({ecPowerLimitSkipReason})"));
+                }
+                else
+                {
+                    _logging.Info($"✓ Performance mode '{effectiveMode.Name}' applied: {string.Join(", ", appliedEffects)}");
+                }
 
                 RecordApplyTrace(new PerformanceModeApplyTraceEntry
                 {

@@ -730,6 +730,31 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Theory]
+        [InlineData(HpWmiBios.GpuPowerLevel.Minimum)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Medium)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Maximum)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended3)]
+        [InlineData(HpWmiBios.GpuPowerLevel.Extended4)]
+        public void BuildGpuPowerPayload_KeepsDStateAndGpsTemperatureBytesFixed(HpWmiBios.GpuPowerLevel level)
+        {
+            var payload = HpWmiBios.BuildGpuPowerPayload(level);
+
+            // dState: hardcoded to 1 to match HP, and not a knob - MAX-series firmware overwrites
+            // the ACPI field this sets from the EC's adapter verdict during the same call.
+            payload.dState.Should().Be(0x01);
+
+            // Byte 3 is a GPS temperature threshold in °C, not a spare - the output of HP's IRHandler
+            // loop. HP emits 87 only while the chassis IR sensor reads cool, and revises it down to
+            // 75 on overheat. This app has no such loop, so sending 87 would pin the firmware in the
+            // most permissive state permanently rather than reproduce HP's behaviour - and the 0x21
+            // readback cannot observe byte 3, so it could not be verified by outcome either.
+            //
+            // Held at 0 until someone measures. This assertion exists so that a future change is
+            // deliberate rather than discovered in a field report.
+            payload.peakTemperature.Should().Be(0x00);
+        }
+
+        [Theory]
         [InlineData(HpWmiBios.GpuPowerLevel.Minimum, false, 0, true)]
         [InlineData(HpWmiBios.GpuPowerLevel.Medium, true, 0, true)]
         [InlineData(HpWmiBios.GpuPowerLevel.Maximum, true, 1, true)]
@@ -810,6 +835,52 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void SetPerformanceMode_WhenReadbackNonStrict_DoesNotReadTheLegacyFanModeOffsetAtAll()
+        {
+            // The mismatch was already ignored, but only after three reads of EC 0x95 and two 40 ms
+            // sleeps, then a WARN pair - per fan-mode change. On a board where that offset does not
+            // hold the fan mode (8D87's EC is memory-mapped; 0x95 reads 0x02 where 0x30 is expected)
+            // the answer could not be used either way, so issuing the transaction was pure cost and
+            // the WARN was noise about a non-event.
+            var fake = new ModeCaptureFakeWmiBios();
+            var ec = new FanModeReadbackEcAccess(0x30);
+            var controller = new WmiFanController(
+                null,
+                null,
+                0,
+                injectedWmiBios: fake,
+                ecAccess: ec,
+                strictFanModeReadback: false);
+
+            controller.SetPerformanceMode("Performance").Should().BeTrue();
+
+            ec.ReadAddresses.Should().NotContain((ushort)0x95,
+                "a profile that cannot act on the readback should not spend an EC transaction taking it");
+        }
+
+        [Fact]
+        public void SetPerformanceMode_WhenReadbackStrict_StillReadsTheFanModeOffset()
+        {
+            // Guard on the other side: the skip must be scoped to non-strict profiles. Boards where
+            // the readback IS authoritative must keep taking it, or the confirmation above becomes
+            // unreachable and SetPerformanceMode would project unverified modes as applied.
+            var fake = new ModeCaptureFakeWmiBios();
+            var ec = new FanModeReadbackEcAccess(0x31);
+            var controller = new WmiFanController(
+                null,
+                null,
+                0,
+                injectedWmiBios: fake,
+                ecAccess: ec,
+                strictFanModeReadback: true);
+
+            controller.SetPerformanceMode("Performance").Should().BeTrue();
+
+            ec.ReadAddresses.Should().Contain((ushort)0x95,
+                "strict profiles depend on this readback to confirm the mode actually took");
+        }
+
+        [Fact]
         public void ApplyPreset_V1AutoHandoff_ClearsManualFloorAfterTransitionKick()
         {
             var fake = new V1AutoHandoffFakeWmiBios();
@@ -877,9 +948,18 @@ namespace OmenCoreApp.Tests.Hardware
                 _fanMode = fanMode;
             }
 
+            /// <summary>Addresses read through this stub, in order.</summary>
+            public System.Collections.Generic.List<ushort> ReadAddresses { get; } = new();
+
             public bool IsAvailable => true;
             public bool Initialize(string devicePath) => true;
-            public byte ReadByte(ushort address) => address == 0x95 ? _fanMode : (byte)0x00;
+
+            public byte ReadByte(ushort address)
+            {
+                ReadAddresses.Add(address);
+                return address == 0x95 ? _fanMode : (byte)0x00;
+            }
+
             public void WriteByte(ushort address, byte value) { }
             public void Dispose() { }
         }

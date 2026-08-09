@@ -83,6 +83,41 @@
                 </Grid>
             </GroupBox>
 
+            <!-- Power adapter (Legacy 0x0F). Hidden entirely on boards that don't report it, rather
+                 than shown empty. Read-only: nothing here writes to the firmware. -->
+            <GroupBox Header="Power Adapter" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0"
+                      Visibility="{Binding HasPowerAdapterInfo, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Margin="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Connected adapter" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"/>
+                            <TextBlock Text="{Binding PowerAdapterSummary}" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                            <TextBlock Text="Shipped with" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}"
+                                       HorizontalAlignment="Right"/>
+                            <TextBlock Text="{Binding PowerAdapterRequirement}" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Background="#2D2D1F" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="10,8" Margin="0,12,0,0"
+                            Visibility="{Binding HasPowerAdapterExplanation, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding PowerAdapterExplanation}" FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <TextBlock Text="Read from the BIOS each time this tab is opened. This is the machine's own view of the supply attached to it, not a measurement."
+                               FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+            </GroupBox>
+
             <!-- Model Capabilities (what this specific detected model does/doesn't support) -->
             <GroupBox Header="Model Capabilities" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0">
                 <StackPanel Margin="8">

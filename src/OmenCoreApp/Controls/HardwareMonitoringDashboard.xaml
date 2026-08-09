@@ -335,7 +335,7 @@
                     <Border Style="{StaticResource MetricCardStyle}">
                         <StackPanel>
                             <TextBlock Text="Battery Status" Style="{StaticResource MetricTitleStyle}"/>
-                            <TextBlock x:Name="BatteryCyclesValue" Text="127" Style="{StaticResource MetricValueStyle}"/>
+                            <TextBlock x:Name="BatteryCyclesValue" Text="--" Style="{StaticResource MetricValueStyle}"/>
                             <TextBlock Text="cycles" Style="{StaticResource MetricUnitStyle}"/>
                             <TextBlock x:Name="BatteryLifeEstimate" Text="3.0 years remaining" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>

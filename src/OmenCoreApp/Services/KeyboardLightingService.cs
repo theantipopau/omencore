@@ -869,7 +869,25 @@ namespace OmenCore.Services
                 // Log telemetry summary before disposing
                 LogTelemetrySummary();
                 _v2Service?.Dispose();
+                ReleaseLightBarLampArray();
                 _disposed = true;
+            }
+        }
+
+        private void ReleaseLightBarLampArray()
+        {
+            try
+            {
+                using var bar = Hardware.HidLampArray.OpenLightBar();
+                if (bar != null)
+                {
+                    bar.SetAutonomousMode(true);
+                    _logging.Info("[KeyboardLighting] Released light bar LampArray back to device control");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[KeyboardLighting] Failed to release light bar LampArray: {ex.Message}");
             }
         }
         
@@ -995,9 +1013,164 @@ namespace OmenCore.Services
                 _logging.Info("[KeyboardLighting] ApplyPerKeyGridAsync: no per-key backend active");
                 return false;
             }
-            _logging.Info("[KeyboardLighting] ApplyPerKeyGridAsync: routing to V2 per-key backend");
-            return await Task.FromResult(false); // Placeholder until HidPerKeyBackend is implemented
+            // The grid is a 6 x 14 abstraction with no physical positions, and the device has real
+            // lamps at real coordinates - 120 of them on 8D87 against 84 cells. Mapping cell order
+            // onto lamp order would be a guess about wiring; mapping by POSITION is not. Each cell
+            // owns a rectangle of the keyboard, and every lamp inside that rectangle takes its
+            // colour, so the picture the user drew is the picture that lights up even though the
+            // counts do not match.
+            var map = _v2Service.GetMeasuredKeyMap();
+            if (map.Count == 0)
+            {
+                _logging.Info("[KeyboardLighting] ApplyPerKeyGridAsync: backend has no measured key map, " +
+                              "so grid cells cannot be placed on the keyboard");
+                return false;
+            }
+
+            const int gridRows = 6, gridCols = 14;
+            uint minX = map.Min(l => l.XMicrometres), maxX = map.Max(l => l.XMicrometres);
+            uint minY = map.Min(l => l.YMicrometres), maxY = map.Max(l => l.YMicrometres);
+            double spanX = Math.Max(1, (double)maxX - minX), spanY = Math.Max(1, (double)maxY - minY);
+
+            var keyColors = new Dictionary<ushort, System.Drawing.Color>(map.Count);
+            foreach (var lamp in map)
+            {
+                int col = Math.Clamp((int)((lamp.XMicrometres - minX) / spanX * gridCols), 0, gridCols - 1);
+                int row = Math.Clamp((int)((lamp.YMicrometres - minY) / spanY * gridRows), 0, gridRows - 1);
+
+                int index = (row * gridCols) + col;
+                if (index < flatColors.Length) keyColors[lamp.LampId] = flatColors[index];
+            }
+
+            _logging.Info($"[KeyboardLighting] ApplyPerKeyGridAsync: {flatColors.Length} cells placed onto " +
+                          $"{keyColors.Count} lamps by position");
+            return await _v2Service.SetKeyColorsAsync(keyColors);
         }
+
+        // ── The device's own effect engine ─────────────────────────────────────────────
+
+        /// <summary>Whether the keyboard can run its built-in animations.</summary>
+        public bool SupportsDeviceEffects => _v2Service?.SupportsDeviceEffects ?? false;
+
+        /// <summary>Install one of the keyboard's built-in effects.</summary>
+        public async Task<bool> SetDeviceEffectAsync(Hardware.DojoKeyboardMcu.EffectRecord record)
+        {
+            if (_v2Service == null) return false;
+
+            var result = await _v2Service.SetDeviceEffectAsync(record);
+            if (!result.BackendReportedSuccess)
+                _logging.Warn($"[KeyboardLighting] Device effect {record.Effect} refused: {result.FailureReason}");
+
+            return result.BackendReportedSuccess;
+        }
+
+        /// <summary>The effect the keyboard is currently holding, or null if it will not answer.</summary>
+        public Hardware.DojoKeyboardMcu.EffectRecord? ReadDeviceEffect() => _v2Service?.ReadDeviceEffect();
+
+        // ── Light bar ──────────────────────────────────────────────────────────────────
+        //
+        // A SEPARATE DEVICE from the keyboard, on a separate transport, and the split runs deeper
+        // than it looks: colour is reachable over HID without administrator, while brightness and
+        // the built-in animations exist only behind HP's WMI commands and cannot be reached without
+        // it. So this surface is deliberately not uniform - some of it degrades when unelevated and
+        // some of it disappears, and pretending otherwise would just move the confusion downstream.
+
+        /// <summary>Whether anything at all can drive the light bar on this machine.</summary>
+        public bool IsLightBarAvailable =>
+            (_wmiBios?.IsAvailable ?? false) || Hardware.OmenBoard.SupportsHidLightBar();
+
+        /// <summary>Whether brightness and the built-in animations are reachable (WMI, so elevated).</summary>
+        public bool SupportsLightBarEffects => _wmiBios?.IsAvailable ?? false;
+
+        /// <summary>Current zone colours, or an empty array when they cannot be read.</summary>
+        public (byte R, byte G, byte B)?[] GetLightBarColors() =>
+            _wmiBios?.IsAvailable == true
+                ? _wmiBios.GetLightBarColors()
+                : Array.Empty<(byte R, byte G, byte B)?>();
+
+        /// <summary>
+        /// Paint the bar. Prefers WMI, which also carries brightness; falls back to the bar's own
+        /// LampArray when WMI is unavailable, which is colour only.
+        /// </summary>
+        public bool SetLightBarColors(IReadOnlyList<(byte R, byte G, byte B)> zoneColors, byte brightness = 100)
+        {
+            if (_wmiBios?.IsAvailable == true)
+                return _wmiBios.SetLightBarColors(zoneColors, brightness);
+
+            using var bar = Hardware.HidLampArray.OpenLightBar();
+            if (bar == null)
+            {
+                _logging.Info("[KeyboardLighting] Light bar unreachable: no WMI and no HID LampArray for this board");
+                return false;
+            }
+
+            var lamps = new List<Hardware.HidLampArray.LampColor>();
+            for (ushort zone = 0; zone < bar.LampCount; zone++)
+            {
+                var c = zoneColors[Math.Min(zone, zoneColors.Count - 1)];
+                lamps.Add(new Hardware.HidLampArray.LampColor(zone, c.R, c.G, c.B));
+            }
+
+            bar.SetAutonomousMode(false);
+            bool ok = bar.SetLamps(lamps);
+            _logging.Info($"[KeyboardLighting] Light bar over HID (unelevated path): accepted={ok}. " +
+                          "Brightness and animations are not available this way.");
+            return ok;
+        }
+
+        /// <summary>Run a built-in light bar animation. WMI only - returns false unelevated.</summary>
+        public bool SetLightBarAnimation(
+            HpWmiBios.LightBarEffect effect,
+            HpWmiBios.LightBarTheme theme = HpWmiBios.LightBarTheme.Galaxy,
+            HpWmiBios.LightBarSpeed speed = HpWmiBios.LightBarSpeed.Medium,
+            byte brightness = 100,
+            IReadOnlyList<(byte R, byte G, byte B)>? customColors = null)
+        {
+            if (_wmiBios?.IsAvailable != true)
+            {
+                _logging.Info("[KeyboardLighting] Light bar animations need the WMI BIOS, which needs administrator");
+                return false;
+            }
+
+            return _wmiBios.SetLightBarAnimation(effect, theme, speed,
+                                                 HpWmiBios.LightBarDirection.Left, brightness, customColors);
+        }
+
+        /// <summary>Turn the light bar off.</summary>
+        public bool SetLightBarOff()
+        {
+            if (_wmiBios?.IsAvailable == true) return _wmiBios.SetLightBarOff();
+
+            using var bar = Hardware.HidLampArray.OpenLightBar();
+            return bar != null && bar.SetAll(0, 0, 0);
+        }
+
+        /// <summary>Whether this exact keyboard's per-key support was confirmed on hardware.</summary>
+        public bool IsVerifiedPerKeyDevice => _v2Service?.IsVerifiedPerKeyDevice ?? false;
+
+        /// <summary>USB identity of the per-key keyboard, for display and field reports.</summary>
+        public string PerKeyDeviceIdentity => _v2Service?.PerKeyDeviceIdentity ?? string.Empty;
+
+        /// <summary>The active backend's measured lamp map, or empty when none is known.</summary>
+        public IReadOnlyList<Hardware.HidLampArray.LampInfo> GetMeasuredKeyMap() =>
+            _v2Service?.GetMeasuredKeyMap()
+            ?? (IReadOnlyList<Hardware.HidLampArray.LampInfo>)Array.Empty<Hardware.HidLampArray.LampInfo>();
+
+        /// <summary>Colour individually addressed keys, leaving every unnamed key alone.</summary>
+        public async Task<bool> SetKeyColorsAsync(IReadOnlyDictionary<ushort, System.Drawing.Color> keyColors)
+        {
+            if (_v2Service == null) return false;
+            return await _v2Service.SetKeyColorsAsync(keyColors);
+        }
+
+        /// <summary>
+        /// Per-key brightness: the LampArray intensity applied to subsequent colour writes.
+        ///
+        /// Deliberately does NOT repaint. The caller is about to write colours anyway, and
+        /// repainting here would send the whole map twice for one slider move.
+        /// </summary>
+        public Task<bool> SetPerKeyBrightnessAsync(int brightness) =>
+            Task.FromResult(_v2Service?.SetPerKeyBrightness(brightness) ?? false);
     }
     
     /// <summary>
