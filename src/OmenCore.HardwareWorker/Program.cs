@@ -215,29 +215,43 @@ class Program
     }
 
     /// <summary>
-    /// Watchdog that exits the worker if no client connects for configured timeout after parent dies.
-    /// Prevents orphaned worker processes from running indefinitely.
+    /// Exits the worker once no client has talked to it for the configured timeout.
+    ///
+    /// The timeout turns on client silence alone, and deliberately not on whether the parent looks
+    /// alive. <see cref="_parentAlive"/> is a guess: it is cleared only by
+    /// <see cref="MonitorParentProcess"/> noticing an exit, and that can miss - the PID can be reused
+    /// by an unrelated long-lived process, or the parent can still be running while hung before it
+    /// ever connects. Either way the flag stays true, and gating the exit on it meant a worker with
+    /// no client ran unbounded.
+    ///
+    /// It is not a hypothetical. On 2026-08-08 a worker outlived its parent by 22 minutes that way,
+    /// polling the discrete GPU twice a second on battery and waking it out of D3 each time, until
+    /// the video watchdog timed out and took the machine down with a 0x116.
+    ///
+    /// Client silence is the signal that actually answers "is anyone using this": a live OmenCore
+    /// polls on its monitoring interval, a second by default, so a five-minute silence is three
+    /// hundred missed polls rather than a slow client.
     /// </summary>
     private static async Task OrphanWatchdog()
     {
         while (_running)
         {
             await Task.Delay(30_000); // Check every 30 seconds
-            
+
             // Skip timeout check if disabled
             if (!_orphanTimeoutEnabled) continue;
-            
-            // Only enforce timeout if parent is dead
-            if (_parentAlive) continue;
-            
+
             var timeSinceActivity = DateTime.Now - _lastClientActivity;
             var timeoutMs = _orphanTimeoutMinutes * 60 * 1000;
             if (timeSinceActivity.TotalMilliseconds > timeoutMs)
             {
+                // Whether the parent still looks alive is worth recording rather than acting on: a
+                // worker exiting here while _parentAlive is true is the case that used to run forever.
                 Console.WriteLine($"No client activity for {timeSinceActivity.TotalMinutes:F1} minutes. Exiting orphaned worker.");
-                LogToFile($"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min. Worker exiting.\n");
+                LogToFile($"[{DateTime.Now:O}] Orphan timeout: no client for {timeSinceActivity.TotalMinutes:F1} min " +
+                          $"(parent PID {_parentProcessId} {(_parentAlive ? "still looks alive" : "gone")}). Worker exiting.\n");
                 _running = false;
-                
+
                 try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
                 Environment.Exit(0);
             }
@@ -594,8 +608,11 @@ class Program
     {
         var idleSeconds = (DateTime.Now - _lastClientActivity).TotalSeconds;
 
-        // Orphaned worker with no active client can poll slower to avoid wasting CPU.
-        if (!_parentAlive && idleSeconds >= 30)
+        // A worker nobody has spoken to in half a minute can poll slower, whatever the parent's
+        // state. This used to require _parentAlive to be false as well, which meant a worker whose
+        // parent-liveness guess was stuck kept polling at the full rate with no client to serve -
+        // and the polling is what wakes a parked dGPU. See OrphanWatchdog for how that ended.
+        if (idleSeconds >= 30)
         {
             return OrphanIdleUpdateIntervalMs;
         }
