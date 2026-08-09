@@ -130,6 +130,11 @@ namespace OmenCore.Hardware
             // Run runtime probing to verify capability accuracy (especially for undervolt MSR access)
             capabilityService.ProbeRuntimeCapabilities();
 
+            // Purely local to this bring-up sequence — nothing outside this constructor keeps a
+            // reference, so dispose its own WMI wrapper now instead of leaving it for the GC finalizer.
+            try { capabilityService.Dispose(); }
+            catch (Exception ex) { logging.Debug($"CapabilityDetectionService dispose failed: {ex.Message}"); }
+
             Capabilities = capabilities;
 
             // Set capability warning if functionality is limited

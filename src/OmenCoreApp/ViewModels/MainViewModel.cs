@@ -5162,6 +5162,20 @@ namespace OmenCore.ViewModels
             // Dispose memory optimizer
             _memoryOptimizer?.Dispose();
             _lightingInitializationLock.Dispose();
+
+            // Release the hardware handles HardwareBringup acquired at startup (EC/PawnIO handle,
+            // WMI BIOS session, NVAPI driver context). None of these were disposed anywhere before -
+            // harmless while the process is exiting anyway (the OS reclaims the handles regardless),
+            // but releasing them explicitly is the documented-correct shutdown for NVAPI specifically
+            // (NvAPI_Unload) and avoids relying on finalizers for the WMI/PawnIO native handles. Placed
+            // last, after every other service that might still touch EC/WMI/NVAPI during its own
+            // disposal (fan restore, etc.) has already run.
+            try { _ecAccess?.Dispose(); }
+            catch (Exception ex) { _logging.Warn($"EC access dispose failed: {ex.Message}"); }
+            try { _wmiBiosMonitor?.Dispose(); }
+            catch (Exception ex) { _logging.Warn($"WmiBiosMonitor dispose failed: {ex.Message}"); }
+            try { _nvapiService?.Dispose(); }
+            catch (Exception ex) { _logging.Warn($"NvapiService dispose failed: {ex.Message}"); }
         }
 
         private void NoteDispatcherBeginInvoke(string source)
