@@ -885,7 +885,10 @@ namespace OmenCore.Services
                     _logging.Info("[KeyboardLighting] Released light bar LampArray back to device control");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[KeyboardLighting] Failed to release light bar LampArray: {ex.Message}");
+            }
         }
         
         /// <summary>
