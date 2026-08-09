@@ -1353,7 +1353,13 @@ namespace OmenCore.ViewModels
 
                 if (_adapterInfo is not HpWmiBios.AdapterInfo info) return;
 
-                var cpu = AdapterClampLiftPolicy.DecideCpu(settings, info, CanOfferApuClampLift);
+                // Both halves are answers to an under-rated adapter, so neither runs without one.
+                // Taken from the debounced state the power service already maintains rather than
+                // from the trigger string, because three of the four callers - startup, resume and
+                // the settings toggle - carry no power state of their own.
+                var onAcPower = _powerAutomationService.IsOnAcPower;
+
+                var cpu = AdapterClampLiftPolicy.DecideCpu(settings, info, CanOfferApuClampLift, onAcPower);
 
                 // Read from the firmware rather than inferred from which GPU happens to be awake -
                 // that inference is what this app used to do and it was wrong.
@@ -1362,7 +1368,8 @@ namespace OmenCore.ViewModels
                 var gpu = AdapterClampLiftPolicy.DecideGpu(
                     settings, info, CanOfferAdapterOverride,
                     gpuIsParked: _adapterOverrideService.DiscreteGpuIsParked(),
-                    displayMode: displayMode);
+                    displayMode: displayMode,
+                    onAcPower: onAcPower);
 
                 _logging.Info($"Automatic clamp lift ({trigger}): CPU {cpu}, GPU {gpu}");
 
@@ -1436,6 +1443,13 @@ namespace OmenCore.ViewModels
             {
                 parts.Add("the display is running on the discrete GPU, so restarting it would black " +
                           "the screen - that one stays manual");
+            }
+
+            // Reported once for both halves: they refuse together, and saying it twice reads as two
+            // separate problems rather than one machine that is simply not plugged in.
+            if (cpu == ClampLiftDecision.DeferredOnBattery || gpu == ClampLiftDecision.DeferredOnBattery)
+            {
+                parts.Add("running on battery, so there is no adapter clamp to lift");
             }
 
             return parts.Count == 0

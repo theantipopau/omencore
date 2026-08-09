@@ -57,6 +57,9 @@ namespace OmenCore.Models
         /// <summary>The GPU is awake. Not something to take away from whoever is using it.</summary>
         DeferredGpuAwake,
 
+        /// <summary>Running on battery, where there is no adapter to compensate for.</summary>
+        DeferredOnBattery,
+
         /// <summary>The panel is on the dGPU, so restarting it would drop the display.</summary>
         DeferredDiscreteDisplay,
 
@@ -70,6 +73,25 @@ namespace OmenCore.Models
     /// </summary>
     public static class AdapterClampLiftPolicy
     {
+        /// <summary>
+        /// Whether the machine is on a supply this can apply to at all.
+        ///
+        /// Both halves exist to undo a clamp the firmware applies because the *attached adapter* is
+        /// under-rated. On battery there is no attached adapter, so there is nothing to compensate
+        /// for and neither half has any business running - the CPU half would hold raised SMU power
+        /// limits against the battery, and the GPU half would restart the display device.
+        ///
+        /// This is checked before the adapter verdict rather than left to it. On board 8D87 the
+        /// firmware happens to answer <c>NotSupported</c> on battery, which fails
+        /// <see cref="HpWmiBios.AdapterInfo.HasVerdict"/> and refuses by luck. But
+        /// <see cref="HpWmiBios.SmartAdapterStatus.BatteryPower"/> is a documented reply, and it has
+        /// a verdict and is not <c>MeetsRequirement</c> - so on any board that returns it,
+        /// <see cref="HpWmiBios.AdapterInfo.IsLowWattage"/> reads true and the automatic path would
+        /// restart the GPU on battery. Refusing on the power state closes that without depending on
+        /// which of the two replies a given firmware chooses.
+        /// </summary>
+        public static bool PowerStateQualifies(bool onAcPower) => onAcPower;
+
         /// <summary>
         /// Whether this supply is one the settings say to act on: clamped, and under the ceiling if
         /// one was set.
@@ -92,9 +114,11 @@ namespace OmenCore.Models
         /// nothing away from anything - so this is the setting and the supply, and nothing else.
         /// </summary>
         public static ClampLiftDecision DecideCpu(
-            AdapterClampLiftSettings settings, HpWmiBios.AdapterInfo adapter, bool cpuHalfIsOffered)
+            AdapterClampLiftSettings settings, HpWmiBios.AdapterInfo adapter, bool cpuHalfIsOffered,
+            bool onAcPower)
         {
             if (!settings.LiftCpuLimits) return ClampLiftDecision.Disabled;
+            if (!PowerStateQualifies(onAcPower)) return ClampLiftDecision.DeferredOnBattery;
             if (!cpuHalfIsOffered || !SupplyQualifies(settings, adapter)) return ClampLiftDecision.NotApplicable;
 
             return ClampLiftDecision.Apply;
@@ -117,9 +141,11 @@ namespace OmenCore.Models
         /// </summary>
         public static ClampLiftDecision DecideGpu(
             AdapterClampLiftSettings settings, HpWmiBios.AdapterInfo adapter,
-            bool gpuHalfIsOffered, bool gpuIsParked, HpWmiBios.GpuMode? displayMode)
+            bool gpuHalfIsOffered, bool gpuIsParked, HpWmiBios.GpuMode? displayMode,
+            bool onAcPower)
         {
             if (!settings.LiftGpuWhenParked) return ClampLiftDecision.Disabled;
+            if (!PowerStateQualifies(onAcPower)) return ClampLiftDecision.DeferredOnBattery;
             if (!gpuHalfIsOffered || !SupplyQualifies(settings, adapter)) return ClampLiftDecision.NotApplicable;
 
             if (displayMode is not (HpWmiBios.GpuMode.Hybrid or HpWmiBios.GpuMode.Optimus))
