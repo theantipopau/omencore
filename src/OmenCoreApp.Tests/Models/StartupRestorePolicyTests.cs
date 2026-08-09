@@ -137,5 +137,64 @@ namespace OmenCoreApp.Tests.Models
             StartupRestorePolicy.DescribeTuningStartupReapplyState(config, confirmedForStartup: true, model: "OMEN Laptop 15-ek0xxx")
                 .Should().Contain("Enabled");
         }
+
+        // ── Reapplying after a crash ─────────────────────────────────────────────────────────────
+        //
+        // Confirmation via Test Apply -> Keep is permanent, so an overclock proved stable once
+        // reapplies on every boot for as long as it stays in the config. An overclock is exactly the
+        // setting whose failure mode is the machine going down without warning, and the boot after
+        // such a crash is the one boot that should not silently repeat it.
+
+        private static AppConfig AllGatesOpen() => new()
+        {
+            EnableStartupHardwareRestore = true,
+            StartupRestoreTuningEnabled = true,
+            AllowStartupRestoreOnOmen16OrVictus = true
+        };
+
+        [Fact]
+        public void MayReapplyTuning_RefusesOnlyAfterAnUncleanShutdown()
+        {
+            StartupRestorePolicy.MayReapplyTuning(LastShutdownState.Unclean).Should().BeFalse();
+            StartupRestorePolicy.MayReapplyTuning(LastShutdownState.Clean).Should().BeTrue();
+        }
+
+        [Fact]
+        public void MayReapplyTuning_TreatsAnUnreadableLogAsCleanRatherThanAsACrash()
+        {
+            // Being unable to read how the last session ended is not evidence that it ended badly.
+            // Failing closed would silently stop a confirmed setting working on any machine whose
+            // System log this cannot read, and the user would have no way to tell why.
+            StartupRestorePolicy.MayReapplyTuning(LastShutdownState.Unknown).Should().BeTrue();
+        }
+
+        [Fact]
+        public void DescribeTuningStartupReapplyState_Confirmed_BlockedByAnUncleanShutdown()
+        {
+            StartupRestorePolicy.DescribeTuningStartupReapplyState(
+                    AllGatesOpen(), confirmedForStartup: true, model: "OMEN Laptop 15-ek0xxx",
+                    lastShutdown: LastShutdownState.Unclean)
+                .Should().Contain("Blocked").And.Contain("crash").And.Contain("re-confirm");
+        }
+
+        [Fact]
+        public void DescribeTuningStartupReapplyState_ACrashDoesNotOverrideNotConfirmed()
+        {
+            // "Not confirmed" is the more useful thing to say: there is nothing to hold back, and
+            // reporting a crash block here would send the user looking for a problem they do not have.
+            StartupRestorePolicy.DescribeTuningStartupReapplyState(
+                    AllGatesOpen(), confirmedForStartup: false, model: "OMEN Laptop 15-ek0xxx",
+                    lastShutdown: LastShutdownState.Unclean)
+                .Should().Contain("Not confirmed");
+        }
+
+        [Fact]
+        public void DescribeTuningStartupReapplyState_CleanShutdownStillEnabled()
+        {
+            StartupRestorePolicy.DescribeTuningStartupReapplyState(
+                    AllGatesOpen(), confirmedForStartup: true, model: "OMEN Laptop 15-ek0xxx",
+                    lastShutdown: LastShutdownState.Clean)
+                .Should().Contain("Enabled");
+        }
     }
 }
