@@ -102,10 +102,13 @@ namespace OmenCore.Hardware
         private const byte CmdRestoreDefault = 0x10;
         private const byte CmdGetLightingEffect = 0x83;
 
-        // OGH's key map on 8D87 is 176 entries (60 + 60 + 56), read off the capture rather than
-        // the decompile. Three pages per channel, BLength declared as 0 on all nine pages while
-        // each carries PayloadCapacity colour bytes.
-        private const int ColorMapLength = 176;
+        // OGH's key map on 8D87 is 176 entries, matching HP's own layout resource: the pre-26C1
+        // DojoKBKeysGlobalData.json declares 180 and SetNullBytes zeroes 176-179 as padding. Every
+        // position below that is a real LED - 8D87 is cycle 25C1, so the cycle > 260 row that would
+        // blank 137, 138 and 146 does not apply, and lighting those positions confirms they are
+        // KeyDot and the last cell of KeyShiftR. Three pages per channel, BLength declared as 0 on
+        // all nine pages while each carries PayloadCapacity colour bytes.
+        public const int ColorMapLength = 176;
         private const int ColorPages = 3;
 
         /// <summary>LightingEffectTarget.ALL_LED_AREA - the only target a keyboard has.</summary>
@@ -460,20 +463,60 @@ namespace OmenCore.Hardware
         /// </summary>
         public bool SetStaticColor(byte r, byte g, byte b)
         {
-            if (!Send(CmdSetLightingOnOff, 0, new byte[] { 0x01 })) return false;
+            var rc = new byte[ColorMapLength];
+            var gc = new byte[ColorMapLength];
+            var bc = new byte[ColorMapLength];
+            Array.Fill(rc, r);
+            Array.Fill(gc, g);
+            Array.Fill(bc, b);
 
-            return SendUniformColorPages(CmdSetKeyR, r)
-                && SendUniformColorPages(CmdSetKeyG, g)
-                && SendUniformColorPages(CmdSetKeyB, b);
+            return SetStaticColorMap(rc, gc, bc);
         }
 
-        private bool SendUniformColorPages(byte command, byte value)
+        /// <summary>
+        /// Set every key INDIVIDUALLY via the same static colour map, one entry per LED position.
+        ///
+        /// This is the only way a per-key picture survives the Fn overlay. The MCU redraws its base
+        /// layer from its own state when Fn is released, and this map is that state; a picture
+        /// painted onto the mi_04 LampArray is not, so the display stays on the overlay frame
+        /// indefinitely. Anything that wants a picture to STAY belongs here rather than there.
+        ///
+        /// Each channel is indexed by LED position and must be <see cref="ColorMapLength"/> long.
+        /// Every position is live on this board, so a colour reaches all of them.
+        ///
+        /// Volatile until <see cref="StoreToFlash"/>.
+        /// </summary>
+        public bool SetStaticColorMap(ReadOnlySpan<byte> r, ReadOnlySpan<byte> g, ReadOnlySpan<byte> b)
+        {
+            if (r.Length != ColorMapLength || g.Length != ColorMapLength || b.Length != ColorMapLength)
+                throw new ArgumentException(
+                    $"Each channel must be {ColorMapLength} entries, one per LED position; " +
+                    $"got {r.Length}/{g.Length}/{b.Length}.");
+
+            // Command 0x09 with payload 0x01 selects the static display mode. OGH sends it ahead of
+            // every colour round and so does this - without it the colour pages land in a map the
+            // effect engine is not displaying.
+            if (!Send(CmdSetLightingOnOff, 0, new byte[] { 0x01 })) return false;
+
+            return SendColorPages(CmdSetKeyR, r)
+                && SendColorPages(CmdSetKeyG, g)
+                && SendColorPages(CmdSetKeyB, b);
+        }
+
+        private bool SendColorPages(byte command, ReadOnlySpan<byte> channel)
         {
             for (byte page = 0; page < ColorPages; page++)
             {
-                int fill = Math.Min(PayloadCapacity, ColorMapLength - page * PayloadCapacity);
+                int from = page * PayloadCapacity;
+                int fill = Math.Min(PayloadCapacity, ColorMapLength - from);
+
+                // The payload is always the full 60 bytes even on the last page, where only 56 of
+                // them are map entries - HP's page 2 carries 56 colour bytes and four zeros. BLength
+                // is declared 0 on all nine pages, which is what the capture shows on the wire.
                 var payload = new byte[PayloadCapacity];
-                for (int i = 0; i < fill; i++) payload[i] = value;
+                for (int i = 0; i < fill; i++)
+                    payload[i] = channel[from + i];
+
                 if (!Send(command, page, 0, payload)) return false;
             }
             return true;
