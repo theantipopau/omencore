@@ -1523,13 +1523,22 @@ class Program
                 Console.WriteLine("Waiting for client connection...");
                 await server.WaitForConnectionAsync();
                 Console.WriteLine("Client connected.");
-                _lastClientActivity = DateTime.Now;
-                
+
+                // To the file, not just the console, because the console goes nowhere. Whether a
+                // client ever connected is the question that separates "the app is using this
+                // worker" from "this worker is running for nobody", and on 2026-08-08 it was the
+                // question the logs could not answer.
+                var connectedAt = DateTime.Now;
+                LogToFile($"[{connectedAt:O}] Client connected (parent PID {_parentProcessId}).\n");
+                _lastClientActivity = connectedAt;
+
                 await HandleClient(server);
-                
+
                 // Client disconnected — update activity timestamp
                 // so orphan watchdog starts counting from NOW, not from last request
                 _lastClientActivity = DateTime.Now;
+                LogToFile($"[{DateTime.Now:O}] Client session ended after " +
+                          $"{(DateTime.Now - connectedAt).TotalSeconds:F0}s. Waiting for next connection.\n");
                 Console.WriteLine("Client session ended. Waiting for next connection...");
             }
             catch (Exception ex)

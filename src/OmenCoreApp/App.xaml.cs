@@ -93,6 +93,22 @@ namespace OmenCore
             base.OnStartup(e);
             Logging.Initialize();
 
+            // First line written, before anything that can block or throw.
+            //
+            // Everything below here can hang: IsRtssRunning enumerates processes, and touching
+            // Configuration.Config loads and rewrites the config file. Until this line existed the
+            // startup banner came after all of it, so an instance that wedged on the way through
+            // left a log file of zero bytes - indistinguishable from one that never ran at all.
+            // That is not hypothetical: on 2026-08-08 a process did exactly that, spawned a
+            // HardwareWorker, and left it polling the GPU for 22 minutes with nothing on record to
+            // say what the process was or how far it had got.
+            //
+            // The PID is the part that matters. It is what the worker records as its parent, and it
+            // is what makes the two logs joinable after the fact.
+            Logging.Info($"OmenCore process starting: PID {Environment.ProcessId}, " +
+                         $"session {Process.GetCurrentProcess().SessionId}, " +
+                         $"args [{string.Join(" ", e.Args)}]");
+
             // Enable software rendering if RTSS is running or user has opted in via config.
             // Must be set before any WPF window is created to prevent UCEERR_RENDERTHREADFAILURE.
             bool rtssActive = IsRtssRunning();
