@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v4.1.5</small>
+      <small>v4.1.6</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v4.1.5 is out now — RGB reliability, fan-safety &amp; accessibility fixes
+      v4.1.6 is out now — per-LED lighting for every board, adapter power override &amp; board 8D87 support
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -163,7 +163,7 @@
       <div class="label">Core control modules</div>
     </div>
     <div class="stat">
-      <div class="num"><span class="count-up" data-target="950">0</span><span class="unit">+</span></div>
+      <div class="num"><span class="count-up" data-target="1250">0</span><span class="unit">+</span></div>
       <div class="label">Automated tests</div>
     </div>
     <div class="stat">
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v4.1.5</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v4.1.6</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
 
@@ -378,8 +378,23 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v4.1.5</span>
+          <span class="v">v4.1.6</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>The largest release yet, built mostly on community contributor <b>tempestnano</b>'s reverse-engineering of board 8D87's power and lighting stack — reviewed file-by-file before merging — plus three separate passes on UI responsiveness and a batch of field-report fixes.</p>
+        <ul>
+          <li>Added per-LED keyboard lighting for every supported board, not just 8D87 — individually addressable LEDs instead of whole-key painting</li>
+          <li>Added an experimental adapter power override to drop GPU/CPU power clamps caused by an under-rated charger — off by default, single-board evidence so far</li>
+          <li>Fixed EC power-limit writes being attempted with unconfirmed register addresses on every unverified board — now blocked by default</li>
+          <li>Fixed fans stuck at 100% after leaving Max Fan mode (board <code>8DCD</code>), and a background-process bug that could crash the machine on battery</li>
+          <li>Fixed the AMD MSR "reboot to activate" message, locale-dependent number formatting, and a Spotify bloatware false-positive</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.1.6.md" target="_blank" rel="noopener">Full v4.1.6 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v4.1.5</span>
+          <span class="timeline-badge muted">Minor</span>
         </div>
         <p>A patch built in two passes: targeted field-report fixes, then a broader audit for the "logs success without confirming a real write happened" bug class after finding one instance of it in 4.1.0.</p>
         <ul>
