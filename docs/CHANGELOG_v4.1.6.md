@@ -1,10 +1,20 @@
 # OmenCore v4.1.6 – EC Power-Limit Safety, Max-Fan Latch Fix, Board 8D87 Support, UI Responsiveness, Second Field-Report Batch
 
-**Release Date:** TBD
-**Release Status:** Code-complete and test-verified in this environment (1266/1266 tests, 0 build warnings); artifacts not yet built or tagged.
+**Release Date:** 2026-08-10
+**Release Status:** Code-complete, test-verified (1266/1266 tests, 0 build warnings), merged to `main`, and artifacts built and hashed (see SHA256 hashes below).
 **Type:** Patch release — a safety-relevant fail-safe default, a fan-control bug fix, two diagnostics-clarity fixes, an EC GPU-boost false-success fix, a large community-contributed board-8D87 support/correctness pass, seven UI-responsiveness fixes, three independent locale/bloatware/model-identity fixes, a misleading-diagnostics fix for AMD MSR access, a second batch of six reviewed-and-merged community PRs, and a third, larger community submission adding adapter power override / APU clamp lift (explicitly hardware-gated, merged per owner decision) and per-LED lighting for every board — found while triaging field reports (GitHub #159, #163, #170, Discord SAINTOP/board `8DCD`, Reddit, Discord AMBA/board `8DD0`, Discord Trirez/board `8BCA`), a community contribution (tempestnano), and a standing "laggy UI" complaint
 **Base Version:** v4.1.5
-**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items", "Newly Reported (2026-08-03, Post-4.1.5): Board `8DCD` Fans Stuck at Max After Leaving Max Mode", "Community Contribution: Board 8D87 Profile, Telemetry, and Robustness (tempestnano)", "Second Field-Report Batch and Community PR Review (2026-08-07)", "Standing Feedback: 'Laggy UI' — Audited and Fixed Three Concrete Sources (4.1.6 cycle)", and "FIXED (4.1.6 cycle): AMD MSR 'Reboot to Activate' Message Was Misleading (GitHub #170)" for the full traces this release acts on.
+**Tracking doc:** `docs/ROADMAP_v4.0.0.md` — see "Newly Reported (2026-08-02, Post-4.1.5): GPU Power Boost Follow-Up, GitHub #159, and Two Smaller Items", "Newly Reported (2026-08-03, Post-4.1.5): Board `8DCD` Fans Stuck at Max After Leaving Max Mode", "Community Contribution: Board 8D87 Profile, Telemetry, and Robustness (tempestnano)", "Second Field-Report Batch and Community PR Review (2026-08-07)", "Standing Feedback: 'Laggy UI' — Audited and Fixed Three Concrete Sources (4.1.6 cycle)", "FIXED (4.1.6 cycle): AMD MSR 'Reboot to Activate' Message Was Misleading (GitHub #170)", and "ADOPTED (4.1.6 cycle): Adapter Power Override, APU Clamp Lift, Per-LED Lighting for Every Board (tempestnano)" for the full traces this release acts on.
+
+## SHA256 Hashes
+
+```text
+AA72977F043B3E59324353CA77DD4AB592A475948E3CF33F44B374740596CC8E  OmenCoreSetup-4.1.6.exe
+F4F78FE936486F64DAC73B9237BC1D388335B9098F6F337A20B3EBE235728633  OmenCore-4.1.6-win-x64.zip
+3EC38CD3A769E896F065BABA45C2BA2D1C666B94A90920FECC1DB7E71AE1F788  OmenCore-4.1.6-linux-x64.zip
+```
+
+Also published as `artifacts/SHA256SUMS-4.1.6.txt`. Verify with `Get-FileHash <file> -Algorithm SHA256` (Windows) or `sha256sum <file>` (Linux) before installing.
 
 ---
 
