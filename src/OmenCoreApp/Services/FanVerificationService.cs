@@ -337,7 +337,23 @@ namespace OmenCore.Services
                     result.SampleCount = VerificationSamples;
                     result.ActualLevelAfter = ReadCurrentLevel(fanIndex);
                     result.LevelReadbackMatched = IsLevelReadbackMatch(result);
-                    
+
+                    // GetCurrentRpm/rpmSamples above read FanService.FanTelemetry, which refreshes on
+                    // its own independent polling cadence rather than synchronously with this command
+                    // - on a board with no real tachometer (RpmSource.Estimated), that cache is
+                    // frequently still holding the *previous* test point's level by the time this loop
+                    // samples it. GitHub #163 (board 8BCA-AMD) showed this directly in its own guided-
+                    // diagnostic log: "Fan levels set: CPU=33" (the 60% test) immediately followed by
+                    // "Fan 0 RPM samples: [1600, 1600, ...]" - 1600 being exactly the *previous* 30%
+                    // test's level (16) times 100, one full test-step stale, while ActualLevelAfter
+                    // (read fresh, synchronously, right above) already correctly showed 33. For the
+                    // estimate-only case, ActualLevelAfter is the reliable source of truth - recompute
+                    // the displayed/scored RPM from it instead of the lagging telemetry cache.
+                    if (result.RpmSource == RpmSource.Estimated)
+                    {
+                        result.ActualRpmAfter = result.ActualLevelAfter * 100;
+                    }
+
                     // Calculate standard deviation for stability scoring (v2.7.0)
                     double mean = rpmSamples.Average();
                     double sumSquares = rpmSamples.Sum(r => Math.Pow(r - mean, 2));
