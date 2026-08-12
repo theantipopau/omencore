@@ -216,8 +216,14 @@ namespace OmenCore.Hardware
                 if (CpuModel.Contains("Model 32")) return RyzenFamily.Dali;
             }
 
-            // Renoir/Lucienne detection
-            if (CpuModel.Contains("Model 96") || CpuModel.Contains("Model 104"))
+            // Renoir/Lucienne detection (Family 23 / 17h Model 60h-68h). Requires the Family 23
+            // check explicitly - GitHub #171 (board 8E10) showed "AMD Ryzen AI 7 350", a genuinely
+            // new Family 26 part reported as "AMD64 Family 26 Model 96 Stepping 0", falling through
+            // the Family-26-specific block above (which only recognizes Models 36/112/68) and
+            // landing here on a bare "Model 96" match with no family qualifier - misidentifying a
+            // 2025+ chip as ~2020 Renoir/Lucienne silicon. Every other family block in this method
+            // checks Family first; this one didn't, and Model numbers are not unique across families.
+            if (CpuModel.Contains("Family 23") && (CpuModel.Contains("Model 96") || CpuModel.Contains("Model 104")))
                 return RyzenFamily.RenoirLucienne;
 
             // Van Gogh (Steam Deck)
