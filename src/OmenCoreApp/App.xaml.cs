@@ -503,6 +503,11 @@ namespace OmenCore
                 {
                     mainViewModel.ApplyQuickProfileFromTray(profile);
                 };
+
+                _trayIconService.MemoryCleanRequested += () =>
+                {
+                    mainViewModel.CleanMemoryFromTray();
+                };
                 
                 // v2.7.0: GPU Power and Keyboard backlight quick actions
                 _trayIconService.GpuPowerChangeRequested += level =>

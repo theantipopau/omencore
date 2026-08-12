@@ -90,6 +90,7 @@ namespace OmenCore.Utils
         public event Action? KeyboardBacklightToggleRequested;
         public event Action? CheckForUpdatesRequested;
         public event Action? ReportProblemRequested;
+        public event Action? MemoryCleanRequested;
         
         /// <summary>
         /// Forces immediate refresh of the tray icon (e.g., when temp display setting changes).
@@ -1171,6 +1172,7 @@ namespace OmenCore.Utils
                     _quickPopup = new QuickPopupWindow();
                     _quickPopup.FanModeChangeRequested += mode => FanModeChangeRequested?.Invoke(mode);
                     _quickPopup.QuickProfileChangeRequested += profile => QuickProfileChangeRequested?.Invoke(profile);
+                    _quickPopup.MemoryCleanRequested += () => MemoryCleanRequested?.Invoke();
                     _quickPopup.OpenDashboardRequested += () => _showMainWindow();
                     _quickPopup.Closed += (s, e) => _quickPopup = null;
                 }
@@ -1216,6 +1218,7 @@ namespace OmenCore.Utils
                     _quickPopup = new QuickPopupWindow();
                     _quickPopup.FanModeChangeRequested += mode => FanModeChangeRequested?.Invoke(mode);
                     _quickPopup.QuickProfileChangeRequested += profile => QuickProfileChangeRequested?.Invoke(profile);
+                    _quickPopup.MemoryCleanRequested += () => MemoryCleanRequested?.Invoke();
                     _quickPopup.OpenDashboardRequested += () => _showMainWindow();
                     _quickPopup.Closed += (s, e) => _quickPopup = null;
                 }

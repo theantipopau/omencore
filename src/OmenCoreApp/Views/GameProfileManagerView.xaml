@@ -292,6 +292,12 @@
                                     Margin="8,0,0,0"/>
                         </Grid>
 
+                        <!-- Additional Executable Names (shared/default profile) -->
+                        <Label Content="Also Apply To (Optional - comma-separated .exe names)"/>
+                        <TextBox Text="{Binding SelectedProfile.AdditionalExecutableNamesText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Other games that should share this profile's settings, e.g. game2.exe, game3.exe. Lets one profile act as a default for a list of games."
+                                 Margin="0,0,0,12"/>
+
                         <!-- Enabled -->
                         <CheckBox Content="Enable Auto-Switch"
                                   IsChecked="{Binding SelectedProfile.IsEnabled}"
@@ -366,6 +372,10 @@
 
                         <CheckBox Content="Restore default fan/performance settings when game exits"
                                   IsChecked="{Binding SelectedProfile.RestoreDefaultsOnExit}"
+                                  Margin="0,0,0,12"/>
+
+                        <CheckBox Content="Clean memory (RAM) when this game launches"
+                                  IsChecked="{Binding SelectedProfile.CleanMemoryOnLaunch}"
                                   Margin="0,0,0,12"/>
 
                         <Separator Margin="0,8,0,16"/>

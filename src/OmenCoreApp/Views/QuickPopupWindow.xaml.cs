@@ -61,6 +61,11 @@ namespace OmenCore.Views
         /// </summary>
         public event Action<string>? QuickProfileChangeRequested;
 
+        /// <summary>
+        /// Raised when user requests a safe RAM clean from Quick Access.
+        /// </summary>
+        public event Action? MemoryCleanRequested;
+
         public QuickPopupWindow()
         {
             InitializeComponent();
@@ -428,6 +433,12 @@ namespace OmenCore.Views
             }
 
             _displayService.TurnOffDisplay();
+        }
+
+        private void MemoryClean_Click(object sender, RoutedEventArgs e)
+        {
+            MemoryCleanRequested?.Invoke();
+            Hide();
         }
 
         /// <summary>

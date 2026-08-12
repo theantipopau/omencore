@@ -3354,6 +3354,17 @@ namespace OmenCore.ViewModels
                 }
             }
 
+            // Clean memory on launch, if the profile requests it
+            if (profile.CleanMemoryOnLaunch)
+            {
+                var memoryOptimizer = MemoryOptimizer;
+                if (memoryOptimizer?.CleanSafeCommand?.CanExecute(null) == true)
+                {
+                    memoryOptimizer.CleanSafeCommand.Execute(null);
+                    _logging.Info($"Triggered memory clean for game profile: {profile.Name}");
+                }
+            }
+
             _logging.Info($"✓ Profile '{profile.Name}' applied successfully");
 
         }
@@ -4947,6 +4958,19 @@ namespace OmenCore.ViewModels
             };
         }
         
+        /// <summary>
+        /// Runs a safe memory clean triggered from the tray Quick Access popup.
+        /// </summary>
+        public void CleanMemoryFromTray()
+        {
+            var memoryOptimizer = MemoryOptimizer;
+            if (memoryOptimizer?.CleanSafeCommand?.CanExecute(null) == true)
+            {
+                memoryOptimizer.CleanSafeCommand.Execute(null);
+                _logging.Info("Triggered memory clean from tray Quick Access");
+            }
+        }
+
         /// <summary>
         /// Set GPU power level from system tray (v2.7.0)
         /// </summary>

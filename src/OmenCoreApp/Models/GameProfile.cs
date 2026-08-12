@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace OmenCore.Models
 {
@@ -41,6 +43,31 @@ namespace OmenCore.Models
         /// even if the executable name matches.
         /// </summary>
         public string? WindowTitleContains { get; set; }
+
+        /// <summary>
+        /// Additional executable names (besides <see cref="ExecutableName"/>) that also match this
+        /// profile. Lets one profile act as a shared "default" profile for a user-maintained list of
+        /// games that should all get the same settings, instead of needing a separate profile per game.
+        /// </summary>
+        public List<string> AdditionalExecutableNames { get; set; } = new();
+
+        /// <summary>
+        /// Comma-separated view of <see cref="AdditionalExecutableNames"/> for simple text-box editing.
+        /// Not persisted directly - it's a view over <see cref="AdditionalExecutableNames"/>.
+        /// </summary>
+        [JsonIgnore]
+        public string AdditionalExecutableNamesText
+        {
+            get => string.Join(", ", AdditionalExecutableNames);
+            set => AdditionalExecutableNames = (value ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Whether to trigger a safe memory clean when this profile activates (game launches).
+        /// </summary>
+        public bool CleanMemoryOnLaunch { get; set; } = false;
 
         /// <summary>
         /// Fan preset to apply when game launches.
@@ -142,6 +169,8 @@ namespace OmenCore.Models
                 ExecutableName = ExecutableName,
                 ExecutablePath = ExecutablePath,
                 WindowTitleContains = WindowTitleContains,
+                AdditionalExecutableNames = new List<string>(AdditionalExecutableNames),
+                CleanMemoryOnLaunch = CleanMemoryOnLaunch,
                 IsEnabled = IsEnabled,
                 FanPresetName = FanPresetName,
                 PerformanceModeName = PerformanceModeName,
@@ -195,12 +224,23 @@ namespace OmenCore.Models
         {
             if (!IsEnabled) return 0;
 
-            // Exact executable name match (case-insensitive), tolerant of optional ".exe" suffix
+            // Exact executable name match (case-insensitive), tolerant of optional ".exe" suffix.
+            // Matches either the primary ExecutableName or any AdditionalExecutableNames entry, so
+            // one profile can act as a shared "default" for a list of games.
             var normalizedProcess = NormalizeExecutableName(processName);
             var normalizedProfile = NormalizeExecutableName(ExecutableName);
 
-            if (string.IsNullOrEmpty(normalizedProfile) ||
-                !string.Equals(normalizedProcess, normalizedProfile, StringComparison.OrdinalIgnoreCase))
+            var nameMatched = !string.IsNullOrEmpty(normalizedProfile) &&
+                string.Equals(normalizedProcess, normalizedProfile, StringComparison.OrdinalIgnoreCase);
+
+            if (!nameMatched)
+            {
+                nameMatched = AdditionalExecutableNames.Any(name =>
+                    string.Equals(normalizedProcess, NormalizeExecutableName(name), StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrEmpty(NormalizeExecutableName(name)));
+            }
+
+            if (!nameMatched)
             {
                 return 0;
             }

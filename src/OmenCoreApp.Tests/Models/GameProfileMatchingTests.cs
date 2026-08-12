@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FluentAssertions;
 using OmenCore.Models;
 
@@ -76,5 +77,61 @@ public class GameProfileMatchingTests
         clone.RestoreDefaultsOnExit.Should().BeFalse();
         clone.Id.Should().NotBe(profile.Id);
         clone.WindowTitleContains.Should().Be("My Game");
+    }
+
+    [Theory]
+    [InlineData("game2")]
+    [InlineData("game2.exe")]
+    public void GetProcessMatchScore_MatchesAdditionalExecutableNames(string processName)
+    {
+        var profile = new GameProfile
+        {
+            Name = "Shared Profile",
+            ExecutableName = "game1.exe",
+            AdditionalExecutableNames = new List<string> { "game2.exe", "game3.exe" }
+        };
+
+        profile.MatchesProcess(processName).Should().BeTrue();
+        profile.GetProcessMatchScore(processName).Should().Be(1);
+    }
+
+    [Fact]
+    public void GetProcessMatchScore_DoesNotMatch_UnlistedExecutable()
+    {
+        var profile = new GameProfile
+        {
+            ExecutableName = "game1.exe",
+            AdditionalExecutableNames = new List<string> { "game2.exe" }
+        };
+
+        profile.MatchesProcess("game4").Should().BeFalse();
+    }
+
+    [Fact]
+    public void AdditionalExecutableNamesText_RoundTripsThroughCommaSeparatedString()
+    {
+        var profile = new GameProfile();
+
+        profile.AdditionalExecutableNamesText = "game2.exe, game3.exe,  game4.exe ";
+
+        profile.AdditionalExecutableNames.Should().Equal("game2.exe", "game3.exe", "game4.exe");
+        profile.AdditionalExecutableNamesText.Should().Be("game2.exe, game3.exe, game4.exe");
+    }
+
+    [Fact]
+    public void Clone_PreservesAdditionalExecutableNamesAndCleanMemoryOnLaunch()
+    {
+        var profile = new GameProfile
+        {
+            ExecutableName = "game1.exe",
+            AdditionalExecutableNames = new List<string> { "game2.exe" },
+            CleanMemoryOnLaunch = true
+        };
+
+        var clone = profile.Clone();
+
+        clone.AdditionalExecutableNames.Should().Equal("game2.exe");
+        clone.AdditionalExecutableNames.Should().NotBeSameAs(profile.AdditionalExecutableNames);
+        clone.CleanMemoryOnLaunch.Should().BeTrue();
     }
 }
