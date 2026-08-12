@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:OmenCore.Controls"
              mc:Ignorable="d"
              d:DesignHeight="500" d:DesignWidth="700"
-             Background="{DynamicResource DarkBackgroundBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <Style x:Key="DiagnosticButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -17,14 +17,14 @@
 
         <Style x:Key="DiagnosticTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,2"/>
         </Style>
 
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,10,0,5"/>
         </Style>
     </UserControl.Resources>
@@ -37,15 +37,15 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
             <StackPanel Margin="15">
-                <TextBlock Text="Diagnostic Export" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
-                <TextBlock Text="Export system diagnostics and logs to help troubleshoot issues. This creates a comprehensive report that can be attached to GitHub issues or shared with support." FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                <TextBlock Text="Diagnostic Export" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                <TextBlock Text="Export system diagnostics and logs to help troubleshoot issues. This creates a comprehensive report that can be attached to GitHub issues or shared with support." FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
         <!-- Main Content -->
-        <Border Grid.Row="1" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="15">
 
@@ -127,7 +127,7 @@
         </Border>
 
         <!-- Action Buttons -->
-        <Border Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,10,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="15">
                 <Button x:Name="ExportButton" Content="Export Diagnostics" Style="{StaticResource DiagnosticButtonStyle}" Background="{DynamicResource AccentBrush}" Foreground="White" Click="ExportButton_Click"/>
                 <Button x:Name="CancelExportButton" Content="Cancel" Style="{StaticResource DiagnosticButtonStyle}" Background="{DynamicResource ErrorBrush}" Foreground="White" Click="CancelExportButton_Click" Visibility="Collapsed"/>

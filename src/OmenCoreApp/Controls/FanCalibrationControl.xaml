@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:OmenCore.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800"
-             Background="{DynamicResource DarkBackgroundBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <Style x:Key="CalibrationButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -17,7 +17,7 @@
 
         <Style x:Key="StatusTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="0,2"/>
         </Style>
     </UserControl.Resources>
@@ -30,16 +30,16 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
             <StackPanel Margin="15">
-                <TextBlock Text="Fan Calibration" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
-                <TextBlock Text="Calibrate fan RPM curves for accurate speed control on your specific laptop model." FontSize="14" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
-                <TextBlock Text="This process will test fan speeds from 0% to 100% and may take several minutes." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                <TextBlock Text="Fan Calibration" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
+                <TextBlock Text="Calibrate fan RPM curves for accurate speed control on your specific laptop model." FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                <TextBlock Text="This process will test fan speeds from 0% to 100% and may take several minutes." FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
         <!-- Main Content -->
-        <Border Grid.Row="1" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="15">
 
@@ -106,7 +106,7 @@
         </Border>
 
         <!-- Action Buttons -->
-        <Border Grid.Row="2" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,10,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,10,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="15">
                 <Button x:Name="StartCalibrationButton" Content="Start Calibration" Style="{StaticResource CalibrationButtonStyle}" Background="{DynamicResource AccentBrush}" Foreground="White" Click="StartCalibrationButton_Click"/>
                 <Button x:Name="StopCalibrationButton" Content="Stop" Style="{StaticResource CalibrationButtonStyle}" Background="{DynamicResource ErrorBrush}" Foreground="White" Click="StopCalibrationButton_Click" Visibility="Collapsed"/>

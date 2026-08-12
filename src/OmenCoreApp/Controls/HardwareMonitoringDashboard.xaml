@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:OmenCore.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="1000"
-             Background="{DynamicResource DarkBackgroundBrush}">
+             Background="{DynamicResource BackgroundDarkBrush}">
 
     <UserControl.Resources>
         <!-- Enhanced Card Style with hover glow -->
@@ -239,42 +239,42 @@
                     <!-- Power Chart -->
                     <Border x:Name="PowerChartBorder" Style="{StaticResource MetricCardStyle}" MinHeight="200">
                         <StackPanel>
-                            <TextBlock Text="⚡ Power Consumption" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,8"/>
-                            <Canvas x:Name="PowerChartCanvas" Height="150" Background="{DynamicResource DarkBackgroundBrush}"/>
-                            <TextBlock x:Name="PowerChartStats" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,5,0,0"/>
+                            <TextBlock Text="⚡ Power Consumption" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <Canvas x:Name="PowerChartCanvas" Height="150" Background="{DynamicResource BackgroundDarkBrush}"/>
+                            <TextBlock x:Name="PowerChartStats" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
 
                     <!-- Temperature Chart -->
                     <Border x:Name="TempChartBorder" Style="{StaticResource MetricCardStyle}" MinHeight="200">
                         <StackPanel>
-                            <TextBlock Text="🌡️ Temperature" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,8"/>
-                            <Canvas x:Name="TempChartCanvas" Height="150" Background="{DynamicResource DarkBackgroundBrush}"/>
-                            <TextBlock x:Name="TempChartStats" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,5,0,0"/>
+                            <TextBlock Text="🌡️ Temperature" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <Canvas x:Name="TempChartCanvas" Height="150" Background="{DynamicResource BackgroundDarkBrush}"/>
+                            <TextBlock x:Name="TempChartStats" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
 
                     <!-- Battery Chart -->
                     <Border x:Name="BatteryChartBorder" Style="{StaticResource MetricCardStyle}" MinHeight="200">
                         <StackPanel>
-                            <TextBlock Text="🔋 Battery Charge" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,8"/>
-                            <Canvas x:Name="BatteryChartCanvas" Height="150" Background="{DynamicResource DarkBackgroundBrush}"/>
-                            <TextBlock x:Name="BatteryChartStats" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,5,0,0"/>
+                            <TextBlock Text="🔋 Battery Charge" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <Canvas x:Name="BatteryChartCanvas" Height="150" Background="{DynamicResource BackgroundDarkBrush}"/>
+                            <TextBlock x:Name="BatteryChartStats" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
 
                     <!-- Fan Chart -->
                     <Border x:Name="FanChartBorder" Style="{StaticResource MetricCardStyle}" MinHeight="200">
                         <StackPanel>
-                            <TextBlock Text="🌀 Fan Speeds" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,8"/>
-                            <Canvas x:Name="FanChartCanvas" Height="150" Background="{DynamicResource DarkBackgroundBrush}"/>
-                            <TextBlock x:Name="FanChartStats" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,5,0,0"/>
+                            <TextBlock Text="🌀 Fan Speeds" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <Canvas x:Name="FanChartCanvas" Height="150" Background="{DynamicResource BackgroundDarkBrush}"/>
+                            <TextBlock x:Name="FanChartStats" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
                 </UniformGrid>
 
                 <!-- Chart Controls (for export/refresh) -->
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
+                <Border Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
                     <StackPanel Orientation="Horizontal" Margin="15" HorizontalAlignment="Center">
                         <Button x:Name="RefreshDataButton" Content="🔄 Refresh Charts" Style="{StaticResource ChartButtonStyle}" Click="RefreshDataButton_Click" Margin="5,0" ToolTip="Refresh all hardware monitoring charts"/>
                         <Button x:Name="ExportDataButton" Content="💾 Export Data" Style="{StaticResource ChartButtonStyle}" Click="ExportDataButton_Click" Margin="5,0" ToolTip="Export sensor history to a CSV file"/>
@@ -282,11 +282,11 @@
                 </Border>
 
                 <!-- Alerts Section -->
-                <TextBlock Text="System Alerts" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
+                <TextBlock Text="System Alerts" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
-                <Border Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
+                <Border Background="{DynamicResource SurfaceDarkBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,10">
                     <StackPanel Margin="15">
-                        <TextBlock Text="Active Alerts" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
+                        <TextBlock Text="Active Alerts" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         <ListBox x:Name="AlertsListBox" Height="120" Background="Transparent" BorderThickness="0">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
@@ -295,20 +295,20 @@
                                             <TextBlock Text="{Binding Icon}" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center"/>
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="{DynamicResource WarningBrush}"/>
-                                                <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding Timestamp}" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Timestamp}" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <TextBlock x:Name="NoAlertsText" Text="No active alerts" Foreground="{DynamicResource SecondaryTextBrush}" HorizontalAlignment="Center" Margin="0,20"/>
+                        <TextBlock x:Name="NoAlertsText" Text="No active alerts" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,20"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Efficiency Metrics -->
-                <TextBlock Text="Efficiency Metrics" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,10"/>
+                <TextBlock Text="Efficiency Metrics" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,10"/>
 
                 <UniformGrid Columns="3" Margin="0,0,0,20">
                     <!-- Power Efficiency -->
@@ -337,7 +337,7 @@
                             <TextBlock Text="Battery Status" Style="{StaticResource MetricTitleStyle}"/>
                             <TextBlock x:Name="BatteryCyclesValue" Text="--" Style="{StaticResource MetricValueStyle}"/>
                             <TextBlock Text="cycles" Style="{StaticResource MetricUnitStyle}"/>
-                            <TextBlock x:Name="BatteryLifeEstimate" Text="3.0 years remaining" FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            <TextBlock x:Name="BatteryLifeEstimate" Text="3.0 years remaining" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
                 </UniformGrid>

@@ -26,9 +26,11 @@ namespace OmenCore.ViewModels
         private readonly LoggingService _logger;
         private readonly MemoryOptimizerService _memoryService;
         private readonly ConfigurationService? _configService;
+        private readonly NotificationService? _notificationService;
         private readonly DispatcherTimer _refreshTimer;
         private readonly Queue<MemoryHistorySample> _memoryHistory = new();
         private const string RefreshTimerRegistryName = "MemoryOptimizerRefresh";
+        private const long MinToastWorthyFreedMB = 50;
 
         public ObservableCollection<ProcessMemoryInfo> TopProcesses { get; } = new();
         public ObservableCollection<string> ExcludedProcesses { get; } = new();
@@ -75,10 +77,11 @@ namespace OmenCore.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public MemoryOptimizerViewModel(LoggingService logger, ConfigurationService? configService = null)
+        public MemoryOptimizerViewModel(LoggingService logger, ConfigurationService? configService = null, NotificationService? notificationService = null)
         {
             _logger = logger;
             _configService = configService;
+            _notificationService = notificationService;
             _memoryService = new MemoryOptimizerService(logger);
 
             _memoryService.StatusChanged += status =>
@@ -98,6 +101,14 @@ namespace OmenCore.ViewModels
                             Environment.NewLine +
                             result.GetDeltaSummary();
                         SetStatusDone($"Freed {result.FreedMB} MB");
+
+                        // A clean that only ran because the auto/interval timer fired can freed a
+                        // trivial amount on an already-quiet system - only worth interrupting the
+                        // user for a result actually big enough to matter.
+                        if (result.FreedMB >= MinToastWorthyFreedMB)
+                        {
+                            _notificationService?.ShowMemoryCleaned(result.FreedMB, result.OperationsSucceeded);
+                        }
                     }
                     else
                     {

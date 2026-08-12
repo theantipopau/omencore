@@ -95,7 +95,7 @@ namespace OmenCore.Services
             try
             {
                 var builder = new ToastContentBuilder()
-                    .AddText("🎮 Game Profile Activated")
+                    .AddText("Game Profile Activated")
                     .AddText($"{gameName}")
                     .AddText($"Applied profile: {profileName}")
                     .SetToastDuration(ToastDuration.Short);
@@ -125,7 +125,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText("🎮 Game Closed")
+                    .AddText("Game Closed")
                     .AddText($"{gameName}")
                     .AddText("Restored default settings")
                     .SetToastDuration(ToastDuration.Short)
@@ -149,23 +149,42 @@ namespace OmenCore.Services
 
             try
             {
-                string icon = modeName.ToLower() switch
-                {
-                    "performance" or "boost" => "🔥",
-                    "quiet" or "silent" => "🤫",
-                    "balanced" or "auto" => "⚖️",
-                    "max" or "turbo" => "🚀",
-                    _ => "🌀"
-                };
-
                 new ToastContentBuilder()
-                    .AddText($"{icon} Fan Mode: {modeName}")
+                    .AddText($"Fan Mode: {modeName}")
                     .AddText($"Changed via {triggeredBy}")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
 
                 AddInfo($"Fan Mode: {modeName}", $"Changed via {triggeredBy}");
                 _logging.Info($"Notification: Fan mode changed to '{modeName}'");
+            }
+            catch (Exception ex)
+            {
+                _logging.Info($"Failed to show notification: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Show a memory-clean completion notification. Callers should skip trivial/no-op frees
+        /// (see MemoryOptimizerViewModel) so a background auto-clean firing every few minutes
+        /// doesn't turn into a stream of toasts for amounts too small to matter.
+        /// </summary>
+        public void ShowMemoryCleaned(long freedMB, int operationsSucceeded)
+        {
+            if (!_isEnabled) return;
+
+            try
+            {
+                var freedDisplay = freedMB >= 1024 ? $"{freedMB / 1024.0:F1} GB" : $"{freedMB} MB";
+
+                new ToastContentBuilder()
+                    .AddText($"Freed {freedDisplay}")
+                    .AddText($"{operationsSucceeded} cleanup operation{(operationsSucceeded == 1 ? "" : "s")} completed")
+                    .SetToastDuration(ToastDuration.Short)
+                    .Show();
+
+                AddInfo($"Freed {freedDisplay}", $"{operationsSucceeded} cleanup operation{(operationsSucceeded == 1 ? "" : "s")} completed");
+                _logging.Info($"Notification: memory clean freed {freedMB} MB ({operationsSucceeded} operations)");
             }
             catch (Exception ex)
             {
@@ -182,16 +201,8 @@ namespace OmenCore.Services
 
             try
             {
-                string icon = modeName.ToLower() switch
-                {
-                    "performance" => "⚡",
-                    "balanced" => "⚖️",
-                    "quiet" or "power saver" => "🔋",
-                    _ => "💻"
-                };
-
                 new ToastContentBuilder()
-                    .AddText($"{icon} Performance: {modeName}")
+                    .AddText($"Performance: {modeName}")
                     .AddText($"Changed via {triggeredBy}")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
@@ -215,7 +226,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"🌡️ High Temperature Warning")
+                    .AddText($"High Temperature Warning")
                     .AddText($"{component}: {temperature:F0}°C")
                     .AddText($"Threshold: {threshold:F0}°C")
                     .SetToastDuration(ToastDuration.Long)
@@ -275,7 +286,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"🔥 CRITICAL: {component} Overheating!")
+                    .AddText($"CRITICAL: {component} Overheating!")
                     .AddText($"Temperature: {temperature:F0}°C")
                     .AddText("Thermal throttling may occur. Consider reducing load or improving cooling.")
                     .SetToastDuration(ToastDuration.Long)
@@ -300,7 +311,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"🛡️ Thermal Protection: {protectionLevel}")
+                    .AddText($"Thermal Protection: {protectionLevel}")
                     .AddText($"{temperature:F0}°C - Fans boosted to max")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
@@ -324,7 +335,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"⚠️ Driver Issue: {driverName}")
+                    .AddText($"Driver Issue: {driverName}")
                     .AddText(issue)
                     .AddText("Some features may be unavailable.")
                     .SetToastDuration(ToastDuration.Long)
@@ -348,9 +359,8 @@ namespace OmenCore.Services
 
             try
             {
-                var icon = isCritical ? "🚨" : "🌀";
                 new ToastContentBuilder()
-                    .AddText($"{icon} Fan Alert")
+                    .AddText("Fan Alert")
                     .AddText(message)
                     .SetToastDuration(isCritical ? ToastDuration.Long : ToastDuration.Short)
                     .Show();
@@ -374,7 +384,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText("⚠️ EC Bridge Unavailable")
+                    .AddText("EC Bridge Unavailable")
                     .AddText("Fan control features are disabled.")
                     .AddText("Install LibreHardwareMonitor to enable EC access.")
                     .SetToastDuration(ToastDuration.Long)
@@ -398,9 +408,8 @@ namespace OmenCore.Services
 
             try
             {
-                var icon = isOnBattery ? "🔋" : "🔌";
                 new ToastContentBuilder()
-                    .AddText($"{icon} Power Profile: {profileName}")
+                    .AddText($"Power Profile: {profileName}")
                     .AddText(isOnBattery ? "Running on battery" : "Connected to AC power")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
@@ -424,7 +433,7 @@ namespace OmenCore.Services
             try
             {
                 var builder = new ToastContentBuilder()
-                    .AddText("🔄 Update Available")
+                    .AddText("Update Available")
                     .AddText($"OmenCore {newVersion} is ready")
                     .AddText($"Current version: {currentVersion}");
 
@@ -483,7 +492,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"✅ {title}")
+                    .AddText($"{title}")
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
@@ -505,7 +514,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"❌ {title}")
+                    .AddText($"{title}")
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
@@ -527,7 +536,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"⚠️ {title}")
+                    .AddText($"{title}")
                     .AddText(message)
                     .SetToastDuration(ToastDuration.Long)
                     .Show();
@@ -549,7 +558,7 @@ namespace OmenCore.Services
             try
             {
                 new ToastContentBuilder()
-                    .AddText($"⌨️ {action}")
+                    .AddText($"⌨{action}")
                     .SetToastDuration(ToastDuration.Short)
                     .Show();
             }
@@ -747,15 +756,6 @@ namespace OmenCore.Services
             }
         }
         
-        public string TypeIcon => Type switch
-        {
-            InAppNotificationType.Info => "ℹ️",
-            InAppNotificationType.Success => "✅",
-            InAppNotificationType.Warning => "⚠️",
-            InAppNotificationType.Error => "❌",
-            InAppNotificationType.Update => "🔄",
-            _ => "📢"
-        };
     }
     
     /// <summary>

@@ -387,7 +387,7 @@ namespace OmenCore.ViewModels
             {
                 if (_memoryOptimizer == null)
                 {
-                    _memoryOptimizer = new MemoryOptimizerViewModel(_logging, _configService);
+                    _memoryOptimizer = new MemoryOptimizerViewModel(_logging, _configService, _notificationService);
                     _memoryOptimizer.SetPageActive(_selectedTabIndex == MemoryTabIndex);
                     OnPropertyChanged(nameof(MemoryOptimizer));
                 }

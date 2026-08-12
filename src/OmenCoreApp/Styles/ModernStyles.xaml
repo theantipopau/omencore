@@ -296,13 +296,6 @@
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessGreen}" />
 
-    <!-- Backwards-compatible aliases for older resource keys (avoid breaking UI that
-         references the legacy names like TextBrush / SecondaryTextBrush / CardBackgroundBrush) -->
-    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextPrimary}" />
-    <SolidColorBrush x:Key="SecondaryTextBrush" Color="{StaticResource TextSecondary}" />
-    <SolidColorBrush x:Key="TextMutedBrushAlias" Color="{StaticResource TextMuted}" />
-    <SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource BackgroundDark}" />
-    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource SurfaceDark}" />
     <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#1AFFAA33" />
     <SolidColorBrush x:Key="InfoBackgroundBrush" Color="#1A2196F3" />
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningOrange}" />
@@ -1780,7 +1773,7 @@
                         </Trigger>
                         <Trigger Property="ItemsControl.AlternationIndex" Value="1">
                              <!-- Slightly darker for alternating rows -->
-                            <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource DarkBackgroundBrush}" />
+                            <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource BackgroundDarkBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
