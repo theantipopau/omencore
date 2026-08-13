@@ -663,6 +663,18 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 // Fall through to profile-based fallback.
             }
 
+            // Boards that expose only hwmon pwm1_enable (no writable duty or fan-target file,
+            // and often no thermal_profile either - see GitHub #174) have exactly one real fan
+            // control surface: the coarse full-speed/auto toggle. This mirrors the CLI's already
+            // -working LinuxEcController.SetFanProfileViaAcpiHwmon behavior for the same board
+            // class, which the GUI previously never reached - it fell straight through to the
+            // platform-profile fallback below, which is equally absent on these boards, so no
+            // fan request had any effect at all.
+            if (TryWriteHwmonPwmEnable(1, clamped >= 100 ? 0 : 2))
+            {
+                return;
+            }
+
             // Fallback for hp_wmi-only boards that expose only thermal_profile:
             // approximate requested fan intensity by switching platform performance profile.
             var mode = clamped switch
@@ -705,6 +717,14 @@ public class LinuxHardwareService : IHardwareService, IDisposable
             catch
             {
                 // Fall through to profile-based fallback.
+            }
+
+            // See the matching comment in SetCpuFanSpeedAsync - same coarse pwm_enable fallback,
+            // fan index 2. pwm1_enable/pwm2_enable are driven together by SetHwmonPwmEnable in
+            // the CLI too (LinuxEcController.cs:975-979), so this mirrors that pairing.
+            if (TryWriteHwmonPwmEnable(2, clamped >= 100 ? 0 : 2))
+            {
+                return;
             }
 
             var mode = clamped switch
@@ -846,6 +866,37 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         finally
         {
             _ioLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Write hwmon pwm{fanIndex}_enable, the coarse full-speed(0)/auto(2) toggle that is the
+    /// only writable fan control surface on boards with no duty/target file (GitHub #174).
+    /// Mirrors LinuxEcController.SetHwmonPwmEnable's safety block: value 3 (fan off) is never
+    /// allowed through this path. Returns false (not an exception) when the path doesn't exist,
+    /// so callers can fall through to their next-best option.
+    /// </summary>
+    private static bool TryWriteHwmonPwmEnable(int fanIndex, int value)
+    {
+        if (value == 3)
+        {
+            return false;
+        }
+
+        var path = LinuxSysfsPathMap.ResolveHpWmiPwmEnablePath(fanIndex);
+        if (path == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            File.WriteAllText(path, value.ToString());
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
