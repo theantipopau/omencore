@@ -109,6 +109,43 @@ namespace OmenCoreApp.Tests.Hardware
             caps.Should().NotBeNull("known WMI model name pattern must resolve to a database entry");
         }
 
+        // ─── GetCapabilitiesByModelName: vendor-restricted entries (GitHub #172) ──────
+
+        [Fact]
+        public void GetCapabilitiesByModelName_MatchingVendor_ReturnsRestrictedEntry()
+        {
+            // The 8C2F entry (ModelNamePattern "16-r0") is RequiredCpuVendor = AMD.
+            var caps = ModelCapabilityDatabase.GetCapabilitiesByModelName(
+                "Victus by HP Gaming Laptop 16-r0xxx", CpuUndervoltProviderFactory.CpuVendor.AMD);
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("8C2F");
+        }
+
+        [Fact]
+        public void GetCapabilitiesByModelName_MismatchedVendor_DoesNotReturnRestrictedEntry()
+        {
+            // GitHub #172: board 8BBE reports the same WMI name pattern as the AMD-only 8C2F
+            // entry ("Victus by HP Gaming Laptop 16-r0xxx") but is an Intel system. The
+            // name-pattern fallback must not hand it 8C2F's AMD-derived capability flags
+            // (e.g. SupportsUndervolt = false, which assumes Ryzen).
+            var caps = ModelCapabilityDatabase.GetCapabilitiesByModelName(
+                "Victus by HP Gaming Laptop 16-r0xxx", CpuUndervoltProviderFactory.CpuVendor.Intel);
+
+            caps.Should().BeNull("a vendor-restricted entry must not match a system of a different CPU vendor");
+        }
+
+        [Fact]
+        public void GetPreferredCapabilities_MismatchedVendor_DoesNotCrossVendorViaNamePattern()
+        {
+            // Same scenario via the full resolution path used by CapabilityDetectionService,
+            // with an unknown ProductId (as board 8BBE has no entry of its own).
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities(
+                "8BBE", "Victus by HP Gaming Laptop 16-r0xxx", CpuUndervoltProviderFactory.CpuVendor.Intel);
+
+            caps.Should().BeNull("an unknown ProductId on a mismatched-vendor system must not silently inherit a vendor-restricted entry");
+        }
+
         // ─── GetCapabilitiesByFamily: always returns non-null ─────────────────
 
         [Fact]

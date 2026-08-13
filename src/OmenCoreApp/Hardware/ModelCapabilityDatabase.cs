@@ -18,7 +18,17 @@ namespace OmenCore.Hardware
         
         /// <summary>Model name pattern for matching (e.g., "17-ck2" matches "OMEN by HP Laptop 17-ck2xxx").</summary>
         public string? ModelNamePattern { get; set; }
-        
+
+        /// <summary>
+        /// When set, this entry's capabilities only apply to systems with this CPU vendor.
+        /// HP reuses WMI model-name patterns across genuinely different chassis/board revisions
+        /// (e.g. board 8BBE reports the same "16-r0xxx" name as the AMD-only 8C2F entry, but is
+        /// Intel — GitHub #172), so a name-pattern fallback match must not cross vendor lines for
+        /// entries whose capability flags were derived assuming a specific vendor. Leave null for
+        /// entries that don't depend on CPU vendor (or haven't been proven to).
+        /// </summary>
+        public CpuUndervoltProviderFactory.CpuVendor? RequiredCpuVendor { get; set; }
+
         /// <summary>Model year (approximate).</summary>
         public int ModelYear { get; set; }
         
@@ -1712,6 +1722,7 @@ namespace OmenCore.Hardware
                 ProductId = "8C2F",
                 ModelName = "HP Victus 15/16 (2024+) Ryzen (shared board)",
                 ModelNamePattern = "16-r0",
+                RequiredCpuVendor = CpuUndervoltProviderFactory.CpuVendor.AMD,
                 ModelYear = 2024,
                 Family = OmenModelFamily.Victus,
                 SupportsFanControlWmi = true,
@@ -1722,7 +1733,7 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // Ryzen AMD
                 HasFourZoneRgb = true,
                 UserVerified = false,
-                Notes = "GitHub #110 (16-r0xxx) + #155 (15-fb2082wm) — ProductId 8C2F is shared across the 15\" and 16\" Victus Ryzen 2024+ chassis. Capabilities were inferred from the 16\" report and are not yet confirmed on the 15\" chassis. Keyboard entry 8C2F already present in KeyboardModelDatabase."
+                Notes = "GitHub #110 (16-r0xxx) + #155 (15-fb2082wm) — ProductId 8C2F is shared across the 15\" and 16\" Victus Ryzen 2024+ chassis. Capabilities were inferred from the 16\" report and are not yet confirmed on the 15\" chassis. Keyboard entry 8C2F already present in KeyboardModelDatabase. RequiredCpuVendor=AMD added after GitHub #172 (board 8BBE) showed the same \"16-r0\" WMI name pattern also matches an Intel machine, which must not inherit this AMD-only capability profile via the name-pattern fallback."
             });
 
             AddModel(new ModelCapabilities
@@ -1891,7 +1902,15 @@ namespace OmenCore.Hardware
         /// Resolve the best database profile from raw identity inputs.
         /// Exact ProductId wins unless the ProductId is known to be shared across model families.
         /// </summary>
-        public static ModelCapabilities? GetPreferredCapabilities(string? productId, string? wmiModelName)
+        public static ModelCapabilities? GetPreferredCapabilities(string? productId, string? wmiModelName) =>
+            GetPreferredCapabilities(productId, wmiModelName, CpuUndervoltProviderFactory.DetectVendorOnly());
+
+        /// <summary>
+        /// Resolve the best database profile from raw identity inputs, given a known CPU vendor.
+        /// Exact ProductId wins unless the ProductId is known to be shared across model families.
+        /// </summary>
+        public static ModelCapabilities? GetPreferredCapabilities(
+            string? productId, string? wmiModelName, CpuUndervoltProviderFactory.CpuVendor cpuVendor)
         {
             ModelCapabilities? productIdMatch = null;
             var hasExactProductId = !string.IsNullOrWhiteSpace(productId) &&
@@ -1900,7 +1919,7 @@ namespace OmenCore.Hardware
             if (hasExactProductId && !IsAmbiguousProductId(productId!))
                 return productIdMatch;
 
-            var modelNameMatch = GetCapabilitiesByModelName(wmiModelName ?? string.Empty);
+            var modelNameMatch = GetCapabilitiesByModelName(wmiModelName ?? string.Empty, cpuVendor);
             if (modelNameMatch != null)
                 return modelNameMatch;
 
@@ -1911,21 +1930,37 @@ namespace OmenCore.Hardware
         /// Get capabilities by matching the WMI model name pattern.
         /// Use this when ProductId doesn't accurately identify the model.
         /// </summary>
-        public static ModelCapabilities? GetCapabilitiesByModelName(string wmiModelName)
+        public static ModelCapabilities? GetCapabilitiesByModelName(string wmiModelName) =>
+            GetCapabilitiesByModelName(wmiModelName, CpuUndervoltProviderFactory.DetectVendorOnly());
+
+        /// <summary>
+        /// Get capabilities by matching the WMI model name pattern, skipping any entry whose
+        /// <see cref="ModelCapabilities.RequiredCpuVendor"/> doesn't match the running system's CPU
+        /// vendor. Use this when ProductId doesn't accurately identify the model.
+        /// </summary>
+        public static ModelCapabilities? GetCapabilitiesByModelName(
+            string wmiModelName, CpuUndervoltProviderFactory.CpuVendor cpuVendor)
         {
             if (string.IsNullOrEmpty(wmiModelName))
                 return null;
-                
+
             // Check all models for pattern match
             foreach (var model in _knownModels.Values)
             {
-                if (!string.IsNullOrEmpty(model.ModelNamePattern) &&
-                    wmiModelName.Contains(model.ModelNamePattern, StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(model.ModelNamePattern) ||
+                    !wmiModelName.Contains(model.ModelNamePattern, StringComparison.OrdinalIgnoreCase))
                 {
-                    return model;
+                    continue;
                 }
+
+                if (model.RequiredCpuVendor.HasValue && model.RequiredCpuVendor.Value != cpuVendor)
+                {
+                    continue;
+                }
+
+                return model;
             }
-            
+
             return null;
         }
         
