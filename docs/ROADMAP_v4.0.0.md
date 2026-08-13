@@ -609,6 +609,21 @@ GitHub #173 (RaulMARK17) is a feature request, not a bug: (1) a memory-clean act
 
 --------------------------------------------------
 
+## REVIEW (Post-4.1.6, 2026-08-13): Tuning Subsystems — GPU Power Boost, GPU OC/UV, CPU OC/UV
+
+Full code review of the three tuning subsystems written up separately in **`docs/TUNING-SUBSYSTEMS-REVIEW.md`** — 12 findings (F1-F12), each marked Confirmed / Latent / Unverified, with a phased plan that puts everything shippable-without-hardware first.
+
+Headline items, for anyone triaging from this doc rather than that one:
+
+- **F1 (Confirmed, high):** per-core CPU undervolt is plumbed UI → guardrails → config → diagnostics export, and then silently dropped at the provider boundary — `IMsrAccess` has no per-core method. Reports success; writes nothing. No XAML surface, so it's reachable only by editing `config.json`, but a support bundle can still claim per-core offsets are active on a machine where none were applied. Same defect class as the false-success bugs fixed throughout this cycle.
+- **F2 (Confirmed, high):** nothing reads back what was applied — every GPU/CPU tuning setter caches the *requested* value on success. Combined with `AmdUndervoltProvider.ApplyPowerLimits`'s own documented finding that the ACPI path silently overwrites these registers after load ends (board 8D87, `71/71/60/45 W`), the UI can display a tuning state the platform already reverted.
+- **F3 (Latent, high):** NVIDIA GPU power limit is absolute (100 = stock), AMD's is an offset (0 = stock). Not currently crossed, but `TuningRollbackCoordinator`'s hardcoded "safe" `PowerLimitPercent = 100` would request **+100%** on AMD the moment AMD GPU OC is given config persistence — which is exactly the obvious next step for F4.
+- **F4 (Confirmed, high):** AMD dGPU OC has no persistence, no test-apply→keep flow, no startup unconfirmed-state recovery, and no rollback participation. NVIDIA has all four.
+
+Recommended sequencing deliberately puts the `IGpuTuningProvider` abstraction (which dissolves F3 and most of F4) *before* giving AMD GPU OC persistence, so the unit normalisation lands first and the trap is never armed. Phase 0-1 (findings F1, F5, F7, F9, F10, F11, F12) are all one-way-safe — honesty, deletion, or narrowing only — and need no field validation. F2, F6, and the AMD write-path parity work do, and are gated accordingly.
+
+--------------------------------------------------
+
 ## FIXED (Post-4.1.6, 2026-08-13): GitHub #172 — Board `8BBE`, and Model-Name-Pattern Fallback Crossing CPU Vendor Lines
 
 GitHub #172 (yunusemreyl, "Victus 16-R0XXX", board `8BBE`, SKU `CND3222PDQ`, BIOS `F.31`) is a hardware-support request with an attached diagnostics bundle. `8BBE` has no `ModelCapabilityDatabase` or `KeyboardModelDatabase` entry, so it resolves via `GetCapabilitiesByModelName()`'s WMI-name-pattern fallback to the existing `8C2F` entry (pattern `"16-r0"`, from GitHub #110/#155) — flagged Low confidence in the app's own identity summary.
