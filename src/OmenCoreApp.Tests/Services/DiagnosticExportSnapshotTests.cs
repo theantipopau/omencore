@@ -676,10 +676,36 @@ namespace OmenCoreApp.Tests.Services
             content.Should().Contain("RecoveryRequiredOnNextStartup: yes");
             content.Should().Contain("SavedDefaultOffset: Core -42 mV, Cache -30 mV");
             content.Should().Contain("SavedPerCoreOffsets: 2/3 active");
+            content.Should().Contain("PerCoreOffsetsAppliedToHardware: false",
+                "finding F1: no backend currently writes per-core offsets, and the export must say so rather than implying the saved values were applied");
             content.Should().Contain("SavedCoreClockOffsetMHz: +100");
             content.Should().Contain("SavedPowerLimitPercent: 110%");
             content.Should().Contain("SelectedGpuOcProfile: Gaming");
             content.Should().Contain("StapmLimitWatts: 20 W");
+        }
+
+        [Fact]
+        public async Task TuningSafetyFile_DoesNotClaimPerCoreOffsetsAppliedToHardware_WhenPerCoreDisabled()
+        {
+            // Finding F1: the caveat line must only appear when per-core offsets were actually
+            // requested (EnablePerCoreUndervolt + a non-null array) - it must not print
+            // unconditionally, which would be just as misleading as the original silent drop.
+            var config = DefaultConfiguration.Create();
+            config.Undervolt = new UndervoltPreferences
+            {
+                DefaultOffset = new UndervoltOffset { CoreMv = -42, CacheMv = -30 },
+                EnablePerCoreUndervolt = false,
+                PerCoreOffsetsMv = null
+            };
+            new ConfigurationService().Save(config);
+
+            var svc = new DiagnosticExportService(_logging, _tempDir);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "tuning-safety.txt");
+
+            content.Should().Contain("PerCoreEnabled: no");
+            content.Should().NotContain("PerCoreOffsetsAppliedToHardware");
         }
 
         private static string ReadFileFromExport(string exportPath, string fileName)

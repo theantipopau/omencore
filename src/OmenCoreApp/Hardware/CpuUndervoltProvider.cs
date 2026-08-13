@@ -84,15 +84,23 @@ namespace OmenCore.Hardware
                     }
                     else
                     {
-                        // Default to Intel for unknown CPUs (more common in gaming laptops)
+                        // WMI answered but named neither AMD nor Intel - a genuinely unrecognized
+                        // CPU, not a transient failure, so this is safe to memoize like any other
+                        // resolved vendor (finding F10: only the exception path below must not be).
+                        App.Logging.Warn($"CPU vendor detection: unrecognized CPU '{CpuName}' (manufacturer '{manufacturer}') - defaulting to Intel (more common in gaming laptops)");
                         DetectedVendor = CpuVendor.Intel;
                     }
                     break;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                DetectedVendor = CpuVendor.Intel; // Default fallback
+                // Leave DetectedVendor as Unknown rather than memoizing a guessed default here:
+                // this is a transient WMI failure (service hiccup, permissions), not a resolved
+                // "this CPU is unrecognized" answer, so the next call should retry rather than be
+                // permanently stuck on a guess. Callers that compare against a specific vendor
+                // (== AMD) already treat Unknown the same as the old Intel-default did.
+                App.Logging.Warn($"CPU vendor detection failed via WMI: {ex.Message} - will retry on next call");
             }
         }
     }
@@ -102,6 +110,14 @@ namespace OmenCore.Hardware
         private readonly object _stateLock = new();
         private UndervoltOffset _lastApplied = new() { CoreMv = 0, CacheMv = 0 };
         private readonly IMsrAccess? _msrAccess;
+
+        /// <summary>
+        /// True when the most recent <see cref="ApplyOffsetAsync"/> call was asked for per-core
+        /// offsets that this backend has no write path for. There is no per-core method on
+        /// <see cref="IMsrAccess"/> - only the global Core/Cache offsets are ever actually applied.
+        /// See docs/TUNING-SUBSYSTEMS-REVIEW.md, finding F1.
+        /// </summary>
+        private bool _lastRequestHadUnappliedPerCore;
 
         public string ActiveBackend { get; private set; } = "None";
 
@@ -136,6 +152,7 @@ namespace OmenCore.Hardware
                     _msrAccess.ApplyCoreVoltageOffset((int)safeOffset.CoreMv);
                     _msrAccess.ApplyCacheVoltageOffset((int)safeOffset.CacheMv);
                     _lastApplied = safeOffset.Clone();
+                    _lastRequestHadUnappliedPerCore = safeOffset.HasPerCoreOffsets;
                 }
                 catch (Exception ex)
                 {
@@ -155,12 +172,13 @@ namespace OmenCore.Hardware
                         "Cannot reset undervolt: No MSR access available.\n\n" +
                         "Please ensure PawnIO is installed and running.");
                 }
-                
+
                 try
                 {
                     _msrAccess.ApplyCoreVoltageOffset(0);
                     _msrAccess.ApplyCacheVoltageOffset(0);
                     _lastApplied = new UndervoltOffset();
+                    _lastRequestHadUnappliedPerCore = false;
                 }
                 catch (Exception ex)
                 {
@@ -214,8 +232,8 @@ namespace OmenCore.Hardware
             {
                 status.ControlledByOmenCore = false;
                 status.ExternalController = external.Source;
-                status.ExternalCoreOffsetMv = external.Offset.CoreMv;
-                status.ExternalCacheOffsetMv = external.Offset.CacheMv;
+                status.ExternalCoreOffsetMv = external.Offset?.CoreMv;
+                status.ExternalCacheOffsetMv = external.Offset?.CacheMv;
                 
                 // Provide specific guidance based on the detected controller
                 if (external.Source.Contains("XTU", StringComparison.OrdinalIgnoreCase))
@@ -244,20 +262,56 @@ namespace OmenCore.Hardware
                 status.Warning = "Cannot verify applied voltage offsets because the MSR backend is unavailable. Showing last requested values.";
             }
 
+            if (_lastRequestHadUnappliedPerCore)
+            {
+                status.PerCoreOffsetsRequestedButNotApplied = true;
+                const string perCoreWarning = "Per-core voltage offsets were requested but were not written - this backend only applies the global Core/Cache offsets.";
+                status.Warning = string.IsNullOrEmpty(status.Warning)
+                    ? perCoreWarning
+                    : $"{status.Warning} {perCoreWarning}";
+            }
+
             return Task.FromResult(status);
         }
 
+        private static readonly TimeSpan ExternalControllerCacheTtl = TimeSpan.FromSeconds(5);
+        private DateTime _externalControllerCheckedAt = DateTime.MinValue;
+        private ExternalUndervoltInfo? _cachedExternalController;
+
+        /// <summary>
+        /// Detects a small fixed list of known external undervolt/tuning controllers by checking
+        /// whether their service or process is running - presence-only, not a read of their
+        /// actual applied offset (that's why <see cref="ExternalUndervoltInfo.Offset"/> is null
+        /// here rather than a fabricated zero, see finding F9). Cached briefly since this walks
+        /// several <see cref="System.ServiceProcess.ServiceController"/> and
+        /// <see cref="Process.GetProcessesByName(string)"/> lookups and <see cref="ProbeAsync"/>
+        /// can be called more often than the periodic monitor loop (e.g. as an Apply/Reset
+        /// preflight check).
+        /// </summary>
         private ExternalUndervoltInfo? DetectExternalController()
         {
+            var now = DateTime.UtcNow;
+            if (now - _externalControllerCheckedAt < ExternalControllerCacheTtl)
+            {
+                return _cachedExternalController;
+            }
+
+            _externalControllerCheckedAt = now;
+            _cachedExternalController = DetectExternalControllerUncached();
+            return _cachedExternalController;
+        }
+
+        private static ExternalUndervoltInfo? DetectExternalControllerUncached()
+        {
             // Check for SERVICES that may control MSR (XTU, DTT run as services, not processes)
-            var serviceProbes = new[] 
-            { 
+            var serviceProbes = new[]
+            {
                 ("XTU3SERVICE", "Intel XTU"),
                 ("XtuService", "Intel XTU"),
                 ("IntelXtuService", "Intel XTU"),
                 ("esif_uf", "Intel DTT") // Intel Dynamic Tuning Technology
             };
-            
+
             // Check services using ServiceController (not process names)
             foreach (var (serviceName, displayName) in serviceProbes)
             {
@@ -267,11 +321,7 @@ namespace OmenCore.Hardware
                     // Only flag if service actually exists AND is running
                     if (sc.Status == System.ServiceProcess.ServiceControllerStatus.Running)
                     {
-                        return new ExternalUndervoltInfo
-                        {
-                            Source = displayName,
-                            Offset = new UndervoltOffset { CoreMv = 0, CacheMv = 0 }
-                        };
+                        return new ExternalUndervoltInfo { Source = displayName };
                     }
                 }
                 catch (InvalidOperationException)
@@ -283,14 +333,14 @@ namespace OmenCore.Hardware
                     // Service doesn't exist or access denied - continue
                 }
             }
-            
+
             // Check for PROCESSES (ThrottleStop runs as process, not service)
-            var processProbes = new[] 
-            { 
+            var processProbes = new[]
+            {
                 ("ThrottleStop", "ThrottleStop"),
                 ("OmenCap", "HP OmenCap (DriverStore)")  // HP component that blocks MSR access
             };
-            
+
             foreach (var (processName, displayName) in processProbes)
             {
                 try
@@ -299,11 +349,7 @@ namespace OmenCore.Hardware
                     if (processes.Any())
                     {
                         foreach (var p in processes) p.Dispose();
-                        return new ExternalUndervoltInfo
-                        {
-                            Source = displayName,
-                            Offset = new UndervoltOffset { CoreMv = 0, CacheMv = 0 }
-                        };
+                        return new ExternalUndervoltInfo { Source = displayName };
                     }
                 }
                 catch

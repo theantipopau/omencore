@@ -2199,6 +2199,10 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine($"SavedDefaultOffset: {FormatUndervoltOffset(undervolt.DefaultOffset)}");
                 sb.AppendLine($"PerCoreEnabled: {FormatBool(undervolt.EnablePerCoreUndervolt)}");
                 sb.AppendLine($"SavedPerCoreOffsets: {FormatPerCoreOffsets(undervolt.PerCoreOffsetsMv)}");
+                if (undervolt.EnablePerCoreUndervolt && undervolt.PerCoreOffsetsMv != null)
+                {
+                    sb.AppendLine("PerCoreOffsetsAppliedToHardware: false (no backend currently implements per-core MSR/SMU writes - only the global Core/Cache offsets above are written; see docs/TUNING-SUBSYSTEMS-REVIEW.md finding F1)");
+                }
                 sb.AppendLine($"LastConfirmedOffset: {FormatUndervoltOffset(undervolt.LastConfirmedOffset)}");
                 sb.AppendLine($"LastConfirmedAtUtc: {FormatDate(undervolt.LastConfirmedAtUtc)}");
                 sb.AppendLine();

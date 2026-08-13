@@ -261,7 +261,7 @@ namespace OmenCore.Hardware
             try
             {
                 // Clamp to reasonable range
-                offsetMHz = Math.Clamp(offsetMHz, -500, 500);
+                offsetMHz = Math.Clamp(offsetMHz, OmenCore.Models.TuningGuardrails.AmdGpuClockOffsetMinMHz, OmenCore.Models.TuningGuardrails.AmdGpuClockOffsetMaxMHz);
 
                 var settings = new ADLOD8SetSetting();
                 settings.count = 1;
@@ -303,7 +303,7 @@ namespace OmenCore.Hardware
 
             try
             {
-                offsetMHz = Math.Clamp(offsetMHz, -500, 500);
+                offsetMHz = Math.Clamp(offsetMHz, OmenCore.Models.TuningGuardrails.AmdGpuClockOffsetMinMHz, OmenCore.Models.TuningGuardrails.AmdGpuClockOffsetMaxMHz);
 
                 var settings = new ADLOD8SetSetting();
                 settings.count = 1;
@@ -345,6 +345,16 @@ namespace OmenCore.Hardware
 
             try
             {
+                // MinPowerLimit/MaxPowerLimit come from the OD8 driver query (ReadOverdriveLimits);
+                // Math.Clamp throws if min > max, so guard against a driver reporting an inverted
+                // or degenerate range rather than let that surface as an unrelated-looking
+                // exception from the catch below - see docs/TUNING-SUBSYSTEMS-REVIEW.md, finding F12.
+                if (MinPowerLimit > MaxPowerLimit)
+                {
+                    _logging.Warn($"AMD GPU: Cannot set power limit - driver reported an invalid range (min={MinPowerLimit}, max={MaxPowerLimit})");
+                    return false;
+                }
+
                 percentOffset = Math.Clamp(percentOffset, MinPowerLimit, MaxPowerLimit);
 
                 var settings = new ADLOD8SetSetting();

@@ -266,22 +266,22 @@ namespace OmenCore.Hardware
         public string PowerLimitStatusMessage { get; private set; } = "NVAPI power policy support not detected";
 
         /// <summary>Minimum allowed core clock offset.</summary>
-        public int MinCoreOffset { get; private set; } = -500;
+        public int MinCoreOffset { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuCoreClockOffsetMinMHz;
 
         /// <summary>Maximum allowed core clock offset.</summary>
-        public int MaxCoreOffset { get; private set; } = 300;
+        public int MaxCoreOffset { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuCoreClockOffsetMaxMHz;
 
         /// <summary>Minimum allowed memory clock offset.</summary>
-        public int MinMemoryOffset { get; private set; } = -500;
+        public int MinMemoryOffset { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuMemoryClockOffsetMinMHz;
 
         /// <summary>Maximum allowed memory clock offset.</summary>
-        public int MaxMemoryOffset { get; private set; } = 2000;
+        public int MaxMemoryOffset { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuMemoryClockOffsetMaxMHz;
 
         /// <summary>Minimum power limit percentage.</summary>
-        public int MinPowerLimit { get; private set; } = 50;
+        public int MinPowerLimit { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMinPercent;
 
         /// <summary>Maximum power limit percentage.</summary>
-        public int MaxPowerLimit { get; private set; } = 125;
+        public int MaxPowerLimit { get; private set; } = OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMaxPercent;
 
         /// <summary>Default power limit in watts.</summary>
         public int DefaultPowerLimitWatts { get; private set; }
@@ -394,8 +394,13 @@ namespace OmenCore.Hardware
                 if (policies.PowerPolicyInfoEntries.Length > 0)
                 {
                     var entry = policies.PowerPolicyInfoEntries[0];
-                    MinPowerLimit = (int)(entry.MinimumPowerInPCM / 1000);
-                    MaxPowerLimit = (int)(entry.MaximumPowerInPCM / 1000);
+                    // Driver-reported range may only narrow the policy ceiling, never widen past
+                    // it - see finding F7 in docs/TUNING-SUBSYSTEMS-REVIEW.md.
+                    (MinPowerLimit, MaxPowerLimit) = OmenCore.Models.TuningGuardrails.NarrowToPolicy(
+                        (int)(entry.MinimumPowerInPCM / 1000),
+                        (int)(entry.MaximumPowerInPCM / 1000),
+                        OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMinPercent,
+                        OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMaxPercent);
                     DefaultPowerLimitWatts = (int)(entry.DefaultPowerInPCM / 1000);
                     SupportsPowerLimit = true;
                     PowerLimitStatusMessage = "NVAPI power policy writes available";
@@ -528,9 +533,13 @@ namespace OmenCore.Hardware
                 if (result == NVAPI_OK && powerInfo.entryCount > 0)
                 {
                     var entry = powerInfo.entries[0];
-                    // Power values are percentage * 1000 (e.g., 100000 = 100%)
-                    MinPowerLimit = (int)(entry.minPower_mW / 1000);
-                    MaxPowerLimit = (int)(entry.maxPower_mW / 1000);
+                    // Power values are percentage * 1000 (e.g., 100000 = 100%). Driver-reported
+                    // range may only narrow the policy ceiling, never widen past it - see F7.
+                    (MinPowerLimit, MaxPowerLimit) = OmenCore.Models.TuningGuardrails.NarrowToPolicy(
+                        (int)(entry.minPower_mW / 1000),
+                        (int)(entry.maxPower_mW / 1000),
+                        OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMinPercent,
+                        OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMaxPercent);
                     DefaultPowerLimitWatts = (int)(entry.defPower_mW / 1000);
                     SupportsPowerLimit = true;
                     PowerLimitStatusMessage = "NVAPI power policy writes available";
@@ -645,16 +654,16 @@ namespace OmenCore.Hardware
                 GpuName.Contains("Max-Q", StringComparison.OrdinalIgnoreCase) ||
                 GpuName.Contains("Mobile", StringComparison.OrdinalIgnoreCase))
             {
-                MaxCoreOffset = 200;
-                MaxMemoryOffset = 2000;
-                MaxPowerLimit = 115; // Laptop GPUs often locked
+                MaxCoreOffset = OmenCore.Models.TuningGuardrails.NvidiaGpuCoreClockOffsetMaxMHzLaptop;
+                MaxMemoryOffset = OmenCore.Models.TuningGuardrails.NvidiaGpuMemoryClockOffsetMaxMHz;
+                MaxPowerLimit = OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMaxPercentLaptop; // Laptop GPUs often locked
                 _logging.Info("NVAPI: Detected laptop GPU - using conservative core/power limits with extended memory offset range");
             }
             else
             {
-                MaxCoreOffset = 300;
-                MaxMemoryOffset = 2000;
-                MaxPowerLimit = 125;
+                MaxCoreOffset = OmenCore.Models.TuningGuardrails.NvidiaGpuCoreClockOffsetMaxMHz;
+                MaxMemoryOffset = OmenCore.Models.TuningGuardrails.NvidiaGpuMemoryClockOffsetMaxMHz;
+                MaxPowerLimit = OmenCore.Models.TuningGuardrails.NvidiaGpuPowerLimitMaxPercent;
                 _logging.Info("NVAPI: Desktop GPU limits applied");
             }
         }

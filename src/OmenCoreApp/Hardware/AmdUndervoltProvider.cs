@@ -20,6 +20,14 @@ namespace OmenCore.Hardware
         private int _lastIgpuCO;
         private bool _disposed;
 
+        /// <summary>
+        /// True when the most recent <see cref="ApplyOffsetAsync"/> call was asked for per-core
+        /// offsets that this backend has no write path for. The AMD Curve Optimizer path only
+        /// ever applies an all-core value; there is no per-core SMU message implemented.
+        /// See docs/TUNING-SUBSYSTEMS-REVIEW.md, finding F1.
+        /// </summary>
+        private bool _lastRequestHadUnappliedPerCore;
+
         public string ActiveBackend { get; private set; } = "None";
         public bool IsSupported => _cpuInfo.SupportsUndervolt;
         public bool SupportsIgpu => _cpuInfo.SupportsIgpuUndervolt;
@@ -50,6 +58,8 @@ namespace OmenCore.Hardware
             // CO is roughly 3-5mV per count, we'll approximate
             int coCounts = (int)(safeOffset.CoreMv / 4.0);
             int igpuCoCounts = SupportsIgpu ? (int)(safeOffset.CacheMv / 4.0) : 0;
+
+            _lastRequestHadUnappliedPerCore = safeOffset.HasPerCoreOffsets;
 
             return ApplyRyzenOffsetAsync(coCounts, igpuCoCounts, token);
         }
@@ -123,6 +133,7 @@ namespace OmenCore.Hardware
 
                 _lastAllCoreCO = 0;
                 _lastIgpuCO = 0;
+                _lastRequestHadUnappliedPerCore = false;
             }
 
             return Task.CompletedTask;
@@ -170,6 +181,15 @@ namespace OmenCore.Hardware
                     status.ControlledByOmenCore = false;
                 }
 
+                if (_lastRequestHadUnappliedPerCore)
+                {
+                    status.PerCoreOffsetsRequestedButNotApplied = true;
+                    const string perCoreWarning = "Per-core voltage offsets were requested but were not written - the AMD Curve Optimizer path only applies a single all-core value.";
+                    status.Warning = string.IsNullOrEmpty(status.Warning)
+                        ? perCoreWarning
+                        : $"{status.Warning} {perCoreWarning}";
+                }
+
                 return Task.FromResult(status);
             }
         }
@@ -181,7 +201,7 @@ namespace OmenCore.Hardware
         private RyzenSmu.SmuStatus SetAllCoreCO(int value)
         {
             // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
-            value = Math.Clamp(value, -30, 30);
+            value = Math.Clamp(value, TuningGuardrails.AmdCurveOptimizerMinCount, TuningGuardrails.AmdCurveOptimizerMaxCount);
 
             // Convert signed offset to SMU format
             // Formula from G-Helper: 0x100000 - (uint)(-1 * value) for negative values
@@ -283,7 +303,7 @@ namespace OmenCore.Hardware
         private RyzenSmu.SmuStatus SetIgpuCO(int value)
         {
             // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
-            value = Math.Clamp(value, -30, 30);
+            value = Math.Clamp(value, TuningGuardrails.AmdCurveOptimizerMinCount, TuningGuardrails.AmdCurveOptimizerMaxCount);
 
             uint uvalue = value < 0
                 ? (uint)(0x100000 - (uint)(-value))
@@ -575,6 +595,13 @@ namespace OmenCore.Hardware
         /// <see cref="SetStapmLimit"/>: the transport fix newly activates real writes on
         /// seventeen configured families, none with field evidence, and this is a CPU thermal
         /// limit increase, not the Curve Optimizer change this fix was actually about.
+        ///
+        /// MP1 0x19 is the message StrixPoint (and every other currently-gated family, per
+        /// RyzenAdj's set_tctl_temp) uses - listed here only for the one family this method
+        /// actually reaches. A per-family table for the other sixteen was removed since the
+        /// early-return above made it permanently unreachable dead code (docs/TUNING-SUBSYSTEMS-REVIEW.md,
+        /// finding F5); re-add entries only alongside lifting the gate for that specific family,
+        /// with its own message ID confirmed rather than copied from this switch.
         /// </summary>
         public RyzenSmu.SmuStatus SetTctlTemp(uint tempC)
         {
@@ -587,48 +614,7 @@ namespace OmenCore.Hardware
 
             uint[] args = new uint[6];
             args[0] = tempC;
-            RyzenSmu.SmuStatus result = RyzenSmu.SmuStatus.Failed;
-
-            switch (_cpuInfo.Family)
-            {
-                case RyzenFamily.Zen1Plus:
-                    result = _smu.SendPsmu(0x68, ref args);
-                    break;
-
-                case RyzenFamily.Raven:
-                case RyzenFamily.Picasso:
-                case RyzenFamily.Dali:
-                    result = _smu.SendMp1(0x1F, ref args);
-                    break;
-
-                case RyzenFamily.RenoirLucienne:
-                case RyzenFamily.VanGogh:
-                case RyzenFamily.CezanneBarcelo:
-                case RyzenFamily.Rembrandt:
-                case RyzenFamily.Phoenix:
-                case RyzenFamily.Mendocino:
-                case RyzenFamily.HawkPoint:
-                case RyzenFamily.StrixPoint:
-                case RyzenFamily.StrixHalo:
-                    result = _smu.SendMp1(0x19, ref args);
-                    break;
-
-                case RyzenFamily.Matisse:
-                case RyzenFamily.Vermeer:
-                    result = _smu.SendMp1(0x23, ref args);
-                    if (result == RyzenSmu.SmuStatus.Ok)
-                        result = _smu.SendPsmu(0x56, ref args);
-                    break;
-
-                case RyzenFamily.RaphaelDragonRange:
-                case RyzenFamily.FireRange:
-                    result = _smu.SendMp1(0x3F, ref args);
-                    if (result == RyzenSmu.SmuStatus.Ok)
-                        result = _smu.SendPsmu(0x59, ref args);
-                    break;
-            }
-
-            return result;
+            return _smu.SendMp1(0x19, ref args);
         }
 
         public void Dispose()

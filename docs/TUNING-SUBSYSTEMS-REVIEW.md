@@ -139,13 +139,17 @@ It is also called from `ProbeAsync` with no caching: four `ServiceController` co
 
 This was low-stakes when it only chose an undervolt provider. As of the GitHub #172 fix it also gates `ModelCapabilityDatabase` name-pattern matching via `RequiredCpuVendor`, so a misdetection now silently changes which capability profile a board resolves to.
 
-### F11 — `SetVoltageOffset` skips the wrapper path its siblings prefer **(Confirmed, low)**
+### F11 — `SetVoltageOffset` skips the wrapper path its siblings prefer **(Confirmed, low — reclassified to Phase 2, see update below)**
 
 `SetCoreClockOffset` and `SetMemoryClockOffset` try `NvAPIWrapper` first and fall back to legacy P/Invoke, with a comment that the wrapper is "more reliable for RTX 40 series" (`:769`, `:849`). `SetVoltageOffset` (`:903`) only ever uses the legacy path (`:924`). If the stated reliability claim is true, GPU voltage offset is the one control that doesn't get it.
 
-### F12 — `Math.Clamp(percentOffset, MinPowerLimit, MaxPowerLimit)` can throw if the driver reports an inverted range **(Unverified, low)**
+**Update (Phase 0 implementation pass, 2026-08-13): reclassified, not fixed as originally planned.** This was filed as a low-risk Phase 0 item, but implementing it means hand-constructing a new `PerformanceStates20BaseVoltageEntryV1` write through NvAPIWrapper — genuinely new marshaling code for a write path this project has no NVIDIA hardware to validate, not a refactor of existing logic. The legacy path's own `SetVoltageOffsetInternal` (`:1066`) is a hand-rolled P/Invoke struct writer with version-specific offsets, which underlines how easy this is to get wrong blind. Original severity rating undersold the implementation risk. Left untouched; moved to Phase 2 pending either NVIDIA hardware access or a contributor who can validate it.
+
+### F12 — `Math.Clamp(percentOffset, MinPowerLimit, MaxPowerLimit)` can throw if the driver reports an inverted range **(Unverified, low — fixed)**
 
 `AmdGpuService.SetPowerLimit` clamps against `MinPowerLimit`/`MaxPowerLimit` read from OD8 at init (`:238-239`, used at `:348`). `Math.Clamp` throws `ArgumentException` when `min > max`. If OD8 ever reports an inverted or partially-populated range, this throws rather than degrading. The surrounding `try/catch` (`:346`) does catch it, so the practical outcome is a logged error and `false` — but the failure would be misattributed to the driver call rather than our own argument validation. Cheap to guard; not worth hardware time to reproduce.
+
+**Fixed:** added an explicit `MinPowerLimit > MaxPowerLimit` guard before the clamp in `AmdGpuService.SetPowerLimit`, logging and returning `false` instead of relying on the exception path. `NvapiService`'s equivalent driver-reported power-limit range (the F7 fix) is guarded the same way structurally, via `TuningGuardrails.NarrowToPolicy`'s `min <= max ? (min, max) : (min, min)` fallback.
 
 ---
 
@@ -161,7 +165,7 @@ These are all one-way-safe: they make the app more honest or stricter, never loo
 2. **Fix F5 (dead code)** by deleting the unreachable `switch` arms and keeping the `StrixPoint` gate with its existing rationale comment. Pure deletion; the gate's behavior is unchanged.
 3. **Fix F9 (meaningless offsets)** — leave `ExternalCoreOffsetMv`/`ExternalCacheOffsetMv` null rather than 0 when the value was not read, and cache the probe result for a few seconds.
 4. **Fix F10 (vendor default)** — add an explicit log line when detection falls through to the default, and do not memoise a result that came from the exception path.
-5. **Fix F11 (voltage wrapper) and F12 (clamp guard)** — both are small, local, and low-risk. F11 does change a write path; gate it behind the existing wrapper-then-legacy fallback shape so a wrapper failure still reaches the current code.
+5. **Fix F12 (clamp guard)** — small, local, low-risk: reject an inverted driver-reported range explicitly instead of relying on `Math.Clamp`'s exception. F11 (voltage wrapper) turned out on implementation to be a genuine new write path (hand-constructing an NvAPIWrapper struct with no hardware to validate against), not a refactor — reclassified to Phase 2, see the F11 entry above.
 6. **Consolidate F7** — move every clamp constant into `TuningGuardrails` as the single source of truth, with the GPU services reading from it. Keep the driver-reported refinement (`NvapiService:648-657`) as a *narrowing* step only: driver limits may tighten our policy, never widen it. Add a test asserting that.
 7. **Add the missing regression tests** — in particular one asserting per-core offsets are reported as unapplied (locking in the honesty fix), and one asserting driver-reported limits cannot widen `TuningGuardrails` bounds.
 
@@ -203,13 +207,13 @@ These need answers from hardware, a reporter, or a deliberate product decision �
 
 ## 6. Suggested order of work
 
-| Step | Items | Risk | Gate |
-|---|---|---|---|
-| 1 | F1 honesty, F5 dead code, F9, F10 | None — logging/reporting only | Full suite |
-| 2 | F7 guardrail consolidation + tests | None — narrowing only | Full suite |
-| 3 | F11, F12 | Low — local, fallback preserved | Full suite |
-| 4 | `IGpuTuningProvider` (F3 root fix) | Design | Full suite + review |
-| 5 | AMD GPU OC parity (F4), F8 verification | Medium — new write paths for AMD | Field validation |
-| 6 | Readback + re-assert policy (F2), CO calibration (F6) | High — changes what reaches silicon | Field validation, per family |
+| Step | Items | Risk | Gate | Status |
+|---|---|---|---|---|
+| 1 | F1 honesty, F5 dead code, F9, F10 | None — logging/reporting only | Full suite | **Done** |
+| 2 | F7 guardrail consolidation + tests | None — narrowing only | Full suite | **Done** |
+| 3 | F12 | Low — local, exception avoided | Full suite | **Done** |
+| 4 | `IGpuTuningProvider` (F3 root fix) | Design | Full suite + review | Not started |
+| 5 | AMD GPU OC parity (F4), F8 verification | Medium — new write paths for AMD | Field validation | Not started |
+| 6 | Readback + re-assert policy (F2), CO calibration (F6), F11 (voltage wrapper) | High — changes what reaches silicon | Field validation, per family | Not started |
 
-Steps 1–3 are independently shippable and would close every finding that can be closed without touching hardware behavior. That is roughly two thirds of the findings by count, and all of the ones where the app currently tells the user something untrue.
+Steps 1–3 are done as of this pass and close every finding that could be closed without touching hardware behavior — F1, F5, F7, F9, F10, and F12. F11 moved from step 3 to step 6 on implementation: it turned out to require new, unvalidated NVAPI write code, not a refactor (see the F11 entry above). That leaves the honesty/reporting/consolidation half of this review complete; F2 (readback), F3/F4 (the `IGpuTuningProvider` unification and AMD OC parity), F6 (CO calibration), F8 (broader readback verification), and F11 remain, gated on either a design pass or field validation as noted per item.

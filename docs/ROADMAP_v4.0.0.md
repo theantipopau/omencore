@@ -624,6 +624,16 @@ Recommended sequencing deliberately puts the `IGpuTuningProvider` abstraction (w
 
 --------------------------------------------------
 
+## IMPLEMENTED (Post-4.1.6, 2026-08-13): Tuning Subsystems Phase 0 — Honesty, Consolidation, and One Reclassification
+
+Implemented the Phase 0/1 items from the review above: F1, F5, F7, F9, F10, F12 all shipped as pure honesty/deletion/consolidation fixes, verified by the full test suite plus 15 new tests. Full detail is in the changelog entry ("Improved: Tuning Subsystems Honesty and Safety Pass") and in `docs/TUNING-SUBSYSTEMS-REVIEW.md` itself, which was updated in place to reflect what actually shipped rather than left to drift from the code.
+
+**F11 was reclassified mid-implementation, not shipped as originally planned.** The review filed it as a low-risk Phase 0 item ("route `NvapiService.SetVoltageOffset` through the same NvAPIWrapper-first pattern its sibling clock-offset setters use"). On actually attempting it, it turned out to require hand-constructing a new `PerformanceStates20BaseVoltageEntryV1` NVAPI write — genuinely new marshaling code for a path this project has no NVIDIA hardware to validate, not a refactor of existing logic (the existing legacy path, `SetVoltageOffsetInternal`, is itself a hand-rolled version-specific P/Invoke struct writer, which underlines how easy this would be to get subtly wrong blind). This is worth flagging as a pattern: a review's own severity/risk labels are a starting estimate, not a guarantee, and should be re-checked at implementation time rather than followed mechanically into writing unvalidated hardware code. Left untouched; moved to the field-validation phase in the review doc.
+
+**One of the new tests caught a real bug before it shipped.** `TuningGuardrails.NarrowToPolicy()`'s first draft handled an inverted/degenerate driver-reported range by collapsing to `(min, min)` where `min = Math.Max(reportedMin, policyMin)` — which is not itself guaranteed to fall inside the policy bounds when `reportedMin` is far outside them (e.g. `reportedMin=200` against a policy ceiling of 125 collapses to `200`, not `125`). `NarrowToPolicy_InvertedDriverRange_DoesNotThrowAndStaysWithinPolicy` failed on the first run and caught it. Fixed to collapse to `policyMin` instead, which is unconditionally in-bounds.
+
+--------------------------------------------------
+
 ## FIXED (Post-4.1.6, 2026-08-13): GitHub #172 — Board `8BBE`, and Model-Name-Pattern Fallback Crossing CPU Vendor Lines
 
 GitHub #172 (yunusemreyl, "Victus 16-R0XXX", board `8BBE`, SKU `CND3222PDQ`, BIOS `F.31`) is a hardware-support request with an attached diagnostics bundle. `8BBE` has no `ModelCapabilityDatabase` or `KeyboardModelDatabase` entry, so it resolves via `GetCapabilitiesByModelName()`'s WMI-name-pattern fallback to the existing `8C2F` entry (pattern `"16-r0"`, from GitHub #110/#155) — flagged Low confidence in the app's own identity summary.
