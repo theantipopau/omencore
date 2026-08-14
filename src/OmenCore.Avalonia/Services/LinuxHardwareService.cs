@@ -20,7 +20,6 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     private const string HP_WMI_PATH = LinuxSysfsPathMap.HpWmiRoot;
     private const string HWMON_BASE = "/sys/class/hwmon";
     private const string POWER_SUPPLY = "/sys/class/power_supply";
-    private const string BACKLIGHT_PATH = LinuxSysfsPathMap.KeyboardBacklightPath;
     private const string HP_WMI_FAN1_OUTPUT = "/sys/devices/platform/hp-wmi/fan1_output";
     private const string HP_WMI_FAN2_OUTPUT = "/sys/devices/platform/hp-wmi/fan2_output";
     private const string HP_WMI_FAN_ALWAYS_ON = "/sys/devices/platform/hp-wmi/fan_always_on";
@@ -211,14 +210,16 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         _capabilities.FanControlCapabilityClass = capabilityAssessment.CapabilityKey;
         _capabilities.FanControlCapabilityReason = capabilityAssessment.Reason;
         
-        // Check keyboard backlight and writable brightness endpoint.
-        _capabilities.HasKeyboardBacklight = Directory.Exists(BACKLIGHT_PATH);
-        var keyboardBrightnessPath = Path.Combine(BACKLIGHT_PATH, "brightness");
+        // Check keyboard backlight and writable brightness endpoint. Resolves either the
+        // "hp::kbd_backlight" or "hp_omen::kbd_backlight" LED class - see ResolveBacklightDirectory.
+        var backlightDir = ResolveBacklightDirectory();
+        _capabilities.HasKeyboardBacklight = backlightDir != null;
+        var keyboardBrightnessPath = Path.Combine(backlightDir ?? LinuxSysfsPathMap.KeyboardBacklightPath, "brightness");
         _capabilities.SupportsKeyboardBrightness = _capabilities.HasKeyboardBacklight && File.Exists(keyboardBrightnessPath);
         _capabilities.KeyboardBrightnessReason = _capabilities.SupportsKeyboardBrightness
             ? string.Empty
             : "Keyboard brightness sysfs path was not detected on this kernel/board.";
-        
+
         // Detect RGB capabilities from common HP OMEN LED interfaces.
         _capabilities.HasFourZoneRgb = DetectFourZoneRgbSupport();
         _capabilities.HasPerKeyRgb = DetectPerKeyRgbSupport();
@@ -242,6 +243,18 @@ public class LinuxHardwareService : IHardwareService, IDisposable
     {
         if (File.Exists("/sys/class/leds/hp::kbd_backlight/color") ||
             File.Exists("/sys/class/leds/hp::kbd_backlight/multi_intensity"))
+        {
+            return true;
+        }
+
+        // Additional 4-zone backends seen on some kernel/driver combinations, not covered by
+        // the "hp::kbd_backlight" checks above or the generic LED-name scan below (the
+        // "hp_omen::kbd_backlight" LED class name doesn't contain "zone"/"multicolor", and
+        // its zone_colors file isn't multi_intensity/multi_index). Source: openomen (GPLv3) -
+        // documented sysfs paths, reimplemented independently; see CHANGELOG_v4.1.7.md.
+        if (LinuxSysfsPathMap.HasRgbZonesDir ||
+            LinuxSysfsPathMap.HasKeyboardLedsFile ||
+            File.Exists(Path.Combine(LinuxSysfsPathMap.KeyboardBacklightPathAlt, "zone_colors")))
         {
             return true;
         }
@@ -787,8 +800,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         await ExecuteWithIoLockAsync(async () =>
         {
-            var maxPath = Path.Combine(BACKLIGHT_PATH, "max_brightness");
-            var brightnessPath = Path.Combine(BACKLIGHT_PATH, "brightness");
+            var backlightDir = ResolveBacklightDirectory() ?? LinuxSysfsPathMap.KeyboardBacklightPath;
+            var maxPath = Path.Combine(backlightDir, "max_brightness");
+            var brightnessPath = Path.Combine(backlightDir, "brightness");
 
             if (!File.Exists(brightnessPath))
             {
@@ -817,13 +831,14 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
         await ExecuteWithIoLockAsync(async () =>
         {
-            var multiIntensityPath = Path.Combine(BACKLIGHT_PATH, "multi_intensity");
-            var colorPath = Path.Combine(BACKLIGHT_PATH, "color");
+            var backlightDir = ResolveBacklightDirectory();
+            var multiIntensityPath = backlightDir != null ? Path.Combine(backlightDir, "multi_intensity") : null;
+            var colorPath = backlightDir != null ? Path.Combine(backlightDir, "color") : null;
 
             try
             {
                 // Preferred for hp-wmi multicolor interface (used by custom driver): "R G B"
-                if (File.Exists(multiIntensityPath))
+                if (multiIntensityPath != null && File.Exists(multiIntensityPath))
                 {
                     var rgbSpace = $"{r} {g} {b}";
                     await File.WriteAllTextAsync(multiIntensityPath, rgbSpace);
@@ -831,15 +846,105 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 }
 
                 // Legacy fallback used by some keyboard backlight drivers.
-                var colorValue = $"{r:X2}{g:X2}{b:X2}";
-                await File.WriteAllTextAsync(colorPath, colorValue);
+                if (colorPath != null && File.Exists(colorPath))
+                {
+                    var colorValue = $"{r:X2}{g:X2}{b:X2}";
+                    await File.WriteAllTextAsync(colorPath, colorValue);
+                    return;
+                }
+
+                // Additional 4-zone backends not addressed by the "hp::kbd_backlight" LED class
+                // above. A single requested color is applied to all 4 zones, since none of these
+                // interfaces are addressed independently by this method's single-RGB signature.
+                // Source: openomen (GPLv3) - documented sysfs paths/wire formats, reimplemented
+                // independently; see CHANGELOG_v4.1.7.md for the corroboration trail.
+                if (TryWriteAllRgbZoneFiles(r, g, b) ||
+                    TryWriteKeyboardLedsFile(r, g, b) ||
+                    TryWriteZoneColorsBinary(r, g, b))
+                {
+                    return;
+                }
+
+                throw new NotSupportedException("No writable keyboard RGB interface was detected on this kernel/board.");
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not NotSupportedException)
             {
                 throw new InvalidOperationException($"Failed to set keyboard color: {ex.Message}");
             }
         });
     }
+
+    /// <summary>
+    /// Writes the same color to each existing "zoneNN" file under <see cref="LinuxSysfsPathMap.HpWmiRgbZonesDir"/>,
+    /// as a plain 6-hex-char string (no "#"). Returns false (rather than throwing) when the
+    /// directory or none of its zone files exist, so callers can fall through to the next backend.
+    /// </summary>
+    private static bool TryWriteAllRgbZoneFiles(byte r, byte g, byte b)
+    {
+        if (!LinuxSysfsPathMap.HasRgbZonesDir)
+        {
+            return false;
+        }
+
+        var colorValue = $"{r:X2}{g:X2}{b:X2}";
+        var wroteAny = false;
+        for (var zone = 0; zone < 4; zone++)
+        {
+            var zonePath = LinuxSysfsPathMap.ResolveRgbZoneFilePath(zone);
+            if (zonePath == null)
+            {
+                continue;
+            }
+
+            File.WriteAllText(zonePath, colorValue);
+            wroteAny = true;
+        }
+
+        return wroteAny;
+    }
+
+    /// <summary>
+    /// Writes all 4 zones' colors concatenated into a single 24-char hex string to
+    /// <see cref="LinuxSysfsPathMap.HpWmiKeyboardLedsPath"/> (the legacy single-file 4-zone
+    /// interface). Returns false when the file doesn't exist.
+    /// </summary>
+    private static bool TryWriteKeyboardLedsFile(byte r, byte g, byte b)
+    {
+        if (!LinuxSysfsPathMap.HasKeyboardLedsFile)
+        {
+            return false;
+        }
+
+        var colorValue = $"{r:X2}{g:X2}{b:X2}";
+        File.WriteAllText(LinuxSysfsPathMap.HpWmiKeyboardLedsPath, colorValue + colorValue + colorValue + colorValue);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes a 12-byte binary payload (4 zones x RGB) to the "hp_omen::kbd_backlight/zone_colors"
+    /// LED class file. Returns false when that file doesn't exist.
+    /// </summary>
+    private static bool TryWriteZoneColorsBinary(byte r, byte g, byte b)
+    {
+        var path = Path.Combine(LinuxSysfsPathMap.KeyboardBacklightPathAlt, "zone_colors");
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        var binaryData = new byte[12];
+        for (var zone = 0; zone < 4; zone++)
+        {
+            binaryData[zone * 3] = r;
+            binaryData[zone * 3 + 1] = g;
+            binaryData[zone * 3 + 2] = b;
+        }
+
+        File.WriteAllBytes(path, binaryData);
+        return true;
+    }
+
+    private static string? ResolveBacklightDirectory() => LinuxSysfsPathMap.ResolveKeyboardBacklightDirectory();
 
     #region Private Helpers
 

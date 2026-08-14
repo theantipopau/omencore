@@ -46,15 +46,26 @@ public class LinuxKeyboardController
     public bool IsAvailable { get; }
     public bool HasZoneControl { get; }
     public bool IsPerKeyRgb { get; }
-    public bool SupportsBrightnessControl => File.Exists(Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness"));
+    public bool SupportsBrightnessControl => File.Exists(Path.Combine(ResolveBacklightDirectory(), "brightness"));
     public string KeyboardType => IsPerKeyRgb ? "Per-Key RGB" : "4-Zone";
     public int ZoneCount => IsPerKeyRgb ? 0 : 4;
-    
+
+    /// <summary>
+    /// Resolves the keyboard-backlight LED class directory, trying "hp::kbd_backlight" first
+    /// and falling back to the underscore-variant "hp_omen::kbd_backlight" seen on some
+    /// kernel/driver combinations. Falls back to the primary path (whether or not it exists)
+    /// so callers always get a non-null path to build Path.Combine calls against.
+    /// </summary>
+    private static string ResolveBacklightDirectory() =>
+        LinuxSysfsPathMap.ResolveKeyboardBacklightDirectory() ?? KEYBOARD_BACKLIGHT_PATH;
+
     public LinuxKeyboardController()
     {
         IsAvailable = Directory.Exists(HP_WMI_PATH) || Directory.Exists(KEYBOARD_BACKLIGHT_PATH)
-            || Directory.Exists(HP_RGB_LIGHTING_PATH);
-        HasZoneControl = File.Exists(Path.Combine(HP_WMI_PATH, "keyboard_zones")) || HasRgbLightingZoneFiles();
+            || Directory.Exists(HP_RGB_LIGHTING_PATH)
+            || Directory.Exists(LinuxSysfsPathMap.KeyboardBacklightPathAlt);
+        HasZoneControl = File.Exists(Path.Combine(HP_WMI_PATH, "keyboard_zones")) || HasRgbLightingZoneFiles()
+            || LinuxSysfsPathMap.HasRgbZonesDir;
         IsPerKeyRgb = DetectPerKeyRgb();
     }
 
@@ -120,9 +131,20 @@ public class LinuxKeyboardController
                 return true;
             }
 
+            // A third, distinct interface: hp-wmi's own "rgb_zones" directory, using 2-digit
+            // zero-padded filenames ("zone00".."zone03" - not the same file as either check
+            // above). Source: openomen (GPLv3) - documented sysfs path, reimplemented
+            // independently; see CHANGELOG_v4.1.7.md.
+            var rgbZonePath = LinuxSysfsPathMap.ResolveRgbZoneFilePath(zone);
+            if (rgbZonePath != null)
+            {
+                File.WriteAllText(rgbZonePath, colorValue);
+                return true;
+            }
+
             // Alternative: Use keyboard backlight brightness as a proxy
             // This doesn't support full RGB but provides basic control
-            var brightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness");
+            var brightnessPath = Path.Combine(ResolveBacklightDirectory(), "brightness");
             if (File.Exists(brightnessPath))
             {
                 // Calculate brightness from RGB (0-255 average)
@@ -138,7 +160,62 @@ public class LinuxKeyboardController
             return false;
         }
     }
-    
+
+    /// <summary>
+    /// Writes all 4 zones' colors concatenated into a single 24-char hex string to
+    /// <see cref="LinuxSysfsPathMap.HpWmiKeyboardLedsPath"/> (the legacy single-file 4-zone
+    /// interface). Returns false when the file doesn't exist, so callers can fall through.
+    /// </summary>
+    private static bool TryWriteKeyboardLedsFile(byte r, byte g, byte b)
+    {
+        if (!LinuxSysfsPathMap.HasKeyboardLedsFile)
+        {
+            return false;
+        }
+
+        try
+        {
+            var colorValue = $"{r:X2}{g:X2}{b:X2}";
+            File.WriteAllText(LinuxSysfsPathMap.HpWmiKeyboardLedsPath, colorValue + colorValue + colorValue + colorValue);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Writes a 12-byte binary payload (4 zones x RGB) to the "hp_omen::kbd_backlight/zone_colors"
+    /// LED class file. Returns false when that file doesn't exist.
+    /// </summary>
+    private static bool TryWriteZoneColorsBinary(byte r, byte g, byte b)
+    {
+        var path = Path.Combine(LinuxSysfsPathMap.KeyboardBacklightPathAlt, "zone_colors");
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var binaryData = new byte[12];
+            for (var zone = 0; zone < 4; zone++)
+            {
+                binaryData[zone * 3] = r;
+                binaryData[zone * 3 + 1] = g;
+                binaryData[zone * 3 + 2] = b;
+            }
+
+            File.WriteAllBytes(path, binaryData);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>
     /// Set the same color for all zones.
     /// </summary>
@@ -154,7 +231,20 @@ public class LinuxKeyboardController
             if (SetZoneColor(i, r, g, b))
                 anySuccess = true;
         }
-        
+
+        // Two more all-4-zones-in-one-write interfaces, tried before falling back to the
+        // brightness-only proxy. Source: openomen (GPLv3) - documented sysfs paths/wire
+        // formats, reimplemented independently; see CHANGELOG_v4.1.7.md.
+        if (!anySuccess && TryWriteKeyboardLedsFile(r, g, b))
+        {
+            anySuccess = true;
+        }
+
+        if (!anySuccess && TryWriteZoneColorsBinary(r, g, b))
+        {
+            anySuccess = true;
+        }
+
         // If zone control didn't work, try global brightness
         if (!anySuccess)
         {
@@ -174,8 +264,9 @@ public class LinuxKeyboardController
 
         try
         {
-            var brightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness");
-            var maxBrightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "max_brightness");
+            var backlightDir = ResolveBacklightDirectory();
+            var brightnessPath = Path.Combine(backlightDir, "brightness");
+            var maxBrightnessPath = Path.Combine(backlightDir, "max_brightness");
 
             if (!File.Exists(brightnessPath))
                 return false;
@@ -205,7 +296,7 @@ public class LinuxKeyboardController
             return "HP WMI keyboard interface is not available.";
         }
 
-        var brightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness");
+        var brightnessPath = Path.Combine(ResolveBacklightDirectory(), "brightness");
         if (!File.Exists(brightnessPath))
         {
             return $"Brightness sysfs path not found: {brightnessPath}";
@@ -229,8 +320,9 @@ public class LinuxKeyboardController
     {
         try
         {
-            var brightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "brightness");
-            var maxBrightnessPath = Path.Combine(KEYBOARD_BACKLIGHT_PATH, "max_brightness");
+            var backlightDir = ResolveBacklightDirectory();
+            var brightnessPath = Path.Combine(backlightDir, "brightness");
+            var maxBrightnessPath = Path.Combine(backlightDir, "max_brightness");
             
             if (!File.Exists(brightnessPath))
                 return 0;

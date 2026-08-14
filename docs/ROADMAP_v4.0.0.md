@@ -658,6 +658,20 @@ GitHub #174 (KevinPlaysMCRB) is a routine hardware-support request with a full d
 
 --------------------------------------------------
 
+## IMPROVED (Post-4.1.6, 2026-08-15): Linux Keyboard RGB — Three More Sysfs Backends, from Researching GitHub #175's Linked Projects
+
+GitHub #175 asked OmenCore to consider coordinating with other Linux OMEN projects (`openomen`, `OmenCtl`, `LACT`, plus coolercontrol's hardware-support listing). That request itself is a project-direction call outside this document's scope, but reading through those projects' source (at the user's request, as a "what's worth borrowing" pass) turned up concrete gaps in OmenCore's own Linux RGB coverage, directly relevant to Trirez's standing Discord complaint that board `8BCA`'s keyboard "is still not supported because of different HID."
+
+**Found, via `openomen` (GPLv3 — paths/wire-formats reused, source not copied):** three sysfs interfaces neither `omencore-cli` (`LinuxKeyboardController.cs`) nor `omencore-gui` (`LinuxHardwareService.cs`) checked — `hp-wmi/rgb_zones/zone00`-`zone03` (4 separate files, 2-digit zero-padded, plain hex), `hp-wmi/keyboardleds` (one file, 4 zones concatenated as 24-char hex), and `hp_omen::kbd_backlight/zone_colors` (binary, 12 bytes). That last one also surfaced an unrelated gap: both targets only ever checked the `hp::kbd_backlight` LED class (no underscore) for brightness control too, so a board exposing only the `hp_omen::` variant would have had broken keyboard brightness, not just broken RGB.
+
+**Also found, via `OmenCtl`'s `HARDWARE_OFFSETS.md`/`CODE_REFERENCE.md` (GPLv3, not yet acted on):** independent corroboration that boards `8E35`/`8A43` have ACPI-WMI thermal-profile calls that fail silently and need a direct EC-register fallback to `0x59` (not the standard `0x95`). Board `8E35` is already a known problem board in this project's own tracking (the Max-level-floor bug documented earlier this cycle). Worth checking against next time `8E35`'s thermal-profile behavior is investigated — not implemented this pass, since it's Windows-side EC-register territory and needs the same field-validation treatment as any other EC write.
+
+**Also noted, not pursued:** coolercontrol's own hardware page lists `omen-fan-control`, a DKMS module that backports upstream `hp-wmi` kernel patches for kernels older than 6.20 — for boards like `8BCA` where the *kernel driver itself* lacks the real sysfs write paths (the actual root cause of the fan-control bug fixed above), pointing affected users at that DKMS module would be a better remedy than anything OmenCore can do from userspace. Worth a mention in Linux diagnostics output or install docs; not implemented this pass.
+
+**Fix:** added `LinuxSysfsPathMap.HpWmiRgbZonesDir`/`HpWmiKeyboardLedsPath`/`KeyboardBacklightPathAlt` and resolver helpers, wired as additional fallbacks into both Linux targets after their existing checks (so no currently-working board's behavior changes) and into keyboard-backlight brightness resolution in both targets too. Since none of these interfaces address zones independently through this app's current single-RGB-value API, one requested color is applied to all 4 zones — matching how every other existing backend in this codebase already behaves. Purely additive; verified with a full-solution build only (no Linux/OMEN hardware here, no automated test project for either Linux target — same verification tier as the fan-control fix above).
+
+--------------------------------------------------
+
 ## FIXED (Post-4.1.6, 2026-08-13): GitHub #172 — Board `8BBE`, and Model-Name-Pattern Fallback Crossing CPU Vendor Lines
 
 GitHub #172 (yunusemreyl, "Victus 16-R0XXX", board `8BBE`, SKU `CND3222PDQ`, BIOS `F.31`) is a hardware-support request with an attached diagnostics bundle. `8BBE` has no `ModelCapabilityDatabase` or `KeyboardModelDatabase` entry, so it resolves via `GetCapabilitiesByModelName()`'s WMI-name-pattern fallback to the existing `8C2F` entry (pattern `"16-r0"`, from GitHub #110/#155) — flagged Low confidence in the app's own identity summary.

@@ -12,6 +12,31 @@ public static class LinuxSysfsPathMap
     public const string AcpiPlatformProfileChoicesPath = "/sys/firmware/acpi/platform_profile_choices";
     public const string KeyboardBacklightPath = "/sys/class/leds/hp::kbd_backlight";
 
+    /// <summary>
+    /// Alternate keyboard-backlight LED class name seen on some kernel/driver combinations
+    /// (underscore "hp_omen::" rather than "hp::"). Neither this nor <see cref="KeyboardBacklightPath"/>
+    /// is documented anywhere authoritative; both are corroborated only by community tooling
+    /// (openomen), so treat as an additional candidate, not a replacement.
+    /// </summary>
+    public const string KeyboardBacklightPathAlt = "/sys/class/leds/hp_omen::kbd_backlight";
+
+    /// <summary>
+    /// 4-zone RGB keyboard control directory, distinct from both the WMI-driven "zoneN_color"
+    /// files (<see cref="HpWmiRoot"/>) and the hp-rgb-lighting platform device's plain "zoneN"
+    /// files. Each zone is its own file, named "zone00".."zone03" (2-digit, zero-padded),
+    /// written as a plain 6-hex-char string with no "#" prefix. Source: openomen (GPLv3) -
+    /// this is a documented sysfs path/wire format, not copied code; see
+    /// docs/CHANGELOG_v4.1.7.md for the corroboration trail.
+    /// </summary>
+    public const string HpWmiRgbZonesDir = "/sys/devices/platform/hp-wmi/rgb_zones";
+
+    /// <summary>
+    /// Legacy single-file 4-zone keyboard control: one write of all 4 zones' colors
+    /// concatenated as a 24-char hex string (zone0 first). Source: openomen (GPLv3), same
+    /// corroboration note as <see cref="HpWmiRgbZonesDir"/>.
+    /// </summary>
+    public const string HpWmiKeyboardLedsPath = "/sys/devices/platform/hp-wmi/keyboardleds";
+
     public static readonly string[] ThermalProfilePaths =
     {
         "/sys/firmware/acpi/platform_profile",
@@ -187,4 +212,38 @@ public static class LinuxSysfsPathMap
     }
 
     public static bool HasHpWmiFanInput(int index) => ResolveHpWmiFanInputPath(index) != null;
+
+    /// <summary>
+    /// Resolves the keyboard-backlight LED class directory, trying <see cref="KeyboardBacklightPath"/>
+    /// first and falling back to the underscore-variant class name
+    /// (<see cref="KeyboardBacklightPathAlt"/>) seen on some kernel/driver combinations.
+    /// </summary>
+    public static string? ResolveKeyboardBacklightDirectory()
+    {
+        if (Directory.Exists(KeyboardBacklightPath))
+        {
+            return KeyboardBacklightPath;
+        }
+
+        if (Directory.Exists(KeyboardBacklightPathAlt))
+        {
+            return KeyboardBacklightPathAlt;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves the file for one of the 4 <see cref="HpWmiRgbZonesDir"/> zone files
+    /// ("zone00".."zone03"), or null if the directory or that specific zone file doesn't exist.
+    /// </summary>
+    public static string? ResolveRgbZoneFilePath(int zoneIndex)
+    {
+        var candidate = Path.Combine(HpWmiRgbZonesDir, $"zone{zoneIndex:D2}");
+        return File.Exists(candidate) ? candidate : null;
+    }
+
+    public static bool HasRgbZonesDir => Directory.Exists(HpWmiRgbZonesDir);
+
+    public static bool HasKeyboardLedsFile => File.Exists(HpWmiKeyboardLedsPath);
 }
