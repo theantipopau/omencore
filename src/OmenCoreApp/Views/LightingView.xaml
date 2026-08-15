@@ -1693,9 +1693,31 @@
                             <CheckBox Content="Custom colours" IsChecked="{Binding UseCustomColors, Mode=TwoWay}"
                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
                                       Margin="0,0,16,0"/>
-                            <TextBox Width="80" Margin="0,0,8,0" MaxLength="7"
+                            <!-- Swatch is the picker button, matching the per-key editor. The hex
+                                 box stays for typing an exact value; clicking the colour is the
+                                 gesture people try first. -->
+                            <Button Command="{Binding PickPrimaryColorCommand}" Cursor="Hand"
+                                    Padding="0" BorderThickness="0" Background="Transparent"
+                                    Margin="0,0,6,0" IsEnabled="{Binding UseCustomColors}"
+                                    ToolTip="Choose the first colour"
+                                    AutomationProperties.Name="Choose the first custom effect colour">
+                                <Border Width="26" Height="26" CornerRadius="4"
+                                        Background="{Binding PrimaryColorBrush}"
+                                        BorderBrush="#666" BorderThickness="1"/>
+                            </Button>
+                            <TextBox Width="80" Margin="0,0,12,0" MaxLength="7"
                                      Text="{Binding PrimaryColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      IsEnabled="{Binding UseCustomColors}"/>
+
+                            <Button Command="{Binding PickSecondaryColorCommand}" Cursor="Hand"
+                                    Padding="0" BorderThickness="0" Background="Transparent"
+                                    Margin="0,0,6,0" IsEnabled="{Binding UseCustomColors}"
+                                    ToolTip="Choose the second colour"
+                                    AutomationProperties.Name="Choose the second custom effect colour">
+                                <Border Width="26" Height="26" CornerRadius="4"
+                                        Background="{Binding SecondaryColorBrush}"
+                                        BorderBrush="#666" BorderThickness="1"/>
+                            </Button>
                             <TextBox Width="80" Margin="0,0,16,0" MaxLength="7"
                                      Text="{Binding SecondaryColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      IsEnabled="{Binding UseCustomColors}"/>
@@ -1726,6 +1748,14 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                             <TextBlock Text="Colour" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Button Command="{Binding PickBarColorCommand}" Cursor="Hand"
+                                    Padding="0" BorderThickness="0" Background="Transparent"
+                                    Margin="0,0,6,0" ToolTip="Choose a colour"
+                                    AutomationProperties.Name="Choose the light bar colour">
+                                <Border Width="26" Height="26" CornerRadius="4"
+                                        Background="{Binding BarColorBrush}"
+                                        BorderBrush="#666" BorderThickness="1"/>
+                            </Button>
                             <TextBox Width="80" Margin="0,0,16,0" MaxLength="7"
                                      Text="{Binding BarColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             <Button Content="Apply colour" Style="{StaticResource ModernButton}" Padding="14,6"

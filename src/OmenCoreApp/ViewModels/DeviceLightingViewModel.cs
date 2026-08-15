@@ -62,6 +62,10 @@ namespace OmenCore.ViewModels
             ApplyLightBarEffectCommand = new RelayCommand(_ => ApplyLightBarEffect(), _ => SupportsLightBarEffects);
             LightBarOffCommand = new RelayCommand(_ => LightBarOff(), _ => IsLightBarAvailable);
 
+            PickPrimaryColorCommand = new RelayCommand(_ => PickInto(PrimaryColorHex, h => PrimaryColorHex = h));
+            PickSecondaryColorCommand = new RelayCommand(_ => PickInto(SecondaryColorHex, h => SecondaryColorHex = h));
+            PickBarColorCommand = new RelayCommand(_ => PickInto(BarColorHex, h => BarColorHex = h));
+
             if (SupportsDeviceEffects) ReadEffect();
             RefreshLightBar();
         }
@@ -131,8 +135,67 @@ namespace OmenCore.ViewModels
             set { _useCustomColors = value; OnPropertyChanged(); OnPropertyChanged(nameof(EffectAdvice)); }
         }
 
-        public string PrimaryColorHex { get => _primaryColorHex; set { _primaryColorHex = value; OnPropertyChanged(); } }
-        public string SecondaryColorHex { get => _secondaryColorHex; set { _secondaryColorHex = value; OnPropertyChanged(); } }
+        public string PrimaryColorHex
+        {
+            get => _primaryColorHex;
+            set { _primaryColorHex = value; OnPropertyChanged(); OnPropertyChanged(nameof(PrimaryColorBrush)); }
+        }
+
+        public string SecondaryColorHex
+        {
+            get => _secondaryColorHex;
+            set { _secondaryColorHex = value; OnPropertyChanged(); OnPropertyChanged(nameof(SecondaryColorBrush)); }
+        }
+
+        /// <summary>
+        /// Swatches for the two custom effect colours. A hex box alone makes the user hold the
+        /// mapping from six characters to a colour in their head, which is exactly the job a swatch
+        /// does for free - and these two feed effects where the colours matter to each other, so
+        /// seeing them side by side is most of the point.
+        /// </summary>
+        public System.Windows.Media.SolidColorBrush PrimaryColorBrush => BrushFrom(PrimaryColorHex);
+        public System.Windows.Media.SolidColorBrush SecondaryColorBrush => BrushFrom(SecondaryColorHex);
+
+        public ICommand PickPrimaryColorCommand { get; private set; } = null!;
+        public ICommand PickSecondaryColorCommand { get; private set; } = null!;
+        public ICommand PickBarColorCommand { get; private set; } = null!;
+
+        /// <summary>
+        /// Black for anything unparseable rather than throwing. The hex box accepts keystrokes as
+        /// they are typed, so "#F" is a state this passes through on the way to "#FF8800" and is
+        /// not an error worth surfacing.
+        /// </summary>
+        internal static System.Windows.Media.SolidColorBrush BrushFrom(string hex)
+        {
+            try
+            {
+                return new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(
+                        hex.StartsWith('#') ? hex : "#" + hex));
+            }
+            catch
+            {
+                return new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Black);
+            }
+        }
+
+        /// <summary>
+        /// Open the shared picker on a hex property. Same dialog the per-key editor uses - a second
+        /// colour-picking implementation in one app is how two of them end up disagreeing about
+        /// what "#FF0000" means.
+        /// </summary>
+        private void PickInto(string current, Action<string> assign)
+        {
+            var dialog = new Views.ColorPickerDialog
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+
+            dialog.SetInitialColor(current);
+
+            if (dialog.ShowDialog() == true && dialog.DialogResultOk)
+                assign(dialog.SelectedHexColor);
+        }
 
         public string Status { get => _status; private set { _status = value; OnPropertyChanged(); } }
 
@@ -243,7 +306,13 @@ namespace OmenCore.ViewModels
             set { _selectedBarEffect = value; OnPropertyChanged(); }
         }
 
-        public string BarColorHex { get => _barColorHex; set { _barColorHex = value; OnPropertyChanged(); } }
+        public string BarColorHex
+        {
+            get => _barColorHex;
+            set { _barColorHex = value; OnPropertyChanged(); OnPropertyChanged(nameof(BarColorBrush)); }
+        }
+
+        public System.Windows.Media.SolidColorBrush BarColorBrush => BrushFrom(BarColorHex);
 
         public int BarBrightness
         {
