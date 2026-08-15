@@ -145,7 +145,14 @@ internal static class PerKey
             ShowMode = showMode,
             ColorNumber = colorNumber,
             Speed = ParseSpeed(Arg(args, "--speed")),
-            Brightness = 0,
+
+            // Defaults to 0, which is what OGH sends and what every frame from here has ever
+            // carried. THAT IS THE POINT OF THE FLAG: "no effect consumes brightness" was inferred
+            // from [4] reading back 160 unchanged, but a field that is only ever sent 0 cannot be
+            // distinguished from a field the firmware treats 0 as "leave alone". Send a non-zero
+            // one and the readback answers it - under the merge rule, a field that updates is a
+            // field the effect consumes.
+            Brightness = ParseByte(Arg(args, "--effect-brightness"), 0),
             Direction = ParseDirection(Arg(args, "--direction")),
             RippleSize = ParseByte(Arg(args, "--size"), 1),
             RaindropFrequency = (byte)ParseSpeed(Arg(args, "--speed")),

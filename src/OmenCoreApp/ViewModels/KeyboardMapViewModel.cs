@@ -123,15 +123,19 @@ namespace OmenCore.ViewModels
         public System.Windows.Media.SolidColorBrush BrushColorBrush => new(ParseColor(BrushColorHex));
 
         /// <summary>
-        /// 0-100, applied to the colours on the next apply.
+        /// Master brightness, 0-100, applied to the whole picture on the next apply. The per-cell
+        /// half is <see cref="SelectionBrightness"/>, and the two multiply.
         ///
-        /// The ONLY brightness lever this keyboard has: the MCU's own command is refused by this
-        /// firmware at every value, and no device effect consumes the effect record's brightness
-        /// field. So this scales a host-painted picture and nothing else - a running effect cannot be
-        /// dimmed, which the UI says rather than implying otherwise.
+        /// The ONLY brightness lever this keyboard has, and it reaches host-painted colour only.
+        /// Measured on 8D87: the MCU's own command 0x0C is refused at every payload value, and the
+        /// effect record's brightness field is ignored at 0, 60 and 160 alike - sent through frames
+        /// the MCU demonstrably consumed, and read back unchanged every time. So a running device
+        /// effect cannot be dimmed, which the UI says rather than implying otherwise.
         ///
-        /// The scaling is the backend's, not this view-model's. Doing it here would dim the picture
-        /// the editor is holding, so the swatches would drift darker every time Apply was pressed.
+        /// This one is scaled by the BACKEND, not here. Doing it here would dim the picture the
+        /// editor is holding, so the swatches would drift darker every time Apply was pressed.
+        /// <see cref="KeyLampViewModel.Level"/> is scaled here instead, and safely, because it is a
+        /// separate field rather than a rewrite of the colour the user picked.
         /// </summary>
         public int Brightness
         {
@@ -142,10 +146,70 @@ namespace OmenCore.ViewModels
                 if (_brightness == clamped) return;
                 _brightness = clamped;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(BrightnessHint));
             }
         }
 
         public int SelectedCount => Keys.Count(k => k.IsSelected);
+
+        /// <summary>Whether the per-selection brightness slider has anything to act on.</summary>
+        public bool HasSelection => SelectedCount > 0;
+
+        /// <summary>
+        /// What the two sliders are doing right now, in words, because their product is not obvious
+        /// from two numbers sitting side by side. Says the arithmetic when a selection is dimmed and
+        /// stays out of the way when it is not.
+        /// </summary>
+        public string BrightnessHint
+        {
+            get
+            {
+                const string always = " A running keyboard effect cannot be dimmed — the MCU draws those itself.";
+
+                if (!HasSelection)
+                    return "Applies on the next Apply. Select keys to dim them independently." + always;
+
+                int selection = SelectionBrightness;
+                if (selection >= 100)
+                    return $"{SelectedCount} selected, at full. Applies on the next Apply." + always;
+
+                return $"{SelectedCount} selected at {selection}% — they land at " +
+                       $"{Brightness * selection / 100}% once the master's {Brightness}% is applied." + always;
+            }
+        }
+
+        /// <summary>
+        /// The selection's own brightness, 0-100, multiplied with <see cref="Brightness"/> on the way
+        /// to the keyboard. This is the per-LED half of brightness; <see cref="Brightness"/> is the
+        /// whole-picture half.
+        ///
+        /// Reads back the level the selection AGREES on, and 100 when it does not. A mixed selection
+        /// has no single level to show, and showing one key's value would make the slider lie about
+        /// the other eleven - but the control still has to sit somewhere, and the neutral end is the
+        /// only position that is not a claim about the selection.
+        ///
+        /// Writing applies to every selected cell, light bar zones included. The bar's firmware
+        /// brightness is one byte for all four zones, so per-zone dimming there is the same host-side
+        /// arithmetic as the keys - see <see cref="ApplyAsync"/>.
+        /// </summary>
+        public int SelectionBrightness
+        {
+            get
+            {
+                var levels = Keys.Where(k => k.IsSelected).Select(k => k.Level).Distinct().Take(2).ToList();
+                return levels.Count == 1 ? levels[0] : 100;
+            }
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 100);
+                var targets = Keys.Where(k => k.IsSelected).ToList();
+                if (targets.Count == 0) return;
+
+                foreach (var key in targets) key.Level = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(BrightnessHint));
+            }
+        }
 
         public string Status
         {
@@ -167,6 +231,9 @@ namespace OmenCore.ViewModels
         {
             key.IsSelected = !key.IsSelected;
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         /// <summary>
@@ -189,12 +256,18 @@ namespace OmenCore.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         private void SetSelection(IEnumerable<KeyLampViewModel> keys, bool selected)
         {
             foreach (var key in keys) key.IsSelected = selected;
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         // ── Colour ─────────────────────────────────────────────────────────────────
@@ -244,6 +317,9 @@ namespace OmenCore.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
             Status = $"Painted {targets.Count} key(s) {BrushColorHex}. " +
                      "Keep going, then Apply to send the whole map to the keyboard.";
         }
@@ -268,10 +344,16 @@ namespace OmenCore.ViewModels
 
             foreach (var key in Keys)
             {
-                var parsed = ParseColor(key.ColorHex);
+                // The cell's own level, applied here. The master is NOT applied here - the backend
+                // does that on its way to the wire, so this stays a picture rather than a dimmed
+                // copy of one. Effective brightness is the product of the two.
+                var parsed = ScaleForLevel(ParseColor(key.ColorHex), key.Level);
 
                 if (key.IsLightBar)
                 {
+                    // HP's light bar frame carries ONE brightness byte for all four zones, so a
+                    // per-zone level cannot go to the firmware and has to be arithmetic on the
+                    // colour, exactly as it is for the keys. The master still rides the byte.
                     barZones[key.ZoneIndex] = (parsed.R, parsed.G, parsed.B);
                     anyBar = true;
                     continue;
@@ -704,6 +786,23 @@ namespace OmenCore.ViewModels
         private static System.Drawing.Color ToDrawingColor(System.Windows.Media.Color c) =>
             System.Drawing.Color.FromArgb(c.R, c.G, c.B);
 
+        /// <summary>
+        /// Scale a colour by a per-cell level, 0-100.
+        ///
+        /// Short-circuits at 100 so an untouched picture is passed through byte-for-byte rather than
+        /// through arithmetic that happens to be the identity. Same linear multiply and
+        /// round-to-nearest as <c>DojoPerKeyBackend.Scale</c>, so a cell dimmed to 50 here and the
+        /// master left at 100 lands on exactly the bytes the backend would have produced.
+        /// </summary>
+        private static System.Windows.Media.Color ScaleForLevel(System.Windows.Media.Color c, int level)
+        {
+            if (level >= 100) return c;
+            if (level <= 0) return System.Windows.Media.Colors.Black;
+
+            byte Scale(byte channel) => (byte)(((channel * level * 255 / 100) + 127) / 255);
+            return System.Windows.Media.Color.FromRgb(Scale(c.R), Scale(c.G), Scale(c.B));
+        }
+
         private static System.Windows.Media.Color ParseColor(string hex)
         {
             try
@@ -788,6 +887,7 @@ namespace OmenCore.ViewModels
     {
         private bool _isSelected;
         private string _colorHex = "#000000";
+        private int _level = 100;
 
         /// <summary>
         /// Every lamp under this key. Usually one, but a wide key carries several - Space has five
@@ -884,14 +984,49 @@ namespace OmenCore.ViewModels
             }
         }
 
+        /// <summary>
+        /// This cell's own brightness, 0-100, multiplied with the editor's master before the colour
+        /// goes out. 100 is "as painted", which is why it is the default - a cell nobody has dimmed
+        /// must behave exactly as it did before per-cell levels existed.
+        ///
+        /// Kept SEPARATE from <see cref="ColorHex"/> rather than baked into it. Scaling the hex in
+        /// place would be lossy and one-way: drag a key to 10% and back to 100% and the colour the
+        /// user picked is gone, quantised to whatever survived the round trip. The picked colour is
+        /// the user's, and this is a view on it.
+        /// </summary>
+        public int Level
+        {
+            get => _level;
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 100);
+                if (_level == clamped) return;
+                _level = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(KeyBrush));
+                OnPropertyChanged(nameof(LabelBrush));
+            }
+        }
+
+        /// <summary>
+        /// The cap's colour: what was painted, scaled by this cell's own level.
+        ///
+        /// Deliberately does NOT include the editor's master brightness. Folding that in would be
+        /// more literally WYSIWYG and much worse to use - at master 3 the whole editor goes near
+        /// black and you cannot see what you are painting. Per-cell differences are the thing this
+        /// view has to show; the master is one number, shown next to its own slider.
+        /// </summary>
         public System.Windows.Media.SolidColorBrush KeyBrush
         {
             get
             {
                 try
                 {
+                    var c = (System.Windows.Media.Color)
+                        System.Windows.Media.ColorConverter.ConvertFromString(ColorHex);
+
                     return new System.Windows.Media.SolidColorBrush(
-                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(ColorHex));
+                        System.Windows.Media.Color.FromRgb(ScaleChannel(c.R), ScaleChannel(c.G), ScaleChannel(c.B)));
                 }
                 catch
                 {
@@ -899,6 +1034,13 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Mirrors <c>DojoPerKeyBackend.Scale</c> - same linear multiply, same round-to-nearest - so
+        /// the cap and the key agree. A different rounding here would make the editor a slightly
+        /// dishonest preview of the thing it exists to preview.
+        /// </summary>
+        private byte ScaleChannel(byte channel) => (byte)(((channel * Level * 255 / 100) + 127) / 255);
 
         /// <summary>
         /// Black text on a light key, white on a dark one. A single fixed label colour makes the

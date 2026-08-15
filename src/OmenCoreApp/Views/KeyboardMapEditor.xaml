@@ -64,27 +64,49 @@
                     AutomationProperties.Name="Apply per-key colours to the keyboard"/>
         </Grid>
 
-        <!-- Brightness. Not the MCU's - that command is refused by this firmware - but the
-             LampArray's per-lamp intensity channel, which scales a host-painted picture and is the
-             only brightness lever this keyboard has. -->
+        <!-- Brightness, in two halves that multiply.
+
+             Neither is a device setting. The MCU's own brightness command is refused by this
+             firmware, and the colour map it draws from is raw RGB with no intensity channel, so
+             both of these are arithmetic on the colours before they go out. That is also why
+             neither can touch a device-rendered effect: the MCU draws those from its own state
+             with no host involvement, measured, so there is no picture here to scale.
+
+             Whole keyboard is applied by the backend; Selected is applied per cell in the
+             view-model and shows up on the caps immediately. -->
         <Grid Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="160"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Brightness:" FontSize="12" Foreground="#B0B0B0"
+            <TextBlock Grid.Column="0" Text="Whole keyboard:" FontSize="12" Foreground="#B0B0B0"
                        VerticalAlignment="Center" Margin="0,0,8,0"/>
             <Slider Grid.Column="1" Minimum="0" Maximum="100" VerticalAlignment="Center"
                     Value="{Binding Brightness, Mode=TwoWay}"
-                    AutomationProperties.Name="Per-key lighting brightness"/>
+                    AutomationProperties.Name="Master brightness for the whole keyboard and light bar"/>
             <TextBlock Grid.Column="2" Text="{Binding Brightness}" FontSize="12" Width="34"
                        Foreground="#E0E0E0" VerticalAlignment="Center" Margin="8,0,0,0"/>
-            <TextBlock Grid.Column="3" FontSize="11" Foreground="#707070" VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       Text="Applies on the next Apply. It scales the colours you paint — a running keyboard effect cannot be dimmed."/>
+
+            <!-- Disabled rather than hidden with nothing selected: a control that vanishes is
+                 harder to find again than one that greys out, and the label says what to do. -->
+            <TextBlock Grid.Column="3" Text="Selected:" FontSize="12" Foreground="#B0B0B0"
+                       VerticalAlignment="Center" Margin="16,0,8,0"/>
+            <Slider Grid.Column="4" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                    Value="{Binding SelectionBrightness, Mode=TwoWay}"
+                    IsEnabled="{Binding HasSelection}"
+                    AutomationProperties.Name="Brightness of the selected keys and light bar zones"/>
+            <TextBlock Grid.Column="5" Text="{Binding SelectionBrightness}" FontSize="12" Width="34"
+                       Foreground="#E0E0E0" VerticalAlignment="Center" Margin="8,0,0,0"/>
+
+            <TextBlock Grid.Column="6" FontSize="11" Foreground="#707070" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="12,0,0,0"
+                       Text="{Binding BrightnessHint}"/>
         </Grid>
 
         <!-- The keyboard itself. Viewbox so the logical layout, computed in millimetres, scales to
