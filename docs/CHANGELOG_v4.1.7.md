@@ -337,6 +337,37 @@ The swatches render on every keystroke, because the hex boxes bind with `UpdateS
 
 11 new tests in `DeviceLightingSwatchTests.cs`.
 
+## Added: Curate the Keyboard's Own `Fn+1` / `Fn+2` Effect Cycle (Board `8D87`)
+
+Pressing `Fn+1` on this machine changes the keyboard lighting, and nothing in OmenCore knew why. Measured on `8D87` by polling the MCU's `0x83` state read in-process at 10 Hz while the keys were pressed, with HP's `OmenCommandCenterBackground` stopped:
+
+- **`Fn+1` and `Fn+2` are one control, not two** — next and previous through a single list. `Fn+3` through `Fn+0` do nothing to lighting.
+- **The list holds what a host wrote to it.** Two entries in the observed cycle were this project's own probe writes, and an ordinary command `0x03` effect frame was enough to install one — no flash write needed.
+- **One slot per effect type, holding that effect's last parameters.** Wave was written twice in one session, red then green, and only green appeared in the cycle. It is not an append-only history.
+- **`0x0A StoreLightingToFlash` neither creates nor reorders slots.** It does what its name says and no more.
+
+So the Fn keys are a usable hardware profile switcher, and driving them needs no command OmenCore did not already send.
+
+**Change:** a new "Fn+1 / Fn+2 cycle" card on the Lighting page. Configure an effect in the card above it, press *Add to cycle*, repeat, mark one as *Showing*, then *Write to keyboard*. The staged set persists in `config.json`. Profiles written this way are recalled by the keyboard itself — with OmenCore closed, or uninstalled, or on a fresh Windows install.
+
+Two firmware rules the plan has to honour rather than the other way round, both in `FnCyclePlan` where they can be tested: duplicate effect types collapse to the later one (the firmware would overwrite anyway, so sending both spends a frame on an entry nothing could recall), and the *Showing* profile is written **last**, because the keyboard displays whatever arrived most recently and there is no separate command to say which. Staging an effect and applying it go through the same record builder, so a profile in the cycle is byte-identical to the frame the user just watched Apply produce.
+
+**Stated in the card rather than discovered later:** writing *adds to or updates* what the keyboard holds. There is no command to remove or reorder an entry, and `0x83` reads only the effect currently showing — never the list — so taking a profile off the staged list does not take it off the keyboard, and nothing in the UI could show that it is still there.
+
+Swipe staged with a theme is warned about before any frame goes out (it has no preset palette on this firmware and renders black), and Audio Pulse is allowed with a note that it is fed live levels by the host, so in the cycle it shows a steady colour.
+
+Board-scoped: measured on `8D87` with BIOS F.07 and keyboard MCU `0D62:54BF`. The card appears only where a backend can reach that MCU.
+
+49 new tests across `FnCyclePlanTests.cs` and `DeviceLightingFnCycleTests.cs`.
+
+## Fixed: Misleading Comment Claimed the PawnIO EC Module Was Embedded in the Executable
+
+`PawnIOEcAccess` caches the compiled `LpcACPIEC` module in a `static byte[]` whose comment read "Embedded LpcACPIEC.amx module binary". It is not embedded. `LoadEcModule` reads it from disk — `<appdir>\drivers\` or `C:\Program Files\PawnIO\modules\` — and `PublishSingleFile` does not bundle `None` content items, since `IncludeAllContentForSelfExtract` is deliberately off.
+
+This costs nothing for anyone using the installer, which takes the publish directory with `recursesubdirs`. It matters for hand-assembled deployments: copying only `OmenCore.exe` loses EC access, undervolt and the APU clamp lift in one go, and the only visible symptom is the sidebar badge reading **No EC** — the PawnIO driver is installed and running, so every other check passes. The PawnIO installer creates no `modules\` directory, so there is no second place for it to be found.
+
+**Change:** comment corrected to say where the module actually comes from and what breaks when it is absent.
+
 ## Not Actioned This Release
 
 - GitHub #159's remaining findings (CPU/GPU temperature freeze-detection sensitivity, the RPM-readback structural gap already documented for other boards) are consistent with already-tracked items elsewhere in the roadmap, not new.

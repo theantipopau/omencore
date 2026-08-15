@@ -76,7 +76,7 @@ namespace OmenCoreApp.Tests
             "OghServiceProxy.cs:323",
             "OmenDesktopRgbService.cs:393",
             "OmenDesktopRgbService.cs:1244",
-            "PawnIOEcAccess.cs:236",
+            // PawnIOEcAccess.cs:236 - retired, the catch is typed and logged now
             "PawnIOMsrAccess.cs:112",
             "RyzenSmu.cs:143",
             "ThermalSensorProvider.cs:86", // shifted from :82 after 3.7.0 live temperature projection cleanup
