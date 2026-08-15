@@ -327,6 +327,16 @@ The key caps preview their own level so per-key differences are visible while ed
 
 13 new tests in `KeyboardMapBrightnessTests.cs`, covering the default (untouched cells stay at full), that dimming leaves unselected cells alone, that the painted colour survives a 100 → 5 → 100 round trip, that a mixed selection reports the neutral end rather than one member's value, and that the cap preview scales by exactly what the backend would send.
 
+## Added: Colour Pickers for the Device-Effect and Light Bar Colours
+
+Reported alongside the brightness work: the device-effects card and the light bar card accepted custom colours as hex text and nothing else, so choosing one meant already knowing its hex. The per-key editor has had a picker since it shipped; these two never got one.
+
+**Change:** both cards now use the same `ColorPickerDialog` the per-key editor uses, with the same gesture — the colour swatch *is* the picker button, and the hex box stays beside it for typing an exact value. Reused rather than reimplemented, since two colour-picking implementations in one app is how they end up disagreeing about what a hex string means.
+
+The swatches render on every keystroke, because the hex boxes bind with `UpdateSourceTrigger=PropertyChanged`, so they must survive the partial values typing walks through (`#`, `#F`, `#FF`…). They fall back to black rather than throwing. One of those intermediate states is not what it looks like and the tests now say so: WPF's `ColorConverter` reads four-character hex as `#ARGB` shorthand, so `#FF88` is a real colour rather than a parse failure and the swatch briefly shows it on the way to `#FF8800`. Found by asserting the obvious guess and watching it fail.
+
+11 new tests in `DeviceLightingSwatchTests.cs`.
+
 ## Not Actioned This Release
 
 - GitHub #159's remaining findings (CPU/GPU temperature freeze-detection sensitivity, the RPM-readback structural gap already documented for other boards) are consistent with already-tracked items elsewhere in the roadmap, not new.
