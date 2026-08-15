@@ -459,6 +459,15 @@ namespace OmenCore.Models
 
         /// <summary>UTC time when the latest RGB observed-surface record was captured.</summary>
         public DateTime? ObservedAtUtc { get; set; }
+
+        /// <summary>
+        /// Profiles staged for the keyboard's Fn+1 / Fn+2 cycle.
+        ///
+        /// This is the STAGED set, not a readback — the MCU will not enumerate its cycle, so the
+        /// only record of what a user curated is ours. Losing it would leave profiles on the
+        /// keyboard that nothing in the UI could account for.
+        /// </summary>
+        public List<FnCycleSlot> FnCycleSlots { get; set; } = new();
     }
     
     /// <summary>

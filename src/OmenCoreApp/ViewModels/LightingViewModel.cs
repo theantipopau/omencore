@@ -669,7 +669,7 @@ namespace OmenCore.ViewModels
         /// <summary>The keyboard's built-in effect engine and the light bar - hardware-rendered
         /// surfaces, as opposed to the host-painted per-key picture above.</summary>
         public DeviceLightingViewModel DeviceLighting =>
-            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging);
+            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging, _configService);
 
         public bool HasDeviceEffects => DeviceLighting.SupportsDeviceEffects;
         public bool HasLightBar => DeviceLighting.IsLightBarAvailable;

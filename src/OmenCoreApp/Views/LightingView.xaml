@@ -1734,6 +1734,91 @@
                     </StackPanel>
                 </Border>
 
+                <!-- The keyboard's own Fn+1 / Fn+2 profile cycle.
+                     Same capability as the card above, but the profiles live in the keyboard and are
+                     recalled by its own keys - so this is the one part of OmenCore whose result
+                     outlives the install. Shown wherever effects are, since it is the same MCU. -->
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
+                        DataContext="{Binding DeviceLighting}"
+                        Visibility="{Binding SupportsDeviceEffects, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Fn+1 / Fn+2 cycle" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                        <TextBlock Text="The keyboard remembers a list of effects and steps through it when you press Fn+1 (next) or Fn+2 (previous). Curate that list here and it keeps working with OmenCore closed, or uninstalled."
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button Content="Add to cycle" Style="{StaticResource ModernButton}" Padding="16,6"
+                                    Command="{Binding StageCurrentEffectCommand}" Margin="0,0,8,0"
+                                    ToolTip="Stage the effect, colours, speed and direction set above"/>
+                            <Button Content="Write to keyboard" Style="{StaticResource ModernButton}" Padding="16,6"
+                                    Command="{Binding WriteFnCycleCommand}"
+                                    ToolTip="Send every staged profile to the keyboard"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding FnCycleEmptyHint}" FontSize="12" FontStyle="Italic"
+                                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                                   Margin="0,0,0,8"
+                                   Visibility="{Binding FnCycleEmptyHint, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
+
+                        <ItemsControl ItemsSource="{Binding FnCycleSlots}" Margin="0,0,0,8"
+                                      Visibility="{Binding HasFnCycleSlots, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#1E1E24" CornerRadius="6" Padding="10,8" Margin="0,0,0,6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="4"
+                                                    Background="{Binding SwatchBrush}" BorderBrush="#666"
+                                                    BorderThickness="1" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayName}" FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="{Binding Summary}" FontSize="11"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                            </StackPanel>
+
+                                            <!-- IsChecked is one-way: the view model owns which slot is
+                                                 active and clears the others, so the radios cannot get
+                                                 into a state where two look selected. -->
+                                            <RadioButton Grid.Column="2" Content="Showing" VerticalAlignment="Center"
+                                                         Margin="0,0,12,0" FontSize="11"
+                                                         Foreground="{StaticResource TextSecondaryBrush}"
+                                                         IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                         Command="{Binding DataContext.MakeFnSlotActiveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                         CommandParameter="{Binding}"
+                                                         ToolTip="Leave the keyboard showing this one after writing"/>
+
+                                            <Button Grid.Column="3" Content="Remove" Padding="10,4" FontSize="11"
+                                                    Style="{StaticResource ModernButton}"
+                                                    Command="{Binding DataContext.RemoveFnSlotCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Take this off the list. It stays on the keyboard."/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding FnCycleAdvice}" FontSize="11" Foreground="#E0A030"
+                                   TextWrapping="Wrap" Margin="0,0,0,4"
+                                   Visibility="{Binding FnCycleAdvice, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"/>
+                        <TextBlock Text="{Binding FnCycleLimitation}" FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding FnCycleStatus}" FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Light bar. A different device on a different transport, so a separate card. -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
                         DataContext="{Binding DeviceLighting}"

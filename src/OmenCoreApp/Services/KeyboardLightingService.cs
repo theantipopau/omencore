@@ -1067,6 +1067,21 @@ namespace OmenCore.Services
         /// <summary>The effect the keyboard is currently holding, or null if it will not answer.</summary>
         public Hardware.DojoKeyboardMcu.EffectRecord? ReadDeviceEffect() => _v2Service?.ReadDeviceEffect();
 
+        /// <summary>
+        /// Persist the keyboard's current lighting so it survives a power cycle.
+        ///
+        /// A real flash write to the MCU — user-initiated only, never per frame.
+        /// </summary>
+        public async Task<bool> StoreDeviceLightingToFlashAsync()
+        {
+            if (_v2Service == null) return false;
+
+            bool ok = await _v2Service.StoreDeviceLightingToFlashAsync();
+            if (!ok) _logging.Warn("[KeyboardLighting] The keyboard refused the flash write");
+
+            return ok;
+        }
+
         // ── Light bar ──────────────────────────────────────────────────────────────────
         //
         // A SEPARATE DEVICE from the keyboard, on a separate transport, and the split runs deeper

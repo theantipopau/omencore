@@ -391,6 +391,28 @@ namespace OmenCore.Services.KeyboardLighting
         public Hardware.DojoKeyboardMcu.EffectRecord? ReadDeviceEffect() =>
             (_activeBackend as DojoPerKeyBackend)?.ReadDeviceEffect();
 
+        /// <summary>
+        /// Persist the current lighting so it survives a power cycle.
+        ///
+        /// A REAL FLASH WRITE to the keyboard MCU, so it belongs on an explicit user action and
+        /// never in a loop. Takes the same lock as the effect writes because a flash write racing
+        /// an effect frame would persist whichever the firmware happened to finish with.
+        /// </summary>
+        public async Task<bool> StoreDeviceLightingToFlashAsync()
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                return dojo.StoreToFlash();
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
+        }
+
         private async Task<IKeyboardBackend?> TryInitializeBackend(KeyboardMethod method)
         {
             IKeyboardBackend? backend = null;
