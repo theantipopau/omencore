@@ -297,6 +297,24 @@ GitHub #175 asked whether OmenCore should coordinate with other Linux OMEN-contr
 
 Purely additive detection and fallback — nothing narrower, nothing removed. Verified by a clean build of the full solution (`OmenCore.sln`); as with the fan-control fix above, there is no automated test project for either Linux target and no Linux/OMEN hardware in this environment, so this is code-review-and-build-verified only, not field-confirmed on the board that prompted it.
 
+## Fixed: Per-Key RGB Brightness Slider Did Nothing on Boards With a Known Keyboard Layout (Board `8D87`, Community Report)
+
+Reported on board `8D87` (OMEN MAX 16-ak0xxx) against the per-key RGB editor shipped earlier this cycle: moving the Brightness slider and pressing Apply changed nothing. The colours applied correctly; the brightness setting was inert at every value.
+
+**Root cause:** the OMEN MAX keyboard has two lighting interfaces, and only one of them has a brightness channel. `mi_04` (HID LampArray) carries a per-lamp intensity byte. `mi_03` (the keyboard MCU's own 176-entry static colour map) does not — it is raw RGB, and the MCU draws exactly the bytes it is handed. `DojoPerKeyBackend` stored the slider's value in `_brightness` and applied it only where an intensity byte existed, which is `mi_04`.
+
+That was correct when it was written. It stopped being correct when per-key painting moved to `mi_03` so the picture would survive the Fn overlay — after that move, `mi_04` is reached only as the fallback for a board whose lamp ids cannot be resolved to colour-map positions. On every board that *does* have a layout, which is every board the per-key editor lists keys for, `_brightness` was written and never read. The reporter's log shows the shape exactly: `Apply: 176 LEDs ledsOk=True, 0 keys keysOk=True` — the whole picture through the colour map, and zero lamps through the one path that scaled it.
+
+Nothing surfaced this. The slider moved, the view-model held the value, the backend held the value, and the write returned `True` — there is no colour readback on either interface, so "accepted" was the entire software claim and it was accurate. Only the keyboard disagreed.
+
+**Fix:** brightness is now applied as host-side arithmetic in `DojoPerKeyBackend.WriteColorMap`, the single point every colour map passes through on its way to `mi_03`, scaling each channel linearly (rounded to nearest) exactly as `mi_04`'s intensity channel scales a lamp. The unscaled map is retained so `SetBrightnessAsync` can re-send the same picture at a new level rather than compounding each change on the last dimmed copy. A new `_mcuShowsHostMap` flag tracks whether that map is what the keyboard is actually drawing, so a brightness change repaints a static picture but never interrupts a running device animation, never un-blanks a keyboard whose backlight is off, and never fights host lamp ownership — the existing "a running effect cannot be dimmed" behaviour, which is a hardware limit on this board, is unchanged and the UI already says so.
+
+The MCU's own brightness command (`0x0C`) is still sent and still expected to fail here. Measured on `8D87`, it is not acknowledged at any payload value (`0`, `1`, `2`, `3`, `50`, `100`) while `0x03`, `0x83`, `0x09`, `0x0A` and `0x10` are all acknowledged through the same handle and the same frame builder. It costs one frame and is the right lever on a board that implements it. Its doc comment claimed to be unmeasured; it has been measured, and now says what was found.
+
+Two honesty fixes alongside: `KeyboardLightingServiceV2.SetPerKeyBrightness` returned `false` silently for any non-`DojoPerKeyBackend` backend, and now logs which backend declined; `KeyboardMapViewModel` now reports that in the Apply status line rather than leaving a user to infer a dead slider from an undimmed keyboard.
+
+8 new tests in `DojoPerKeyBrightnessTests.cs` pin the scaling: full intensity is byte-for-byte transparent across all 256 channel values (a rounding error there would tint every colour a user picks), zero is black, the scale is linear and monotonic, and the `channel * intensity` product never overflows the byte it is cast to. The device end cannot be tested — `DojoKeyboardMcu` is sealed over a raw handle and neither interface reads colour back — so the arithmetic is the last automatically checkable point. Hardware-exercised on board `8D87` through `LightingProbe --per-key --zones FF0000 --brightness N --commit`: the backend opens both interfaces, resolves the layout, and the scaled colour map is accepted at each level. Full suite 1296/1296, 0 build warnings.
+
 ## Not Actioned This Release
 
 - GitHub #159's remaining findings (CPU/GPU temperature freeze-detection sensitivity, the RPM-readback structural gap already documented for other boards) are consistent with already-tracked items elsewhere in the roadmap, not new.

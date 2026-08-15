@@ -338,7 +338,16 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public bool SetPerKeyBrightness(int brightness)
         {
-            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+            if (_activeBackend is not DojoPerKeyBackend dojo)
+            {
+                // Not a failure to retry - the other backends have no per-write brightness at all.
+                // Logged because the caller's only alternative is to show a slider that does
+                // nothing and never say so.
+                _logging.Info($"[KeyboardLightingV2] Per-key brightness {brightness} not applied: " +
+                              $"backend '{_activeBackend?.Name ?? "none"}' scales nothing per write");
+                return false;
+            }
+
             dojo.SetLampIntensity(brightness);
             return true;
         }

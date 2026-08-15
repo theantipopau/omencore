@@ -315,8 +315,9 @@ internal static class PerKey
         bool mcuOnly = args.Contains("--mcu-only");
 
         Console.WriteLine(mcuOnly
-            ? $"  plan     : brightness {level}  (MCU command 0x0C ALONE - no lamp repaint)"
-            : $"  plan     : brightness {level}  (MCU command 0x0C, plus the LampArray intensity channel)");
+            ? $"  plan     : brightness {level}  (MCU command 0x0C ALONE - no repaint)"
+            : $"  plan     : brightness {level}  (MCU command 0x0C, plus a re-scaled repaint of " +
+              "whatever picture this process last painted - nothing to repaint on a fresh run)");
 
         if (!commit)
         {

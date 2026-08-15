@@ -123,12 +123,15 @@ namespace OmenCore.ViewModels
         public System.Windows.Media.SolidColorBrush BrushColorBrush => new(ParseColor(BrushColorHex));
 
         /// <summary>
-        /// 0-100, applied as the LampArray per-lamp intensity channel on the next apply.
+        /// 0-100, applied to the colours on the next apply.
         ///
         /// The ONLY brightness lever this keyboard has: the MCU's own command is refused by this
         /// firmware at every value, and no device effect consumes the effect record's brightness
         /// field. So this scales a host-painted picture and nothing else - a running effect cannot be
         /// dimmed, which the UI says rather than implying otherwise.
+        ///
+        /// The scaling is the backend's, not this view-model's. Doing it here would dim the picture
+        /// the editor is holding, so the swatches would drift darker every time Apply was pressed.
         /// </summary>
         public int Brightness
         {
@@ -290,9 +293,9 @@ namespace OmenCore.ViewModels
                 foreach (ushort lampId in key.LampIds) colors[lampId] = color;
             }
 
-            // Brightness first: it is the intensity byte attached to each lamp in the write below,
-            // so setting it after would need a second full repaint to take effect.
-            await _keyboard.SetPerKeyBrightnessAsync(Brightness);
+            // Brightness first: the backend applies it to the colour writes below, so setting it
+            // after would need a second full repaint to take effect.
+            bool brightnessOk = await _keyboard.SetPerKeyBrightnessAsync(Brightness);
 
             // Black, not the brush: every cell in the editor is in the dictionary, so the background
             // only reaches positions the layout does not claim - padding, and anything the table
@@ -311,8 +314,16 @@ namespace OmenCore.ViewModels
             if (anyBar) parts.Add($"4 bar zones {(barOk ? "accepted" : "REFUSED")}");
 
             Status = string.Join(", ", parts) + ". Only looking confirms it.";
+
+            // A backend that cannot take brightness sends the colours at full strength, and the
+            // slider sitting at 20 while the keyboard blazes is exactly the silent no-op this fix
+            // was for. Say it happened rather than leaving the user to infer it from the light.
+            if (!brightnessOk && Brightness < 100)
+                Status += $" Brightness {Brightness} was NOT applied - this keyboard's backend has no brightness lever.";
+
             _logging.Info($"[KeyboardMap] Apply: {leds.Count} LEDs ledsOk={ledsOk}, " +
-                          $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}");
+                          $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}, " +
+                          $"brightness={Brightness} brightnessOk={brightnessOk}");
         }
 
         // ── Loading ────────────────────────────────────────────────────────────────
