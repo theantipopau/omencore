@@ -62,9 +62,9 @@ if (args.Any(a => a.StartsWith("--lightbar", StringComparison.Ordinal)))
     return LightBar.Run(args);
 
 // Ahead of --key: --read-effect and friends are the MCU path, and --key is the LampArray one.
-if (args.Contains("--effect") || args.Contains("--read-effect") || args.Contains("--zones") ||
-    args.Contains("--keys") || args.Contains("--brightness") || args.Contains("--backlight") ||
-    args.Contains("--restore-default") || args.Contains("--persist"))
+if (args.Contains("--effect") || args.Contains("--read-effect") || args.Contains("--watch-effect") ||
+    args.Contains("--zones") || args.Contains("--keys") || args.Contains("--brightness") ||
+    args.Contains("--backlight") || args.Contains("--restore-default") || args.Contains("--persist"))
 {
     return PerKey.Run(args);
 }

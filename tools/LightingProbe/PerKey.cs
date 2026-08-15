@@ -23,6 +23,7 @@
 //   AudioPulse   IS its two level bytes. At 0 it is black by definition. --pulse feeds them.
 
 using System.Drawing;
+using System.Threading;
 using OmenCore.Hardware;
 using OmenCore.Services;
 using OmenCore.Services.KeyboardLighting;
@@ -87,6 +88,7 @@ internal static class PerKey
         Console.WriteLine();
 
         if (args.Contains("--read-effect")) return 0;
+        if (Arg(args, "--watch-effect") != null) return WatchEffect(backend, args);
 
         int rc = 0;
         if (Arg(args, "--brightness") != null) rc |= Brightness(backend, args, commit);
@@ -312,6 +314,96 @@ internal static class PerKey
         Console.WriteLine("  running, the rest of the keyboard is now a frozen frame of it.");
 
         return ok ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Poll the effect record and print it whenever it changes. A READ, so it is not gated.
+    ///
+    /// Exists because the interesting writes to this record are not ours: the Fn shortcuts change
+    /// the installed effect, and the only way to see what they set is to be watching when they do.
+    /// Spawning --read-effect in a shell loop cannot do that job - the process start dominates the
+    /// sample interval, and a change that reverts inside a second falls between samples.
+    ///
+    /// HOLDS ONE HANDLE for the whole run, which also makes the reads comparable: reopening the
+    /// device per sample is a different transaction each time and mixes handle setup into what is
+    /// supposed to be a state observation.
+    ///
+    /// Torn frames are EXPECTED and are filtered rather than printed. Reading while another process
+    /// writes yields a record with a corrupt leading byte - effect 236 or 240, a colour count of 36,
+    /// a speed of 8 - none of which are values the field can hold. Printing them as state is how a
+    /// contention artefact becomes a "finding". Stop HP's OMEN background service and Windows
+    /// Dynamic Lighting before trusting anything here; both claim this device.
+    /// </summary>
+    private static int WatchEffect(DojoPerKeyBackend backend, string[] args)
+    {
+        int seconds = int.TryParse(Arg(args, "--watch-effect"), out int n) ? Math.Clamp(n, 1, 600) : 60;
+        var until = DateTime.Now.AddSeconds(seconds);
+
+        Console.WriteLine($"  watching : effect record for {seconds}s, printing only changes.");
+        Console.WriteLine("             Press the Fn lighting shortcuts now. Ctrl-C to stop early.");
+        Console.WriteLine();
+
+        string last = string.Empty;
+        int torn = 0, samples = 0;
+
+        while (DateTime.Now < until)
+        {
+            samples++;
+            var record = backend.ReadDeviceEffect();
+
+            if (record == null)
+            {
+                Thread.Sleep(100);
+                continue;
+            }
+
+            if (!IsPlausible(record.Value))
+            {
+                torn++;
+                Thread.Sleep(100);
+                continue;
+            }
+
+            string line = Describe(record.Value);
+            if (line != last)
+            {
+                Console.WriteLine($"  {DateTime.Now:HH:mm:ss.f}  {line}");
+                last = line;
+            }
+
+            Thread.Sleep(100);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"  {samples} samples, {torn} discarded as torn " +
+                          $"({(samples == 0 ? 0 : torn * 100 / samples)}%).");
+        if (torn > 0)
+            Console.WriteLine("  A torn read means something else is writing this device while we read it.");
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Whether a readback holds values the fields can actually take.
+    ///
+    /// Every bound here is from the protocol map, not from taste: the effect enum tops out at 12,
+    /// the record declares four colour slots, and Speed has three values. A frame outside them was
+    /// not sent by anything - it was read mid-write.
+    /// </summary>
+    private static bool IsPlausible(DojoKeyboardMcu.EffectRecord r) =>
+        (byte)r.Effect >= 1 && (byte)r.Effect <= 12 &&
+        (r.ColorNumber <= 3 || r.ColorNumber == DojoKeyboardMcu.ColorNumberPreset) &&
+        (byte)r.Speed <= 2;
+
+    private static string Describe(DojoKeyboardMcu.EffectRecord r)
+    {
+        string palette = r.ColorNumber == DojoKeyboardMcu.ColorNumberPreset
+            ? $"preset {r.ShowMode}"
+            : $"{r.ColorNumber + 1} colour(s) " +
+              string.Join(" ", r.Colors.Take(r.ColorNumber + 1).Select(c => $"#{c.Item1:X2}{c.Item2:X2}{c.Item3:X2}"));
+
+        return $"{r.Effect} ({(byte)r.Effect}), {palette}, speed {r.Speed}, " +
+               $"direction {r.Direction}, brightness {r.Brightness}";
     }
 
     // ── The rest ───────────────────────────────────────────────────────────────────
