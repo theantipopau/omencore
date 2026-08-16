@@ -75,8 +75,16 @@ internal static class Igpu
     /// </summary>
     private const double MinLoadedBusyPct = 50.0;
 
-    /// <summary>Noise floor, in percent. Established by --sham, not assumed.</summary>
+    /// <summary>Noise floor for raw clock, in percent. Established by --sham, not assumed.</summary>
     private const double MinMeaningfulPct = 1.0;
+
+    /// <summary>
+    /// Noise floor for the V/MHz ratio. Tighter than the raw-clock floor because the ratio is
+    /// drift-immune by construction - clock and voltage move together along the curve, so
+    /// dividing one by the other cancels the operating-point wander that dominates each alone.
+    /// A -20 count offset is ~80 mV against ~0.89 V, so a real effect here is several percent.
+    /// </summary>
+    private const double MinVfMeaningfulPct = 0.5;
 
     internal static int Run(string[] args)
     {
@@ -156,6 +164,7 @@ internal static class Igpu
 
             var clockDeltas = new List<double>();
             var voltDeltas = new List<double>();
+            var vfDeltas = new List<double>();
             var baselines = new List<Reading>();
             var offsets = new List<Reading>();
 
@@ -177,48 +186,70 @@ internal static class Igpu
 
                 double clkPct = a.Clock > 0 ? (b.Clock - a.Clock) / a.Clock * 100.0 : 0;
                 double vPct = a.Volts > 0 ? (b.Volts - a.Volts) / a.Volts * 100.0 : 0;
+
+                // The metric that actually discriminates. Raw clock and raw voltage both drift
+                // with the operating point, and they drift TOGETHER - a phase that happens to
+                // run hotter shows higher clock AND higher voltage, which is the V/F curve
+                // moving along itself, not the curve shifting. A Curve Optimizer undervolt
+                // shifts the curve: less voltage for the same clock. So compare V/MHz.
+                double vfA = a.Clock > 0 ? a.Volts / a.Clock : 0;
+                double vfB = b.Clock > 0 ? b.Volts / b.Clock : 0;
+                double vfPct = vfA > 0 ? (vfB - vfA) / vfA * 100.0 : 0;
+
                 clockDeltas.Add(clkPct);
                 voltDeltas.Add(vPct);
+                vfDeltas.Add(vfPct);
                 baselines.Add(a);
                 offsets.Add(b);
 
                 Console.WriteLine($"  cycle {cycle}: CO 0 {a}  ->  CO {(sham ? 0 : offset)} {b}");
-                Console.WriteLine($"           clock {clkPct,6:+0.0;-0.0;0.0}%   volt-field {vPct,6:+0.0;-0.0;0.0}%");
+                Console.WriteLine($"           clock {clkPct,6:+0.0;-0.0;0.0}%   volt {vPct,6:+0.0;-0.0;0.0}%" +
+                                  $"   V/MHz {vfPct,6:+0.00;-0.00;0.00}%  <- the discriminating one");
             }
 
             double clkMean = clockDeltas.Average();
             double vMean = voltDeltas.Average();
+            double vfMean = vfDeltas.Average();
             bool clkConsistent = clockDeltas.All(d => d > 0) || clockDeltas.All(d => d < 0);
-            bool vConsistent = voltDeltas.All(d => d > 0) || voltDeltas.All(d => d < 0);
+            bool vfConsistent = vfDeltas.All(d => d > 0) || vfDeltas.All(d => d < 0);
 
             Console.WriteLine();
             Console.WriteLine($"Paired clock delta : mean {clkMean:+0.0;-0.0;0.0}%  (min {clockDeltas.Min():+0.0;-0.0;0.0}%, max {clockDeltas.Max():+0.0;-0.0;0.0}%, n={clockDeltas.Count}, sign consistent: {clkConsistent})");
-            Console.WriteLine($"Paired volt delta  : mean {vMean:+0.0;-0.0;0.0}%  (min {voltDeltas.Min():+0.0;-0.0;0.0}%, max {voltDeltas.Max():+0.0;-0.0;0.0}%, n={voltDeltas.Count}, sign consistent: {vConsistent})");
+            Console.WriteLine($"Paired volt delta  : mean {vMean:+0.0;-0.0;0.0}%  (min {voltDeltas.Min():+0.0;-0.0;0.0}%, max {voltDeltas.Max():+0.0;-0.0;0.0}%)");
+            Console.WriteLine($"Paired V/MHz delta : mean {vfMean:+0.00;-0.00;0.00}%  (min {vfDeltas.Min():+0.00;-0.00;0.00}%, max {vfDeltas.Max():+0.00;-0.00;0.00}%, n={vfDeltas.Count}, sign consistent: {vfConsistent})");
             Console.WriteLine($"Mean gfx power     : CO 0 {baselines.Average(r => r.Watts):F2} W  ->  {offsets.Average(r => r.Watts):F2} W");
 
             if (sham)
             {
                 Console.WriteLine("\nSHAM CONTROL COMPLETE. Both phases wrote 0, so every number above is noise.");
-                Console.WriteLine($"  Treat |mean| >= {Math.Max(Math.Abs(clkMean), Math.Abs(vMean)):F1}% as the floor a real run must clear.");
+                Console.WriteLine($"  V/MHz floor: a real run must beat {Math.Abs(vfMean):F2}% and do it in every pair.");
                 return 0;
             }
 
-            bool clockEffect = clkConsistent && clkMean >= MinMeaningfulPct;
-            bool voltEffect = vConsistent && vMean <= -MinMeaningfulPct;
+            // An undervolt shifts the V/F curve DOWN: fewer volts for the same clock. Raw clock
+            // is kept as a secondary read because a power-bound part spends the freed budget on
+            // frequency, but it cannot carry the verdict on its own - it drifts, and it drifts
+            // in the same direction as voltage, which is how a warmer phase impersonates a gain.
+            bool vfEffect = vfConsistent && vfMean <= -MinVfMeaningfulPct;
 
-            if (clockEffect || voltEffect)
+            if (vfEffect)
             {
-                Console.WriteLine($"\nCONFIRMED: {path} moved the graphics operating point.");
-                Console.WriteLine("           Re-run with --sham before believing this - a result that");
-                Console.WriteLine("           the sham control also reproduces is drift, not an effect.");
+                Console.WriteLine($"\nCONFIRMED: {path} shifted the V/F curve - less voltage for the same clock,");
+                Console.WriteLine("           in every pair. Re-run with --sham before believing it.");
                 return 0;
             }
 
-            Console.WriteLine($"\nNOT CONFIRMED: {path} changed nothing measurable on this part.");
-            Console.WriteLine("  The SMU may well have answered Ok. That is not evidence, and this is why:");
-            Console.WriteLine("  no clock gain, no voltage drop, across every pair. On this reading RyzenAdj");
-            Console.WriteLine("  is right to withhold set_cogfx from Strix Point and UXTU's table entry is");
-            Console.WriteLine("  inherited from its socket group rather than verified on it.");
+            Console.WriteLine($"\nNOT CONFIRMED: {path} did not move the V/F curve.");
+            if (clkMean >= MinMeaningfulPct && !clkConsistent)
+            {
+                Console.WriteLine($"  Note the raw clock mean of {clkMean:+0.0;-0.0;0.0}% - above the threshold, and still");
+                Console.WriteLine("  not evidence: the sign is not consistent across pairs, and voltage moved WITH");
+                Console.WriteLine("  clock rather than against it. That is the operating point sliding along the");
+                Console.WriteLine("  V/F curve, which is what drift looks like. An undervolt moves the curve.");
+            }
+            Console.WriteLine("  A status of Ok would not have changed this reading, and on this part the SMU");
+            Console.WriteLine("  does not even answer Ok. RyzenAdj is right to withhold set_cogfx from Strix");
+            Console.WriteLine("  Point; UXTU's table entry is inherited from its socket group, not verified on it.");
             return 2;
         }
         finally
