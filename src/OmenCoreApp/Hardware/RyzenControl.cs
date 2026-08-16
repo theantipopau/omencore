@@ -330,12 +330,12 @@ namespace OmenCore.Hardware
                     smu.PsmuAddrArg = 0x3B10A88;
                     break;
 
+                // MP1 address set 2 (MESSAGE/RESPONSE_ADDR_2, ARG_BASE_2).
                 case RyzenFamily.VanGogh:
                 case RyzenFamily.Rembrandt:
                 case RyzenFamily.Phoenix:
                 case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
-                case RyzenFamily.StrixHalo:
                     smu.Mp1AddrMsg = 0x3B10528;
                     smu.Mp1AddrRsp = 0x3B10578;
                     smu.Mp1AddrArg = 0x3B10998;
@@ -344,7 +344,24 @@ namespace OmenCore.Hardware
                     smu.PsmuAddrArg = 0x3B10A88;
                     break;
 
+                // MP1 address set 3 (MESSAGE/RESPONSE_ADDR_3, ARG_BASE_3).
+                //
+                // Strix Halo belongs here, not with Phoenix above. `nb_smu_ops.c` selects set 3 for
+                // FAM_KRACKANPOINT, FAM_STRIXPOINT and FAM_STRIXHALO together, and UXTU's
+                // Socket_FT6_FP7_FP8 makes the same split - it shares one message table across the
+                // whole socket group but branches the mailbox addresses for exactly these parts.
+                // Two independent implementations, same answer.
+                //
+                // While Strix Halo sat in the set-2 arm, every MP1 message OmenCore sent on a Ryzen
+                // AI MAX went to the wrong message and response registers. Untested here - no Strix
+                // Halo hardware - but the citation is unambiguous and the previous value had none.
+                //
+                // Krackan Point has no RyzenFamily member, so those parts fall to the default arm
+                // and get zeroed addresses, which RyzenSmu.IsSmuRegisterAddressSupported rejects.
+                // That is the safe outcome; adding the family means adding it to Init()'s model
+                // detection too, which is a separate change.
                 case RyzenFamily.StrixPoint:
+                case RyzenFamily.StrixHalo:
                     smu.Mp1AddrMsg = 0x3B10928;
                     smu.Mp1AddrRsp = 0x3B10978;
                     smu.Mp1AddrArg = 0x3B10998;
