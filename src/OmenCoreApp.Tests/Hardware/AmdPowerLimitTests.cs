@@ -81,6 +81,37 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData(RyzenFamily.RenoirLucienne)]
         [InlineData(RyzenFamily.CezanneBarcelo)]
         [InlineData(RyzenFamily.VanGogh)]
+        [InlineData(RyzenFamily.Rembrandt)]
+        [InlineData(RyzenFamily.Phoenix)]
+        [InlineData(RyzenFamily.HawkPoint)]
+        public void FamilySupportsIgpuCurveOptimizer_MatchesRyzenAdjSetCogfxCaseList(RyzenFamily family)
+        {
+            AmdUndervoltProvider.FamilySupportsIgpuCurveOptimizer(family).Should().BeTrue();
+        }
+
+        [Theory]
+        [InlineData(RyzenFamily.StrixPoint)]
+        [InlineData(RyzenFamily.StrixHalo)]
+        [InlineData(RyzenFamily.Mendocino)]
+        [InlineData(RyzenFamily.RaphaelDragonRange)]
+        [InlineData(RyzenFamily.FireRange)]
+        public void FamilySupportsIgpuCurveOptimizer_ExcludesFamiliesSetCogfxDoesNotList(RyzenFamily family)
+        {
+            // RyzenAdj's set_cogfx has no case for any of these. Strix Halo has one carrying only
+            // the comment "0xB7 is rejected on this architecture" - a measured refusal, not a gap.
+            // The same file maps Strix Point for set_coall (0x4C) and set_coper (0x4b), so its
+            // absence here is about the graphics curve specifically, not about the family.
+            //
+            // These were in the 0xB7 arm of SetIgpuCO. Curve Optimizer offsets that go to the wrong
+            // mailbox message are the failure mode with no readback to catch it.
+            AmdUndervoltProvider.FamilySupportsIgpuCurveOptimizer(family).Should().BeFalse(
+                "set_cogfx does not list this family and no id has been measured for it here");
+        }
+
+        [Theory]
+        [InlineData(RyzenFamily.RenoirLucienne)]
+        [InlineData(RyzenFamily.CezanneBarcelo)]
+        [InlineData(RyzenFamily.VanGogh)]
         [InlineData(RyzenFamily.Mendocino)]
         public void FamilySupportsApuSlowLimit_IsNarrowerThanPptLimits(RyzenFamily family)
         {

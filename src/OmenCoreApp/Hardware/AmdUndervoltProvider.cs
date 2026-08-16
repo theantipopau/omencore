@@ -131,6 +131,13 @@ namespace OmenCore.Hardware
                     {
                         _lastIgpuCO = igpuCO;
                     }
+                    else if (status == RyzenSmu.SmuStatus.UnknownCmd)
+                    {
+                        // No message was sent - SetIgpuCO has no confirmed id for this family.
+                        _lastIgpuSkipReason =
+                            $"The iGPU Curve Optimizer offset was requested but not written: there is no confirmed " +
+                            $"iGPU CO message for the {_cpuInfo.Family} family, so only the all-core offset was applied.";
+                    }
                     else
                     {
                         _lastIgpuSkipReason =
@@ -341,7 +348,42 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Set iGPU Curve Optimizer offset (for APUs).
+        ///
+        /// The families and message ids here are RyzenAdj's <c>set_cogfx</c> (lib/api.c, v0.19.0),
+        /// used verbatim. That function lists Cezanne/Renoir/Lucienne on MP1 <c>0x64</c> and
+        /// Rembrandt/Phoenix/HawkPoint/Van Gogh on PSMU <c>0xB7</c>, and no others.
+        ///
+        /// Strix Point, Strix Halo and Mendocino were previously in the <c>0xB7</c> arm here, which
+        /// upstream does not support on any of them:
+        ///
+        ///   - <b>Strix Halo</b> has an explicit case in <c>set_cogfx</c> carrying only the comment
+        ///     "0xB7 is rejected on this architecture" before falling to <c>default</c>. Sending it
+        ///     there is a known-refused write, and this is the family a "RYZEN AI MAX" CPU name
+        ///     reaches - i.e. the one part <see cref="RyzenControl.SupportsIgpuUndervolt"/> actually
+        ///     lets through was aimed at the message upstream measured as rejected.
+        ///   - <b>Strix Point</b> has no case at all; <c>set_cogfx</c> returns
+        ///     <c>ADJ_ERR_FAM_UNSUPPORTED</c>. Note this is not upstream being behind: the same file
+        ///     gives Strix Point both <c>set_coall</c> (MP1 <c>0x4C</c>) and <c>set_coper</c>
+        ///     (MP1 <c>0x4b</c>), so the family is mapped - the graphics curve is the one that is not.
+        ///   - <b>Mendocino</b> has no case either.
+        ///
+        /// A family with no confirmed id returns <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> rather
+        /// than having a plausible-looking one guessed for it, matching
+        /// <see cref="FamilySupportsPptLimits"/>. Do not add a family back without a citation or an
+        /// outcome measurement: this mailbox answers Ok to ids that do nothing, so a status code
+        /// from a guessed id is not evidence, and there is no iGPU CO readback to check it against.
         /// </summary>
+        internal static bool FamilySupportsIgpuCurveOptimizer(RyzenFamily family) => family switch
+        {
+            RyzenFamily.RenoirLucienne => true,   // MP1 0x64
+            RyzenFamily.CezanneBarcelo => true,   // MP1 0x64
+            RyzenFamily.VanGogh => true,          // PSMU 0xB7
+            RyzenFamily.Rembrandt => true,        // PSMU 0xB7
+            RyzenFamily.Phoenix => true,          // PSMU 0xB7
+            RyzenFamily.HawkPoint => true,        // PSMU 0xB7
+            _ => false
+        };
+
         private RyzenSmu.SmuStatus SetIgpuCO(int value)
         {
             // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
@@ -351,9 +393,14 @@ namespace OmenCore.Hardware
                 ? (uint)(0x100000 - (uint)(-value))
                 : (uint)value;
 
+            if (!FamilySupportsIgpuCurveOptimizer(_cpuInfo.Family))
+            {
+                return RyzenSmu.SmuStatus.UnknownCmd;
+            }
+
             uint[] args = new uint[6];
             args[0] = uvalue;
-            RyzenSmu.SmuStatus result = RyzenSmu.SmuStatus.Failed;
+            RyzenSmu.SmuStatus result = RyzenSmu.SmuStatus.UnknownCmd;
 
             switch (_cpuInfo.Family)
             {
@@ -367,10 +414,7 @@ namespace OmenCore.Hardware
                 case RyzenFamily.VanGogh:
                 case RyzenFamily.Rembrandt:
                 case RyzenFamily.Phoenix:
-                case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
-                case RyzenFamily.StrixPoint:
-                case RyzenFamily.StrixHalo:
                     result = _smu.SendPsmu(0xB7, ref args);
                     break;
             }
