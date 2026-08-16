@@ -295,6 +295,16 @@ namespace OmenCore.Services.KeyboardLighting
         public KeyboardLayout? GetKeyboardLayout() => (_activeBackend as DojoPerKeyBackend)?.Layout;
 
         /// <summary>
+        /// What Windows Dynamic Lighting will do with this keyboard once we let go of it, or null
+        /// when the active backend cannot identify a device.
+        ///
+        /// Null is not "nothing to worry about" — it is "unknown", and a caller should say nothing
+        /// rather than guess in either direction.
+        /// </summary>
+        public DynamicLightingState? GetDynamicLightingState() =>
+            (_activeBackend as DojoPerKeyBackend)?.DynamicLighting;
+
+        /// <summary>
         /// Colour individually addressed keys, leaving every unnamed key alone.
         /// Keys are lamp ids from <see cref="GetMeasuredKeyMap"/>.
         /// </summary>

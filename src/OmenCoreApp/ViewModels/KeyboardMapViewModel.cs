@@ -44,6 +44,12 @@ namespace OmenCore.ViewModels
         private readonly KeyboardLightingService? _keyboard;
         private readonly LoggingService _logging;
 
+        /// <summary>
+        /// Where the picture is remembered between runs. Optional: the editor is fully functional
+        /// without it and simply forgets, which is what the tests exercise.
+        /// </summary>
+        private readonly ConfigurationService? _configService;
+
         // Layout scale. The view scales the canvas to fit, so PixelsPerMm only sets the resolution
         // the layout is computed at. The device reports lamp CENTRES and no extents, so a key has to
         // be given a size: 15 mm sits under the ~18 mm pitch, leaving a gap between neighbours
@@ -63,10 +69,12 @@ namespace OmenCore.ViewModels
         private string _status = string.Empty;
         private int _brightness = 100;
 
-        public KeyboardMapViewModel(KeyboardLightingService? keyboard, LoggingService logging)
+        public KeyboardMapViewModel(KeyboardLightingService? keyboard, LoggingService logging,
+                                    ConfigurationService? configService = null)
         {
             _keyboard = keyboard;
             _logging = logging;
+            _configService = configService;
 
             PickColorCommand = new RelayCommand(_ => PickColor());
             SelectAllCommand = new RelayCommand(_ => SetSelection(Keys, true));
@@ -74,8 +82,14 @@ namespace OmenCore.ViewModels
             PaintSelectionCommand = new RelayCommand(_ => PaintSelection());
             ClearAllColorsCommand = new RelayCommand(_ => ClearAllColors());
             ApplyCommand = new AsyncRelayCommand(async _ => await ApplyAsync(), _ => IsAvailable);
+            OpenDynamicLightingSettingsCommand = new RelayCommand(_ => OpenDynamicLightingSettings());
+            SaveToKeyboardCommand = new AsyncRelayCommand(async _ => await SaveToKeyboardAsync(), _ => IsAvailable);
 
             Load();
+
+            // After Load, because it paints onto cells that Load creates. A saved picture for a
+            // different layout simply finds no matching cells and leaves the editor at its default.
+            RestoreSavedPicture();
         }
 
         public ObservableCollection<KeyLampViewModel> Keys { get; } = new();
@@ -103,6 +117,51 @@ namespace OmenCore.ViewModels
                   "if anything misbehaves, that is worth reporting with this device id.";
 
         public bool HasVerificationWarning => VerificationWarning.Length > 0;
+
+        /// <summary>
+        /// Warning text when Windows Dynamic Lighting is going to repaint this keyboard the moment
+        /// OmenCore lets go of it, or empty when it will not.
+        ///
+        /// THIS IS THE MOST CONFUSING FAILURE THIS EDITOR HAS, because nothing goes wrong. Every
+        /// write is accepted, the picture appears exactly as painted, and it holds for as long as
+        /// the app is open. Then the app closes, Windows takes the device back, and the keyboard is
+        /// its accent colour again — which reads as "OmenCore does not save my colours" and is
+        /// really two features owning one device with no arbitration between them.
+        ///
+        /// Told rather than fixed, deliberately. Dynamic Lighting is Windows' feature and the toggle
+        /// is the user's; silently turning off another feature's setting to make ours look better is
+        /// not a trade this application gets to make on its own. See
+        /// <see cref="OpenDynamicLightingSettingsCommand"/>, which takes them to the switch.
+        /// </summary>
+        public string DynamicLightingWarning
+        {
+            get
+            {
+                if (!IsAvailable) return string.Empty;
+
+                var state = _keyboard?.GetDynamicLightingState();
+                if (state == null || !state.WillRepaintWhenReleased) return string.Empty;
+
+                return "Windows Dynamic Lighting is switched on for this keyboard. Your colours will " +
+                       "look right while OmenCore is open, and Windows will repaint the keyboard as " +
+                       "soon as it closes. Turn Dynamic Lighting off for this device to keep them.";
+            }
+        }
+
+        public bool HasDynamicLightingWarning => DynamicLightingWarning.Length > 0;
+
+        /// <summary>
+        /// Re-read the Dynamic Lighting settings and update the banner.
+        ///
+        /// Worth calling whenever the editor comes back into view: the likeliest reason a user left
+        /// it was to go and change the setting the banner just told them about, and a banner still
+        /// saying so on their return would be its own small bug.
+        /// </summary>
+        public void RefreshDynamicLighting()
+        {
+            OnPropertyChanged(nameof(DynamicLightingWarning));
+            OnPropertyChanged(nameof(HasDynamicLightingWarning));
+        }
 
         /// <summary>Logical canvas size, in device-independent pixels.</summary>
         public double CanvasWidth { get; private set; }
@@ -223,6 +282,20 @@ namespace OmenCore.ViewModels
         public ICommand PaintSelectionCommand { get; }
         public ICommand ClearAllColorsCommand { get; }
         public ICommand ApplyCommand { get; }
+
+        /// <summary>Opens the Windows Dynamic Lighting settings page. Shown with the warning banner.</summary>
+        public ICommand OpenDynamicLightingSettingsCommand { get; }
+
+        /// <summary>
+        /// Writes the current picture into the keyboard's own flash so it survives a power cycle.
+        ///
+        /// SEPARATE FROM APPLY ON PURPOSE. Apply is volatile and costs nothing to repeat; this is an
+        /// MCU flash write. HP's own client flashes on every per-key apply, which is what makes a
+        /// picture set in OGH survive a reboot — but in an editor where a user drags a brightness
+        /// slider, "every apply" is a flash write per drag, and flash has a finite write count.
+        /// One button, one write, one intent.
+        /// </summary>
+        public ICommand SaveToKeyboardCommand { get; }
 
         // ── Selection ──────────────────────────────────────────────────────────────
 
@@ -406,6 +479,169 @@ namespace OmenCore.ViewModels
             _logging.Info($"[KeyboardMap] Apply: {leds.Count} LEDs ledsOk={ledsOk}, " +
                           $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}, " +
                           $"brightness={Brightness} brightnessOk={brightnessOk}");
+
+            // The setting can change while the editor is open, and this is the moment the user is
+            // most likely to be looking for an explanation of what they just saw.
+            RefreshDynamicLighting();
+
+            // Saved even when the keyboard refused: the editor should come back as the user left
+            // it, and a refusal is a hardware problem rather than a reason to forget their work.
+            SaveSavedPicture();
+        }
+
+        /// <summary>
+        /// Send the picture the editor was restored with to the keyboard.
+        ///
+        /// For startup only. The constructor restores the cells but deliberately sends nothing;
+        /// this is the caller that decides the keyboard should be repainted, which is a user
+        /// preference rather than a property of loading the editor.
+        /// </summary>
+        public Task ApplyRestoredPictureAsync() => ApplyAsync();
+
+        /// <summary>
+        /// Write the current picture to <c>config.json</c>.
+        ///
+        /// Called after a successful apply rather than on every brush stroke: what is worth
+        /// remembering is what the keyboard was actually asked to show, and saving mid-edit would
+        /// restore a half-painted picture on the next launch.
+        /// </summary>
+        private void SaveSavedPicture()
+        {
+            if (_configService?.Config == null) return;
+
+            try
+            {
+                var settings = _configService.Config.KeyboardLighting ??= new Models.KeyboardLightingSettings();
+
+                settings.PerKeyPicture = Keys.Select(k => new Models.SavedPerKeyCell
+                {
+                    Led = k.IsLed ? k.LedPositions[0] : -1,
+                    Lamp = !k.IsLed && !k.IsLightBar && k.LampIds.Count > 0 ? k.LampIds[0] : -1,
+                    Zone = k.IsLightBar ? k.ZoneIndex : -1,
+                    Color = k.ColorHex,
+                    Level = k.Level
+                }).ToList();
+
+                settings.PerKeyBrightness = Brightness;
+
+                _configService.Save(_configService.Config);
+                _logging.Info($"[KeyboardMap] Saved {settings.PerKeyPicture.Count} cells at master {Brightness}");
+            }
+            catch (Exception ex)
+            {
+                // Losing the saved copy is not worth failing an apply that already reached the
+                // keyboard. The picture is on the hardware either way.
+                _logging.Warn($"[KeyboardMap] Could not save the picture: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Paint the saved picture back onto the editor's cells.
+        ///
+        /// Does NOT send anything to the keyboard. Restoring the editor and repainting the hardware
+        /// are different decisions - the keyboard may well already be showing this picture, from its
+        /// own flash or from the previous run - and sending on construction would repaint over a
+        /// device effect the user chose since.
+        /// </summary>
+        private void RestoreSavedPicture()
+        {
+            var saved = _configService?.Config?.KeyboardLighting?.PerKeyPicture;
+            if (saved == null || saved.Count == 0 || Keys.Count == 0) return;
+
+            try
+            {
+                var byKey = new Dictionary<string, Models.SavedPerKeyCell>();
+                foreach (var cell in saved)
+                {
+                    if (cell.Key.Length > 0) byKey[cell.Key] = cell;
+                }
+
+                int restored = 0;
+                foreach (var key in Keys)
+                {
+                    if (!byKey.TryGetValue(CellKey(key), out var cell)) continue;
+
+                    key.ColorHex = cell.Color;
+                    key.Level = Math.Clamp(cell.Level, 0, 100);
+                    restored++;
+                }
+
+                Brightness = Math.Clamp(
+                    _configService?.Config?.KeyboardLighting?.PerKeyBrightness ?? 100, 0, 100);
+
+                if (restored > 0)
+                    Status = $"Restored the last picture ({restored} cells). " +
+                             "Apply to send it to the keyboard.";
+
+                _logging.Info($"[KeyboardMap] Restored {restored} of {saved.Count} saved cells");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[KeyboardMap] Could not restore the saved picture: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The stored identity of one editor cell. Must agree with what <see cref="SaveSavedPicture"/>
+        /// writes, which is why both go through <see cref="Models.SavedPerKeyCell.Key"/>'s format.
+        /// </summary>
+        internal static string CellKey(KeyLampViewModel key) =>
+            key.IsLightBar ? $"zone:{key.ZoneIndex}" :
+            key.IsLed ? $"led:{key.LedPositions[0]}" :
+            key.LampIds.Count > 0 ? $"lamp:{key.LampIds[0]}" :
+            string.Empty;
+
+        /// <summary>
+        /// Opens Settings straight at Dynamic Lighting.
+        ///
+        /// <c>UseShellExecute</c> is required: <c>ms-settings:</c> is a protocol handler, not an
+        /// executable, and the default for <c>ProcessStartInfo</c> on .NET Core is false — which
+        /// fails with "The system cannot find the file specified" and looks like a missing
+        /// Settings app rather than a missing flag.
+        /// </summary>
+        private void OpenDynamicLightingSettings()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ms-settings:personalization-lighting",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                // Not fatal: the banner already says what to do, this only saves them the clicks.
+                _logging.Warn($"[KeyboardMap] Could not open the Dynamic Lighting settings page: {ex.Message}");
+                Status = "Could not open Settings. It is under " +
+                         "Settings > Personalisation > Dynamic Lighting.";
+            }
+        }
+
+        /// <summary>
+        /// Send the picture, then persist it in the keyboard's own flash.
+        ///
+        /// Applies first rather than flashing whatever happens to be installed, so that what is
+        /// persisted is what the editor is showing. Flashing without applying would save the
+        /// PREVIOUS picture and report success, which is the worst of both.
+        /// </summary>
+        private async Task SaveToKeyboardAsync()
+        {
+            if (_keyboard == null || Keys.Count == 0) return;
+
+            await ApplyAsync();
+
+            bool flashed = await _keyboard.StoreDeviceLightingToFlashAsync();
+
+            Status = flashed
+                ? "Saved to the keyboard. This picture now survives a power cycle, and shows with " +
+                  "OmenCore closed."
+                : "Applied, but the keyboard refused the save-to-flash — the picture is showing now " +
+                  "and will not survive a power cycle.";
+
+            // Not a claim that the colours are right: the flash write is acknowledged over the same
+            // interface that cannot read a colour back. It says the MCU took the store command.
+            _logging.Info($"[KeyboardMap] Save to keyboard flash: {(flashed ? "accepted" : "REFUSED")}");
         }
 
         // ── Loading ────────────────────────────────────────────────────────────────

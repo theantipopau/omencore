@@ -1166,6 +1166,14 @@ namespace OmenCore.Services
         /// <summary>USB identity of the per-key keyboard, for display and field reports.</summary>
         public string PerKeyDeviceIdentity => _v2Service?.PerKeyDeviceIdentity ?? string.Empty;
 
+        /// <summary>
+        /// Windows Dynamic Lighting's settings for this keyboard, or null when they cannot be
+        /// determined. See <see cref="KeyboardLighting.DynamicLightingState"/> for why an
+        /// application that paints this device has to care about another feature's settings.
+        /// </summary>
+        public KeyboardLighting.DynamicLightingState? GetDynamicLightingState() =>
+            _v2Service?.GetDynamicLightingState();
+
         /// <summary>The active backend's measured lamp map, or empty when none is known.</summary>
         public IReadOnlyList<Hardware.HidLampArray.LampInfo> GetMeasuredKeyMap() =>
             _v2Service?.GetMeasuredKeyMap()

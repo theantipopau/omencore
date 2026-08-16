@@ -16,6 +16,24 @@
                        TextWrapping="Wrap"/>
         </Border>
 
+        <!-- Windows Dynamic Lighting owns this keyboard too, and it takes it back the moment
+             OmenCore exits. Nothing here fails, which is exactly why it needs saying: the picture
+             applies, holds while the app is open, and is gone on the next launch. Blue rather than
+             amber - this is information about another feature's setting, not a fault in ours. -->
+        <Border Background="#2230A0E0" BorderBrush="#30A0E0" BorderThickness="1" CornerRadius="6"
+                Padding="10" Margin="0,0,0,10"
+                Visibility="{Binding HasDynamicLightingWarning, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="{Binding DynamicLightingWarning}" FontSize="11" Foreground="#8CC8F0"
+                           TextWrapping="Wrap"/>
+                <Button Content="Open Dynamic Lighting settings"
+                        Command="{Binding OpenDynamicLightingSettingsCommand}"
+                        Style="{StaticResource ModernButton}" Padding="12,4" Margin="0,8,0,0"
+                        HorizontalAlignment="Left" FontSize="11"
+                        AutomationProperties.Name="Open the Windows Dynamic Lighting settings page"/>
+            </StackPanel>
+        </Border>
+
         <!-- Brush + actions -->
         <Grid Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
@@ -59,9 +77,18 @@
                         Style="{StaticResource ModernButton}" Padding="12,6" Margin="0,0,6,0"/>
             </StackPanel>
 
-            <Button Grid.Column="5" Content="Apply to keyboard" Command="{Binding ApplyCommand}"
-                    Style="{StaticResource AccentButton}" Padding="16,6" FontWeight="SemiBold"
-                    AutomationProperties.Name="Apply per-key colours to the keyboard"/>
+            <!-- Apply is volatile and free to repeat; Save writes MCU flash. The accent is on Apply
+                 because it is the one to press while painting - the flash write belongs at the end
+                 of the job, once, and it is styled as the quieter of the two for that reason. -->
+            <StackPanel Grid.Column="5" Orientation="Horizontal">
+                <Button Content="Apply to keyboard" Command="{Binding ApplyCommand}"
+                        Style="{StaticResource AccentButton}" Padding="16,6" FontWeight="SemiBold"
+                        AutomationProperties.Name="Apply per-key colours to the keyboard"/>
+                <Button Content="Save to keyboard" Command="{Binding SaveToKeyboardCommand}"
+                        Style="{StaticResource ModernButton}" Padding="16,6" Margin="8,0,0,0"
+                        AutomationProperties.Name="Save the picture into the keyboard so it survives a power cycle"
+                        ToolTip="Applies the picture, then stores it in the keyboard's own memory so it survives a power cycle and shows with OmenCore closed. This writes to the keyboard's flash, so use it when you have finished rather than after every change."/>
+            </StackPanel>
         </Grid>
 
         <!-- Brightness, in two halves that multiply.

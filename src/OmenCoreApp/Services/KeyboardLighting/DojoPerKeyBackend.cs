@@ -118,6 +118,22 @@ namespace OmenCore.Services.KeyboardLighting
             ? "no MCU"
             : $"{_mcu.VendorId:X4}:{_mcu.ProductId:X4}";
 
+        /// <summary>
+        /// What Windows Dynamic Lighting is set to do with this keyboard, or null when there is no
+        /// MCU to identify.
+        ///
+        /// Read live rather than cached: it is a user setting on a Settings page they may well be
+        /// visiting BECAUSE we just told them to, so a value captured at startup would be stale at
+        /// the one moment it matters. The read is two registry keys and does not touch the device.
+        ///
+        /// The MCU's VID/PID identify the whole keyboard, and Dynamic Lighting's device card is
+        /// filed against the LampArray interface of that same physical device - mi_04 rather than
+        /// the mi_03 this backend commands - so one identity finds both.
+        /// </summary>
+        public DynamicLightingState? DynamicLighting => _mcu == null
+            ? null
+            : DynamicLightingState.Read(_mcu.VendorId, _mcu.ProductId);
+
         public Task<bool> InitializeAsync()
         {
             try
