@@ -362,6 +362,30 @@ Board-scoped: measured on `8D87` with BIOS F.07 and keyboard MCU `0D62:54BF`. Th
 
 49 new tests across `FnCyclePlanTests.cs` and `DeviceLightingFnCycleTests.cs`.
 
+## Fixed: Per-Key Colours Reverted the Moment OmenCore Closed (Board `8D87`, Community Report)
+
+Reported as "the keyboard colors don't seem to stick if I close the program". Everything about the apply worked: colours applied, held perfectly while the app was open, and were gone the next time it launched.
+
+**Root cause: Windows Dynamic Lighting, not OmenCore.** It is a second owner of every HID LampArray on the machine and it wins whenever no application holds the device. While OmenCore holds host control it is incidentally locking Windows out; `Dispose` hands the lamps back on the way down — correctly, because leaving `AutonomousMode = 0` set is what strands a keyboard dark until a power cycle — and Dynamic Lighting repaints within one refresh interval, 33 ms on this board.
+
+The log is what rules OmenCore out as the culprit. `[KeyboardMap] Apply: 176 LEDs ledsOk=True, 0 keys keysOk=True` with `Layout Dojo/Global (176 LEDs, 99 keys)` — zero keys through `mi_04`, the whole picture through `mi_03`'s colour map, which the MCU holds and redraws autonomously. `DojoPerKeyBackend.Dispose` says as much itself and is correct in saying it. The picture should have survived, and did not.
+
+Confirmed by the one clean discriminator available on hardware with no colour readback: with `HKCU\Software\Microsoft\Lighting\AmbientLightingEnabled = 1` the picture reverted on exit; with Dynamic Lighting disabled and *nothing else changed*, the same picture held.
+
+**Change:** a new `DynamicLightingState` reads the master toggle and the per-device card, and the per-key editor shows an explanatory banner with a button that opens the Dynamic Lighting settings page. Read-only, deliberately: these are another feature's settings and the user owns them, so OmenCore explains rather than silently switching off a Microsoft feature to make its own look better.
+
+Registering as a Dynamic Lighting–aware app was considered and rejected for this symptom. Ambient (background) control requires MSIX package identity — [Microsoft's guidance](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/lighting-dynamic-lamparray) states it is enforced by the AmbientLightingServer, which "only accepts connections from an AmbientLightingClient in a process with package identity" — and, decisively, control of either kind ends when the process ends. Neither foreground nor ambient registration produces a picture that holds with OmenCore closed.
+
+## Added: Per-Key Pictures That Survive Closing OmenCore and a Power Cycle (Board `8D87`)
+
+The counterpart to the fix above. Microsoft's description of a device Windows is not driving is that it "operates in Autonomous mode … the hardware falls back to default behavior as defined by its firmware" — on this keyboard that is the `mi_03` colour map, so making the map the firmware's default is the supported way to have a picture persist, not a way around Dynamic Lighting.
+
+**Save to keyboard.** A new button beside Apply writes the picture and then stores it in MCU flash, so it survives a power cycle and shows with OmenCore closed or uninstalled. `StoreToFlash` already existed and was reachable, but only the Fn-cycle write called it, and that persists the effect record rather than a painted picture — no per-key apply flashed anything. It is a separate button rather than part of Apply because it is a real flash write: HP's own client passes `isWriteRegistry: true` on every per-key apply, which in an editor with a brightness slider would mean a flash write per drag.
+
+**Config restore.** The picture is also saved to `config.json` as painted — colour and per-cell level kept apart rather than flattened, since baking the level into the colour is lossy and one-way — and repainted at startup. Where a per-key picture exists it takes precedence over the four-zone restore, because the two describe the same keyboard at different resolutions and a zone fill would erase a picture completely.
+
+21 new tests. The load-bearing ones are in `PerKeyCellKeyAgreementTests`: saving and restoring compose a cell identity in two different files and agree only by convention, and the failure mode when they drift is silent — the restore matches nothing, the editor comes back at its defaults, and it is indistinguishable from the save never having happened. Those tests assert the two sides equal *each other* rather than a hard-coded string, since asserting the string would pass just as happily if someone changed one side and updated the test to match.
+
 ## Fixed: Misleading Comment Claimed the PawnIO EC Module Was Embedded in the Executable
 
 `PawnIOEcAccess` caches the compiled `LpcACPIEC` module in a `static byte[]` whose comment read "Embedded LpcACPIEC.amx module binary". It is not embedded. `LoadEcModule` reads it from disk — `<appdir>\drivers\` or `C:\Program Files\PawnIO\modules\` — and `PublishSingleFile` does not bundle `None` content items, since `IncludeAllContentForSelfExtract` is deliberately off.

@@ -461,6 +461,34 @@ namespace OmenCore.Models
         public DateTime? ObservedAtUtc { get; set; }
 
         /// <summary>
+        /// The last per-key picture applied from the editor, as painted.
+        ///
+        /// Kept because nothing else remembers it. The keyboard MCU holds the colour map it is
+        /// drawing but cannot be asked what is in it — there is no colour readback on either
+        /// interface — so a picture that is not written down here exists only as light. The
+        /// keyboard's own flash is the other durable copy and it is deliberately a separate,
+        /// explicit action; this one costs nothing and covers the ordinary case of reopening the
+        /// app and finding the editor as it was left.
+        ///
+        /// Empty means the editor has never been applied, which is why restore is skipped rather
+        /// than blanking the keyboard to a saved picture of nothing.
+        /// </summary>
+        public List<SavedPerKeyCell> PerKeyPicture { get; set; } = new();
+
+        /// <summary>Master brightness the per-key picture was applied at, 0-100.</summary>
+        public int PerKeyBrightness { get; set; } = 100;
+
+        /// <summary>
+        /// Whether to repaint <see cref="PerKeyPicture"/> at startup.
+        ///
+        /// Separate from <see cref="ApplyOnStartup"/>, which restores the four zone colours. The two
+        /// describe the same keyboard at different resolutions and cannot both run: whichever goes
+        /// last wins, and a zone fill would erase a per-key picture completely. Where a picture
+        /// exists it is the more specific answer and takes precedence.
+        /// </summary>
+        public bool RestorePerKeyPictureOnStartup { get; set; } = true;
+
+        /// <summary>
         /// Profiles staged for the keyboard's Fn+1 / Fn+2 cycle.
         ///
         /// This is the STAGED set, not a readback — the MCU will not enumerate its cycle, so the
