@@ -299,6 +299,12 @@ GitHub #175 asked whether OmenCore should coordinate with other Linux OMEN-contr
 
 Purely additive detection and fallback — nothing narrower, nothing removed. Verified by a clean build of the full solution (`OmenCore.sln`); as with the fan-control fix above, there is no automated test project for either Linux target and no Linux/OMEN hardware in this environment, so this is code-review-and-build-verified only, not field-confirmed on the board that prompted it.
 
+## Adopted: Board 84DB (OMEN 15-dc0xxx) Linux Fan-Boost Documentation (Community PR #150, murilopontes)
+
+[GitHub PR #150](https://github.com/theantipopau/omencore/pull/150) is a community-submitted, docs-only change from `murilopontes` with real measured RPM data for an OMEN 15-dc0xxx (board `84DB`, BIOS F.19, kernel `7.0.0-27-generic`): on stock kernels, the `hp-wmi` `pwm1_enable=0` write fails with `EINVAL`, but the same fan-max behavior is reachable through direct EC access at offset `0xEC` (`1` = max, `0` = auto), with RPM readback confirmed working via `fan1_input`/`fan2_input`. Source data: [hp-omen-fan-linux](https://github.com/murilopontes/hp-omen-fan-linux). The PR was still open (unmerged) and its content wasn't present anywhere in `docs/LINUX_INSTALL_GUIDE.md` — this wasn't picked up automatically by anything in a prior pass.
+
+**Adopted as-is:** added board `84DB` as a documented EC-register special case under the "ec_sys Direct EC" method, and a new row in the "Known Working Configurations" table. Pure documentation — no code path, capability-database entry, or fan-control logic changed; this is reference material for the manual/`ec_sys` install path, not something OmenCore's own board-capability detection acts on. No test impact.
+
 ## Not Actioned This Release
 
 - GitHub #159's remaining findings (CPU/GPU temperature freeze-detection sensitivity, the RPM-readback structural gap already documented for other boards) are consistent with already-tracked items elsewhere in the roadmap, not new.

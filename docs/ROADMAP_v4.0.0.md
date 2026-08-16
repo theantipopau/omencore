@@ -680,6 +680,14 @@ GitHub #175 asked OmenCore to consider coordinating with other Linux OMEN projec
 
 --------------------------------------------------
 
+## ADOPTED (Post-4.1.6, 2026-08-16): GitHub PR #150 — Board `84DB` (OMEN 15-dc0xxx) Linux Fan-Boost Documentation (murilopontes)
+
+Checked whether community PR [#150](https://github.com/theantipopau/omencore/pull/150) had already landed via some earlier pass — it hadn't; it's still open/unmerged upstream and none of its content was present in `docs/LINUX_INSTALL_GUIDE.md`. The PR itself is docs-only: measured RPM data for an OMEN 15-dc0xxx (board `84DB`, BIOS F.19, kernel `7.0.0-27-generic`) showing the stock `hp-wmi` `pwm1_enable=0` write fails with `EINVAL` on this board, but fan-max is reachable via direct EC access at offset `0xEC` (`1`=max, `0`=auto), with RPM readback confirmed working. Source: [hp-omen-fan-linux](https://github.com/murilopontes/hp-omen-fan-linux).
+
+**Adopted as-is** — added `84DB` as a documented special case under the "ec_sys Direct EC" method and a new row in the "Known Working Configurations" table in `docs/LINUX_INSTALL_GUIDE.md`. No code, capability database, or fan-control logic touched — this doesn't feed OmenCore's own board detection, it's reference material for users on the manual/`ec_sys` Linux install path. No field validation needed (pure documentation) and no test impact.
+
+--------------------------------------------------
+
 ## FIXED (Post-4.1.6, 2026-08-13): GitHub #172 — Board `8BBE`, and Model-Name-Pattern Fallback Crossing CPU Vendor Lines
 
 GitHub #172 (yunusemreyl, "Victus 16-R0XXX", board `8BBE`, SKU `CND3222PDQ`, BIOS `F.31`) is a hardware-support request with an attached diagnostics bundle. `8BBE` has no `ModelCapabilityDatabase` or `KeyboardModelDatabase` entry, so it resolves via `GetCapabilitiesByModelName()`'s WMI-name-pattern fallback to the existing `8C2F` entry (pattern `"16-r0"`, from GitHub #110/#155) — flagged Low confidence in the app's own identity summary.
