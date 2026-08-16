@@ -382,7 +382,12 @@ namespace OmenCore.ViewModels
         /// user-visible string for that channel goes through here so the two surfaces cannot
         /// drift apart again: the long status line said "iGPU" while these chips said "Cache".
         /// </summary>
-        private string UndervoltSecondChannelLabel => IsAmdCpu ? "iGPU" : "Cache";
+        public string UndervoltSecondChannelLabel => IsAmdCpu ? "iGPU" : "Cache";
+
+        /// <summary>Header on the second offset slider. "L3 Cache" is not what AMD writes here.</summary>
+        public string UndervoltSecondChannelHeader => IsAmdCpu ? "IGPU OFFSET" : "CACHE OFFSET";
+
+        public string UndervoltSecondChannelSubtitle => IsAmdCpu ? "Radeon graphics" : "L3 Cache";
 
         public string UndervoltRequestedChipText =>
             $"Requested: Core {RequestedCoreOffset:+0;-0;0} mV | {UndervoltSecondChannelLabel} {RequestedCacheOffset:+0;-0;0} mV";
@@ -523,6 +528,15 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(ShowAmdPowerUnavailableMessage));
                 OnPropertyChanged(nameof(AmdPowerLimitsStatus));
                 OnPropertyChanged(nameof(NoTuningAvailable));
+
+                // The second offset channel is a cache offset on Intel and the iGPU Curve Optimizer
+                // offset on AMD, so every label for it changes with the vendor.
+                OnPropertyChanged(nameof(UndervoltSecondChannelLabel));
+                OnPropertyChanged(nameof(UndervoltSecondChannelHeader));
+                OnPropertyChanged(nameof(UndervoltSecondChannelSubtitle));
+                OnPropertyChanged(nameof(UndervoltRequestedChipText));
+                OnPropertyChanged(nameof(UndervoltConfirmedChipText));
+                OnPropertyChanged(nameof(UndervoltStatusSummary));
             }
         }
 
