@@ -381,6 +381,16 @@ namespace OmenCore.Hardware
             RyzenFamily.Rembrandt => true,        // PSMU 0xB7
             RyzenFamily.Phoenix => true,          // PSMU 0xB7
             RyzenFamily.HawkPoint => true,        // PSMU 0xB7
+
+            // StrixPoint is false on a measurement, not on an absent upstream case. SmuProbe
+            // --igpu --scan on a Ryzen AI 9 HX 375 gets CmdRejectedPrereq from PSMU 0xB7 and
+            // UnknownCmd from MP1 0xB7, identically for CO -20 and CO 0, so the refusal is
+            // about machine state and not the argument. --prereq then shows the precondition
+            // is OC mode and that OC mode is itself locked: enable-oc (PSMU 0x17) returns
+            // CmdRejectedPrereq while disable-oc (0x18) returns Ok. There is no host-side
+            // sequence that reaches graphics CO on this part, so adding it here would ship a
+            // slider that cannot move. UXTU's socket table would send 0xB7 anyway; RyzenAdj,
+            // which withholds set_cogfx from Strix Point, has it right.
             _ => false
         };
 
