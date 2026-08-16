@@ -48,7 +48,7 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 ## Current Release
 
 **Version:** 4.1.7<br>
-**Status:** Code-complete and test-verified in this environment (1288/1288 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Status:** Code-complete, test-verified (1288/1288 tests, 0 build warnings), and artifacts built (`OmenCoreSetup-4.1.7.exe`, `OmenCore-4.1.7-win-x64.zip`, `OmenCore-4.1.7-linux-x64.zip`, each with a `.sha256` checksum)<br>
 **Release notes:** [docs/CHANGELOG_v4.1.7.md](docs/CHANGELOG_v4.1.7.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
