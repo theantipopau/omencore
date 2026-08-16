@@ -207,11 +207,11 @@ namespace OmenCore.ViewModels
                     var values = UndervoltStatus.CurrentPerCoreOffsetsMv.Where(x => x.HasValue).Select(x => x!.Value).ToArray();
                     var activeCores = values.Length;
                     var avgOffset = activeCores > 0 ? values.Average() : 0.0;
-                    return $"Per-Core: {activeCores} cores active | Avg {avgOffset:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+                    return $"Per-Core: {activeCores} cores active | Avg {avgOffset:+0;-0;0} mV | {UndervoltSecondChannelLabel} {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
                 }
                 else
                 {
-                    return $"Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+                    return $"Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | {UndervoltSecondChannelLabel} {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
                 }
             }
         }
@@ -375,12 +375,21 @@ namespace OmenCore.ViewModels
                 ? System.Windows.Media.Brushes.Lime
                 : System.Windows.Media.Brushes.Gray;
 
+        /// <summary>
+        /// What the second offset channel is called in the UI. The model field behind it is
+        /// <c>CacheMv</c> on both vendors, but on AMD it carries the iGPU Curve Optimizer offset,
+        /// not a cache offset - see <see cref="AmdUndervoltProvider.ApplyOffsetAsync"/>. Every
+        /// user-visible string for that channel goes through here so the two surfaces cannot
+        /// drift apart again: the long status line said "iGPU" while these chips said "Cache".
+        /// </summary>
+        private string UndervoltSecondChannelLabel => IsAmdCpu ? "iGPU" : "Cache";
+
         public string UndervoltRequestedChipText =>
-            $"Requested: Core {RequestedCoreOffset:+0;-0;0} mV | Cache {RequestedCacheOffset:+0;-0;0} mV";
+            $"Requested: Core {RequestedCoreOffset:+0;-0;0} mV | {UndervoltSecondChannelLabel} {RequestedCacheOffset:+0;-0;0} mV";
 
         public string UndervoltConfirmedChipText => UndervoltStatus == null
             ? "Confirmed: n/a"
-            : $"Confirmed: Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | Cache {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
+            : $"Confirmed: Core {UndervoltStatus.CurrentCoreOffsetMv:+0;-0;0} mV | {UndervoltSecondChannelLabel} {UndervoltStatus.CurrentCacheOffsetMv:+0;-0;0} mV";
 
         private bool UndervoltHasMismatch
         {
