@@ -7,9 +7,9 @@
     <Nullable>enable</Nullable>
     <AssemblyName>omencore-gui</AssemblyName>
     <RootNamespace>OmenCore.Avalonia</RootNamespace>
-    <Version>4.1.6</Version>
-    <AssemblyVersion>4.1.6.0</AssemblyVersion>
-    <FileVersion>4.1.6.0</FileVersion>
+    <Version>4.1.7</Version>
+    <AssemblyVersion>4.1.7.0</AssemblyVersion>
+    <FileVersion>4.1.7.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
     <PublishSingleFile>true</PublishSingleFile>
