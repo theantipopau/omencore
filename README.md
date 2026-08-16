@@ -48,7 +48,7 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 ## Current Release
 
 **Version:** 4.1.7<br>
-**Status:** Code-complete and test-verified in this environment (1288/1288 tests, 0 build warnings); artifacts not yet built or tagged<br>
+**Status:** Code-complete, test-verified (1288/1288 tests, 0 build warnings), and artifacts built (`OmenCoreSetup-4.1.7.exe`, `OmenCore-4.1.7-win-x64.zip`, `OmenCore-4.1.7-linux-x64.zip`, each with a `.sha256` checksum)<br>
 **Release notes:** [docs/CHANGELOG_v4.1.7.md](docs/CHANGELOG_v4.1.7.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.0.0.md](docs/ROADMAP_v4.0.0.md)
 
@@ -68,6 +68,9 @@ v4.1.7 is a large patch found while triaging field reports across three batches 
 - **Added:** RAM Smart Clean in Quick Access (one-click safe memory clean from the tray popup), an opt-in "clean memory on launch" option per game profile, and a shared/default profile that can apply to a whole list of games instead of needing one profile per game (GitHub #173).
 - **Fixed:** a WMI model-name-pattern fallback could hand an Intel board an AMD-only capability profile just because HP reused the same marketing name across different board revisions — the fallback now checks CPU vendor before matching (GitHub #172).
 - **Improved:** a full code review of GPU Power Boost, GPU overclock/undervolt, and CPU overclock/undervolt (`docs/TUNING-SUBSYSTEMS-REVIEW.md`) found and fixed several places where the app reported something as applied when it wasn't or discarded a safety signal by defaulting it to a value indistinguishable from a real reading — all fixes here are reporting/consolidation only, no tuning behavior changed on the wire.
+- **Fixed (Linux, severe):** the Linux GUI (`omencore-gui`) never actually controlled fans on boards that expose only a coarse `pwm_enable` toggle rather than a writable duty file — every fan request silently did nothing. Reported alongside a real overheat/shutdown incident on board `8BCA` (OMEN 16-xf0xxx). The CLI (`omencore-cli`) already had the correct fallback; the GUI never did, because the two Linux targets carry entirely separate hardware implementations. The fallback is now ported into the GUI (GitHub #174 + Discord report).
+- **Improved (Linux):** keyboard RGB now tries three more sysfs backends (`hp-wmi/rgb_zones/zone00`-`zone03`, `hp-wmi/keyboardleds`, `hp_omen::kbd_backlight/zone_colors`) in both Linux targets, found by researching the projects raised in GitHub #175. The same pass fixed keyboard *brightness* control on boards exposing only the `hp_omen::` LED class name — both targets previously checked only `hp::`.
+- **Adopted:** community PR [#150](https://github.com/theantipopau/omencore/pull/150) (`murilopontes`) — documented Linux fan boost via EC offset `0xEC` for board `84DB` (OMEN 15-dc0xxx), where stock `hp-wmi` `pwm1_enable=0` fails with `EINVAL`, with measured RPM data.
 
 Full detail on every item in [docs/CHANGELOG_v4.1.7.md](docs/CHANGELOG_v4.1.7.md).
 
@@ -327,7 +330,15 @@ Linux control normally follows available sysfs/hwmon capability:
 
 ## Known Limits
 
-Unlike 4.0.0 (architecture-only, no fan/thermal/EC behavior changed), 4.1.0 does have several items that are code-provable from real logs but still need field confirmation on the reporters' actual hardware:
+New this cycle (4.1.7):
+
+- **Max Fan Mode can trigger a repeating background re-assert loop on some boards — with a workaround.** On boards whose real fan level under a BIOS Max hold settles well below the level OmenCore computes as the expected floor (confirmed on `8A18`, `8A25`, `8E10`, `8D41`), the Max-mode health check reads a genuinely-applied Max hold as "unhealthy" and re-sends the Max command roughly every 20 seconds for as long as Max Fan Mode stays engaged. A full multi-day log from board `8E10` (OMEN 17-db1xxx) confirms this runs continuously rather than as a one-off, and that reporter separately described near-constant in-game stutter. That connection is **plausible but not proven** — no single once-per-second write was found in the log; what is confirmed is real, overlapping EC/WMI hardware I/O for the whole session. **Workaround:** use a custom fan curve or the Performance/Gaming preset instead of literal Max Fan Mode while gaming — those use a different reapply path that has no floor health check and no such loop. The underlying bug is deliberately unfixed: it needs a board-relative redesign across two separate code paths, and the one narrower mitigation considered (backing off after repeated identical readings) was rejected because it cannot be distinguished from a genuinely-reverting fan without risking under-cooling a different board.
+- The same wrong assumption also makes the guided fan diagnostic report `evidence: None` for the 100% test on these boards even when the fans audibly ramp — a false negative in reporting only, not a fan-control failure.
+- **Linux (`omencore-gui`) fan control on `pwm_enable`-only boards** is fixed in this release but confirmed only by code review and a clean build — there is no automated test project for either Linux target and no Linux/OMEN hardware in the development environment. The reporter on board `8BCA` (OMEN 16-xf0xxx), whose report came with a real overheat/shutdown incident, still needs to confirm fans actually respond now.
+- **Linux keyboard RGB's three new sysfs backends** and the `hp_omen::` brightness fix are likewise additive-and-build-verified only, not confirmed on a board that exposes those interfaces.
+- Board `84DB` (OMEN 15-dc0xxx) EC `0xEC` fan boost is **documentation only**, contributed and measured by a community member — OmenCore's own board detection does not act on it.
+
+Carried forward from 4.1.0 — code-provable from real logs, still needing field confirmation on the reporters' actual hardware:
 
 - `8A18` OMEN 17-ck1xxx: the fan-reassert-loop fix (GitHub #153) is code-complete and test-verified, and the logic bug is provable from the reporter's log alone — but only they can confirm the audible/physical repeated-re-assertion behavior actually stops.
 - `8D87`/`AK0003NR` OMEN Max 16 (AMD): the CPU-power-ceiling root cause is traced and a one-line fix identified (`AllowDecoupledWmiThermalPolicyFallback = true`), but deliberately **not applied** — it's a genuine hardware-behavior change on `UserVerified = false` boards and needs a reporter to confirm it actually raises CPU package power with no adverse thermal/fan/stability effects first.
@@ -354,7 +365,14 @@ Carried forward from 4.0.0 / 3.9.0 (untouched by this cycle's work):
 
 ## Active Validation Targets
 
-New this cycle (4.1.0):
+New this cycle (4.1.7):
+
+- Board `8BCA` (OMEN 16-xf0xxx, Linux): confirm `omencore-gui` now actually drives the fans after the `pwm_enable` fallback fix — this board previously had completely non-functional GUI fan control, reported alongside a real overheat/shutdown incident.
+- Any Linux board exposing `hp-wmi/rgb_zones/`, `hp-wmi/keyboardleds`, or `hp_omen::kbd_backlight`: confirm keyboard RGB (and brightness, for the `hp_omen::` variant) now applies.
+- Boards `8A18`, `8A25`, `8E10`, `8D41`: a session log capturing fan level readback during a *sustained* Max hold, ideally with independent RPM evidence, so the Max-level-floor redesign can be scoped against real board-relative numbers instead of guessed.
+- Board `8E10` (OMEN 17-db1xxx): confirm whether the in-game stutter changes when using a custom fan curve or the Gaming preset instead of Max Fan Mode — this would help establish whether the re-assert loop is actually a contributor.
+
+Carried forward from 4.1.0:
 
 - `8A18` OMEN 17-ck1xxx: confirm fans no longer repeatedly re-assert to Max after a thermal emergency clears (GitHub #153) — the log-provable loop is fixed, only the audible/physical behavior needs confirming.
 - `8D87`/`AK0003NR` OMEN Max 16 (AMD): test a build with `AllowDecoupledWmiThermalPolicyFallback` flipped and confirm CPU package power actually rises toward 105W with no adverse thermal/fan/stability effects before it's merged.

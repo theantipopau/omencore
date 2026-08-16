@@ -15,9 +15,9 @@
     <ApplicationIcon>..\OmenCoreApp\Assets\OmenCore.ico</ApplicationIcon>
     
     <!-- Version info -->
-    <AssemblyVersion>4.1.6.0</AssemblyVersion>
-    <FileVersion>4.1.6.0</FileVersion>
-    <Version>4.1.6</Version>
+    <AssemblyVersion>4.1.7.0</AssemblyVersion>
+    <FileVersion>4.1.7.0</FileVersion>
+    <Version>4.1.7</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     
     <!-- Build settings - must be self-contained for deployment -->

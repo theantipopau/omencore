@@ -358,7 +358,7 @@
                             </Grid>
                         </Border>
 
-                        <!-- Cache Voltage Offset - Enhanced Slider -->
+                        <!-- Second offset channel: L3 cache on Intel, iGPU Curve Optimizer on AMD -->
                         <Border Background="#0A0A12" CornerRadius="8" Padding="16" Margin="0,0,0,20">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -368,9 +368,9 @@
                                 </Grid.ColumnDefinitions>
                                 
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="CACHE OFFSET" FontSize="10" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding SystemControl.UndervoltSecondChannelHeader}" FontSize="10" FontWeight="SemiBold"
                                                Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Text="L3 Cache" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}"/>
+                                    <TextBlock Text="{Binding SystemControl.UndervoltSecondChannelSubtitle}" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}"/>
                                 </StackPanel>
                                 
                                 <Slider Grid.Column="1" 

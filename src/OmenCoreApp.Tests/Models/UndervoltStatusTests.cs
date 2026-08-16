@@ -19,6 +19,14 @@ namespace OmenCoreApp.Tests.Models
         }
 
         [Fact]
+        public void IgpuOffsetRequestedButNotApplied_DefaultsToFalse()
+        {
+            // Same rule as F1: a dropped iGPU Curve Optimizer offset is a claim a provider has to
+            // make deliberately, so an unset status never accuses a backend of dropping one.
+            new UndervoltStatus().IgpuOffsetRequestedButNotApplied.Should().BeFalse();
+        }
+
+        [Fact]
         public void ExternalCoreAndCacheOffsetMv_DefaultToNull()
         {
             // F9: null must mean "not read", distinct from a confirmed 0 mV reading.
