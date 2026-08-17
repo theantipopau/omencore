@@ -20,4 +20,18 @@ Also added: whenever multiple zones are present and the selection changes, the r
 
 ---
 
+## Fixed: Linux GUI Fan-Control Warning Pointed Users at a Workaround That Doesn't Work on Hwmon-Only Boards
+
+Investigated while re-checking the roadmap's premise that OmenCore silently does nothing on profile-only boards (Reddit, `Fennel-Extra`, OMEN Transcend 14: "the program never adjusted the fan speed... led to overheating"). That premise turned out to be stale on Windows — the "Profile-only" badge and explanation there have been live since the 4.0.0 cycle — but tracing the equivalent Linux GUI (`omencore-gui`) path surfaced a real, separate bug.
+
+`FanControlViewModel`'s capability warning banner showed one hardcoded message for every "profile-only" board: *"Use System Control performance profiles for cooling behavior."* For boards with a genuine ACPI `thermal_profile`/`platform_profile` path, that's accurate. For boards reaching profile-only status purely via a coarse `hp-wmi` hwmon `pwm_enable` toggle (auto/full, no per-fan duty write) — confirmed via [GitHub #99](https://github.com/theantipopau/omencore/issues/99)'s attached diagnostics for board `8E41` (OMEN Transcend 14-fb1xxx), which shows `Thermal Profile Control: ✗ Missing` — that advice is a dead end: `SetPerformanceModeAsync` has no thermal path to resolve and falls through to `powerprofilesctl` or throws outright, with nothing fan-relevant to do either way.
+
+Meanwhile the one thing that **does** work on that exact board class was never mentioned: `SetCpuFanSpeedAsync`/`SetGpuFanSpeedAsync` already fall back to the coarse hwmon `pwm_enable` full-speed/auto toggle (the GitHub #174 fix from v4.1.7) before any profile-based path, and that call isn't gated behind curve-editing support — so Max Fan / Emergency Stop is a real, working override the warning banner should have said so.
+
+**Fix:** `LinuxCapabilityClassifier` already computes a correctly-differentiated `Reason` string per situation, and it was already plumbed all the way to `SystemCapabilities.FanControlCapabilityReason` — just never read. `FanControlViewModel.InitializeCapabilitiesAsync()` now uses that real reason instead of the generic per-class string, and appends a truthful note that Max Fan still works as a coarse override — only for the `profile-only` class, where a real write path is confirmed to exist; never claimed for `telemetry-only`/`unsupported-control`, where none does. Pure messaging fix, no control-behavior change. Build-verified only: no automated test project exists for this target and there's no Linux/OMEN hardware in the development environment, consistent with how this Linux GUI's other fixes have been verified this cycle.
+
+**Not claimed to resolve the original Reddit report** — that reporter didn't specify Windows or Linux, and without their diagnostics this can't be conclusively tied to board `8E41` or GitHub #99. Recorded as a real, separate bug found while investigating, not as a fix for the report that prompted the investigation.
+
+---
+
 *(Further entries added as work lands.)*
