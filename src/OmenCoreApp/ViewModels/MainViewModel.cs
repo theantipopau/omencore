@@ -2410,6 +2410,9 @@ namespace OmenCore.ViewModels
         // Expose Keyboard Diagnostics VM
         public KeyboardDiagnosticsViewModel KeyboardDiagnostics { get; private set; }
 
+        // Expose Temperature Source Diagnostics VM
+        public TemperatureSourceDiagnosticsViewModel TemperatureSourceDiagnostics { get; private set; }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         /// <param name="systemRestoreService">
@@ -2531,6 +2534,7 @@ namespace OmenCore.ViewModels
             // Fan verification service (closed-loop verification)
             _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
             FanDiagnostics = new FanDiagnosticsViewModel(_fanVerificationService, _fanService, _logging);
+            TemperatureSourceDiagnostics = new TemperatureSourceDiagnosticsViewModel(_wmiBiosMonitor, _logging);
             
             // Power limit controller (EC-based CPU/GPU power control)
             PowerLimitController? powerLimitController = null;

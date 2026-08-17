@@ -42,7 +42,17 @@ Continuing the sensor-truth work from the ACPI thermal-zone fix above: `WmiBiosM
 
 Pure additive UI/diagnostics surfacing of already-correct backend data — no control or detection behavior changed. 8 new tests (`DashboardViewModelCpuTemperatureSourceTests.cs`), plus 2 new assertions in the existing `MonitoringSampleCopyConstructorTests.cs`. Full suite: 1310/1310.
 
-**Not done in this pass:** a guided-diagnostics side-by-side comparison of every available temperature source. Still open on the roadmap.
+## Added: Temperature Source Comparison — "Does This Temperature Look Right?"
+
+Closes out the sensor-truth work from the last two entries. `WmiBiosMonitor`'s live monitor loop only ever tracks one *winning* CPU temperature source at a time — by design, since fan curves need a single authoritative value, not three competing ones. That's correct for control, but it meant a user (or a maintainer reading a field report) had no way to see WMI BIOS, ACPI Thermal Zone, and LibreHardwareMonitor side by side to sanity-check whether the trusted reading was actually the right one. Every field report behind the ACPI zone-selection fix earlier in this cycle took several round-trips for exactly that reason.
+
+**Added:** `WmiBiosMonitor.GetCpuTemperatureSourceComparisonAsync()` — a one-shot, read-only snapshot of all three sources. Deliberately side-effect-free: the ACPI read reuses the same `SelectCpuThermalZone` pure function from the zone-selection fix, but is called with `latchedInstance: null` so it can never race or perturb the background monitor loop's own `_cpuThermalZoneInstance`. A new `ICpuTemperatureSourceComparer` interface (mirroring `IFanVerificationService`'s shape) keeps the new `TemperatureSourceDiagnosticsViewModel` unit-testable without depending on the concrete WMI-coupled monitor class directly.
+
+The Diagnostics tab has a new "Temperature Source Comparison" card: one button runs the comparison and shows every available source, which one is currently trusted and why, and a visible warning when sources disagree by more than 18°C — the same threshold the live outlier guard already uses, so the UI and the control logic agree on what "materially different" means.
+
+**Caught before shipping:** the first draft of the Diagnostics tab XAML referenced a `BoolToRunningLabelConverter` for the button's running-state label — invented, not a real resource. Verified every resource key used against the actual style dictionaries after that (all confirmed real) and replaced the invented one with a plain computed `RunButtonLabel` string property, the same pattern already used elsewhere in this codebase for state-dependent button text.
+
+24 new tests (`CpuTemperatureSourceComparisonTests.cs`, `TemperatureSourceDiagnosticsViewModelTests.cs`) covering the disagreement-threshold logic (including a direct reproduction of the original field-reported shape: WMI BIOS 81.2°C vs. an ACPI zone at 36.0°C) and the ViewModel's run/error/label-state behavior against a fake comparer. Full suite: 1326/1326.
 
 ## Added: OSD Now Marks a Fallback CPU Temperature Source Too — as a Glyph, Not a Tooltip
 

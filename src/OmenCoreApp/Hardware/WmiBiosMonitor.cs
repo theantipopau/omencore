@@ -29,7 +29,7 @@ namespace OmenCore.Hardware
     ///
     /// PawnIO is used ONLY for MSR-based throttling detection - NOT for core monitoring.
     /// </summary>
-    public class WmiBiosMonitor : IHardwareMonitorBridge, IAdaptiveSamplingBridge, IDisposable
+    public class WmiBiosMonitor : IHardwareMonitorBridge, IAdaptiveSamplingBridge, ICpuTemperatureSourceComparer, IDisposable
     {
         private readonly LoggingService? _logging;
         private readonly HpWmiBios _wmiBios;
@@ -2529,29 +2529,7 @@ namespace OmenCore.Hardware
         {
             try
             {
-                using var searcher = new System.Management.ManagementObjectSearcher(
-                    @"root\wmi",
-                    "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemperature");
-
-                var zones = new List<AcpiZoneReading>();
-                foreach (System.Management.ManagementObject obj in searcher.Get())
-                {
-                    if (obj["CurrentTemperature"] is uint rawTemp && rawTemp > 0)
-                    {
-                        // Convert from tenths of Kelvin to Celsius
-                        // Round to 1 decimal to avoid IEEE 754 float noise (e.g. 97.05000000000001)
-                        double tempC = Math.Round((rawTemp / 10.0) - 273.15, 1);
-
-                        if (tempC > 0 && tempC < 110)
-                        {
-                            var instanceName = obj["InstanceName"]?.ToString();
-                            if (!string.IsNullOrEmpty(instanceName))
-                            {
-                                zones.Add(new AcpiZoneReading(instanceName, tempC));
-                            }
-                        }
-                    }
-                }
+                var zones = ReadAcpiZones();
 
                 var selection = SelectCpuThermalZone(zones, _cpuThermalZoneInstance);
                 _cpuThermalZoneInstance = selection.LatchedInstance;
@@ -2568,6 +2546,113 @@ namespace OmenCore.Hardware
                 _acpiThermalAvailable = false;
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// Raw ACPI thermal zone enumeration, shared by the live GetAcpiCpuTemperature() poll and
+        /// by GetCpuTemperatureSourceComparisonAsync()'s read-only snapshot. Pure WMI read, no
+        /// state touched — callers decide separately whether/how to update _cpuThermalZoneInstance.
+        /// </summary>
+        private static List<AcpiZoneReading> ReadAcpiZones()
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                @"root\wmi",
+                "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemperature");
+
+            var zones = new List<AcpiZoneReading>();
+            foreach (System.Management.ManagementObject obj in searcher.Get())
+            {
+                if (obj["CurrentTemperature"] is uint rawTemp && rawTemp > 0)
+                {
+                    // Convert from tenths of Kelvin to Celsius
+                    // Round to 1 decimal to avoid IEEE 754 float noise (e.g. 97.05000000000001)
+                    double tempC = Math.Round((rawTemp / 10.0) - 273.15, 1);
+
+                    if (tempC > 0 && tempC < 110)
+                    {
+                        var instanceName = obj["InstanceName"]?.ToString();
+                        if (!string.IsNullOrEmpty(instanceName))
+                        {
+                            zones.Add(new AcpiZoneReading(instanceName, tempC));
+                        }
+                    }
+                }
+            }
+
+            return zones;
+        }
+
+        /// <summary>
+        /// One-shot, read-only comparison of every CPU temperature source, for the guided "does
+        /// this temperature look right?" diagnostic. Deliberately does not touch _cachedCpuTemp,
+        /// _cpuThermalZoneInstance, or any other live monitoring state — this must be safe to call
+        /// from a UI button without racing or perturbing the background monitor loop that owns
+        /// those fields (SelectCpuThermalZone is called with latchedInstance: null here, never
+        /// with the shared _cpuThermalZoneInstance).
+        /// </summary>
+        public async Task<CpuTemperatureSourceComparison> GetCpuTemperatureSourceComparisonAsync()
+        {
+            double? wmiBiosTemp = null;
+            try
+            {
+                if (_wmiBios.IsAvailable)
+                {
+                    var temps = _wmiBios.GetBothTemperatures();
+                    if (temps.HasValue)
+                    {
+                        wmiBiosTemp = temps.Value.cpuTemp;
+                    }
+                }
+            }
+            catch
+            {
+                // WMI BIOS unavailable on this system — leave wmiBiosTemp null.
+            }
+
+            double? acpiTemp = null;
+            string? acpiZoneName = null;
+            try
+            {
+                var zones = ReadAcpiZones();
+                var selection = SelectCpuThermalZone(zones, latchedInstance: null);
+                if (selection.SelectedInstance != null)
+                {
+                    acpiTemp = selection.TempC;
+                    acpiZoneName = selection.SelectedInstance;
+                }
+            }
+            catch
+            {
+                // ACPI thermal zones unavailable on this system — leave acpiTemp null.
+            }
+
+            double? lhmTemp = null;
+            try
+            {
+                var fallbackMonitor = EnsureTempFallbackMonitor();
+                if (fallbackMonitor != null)
+                {
+                    var candidate = await Task.Run(() => fallbackMonitor.GetCpuTemperature());
+                    if (candidate > 0 && candidate < 110)
+                    {
+                        lhmTemp = candidate;
+                    }
+                }
+            }
+            catch
+            {
+                // LHM fallback unavailable — leave lhmTemp null.
+            }
+
+            return new CpuTemperatureSourceComparison
+            {
+                WmiBiosTempC = wmiBiosTemp,
+                AcpiTempC = acpiTemp,
+                AcpiZoneName = acpiZoneName,
+                LhmTempC = lhmTemp,
+                CurrentAuthoritySource = _cpuTemperatureAuthoritySource,
+                CurrentAuthorityReason = _cpuTemperatureAuthorityReason
+            };
         }
 
         internal readonly struct AcpiZoneReading
