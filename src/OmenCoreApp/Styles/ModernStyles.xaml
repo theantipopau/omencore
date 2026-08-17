@@ -6,7 +6,20 @@
          invalid). AppFontFamily is the one place the whole app's text font is chosen; changing it
          changes every StaticResource-bound TextBlock/Button/etc. app-wide. MonospaceFontFamily is
          for log output, diagnostic dumps, and hex/tabular values where column alignment matters —
-         keep it separate, never route it through AppFontFamily. -->
+         keep it separate, never route it through AppFontFamily.
+
+         Roboto Condensed (SIL OFL 1.1) is downloaded and embedded (src/OmenCoreApp/Fonts/), and the
+         project file includes it as a build Resource — but AppFontFamily is deliberately NOT yet
+         switched to reference it. The downloaded release is a single OpenType variable font (wght
+         axis via a gvar table). An automated test (EmbeddedFontResolutionTests.cs) constructing the
+         exact same pack-URI reference WPF would use found real, concrete evidence: the embedded
+         resource resolves as a FontFamily at all (GetTypefaces() finds it), but classic WPF's
+         GlyphTypeface API — which predates OpenType variable fonts — cannot produce a renderable
+         glyph typeface from it. Only 3 discrete weights surface (400/700/900, missing 600 SemiBold
+         entirely) and none of them resolve a real GlyphTypeface, while a plain system font succeeds
+         via the identical code path in the same test run (ruling out a test-environment gap). Do
+         not switch this resource until a STATIC (non-variable) release of the font is embedded
+         instead — see docs/ROADMAP_v4.2.0.md Pillar 3 for the investigation and next step. -->
     <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, "Segoe UI", Arial</FontFamily>
     <FontFamily x:Key="MonospaceFontFamily">Cascadia Mono, Consolas, "Courier New", monospace</FontFamily>
 

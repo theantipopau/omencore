@@ -78,4 +78,18 @@ One deliberate rendering note: `ToastNotificationService.cs` previously named th
 
 ---
 
+## Investigated: Attempted the Actual Font Embedding — Blocked on a Non-Deterministic WPF Result, Reverted to Safe State
+
+Downloaded and embedded `RobotoCondensed-VariableFont_wght.ttf` (renamed from Google's `RobotoCondensed[wght].ttf` — bracket characters in filenames are a known build-tool escaping hazard, and Google's own public zip download avoids them for that reason) and `OFL.txt` from the canonical `google/fonts` repository, wired both into `OmenCoreApp.csproj`, and read the font's actual `name`/`fvar` tables directly to confirm its internal family string (`"Roboto Condensed"`) and that it's a single variable font (`wght` axis 100-900) rather than guessing either.
+
+Rather than trust a clean build, wrote a unit test (`EmbeddedFontResolutionTests.cs`) that constructs the exact pack-URI reference WPF itself would use — this needs no `Application`/`Dispatcher`, so it's safe to run without ever launching the full hardware-control app (forbidden in this environment). First finding: raw `pack://` URIs throw in a bare test host unless `PackUriHelper`'s static registration is forced explicitly first (a real `Application` does this automatically; nothing in xunit does) — fixed, harmless, test-host-only.
+
+**Second finding, more serious and ultimately unresolved:** with that fixed, the test showed classic WPF's `GlyphTypeface` API — which predates OpenType Font Variations — failing to produce a renderable glyph from this variable font: only 3 of 9 weights surfaced (SemiBold missing, despite several existing styles requesting it), and none resolved a real `GlyphTypeface`, while a plain system font succeeded via the identical code path (ruling out a blanket test-host incapability). **Running the identical test as part of the full suite instead of in isolation reversed the result** — all 9 weights appeared and glyph resolution succeeded. Two explicit warm-up attempts in the test's static constructor (forcing `Fonts.SystemFontFamilies` enumeration; forcing a `FormattedText` layout first) failed to reproduce the full-suite result deterministically in isolation.
+
+**Did not ship the switch.** This is a confirmed, order-dependent, non-deterministic result with an unidentified trigger — not a settled "broken" or "working" conclusion. Shipping `AppFontFamily` pointed at something I've directly watched fail half the time would be worse than not shipping. Reverted `AppFontFamily` to its original `Segoe UI Variable Text, Segoe UI, "Segoe UI", Arial` value, with a comment explaining why. Removed the test assertions that turned out to be unreliable rather than leave them asserting a direction I can't stand behind — what remains (family resolves to *something*; a control-check baseline) held consistently in both isolated and full-suite runs. Full suite re-verified clean after the cleanup: 1331/1331, order-independent.
+
+**Recommended next step:** embed a **static** (non-variable) Roboto Condensed release instead, sidestepping the `gvar`/glyph-resolution question entirely rather than continuing to chase an intermittent repro. Google's official distribution is variable-only for this family, so this means either generating static instances from the variable font (a `fonttools` build step, not currently installed) or sourcing an already-static release elsewhere — either way, a new file acquisition needing fresh explicit permission before it happens, same as the original download.
+
+---
+
 *(Further entries added as work lands.)*
