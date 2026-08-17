@@ -74,7 +74,7 @@ One deliberate rendering note: `ToastNotificationService.cs` previously named th
 
 **This stage is a pure refactor with zero visual change** — both shared resources still resolve to their original values. No live-launch verification needed for that reason; the actual font swap (still not started, needs explicit permission to download the font files) is what will require it. 3 new tests (`AppFontsTests.cs`). Full suite: 1329/1329.
 
-**Not done yet:** embedding the actual Roboto Condensed font files and switching the two resources over. License confirmed against Google's own official repository (`googlefonts/roboto-2/LICENSE`): Apache License 2.0.
+**Not done yet:** embedding the actual Roboto Condensed font files and switching the two resources over. **License correction:** an earlier version of this note said Apache License 2.0, checked against `googlefonts/roboto-2/LICENSE` — that's the legacy "classic" Roboto repository (genuinely Apache-2.0), not what Google Fonts actually serves as Roboto Condensed today. The current, canonical distribution (`google/fonts` repo, `ofl/robotocondensed/OFL.txt` — the same file the real fonts.google.com download ships) is **SIL Open Font License 1.1**, copyright 2011 The Roboto Project Authors. Corrected here before Step 2 starts; OFL requires attribution and restricts selling the font standalone (bundling it in the app is fine).
 
 ---
 
