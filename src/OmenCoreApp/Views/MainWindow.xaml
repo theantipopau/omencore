@@ -630,7 +630,7 @@
                                     <TextBlock Text="{Binding UpdateDownloadStatus, Mode=OneWay}" 
                                                FontSize="12" 
                                                Foreground="{StaticResource TextSecondaryBrush}"
-                                               FontFamily="Consolas" />
+                                               FontFamily="{StaticResource MonospaceFontFamily}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -827,7 +827,7 @@
                     <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,8,0" Padding="12,8">
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="RECENT ACTIVITY" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8" />
-                            <ListBox ItemsSource="{Binding RecentEvents}" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" FontFamily="Consolas" FontSize="11" 
+                            <ListBox ItemsSource="{Binding RecentEvents}" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" FontFamily="{StaticResource MonospaceFontFamily}" FontSize="11" 
                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.CacheLength="5" VirtualizingPanel.CacheLengthUnit="Item" />
                         </DockPanel>
                     </Border>
@@ -835,7 +835,7 @@
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="SYSTEM LOG" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,8" />
                             <ScrollViewer x:Name="SystemLogScrollViewer" Style="{StaticResource SmoothScrollViewer}">
-                                <TextBlock Text="{Binding LogBuffer}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Consolas" FontSize="10" LineHeight="14" />
+                                <TextBlock Text="{Binding LogBuffer}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontFamily="{StaticResource MonospaceFontFamily}" FontSize="10" LineHeight="14" />
                             </ScrollViewer>
                         </DockPanel>
                     </Border>

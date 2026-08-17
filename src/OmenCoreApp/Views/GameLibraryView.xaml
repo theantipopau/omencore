@@ -325,7 +325,7 @@
                                                Text="{Binding ExecutableName}" 
                                                Foreground="#666"
                                                FontSize="10"
-                                               FontFamily="Consolas"
+                                               FontFamily="{StaticResource MonospaceFontFamily}"
                                                TextTrimming="CharacterEllipsis"
                                                Margin="0,6,0,0"
                                                ToolTip="{Binding ExecutablePath}"/>

@@ -85,7 +85,7 @@
             </Border>
 
             <TextBlock Text="Diagnostic Logs" Style="{StaticResource Heading3}" Margin="0,16,0,8" />
-            <ListBox ItemsSource="{Binding DiagnosticLogs}" MaxHeight="150" FontFamily="Consolas" FontSize="11">
+            <ListBox ItemsSource="{Binding DiagnosticLogs}" MaxHeight="150" FontFamily="{StaticResource MonospaceFontFamily}" FontSize="11">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding}" Foreground="{StaticResource TextSecondaryBrush}" />

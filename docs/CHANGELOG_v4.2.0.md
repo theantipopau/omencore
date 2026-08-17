@@ -62,4 +62,20 @@ Follow-up to the Dashboard change above. The original plan called for an "OSD to
 
 ---
 
+## Improved: Consolidated All Hardcoded Fonts Onto Shared Resources (Roboto Condensed Migration, Step 1)
+
+First step of the roadmap's typography move. Before Roboto Condensed can replace the app's font, every place that names a font has to go through one of two shared resources (`AppFontFamily`/`MonospaceFontFamily`) — otherwise the switch would be partial, and some UI would silently stay on the old font while the rest changed. The original estimate ("102 `FontFamily` declarations") only counted XAML and missed C# code-behind entirely.
+
+**Found and fixed:** 105 XAML declarations (one more than estimated — a `Setter Property="FontFamily" Value="Consolas"` in `GeneralView.xaml` used different attribute syntax than the rest and was missed on the first grep pass, caught on a second, broader sweep) plus **13 hardcoded font-construction call sites in C#** the original estimate never accounted for — the tray icon, native context menus (`DarkContextMenu`), and toast popups all build their visuals directly in code, which can't reference a XAML `StaticResource`. Left alone, all of these would have silently stayed on `Segoe UI` after the eventual font switch — a real, visible inconsistency, not a hypothetical one.
+
+**Fix:** moved `AppFontFamily`/`MonospaceFontFamily`'s declarations to the top of `Styles/ModernStyles.xaml` (an existing `PresetButton` style predated them at the old location and could never have referenced them in place — same-file forward references to a XAML resource declared later in the same dictionary are invalid, a real WPF constraint, not a style preference). Routed every hardcoded `Segoe UI`/`Segoe UI Variable Display` literal to `AppFontFamily` and every hardcoded `Consolas` literal to `MonospaceFontFamily`, by actual display purpose — log/hex/tabular values got monospace, everything else got the app font. New `Utils/AppFonts.cs` resolves the same two resources for C# code-behind via `Application.Current.TryFindResource`, with safe fallbacks for contexts where no `Application` is loaded (design time, headless tests).
+
+One deliberate rendering note: `ToastNotificationService.cs` previously named the literal font face `"Segoe UI Semibold"` — a genuinely separate Windows system font, not synthetic bold — for one text element. That face name won't exist once Roboto Condensed (which ships weight variants, not named system faces) is in place, so it was routed to `AppFonts.App` and the already-present `FontWeight = FontWeights.SemiBold` left to carry the weight instead. Small, deliberate rendering trade-off on the *current* font, correct for the font this is migrating toward.
+
+**This stage is a pure refactor with zero visual change** — both shared resources still resolve to their original values. No live-launch verification needed for that reason; the actual font swap (still not started, needs explicit permission to download the font files) is what will require it. 3 new tests (`AppFontsTests.cs`). Full suite: 1329/1329.
+
+**Not done yet:** embedding the actual Roboto Condensed font files and switching the two resources over. License confirmed against Google's own official repository (`googlefonts/roboto-2/LICENSE`): Apache License 2.0.
+
+---
+
 *(Further entries added as work lands.)*

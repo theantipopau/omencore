@@ -54,7 +54,7 @@
                        Foreground="#CCCCCC" 
                        HorizontalAlignment="Center"
                        Margin="0,0,0,6"
-                       FontFamily="Segoe UI"
+                       FontFamily="{StaticResource AppFontFamily}"
                        Visibility="{Binding ShowClockTimeRow, Converter={StaticResource BoolToVisibility}}"/>
             
             <!-- Current Mode Header (if enabled) -->
@@ -74,8 +74,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="MODE" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding PerformanceMode}" FontSize="12" Foreground="#FFD700" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="MODE" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding PerformanceMode}" FontSize="12" Foreground="#FFD700" FontFamily="{StaticResource AppFontFamily}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Fan Mode -->
@@ -85,8 +85,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FANS" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding FanMode}" FontSize="12" Foreground="#00BFFF" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FANS" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding FanMode}" FontSize="12" Foreground="#00BFFF" FontFamily="{StaticResource AppFontFamily}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Separator -->
@@ -100,16 +100,16 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="CPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="0" Text="CPU" FontSize="12" Foreground="#999999" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding CpuTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold"/>
-                    <TextBlock Text="~" FontSize="13" Foreground="{StaticResource WarningBrush}" FontFamily="Segoe UI" FontWeight="Bold" Margin="1,0,0,0"
+                    <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding CpuTempColor}" FontFamily="{StaticResource AppFontFamily}" FontWeight="SemiBold"/>
+                    <TextBlock Text="~" FontSize="13" Foreground="{StaticResource WarningBrush}" FontFamily="{StaticResource AppFontFamily}" FontWeight="Bold" Margin="1,0,0,0"
                                Visibility="{Binding IsCpuTempSourceFallback, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#FF3366" FontFamily="Segoe UI" FontWeight="Medium"
+                    <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#FF3366" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"
                                Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowCpuPower, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding CpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="Segoe UI" FontWeight="Medium"
+                    <TextBlock Text="{Binding CpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"
                                Visibility="{Binding ShowCpuPower, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
             </Grid>
@@ -121,8 +121,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="CPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding CpuClockSpeed}" FontSize="12" Foreground="#42A5F5" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="CPU CLK" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding CpuClockSpeed}" FontSize="12" Foreground="#42A5F5" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- GPU Stats -->
@@ -132,14 +132,14 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="GPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="0" Text="GPU" FontSize="12" Foreground="#999999" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding GpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding GpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuTempColor}" FontFamily="{StaticResource AppFontFamily}" FontWeight="SemiBold"/>
                     <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowGpuLoad, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding GpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#00D4FF" FontFamily="Segoe UI" FontWeight="Medium"
+                    <TextBlock Text="{Binding GpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#00D4FF" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"
                                Visibility="{Binding ShowGpuLoad, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
-                    <TextBlock Text="{Binding GpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="Segoe UI" FontWeight="Medium"
+                    <TextBlock Text="{Binding GpuPower}" FontSize="12" Foreground="#FFA500" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"
                                Visibility="{Binding ShowGpuPower, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
             </Grid>
@@ -151,8 +151,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="GPU CLK" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding GpuClockSpeed}" FontSize="12" Foreground="#00D4FF" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="GPU CLK" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding GpuClockSpeed}" FontSize="12" Foreground="#00D4FF" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- GPU Hotspot Temperature -->
@@ -162,8 +162,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="TJUNC" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding GpuHotspotTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuHotspotTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="TJUNC" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding GpuHotspotTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding GpuHotspotTempColor}" FontFamily="{StaticResource AppFontFamily}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- VRAM Usage -->
@@ -173,8 +173,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="VRAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding VramUsage}" FontSize="12" Foreground="#AB47BC" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="VRAM" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding VramUsage}" FontSize="12" Foreground="#AB47BC" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Package Power (CPU+GPU) -->
@@ -184,8 +184,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="PKG" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding PackagePower}" FontSize="12" Foreground="#FFA726" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="PKG" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding PackagePower}" FontSize="12" Foreground="#FFA726" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Fan Speed -->
@@ -195,8 +195,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FAN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding FanSpeed}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FAN" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding FanSpeed}" FontSize="12" Foreground="#AAAAAA" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- RAM Usage -->
@@ -206,8 +206,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="RAM" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="12" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="RAM" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding RamUsage}" FontSize="12" Foreground="#AAAAAA" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Battery -->
@@ -217,8 +217,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="BAT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding BatteryPercent}" FontSize="12" Foreground="{Binding BatteryColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="BAT" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding BatteryPercent}" FontSize="12" Foreground="{Binding BatteryColor}" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Separator -->
@@ -232,10 +232,10 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding FpsLabel}" FontSize="14" Foreground="{Binding FpsAccentBrush}" FontFamily="Segoe UI" FontWeight="Bold" ToolTip="FPS via RTSS"/>
+                <TextBlock Grid.Column="0" Text="{Binding FpsLabel}" FontSize="14" Foreground="{Binding FpsAccentBrush}" FontFamily="{StaticResource AppFontFamily}" FontWeight="Bold" ToolTip="FPS via RTSS"/>
                 <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding FpsDisplay}" FontSize="18" Foreground="{Binding FpsAccentBrush}" FontFamily="Segoe UI" FontWeight="Bold" HorizontalAlignment="Right"/>
-                    <TextBlock Text="{Binding FpsDetailDisplay}" FontSize="10" Foreground="#AAAAAA" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"
+                    <TextBlock Text="{Binding FpsDisplay}" FontSize="18" Foreground="{Binding FpsAccentBrush}" FontFamily="{StaticResource AppFontFamily}" FontWeight="Bold" HorizontalAlignment="Right"/>
+                    <TextBlock Text="{Binding FpsDetailDisplay}" FontSize="10" Foreground="#AAAAAA" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"
                                Visibility="{Binding ShowFpsDetail, Converter={StaticResource BoolToVisibility}}"/>
                 </StackPanel>
             </Grid>
@@ -247,8 +247,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="FT" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding FrametimeDisplay}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="FT" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding FrametimeDisplay}" FontSize="12" Foreground="#66BB6A" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Network Latency -->
@@ -258,8 +258,8 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="PING" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
-                <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="12" Foreground="{Binding NetworkLatencyColor}" FontFamily="Segoe UI" FontWeight="Medium" HorizontalAlignment="Right"/>
+                <TextBlock Grid.Column="0" Text="PING" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                <TextBlock Grid.Column="2" Text="{Binding NetworkLatency}" FontSize="12" Foreground="{Binding NetworkLatencyColor}" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium" HorizontalAlignment="Right"/>
             </Grid>
             
             <!-- Network Upload Speed -->
@@ -269,10 +269,10 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="↑ UP" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="0" Text="↑ UP" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding NetworkUpload}" FontSize="12" Foreground="#42A5F5" FontFamily="Segoe UI" FontWeight="Medium"/>
-                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                    <TextBlock Text="{Binding NetworkUpload}" FontSize="12" Foreground="#42A5F5" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 </StackPanel>
             </Grid>
             
@@ -283,10 +283,10 @@
                     <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*" SharedSizeGroup="MetricValue"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="↓ DN" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                <TextBlock Grid.Column="0" Text="↓ DN" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding NetworkDownload}" FontSize="12" Foreground="#66BB6A" FontFamily="Segoe UI" FontWeight="Medium"/>
-                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="Segoe UI" FontWeight="Medium"/>
+                    <TextBlock Text="{Binding NetworkDownload}" FontSize="12" Foreground="#66BB6A" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
+                    <TextBlock Text=" Mbps" FontSize="11" Foreground="#888888" FontFamily="{StaticResource AppFontFamily}" FontWeight="Medium"/>
                 </StackPanel>
             </Grid>
             

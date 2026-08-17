@@ -54,7 +54,7 @@
             <Setter Property="FontSize" Value="32"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="#FF005C"/>
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
 

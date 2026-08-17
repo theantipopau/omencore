@@ -74,7 +74,7 @@
                            Text="FAN"
                            FontSize="14"
                            FontWeight="Bold"
-                           FontFamily="Segoe UI"
+                           FontFamily="{StaticResource AppFontFamily}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
             </Border>

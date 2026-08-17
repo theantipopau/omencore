@@ -99,10 +99,10 @@
                     <Border Background="#2D2D1F" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
                             CornerRadius="6" Padding="10,8" Margin="0,10,0,0"
                             Visibility="{Binding TemperatureSourceDiagnostics.SourcesDisagree, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="Consolas"
+                        <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="{StaticResource MonospaceFontFamily}"
                                    Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
                     </Border>
-                    <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="Consolas"
+                    <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="{StaticResource MonospaceFontFamily}"
                                Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0"
                                Visibility="{Binding TemperatureSourceDiagnostics.SourcesDisagree, Converter={StaticResource InverseBoolToVisibility}}"/>
                 </StackPanel>

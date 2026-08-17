@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
+using OmenCore.Utils;
 
 namespace OmenCore.Controls
 {
@@ -115,7 +116,7 @@ namespace OmenCore.Controls
             style.Setters.Add(new Setter(BorderThicknessProperty, new Thickness(0)));
             style.Setters.Add(new Setter(PaddingProperty, new Thickness(12, 8, 12, 8)));
             style.Setters.Add(new Setter(MinHeightProperty, 32.0));
-            style.Setters.Add(new Setter(FontFamilyProperty, new FontFamily("Segoe UI")));
+            style.Setters.Add(new Setter(FontFamilyProperty, AppFonts.App));
             style.Setters.Add(new Setter(FontSizeProperty, 12.0));
             style.Setters.Add(new Setter(SnapsToDevicePixelsProperty, true));
             style.Setters.Add(new Setter(OverridesDefaultStyleProperty, true));
@@ -362,7 +363,7 @@ namespace OmenCore.Controls
                 Text = value, 
                 FontSize = 12, 
                 FontWeight = FontWeights.SemiBold,
-                FontFamily = new FontFamily("Consolas"),
+                FontFamily = AppFonts.Monospace,
                 Foreground = new SolidColorBrush(color),
                 MinWidth = 48,
                 VerticalAlignment = VerticalAlignment.Center 
