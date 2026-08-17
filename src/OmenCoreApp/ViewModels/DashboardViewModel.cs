@@ -198,6 +198,8 @@ namespace OmenCore.ViewModels
                 OnPropertyChanged(nameof(GpuTempDisplay));
                 OnPropertyChanged(nameof(CpuTempChipDisplay));
                 OnPropertyChanged(nameof(GpuTempChipDisplay));
+                OnPropertyChanged(nameof(CpuTemperatureSourceTooltip));
+                OnPropertyChanged(nameof(IsCpuTemperatureSourceFallback));
                 OnPropertyChanged(nameof(SsdTempDisplay));
                 OnPropertyChanged(nameof(IsCpuTempAvailable));
                 OnPropertyChanged(nameof(IsGpuTempAvailable));
@@ -411,6 +413,37 @@ namespace OmenCore.ViewModels
         public string CpuTempChipDisplay => FormatTemperatureForState(
             CpuTemperature,
             LatestMonitoringSample?.CpuTemperatureState ?? TelemetryDataState.Unknown);
+
+        /// <summary>
+        /// Plain-language explanation of which sensor CpuTemperature actually came from this
+        /// tick, for the temperature chip's tooltip. Users otherwise have no way to answer
+        /// "where is this number coming from?" without exporting a diagnostics bundle.
+        /// </summary>
+        public string CpuTemperatureSourceTooltip
+        {
+            get
+            {
+                var source = LatestMonitoringSample?.CpuTemperatureSource;
+                if (string.IsNullOrWhiteSpace(source))
+                {
+                    return "Temperature status";
+                }
+
+                var reason = LatestMonitoringSample?.CpuTemperatureSourceReason;
+                return string.IsNullOrWhiteSpace(reason)
+                    ? $"CPU temperature source: {source}"
+                    : $"CPU temperature source: {source}\n{reason}";
+            }
+        }
+
+        /// <summary>
+        /// True when the currently-trusted CPU temperature source is the LibreHardwareMonitor
+        /// fallback path — meaning the primary WMI BIOS/ACPI reading was recently rejected as
+        /// implausible for the observed load/power. Worth a visible cue: this state means the
+        /// board's normal sensor path is not being trusted right now.
+        /// </summary>
+        public bool IsCpuTemperatureSourceFallback =>
+            string.Equals(LatestMonitoringSample?.CpuTemperatureSource, "LHM Fallback", StringComparison.OrdinalIgnoreCase);
 
         public string GpuTempChipDisplay => LatestMonitoringSample?.GpuTemperatureState == TelemetryDataState.Inactive
             ? "Idle"

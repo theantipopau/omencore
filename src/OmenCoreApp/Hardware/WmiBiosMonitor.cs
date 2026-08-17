@@ -1157,6 +1157,8 @@ namespace OmenCore.Hardware
                 
                 // WMI BIOS — temps & fans
                 CpuTemperatureC = _cachedCpuTemp,
+                CpuTemperatureSource = _cpuTemperatureAuthoritySource,
+                CpuTemperatureSourceReason = _cpuTemperatureAuthorityReason,
                 GpuTemperatureC = _cachedGpuTemp,
                 FanRpm = _cachedCpuFanRpm,
                 Fan1Rpm = _cachedCpuFanRpm,

@@ -34,4 +34,16 @@ Meanwhile the one thing that **does** work on that exact board class was never m
 
 ---
 
+## Added: CPU Temperature Source Is Now Visible, Instead of Computed and Discarded
+
+Continuing the sensor-truth work from the ACPI thermal-zone fix above: `WmiBiosMonitor` has tracked `CpuTemperatureAuthoritySource`/`CpuTemperatureAuthorityReason` internally for a while — which of WMI BIOS, ACPI Thermal Zone, or the LibreHardwareMonitor fallback is currently trusted, and why. Checking the roadmap's own premise before building anything found it was already out of date: these weren't "shown only in deep diagnostics" as previously written, they were read *nowhere at all* — not the UI, not even the diagnostics export.
+
+**Fix:** added `CpuTemperatureSource`/`CpuTemperatureSourceReason` to `MonitoringSample`, populated from the existing internal fields in `WmiBiosMonitor.BuildSampleFromCache()`. The Dashboard's CPU temperature chip now shows this as a tooltip (`DashboardViewModel.CpuTemperatureSourceTooltip`), and a small warning glyph appears when the trusted source is the `LHM Fallback` path — meaning the primary WMI/ACPI reading was recently rejected as implausible for the observed load/power and a secondary sensor is being trusted instead (`IsCpuTemperatureSourceFallback`). Also fixed the diagnostics export's `[CPU Temperature Authority]` section, which — despite the name — only ever printed the overall monitoring backend (`MonitoringSource`/`Health`/`LastSampleAgeSeconds`), never the actual per-tick sensor authority; it now reports both, alongside a new `CPU Temp Source` line in `hardware-info.txt`.
+
+Pure additive UI/diagnostics surfacing of already-correct backend data — no control or detection behavior changed. 8 new tests (`DashboardViewModelCpuTemperatureSourceTests.cs`), plus 2 new assertions in the existing `MonitoringSampleCopyConstructorTests.cs`. Full suite: 1310/1310.
+
+**Not done in this pass:** the OSD tooltip (scoped out to keep this reviewable — the Dashboard chip is the highest-value, lowest-risk target since it's visible during normal use) and a guided-diagnostics side-by-side comparison of every available temperature source. Both still open on the roadmap.
+
+---
+
 *(Further entries added as work lands.)*

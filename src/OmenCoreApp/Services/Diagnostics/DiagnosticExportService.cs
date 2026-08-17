@@ -515,6 +515,18 @@ namespace OmenCore.Services.Diagnostics
                     sb.AppendLine($"MonitoringSource: {monitoringService.MonitoringSource}");
                     sb.AppendLine($"Health: {monitoringService.HealthStatus}");
                     sb.AppendLine($"LastSampleAgeSeconds: {FormatMaybeInfiniteSeconds(monitoringService.LastSampleAge)}");
+
+                    // MonitoringSource above is the overall backend (WMI/Worker/etc), not which
+                    // sensor the current CPU temperature reading actually came from - that's a
+                    // separate, per-tick decision (WMI BIOS / ACPI Thermal Zone / LHM Fallback)
+                    // this section's own name implies but never previously reported.
+                    var latest = monitoringService.LastSample;
+                    var authoritySource = string.IsNullOrEmpty(latest?.CpuTemperatureSource) ? "<unknown>" : latest.CpuTemperatureSource;
+                    sb.AppendLine($"CpuTemperatureAuthoritySource: {authoritySource}");
+                    if (!string.IsNullOrEmpty(latest?.CpuTemperatureSourceReason))
+                    {
+                        sb.AppendLine($"CpuTemperatureAuthorityReason: {latest.CpuTemperatureSourceReason}");
+                    }
                 }
 
                 sb.AppendLine();
@@ -2379,6 +2391,8 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine();
 
                 sb.AppendLine($"CPU Temp: {sample.CpuTemperatureC:F1}°C (state: {sample.CpuTemperatureState})");
+                sb.AppendLine($"CPU Temp Source: {(string.IsNullOrEmpty(sample.CpuTemperatureSource) ? "unknown" : sample.CpuTemperatureSource)}" +
+                    (string.IsNullOrEmpty(sample.CpuTemperatureSourceReason) ? "" : $" ({sample.CpuTemperatureSourceReason})"));
                 sb.AppendLine($"GPU Temp: {sample.GpuTemperatureC:F1}°C (state: {sample.GpuTemperatureState})");
                 sb.AppendLine($"CPU Load: {sample.CpuLoadPercent:F0}%");
                 sb.AppendLine($"GPU Load: {sample.GpuLoadPercent:F0}%");
