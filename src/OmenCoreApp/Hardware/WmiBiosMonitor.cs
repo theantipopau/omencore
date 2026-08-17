@@ -59,6 +59,7 @@ namespace OmenCore.Hardware
         // ACPI thermal zone for higher-precision CPU temp
         private bool _acpiThermalAvailable = true; // Try ACPI first, disable on failure
         private string? _cpuThermalZoneInstance;
+        private string? _lastLoggedAcpiZoneInstance;
         
         // CPU temperature freeze detection (AMD WMI BIOS sensor sometimes stops updating)
         private double _lastCpuTempReading;
@@ -2529,9 +2530,8 @@ namespace OmenCore.Hardware
                 using var searcher = new System.Management.ManagementObjectSearcher(
                     @"root\wmi",
                     "SELECT CurrentTemperature, InstanceName FROM MSAcpi_ThermalZoneTemperature");
-                
-                double bestTemp = 0;
-                
+
+                var zones = new List<AcpiZoneReading>();
                 foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
                     if (obj["CurrentTemperature"] is uint rawTemp && rawTemp > 0)
@@ -2539,46 +2539,160 @@ namespace OmenCore.Hardware
                         // Convert from tenths of Kelvin to Celsius
                         // Round to 1 decimal to avoid IEEE 754 float noise (e.g. 97.05000000000001)
                         double tempC = Math.Round((rawTemp / 10.0) - 273.15, 1);
-                        
+
                         if (tempC > 0 && tempC < 110)
                         {
-                            var instanceName = obj["InstanceName"]?.ToString() ?? "";
-                            
-                            // Prefer CPU-related thermal zones
-                            if (_cpuThermalZoneInstance == null)
+                            var instanceName = obj["InstanceName"]?.ToString();
+                            if (!string.IsNullOrEmpty(instanceName))
                             {
-                                // First valid zone — use it as default
-                                bestTemp = tempC;
-                                _cpuThermalZoneInstance = instanceName;
-                            }
-                            else if (instanceName == _cpuThermalZoneInstance)
-                            {
-                                // Same zone as before — consistent
-                                bestTemp = tempC;
-                            }
-                            else if (instanceName.Contains("CPU", StringComparison.OrdinalIgnoreCase) ||
-                                     instanceName.Contains("CPUZ", StringComparison.OrdinalIgnoreCase) ||
-                                     instanceName.Contains("TZ00", StringComparison.OrdinalIgnoreCase))
-                            {
-                                // CPU-specific zone found — switch to it
-                                bestTemp = tempC;
-                                _cpuThermalZoneInstance = instanceName;
-                            }
-                            else if (bestTemp == 0)
-                            {
-                                bestTemp = tempC;
+                                zones.Add(new AcpiZoneReading(instanceName, tempC));
                             }
                         }
                     }
                 }
-                
-                return bestTemp;
+
+                var selection = SelectCpuThermalZone(zones, _cpuThermalZoneInstance);
+                _cpuThermalZoneInstance = selection.LatchedInstance;
+
+                if (zones.Count > 1)
+                {
+                    LogAcpiZoneSelection(zones, selection);
+                }
+
+                return selection.SelectedInstance != null ? selection.TempC : 0;
             }
             catch
             {
                 _acpiThermalAvailable = false;
                 return 0;
             }
+        }
+
+        internal readonly struct AcpiZoneReading
+        {
+            public AcpiZoneReading(string instanceName, double tempC)
+            {
+                InstanceName = instanceName;
+                TempC = tempC;
+            }
+
+            public string InstanceName { get; }
+            public double TempC { get; }
+        }
+
+        internal readonly struct AcpiZoneSelection
+        {
+            public AcpiZoneSelection(string? selectedInstance, double tempC, string? latchedInstance, bool isConfirmed)
+            {
+                SelectedInstance = selectedInstance;
+                TempC = tempC;
+                LatchedInstance = latchedInstance;
+                IsConfirmed = isConfirmed;
+            }
+
+            public string? SelectedInstance { get; }
+            public double TempC { get; }
+
+            /// <summary>
+            /// The instance name to remember for next poll, or null to forget any prior latch.
+            /// Only ever non-null when the selection is <see cref="IsConfirmed"/> — an ambiguous
+            /// "hottest of several unnamed zones" guess is deliberately never persisted, so the
+            /// next poll re-evaluates from scratch instead of getting stuck on a first guess.
+            /// </summary>
+            public string? LatchedInstance { get; }
+
+            /// <summary>
+            /// True when the zone was identified with confidence (the only zone present, a name
+            /// match, or a previously name-matched zone still present). False when it was picked
+            /// via the ambiguous-fallback heuristic below.
+            /// </summary>
+            public bool IsConfirmed { get; }
+        }
+
+        // Real HP ACPI thermal zone names vary by board and are not a documented contract, but
+        // these substrings have shown up identifying the CPU zone across multiple models.
+        private static readonly string[] CpuZoneNameHints = { "CPU", "CPUZ", "TZ00" };
+
+        /// <summary>
+        /// Picks which ACPI thermal zone represents the CPU. Pure/static so the selection logic
+        /// itself is unit-testable without a live WMI namespace.
+        ///
+        /// The bug this replaces: the previous version always started from "the first zone
+        /// enumerated wins, permanently, unless a later zone's name matches a CPU hint." WMI
+        /// enumeration order is not a naming contract, and on multi-zone boards the first zone is
+        /// often a skin/chassis/ambient sensor — a real field report showed the CPU displayed at
+        /// ~36°C while the package was over 80°C, because that ambient zone got latched at
+        /// startup and nothing ever displaced it (no later zone happened to contain "CPU").
+        /// </summary>
+        internal static AcpiZoneSelection SelectCpuThermalZone(
+            IReadOnlyList<AcpiZoneReading> zones,
+            string? latchedInstance)
+        {
+            if (zones.Count == 0)
+            {
+                return new AcpiZoneSelection(null, 0, null, isConfirmed: false);
+            }
+
+            if (zones.Count == 1)
+            {
+                var only = zones[0];
+                return new AcpiZoneSelection(only.InstanceName, only.TempC, only.InstanceName, isConfirmed: true);
+            }
+
+            if (latchedInstance != null)
+            {
+                foreach (var zone in zones)
+                {
+                    if (zone.InstanceName == latchedInstance)
+                    {
+                        return new AcpiZoneSelection(zone.InstanceName, zone.TempC, zone.InstanceName, isConfirmed: true);
+                    }
+                }
+                // The previously-confirmed zone didn't appear this poll (e.g. a transient WMI
+                // enumeration gap) — fall through and re-evaluate from scratch rather than
+                // silently keeping the stale name for a future poll where it might reappear.
+            }
+
+            foreach (var zone in zones)
+            {
+                foreach (var hint in CpuZoneNameHints)
+                {
+                    if (zone.InstanceName.Contains(hint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new AcpiZoneSelection(zone.InstanceName, zone.TempC, zone.InstanceName, isConfirmed: true);
+                    }
+                }
+            }
+
+            // No zone's name confidently identifies it as the CPU. The CPU is the one component
+            // here virtually guaranteed to run hottest under real load, so among genuinely
+            // ambiguous zones the hottest reading is a much safer guess than "first index" — it
+            // can be wrong on a fully idle machine with no load-bearing zone at all, but it can
+            // never systematically report a hot CPU as a cool chassis sensor the way the old
+            // first-wins logic did. Deliberately not latched (LatchedInstance stays null): every
+            // poll re-evaluates fresh until a confident name match appears.
+            var hottest = zones[0];
+            for (int i = 1; i < zones.Count; i++)
+            {
+                if (zones[i].TempC > hottest.TempC)
+                {
+                    hottest = zones[i];
+                }
+            }
+            return new AcpiZoneSelection(hottest.InstanceName, hottest.TempC, null, isConfirmed: false);
+        }
+
+        private void LogAcpiZoneSelection(List<AcpiZoneReading> zones, AcpiZoneSelection selection)
+        {
+            if (selection.SelectedInstance == _lastLoggedAcpiZoneInstance)
+            {
+                return;
+            }
+
+            _lastLoggedAcpiZoneInstance = selection.SelectedInstance;
+            var zoneSummary = string.Join(", ", zones.Select(z => $"{z.InstanceName}={z.TempC:F1}°C"));
+            var confidence = selection.IsConfirmed ? "confirmed" : "ambiguous, using hottest reading";
+            _logging?.Info($"[WmiBiosMonitor] ACPI CPU thermal zone: {selection.SelectedInstance} ({confidence}) — all zones this poll: [{zoneSummary}]");
         }
         
         /// <summary>
