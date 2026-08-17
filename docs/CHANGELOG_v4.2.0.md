@@ -42,7 +42,13 @@ Continuing the sensor-truth work from the ACPI thermal-zone fix above: `WmiBiosM
 
 Pure additive UI/diagnostics surfacing of already-correct backend data — no control or detection behavior changed. 8 new tests (`DashboardViewModelCpuTemperatureSourceTests.cs`), plus 2 new assertions in the existing `MonitoringSampleCopyConstructorTests.cs`. Full suite: 1310/1310.
 
-**Not done in this pass:** the OSD tooltip (scoped out to keep this reviewable — the Dashboard chip is the highest-value, lowest-risk target since it's visible during normal use) and a guided-diagnostics side-by-side comparison of every available temperature source. Both still open on the roadmap.
+**Not done in this pass:** a guided-diagnostics side-by-side comparison of every available temperature source. Still open on the roadmap.
+
+## Added: OSD Now Marks a Fallback CPU Temperature Source Too — as a Glyph, Not a Tooltip
+
+Follow-up to the Dashboard change above. The original plan called for an "OSD tooltip" mirroring the Dashboard's — checked that against the actual window before building and found it wouldn't have worked at all: `OsdOverlayWindow` applies `WS_EX_TRANSPARENT` unconditionally (one call site, no toggle anywhere), so it's genuinely click-through at all times. A hover tooltip on a window that never receives mouse input would be permanently unreachable during the one situation the OSD exists for — actually being on screen during a game.
+
+**Fix:** added `IsCpuTempSourceFallback` to `OsdOverlayWindow` (same "is the trusted source `LHM Fallback`" check used on the Dashboard), driving a small always-visible `~` marker next to the CPU temperature reading instead of a tooltip — glanceable at a glance, no interaction required, minimal added visual weight. No dedicated test added: this window has no existing test coverage for any of its other `UpdateStats()`-assigned properties either (including `CpuTemp` itself) — a real WPF `Window` with Win32 interop in its constructor, consistent with why this class sits outside this project's automated test coverage entirely. Build-verified only, matching the established tier for this file.
 
 ---
 

@@ -103,6 +103,8 @@
                 <TextBlock Grid.Column="0" Text="CPU" FontSize="12" Foreground="#999999" FontFamily="Segoe UI" FontWeight="Medium"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding CpuTemp, StringFormat={}{0:F0}°}" FontSize="13" Foreground="{Binding CpuTempColor}" FontFamily="Segoe UI" FontWeight="SemiBold"/>
+                    <TextBlock Text="~" FontSize="13" Foreground="{StaticResource WarningBrush}" FontFamily="Segoe UI" FontWeight="Bold" Margin="1,0,0,0"
+                               Visibility="{Binding IsCpuTempSourceFallback, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="  " FontSize="12" Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
                     <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F0}%}" FontSize="12" Foreground="#FF3366" FontFamily="Segoe UI" FontWeight="Medium"
                                Visibility="{Binding ShowCpuLoad, Converter={StaticResource BoolToVisibility}}"/>
