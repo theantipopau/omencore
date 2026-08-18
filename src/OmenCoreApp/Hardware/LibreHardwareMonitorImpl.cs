@@ -1870,6 +1870,16 @@ namespace OmenCore.Hardware
         /// Ensures the hardware cache is fresh before reading values.
         /// If cache is stale, triggers a synchronous update.
         /// </summary>
+        /// <remarks>
+        /// GUARDRAIL: in worker mode this sync-blocks the calling thread on IPC (bounded to
+        /// 500ms, see below) via <c>.GetAwaiter().GetResult()</c>. That is only safe because
+        /// every current caller (GetCpuTemperature/GetGpuTemperature/GetCpuLoadPercent/
+        /// GetGpuLoadPercent/GetCpuPowerWatts/GetGpuPowerWatts) sits on an LHM-fallback path
+        /// invoked at most once per monitoring tick, never in a per-frame or per-tick hot loop.
+        /// Do not add a new per-tick or UI-thread call site here without first switching this
+        /// to a genuinely async path — a blocked threadpool thread on every tick is exactly the
+        /// class of "feels laggy" bug Pillar 2 of docs/ROADMAP_v4.2.0.md exists to prevent.
+        /// </remarks>
         private void EnsureCacheFresh()
         {
             bool needsUpdate;

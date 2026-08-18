@@ -92,4 +92,14 @@ Rather than trust a clean build, wrote a unit test (`EmbeddedFontResolutionTests
 
 ---
 
+## Removed: Two RGB Services That Were Never Instantiated Anywhere
+
+`TemperatureRgbService` (temperature-reactive keyboard color) and `ScreenColorSamplingService` (ambient screen-color capture) were fully-built, independently-polling services with zero references anywhere in production code — confirmed by a repo-wide search before deleting either, not assumed from the roadmap's earlier note. `ScreenColorSamplingService` specifically duplicated a service that *is* wired up (`ScreenSamplingService`, the real backend behind `LightingViewModel`'s ambient lighting), and `TemperatureRgbService` duplicated logic `LightingViewModel` already gets from the shared `HardwareMonitoringService.SampleUpdated` stream. Neither was costing anything at runtime, but each would have silently reintroduced a redundant polling loop if some future change had wired it up by mistake.
+
+`TemperatureRgbService` was still constructed by one test (`BackgroundTimerRegistryTests.TemperatureRgbService_RegistersAndUnregistersOptionalMonitor`) purely to exercise Optional-tier background-timer registration — removed along with the service; `BackgroundTimerRegistryTests` still covers a real service registering/unregistering at Optional tier (`UndervoltService`) and at Critical tier (`EdpThrottlingMitigationService`), so no coverage was actually lost. Also dropped the now-stale `TemperatureRgbService.cs:270` entry from `ReleaseGateCodeHygieneTests`'s bare-catch baseline list, since the file it pointed at no longer exists. Full suite: 1330/1330 (1331 minus the one deleted test).
+
+Also added a guardrail comment to `LibreHardwareMonitorImpl.EnsureCacheFresh()`, which blocks its calling thread on a bounded (500ms) IPC round-trip in worker mode. That's safe today only because every current caller sits on the once-per-tick LHM-fallback path rather than a hot loop — the comment exists so a future per-tick or UI-thread call site doesn't silently reintroduce a blocking call in the exact class of place Pillar 2 of this cycle is trying to fix, rather than relying on the next person to re-derive that constraint from scratch.
+
+---
+
 *(Further entries added as work lands.)*
