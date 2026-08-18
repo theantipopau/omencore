@@ -144,4 +144,16 @@ Full suite: 1339/1339.
 
 ---
 
+## Added: Reduce-Motion Preference (Infrastructure Only — No Animations Yet)
+
+Pillar 2.2 ("motion and transitions") sets a hard constraint on anything it ships: every animation must be disableable wholesale under a "reduce motion" setting and must respect the OS's own reduced-motion preference. Rather than build that gate alongside the first animation, it's built first, standalone — the safer order, and the only order that makes sense in an environment that cannot live-launch `OmenCore.exe` to visually verify animation behavior (elevation/EC-write risk, standing rule for this project).
+
+New `OmenCore.Utils.MotionPreference.ShouldReduceMotion()` combines two things: a new explicit Settings toggle ("Reduce motion", backed by `AppConfig.ReduceMotion`, default off) and the Windows-wide "Show animations" preference (`SystemParameters.ClientAreaAnimation`). That system preference happens to be the same registry value `VisualEffectsOptimizer`'s existing "Best Performance" tweak already writes when a user runs that optimization — a real, free synergy that required no code linking the two features, just reading the same OS-level setting both already care about. Defaults to *not* reducing motion if the OS read throws (no display, RDP teardown, etc.) rather than silently going dark for everyone on a read failure. The OS-preference check is injectable (`internal static Func<bool> OsAnimationsEnabledOverride`) specifically so it's deterministically testable without depending on whatever animation setting happens to be active on the machine running the test suite. 4 new tests (`MotionPreferenceTests.cs`).
+
+**No animation code was added.** This is deliberately just the gate — shipping transition/easing code that only passed a build-clean check, with no live verification that it doesn't restart on unrelated property changes or actually respects the toggle just built, would repeat the exact mistake this pillar exists to fix (three prior "fixed real problems, didn't move the needle" passes this cycle already learned that lesson the hard way). The actual animations are left for a pass where live UI verification is available.
+
+Full suite: 1343/1343.
+
+---
+
 *(Further entries added as work lands.)*

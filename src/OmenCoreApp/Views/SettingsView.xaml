@@ -680,6 +680,24 @@
                                           AutomationProperties.Name="Software rendering mode"/>
                         </Grid>
 
+                        <!-- Reduce Motion -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Reduce motion" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Suppress OmenCore's own transitions and animation, on top of whatever Windows' own 'Show animations' setting already does." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding ReduceMotion, Mode=TwoWay}"
+                                          AutomationProperties.Name="Reduce motion"/>
+                        </Grid>
+
                         <!-- Minimize to Tray on Close -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
