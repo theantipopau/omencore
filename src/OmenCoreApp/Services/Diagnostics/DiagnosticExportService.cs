@@ -1693,6 +1693,25 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine($"IOThreads: available={ioAvail}, min={ioMin}, max={ioMax}");
                 sb.AppendLine();
 
+                // Pillar 2.1 (docs/ROADMAP_v4.2.0.md): "measure before optimizing" - real numbers
+                // for the two costs field reports actually describe ("feels laggy"), captured
+                // automatically every run rather than only when someone remembers to profile.
+                var perfSnapshot = StartupAndNavigationPerformanceTracker.GetSnapshot();
+                sb.AppendLine("[Startup and Navigation]");
+                sb.AppendLine($"StartupTimeToInteractiveMs: {(perfSnapshot.StartupTimeToInteractiveMs.HasValue ? perfSnapshot.StartupTimeToInteractiveMs.Value.ToString("F0") : "not yet recorded")}");
+                if (perfSnapshot.TabSwitches.Count == 0)
+                {
+                    sb.AppendLine("TabSwitches: none recorded this session");
+                }
+                else
+                {
+                    foreach (var tab in perfSnapshot.TabSwitches)
+                    {
+                        sb.AppendLine($"TabSwitch[{tab.TabName}]: count={tab.Count}, avgMs={tab.AverageMs:F0}, maxMs={tab.MaxMs:F0}");
+                    }
+                }
+                sb.AppendLine();
+
                 var uiCounters = RuntimeUiPerformanceCounters.GetSnapshot();
                 sb.AppendLine("[UI Dispatcher + Projection Counters]");
                 sb.AppendLine($"CounterUptimeSeconds: {uiCounters.UptimeSeconds:F1}");

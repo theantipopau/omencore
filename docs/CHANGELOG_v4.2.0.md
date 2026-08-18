@@ -123,4 +123,25 @@ New test: `GameLibraryViewModelTests.cs`. Full suite: 1331/1331.
 
 ---
 
+## Confirmed Already Fixed: GitHub #141 Fn+F2 False-Trigger (OMEN 16 2025 AMD, ap0xxx)
+
+Reported against v3.8.0 with log evidence of a brightness-down key (`VK=0xFF, Scan=0x002B`) falsely triggering the OMEN key action. Traced the exact reported input through the current keyboard-hook logic (`OmenKeyService.IsOmenKey()`) rather than assuming the fix landed: this file was introduced whole in `b538316` (2026-07-08, part of the 4.0.0 cycle) — a full replacement of whatever hook logic existed when the report was filed, not an incremental patch to it. With strict OMEN-key mode on (the reporter's own setting, and also the default), `VK_OEM_OMEN` (0xFF) requires the scan code to be one of the recognized dedicated OMEN scan codes; `0x002B` isn't one, so it's rejected today. No code change needed — added `OmenKeyServiceTests.VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode`, reproducing the field-reported input/output shape exactly, so a future refactor of this hook can't silently reopen it. The report's other two complaints (dedicated OMEN key not detected at all; firmware Fn+P not cycling performance modes) remain genuinely open — both need a real scan-code/WMI-event capture from the affected hardware that was never provided, and guessing at a value would repeat the exact mistake this project's own hardware-support precedents warn against.
+
+---
+
+## Added: Startup Time-to-Interactive and Per-Tab Switch Cost, Measured Automatically Every Run
+
+Pillar 2.1 of this cycle ("measure before optimizing") existed because three prior UI-responsiveness passes fixed real problems without moving user-perceived "feels laggy" reports — meaning the actual cost of startup and view switching had never been measured, only guessed at. New `StartupAndNavigationPerformanceTracker` closes that gap for the two most likely culprits:
+
+- **Startup time-to-interactive**: anchored on the OS's own process start time (`Process.StartTime`) rather than `App.OnStartup`'s entry point, since CLR and WPF framework initialization before that line is real cost the user pays too. Measured through to `MainWindow.ContentRendered`, which fires exactly once per window lifetime after the first real paint — wired on the normal (visible-window) launch path only, since "time to interactive" has no clean meaning for a window started deliberately hidden.
+- **Per-tab switch cost**: wraps `MainViewModel.SelectedTabIndex`'s setter — the single choke point every tab change passes through, click-driven or programmatic — with a `Stopwatch`, then resumes measurement at `DispatcherPriority.Render` (the standard WPF idiom for "wait until pending layout/render work is actually flushed") so the number captures both the synchronous cost, including any lazy ViewModel construction a tab triggers on first visit, and the render pass that follows. Accumulates count/average/max per tab instead of storing every sample. No-ops cleanly when `Application.Current` is null, confirmed by the existing `MainViewModelTests` tab-switch tests continuing to pass unmodified.
+
+Both numbers are surfaced automatically in every diagnostics export, in a new `[Startup and Navigation]` section of `runtime-performance.txt`, right alongside the existing dispatcher/projection counters they're meant to be read against — no separate profiling session required to get real numbers on a future "feels laggy" report. 7 new tests (`StartupAndNavigationPerformanceTrackerTests.cs`) cover the accumulation math and startup-recording idempotency without any WPF dependency.
+
+Not yet done: steady-state idle CPU and working-set growth over a multi-hour tray session. The existing bounded-sample diagnostic (`runtime-performance-bounded.txt`, 3 samples over ~12s) proves the harness shape works but is far too short a window for either question — that needs an opt-in longer-running capture mode, left for a future pass.
+
+Full suite: 1339/1339.
+
+---
+
 *(Further entries added as work lands.)*

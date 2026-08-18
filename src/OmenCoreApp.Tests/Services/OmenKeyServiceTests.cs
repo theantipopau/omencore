@@ -90,6 +90,28 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode()
+        {
+            // Regression test for GitHub #141: on an OMEN 16 (2025, AMD Ryzen AI) board, Fn+F2
+            // (brightness down) was reported firing OmenCore's OMEN-key action because the OS
+            // delivered it as VK=0xFF (VK_OEM_OMEN) with Scan=0x002B - a real HP-side keyboard
+            // ambiguity, not a bug in the reporter's config. Unlike the VK_LAUNCH_APP2/APP1
+            // branches, the VK_OEM_OMEN branch does not consult BrightnessConflictScanCodes at
+            // all; it only requires the scan code to be one of the recognized dedicated OMEN
+            // scan codes under strict mode. Since 0x002B is not in that set, this already
+            // resolves correctly today - this test exists so it stays that way.
+            using var service = CreateService();
+            const uint vkOemOmen = 0xFF;
+            const uint brightnessDownScan = 0x002B;
+
+            InvokeIsOmenKey(service, vkOemOmen, brightnessDownScan).Should().BeFalse();
+
+            var snapshot = service.GetDiagnosticSnapshot();
+            snapshot.LastCandidateAccepted.Should().BeFalse();
+            snapshot.LastCandidateReason.Should().Be("strict-mode-oem-omen-scan-mismatch");
+        }
+
+        [Fact]
         public void GetDiagnosticSnapshot_LatestCandidateOverwritesPreviousOne()
         {
             using var service = CreateService();

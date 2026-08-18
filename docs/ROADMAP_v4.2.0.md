@@ -112,10 +112,12 @@ Directly prompted by the OmenMon-reborn comparison. Investigate what per-degree 
 
 Three prior passes fixed real problems without moving the needle on user perception, which means the wrong thing was being measured. Establish real baselines first:
 
-- Cold-start and warm-start time to interactive
-- Per-view switch cost (the most likely "feels laggy" culprit, and never measured)
-- Steady-state idle CPU while minimized to tray, over a multi-hour session
-- Working-set growth over the same period (field reports confirm **355–705 MB** main app plus 48–174 MB worker — real, not exaggerated, and the specific contributor was never isolated)
+- **Startup time-to-interactive and per-tab switch cost: DONE.** New `StartupAndNavigationPerformanceTracker` (static, thread-safe, `Interlocked`/`lock`-free-read snapshot pattern matching the existing `RuntimeUiPerformanceCounters`) records two numbers automatically on every run, no profiling session required:
+  - **Startup time-to-interactive**, anchored on the OS's own process start time (`Process.StartTime`, not `App.OnStartup`'s entry — that excludes real CLR/WPF init cost) through to `MainWindow.ContentRendered`, which fires exactly once per window lifetime after the first real paint completes. Wired in `App.xaml.cs`, normal (non-headless, non-start-minimized) launch path only, since "time to interactive" doesn't map cleanly onto a window that's deliberately not being shown.
+  - **Per-tab switch cost**, wrapping `MainViewModel.SelectedTabIndex`'s setter (the one shared choke point every tab change goes through, whether from a click or programmatic navigation) with a `Stopwatch`, then resuming the measurement at `DispatcherPriority.Render` — the standard WPF technique for "wait until pending layout/render work has actually been flushed" — so the number includes both the synchronous cost (including any lazy ViewModel construction a tab triggers on first visit) and the render pass that follows it, without needing to instrument nine separate views individually. Accumulates count/average/max per tab rather than every sample, so it stays cheap for the life of the process. No-ops cleanly when `Application.Current` is null (headless test host) — confirmed the existing `MainViewModelTests` tab-switch tests still pass unchanged.
+  - Surfaced in `runtime-performance.txt`'s diagnostics export under a new `[Startup and Navigation]` section, next to the existing dispatcher/projection counters it's meant to be read alongside.
+  - 7 new tests (`StartupAndNavigationPerformanceTrackerTests.cs`) covering the accumulation math and the "only the first startup call counts" idempotency directly, with no WPF dependency needed for the pure-logic half.
+- **Not yet done:** steady-state idle CPU over a multi-hour tray session, and working-set growth over the same period. The existing `runtime-performance-bounded.txt` bounded-sample mechanism (3 samples, ~12s window) proves the harness shape works but is far too short a window to answer either question; needs a longer-running, opt-in capture mode rather than a bigger one-shot snapshot.
 
 Ship the harness, not just the numbers, so regressions are catchable later.
 
@@ -202,6 +204,14 @@ Open items carried forward, grouped as they were in the predecessor document. No
 - Fresh session log needed for the **stale-OSD-fan-mode** report before any change
 - **`TryApplyEcGpuBoost()`'s model gate** is still a broad `model.Contains("OMEN")` substring match with no capability-database flag
 - **`HighDutyManualModeReapplyIntervalMs = 5000`** sends a genuine `SetFanLevel` WMI write every 5 seconds during ≥70% duty by design — real background I/O during exactly the gaming sessions where stutter is reported. Overlaps Pillar 2.3.
+
+---
+
+## GitHub #141 (OMEN 16 2025 AMD, ap0xxx) — Partially Stale, Regression-Tested
+
+**"Fn+F2 toggles the app and dims the screen instead" — confirmed already fixed, not by anything in this cycle.** The report (filed against v3.8.0, log evidence `VK=0xFF, Scan=0x002B`) predates `OmenKeyService.cs` entirely — that file was introduced whole in `b538316` (2026-07-08, the 4.0.0 cycle), replacing whatever hook logic existed at the time of the report. Traced the exact reported input through the current `IsOmenKey()` by hand: `VK_OEM_OMEN` (0xFF) with strict mode on (the reporter's own config, and also the default) requires the scan code to be one of the recognized dedicated OMEN scan codes; `0x002B` isn't one, so it's rejected today. Added `OmenKeyServiceTests.VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode` reproducing the exact field-reported input/output shape, so this stays fixed rather than silently regressing back.
+
+**"Dedicated OMEN key not detected" and "Fn+P does not cycle performance modes" — still open, needs field evidence.** Both require a real capture from the affected hardware (the actual scan code / WMI eventId+eventData the dedicated key and firmware Fn+P emit on this board) that was never provided — the reporter offered to capture it back in June but nothing came through. `EnableFirmwareFnPProfileCycle`'s WMI matcher is hardcoded to `eventId==29, eventData==8614`; if this board's firmware uses different values, nothing short of that capture will tell us what to change. Not actioned — would be guessing at a new hardcoded value with no evidence behind it, the exact thing the `8D41` Darfon HID entry and other precedents in this document exist to warn against.
 
 ---
 

@@ -260,6 +260,20 @@ namespace OmenCore
                         onboarding.ShowDialog();
                     }
 
+                    // Time-to-interactive (Pillar 2.1, docs/ROADMAP_v4.2.0.md): from the OS's own
+                    // process start time - not from OnStartup's entry, which already excludes CLR
+                    // and WPF framework init cost that's just as real to the user - to the window's
+                    // first completed render. ContentRendered fires once per window lifetime, so
+                    // this can only ever record the true first paint, not a later one.
+                    DateTime processStartTimeUtc;
+                    using (var currentProcess = Process.GetCurrentProcess())
+                    {
+                        processStartTimeUtc = currentProcess.StartTime.ToUniversalTime();
+                    }
+                    mainWindow.ContentRendered += (_, _) =>
+                        StartupAndNavigationPerformanceTracker.RecordStartupTimeToInteractive(
+                            DateTime.UtcNow - processStartTimeUtc);
+
                     // Normal startup - show window
                     mainWindow.Show();
                 }
