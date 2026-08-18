@@ -156,4 +156,18 @@ Full suite: 1343/1343.
 
 ---
 
+## Added: Background-Thread Timer Coordinator (Pillar 2.4, `UiPollingCoordinator`'s Off-UI-Thread Counterpart)
+
+Continues the timer consolidation from earlier in this cycle: the UI-thread cluster (Tray/OSD/Quick Popup) is already on `UiPollingCoordinator`, but that class deliberately can't take background-thread pollers — `ProcessMonitoringService` and similar services keep their work off the UI thread on purpose, so folding them into a `DispatcherTimer`-backed coordinator would be a regression, not a consolidation.
+
+New `BackgroundPollingCoordinator` is structurally identical to `UiPollingCoordinator` but backed by a real `System.Threading.Timer`, fanning out through the exact same `PollingScheduler` both share — no new scheduling logic, just the background-timer plumbing around the piece that was already trusted. Base cadence is 1000ms rather than the UI coordinator's 500ms, since background polling has none of the "must feel responsive to render" pressure and halving the wake-up frequency is a small real win toward Pillar 2.3's idle-CPU goal. Added one thing `UiPollingCoordinator` doesn't need: a reentrancy guard, since a plain `Timer` keeps firing on schedule even if a previous callback is still running (unlike `DispatcherTimer`, which processes ticks serially on one thread) — a slow subscriber must not pile concurrent `Pump()` calls on top of each other. A skipped tick is safe, since `PollingScheduler` tracks each subscription's own due time independently rather than relying on every tick actually running.
+
+Unexpected upside: unlike `UiPollingCoordinator` (untestable in this environment without a live WPF `Dispatcher`), this class has zero WPF dependency and could be driven end-to-end with a *real* timer in the headless test host — 3 new tests (`BackgroundPollingCoordinatorTests.cs`) cover actual thread-pool firing, disposal, and subscription-count bookkeeping.
+
+**Not done: migrating `ProcessMonitoringService` onto it.** Checked before assuming it would just slot in, and it doesn't cleanly. Every current `UiPollingCoordinator` subscriber has a fixed cadence; `ProcessMonitoringService` deliberately changes its own poll interval at runtime (2s active / 10s idle / a slower WMI-eventing reconciliation rate), and neither `PollingScheduler` nor the new coordinator support changing a live subscription's interval today — only subscribe-fixed-or-dispose. Forcing it in would mean unsubscribing and resubscribing on every active/idle transition of a service that drives real game-profile switching — exactly the kind of live-behavior change this project's standing rules say needs verification in the running app before shipping, not a guess. Left as a genuine design decision for a future pass: extend `PollingScheduler` to support updating a live subscription's interval, or accept resubscribe-on-change as the price of consolidation.
+
+Full suite: 1346/1346.
+
+---
+
 *(Further entries added as work lands.)*
