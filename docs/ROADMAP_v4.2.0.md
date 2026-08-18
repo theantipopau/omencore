@@ -231,6 +231,18 @@ Five complaints bundled in one report with a full diagnostics export and three s
 
 ---
 
+## Field Confirmation: Board `8DCD` Max-Fan-Latch Fix Holding in the Wild
+
+Discord report (X Æ A-12, 2026-08-18, Ryzen 7840HS + RTX 4050 — matches board `8DCD`, HP Victus 15, on both CPU and GPU): fans had been "either pinned high or very low" since summer, unresolved by switching from HP's own software to OmenCore, until 4.1.7 — "fans seem to be reacting to spikes in load and returning to a base level" in Auto/Balanced mode now.
+
+This lines up precisely with `docs/ROADMAP_v4.0.0.md`'s "Board `8DCD` Fans Stuck at Max After Leaving Max Mode" fix (`WmiFanController.SetPerformanceMode` releasing a hardware Max-fan latch it was previously only clearing in-memory) — the original write-up explicitly flagged the "fans spike to maximum and then cycle repeatedly between maximum speed and auto" symptom as "likely-resolved-as-a-side-effect rather than claiming it as confirmed fixed; ask the reporter to confirm behavior after this fix ships." This is that confirmation — from a different reporter than the original (SAINTOP), which is stronger evidence than the original reporter simply re-confirming their own fix.
+
+**Not promoting `UserVerified` on board `8DCD`'s database entry from this alone** — the project's own promotion rule needs ProductId, backend, requested/readback values, and a recovery result, and a Discord message doesn't carry that. Recorded as corroborating evidence, not a verification event.
+
+**Possibly relevant to [GitHub #143](https://github.com/theantipopau/omencore/issues/143)** (same board `8DCD`, still open: "cpu fan randomly drops to below 2000... while at above 80 C... Manually changing fan mode fixes the issue after 5 min") — the original fix's own text speculated the firmware might be "fighting a contradictory state" from the stuck latch, which could plausibly explain a low-RPM stall too, not just a high-RPM one. Not claiming this resolves #143 — different exact symptom, no confirmation from that reporter — but worth asking them to retest on 4.1.7+ given this independent report. Not actioned without permission to comment on the issue.
+
+---
+
 ## Also Outstanding: PR #176
 
 [PR #176](https://github.com/theantipopau/omencore/pull/176) (tempestnano, board `8D87` keyboard lighting) was reviewed at the close of the 4.1.7 cycle and **not merged**. The review confirmed one real functional regression plus three lower-severity findings:
