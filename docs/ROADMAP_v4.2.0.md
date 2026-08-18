@@ -205,6 +205,18 @@ Open items carried forward, grouped as they were in the predecessor document. No
 
 ---
 
+## GitHub #177 (Board 8BAB, "OMEN 16 wf0032TX") — Triaged
+
+Five complaints bundled in one report with a full diagnostics export and three session logs. Full detail in `docs/CHANGELOG_v4.2.0.md`; summary here for roadmap tracking:
+
+- **Temperature-warning notification toggle ignored — fixed, exempt.** `ShowThermalProtectionActivated()` was missing the `ShowTemperatureWarnings` check its sibling method already had.
+- **Games tab empty after restart — fixed, exempt.** `GameLibraryService` never persisted anything by design; the missing piece was an automatic scan trigger, now fired once from `GameLibraryViewModel`'s (lazily-constructed) constructor.
+- **Custom fan curve not restored after restart — diagnosed, not fixed, gated.** Root cause confirmed: `PowerAutomationService`'s per-power-source fan preset (`AcFanPreset`/`BatteryFanPreset`, defaulting to `"Auto"`/`"Quiet"`) reapplies on every AC/Battery transition including app startup, overriding the `LastFanPresetName` restore that otherwise works correctly. Working-as-designed interaction with a surprising default, not a defect — any change here touches fan-control behavior and needs the evidence gate. Candidate direction for a future pass: default those two settings to "keep last selected" instead of a hardcoded preset name.
+- **GPU temperature spikes on battery — investigated, root cause not confirmed, gated.** Ruled out the Afterburner-coexistence NVAPI light-sample path (`GetLoadAndVramOnly()` already correctly no-ops when the dGPU is asleep). Confirmed a real, separate gap: GPU temperature from the primary WMI BIOS source has no outlier/plausibility guard at all, unlike CPU (which has both the ACPI cross-check and the LHM-fallback authority-mismatch safety net). Not fixed without a confirmed mechanism — asked the reporter (pending permission to comment) to re-run a battery-mode repro with this cycle's new Temperature Source Comparison diagnostic (1.2) to get the side-by-side evidence an outlier guard would need before shipping.
+- **AC-power CPU temp briefly hitting 90s+ then self-correcting — investigated, likely not a bug.** Logs show genuine sustained boost-clock heat on a 13900HX with Max Fan responding and working as intended; no evidence of an instantaneous, physically-impossible jump was available in the exported logs to suggest a sensor artifact instead.
+
+---
+
 ## Also Outstanding: PR #176
 
 [PR #176](https://github.com/theantipopau/omencore/pull/176) (tempestnano, board `8D87` keyboard lighting) was reviewed at the close of the 4.1.7 cycle and **not merged**. The review confirmed one real functional regression plus three lower-severity findings:

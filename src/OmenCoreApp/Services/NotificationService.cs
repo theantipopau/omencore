@@ -306,7 +306,7 @@ namespace OmenCore.Services
         /// </summary>
         public void ShowThermalProtectionActivated(double temperature, string protectionLevel)
         {
-            if (!_isEnabled) return;
+            if (!_isEnabled || !_showTemperatureWarnings) return;
 
             try
             {
