@@ -207,7 +207,13 @@
                                Margin="0,12,0,0"/>
                 </StackPanel>
 
-                <!-- Games Grid -->
+                <!-- Games List. VirtualizingStackPanel (WPF's real default for ListBox - no
+                     ItemsPanel override here) instead of the WrapPanel this used to have:
+                     WrapPanel doesn't implement virtualization at all, so the
+                     VirtualizingPanel.* properties below were silently no-ops and every
+                     detected game got a full visual tree built and kept alive regardless of
+                     scroll position. A large Steam/Epic/GOG library (100+ games isn't unusual)
+                     paid for that on every visit to this tab. -->
                 <ListBox ItemsSource="{Binding FilteredGames}"
                          SelectedItem="{Binding SelectedGame}"
                          Background="Transparent"
@@ -219,16 +225,12 @@
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling"
                          Visibility="{Binding IsScanning, Converter={StaticResource InverseBoolToVisibility}}">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel/>
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Padding" Value="0"/>
                             <Setter Property="Margin" Value="0"/>
                             <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListBoxItem">
@@ -240,43 +242,51 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource GameCardStyle}" 
-                                    Width="260"
+                            <!-- Full-width list row instead of the old fixed-width card: one line
+                                 per game (name, badges, executable) rather than three stacked
+                                 rows, so more of the library is scannable per screen without
+                                 scrolling - a real readability win on top of the virtualization
+                                 fix, not just a side effect of it. -->
+                            <Border Style="{StaticResource GameCardStyle}"
+                                    HorizontalAlignment="Stretch"
                                     Cursor="Hand">
                                 <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
 
                                     <!-- Game Name -->
-                                    <TextBlock Grid.Row="0" 
-                                               Text="{Binding Name}" 
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Name}"
                                                Foreground="White"
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,0"
                                                ToolTip="{Binding Name}"/>
 
                                     <!-- Platform & Profile Badges -->
-                                    <StackPanel Grid.Row="1" 
-                                                Orientation="Horizontal" 
-                                                Margin="0,8,0,0">
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,16,0">
                                         <!-- Platform Badge -->
                                         <Border Style="{StaticResource PlatformBadgeStyle}">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding PlatformIcon}" 
-                                                           FontSize="10" 
+                                                <TextBlock Text="{Binding PlatformIcon}"
+                                                           FontSize="10"
                                                            Margin="0,0,4,0"/>
-                                                <TextBlock Text="{Binding Platform}" 
-                                                           Foreground="#aaa" 
+                                                <TextBlock Text="{Binding Platform}"
+                                                           Foreground="#aaa"
                                                            FontSize="10"/>
                                             </StackPanel>
                                         </Border>
 
                                         <!-- Profile Badge -->
-                                        <Border CornerRadius="4" Padding="6,2">
+                                        <Border CornerRadius="4" Padding="6,2" Margin="6,0,0,0">
                                             <Border.Style>
                                                 <Style TargetType="Border">
                                                     <Setter Property="Background" Value="#333"/>
@@ -288,8 +298,8 @@
                                                 </Style>
                                             </Border.Style>
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding ProfileStatusIcon}" 
-                                                           FontSize="10" 
+                                                <TextBlock Text="{Binding ProfileStatusIcon}"
+                                                           FontSize="10"
                                                            Margin="0,0,4,0">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -321,13 +331,14 @@
                                     </StackPanel>
 
                                     <!-- Executable Info -->
-                                    <TextBlock Grid.Row="2" 
-                                               Text="{Binding ExecutableName}" 
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding ExecutableName}"
                                                Foreground="#666"
                                                FontSize="10"
                                                FontFamily="{StaticResource MonospaceFontFamily}"
                                                TextTrimming="CharacterEllipsis"
-                                               Margin="0,6,0,0"
+                                               MaxWidth="220"
+                                               VerticalAlignment="Center"
                                                ToolTip="{Binding ExecutablePath}"/>
                                 </Grid>
                             </Border>

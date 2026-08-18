@@ -183,4 +183,16 @@ Solution-wide build verified clean after adding the new project. `OmenCore.Linux
 
 ---
 
+## Fixed: Games Tab's Virtualization Was Silently Doing Nothing
+
+Prompted directly to look for further UI speed/clarity wins beyond what was already tracked, rather than left to come up organically. Found one real, concrete bug: `GameLibraryView`'s games `ListBox` had `VirtualizingPanel.IsVirtualizing="True"`, `VirtualizationMode="Recycling"`, and `ScrollUnit="Pixel"` all explicitly set — but its `ItemsPanel` was overridden to a plain `WrapPanel`, which doesn't implement virtualization at all. Every one of those properties was silently ignored: every detected game got a full visual tree built and kept alive regardless of scroll position, for the entire time the Games tab stayed open. A large Steam/Epic/GOG library (100+ games isn't unusual) paid real, measurable cost for that on every visit.
+
+**Fix:** removed the `WrapPanel` override so the list falls back to `ListBox`'s actual default panel (`VirtualizingStackPanel`), which correctly honors the virtualization properties that were already declared. That changes the visual layout from a wrapping card grid to a single-column list, so the per-item template was reflowed from three stacked rows (name / platform+profile badges / executable path) into one horizontal row per game — a genuine readability improvement on its own (more of a library scannable per screen without scrolling), not only a side effect of the virtualization fix. Every binding, style, and `DataTrigger` in the template carried over unchanged; only the layout container and row shape moved.
+
+Also checked and ruled out two other plausible "feels slow" culprits while investigating, rather than assuming either was a problem: `MainWindow`'s tab-switch content lifecycle already lazily builds each tab once and keeps it alive on revisit (no rebuild-on-switch bug), and the window-wide blur/shadow class of bug fixed earlier this cycle hasn't regressed (the two `DropShadowEffect`s that do exist are scoped to small fixed-size elements, not the whole window).
+
+Build-verified only — this environment cannot launch `OmenCore.exe` to visually confirm the reflowed row layout (elevation/EC-write risk, standing rule), so this is a strong first-candidate for a look on the next real run.
+
+---
+
 *(Further entries added as work lands.)*
