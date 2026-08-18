@@ -170,4 +170,17 @@ Full suite: 1346/1346.
 
 ---
 
+## Confirmed Already Fixed: GitHub #163 and #137 — Plus a New Test Project for `OmenCore.Linux`
+
+Two more issues traced against current code rather than assumed stale or still-open:
+
+- **[#163](https://github.com/theantipopau/omencore/issues/163)** (OMEN 16 XF0079AX, Ryzen + RTX 4070): "app identifies my AMD board as Intel, breaking keyboard lighting." The AMD `xf0xxx` SKU's dedicated capability entry, disambiguated from its Intel `wf0xxx` sibling by WMI model name since both share ProductId `8BCA`, was added directly for this issue and already has a dedicated test (`ModelCapabilityDatabaseTests.GetPreferredCapabilities_Ambiguous8Bca_UsesModelNameDisambiguationForAmdVariant`) using this reporter's exact WMI string. Nothing to fix.
+- **[#137](https://github.com/theantipopau/omencore/issues/137)** (OMEN 16-xd0xxx, board `8BCD`, Linux/CachyOS): "every WMI-based control fails silently." The root cause is a genuine firmware ACPI bug (`ACPI Error: Aborting method _SB.WMID.WMAA due to previous error`) that userspace can't fix directly, but `LinuxCapabilityClassifier` already has a board-`8BCD`-specific downgrade (`FullControl` → `ProfileOnly`/`TelemetryOnly`) so the app stops claiming control it can't actually deliver on this board. Landed a month after the report was filed.
+
+**Real gap found while verifying #137: `LinuxCapabilityClassifier` — and `OmenCore.Linux` generally — had zero test coverage.** No test project existed for this side of the codebase at all, despite the classifier being pure, deterministic logic with no filesystem or hardware dependency. New `src/OmenCore.Linux.Tests` project (added to `OmenCore.sln`; builds cross-platform on this Windows dev machine the same way `OmenCore.Linux` itself already does) with 15 tests covering the full classification matrix — full-control/profile-only/telemetry-only/unsupported paths, the root-access sudo-guidance suffix, the `CapabilityKey` string mapping, and a dedicated regression test for board `8BCD` reproducing this exact report's shape. Caught and fixed one wrong assumption of its own along the way: an initial test assumed bare `hasHwmonFanAccess` alone would classify as `FullControl`, contradicted by a failing test — the classifier deliberately routes coarse `pwm_enable` presence to `ProfileOnly` instead (matching #137's own diagnostics table: `pwm1_enable: Present` but `Fan 1/2 Target Control: Missing`), a distinction caught by writing the test rather than assuming.
+
+Solution-wide build verified clean after adding the new project. `OmenCore.Linux.Tests`: 15/15.
+
+---
+
 *(Further entries added as work lands.)*
