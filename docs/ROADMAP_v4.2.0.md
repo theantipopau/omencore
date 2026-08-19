@@ -342,6 +342,24 @@ Eric reported trying OmenCtl and that it "unlocked Max TGP for nvidia gpus… th
 
 ---
 
+## Community Comparison: omen-rgb-keyboard (OmenLinux/omen-rgb-keyboard, GPLv3) — Discord Suggestion, 2026-08-19
+
+Suggested as possibly having useful RGB information. It does — and it produced the one directly shippable code change of this whole comparison round.
+
+**What it is:** an out-of-tree Linux DKMS kernel module for HP OMEN 4-zone keyboard RGB (plus fan control, Omen-key mapping, and mute-LED sync). GPLv3, so facts only — no code adopted.
+
+**Protocol facts, which corroborate rather than extend what OmenCore knows.** Its `omen_wmi.h` is the cleanest published statement of the HP lighting WMI interface seen so far: `HPWMI_FOURZONE = 0x020009` as the lighting command (distinct from `HPWMI_GAMING = 0x020008`), with command types `FOURZONE_COLOR_GET = 2`, `FOURZONE_COLOR_SET = 3`, `SET_BRIGHTNESS = 5`, `SET_LIGHTBAR_COLORS = 11`, over BIOS GUID `5FB7F034-2C63-45e9-BE91-3D44E2C707E4`. Checked against OmenCore's Windows side: `HpWmiBios.BiosCmd.Keyboard` is already `0x20009` and `Default` already `0x20008` — independent corroboration of values this project already had, not new information. Its gaming-query enum (`0x10` fan count, `0x27` max-fan set, `0x28` system design data, `0x2D`/`0x2E` Victus fan get/set) likewise matches OmenCore's existing constants.
+
+**SHIPPED — a real gap on the Linux side.** The module registers its own platform device and LED class rather than hp-wmi's, and its install instructions **blacklist `hp_wmi`** (both drive the same WMI interface and conflict). So on a machine running it, *none* of the sysfs paths OmenCore's Linux keyboard controller probed existed, and keyboard control found nothing at all. Its interface is `/sys/devices/platform/omen-rgb-keyboard/rgb_zones/` with `zone00`..`zone03`, `all`, and `brightness`, plus LED class `omen::kbd_backlight`.
+
+  Notably, OmenCore already supported the *identical* `rgb_zones/zoneNN` directory layout and 6-hex-char wire format — just only under hp-wmi's platform device (added earlier from openomen). So the fix was small and low-risk: `LinuxSysfsPathMap` now carries `RgbZonesDirs` and `KeyboardBacklightDirs` candidate tables probed in order (in-tree hp-wmi first, out-of-tree driver second), plus a new `ResolveRgbZonesAllFilePath()` for the module's single-write "set every zone" file. Purely additive path detection — zero behavior change for existing users, and it makes OmenCore work on machines using this driver.
+
+  **Directly relevant to boards already in this project's field reports:** the module's tested-hardware list includes `16-wf0xxx` (board `8BCA`, the [#163](https://github.com/theantipopau/omencore/issues/163) reporter's board) and `16-wd0xxx` (board `8BA9`, [#174](https://github.com/theantipopau/omencore/issues/174)) — both boards with prior Linux RGB difficulty. This is a plausible remedy to point those reporters at, and it pairs with the already-tracked "DKMS backport module" item under Platform above: that item names `omen-fan-control` for fan write paths; this is its RGB counterpart. Build-verified only (no Linux hardware in this environment), same tier as prior Linux fixes; 10 new tests in `OmenCore.Linux.Tests` asserting the candidate tables and probe order.
+
+**Note on `breadeding/OmenSuperHub`** (also asked about, GPLv3): this is the upstream OmenXHub is derived from — same `OmenSuperHub` root namespace and assembly name, which OmenXHub's project files still carry. The OmenXHub review above therefore already covers this lineage, against the more actively-developed derivative. Nothing separately actionable found.
+
+---
+
 ## Also Outstanding: PR #176
 
 [PR #176](https://github.com/theantipopau/omencore/pull/176) (tempestnano, board `8D87` keyboard lighting) was reviewed at the close of the 4.1.7 cycle and **not merged**. The review confirmed one real functional regression plus three lower-severity findings:
