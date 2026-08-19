@@ -1336,6 +1336,157 @@
         <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
     </Style>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Vertical navigation rail (main window shell)
+
+         Deliberately separate styles rather than edits to ModernTabControl/
+         ModernTabItem above: SettingsView hosts its own inner TabControl on those
+         same two styles, and its tabs should stay horizontal. Keeping these apart
+         also makes the shell change revertible by swapping two Style references
+         back on MainWindow's TabControl, with nothing else to undo.
+
+         This is presentation only. The TabControl keeps its items, its indices,
+         its SelectedIndex binding and its SelectionChanged-driven lazy content
+         creation exactly as before - only where the header strip is drawn changes.
+         The horizontal strip put ~10 items in a ScrollViewer, so at narrower
+         window widths tabs scrolled out of sight with no affordance that they
+         existed; a vertical rail shows every section at once and has room for
+         readable labels rather than icon-only guesswork.
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <Style x:Key="Omen.NavRailTabControl" TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Rail -->
+                        <Border Grid.Column="0"
+                                Background="#660E1018"
+                                BorderBrush="#332F3448"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="6"
+                                Margin="0,0,12,0">
+                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto"
+                                          CanContentScroll="False"
+                                          Style="{x:Null}">
+                                <ScrollViewer.Resources>
+                                    <Style TargetType="ScrollBar">
+                                        <Setter Property="Width" Value="4"/>
+                                        <Setter Property="Opacity" Value="0.3"/>
+                                    </Style>
+                                </ScrollViewer.Resources>
+                                <!-- StackPanel, not TabPanel: TabPanel lays out for a
+                                     horizontal strip (and does its own row-wrapping),
+                                     which is exactly what this replaces. -->
+                                <StackPanel IsItemsHost="True" Orientation="Vertical" Width="164"/>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- Content -->
+                        <Border Grid.Column="1"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                BorderBrush="{TemplateBinding BorderBrush}">
+                            <ContentPresenter ContentSource="SelectedContent"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Omen.NavRailTabItem" TargetType="TabItem">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <StackPanel>
+                        <!-- Group separator. Driven by Tag="GroupStart" on the first
+                             TabItem of each group in MainWindow.xaml, so related
+                             sections read as a set without changing tab order,
+                             indices, or any code that depends on them. -->
+                        <Border x:Name="GroupSeparator"
+                                Height="1"
+                                Background="#332F3448"
+                                Margin="8,7,8,7"
+                                Visibility="Collapsed"/>
+
+                        <Border x:Name="Border"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Margin="0,1"
+                                Padding="{TemplateBinding Padding}"
+                                MinHeight="{TemplateBinding MinHeight}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Selected marker: a left bar reads correctly in a
+                                     vertical list, where the horizontal strip's
+                                     underline would not. -->
+                                <Border x:Name="AccentBar"
+                                        Grid.Column="0"
+                                        Width="3"
+                                        CornerRadius="1.5"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Stretch"
+                                        Margin="0,2"
+                                        Background="Transparent"/>
+
+                                <ContentPresenter x:Name="ContentSite"
+                                                  Grid.Column="1"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Margin="8,0,0,0"
+                                                  ContentSource="Header" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="GroupStart">
+                            <Setter TargetName="GroupSeparator" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceMediumBrush}" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#6645C7FF" />
+                            <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceHighlightBrush}" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#552F3448" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                            <Setter Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Modern TextBox Style -->
     <Style x:Key="ModernTextBox" TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource SurfaceDarkBrush}" />

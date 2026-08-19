@@ -64,6 +64,16 @@ Not done: migrating `ProcessMonitoringService` onto it — it changes its poll i
 
 The games list declared `IsVirtualizing`/`Recycling`/`ScrollUnit=Pixel` but overrode its panel to a plain `WrapPanel`, which doesn't virtualize — so every detected game kept a full visual tree alive regardless of scroll position. Removed the override so the real virtualizing panel applies, and reflowed each game from a stacked card into a single-line row (also more scannable per screen). Bindings and styles unchanged. Build-verified only — worth an eyeball on the next real run.
 
+## Changed: Navigation Moved to a Vertical Rail, With Grouped Sections
+
+The main window's ~10 sections were in a horizontal strip inside a scroll viewer — so below a certain window width, tabs scrolled out of sight with nothing indicating they were there. Navigation is now a vertical rail down the left of the content area: every section visible at once, with room for readable labels (icon-only was rejected — "Optimizer" vs "Memory" vs "Bloatware" aren't guessable from an icon).
+
+Related sections are now visually grouped — control, insight, system cleanup, personalization, app — with separators between them.
+
+Implemented as a retemplate, not a restructure: same tabs, same order, same indices, same lazy content loading, **no C# changed at all**. Built by hand rather than adopting a Fluent control library, which would have fought the existing dark theme. The Settings tab's own inner tabs stay horizontal as before. 5 new tests parse the resource dictionary and verify both styles resolve correctly, since a clean build alone doesn't prove a template is valid.
+
+Not visually verified — rail width and spacing want a look on a real run, and it's revertible by two attributes if it reads badly.
+
 ## Improved: Tuning Tab Buttons Now Say What They Actually Do
 
 The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock — had 16 buttons with **no accessibility labels at all** and only 4 tooltips, on the page where a mis-click has the most real consequence. Worst case: four separate buttons labelled exactly "Reset to Defaults" (CPU limits, AMD limits, AMD GPU, NVIDIA GPU), indistinguishable to a screen reader and only disambiguated visually by which card you happen to be looking at.

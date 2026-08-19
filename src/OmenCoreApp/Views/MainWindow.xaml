@@ -680,7 +680,7 @@
                         </Border>
                     </StackPanel>
 
-                    <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource ModernTabControl}" ItemContainerStyle="{StaticResource ModernTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+                    <TabControl Grid.Row="1" Margin="24,0,24,12" Style="{StaticResource Omen.NavRailTabControl}" ItemContainerStyle="{StaticResource Omen.NavRailTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                 <!-- Tab indices: General(0), Custom(1), Tuning(2), Diagnostics(3), Monitoring(4), Optimizer(5), Memory(6), Bloatware(7), RGB(8), Settings(9), Games(10) -->
                 <!-- General Tab: Performance + Fan Profiles (Paired) -->
                 <TabItem x:Name="GeneralTabItem">
@@ -695,7 +695,7 @@
                 <!-- Custom Tab: visible only when Custom profile is active -->
                 <TabItem x:Name="OmenTabItem">
                     <TabItem.Style>
-                        <Style TargetType="TabItem" BasedOn="{StaticResource ModernTabItem}">
+                        <Style TargetType="TabItem" BasedOn="{StaticResource Omen.NavRailTabItem}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
                                 <MultiDataTrigger>
@@ -727,7 +727,8 @@
                 </TabItem>
                 
                 <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->
-                <TabItem x:Name="DiagnosticsTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                <!-- Group: insight (Diagnostics, Monitoring) -->
+                <TabItem x:Name="DiagnosticsTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconWarning}" Style="{StaticResource Omen.TabHeaderIcon}"/>
@@ -748,7 +749,8 @@
                 </TabItem>
                 
                 <!-- System Optimizer Tab - Windows Gaming Tweaks -->
-                <TabItem x:Name="OptimizerTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                <!-- Group: system cleanup (Optimizer, Memory, Bloatware) -->
+                <TabItem x:Name="OptimizerTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconScale}" Style="{StaticResource Omen.TabHeaderIcon}"/>
@@ -778,7 +780,8 @@
                 </TabItem>
                 
                 <!-- Peripherals Tab with Lighting View -->
-                <TabItem x:Name="RgbTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                <!-- Group: personalization (RGB) -->
+                <TabItem x:Name="RgbTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconLighting}" Style="{StaticResource Omen.TabHeaderIcon}"/>
@@ -788,7 +791,8 @@
                 </TabItem>
                 
                 <!-- Settings Tab -->
-                <TabItem x:Name="SettingsTabItem">
+                <!-- Group: app (Settings, Games) -->
+                <TabItem x:Name="SettingsTabItem" Tag="GroupStart">
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconSettings}" Style="{StaticResource Omen.TabHeaderIcon}"/>
