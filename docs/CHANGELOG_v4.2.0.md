@@ -195,4 +195,22 @@ Build-verified only — this environment cannot launch `OmenCore.exe` to visuall
 
 ---
 
+## Added: Fan Curve Share Codes — Plus a Deep-Dive Comparison Against OmenXHub
+
+Prompted by a Discord suggestion (Trirez — the same reporter as GitHub #163) to compare OmenCore against [OmenXHub](https://github.com/MasonDye/OmenXHub) (MIT licensed), specifically for fan control and board-identity handling. Cloned and read the source rather than acting on the suggestion alone.
+
+**Shipped:** a compact, pasteable "share code" for fan curves — copy the currently-edited curve to the clipboard as a one-line string suitable for a Discord message or GitHub comment, or paste one back in to import it. OmenCore already had file-based curve sharing (a saved preset already carries its curve through the existing Import/Export Presets commands), so this fills the specific gap a file attachment doesn't cover well. New `OmenCore.Utils.FanCurveShareCode` — an independent implementation using OmenCore's own curve model and format, not ported code — plus two new buttons on the curve editor. Rejects malformed share codes outright rather than partially applying them. 15 new tests. Pure data serialization; no fan-control write behavior touched.
+
+**Investigated and confirmed already correct, not gaps:** OmenCore's own temperature smoothing (`FanService.SmoothCurveTemperature`) already achieves what OmenXHub's EMA+hysteresis approach does, via different math with the added benefit of a high-temperature bypass so smoothing can never delay a real thermal emergency; and `WmiFanController.SetFanSpeeds()` already sends a single write per periodic tick rather than a full reset sequence — the exact pattern OmenXHub's own comments describe having to learn the hard way (overwhelming the EC on AMD laptops otherwise) — with its own comment recording the same lesson independently.
+
+**Flagged for later validation, not shipped:** a claim in OmenXHub's code that raw EC fan-level bytes below 10 (~500 RPM) risk a firmware "bounce back" on HP's EC. Plausible, but a third-party claim not corroborated against any board this project tracks — implementing it as a live floor would be a fan-control behavior change needing the same field validation as any other EC write, not something to import on faith.
+
+**Recorded as real findings needing a product decision, not code changes:** OmenXHub has no per-board capability database at all — it sends generic HP WMI commands to whatever responds, which most likely explains why it "just worked" for the reporter's board rather than indicating OmenCore is missing verified data for it. And OmenXHub's keyboard lighting calls directly into HP's own `OmenLightingSDK.dll` rather than a reverse-engineered protocol — a real option, but one that cuts against this project's established OGH-independence philosophy and raises an open redistribution question, so it's recorded for a deliberate future decision rather than pursued now.
+
+Full detail in `docs/ROADMAP_v4.2.0.md`'s "Community Comparison: OmenXHub" section.
+
+Full suite: 1361/1361.
+
+---
+
 *(Further entries added as work lands.)*

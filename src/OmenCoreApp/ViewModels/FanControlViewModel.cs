@@ -576,6 +576,8 @@ namespace OmenCore.ViewModels
         public ICommand AddCurvePointCommand { get; }
         public ICommand RemoveCurvePointCommand { get; }
         public ICommand ResetCurveCommand { get; }
+        public ICommand CopyCurveShareCodeCommand { get; }
+        public ICommand ImportCurveFromClipboardCommand { get; }
         
         // Quick preset commands
         public ICommand ApplyMaxCoolingCommand { get; }
@@ -848,7 +850,9 @@ namespace OmenCore.ViewModels
             AddCurvePointCommand = new RelayCommand(_ => AddDefaultCurvePoint(), _ => FanCurvesAvailable && CustomFanCurve.Count < 10);
             RemoveCurvePointCommand = new RelayCommand(_ => RemoveLastCurvePoint(), _ => FanCurvesAvailable && CustomFanCurve.Count > 2);
             ResetCurveCommand = new RelayCommand(_ => ResetCurveToDefault(), _ => FanCurvesAvailable);
-            
+            CopyCurveShareCodeCommand = new RelayCommand(_ => CopyCurveShareCode(), _ => FanCurvesAvailable && CustomFanCurve.Count >= 2);
+            ImportCurveFromClipboardCommand = new RelayCommand(_ => ImportCurveFromClipboard(), _ => FanCurvesAvailable);
+
             // GPU curve editor commands (stubs - use same logic as CPU for now)
             AddGpuCurvePointCommand = new RelayCommand(_ => AddDefaultGpuCurvePoint(), _ => GpuFanCurve.Count < 10);
             RemoveGpuCurvePointCommand = new RelayCommand(_ => RemoveLastGpuCurvePoint(), _ => GpuFanCurve.Count > 2);
@@ -1216,7 +1220,77 @@ namespace OmenCore.ViewModels
             }
             _logging.Info("Reset fan curve to default");
         }
-        
+
+        /// <summary>
+        /// Copies the currently-edited custom curve to the clipboard as a compact share code -
+        /// a one-line string a user can paste into Discord/Reddit/a GitHub comment, rather than
+        /// attaching a file the way ExportPresets already supports.
+        /// </summary>
+        private void CopyCurveShareCode()
+        {
+            try
+            {
+                var code = OmenCore.Utils.FanCurveShareCode.Generate(CustomFanCurve, SelectedPreset?.Name ?? "Custom Curve");
+                if (code == null)
+                {
+                    System.Windows.MessageBox.Show("Need at least 2 curve points to generate a share code.", "Cannot Copy Share Code",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                System.Windows.Clipboard.SetText(code);
+                _logging.Info($"📋 Copied fan curve share code to clipboard ({CustomFanCurve.Count} points)");
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to copy curve share code: {ex.Message}", ex);
+                System.Windows.MessageBox.Show($"Failed to copy share code: {ex.Message}", "Copy Failed",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Reads a fan curve share code from the clipboard and, if valid, replaces the
+        /// currently-edited custom curve with it. Rejects anything malformed outright rather
+        /// than partially applying it - see FanCurveShareCode.TryParse for the validation rules.
+        /// </summary>
+        private void ImportCurveFromClipboard()
+        {
+            try
+            {
+                if (!System.Windows.Clipboard.ContainsText())
+                {
+                    System.Windows.MessageBox.Show("Clipboard doesn't contain text.", "Import Failed",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                var clipboardText = System.Windows.Clipboard.GetText();
+                if (!OmenCore.Utils.FanCurveShareCode.TryParse(clipboardText, out var points, out var name))
+                {
+                    System.Windows.MessageBox.Show("Clipboard doesn't contain a valid fan curve share code.", "Import Failed",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                CustomFanCurve.Clear();
+                foreach (var point in points)
+                {
+                    CustomFanCurve.Add(point);
+                }
+
+                _logging.Info($"📥 Imported fan curve '{name}' from share code ({points.Count} points)");
+                System.Windows.MessageBox.Show($"Imported curve \"{name}\" ({points.Count} points). Remember to apply/save it.", "Import Complete",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                _logging.Error($"Failed to import curve from clipboard: {ex.Message}", ex);
+                System.Windows.MessageBox.Show($"Failed to import share code: {ex.Message}", "Import Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
         #region GPU Curve Editor Methods (Stubs for independent curves)
         
         private void AddDefaultGpuCurvePoint()
