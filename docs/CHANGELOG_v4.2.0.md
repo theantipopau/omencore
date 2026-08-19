@@ -1,7 +1,7 @@
-# OmenCore v4.2.0 – In Development
+# OmenCore v4.2.0
 
-**Release Date:** TBD
-**Release Status:** In development. Base version v4.1.7 (tagged and released 2026-08-16).
+**Release Date:** TBD — code-complete as of 2026-08-19, held for a field-testing window before tagging.
+**Release Status:** Version bumped across the app/installer/build config. Awaiting bug reports from real-hardware portable-build testing before pushing/tagging a release.
 **Type:** Minor release. Three pillars: sensor-truth/fan-control accuracy, perceived performance and motion, and a typography move to Roboto Condensed. Also absorbs field-report bug fixes from v4.1.7 users as they arrive.
 **Base Version:** v4.1.7
 **Tracking doc:** `docs/ROADMAP_v4.2.0.md` — full investigation detail, rejected options, and evidence trails live there; this file stays short.
@@ -95,6 +95,20 @@ The "degraded" warning's exact trigger wasn't identified from code alone and nee
 ## Added: Fan Curve Share Codes
 
 Copy the current curve to the clipboard as a one-line code, or paste one in to import — for sharing in Discord/GitHub where a file attachment is awkward. File-based sharing already existed via Import/Export Presets. Malformed codes are rejected outright. 15 new tests.
+
+## Fixed: RGB Page Showed a False "OMEN Keyboard" on Non-HP Hardware
+
+Reported on the portable test build, on a desktop PC with no HP hardware at all: the RGB page's "OMEN Keyboard" badge showed as present anyway. Root cause: keyboard-model detection's exception handler defaulted to a real HP OMEN config instead of "no config" on any detection failure — silently turning "couldn't determine the system" into "assume it's an OMEN." Fixed to match the same "not detected as HP" behavior already used everywhere else in that method. Pure logic fix, no keyboard write path touched.
+
+## Fixed: iCUE Not Detected Despite Running
+
+Same report: iCUE was installed and running, but Corsair detection never found it. The check matched only a process named exactly `iCUE` — Corsair has changed that name across major iCUE releases. Now matches any process whose name contains "icue," case-insensitive.
+
+## Fixed: Sidebar Status Text Clipped Instead of Ellipsizing
+
+The EC-backend status row had the same bug already fixed once this cycle for tab labels: a horizontal StackPanel gives its child unbounded width during layout, so `TextTrimming="CharacterEllipsis"` never actually engaged — text just got hard-clipped at the sidebar's edge instead of trimming with "…". Converted to a Grid, same fix pattern.
+
+**RGB page still flagged as needing a broader pass** (not done this cycle — noted for next time, not blocking this release).
 
 ---
 

@@ -467,6 +467,22 @@ Resolve finding 1 (with the contributor, ideally) before merging.
 
 ---
 
+## RGB Page False Signals (portable-build feedback, 2026-08-19) — DONE, page redesign deferred
+
+Same tester, non-HP desktop (AMD Ryzen 7 9800X3D + Radeon RX 9070 XT — already correctly flagged by the "Unsupported System Detected" banner): the RGB page showed an "OMEN Keyboard" badge as present, and "Corsair Devices — iCUE not detected" despite iCUE actually running. Also asked generally for the RGB page to get "some love" — noted, not scoped or done this cycle; the two concrete bugs were.
+
+**"OMEN Keyboard" false positive — traced to `KeyboardLightingServiceV2.DetectModelConfig()`'s exception handler.** The method's normal (non-exception) logic is already correct: it checks `IsHpOmen`/`IsHpVictus` (both gated on the WMI manufacturer string actually being HP) and falls through to `"Not an HP OMEN/Victus system — no keyboard config"` → `null` when neither matches — exactly what should happen on this desktop. But `catch (Exception ex)` returned `KeyboardModelDatabase.GetDefaultConfig()` — a *real* OMEN config — on any detection failure, silently turning "couldn't tell what this system is" into "assume it's an OMEN and try its keyboard-lighting backends anyway." Whether an exception actually fired on this specific machine wasn't confirmed (would need a log capture to prove), but the catch-block's behavior is wrong regardless of whether it's the exact trigger here: it contradicts the deliberate, documented "no config" behavior the try block already uses for the identical semantic case two lines above it. Fixed to return `null` there too. Pure logic fix — no keyboard write path touched, no field validation needed.
+
+Separately investigated (not fixed, no evidence to act on): `EcDirectBackend.InitializeAsync()`'s own "verification" is a raw read of EC register `0xB0`, which cannot fail regardless of whether the hardware means anything by that address — a generic ACPI EC port read doesn't throw just because the register isn't HP's backlight-control register. This is a second, independent weakness in the same false-positive chain, but changing what counts as "verified" here touches the same registers `EcDirectBackend` also *writes* keyboard colors to, so it falls under the fan/EC evidence gate and needs field data (ideally from a real OMEN board) rather than a guess before touching it.
+
+**iCUE not detected — traced to an exact-match process-name check.** `CorsairICueSdk.IsIcueRunning()` checked `Process.GetProcessesByName("iCUE").Length > 0`. Corsair has changed the iCUE executable's process name across major releases (3 vs 4 vs 5); an exact match silently breaks every time that happens again, and confirmed direct HID access (tier 1) correctly returned no devices first, so this exact-match check is what actually gated the fallback to iCUE (tier 2) failing. Broadened to a case-insensitive substring match (`ProcessName.Contains("icue", ...)`) rather than guessing at one specific alternate name — this doesn't need to know Corsair's current exact process name, just that it contains "icue" somewhere, which is true across every version seen in the wild. Not verified against the tester's actual iCUE process list (no log capture requested for this one) — if it's still not detected on a repeat test, the next step is asking for their Task Manager process name directly rather than guessing again.
+
+**Sidebar clipping — same root cause fixed once already this cycle.** The EC-backend status row's health-dot + source-label pair sat in a horizontal `StackPanel`, which (like the tab headers earlier this cycle) gives its child unbounded width during measure — `TextTrimming="CharacterEllipsis"` on the label never actually engaged, so long monitoring-source text hard-clipped at the sidebar edge with no ellipsis instead of trimming gracefully. Converted to a `Grid` (`Auto` dot column, `*` text column), identical fix shape to `Omen.TabHeaderText`. Worth a grep for any other `TextTrimming` inside a horizontal `StackPanel` in this codebase if another clipping report comes in — this is now a known, recurring pattern here, not a one-off.
+
+Build clean, full suite 1367/1367 (no new tests added this round — `DetectModelConfig` is private with a DI-heavy constructor, and a targeted unit test for one exception-path branch wasn't judged worth the harness setup given the fix is a one-line, self-evidently-correct change matching an existing pattern two lines above it in the same method).
+
+---
+
 ## Suggested Order of Work
 
 | Phase | Work | Gate |
@@ -484,5 +500,5 @@ Phase A is deliberately first and deliberately unglamorous: **the temperature ha
 ## Standing Rules (unchanged)
 
 - **Evidence gate.** Fan/EC/thermal/OC/UV *behavior* changes need field validation before shipping. Architecture, performance, display-honesty, and pure-UI items do not.
-- **One item at a time, verified before moving on.** Build clean, full suite green (1288/1288 as of v4.1.7 — expect this to grow), and live-smoke-test the real UI path where feasible.
+- **One item at a time, verified before moving on.** Build clean, full suite green (1367/1367 as of this v4.2.0 pass — up from 1288/1288 at v4.1.7), and live-smoke-test the real UI path where feasible.
 - **Update this document as you go.** Check items off only once verified, with a one-line note on what changed and which files, so the next person does not have to re-derive it from git history.

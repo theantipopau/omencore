@@ -159,7 +159,24 @@ namespace OmenCore.Services.Corsair
         {
             try
             {
-                return System.Diagnostics.Process.GetProcessesByName("iCUE").Length > 0;
+                // Substring match, not exact "iCUE": Corsair has changed the process name
+                // across major iCUE releases (observed reports of iCUE genuinely running but
+                // this check never matching it, on a system with no other Corsair hardware to
+                // find it a different way). An exact-name check silently breaks again every
+                // time Corsair renames the executable; this only needs "icue" to appear
+                // somewhere in the process name, case-insensitive.
+                foreach (var process in System.Diagnostics.Process.GetProcesses())
+                {
+                    using (process)
+                    {
+                        if (process.ProcessName.Contains("icue", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
             }
             catch
             {
