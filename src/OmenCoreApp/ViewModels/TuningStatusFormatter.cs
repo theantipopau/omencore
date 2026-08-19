@@ -38,7 +38,9 @@ namespace OmenCore.ViewModels
                 var coreMatch = Math.Abs(status.CurrentCoreOffsetMv - requestedCoreMv) <= 0.5;
                 var cacheMatch = Math.Abs(status.CurrentCacheOffsetMv - requestedCacheMv) <= 0.5;
                 verified = coreMatch && cacheMatch
-                    ? "Verified: readback matches requested"
+                    ? (status.HasIndependentReadback
+                        ? "Verified: readback matches requested"
+                        : "Verified: write acknowledged (no independent hardware readback on this path)")
                     : status.ControlledByOmenCore
                         ? "Verified: mismatch between requested and readback"
                         : "Verified: not controlled by OmenCore";

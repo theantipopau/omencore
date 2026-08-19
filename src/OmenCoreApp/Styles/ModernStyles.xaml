@@ -1321,16 +1321,16 @@
     </Style>
 
     <Style x:Key="Omen.TabHeaderIcon" TargetType="Path">
-        <Setter Property="Width" Value="13"/>
-        <Setter Property="Height" Value="13"/>
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
         <Setter Property="Stretch" Value="Uniform"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="Margin" Value="0,0,7,0"/>
+        <Setter Property="Margin" Value="0,0,10,0"/>
         <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
     </Style>
 
     <Style x:Key="Omen.TabHeaderText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
@@ -1353,6 +1353,17 @@
          existed; a vertical rail shows every section at once and has room for
          readable labels rather than icon-only guesswork.
          ═══════════════════════════════════════════════════════════════════════ -->
+    <!--
+        This control renders ONLY the vertical list of tab headers - no content column, no
+        rail border/background of its own. It used to draw a self-contained rail (its own
+        bordered box floating next to a separate sidebar element); it now lives *inside*
+        MainWindow's sidebar DockPanel, directly under the logo/quick-actions, so the whole
+        left column reads as one continuous panel instead of two adjacent boxes. The
+        selected tab's content is presented elsewhere via a plain ContentPresenter bound to
+        this control's SelectedContent by ElementName (see MainWindow.xaml) - TabControl
+        exposes SelectedContent as a normal bindable property, so the content doesn't need
+        to live inside this control's own template or even be a visual sibling of it.
+    -->
     <Style x:Key="Omen.NavRailTabControl" TargetType="TabControl">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
@@ -1360,46 +1371,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabControl">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Rail -->
-                        <Border Grid.Column="0"
-                                Background="#660E1018"
-                                BorderBrush="#332F3448"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="6"
-                                Margin="0,0,12,0">
-                            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                          VerticalScrollBarVisibility="Auto"
-                                          CanContentScroll="False"
-                                          Style="{x:Null}">
-                                <ScrollViewer.Resources>
-                                    <Style TargetType="ScrollBar">
-                                        <Setter Property="Width" Value="4"/>
-                                        <Setter Property="Opacity" Value="0.3"/>
-                                    </Style>
-                                </ScrollViewer.Resources>
-                                <!-- StackPanel, not TabPanel: TabPanel lays out for a
-                                     horizontal strip (and does its own row-wrapping),
-                                     which is exactly what this replaces. -->
-                                <StackPanel IsItemsHost="True" Orientation="Vertical" Width="164"/>
-                            </ScrollViewer>
-                        </Border>
-
-                        <!-- Content -->
-                        <Border Grid.Column="1"
-                                Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                BorderBrush="{TemplateBinding BorderBrush}">
-                            <ContentPresenter ContentSource="SelectedContent"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                    </Grid>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto"
+                                  CanContentScroll="False"
+                                  Style="{x:Null}">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="ScrollBar">
+                                <Setter Property="Width" Value="4"/>
+                                <Setter Property="Opacity" Value="0.3"/>
+                            </Style>
+                        </ScrollViewer.Resources>
+                        <!-- StackPanel, not TabPanel: TabPanel lays out for a
+                             horizontal strip (and does its own row-wrapping),
+                             which is exactly what this replaces. No fixed Width:
+                             it stretches to whatever the sidebar column gives it,
+                             so the rail scales with that column instead of clipping
+                             or leaving a gap if the column width ever changes. -->
+                        <StackPanel IsItemsHost="True" Orientation="Vertical" HorizontalAlignment="Stretch"/>
+                    </ScrollViewer>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -1407,10 +1396,10 @@
 
     <Style x:Key="Omen.NavRailTabItem" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Padding" Value="10,8" />
-        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="14,11" />
+        <Setter Property="MinHeight" Value="44" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Template">
@@ -1424,7 +1413,7 @@
                         <Border x:Name="GroupSeparator"
                                 Height="1"
                                 Background="#332F3448"
-                                Margin="8,7,8,7"
+                                Margin="8,9,8,9"
                                 Visibility="Collapsed"/>
 
                         <Border x:Name="Border"
@@ -1432,7 +1421,7 @@
                                 BorderBrush="Transparent"
                                 BorderThickness="1"
                                 CornerRadius="7"
-                                Margin="0,1"
+                                Margin="0,3"
                                 Padding="{TemplateBinding Padding}"
                                 MinHeight="{TemplateBinding MinHeight}">
                             <Grid>

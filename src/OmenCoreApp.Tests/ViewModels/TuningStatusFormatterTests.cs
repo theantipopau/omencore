@@ -25,6 +25,26 @@ namespace OmenCoreApp.Tests.ViewModels
         }
 
         [Fact]
+        public void BuildUndervoltStatusText_WhenNoIndependentReadback_DoesNotClaimReadbackVerification()
+        {
+            // AMD's Curve Optimizer/SMU path has no independent register to poll - CurrentCoreOffsetMv
+            // is just the provider's own record of the last value it wrote. Claiming "readback
+            // matches requested" here would be a tautology (it can only ever match itself).
+            var status = new UndervoltStatus
+            {
+                CurrentCoreOffsetMv = -120,
+                CurrentCacheOffsetMv = 0,
+                ControlledByOmenCore = true,
+                HasIndependentReadback = false
+            };
+
+            var text = TuningStatusFormatter.BuildUndervoltStatusText(-120, 0, status, isAmdCpu: true);
+
+            text.Should().NotContain("Verified: readback matches requested");
+            text.Should().Contain("Verified: write acknowledged");
+        }
+
+        [Fact]
         public void BuildUndervoltStatusText_WhenExternalControllerPresent_ReturnsBlockedVerification()
         {
             var status = new UndervoltStatus

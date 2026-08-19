@@ -72,7 +72,7 @@ Related sections are now visually grouped — control, insight, system cleanup, 
 
 Implemented as a retemplate, not a restructure: same tabs, same order, same indices, same lazy content loading, **no C# changed at all**. Built by hand rather than adopting a Fluent control library, which would have fought the existing dark theme. The Settings tab's own inner tabs stay horizontal as before. 5 new tests parse the resource dictionary and verify both styles resolve correctly, since a clean build alone doesn't prove a template is valid.
 
-Not visually verified — rail width and spacing want a look on a real run, and it's revertible by two attributes if it reads badly.
+**Follow-up after real-hardware feedback:** a portable test build showed the rail sitting next to the existing sidebar as two visibly separate boxes. Merged them into one continuous panel — logo, live status, Quick Actions, then the tabs, no seam — and moved the sidebar's specs/utility buttons (CPU/RAM/GPU, About, Import/Export, Profiles, Check for Updates) into a new bar under the title bar. Tab labels are also larger and more spaced (14px, more padding, no more hardcoded 164px width — it scales with the sidebar column now). Build-verified (0 warnings/errors) and full suite green; still wants an eyeball on the next real run.
 
 ## Improved: Tuning Tab Buttons Now Say What They Actually Do
 
@@ -81,6 +81,12 @@ The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock �
 Every button now has a distinct accessibility label naming its actual target and a plain-language tooltip, including the risk where relevant. Purely additive attributes — no layout, binding, or command wiring touched.
 
 Same gap still open at lower stakes on the Diagnostics and General tabs.
+
+## Fixed: AMD Undervolt Status Overclaimed "Readback" It Doesn't Have
+
+A real-hardware test flagged the CPU Tuning tab showing "Verified: readback matches requested" for an AMD undervolt, alongside a "degraded" warning, with no way to independently confirm anything actually changed. Investigation confirmed the write itself is real (a genuine SMU mailbox exchange, with a code comment citing a measured clock uplift from prior testing) — but the status text was comparing the app's own memory of the last value it wrote against itself, since AMD's Curve Optimizer path has no hardware register to read back from (unlike Intel's MSR path, which does). It could never have shown a mismatch. Now shows "Verified: write acknowledged (no independent hardware readback on this path)" for AMD instead. Wording only — no write, clamp, or SMU command changed. 1 new test.
+
+The "degraded" warning's exact trigger wasn't identified from code alone and needs a repeat report with the literal warning text to pin down.
 
 ## Added: Fan Curve Share Codes
 
@@ -135,6 +141,6 @@ No code was copied from any of these — OmenCore is MIT and two of the three ar
 
 ---
 
-**Full suite:** 1361 Windows tests, 25 Linux tests.
+**Full suite:** 1367 Windows tests, 25 Linux tests.
 
 *(Further entries added as work lands.)*
