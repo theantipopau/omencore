@@ -60,6 +60,17 @@ namespace OmenCore.Models
         /// </summary>
         public bool IgpuOffsetRequestedButNotApplied { get; set; }
 
+        /// <summary>
+        /// True when <see cref="CurrentCoreOffsetMv"/>/<see cref="CurrentCacheOffsetMv"/> were
+        /// polled from an independent hardware register (e.g. the Intel MSR path). False when
+        /// they are only the backend's own record of the last value it successfully wrote (the
+        /// AMD Curve Optimizer/SMU path has no independent readback register to poll - a
+        /// mailbox ack means the SMU accepted the write, not that a separate read confirms it).
+        /// Defaults true so callers that never set it (external-controller/error/unknown states,
+        /// which never reach the "matches requested" comparison anyway) keep prior behavior.
+        /// </summary>
+        public bool HasIndependentReadback { get; set; } = true;
+
         public bool HasExternalController => !string.IsNullOrWhiteSpace(ExternalController);
         public bool HasPerCoreOffsets => CurrentPerCoreOffsetsMv != null && CurrentPerCoreOffsetsMv.Length > 0;
 

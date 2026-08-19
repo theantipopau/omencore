@@ -385,6 +385,15 @@ namespace OmenCore.Models
         public bool UseSoftwareRendering { get; set; } = false;
 
         /// <summary>
+        /// Explicit in-app override to suppress OmenCore's own motion (view transitions,
+        /// state-change easing) regardless of the Windows-wide "Show animations" preference.
+        /// Default: false - motion still follows the OS preference either way (see
+        /// OmenCore.Utils.MotionPreference), this only forces it off when the user wants
+        /// OmenCore quiet without changing Windows-wide settings.
+        /// </summary>
+        public bool ReduceMotion { get; set; } = false;
+
+        /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
         /// </summary>
         public ThermalMonitoringSettings ThermalAlerts { get; set; } = new();

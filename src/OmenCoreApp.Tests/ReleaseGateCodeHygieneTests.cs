@@ -103,7 +103,6 @@ namespace OmenCoreApp.Tests
             "NotificationService.cs:522",
             "OmenKeyService.cs:369",
             "OsdService.cs:373", // shifted from :357
-            "TemperatureRgbService.cs:270",
             "TrayIconService.cs:134",
             "LightingViewModel.cs:2010",
             "LightingViewModel.cs:2028",

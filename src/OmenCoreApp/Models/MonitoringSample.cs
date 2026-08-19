@@ -18,6 +18,21 @@ namespace OmenCore.Models
     {
         public DateTime Timestamp { get; set; } = DateTime.Now;
         public double CpuTemperatureC { get; set; }
+
+        /// <summary>
+        /// Which sensor/source CpuTemperatureC actually came from this tick — e.g. "WMI BIOS",
+        /// "ACPI Thermal Zone", "LHM Fallback". Mirrors WmiBiosMonitor.CpuTemperatureAuthoritySource;
+        /// kept on the sample itself so the UI can show it without reaching back into the monitor.
+        /// </summary>
+        public string CpuTemperatureSource { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Why that source is currently authoritative — e.g. a plain "Startup default" for the
+        /// common case, or an explanation like "WMI/ACPI authority rejected (36.0C) vs fallback
+        /// (81.2C)..." when a mismatch triggered a source switch. Mirrors
+        /// WmiBiosMonitor.CpuTemperatureAuthorityReason.
+        /// </summary>
+        public string CpuTemperatureSourceReason { get; set; } = string.Empty;
         public double CpuLoadPercent { get; set; }
         public double CpuPowerWatts { get; set; }
         public List<double> CpuCoreClocksMhz { get; set; } = new();
@@ -140,6 +155,8 @@ namespace OmenCore.Models
         {
             Timestamp                 = source.Timestamp;
             CpuTemperatureC           = source.CpuTemperatureC;
+            CpuTemperatureSource      = source.CpuTemperatureSource;
+            CpuTemperatureSourceReason = source.CpuTemperatureSourceReason;
             CpuLoadPercent            = source.CpuLoadPercent;
             CpuPowerWatts             = source.CpuPowerWatts;
             CpuCoreClocksMhz          = new List<double>(source.CpuCoreClocksMhz);

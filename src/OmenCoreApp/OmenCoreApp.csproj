@@ -6,10 +6,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore</AssemblyName>
-    <Version>4.1.7</Version>
-    <AssemblyVersion>4.1.7.0</AssemblyVersion>
-    <FileVersion>4.1.7.0</FileVersion>
-    <InformationalVersion>4.1.7</InformationalVersion>
+    <Version>4.2.0</Version>
+    <AssemblyVersion>4.2.0.0</AssemblyVersion>
+    <FileVersion>4.2.0.0</FileVersion>
+    <InformationalVersion>4.2.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\OmenCore.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -36,6 +36,13 @@
     <Resource Include="Assets\\amd.png" />
     <Resource Include="Assets\\intel.png" />
     <Resource Include="Assets\\nvidia.png" />
+    <!-- Roboto Condensed (SIL OFL 1.1), from github.com/google/fonts, ofl/robotocondensed.
+         Single variable font (wght axis 100-900) - no separate files needed per weight;
+         existing FontWeight setters throughout the app interpolate against this axis. -->
+    <Resource Include="Fonts\\RobotoCondensed-VariableFont_wght.ttf" />
+    <None Include="Fonts\\OFL.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CUE.NET" Version="1.2.0.1" />

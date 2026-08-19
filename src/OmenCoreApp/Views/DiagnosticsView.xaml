@@ -83,6 +83,31 @@
                 </Grid>
             </GroupBox>
 
+            <!-- Temperature Source Comparison: "does this temperature look right?" A user with a
+                 wrong-looking reading previously had no way to see WMI BIOS / ACPI Thermal Zone /
+                 LibreHardwareMonitor side by side without a maintainer reading raw logs by hand. -->
+            <GroupBox Header="Temperature Source Comparison" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0"
+                      Visibility="{Binding TemperatureSourceDiagnostics.IsAvailable, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Margin="8">
+                    <TextBlock Text="Reads every CPU temperature source OmenCore knows about at once and reports whether they agree. Doesn't change which source is trusted — read-only."
+                               FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                    <Button Content="{Binding TemperatureSourceDiagnostics.RunButtonLabel}"
+                            Command="{Binding TemperatureSourceDiagnostics.RunComparisonCommand}"
+                            Style="{StaticResource OutlineButtonSmall}" HorizontalAlignment="Left"/>
+
+                    <Border Background="#2D2D1F" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="10,8" Margin="0,10,0,0"
+                            Visibility="{Binding TemperatureSourceDiagnostics.SourcesDisagree, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="{StaticResource MonospaceFontFamily}"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                    </Border>
+                    <TextBlock Text="{Binding TemperatureSourceDiagnostics.Result}" FontSize="12" FontFamily="{StaticResource MonospaceFontFamily}"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0"
+                               Visibility="{Binding TemperatureSourceDiagnostics.SourcesDisagree, Converter={StaticResource InverseBoolToVisibility}}"/>
+                </StackPanel>
+            </GroupBox>
+
             <!-- Power adapter (Legacy 0x0F). Hidden entirely on boards that don't report it, rather
                  than shown empty. Read-only: nothing here writes to the firmware. -->
             <GroupBox Header="Power Adapter" Style="{StaticResource ModernGroupBox}" Margin="0,12,0,0"

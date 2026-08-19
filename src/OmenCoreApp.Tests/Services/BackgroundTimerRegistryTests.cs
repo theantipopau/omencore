@@ -24,14 +24,12 @@ public class BackgroundTimerRegistryTests : IDisposable
     private const string TimerName = "Test_BackgroundTimerRegistry_Timer";
     private const string UndervoltMonitorTimerName = "UndervoltStatusMonitor";
     private const string EdpMonitorTimerName = "EdpThrottlingMitigationMonitor";
-    private const string TemperatureRgbMonitorTimerName = "TemperatureRgbMonitor";
 
     public void Dispose()
     {
         BackgroundTimerRegistry.Unregister(TimerName);
         BackgroundTimerRegistry.Unregister(UndervoltMonitorTimerName);
         BackgroundTimerRegistry.Unregister(EdpMonitorTimerName);
-        BackgroundTimerRegistry.Unregister(TemperatureRgbMonitorTimerName);
     }
 
     [Fact]
@@ -114,26 +112,6 @@ public class BackgroundTimerRegistryTests : IDisposable
         service.Stop();
 
         BackgroundTimerRegistry.GetAll().Should().NotContain(t => t.Name == EdpMonitorTimerName);
-    }
-
-    [Fact]
-    public void TemperatureRgbService_RegistersAndUnregistersOptionalMonitor()
-    {
-        using var logging = new LoggingService();
-        var settings = new RgbLightingSettingsService(logging);
-        using var service = new TemperatureRgbService(logging, settings);
-
-        service.Start();
-
-        BackgroundTimerRegistry.GetAll().Should().ContainSingle(t =>
-            t.Name == TemperatureRgbMonitorTimerName &&
-            t.OwnerService == nameof(TemperatureRgbService) &&
-            t.IntervalMs == 2000 &&
-            t.Tier == BackgroundTimerTier.Optional);
-
-        service.Stop();
-
-        BackgroundTimerRegistry.GetAll().Should().NotContain(t => t.Name == TemperatureRgbMonitorTimerName);
     }
 
     private sealed class FakeUndervoltProvider : ICpuUndervoltProvider

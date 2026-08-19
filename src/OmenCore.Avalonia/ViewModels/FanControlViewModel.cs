@@ -95,20 +95,40 @@ public partial class FanControlViewModel : ObservableObject, IDisposable
             var capabilities = await _hardwareService.GetCapabilitiesAsync();
             CanEditFanCurve = capabilities.SupportsFanControl;
 
+            // FanControlCapabilityReason comes straight from LinuxCapabilityClassifier and already
+            // distinguishes *why* curves are unavailable — e.g. "firmware exposes hwmon pwm_enable
+            // policy control, but no writable fan target/output interface" is a materially different
+            // (and more limited) situation than "thermal/platform profile control is available."
+            // Prefer it over a one-size-fits-all message per class, which previously told every
+            // profile-only board to "use System Control performance profiles for cooling behavior"
+            // even on boards with no thermal_profile/platform_profile path at all — for those,
+            // SetPerformanceModeAsync has nothing fan-relevant to do and can even throw. The one
+            // thing that reliably *does* still work on any profile-only board is the Max Fan /
+            // Emergency Stop button: SetCpuFanSpeedAsync/SetGpuFanSpeedAsync fall back to the coarse
+            // hwmon pwm_enable full-speed/auto toggle when no finer write path exists, and that call
+            // isn't gated behind CanEditFanCurve.
             var capabilityClass = capabilities.FanControlCapabilityClass?.Trim().ToLowerInvariant() ?? "unsupported-control";
+            var reason = capabilities.FanControlCapabilityReason?.Trim();
             switch (capabilityClass)
             {
                 case "profile-only":
                     ShowCapabilityWarning = true;
-                    CapabilityWarningMessage = "This Linux system exposes thermal profiles but not direct fan-speed targets. Use System Control performance profiles for cooling behavior.";
+                    CapabilityWarningMessage = string.IsNullOrEmpty(reason)
+                        ? "This board doesn't expose a writable fan-curve interface, only coarse profile/policy control."
+                        : reason;
+                    CapabilityWarningMessage += " The Max Fan button still works as a coarse override even without curve support.";
                     break;
                 case "telemetry-only":
                     ShowCapabilityWarning = true;
-                    CapabilityWarningMessage = "Fan telemetry is available, but firmware does not expose writable fan control interfaces on this board/kernel.";
+                    CapabilityWarningMessage = string.IsNullOrEmpty(reason)
+                        ? "Fan telemetry is available, but firmware does not expose writable fan control interfaces on this board/kernel."
+                        : reason;
                     break;
                 case "unsupported-control":
                     ShowCapabilityWarning = true;
-                    CapabilityWarningMessage = "No supported Linux fan control interface was detected for this board/kernel combination.";
+                    CapabilityWarningMessage = string.IsNullOrEmpty(reason)
+                        ? "No supported Linux fan control interface was detected for this board/kernel combination."
+                        : reason;
                     break;
                 default:
                     ShowCapabilityWarning = false;

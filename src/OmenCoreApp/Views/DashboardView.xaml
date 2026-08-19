@@ -222,13 +222,19 @@
                                   Fill="{StaticResource AccentBrush}" Stretch="Uniform" Margin="0,0,8,0"/>
                             <TextBlock Text="PROCESSOR" Style="{StaticResource Label}"/>
                         </StackPanel>
-                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Background="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=cpu}"
-                                CornerRadius="8" Padding="8,3"
-                                ToolTip="Temperature status">
-                            <TextBlock Text="{Binding CpuTempChipDisplay}"
-                                       Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
-                        </Border>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Path Data="{StaticResource IconWarning}" Width="11" Height="11" Margin="0,0,4,0"
+                                  Fill="{StaticResource WarningBrush}" Stretch="Uniform" VerticalAlignment="Center"
+                                  Visibility="{Binding IsCpuTemperatureSourceFallback, Converter={StaticResource BoolToVisibility}}"
+                                  ToolTip="{Binding CpuTemperatureSourceTooltip}"/>
+                            <Border
+                                    Background="{Binding LatestMonitoringSample.CpuTemperatureC, Converter={StaticResource TemperatureToColorConverter}, ConverterParameter=cpu}"
+                                    CornerRadius="8" Padding="8,3"
+                                    ToolTip="{Binding CpuTemperatureSourceTooltip}">
+                                <TextBlock Text="{Binding CpuTempChipDisplay}"
+                                           Style="{StaticResource MonospaceValue}" FontSize="11" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                     <!-- CPU Sparkline -->
                     <controls:Sparkline Grid.Row="2" Height="20" Margin="0,4,0,4"

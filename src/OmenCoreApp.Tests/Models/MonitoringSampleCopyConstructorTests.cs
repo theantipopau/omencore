@@ -22,6 +22,8 @@ namespace OmenCoreApp.Tests.Models
                 GpuName                = "RTX 5060",
                 BatteryTimeRemaining   = "2:30",
                 CpuTemperatureState    = TelemetryDataState.Valid,
+                CpuTemperatureSource   = "ACPI Thermal Zone",
+                CpuTemperatureSourceReason = "ACPI thermal zone accepted for CPU authority",
                 CpuTemperatureTelemetry = new TelemetryValue<double>
                 {
                     Value = 75.5,
@@ -53,6 +55,8 @@ namespace OmenCoreApp.Tests.Models
             Assert.Equal("RTX 5060",              s2.GpuName);
             Assert.Equal("2:30",                  s2.BatteryTimeRemaining);
             Assert.Equal(TelemetryDataState.Valid, s2.CpuTemperatureState);
+            Assert.Equal("ACPI Thermal Zone",     s2.CpuTemperatureSource);
+            Assert.Equal("ACPI thermal zone accepted for CPU authority", s2.CpuTemperatureSourceReason);
             Assert.Equal(75.5,                     s2.CpuTemperatureTelemetry.Value);
             Assert.Equal("WMI",                   s2.CpuTemperatureTelemetry.BackendSource);
             Assert.Equal(42,                       s2.CpuPowerTelemetry.Value);

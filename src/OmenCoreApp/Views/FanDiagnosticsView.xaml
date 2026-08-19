@@ -72,7 +72,7 @@
                          selected, so dragging across these results did nothing and the click
                          fell through to the surrounding panel. This keeps the same flat look
                          while letting the text be selected and copied by hand. -->
-                    <TextBox Text="{Binding GuidedTestResult, Mode=OneWay}" FontFamily="Consolas" FontSize="11"
+                    <TextBox Text="{Binding GuidedTestResult, Mode=OneWay}" FontFamily="{StaticResource MonospaceFontFamily}" FontSize="11"
                              Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"
                              TextWrapping="Wrap" IsReadOnly="True" IsReadOnlyCaretVisible="False"
                              Background="Transparent" BorderThickness="0" Padding="0"

@@ -138,6 +138,7 @@ namespace OmenCore.Views
         private string _packagePower = "";
         private double _gpuHotspotTemp;
         private Brush _cpuTempColor = Brushes.White;
+        private bool _isCpuTempSourceFallback;
         private Brush _gpuTempColor = Brushes.White;
         private Brush _gpuHotspotTempColor = Brushes.White;
         private string _networkUpload = "0.0";
@@ -184,6 +185,15 @@ namespace OmenCore.Views
         public string PackagePower { get => _packagePower; set { _packagePower = value; OnPropertyChanged(); } }
         public double GpuHotspotTemp { get => _gpuHotspotTemp; set { _gpuHotspotTemp = value; OnPropertyChanged(); UpdateGpuHotspotTempColor(); } }
         public Brush CpuTempColor { get => _cpuTempColor; set { _cpuTempColor = value; OnPropertyChanged(); } }
+
+        /// <summary>
+        /// True when the trusted CPU temperature source is the LibreHardwareMonitor fallback
+        /// path — the primary WMI/ACPI reading was recently rejected as implausible. Drives a
+        /// small always-visible marker rather than a tooltip: this window is click-through
+        /// (WS_EX_TRANSPARENT), so hover-triggered UI would never be reachable during actual
+        /// gameplay, unlike the equivalent Dashboard tooltip.
+        /// </summary>
+        public bool IsCpuTempSourceFallback { get => _isCpuTempSourceFallback; set { _isCpuTempSourceFallback = value; OnPropertyChanged(); } }
         public Brush GpuTempColor { get => _gpuTempColor; set { _gpuTempColor = value; OnPropertyChanged(); } }
         public Brush GpuHotspotTempColor { get => _gpuHotspotTempColor; set { _gpuHotspotTempColor = value; OnPropertyChanged(); } }
         public string NetworkUpload { get => _networkUpload; set { _networkUpload = value; OnPropertyChanged(); } }
@@ -695,6 +705,7 @@ namespace OmenCore.Views
                 if (sample != null && !isStale)
                 {
                     CpuTemp = sample.CpuTemperatureC;
+                    IsCpuTempSourceFallback = string.Equals(sample.CpuTemperatureSource, "LHM Fallback", StringComparison.OrdinalIgnoreCase);
                     GpuTemp = sample.GpuTemperatureC;
                     CpuLoad = sample.CpuLoadPercent;
                     GpuLoad = sample.GpuLoadPercent;

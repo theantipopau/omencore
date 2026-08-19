@@ -177,7 +177,7 @@ public class ToastNotificationService : IDisposable
                 Text = title,
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136)),
-                FontFamily = new FontFamily("Segoe UI"),
+                FontFamily = AppFonts.App,
                 FontWeight = FontWeights.Normal
             };
             textStack.Children.Add(titleText);
@@ -187,7 +187,7 @@ public class ToastNotificationService : IDisposable
                 Text = value,
                 FontSize = 16,
                 Foreground = Brushes.White,
-                FontFamily = new FontFamily("Segoe UI Semibold"),
+                FontFamily = AppFonts.App,
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 2, 0, 0)
             };

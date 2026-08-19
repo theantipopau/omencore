@@ -193,7 +193,11 @@ namespace OmenCore.Hardware
                     CurrentCacheOffsetMv = _lastIgpuCO * 4, // Use cache field for iGPU
                     IsRuntimeReady = _smu.IsAvailable && _cpuInfo.SupportsUndervolt,
                     ControlledByOmenCore = true,
-                    Timestamp = DateTime.Now
+                    Timestamp = DateTime.Now,
+                    // The SMU mailbox has no independent CO readback register - CurrentCoreOffsetMv
+                    // above is just this provider's own record of the last value it wrote, not a
+                    // separately-polled value. See UndervoltStatus.HasIndependentReadback.
+                    HasIndependentReadback = false
                 };
 
                 if (!_smu.IsAvailable)

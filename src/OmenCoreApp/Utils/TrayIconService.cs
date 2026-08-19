@@ -145,27 +145,27 @@ namespace OmenCore.Utils
 
             // ═══ LIVE STATUS ═══
             _cpuTempMenuItem = new MenuItem { Header = "CPU: --°C · --%", IsEnabled = false };
-            _cpuTempMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _cpuTempMenuItem.FontFamily = AppFonts.Monospace;
             contextMenu.Items.Add(_cpuTempMenuItem);
 
             _gpuTempMenuItem = new MenuItem { Header = "GPU: --°C · --%", IsEnabled = false };
-            _gpuTempMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _gpuTempMenuItem.FontFamily = AppFonts.Monospace;
             contextMenu.Items.Add(_gpuTempMenuItem);
 
             _monitoringHealthMenuItem = new MenuItem { Header = "Monitor: Unknown", IsEnabled = false };
-            _monitoringHealthMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _monitoringHealthMenuItem.FontFamily = AppFonts.Monospace;
             contextMenu.Items.Add(_monitoringHealthMenuItem);
 
             _ramMenuItem = new MenuItem { Header = "RAM: —/— GB", IsEnabled = false };
-            _ramMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _ramMenuItem.FontFamily = AppFonts.Monospace;
             contextMenu.Items.Add(_ramMenuItem);
 
             _fanStatusMenuItem = new MenuItem { Header = "Fan: Auto · —", IsEnabled = false };
-            _fanStatusMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _fanStatusMenuItem.FontFamily = AppFonts.Monospace;
             contextMenu.Items.Add(_fanStatusMenuItem);
 
             _batteryMenuItem = new MenuItem { Header = "Battery: —", IsEnabled = false };
-            _batteryMenuItem.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+            _batteryMenuItem.FontFamily = AppFonts.Monospace;
             _batteryMenuItem.Visibility = Visibility.Collapsed;
             contextMenu.Items.Add(_batteryMenuItem);
 
@@ -1347,7 +1347,7 @@ namespace OmenCore.Utils
                     text,
                     CultureInfo.InvariantCulture,
                     FlowDirection.LeftToRight,
-                    new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.ExtraBold, FontStretches.Normal),
+                    new Typeface(AppFonts.App, FontStyles.Normal, FontWeights.ExtraBold, FontStretches.Normal),
                     fontSize,
                     textBrush,
                     1.25);

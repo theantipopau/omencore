@@ -21,6 +21,17 @@ public static class LinuxSysfsPathMap
     public const string KeyboardBacklightPathAlt = "/sys/class/leds/hp_omen::kbd_backlight";
 
     /// <summary>
+    /// Keyboard-backlight LED class registered by the out-of-tree <c>omen-rgb-keyboard</c> DKMS
+    /// driver (github.com/OmenLinux/omen-rgb-keyboard, GPLv3), which names its LED device
+    /// "omen::kbd_backlight" rather than the in-tree hp-wmi driver's "hp::kbd_backlight".
+    /// That driver is intended to be used *instead of* hp_wmi (its install instructions
+    /// blacklist hp_wmi, since both drive the same WMI interface and conflict), so on a machine
+    /// running it none of the hp-wmi paths above exist at all. Path/name only - no code from
+    /// that project is used here.
+    /// </summary>
+    public const string KeyboardBacklightPathOmenRgb = "/sys/class/leds/omen::kbd_backlight";
+
+    /// <summary>
     /// 4-zone RGB keyboard control directory, distinct from both the WMI-driven "zoneN_color"
     /// files (<see cref="HpWmiRoot"/>) and the hp-rgb-lighting platform device's plain "zoneN"
     /// files. Each zone is its own file, named "zone00".."zone03" (2-digit, zero-padded),
@@ -29,6 +40,30 @@ public static class LinuxSysfsPathMap
     /// docs/CHANGELOG_v4.1.7.md for the corroboration trail.
     /// </summary>
     public const string HpWmiRgbZonesDir = "/sys/devices/platform/hp-wmi/rgb_zones";
+
+    /// <summary>
+    /// The same "rgb_zones/zoneNN" directory layout as <see cref="HpWmiRgbZonesDir"/>, but
+    /// registered under the out-of-tree <c>omen-rgb-keyboard</c> DKMS driver's own platform
+    /// device rather than hp-wmi's. Its README documents this exact interface
+    /// (<c>rgb_zones/zone00</c>..<c>zone03</c>, plus <c>all</c> and <c>brightness</c>, each
+    /// written as a plain 6-hex-char string) and its tested-hardware list includes boards this
+    /// project already tracks from field reports - 16-wf0xxx (`8BCA`) and 16-wd0xxx (`8BA9`).
+    /// Because that driver requires blacklisting hp_wmi, a machine running it exposes none of
+    /// the hp-wmi paths, so without this candidate OmenCore's Linux keyboard control finds
+    /// nothing at all there. Documented sysfs path and wire format only - no code adopted (that
+    /// project is GPLv3; this project is MIT).
+    /// </summary>
+    public const string OmenRgbKeyboardRgbZonesDir = "/sys/devices/platform/omen-rgb-keyboard/rgb_zones";
+
+    /// <summary>
+    /// All known "rgb_zones" style 4-zone directories, in probe order: the hp-wmi-hosted one
+    /// first (in-tree driver, the common case), then the out-of-tree omen-rgb-keyboard driver's.
+    /// </summary>
+    public static readonly string[] RgbZonesDirs =
+    {
+        HpWmiRgbZonesDir,
+        OmenRgbKeyboardRgbZonesDir
+    };
 
     /// <summary>
     /// Legacy single-file 4-zone keyboard control: one write of all 4 zones' colors
@@ -220,30 +255,67 @@ public static class LinuxSysfsPathMap
     /// </summary>
     public static string? ResolveKeyboardBacklightDirectory()
     {
-        if (Directory.Exists(KeyboardBacklightPath))
+        foreach (var candidate in KeyboardBacklightDirs)
         {
-            return KeyboardBacklightPath;
-        }
-
-        if (Directory.Exists(KeyboardBacklightPathAlt))
-        {
-            return KeyboardBacklightPathAlt;
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
         }
 
         return null;
     }
 
     /// <summary>
-    /// Resolves the file for one of the 4 <see cref="HpWmiRgbZonesDir"/> zone files
-    /// ("zone00".."zone03"), or null if the directory or that specific zone file doesn't exist.
+    /// Keyboard-backlight LED class directories, in probe order: in-tree hp-wmi naming first,
+    /// then the underscore variant, then the out-of-tree omen-rgb-keyboard driver's.
+    /// </summary>
+    public static readonly string[] KeyboardBacklightDirs =
+    {
+        KeyboardBacklightPath,
+        KeyboardBacklightPathAlt,
+        KeyboardBacklightPathOmenRgb
+    };
+
+    /// <summary>
+    /// Resolves the file for one of the 4 zone files ("zone00".."zone03") in whichever
+    /// <see cref="RgbZonesDirs"/> directory exists on this system, or null if none do.
     /// </summary>
     public static string? ResolveRgbZoneFilePath(int zoneIndex)
     {
-        var candidate = Path.Combine(HpWmiRgbZonesDir, $"zone{zoneIndex:D2}");
-        return File.Exists(candidate) ? candidate : null;
+        foreach (var dir in RgbZonesDirs)
+        {
+            var candidate = Path.Combine(dir, $"zone{zoneIndex:D2}");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
-    public static bool HasRgbZonesDir => Directory.Exists(HpWmiRgbZonesDir);
+    /// <summary>
+    /// Resolves the "all zones at once" file in whichever <see cref="RgbZonesDirs"/> directory
+    /// exists, or null if none do. Writing one 6-hex-char color here sets every zone in a single
+    /// write instead of four - fewer WMI round-trips for the common "set the whole keyboard to
+    /// one color" case.
+    /// </summary>
+    public static string? ResolveRgbZonesAllFilePath()
+    {
+        foreach (var dir in RgbZonesDirs)
+        {
+            var candidate = Path.Combine(dir, "all");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    public static bool HasRgbZonesDir => RgbZonesDirs.Any(Directory.Exists);
 
     public static bool HasKeyboardLedsFile => File.Exists(HpWmiKeyboardLedsPath);
 }

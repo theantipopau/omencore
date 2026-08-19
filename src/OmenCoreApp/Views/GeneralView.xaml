@@ -78,7 +78,7 @@
         <!-- Gauge Value Style -->
         <Style x:Key="GaugeValue" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontFamily" Value="{StaticResource MonospaceFontFamily}"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -441,7 +441,7 @@
                                 <Border Grid.Column="2" Background="{Binding CpuTemp, Converter={StaticResource TemperatureToColorConverter}}" 
                                         CornerRadius="4" Padding="8,4" Opacity="0.9">
                                     <TextBlock FontSize="12" FontWeight="Bold" 
-                                               Foreground="White" FontFamily="Consolas">
+                                               Foreground="White" FontFamily="{StaticResource MonospaceFontFamily}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value="{Binding CpuTemp, StringFormat={}{0:F0}°C}"/>
@@ -510,7 +510,7 @@
                                         <TextBlock Text="{Binding CpuPowerDisplay}"
                                                    ToolTip="{Binding CpuPowerTooltip}"
                                                    FontSize="18" FontWeight="Bold"
-                                                   FontFamily="Consolas" Foreground="{StaticResource AccentGreenBrush}" 
+                                                   FontFamily="{StaticResource MonospaceFontFamily}" Foreground="{StaticResource AccentGreenBrush}" 
                                                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                     </StackPanel>
                                     
@@ -518,7 +518,7 @@
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="🌀 FAN" Style="{StaticResource GaugeLabel}" HorizontalAlignment="Center"/>
                                         <TextBlock Text="{Binding CpuFanRpm, StringFormat={}{0}}" FontSize="18" FontWeight="Bold" 
-                                                   FontFamily="Consolas" Foreground="{StaticResource AccentBrush}" 
+                                                   FontFamily="{StaticResource MonospaceFontFamily}" Foreground="{StaticResource AccentBrush}" 
                                                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                         <TextBlock Text="RPM" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" 
                                                    HorizontalAlignment="Center"/>
@@ -552,7 +552,7 @@
                                 <Border Grid.Column="2" Background="{Binding GpuTemp, Converter={StaticResource TemperatureToColorConverter}}" 
                                         CornerRadius="4" Padding="8,4" Opacity="0.9">
                                     <TextBlock FontSize="12" FontWeight="Bold" 
-                                               Foreground="White" FontFamily="Consolas">
+                                               Foreground="White" FontFamily="{StaticResource MonospaceFontFamily}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Text" Value="{Binding GpuTemp, StringFormat={}{0:F0}°C}"/>
@@ -621,7 +621,7 @@
                                         <TextBlock Text="{Binding GpuPowerDisplay}"
                                                    ToolTip="{Binding GpuPowerTooltip}"
                                                    FontSize="18" FontWeight="Bold"
-                                                   FontFamily="Consolas" Foreground="{StaticResource AccentGreenBrush}" 
+                                                   FontFamily="{StaticResource MonospaceFontFamily}" Foreground="{StaticResource AccentGreenBrush}" 
                                                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                     </StackPanel>
                                     
@@ -629,7 +629,7 @@
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="🌀 FAN" Style="{StaticResource GaugeLabel}" HorizontalAlignment="Center"/>
                                         <TextBlock Text="{Binding GpuFanRpm, StringFormat={}{0}}" FontSize="18" FontWeight="Bold" 
-                                                   FontFamily="Consolas" Foreground="{StaticResource AccentBlueBrush}" 
+                                                   FontFamily="{StaticResource MonospaceFontFamily}" Foreground="{StaticResource AccentBlueBrush}" 
                                                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                         <TextBlock Text="RPM" FontSize="9" Foreground="{StaticResource TextTertiaryBrush}" 
                                                    HorizontalAlignment="Center"/>
@@ -663,7 +663,7 @@
                                 <Border Grid.Column="2" Background="{StaticResource AccentPurpleBrush}" 
                                         CornerRadius="4" Padding="8,4" Opacity="0.9">
                                     <TextBlock Text="{Binding RamPercent, StringFormat={}{0:F0}%}" FontSize="12" FontWeight="Bold" 
-                                               Foreground="White" FontFamily="Consolas"/>
+                                               Foreground="White" FontFamily="{StaticResource MonospaceFontFamily}"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -696,9 +696,9 @@
                                 <TextBlock Grid.Column="0" Text="USED" Style="{StaticResource GaugeLabel}"/>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock Text="{Binding RamUsedGb, StringFormat={}{0:F1}}" FontSize="14" FontWeight="Bold" 
-                                               FontFamily="Consolas" Foreground="{StaticResource AccentPurpleBrush}"/>
+                                               FontFamily="{StaticResource MonospaceFontFamily}" Foreground="{StaticResource AccentPurpleBrush}"/>
                                     <TextBlock Text=" / " FontSize="14" Foreground="{StaticResource TextTertiaryBrush}"/>
-                                    <TextBlock Text="{Binding RamTotalGb, StringFormat={}{0:F0} GB}" FontSize="14" FontFamily="Consolas"
+                                    <TextBlock Text="{Binding RamTotalGb, StringFormat={}{0:F0} GB}" FontSize="14" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource TextSecondaryBrush}"/>
                                 </StackPanel>
                             </Grid>

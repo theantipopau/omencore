@@ -51,6 +51,15 @@ namespace OmenCore.ViewModels
             // Subscribe to library scan events
             _libraryService.ScanCompleted += OnScanCompleted;
             _profileService.ActiveProfileChanged += OnActiveProfileChanged;
+
+            // Nothing about the detected library survives a restart - GameLibraryService keeps
+            // _detectedGames in memory only, by design (re-scanning is the source of truth, not a
+            // cache that can drift from what's actually installed). Without this, the Games tab
+            // opens empty every session and the user has to know to click Scan Library first
+            // (GitHub #177). This ViewModel itself is constructed lazily on first navigation to the
+            // tab (see MainViewModel.GameLibrary), so firing the scan here costs nothing at app
+            // startup for users who never open this tab.
+            _ = ScanLibraryAsync();
         }
 
         #region Properties

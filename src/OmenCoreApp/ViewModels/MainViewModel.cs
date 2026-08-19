@@ -21,6 +21,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace OmenCore.ViewModels
 {
@@ -249,6 +250,14 @@ namespace OmenCore.ViewModels
         private const int BloatwareTabIndex = 7;
         private const int RgbTabIndex = 8;
 
+        private static readonly string[] TabIndexNames =
+        {
+            "General", "Omen", "Tuning", "Diagnostics", "Monitoring", "Optimizer", "Memory", "Bloatware", "Rgb"
+        };
+
+        private static string TabName(int index) =>
+            index >= 0 && index < TabIndexNames.Length ? TabIndexNames[index] : $"Tab{index}";
+
         public int SelectedTabIndex
         {
             get => _selectedTabIndex;
@@ -256,10 +265,29 @@ namespace OmenCore.ViewModels
             {
                 if (_selectedTabIndex != value)
                 {
+                    // Per-tab switch cost (Pillar 2.1, docs/ROADMAP_v4.2.0.md): brackets the
+                    // synchronous cost of this setter (including any lazy ViewModel construction
+                    // it triggers) plus the render pass that follows it, by resuming at Render
+                    // priority - the standard WPF technique for "wait until pending layout/render
+                    // work is actually flushed" without needing per-view instrumentation. No-ops
+                    // cleanly in a headless test host, where Application.Current is null.
+                    var switchStopwatch = Stopwatch.StartNew();
+                    var tabName = TabName(value);
+
                     _selectedTabIndex = value;
                     OnPropertyChanged(nameof(SelectedTabIndex));
                     UpdateLazyTabActivity(value);
                     EnsureConflictMonitoringStartedForTab(value);
+
+                    var dispatcher = Application.Current?.Dispatcher;
+                    if (dispatcher != null)
+                    {
+                        dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+                        {
+                            switchStopwatch.Stop();
+                            StartupAndNavigationPerformanceTracker.RecordTabSwitch(tabName, switchStopwatch.Elapsed);
+                        }));
+                    }
                 }
             }
         }
@@ -2410,6 +2438,9 @@ namespace OmenCore.ViewModels
         // Expose Keyboard Diagnostics VM
         public KeyboardDiagnosticsViewModel KeyboardDiagnostics { get; private set; }
 
+        // Expose Temperature Source Diagnostics VM
+        public TemperatureSourceDiagnosticsViewModel TemperatureSourceDiagnostics { get; private set; }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         /// <param name="systemRestoreService">
@@ -2531,6 +2562,7 @@ namespace OmenCore.ViewModels
             // Fan verification service (closed-loop verification)
             _fanVerificationService = new FanVerificationService(_wmiBios, _fanService, _logging);
             FanDiagnostics = new FanDiagnosticsViewModel(_fanVerificationService, _fanService, _logging);
+            TemperatureSourceDiagnostics = new TemperatureSourceDiagnosticsViewModel(_wmiBiosMonitor, _logging);
             
             // Power limit controller (EC-based CPU/GPU power control)
             PowerLimitController? powerLimitController = null;

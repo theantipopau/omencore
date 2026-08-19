@@ -56,6 +56,7 @@ namespace OmenCore.ViewModels
         private bool _startupRestoreTuningEnabled;
         private bool _allowStartupRestoreOnOmen16OrVictus;
         private bool _useSoftwareRendering;
+        private bool _reduceMotion;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
         private bool _autoCheckUpdates = true;
@@ -525,6 +526,20 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged();
                     if (value)
                         App.EnableSoftwareRendering();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public bool ReduceMotion
+        {
+            get => _reduceMotion;
+            set
+            {
+                if (_reduceMotion != value)
+                {
+                    _reduceMotion = value;
+                    OnPropertyChanged();
                     SaveSettings();
                 }
             }
@@ -3063,6 +3078,7 @@ namespace OmenCore.ViewModels
             _startupRestoreTuningEnabled = StartupRestorePolicy.IsEnabled(_config, StartupRestoreCategory.Tuning);
             _allowStartupRestoreOnOmen16OrVictus = _config.AllowStartupRestoreOnOmen16OrVictus;
             _useSoftwareRendering = _config.UseSoftwareRendering;
+            _reduceMotion = _config.ReduceMotion;
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -3115,6 +3131,7 @@ namespace OmenCore.ViewModels
             _config.StartupRestoreTuningEnabled = _startupRestoreTuningEnabled;
             _config.AllowStartupRestoreOnOmen16OrVictus = _allowStartupRestoreOnOmen16OrVictus;
             _config.UseSoftwareRendering = _useSoftwareRendering;
+            _config.ReduceMotion = _reduceMotion;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -3665,6 +3682,7 @@ namespace OmenCore.ViewModels
                 GameNotificationsEnabled = true;
                 ModeChangeNotificationsEnabled = true;
                 TemperatureWarningsEnabled = true;
+                ReduceMotion = false;
                 StartupSafeModeGuardEnabled = true;
                 StartupSafeModeWindowSeconds = 180;
                 StartupSafeModeTimeoutThreshold = 2;

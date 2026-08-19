@@ -266,8 +266,15 @@ namespace OmenCore.Services.KeyboardLighting
             }
             catch (Exception ex)
             {
+                // A failure here (e.g. system-info query threw) is not evidence this IS an
+                // OMEN - it is exactly as uninformative as no config at all. Returning
+                // GetDefaultConfig() here previously meant "detection broke" silently became
+                // "assume OMEN and try its keyboard-lighting backends anyway", which is how a
+                // plain desktop PC could end up with EcDirectBackend reporting available (its
+                // own "is this really HP hardware" check is weak - see EcDirectBackend) and the
+                // UI showing an "OMEN Keyboard" badge on hardware that has none.
                 _logging.Warn($"[KeyboardLightingV2] Model detection failed: {ex.Message}");
-                return KeyboardModelDatabase.GetDefaultConfig();
+                return null;
             }
         }
         

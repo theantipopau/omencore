@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using OmenCore.Utils;
 
 namespace OmenCore.Controls
 {
@@ -196,7 +197,7 @@ namespace OmenCore.Controls
                     string.Format(ValueFormat, Value),
                     System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight,
-                    new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
+                    new Typeface(AppFonts.App, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
                     ValueFontSize,
                     Foreground ?? Brushes.White,
                     VisualTreeHelper.GetDpi(this).PixelsPerDip);

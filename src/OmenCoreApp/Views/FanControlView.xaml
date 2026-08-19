@@ -707,8 +707,24 @@
                                             Style="{StaticResource SecondaryButton}"
                                             Width="75" Height="32"
                                             FontSize="12"
+                                            Margin="0,0,6,0"
                                             ToolTip="Reset curve to default"
                                             AutomationProperties.Name="Reset curve to default"/>
+                                    <Button Content="📋 Copy Code"
+                                            Command="{Binding CopyCurveShareCodeCommand}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Width="105" Height="32"
+                                            FontSize="12"
+                                            Margin="0,0,6,0"
+                                            ToolTip="Copy this curve as a share code you can paste into Discord, Reddit, or a GitHub comment"
+                                            AutomationProperties.Name="Copy curve as share code"/>
+                                    <Button Content="📥 Paste Code"
+                                            Command="{Binding ImportCurveFromClipboardCommand}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Width="105" Height="32"
+                                            FontSize="12"
+                                            ToolTip="Import a fan curve from a share code on the clipboard"
+                                            AutomationProperties.Name="Import curve from clipboard share code"/>
                                 </StackPanel>
                             </Grid>
                             

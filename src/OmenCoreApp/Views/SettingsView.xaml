@@ -227,7 +227,7 @@
                                 <TextBlock Text="{Binding OghDetectionDetail}" 
                                            FontSize="10" 
                                            Foreground="#FF9800"
-                                           FontFamily="Consolas"
+                                           FontFamily="{StaticResource MonospaceFontFamily}"
                                            Margin="0,4,0,0"
                                            TextWrapping="Wrap"
                                            Visibility="{Binding OghInstalled, Converter={StaticResource BoolToVisibility}}"/>
@@ -351,7 +351,7 @@
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True"
                                              MinHeight="96"
-                                             FontFamily="Consolas"
+                                             FontFamily="{StaticResource MonospaceFontFamily}"
                                              Background="{StaticResource SurfaceDarkBrush}"
                                              Foreground="{StaticResource TextSecondaryBrush}"
                                              BorderBrush="{StaticResource BorderBrush}"/>
@@ -450,7 +450,7 @@
 
                                     <TextBlock Text="{Binding ModelIdentityRawSummary}" FontSize="11"
                                                Foreground="{StaticResource TextTertiaryBrush}"
-                                               FontFamily="Consolas"
+                                               FontFamily="{StaticResource MonospaceFontFamily}"
                                                TextWrapping="Wrap" Margin="0,10,0,0"/>
                                 </StackPanel>
                                 <WrapPanel Margin="0,12,0,0" VerticalAlignment="Top">
@@ -678,6 +678,24 @@
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding UseSoftwareRendering, Mode=TwoWay}"
                                           AutomationProperties.Name="Software rendering mode"/>
+                        </Grid>
+
+                        <!-- Reduce Motion -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Reduce motion" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Suppress OmenCore's own transitions and animation, on top of whatever Windows' own 'Show animations' setting already does." FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1"
+                                          Style="{StaticResource ModernToggleButton}"
+                                          IsChecked="{Binding ReduceMotion, Mode=TwoWay}"
+                                          AutomationProperties.Name="Reduce motion"/>
                         </Grid>
 
                         <!-- Minimize to Tray on Close -->
@@ -1461,37 +1479,37 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Ctrl + Shift + F" FontFamily="Consolas" 
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Ctrl + Shift + F" FontFamily="{StaticResource MonospaceFontFamily}" 
                                                Foreground="{StaticResource AccentBrush}" FontSize="12"/>
                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="Cycle fan modes" 
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
                                     
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + Shift + P" FontFamily="Consolas" 
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Ctrl + Shift + P" FontFamily="{StaticResource MonospaceFontFamily}" 
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="1" Grid.Column="1" Text="Cycle performance modes" 
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl + Shift + E" FontFamily="Consolas"
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ctrl + Shift + E" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="2" Grid.Column="1" Text="Cycle General profiles"
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl + Shift + B" FontFamily="Consolas"
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Ctrl + Shift + B" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="3" Grid.Column="1" Text="Boost mode (Performance)"
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
 
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Ctrl + Shift + Q" FontFamily="Consolas"
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Ctrl + Shift + Q" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="4" Grid.Column="1" Text="Quiet mode"
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
 
-                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Ctrl + Shift + O" FontFamily="Consolas"
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Ctrl + Shift + O" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="5" Grid.Column="1" Text="Show/hide OmenCore window"
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
 
-                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Win + F12" FontFamily="Consolas"
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Win + F12" FontFamily="{StaticResource MonospaceFontFamily}"
                                                Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"/>
                                     <TextBlock Grid.Row="6" Grid.Column="1" Text="Show OmenCore window"
                                                Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0"/>
@@ -3051,7 +3069,7 @@
                                         <DataTemplate>
                                             <TextBlock Text="{Binding}" 
                                                        FontSize="11" 
-                                                       FontFamily="Consolas"
+                                                       FontFamily="{StaticResource MonospaceFontFamily}"
                                                        Foreground="{StaticResource TextSecondaryBrush}"
                                                        Margin="0,2"/>
                                         </DataTemplate>
