@@ -165,7 +165,8 @@
                             Padding="12,7"
                             Margin="14,0,0,0"
                             VerticalAlignment="Center"
-                            ToolTip="Reset live tuning where available and normalize startup tuning state to safe Balanced/Auto defaults.">
+                            ToolTip="Reset live tuning where available and normalize startup tuning state to safe Balanced/Auto defaults."
+                            AutomationProperties.Name="Roll back all tuning to safe defaults">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconRestore}"
                                   Width="12"
@@ -394,15 +395,19 @@
 
                         <!-- Apply Buttons -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="{Binding SystemControl.UndervoltActionLabel}" 
+                            <Button Content="{Binding SystemControl.UndervoltActionLabel}"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ApplyUndervoltCommand}"
-                                    Padding="16,8" Margin="0,0,8,0"/>
-                            
-                            <Button Content="Reset to 0mV" 
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Apply the CPU voltage offset above. An offset that is too aggressive can cause instability or crashes — test gradually."
+                                    AutomationProperties.Name="Apply CPU undervolt offset"/>
+
+                            <Button Content="Reset to 0mV"
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.ResetUndervoltCommand}"
-                                    Padding="16,8"/>
+                                    Padding="16,8"
+                                    ToolTip="Remove the CPU voltage offset, returning the CPU to its stock voltage."
+                                    AutomationProperties.Name="Reset CPU undervolt to 0 millivolts"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -454,7 +459,9 @@
                             <Button Grid.Column="2" Content="🔄 Refresh"
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.RefreshCpuPowerLimitsCommand}"
-                                    Padding="12,6" FontSize="11"/>
+                                    Padding="12,6" FontSize="11"
+                                    ToolTip="Re-read the current CPU power limits from the hardware."
+                                    AutomationProperties.Name="Refresh CPU power limit readings"/>
                         </Grid>
                     </Border>
                     
@@ -585,17 +592,21 @@
 
                         <!-- Apply Buttons -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Apply Power Limits" 
+                            <Button Content="Apply Power Limits"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ApplyCpuPowerLimitsCommand}"
                                     Padding="16,8" Margin="0,0,8,0"
-                                    IsEnabled="{Binding SystemControl.CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
-                            
-                            <Button Content="Reset to Defaults" 
+                                    IsEnabled="{Binding SystemControl.CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"
+                                    ToolTip="Apply the CPU PL1/PL2 power limits above. Higher limits allow more sustained performance but more heat."
+                                    AutomationProperties.Name="Apply CPU power limits"/>
+
+                            <Button Content="Reset to Defaults"
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.ResetCpuPowerLimitsCommand}"
                                     Padding="16,8"
-                                    IsEnabled="{Binding SystemControl.CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"/>
+                                    IsEnabled="{Binding SystemControl.CpuPowerLimitsLocked, Converter={StaticResource InverseBooleanConverter}}"
+                                    ToolTip="Restore the CPU power limits to this model's stock values."
+                                    AutomationProperties.Name="Reset CPU power limits to defaults"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -700,11 +711,15 @@
                             <Button Content="Apply AMD Limits"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ApplyAmdPowerLimitsCommand}"
-                                    Padding="16,8" Margin="0,0,8,0"/>
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Apply the AMD STAPM/temperature limits above."
+                                    AutomationProperties.Name="Apply AMD CPU power limits"/>
                             <Button Content="Reset to Defaults"
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.ResetAmdPowerLimitsCommand}"
-                                    Padding="16,8"/>
+                                    Padding="16,8"
+                                    ToolTip="Restore the AMD CPU power limits to this model's stock values."
+                                    AutomationProperties.Name="Reset AMD CPU power limits to defaults"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -809,15 +824,19 @@
 
                         <!-- Apply Buttons -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Apply Limit" 
+                            <Button Content="Apply Limit"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ApplyTccOffsetCommand}"
-                                    Padding="16,8" Margin="0,0,8,0"/>
-                            
-                            <Button Content="Remove Limit" 
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Apply the CPU thermal throttle limit above. The CPU will begin throttling at this temperature instead of its stock limit."
+                                    AutomationProperties.Name="Apply CPU thermal limit offset"/>
+
+                            <Button Content="Remove Limit"
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.ResetTccOffsetCommand}"
-                                    Padding="16,8"/>
+                                    Padding="16,8"
+                                    ToolTip="Remove the thermal throttle limit, returning the CPU to its stock throttle temperature."
+                                    AutomationProperties.Name="Remove CPU thermal limit offset"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -1178,11 +1197,15 @@
                                 <Button Content="Reset to Default" 
                                         Style="{StaticResource SecondaryButton}"
                                         Command="{Binding SystemControl.ResetAmdGpuCommand}"
-                                        Margin="0,0,8,0" Padding="16,8"/>
-                                <Button Content="Apply AMD GPU OC" 
+                                        Margin="0,0,8,0" Padding="16,8"
+                                        ToolTip="Restore AMD GPU clocks and power to stock values."
+                                        AutomationProperties.Name="Reset AMD GPU overclock to defaults"/>
+                                <Button Content="Apply AMD GPU OC"
                                         Style="{StaticResource ModernButton}"
                                         Command="{Binding SystemControl.ApplyAmdGpuOcCommand}"
-                                        Padding="16,8"/>
+                                        Padding="16,8"
+                                        ToolTip="Apply the AMD GPU clock and power offsets above. An unstable overclock can cause driver resets or crashes."
+                                        AutomationProperties.Name="Apply AMD GPU overclock"/>
                             </StackPanel>
                         </StackPanel>
 
@@ -1345,22 +1368,30 @@
                                 <Button Content="Test Apply" 
                                     Style="{StaticResource SecondaryButton}"
                                     Command="{Binding SystemControl.TestGpuOcCommand}"
-                                    Padding="16,8" Margin="0,0,8,0"/>
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Apply these GPU settings temporarily so you can check stability. They revert automatically unless you press Keep."
+                                    AutomationProperties.Name="Test GPU overclock temporarily"/>
 
-                                <Button Content="Keep" 
+                                <Button Content="Keep"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ConfirmGpuOcTestCommand}"
-                                    Padding="16,8" Margin="0,0,8,0"/>
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Confirm the settings you are currently testing and stop them from reverting."
+                                    AutomationProperties.Name="Keep tested GPU overclock"/>
 
-                                <Button Content="Apply GPU Settings" 
+                                <Button Content="Apply GPU Settings"
                                         Style="{StaticResource ModernButton}"
                                         Command="{Binding SystemControl.ApplyGpuOcCommand}"
-                                        Padding="16,8" Margin="0,0,8,0"/>
-                                
-                                <Button Content="Reset to Defaults" 
+                                        Padding="16,8" Margin="0,0,8,0"
+                                        ToolTip="Apply the GPU clock, memory, and power offsets above. An unstable overclock can cause driver resets or crashes."
+                                        AutomationProperties.Name="Apply NVIDIA GPU overclock"/>
+
+                                <Button Content="Reset to Defaults"
                                         Style="{StaticResource SecondaryButton}"
                                         Command="{Binding SystemControl.ResetGpuOcCommand}"
-                                        Padding="16,8"/>
+                                        Padding="16,8"
+                                        ToolTip="Restore GPU clocks, memory, and power limit to stock values."
+                                        AutomationProperties.Name="Reset NVIDIA GPU overclock to defaults"/>
                             </StackPanel>
 
                             <TextBlock Text="{Binding SystemControl.GpuOcTestStatusText}"

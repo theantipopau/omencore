@@ -64,6 +64,14 @@ Not done: migrating `ProcessMonitoringService` onto it — it changes its poll i
 
 The games list declared `IsVirtualizing`/`Recycling`/`ScrollUnit=Pixel` but overrode its panel to a plain `WrapPanel`, which doesn't virtualize — so every detected game kept a full visual tree alive regardless of scroll position. Removed the override so the real virtualizing panel applies, and reflowed each game from a stacked card into a single-line row (also more scannable per screen). Bindings and styles unchanged. Build-verified only — worth an eyeball on the next real run.
 
+## Improved: Tuning Tab Buttons Now Say What They Actually Do
+
+The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock — had 16 buttons with **no accessibility labels at all** and only 4 tooltips, on the page where a mis-click has the most real consequence. Worst case: four separate buttons labelled exactly "Reset to Defaults" (CPU limits, AMD limits, AMD GPU, NVIDIA GPU), indistinguishable to a screen reader and only disambiguated visually by which card you happen to be looking at.
+
+Every button now has a distinct accessibility label naming its actual target and a plain-language tooltip, including the risk where relevant. Purely additive attributes — no layout, binding, or command wiring touched.
+
+Same gap still open at lower stakes on the Diagnostics and General tabs.
+
 ## Added: Fan Curve Share Codes
 
 Copy the current curve to the clipboard as a one-line code, or paste one in to import — for sharing in Discord/GitHub where a file attachment is awkward. File-based sharing already existed via Import/Export Presets. Malformed codes are rejected outright. 15 new tests.
