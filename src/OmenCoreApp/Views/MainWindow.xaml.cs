@@ -18,7 +18,16 @@ namespace OmenCore.Views
         private static readonly TimeSpan LogAutoScrollMinInterval = TimeSpan.FromMilliseconds(250);
         private bool _logAutoScrollPending;
         private DateTime _lastLogAutoScrollUtc = DateTime.MinValue;
-        
+
+        // Rail auto-fit: shrinks the nav tab list (text, icons, spacing - all together, via
+        // one LayoutTransform) when the sidebar is shorter than the list needs, instead of
+        // just leaving the list to scroll at full size. RailMinScale is the floor past which
+        // it gives up shrinking further and lets the rail's own ScrollViewer take over -
+        // the "unless it's obviously tiny" case.
+        private FrameworkElement? _railItemsPanel;
+        private ScaleTransform? _railScale;
+        private const double RailMinScale = 0.72;
+
         public MainWindow(MainViewModel viewModel)
         {
             InitializeComponent();
@@ -27,6 +36,7 @@ namespace OmenCore.Views
             Closing += MainWindow_Closing;
             StateChanged += MainWindow_StateChanged;
             TabControlMain.SelectionChanged += TabControlMain_SelectionChanged;
+            TabControlMain.SizeChanged += TabControlMain_SizeChanged;
             SystemParameters.StaticPropertyChanged += SystemParametersOnStaticPropertyChanged;
             
             // Apply Stay on Top setting from config
@@ -92,6 +102,8 @@ namespace OmenCore.Views
             var windowHandle = new WindowInteropHelper(this).Handle;
             (DataContext as MainViewModel)?.InitializeHotkeys(windowHandle);
 
+            InitializeRailAutoFit();
+
             _ = Dispatcher.InvokeAsync(() =>
             {
                 try
@@ -118,6 +130,76 @@ namespace OmenCore.Views
             }, System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
+        /// <summary>
+        /// Looks up the nav rail's named template parts (the items panel and its
+        /// LayoutTransform) so <see cref="ApplyRailAutoFit"/> can shrink the whole list as one
+        /// unit when the sidebar is shorter than it needs. Template parts don't exist until
+        /// the control has applied its template at least once.
+        /// </summary>
+        private void InitializeRailAutoFit()
+        {
+            try
+            {
+                TabControlMain.ApplyTemplate();
+                _railItemsPanel = TabControlMain.Template?.FindName("PART_ItemsPanel", TabControlMain) as FrameworkElement;
+                _railScale = TabControlMain.Template?.FindName("PART_RailScale", TabControlMain) as ScaleTransform;
+                ApplyRailAutoFit();
+            }
+            catch (Exception ex)
+            {
+                App.Logging.Error($"[MainWindow] Rail auto-fit setup failed: {ex.Message}");
+            }
+        }
+
+        private void TabControlMain_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Height is what matters here - the rail is a vertical list, and the sidebar
+            // column's width barely moves (Grid MinWidth/MaxWidth keep it in a narrow band).
+            if (e.HeightChanged)
+            {
+                ApplyRailAutoFit();
+            }
+        }
+
+        /// <summary>
+        /// Shrinks the nav tab list to fit the sidebar's available height when it doesn't fit
+        /// at natural size, instead of leaving it to scroll at full size on a short window.
+        /// Scales text, icons, and spacing together as one unit via the rail's LayoutTransform
+        /// (not FontSize/Padding setters on individual tabs) so everything stays proportional.
+        /// Clamped to <see cref="RailMinScale"/> - past that floor this stops shrinking and
+        /// leaves the rail's own ScrollViewer to handle the rest, rather than shrinking the
+        /// list down to an unreadable size on a very short window.
+        /// </summary>
+        private void ApplyRailAutoFit()
+        {
+            if (_railItemsPanel == null || _railScale == null)
+            {
+                return;
+            }
+
+            var availableHeight = TabControlMain.ActualHeight;
+            if (availableHeight <= 0)
+            {
+                return;
+            }
+
+            // Measure the list at its natural (unscaled) size to know what it actually needs.
+            _railScale.ScaleX = 1.0;
+            _railScale.ScaleY = 1.0;
+            _railItemsPanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var naturalHeight = _railItemsPanel.DesiredSize.Height;
+
+            if (naturalHeight <= 0 || naturalHeight <= availableHeight)
+            {
+                // Fits already - leave it at natural size.
+                return;
+            }
+
+            var scale = Math.Max(RailMinScale, Math.Min(1.0, availableHeight / naturalHeight));
+            _railScale.ScaleX = scale;
+            _railScale.ScaleY = scale;
+        }
+
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
             _ = sender;
@@ -137,6 +219,7 @@ namespace OmenCore.Views
             
             // Actual close - clean up
             TabControlMain.SelectionChanged -= TabControlMain_SelectionChanged;
+            TabControlMain.SizeChanged -= TabControlMain_SizeChanged;
             SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
             (DataContext as MainViewModel)?.Dispose();
         }

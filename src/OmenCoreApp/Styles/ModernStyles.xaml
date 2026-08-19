@@ -1393,8 +1393,19 @@
                              which is exactly what this replaces. No fixed Width:
                              it stretches to whatever the sidebar column gives it,
                              so the rail scales with that column instead of clipping
-                             or leaving a gap if the column width ever changes. -->
-                        <StackPanel IsItemsHost="True" Orientation="Vertical" HorizontalAlignment="Stretch"/>
+                             or leaving a gap if the column width ever changes.
+                             x:Name'd (PART_ItemsPanel) plus a named LayoutTransform
+                             (PART_RailScale) so MainWindow.xaml.cs can shrink the whole
+                             list - text, icons, spacing, all together as one uniform
+                             scale - when the sidebar is shorter than the list needs, down
+                             to a floor past which it falls back to this ScrollViewer
+                             scrolling instead. See MainWindow.xaml.cs's rail auto-fit
+                             logic. -->
+                        <StackPanel x:Name="PART_ItemsPanel" IsItemsHost="True" Orientation="Vertical" HorizontalAlignment="Stretch">
+                            <StackPanel.LayoutTransform>
+                                <ScaleTransform x:Name="PART_RailScale" ScaleX="1" ScaleY="1"/>
+                            </StackPanel.LayoutTransform>
+                        </StackPanel>
                     </ScrollViewer>
                 </ControlTemplate>
             </Setter.Value>
@@ -1416,12 +1427,22 @@
                         <!-- Group separator. Driven by Tag="GroupStart" on the first
                              TabItem of each group in MainWindow.xaml, so related
                              sections read as a set without changing tab order,
-                             indices, or any code that depends on them. -->
+                             indices, or any code that depends on them. An OMEN-orange-to-red
+                             gradient bar rather than a flat grey hairline, so the sidebar
+                             carries some of the app's own brand color instead of reading as
+                             all one shade of dark grey. -->
                         <Border x:Name="GroupSeparator"
-                                Height="1"
-                                Background="#332F3448"
-                                Margin="8,9,8,9"
-                                Visibility="Collapsed"/>
+                                Height="3"
+                                CornerRadius="1.5"
+                                Margin="8,10,8,10"
+                                Visibility="Collapsed">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="{StaticResource WarningOrange}" Offset="0"/>
+                                    <GradientStop Color="{StaticResource AccentRed}" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
 
                         <Border x:Name="Border"
                                 Background="Transparent"

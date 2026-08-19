@@ -230,6 +230,27 @@ The `ElementName`/`DockPanel` mechanics above turned out fine — the merge did 
 
 Build clean, full suite 1367/1367. Sent as another portable build; still wants a look on both window sizes.
 
+#### Third follow-up: more color in the sidebar, and actually scale the rail instead of just scrolling — DONE
+
+Two more asks from the same tester on the responsive-sidebar build: (1) the group separators (a flat 1px grey line) were too subtle — wanted "orange/omen colored bars"; (2) on a restored window, the rail still just added a scrollbar instead of shrinking to fit — wanted smaller text/gaps so more of the menu stays visible "unless it's obviously tiny."
+
+**Color: `GroupSeparator` is now a 3px `LinearGradientBrush` bar, `WarningOrange` (`#FF9800`) → `AccentRed` (`#FF005C`)** — the app's own existing orange/red brand colors (already used for the OMEN warning glyph and the selected-tab accent bar respectively), not new colors invented for this. Picked over just using the selection color alone specifically so a group divider doesn't read as "this item is selected."
+
+**Scaling: this needed actual code, not just XAML.** Investigated a pure-XAML `Viewbox` first (its `StretchDirection="DownOnly"` is exactly "shrink to fit, never grow") but it doesn't compose with the ask's other half, "unless it's obviously tiny" — a `Viewbox` has no built-in floor, and will keep shrinking indefinitely as space shrinks; there's also no way to get a `Viewbox` to fall back to scrolling once it hits a floor, since a `Viewbox` inside a `ScrollViewer` never shrinks in the first place (a `ScrollViewer` gives its content unbounded extent along the scroll axis, so the `Viewbox` is never given a constrained size to shrink into — tried this combination first and confirmed it does nothing).
+
+Implemented instead as a small, self-contained WPF pattern: `Omen.NavRailTabControl`'s items `StackPanel` (`PART_ItemsPanel`) carries a named `LayoutTransform` (`PART_RailScale`, a `ScaleTransform`) — `LayoutTransform`, not `RenderTransform`, because it's the one that actually changes the element's reported size during layout, which is what lets more items fit rather than just rendering smaller within the same reserved space. `MainWindow.xaml.cs` finds both template parts once (`Template.FindName`, after `ApplyTemplate()`) and, on every `TabControlMain.SizeChanged` (height only - the sidebar's width barely moves), does the actual fit calculation:
+1. Reset scale to 1.0 and call `Measure(Size(∞, ∞))` on the items panel to get its true natural (unscaled) height.
+2. If that already fits the available height, leave it at 1.0 (today's exact behavior on any normal-height window, unchanged).
+3. Otherwise scale = `available / natural`, clamped to a floor of **0.72** (roughly a 14px font shrinking to ~10px) — below that floor the code stops shrinking further, and the rail's existing `ScrollViewer` (still there, unremoved) takes over for whatever doesn't fit. That clamp is the literal "unless it's obviously tiny."
+
+Scaling the whole panel as one unit (not adjusting `FontSize`/`Padding` setters individually) means icons, text, and spacing all shrink together proportionally for free, and the colored group separators shrink with everything else too.
+
+**Known gap, not chased further:** the fit only recalculates on a *height* change. If a user toggles a setting that hides/shows several tabs (e.g. `ShowAdvancedControls`) while already at floor scale, the list won't re-fit until the window is actually resized. Minor and rare enough not to justify hooking the view-model property directly from `MainWindow.xaml.cs` for it.
+
+**Trade-off worth knowing:** WPF renders text through a `LayoutTransform` with grayscale anti-aliasing rather than ClearType — a very minor, standard cost of this pattern, and only visible while the rail is actually below natural size (i.e., on a short window), not at the normal size most users will see.
+
+Build clean, full suite 1367/1367. Sent as another portable build — this one specifically needs eyes on a short/restored window to see the shrink-then-scroll behavior, not just maximized.
+
 ---
 
 ## Pillar 3 — Typography: Roboto Condensed

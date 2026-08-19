@@ -76,6 +76,8 @@ Implemented as a retemplate, not a restructure: same tabs, same order, same indi
 
 **Second follow-up, same tester, restored (non-maximized) window:** Quick Actions' fixed height at the top of the sidebar was squeezing the tab list on a shorter window. Moved Quick Actions (and Restore Defaults) out of the sidebar entirely, into compact icon buttons in the top bar — the sidebar now goes straight from the logo/status card to the tabs, so the full tab list gets priority for whatever vertical space exists. Tab labels also now ellipsis (`…`) instead of hard-clipping if the sidebar column is ever narrower than a label needs. Full suite green.
 
+**Third follow-up:** group separators are now a small orange-to-red gradient bar instead of a flat grey hairline, so the sidebar carries some of the app's own brand color. And the tab list now shrinks itself — text, icons, and spacing together, as one scale — to fit a short window instead of just scrolling at full size; it stops shrinking at a floor (roughly 72% of normal size) and falls back to scrolling past that point, so it never gets shrunk down to unreadable. Full suite green.
+
 ## Improved: Tuning Tab Buttons Now Say What They Actually Do
 
 The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock — had 16 buttons with **no accessibility labels at all** and only 4 tooltips, on the page where a mis-click has the most real consequence. Worst case: four separate buttons labelled exactly "Reset to Defaults" (CPU limits, AMD limits, AMD GPU, NVIDIA GPU), indistinguishable to a screen reader and only disambiguated visually by which card you happen to be looking at.
