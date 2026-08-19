@@ -1334,6 +1334,13 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=TabItem}}"/>
+        <!-- Ellipsis rather than a hard clip if the sidebar column is ever narrower than a
+             label needs (MinWidth 200 on that column, resizable window). Only takes effect
+             where the header's own layout actually gives this TextBlock a bounded width - see
+             the per-TabItem Grid (Auto icon | * text) in MainWindow.xaml; a horizontal
+             StackPanel gives its children unbounded width during measure, which would make
+             this setter a no-op. -->
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
     <!-- ═══════════════════════════════════════════════════════════════════════

@@ -85,6 +85,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <WrapPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
@@ -166,8 +167,32 @@
                         </ItemsControl>
                     </WrapPanel>
 
+                    <!-- Quick Actions: icon-only, moved here from the sidebar so the sidebar's
+                         vertical space goes entirely to the nav tabs (the actual navigation) -
+                         a short window was squeezing the tab list under Quick Actions' fixed
+                         height there. Icon + tooltip is enough here: these are muscle-memory
+                         actions, not menu items someone reads to orient themselves. -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <Button Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Apply your saved fan preset">
+                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform"/>
+                        </Button>
+                        <Button Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Switch performance profile">
+                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource WarningBrush}" Stretch="Uniform"/>
+                        </Button>
+                        <Button Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Apply RGB lighting">
+                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform"/>
+                        </Button>
+                        <Button Command="{Binding GamingModeCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Enable gaming optimizations">
+                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="{StaticResource AccentBrush}" Stretch="Uniform"/>
+                        </Button>
+                        <Rectangle Width="1" Fill="{StaticResource BorderBrush}" Margin="4,4,10,4"/>
+                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" ToolTip="Restore Defaults: reset fan curves, lighting, and performance mode to their defaults">
+                            <Path Data="{StaticResource IconRestore}" Width="13" Height="13" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform"/>
+                        </Button>
+                    </StackPanel>
+
                     <!-- Utility buttons -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Command="{Binding ExportConfigurationCommand}" Style="{StaticResource SecondaryButton}" Height="30" Padding="10,4" Margin="0,0,8,0" ToolTip="Export your settings">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource IconExport}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,5,0"/>
@@ -408,154 +433,6 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Quick Actions + nav tabs fill the rest of the sidebar, flush to
-                             its bottom edge. No ScrollViewer wrapper here (unlike before):
-                             System Info/Utilities used to share this scroll region and could
-                             make it tall; now that they've moved to the top bar, Quick Actions
-                             is fixed-height and only the tab list below it (which has its own
-                             internal scroll region, see Omen.NavRailTabControl) needs to scroll
-                             on short windows. -->
-                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-                                <!-- Quick Actions Section -->
-                                <Border Margin="0,0,0,16" Padding="0">
-                                    <StackPanel>
-                                        <TextBlock Text="QUICK ACTIONS" Foreground="{StaticResource TextMutedBrush}" FontSize="9" FontWeight="Bold" Margin="0,0,0,10" />
-                                        <Border CornerRadius="8" Padding="4">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                    <GradientStop Color="#161B28" Offset="0"/>
-                                                    <GradientStop Color="#12161F" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <StackPanel>
-                                                <Button Command="{Binding ApplyFanPresetCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply your saved fan preset">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border x:Name="FanIconBorder" CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
-                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <TextBlock Text="Apply Fan Preset" FontSize="12" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Command="{Binding ApplyPerformanceModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Switch performance profile">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{StaticResource WarningBrush}"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
-                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <TextBlock Text="Performance Mode" FontSize="12" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Command="{Binding ApplyLightingProfileCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Apply RGB lighting">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{StaticResource AccentPurpleBrush}"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
-                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <TextBlock Text="Apply Lighting" FontSize="12" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Command="{Binding GamingModeCommand}" Margin="0,0,0,2" HorizontalContentAlignment="Left" Padding="12,8" Height="36" ToolTip="Enable gaming optimizations">
-                                                    <Button.Style>
-                                                        <Style TargetType="Button" BasedOn="{StaticResource ModernButton}">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsEnabled" Value="False">
-                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Button.Style>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Border CornerRadius="4" Width="24" Height="24" Margin="0,0,10,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
-                                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="White" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <TextBlock Text="Gaming Mode" FontSize="12" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                </Button>
-                                            </StackPanel>
-                                        </Border>
-                                        <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Margin="0,8,0,0" HorizontalContentAlignment="Center" Height="32" ToolTip="Reset fan curves, lighting, and performance mode to their defaults">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Path Data="{StaticResource IconRestore}" Width="12" Height="12" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform" Margin="0,0,6,0"/>
-                                                <TextBlock Text="Restore Defaults" FontSize="11" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                    </StackPanel>
-                                </Border>
-                        </StackPanel>
-
                         <!-- Nav tabs: the DockPanel's LastChildFill child, so this fills all
                              remaining sidebar height flush to its bottom rounded corner - the
                              "logo, then tabs underneath" layout. The TabControl lives here, in
@@ -568,10 +445,14 @@
                             <!-- General Tab: Performance + Fan Profiles (Paired) -->
                             <TabItem x:Name="GeneralTabItem">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconPerformance}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="General" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconPerformance}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="General" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
@@ -592,20 +473,28 @@
                                     </Style>
                                 </TabItem.Style>
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconCpu}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Custom" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconCpu}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Custom" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
                             <TabItem x:Name="TuningTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconTune}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Tuning" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconTune}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Tuning" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
@@ -613,20 +502,28 @@
                             <!-- Group: insight (Diagnostics, Monitoring) -->
                             <TabItem x:Name="DiagnosticsTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconWarning}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Diagnostics" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconWarning}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Diagnostics" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Monitoring Tab with Hardware Monitoring Dashboard -->
                             <TabItem x:Name="MonitoringTabItem">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconMonitoring}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Monitoring" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconMonitoring}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Monitoring" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                                 <!-- Content will be created programmatically in code-behind -->
                             </TabItem>
@@ -635,30 +532,42 @@
                             <!-- Group: system cleanup (Optimizer, Memory, Bloatware) -->
                             <TabItem x:Name="OptimizerTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconScale}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Optimizer" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconScale}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Optimizer" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
                             <TabItem x:Name="MemoryTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconRam}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Memory" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconRam}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Memory" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Bloatware Manager Tab -->
                             <TabItem x:Name="BloatwareTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconTrash}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Bloatware" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconTrash}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Bloatware" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
@@ -666,10 +575,14 @@
                             <!-- Group: personalization (RGB) -->
                             <TabItem x:Name="RgbTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconLighting}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="RGB" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconLighting}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="RGB" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
@@ -677,20 +590,28 @@
                             <!-- Group: app (Settings, Games) -->
                             <TabItem x:Name="SettingsTabItem" Tag="GroupStart">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconSettings}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Settings" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconSettings}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Settings" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Game Library Tab -->
                             <TabItem x:Name="GamesTabItem">
                                 <TabItem.Header>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconGamepad}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Text="Games" Style="{StaticResource Omen.TabHeaderText}"/>
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0" Data="{StaticResource IconGamepad}" Style="{StaticResource Omen.TabHeaderIcon}"/>
+                                        <TextBlock Grid.Column="1" Text="Games" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        </Grid>
                                 </TabItem.Header>
                             </TabItem>
                         </TabControl>

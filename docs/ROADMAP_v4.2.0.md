@@ -220,6 +220,16 @@ Sent the user a portable single-file build (`dotnet publish` of `OmenCoreApp.csp
 - Build succeeded 0 warnings/errors (MSBuild's XAML compile step resolves `StaticResource`s and checks `TargetType` compatibility, so this is a meaningfully strong signal, not just well-formed-XML). All 5 `NavRailStyleTests` still pass unmodified — they assert `TargetType`/trigger presence, not the old two-column structure, so they didn't need updating. Full suite 1367/1367.
 - **Still unverified: whether `ElementName` binding to `SelectedContent` and the `DockPanel`'s fill-sizing of the relocated `TabControl` actually render correctly at runtime** — this is a well-known WPF pattern and the build validates a great deal, but layout/sizing correctness at runtime is exactly the class of thing this environment cannot confirm. Sent as another portable build for the same real-hardware tester to look at.
 
+#### Second follow-up: Quick Actions squeezed the tab list on a restored (non-maximized) window — DONE
+
+The `ElementName`/`DockPanel` mechanics above turned out fine — the merge did render as one panel. New problem, visible only at the smaller/restored window size (not maximized): with logo + status card + Quick Actions (4 buttons) + Restore Defaults all `DockPanel.Dock="Top"` and fixed-height, on a shorter window the tab list (`LastChildFill`, wrapped in its own `ScrollViewer`) got compressed enough that tabs weren't all visible without scrolling — the opposite of the accessibility goal the rail was built for. Ask: get Quick Actions out of the sidebar so nav always gets first claim on vertical space, and make labels shorten instead of clip if the column ever gets narrow.
+
+**Quick Actions (and Restore Defaults) moved to the top bar, as icon-only buttons with tooltips.** Considered a responsive breakpoint instead (collapse to icons only below some window size), but that needs either a converter bound to `ActualWidth`/`ActualHeight` or code-behind reacting to `SizeChanged` — more moving parts, and harder to verify without a live run, for a goal ("give the sidebar its space back") that a permanent relocation satisfies unconditionally and more simply. Placed in a new middle column of the top bar's `Grid` (between the system-info `WrapPanel` and the existing utility buttons), so on a narrow window the flexible system-info column is what gives way first, while the two `Auto`-width button groups keep their space — same pattern the top bar already used.
+
+**Tab labels now ellipsis instead of hard-clipping.** Added `TextTrimming="CharacterEllipsis"` to `Omen.TabHeaderText` — but that alone does nothing inside a horizontal `StackPanel` header, since WPF gives a horizontal `StackPanel`'s children unbounded width during measure, so the `TextBlock` never gets told to be narrower than its content. Converted all 11 `TabItem.Header` blocks from `StackPanel Orientation="Horizontal"` to a `Grid` (`Auto` icon column, `*` text column) so the text genuinely has a bounded width to trim against. Mechanical, identical shape across all 11 — done with one regex substitution rather than 11 manual edits, then verified the count of converted headers matched the tab count exactly (11) before building.
+
+Build clean, full suite 1367/1367. Sent as another portable build; still wants a look on both window sizes.
+
 ---
 
 ## Pillar 3 — Typography: Roboto Condensed
