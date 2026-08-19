@@ -197,9 +197,14 @@ jobs:
       with:
         dotnet-version: '8.0.x'
     
-    - name: Run all tests
+    # Only the cross-platform projects can be tested here. OmenCoreApp and
+    # OmenCoreApp.Tests target net8.0-windows10.0.19041.0, which does not build on
+    # Linux at all (NETSDK1100), so pointing this at OmenCore.sln failed during
+    # restore and this job has never once passed. The Windows suite is covered by
+    # the build-and-test job in ci.yml, which runs on windows-latest.
+    - name: Run cross-platform tests
       run: |
-        dotnet test OmenCore.sln -c Release \
+        dotnet test src/OmenCore.Linux.Tests/OmenCore.Linux.Tests.csproj -c Release \
           --logger "console;verbosity=detailed" \
           --logger "trx;LogFileName=test-results.trx"
     

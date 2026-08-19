@@ -50,12 +50,22 @@ public class GameLibraryViewModelTests : IDisposable
         using var profileService = new GameProfileService(logging, monitor, config);
         var libraryService = new GameLibraryService(logging);
 
+        // Subscribe before constructing. ScanLibraryAsync() does set IsScanning = true before
+        // its first await, but on a machine with no game platforms installed every per-platform
+        // scanner short-circuits and the Task.WhenAll over them is already complete, so the await
+        // resumes synchronously and the whole method - including the finally that clears the flag
+        // - runs inline inside the constructor. IsScanning is then back to false by the time the
+        // constructor returns. Asserting on it alone passes on a developer machine with Steam
+        // installed and fails on a bare CI runner, which is what it did.
+        var scanCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        libraryService.ScanCompleted += (_, _) => scanCompleted.TrySetResult(true);
+
         var viewModel = new GameLibraryViewModel(logging, libraryService, profileService);
 
-        // ScanLibraryAsync() sets IsScanning = true synchronously before its first await, so this
-        // is true immediately once the constructor's fire-and-forget call has been issued -
-        // no need to wait for the real (registry/filesystem-touching) scan to finish.
-        viewModel.IsScanning.Should().BeTrue(
+        // Either outcome proves the constructor started a scan: it is still running, or it has
+        // already finished. Neither is reachable if nothing was kicked off.
+        var startedScan = viewModel.IsScanning || scanCompleted.Task.IsCompleted;
+        startedScan.Should().BeTrue(
             "opening the Games tab should kick off a background scan automatically instead of showing an empty list");
 
         // Let the fire-and-forget scan actually finish so it doesn't outlive the test.
