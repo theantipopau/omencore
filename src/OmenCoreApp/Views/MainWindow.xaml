@@ -174,16 +174,16 @@
                          actions, not menu items someone reads to orient themselves. -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                         <Button Command="{Binding ApplyFanPresetCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Apply your saved fan preset">
-                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="{StaticResource AccentBlueBrush}" Stretch="Uniform"/>
+                            <Path Data="{StaticResource IconFan}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform"/>
                         </Button>
                         <Button Command="{Binding ApplyPerformanceModeCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Switch performance profile">
-                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource WarningBrush}" Stretch="Uniform"/>
+                            <Path Data="{StaticResource IconPerformance}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform"/>
                         </Button>
                         <Button Command="{Binding ApplyLightingProfileCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Apply RGB lighting">
-                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="{StaticResource AccentPurpleBrush}" Stretch="Uniform"/>
+                            <Path Data="{StaticResource IconLighting}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform"/>
                         </Button>
                         <Button Command="{Binding GamingModeCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" Margin="0,0,6,0" ToolTip="Enable gaming optimizations">
-                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="{StaticResource AccentBrush}" Stretch="Uniform"/>
+                            <Path Data="{StaticResource IconGamepad}" Width="14" Height="14" Fill="{StaticResource TextSecondaryBrush}" Stretch="Uniform"/>
                         </Button>
                         <Rectangle Width="1" Fill="{StaticResource BorderBrush}" Margin="4,4,10,4"/>
                         <Button Command="{Binding RestoreDefaultsCommand}" Style="{StaticResource SecondaryButton}" Width="34" Height="30" Padding="0" ToolTip="Restore Defaults: reset fan curves, lighting, and performance mode to their defaults">

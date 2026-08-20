@@ -108,7 +108,13 @@ Same report: iCUE was installed and running, but Corsair detection never found i
 
 The EC-backend status row had the same bug already fixed once this cycle for tab labels: a horizontal StackPanel gives its child unbounded width during layout, so `TextTrimming="CharacterEllipsis"` never actually engaged — text just got hard-clipped at the sidebar's edge instead of trimming with "…". Converted to a Grid, same fix pattern.
 
-**RGB page still flagged as needing a broader pass** (not done this cycle — noted for next time, not blocking this release).
+## Improved: Icon Color Cleanup on the Top Bar and RGB Page
+
+A design-taste pass flagged the top bar's Quick Actions row (fan preset, performance mode, lighting, gaming mode) using four different accent colors on five adjacent, equal-weight icon buttons — decorative color with no actual system behind it. All four now use the same neutral tone as the Restore button next to them; color is reserved for things that mean something (selection, status), not applied per-icon by default.
+
+Same pass on the RGB page: Scene Quick Select buttons (OMEN Red, Cool Blue, Rainbow, Heat Wave, etc.) rendered identically grey regardless of what color they actually apply — `RgbScene.PrimaryColor` already carried that data, it was just never drawn. Each scene button now shows a small color swatch. The "Active: SceneName" badge also had a stray, uncatalogued purple (`#9C27B0`) that matched nothing else in the app; now uses the same accent color the rest of the app uses for "this is selected."
+
+**RGB page still flagged as needing a broader pass** beyond these two spot-fixes — noted for next time, not blocking this release.
 
 ---
 

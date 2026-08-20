@@ -384,8 +384,11 @@
                             <TextBlock Text="🎨" FontSize="24" Margin="0,0,12,0" VerticalAlignment="Center"/>
                             <TextBlock Text="Scene Quick Select" FontSize="20" FontWeight="SemiBold" 
                                        Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            <Border Background="#1A9C27B0" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding CurrentSceneName, StringFormat='Active: {0}'}" FontSize="10" Foreground="#9C27B0"/>
+                            <!-- Was a stray hardcoded purple (#9C27B0) matching nothing else in the app's
+                                 palette. AccentBrush is already what "active/selected" means everywhere
+                                 else here (the nav rail's selection bar, the Quick Profiles ACTIVE pill). -->
+                            <Border Background="#1AFF005C" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CurrentSceneName, StringFormat='Active: {0}'}" FontSize="10" Foreground="{StaticResource AccentBrush}"/>
                             </Border>
                             <ToggleButton IsChecked="{Binding SceneQuickSelectCardEnabled, Mode=TwoWay}"
                                           Style="{StaticResource ToggleButtonStyle}"
@@ -420,12 +423,18 @@
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="border" 
-                                                                    Background="{TemplateBinding Background}" 
+                                                            <Border x:Name="border"
+                                                                    Background="{TemplateBinding Background}"
                                                                     BorderBrush="{TemplateBinding BorderBrush}"
                                                                     BorderThickness="{TemplateBinding BorderThickness}"
                                                                     CornerRadius="6" Padding="{TemplateBinding Padding}">
                                                                 <StackPanel Orientation="Horizontal">
+                                                                    <!-- Color swatch: RgbScene.PrimaryColor already carries this, it was
+                                                                         just never rendered - every scene button read identically grey
+                                                                         regardless of what color it actually applies. -->
+                                                                    <Ellipse Width="10" Height="10" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                                             Fill="{Binding PrimaryColor, Converter={StaticResource HexToBrushConverter}}"
+                                                                             Stroke="#33000000" StrokeThickness="1"/>
                                                                     <TextBlock Text="{Binding Icon}" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                                                     <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center"/>
                                                                 </StackPanel>
