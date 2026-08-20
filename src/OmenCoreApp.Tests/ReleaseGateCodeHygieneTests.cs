@@ -472,8 +472,26 @@ namespace OmenCoreApp.Tests
         // ─── Source-root discovery smoke test ─────────────────────────────────
 
         [Fact]
-        public void RuntimePresentation_MainWindowChromeUsesStableAsciiControls()
+        public void RuntimePresentation_MainWindowChromeGlyphsAreAsciiEncodedInSource()
         {
+            // Was RuntimePresentation_MainWindowChromeUsesStableAsciiControls, pinning literal
+            // ASCII window-chrome text ("-"/"[ ]"/"x") after a real incident (v1.0.0.4, 2025-12-11):
+            // raw Unicode symbols (an up-arrow, a warning triangle) embedded directly in source
+            // came out as mojibake (â¬†, âš ) somewhere in this project's toolchain. That incident
+            // was specifically about *raw multi-byte characters sitting in the file*, not about
+            // the rendered glyph needing to be ASCII - the real invariant worth protecting is
+            // "the window-chrome button declarations stay 7-bit ASCII in source," not "the window
+            // controls must render as literal brackets forever," and not "this whole file must be
+            // ASCII" either - MainWindow.xaml legitimately has a couple of literal degree signs
+            // (temperature fallback text) elsewhere that have nothing to do with this and aren't
+            // what mojibaked. v4.2.0 replaced the ASCII "[ ]" maximize glyph (a real, reported
+            // "looks unfinished" complaint) with proper Segoe MDL2 Assets chrome icons - but
+            // written as XML numeric character references (`&#xE921;`) in XAML and `\u` escapes
+            // in C#, both of which are themselves plain ASCII in the source file; the actual
+            // Unicode character only exists in memory after the XAML parser / C# compiler
+            // expands it, long after any file-encoding read that could mangle it. So this test
+            // now asserts the real invariant directly (scoped to just the chrome button lines)
+            // instead of pinning stale literal text or over-broadly banning all non-ASCII content.
             var root = GetMainSourceRoot();
             if (!Directory.Exists(root))
                 return;
@@ -483,14 +501,23 @@ namespace OmenCoreApp.Tests
             var xaml = File.ReadAllText(xamlPath);
             var code = File.ReadAllText(codePath);
 
-            xaml.Should().Contain("Content=\"-\"",
-                "window chrome should avoid glyphs that can mojibake under mixed editor encodings");
-            xaml.Should().Contain("Content=\"[ ]\"",
-                "the normal maximize button should use ASCII-stable chrome text");
-            xaml.Should().Contain("Content=\"x\"",
-                "the close button should avoid glyphs that can mojibake under mixed editor encodings");
-            code.Should().Contain("MaximizeButton.Content = WindowState == WindowState.Maximized ? \"[]\" : \"[ ]\";",
-                "runtime maximize/restore updates should stay ASCII-stable");
+            var chromeButtonLines = xaml.Split('\n')
+                .Where(line => line.Contains("MinimizeButton_Click") || line.Contains("MaximizeButton_Click") || line.Contains("CloseButton_Click"))
+                .ToList();
+            chromeButtonLines.Should().HaveCount(3, "expected exactly the minimize/maximize/close Button declarations - update this test if the chrome markup moves");
+            chromeButtonLines.Should().OnlyContain(line => line.All(c => c <= 127),
+                "the window-chrome Button declarations must stay 7-bit ASCII in source - a raw multi-byte glyph pasted in directly is exactly what mojibaked in v1.0.0.4; use &#xNNNN; numeric character references instead, which are themselves ASCII");
+
+            var glyphLine = code.Split('\n').FirstOrDefault(line => line.Contains("MaximizeButton.Content ="));
+            glyphLine.Should().NotBeNull("expected the runtime maximize/restore glyph-toggle line to still exist");
+            glyphLine!.All(c => c <= 127).Should().BeTrue(
+                "the maximize/restore glyph-toggle line must stay 7-bit ASCII in source - use \\uNNNN escapes for any non-ASCII character, never a raw pasted glyph");
+
+            xaml.Should().Contain("Content=\"&#xE921;\"", "minimize button should use the real ChromeMinimize glyph, not literal ASCII text");
+            xaml.Should().Contain("Content=\"&#xE922;\"", "the un-maximized state's maximize button should use the real ChromeMaximize glyph, not \"[ ]\"");
+            xaml.Should().Contain("Content=\"&#xE8BB;\"", "the close button should use the real ChromeClose glyph, not literal ASCII text");
+            code.Should().Contain("MaximizeButton.Content = WindowState == WindowState.Maximized ? \"\\uE923\" : \"\\uE922\";",
+                "runtime maximize/restore glyph updates should use the real ChromeRestore/ChromeMaximize icons via ASCII-safe \\u escapes, not the old \"[]\"/\"[ ]\" ASCII approximation");
             code.Should().Contain("catch (InvalidOperationException ex)",
                 "expected title-bar drag races should be logged explicitly instead of swallowed by a bare catch");
         }

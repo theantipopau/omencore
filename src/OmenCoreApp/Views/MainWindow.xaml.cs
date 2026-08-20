@@ -444,7 +444,9 @@ namespace OmenCore.Views
 
         private void UpdateMaximizeButtonGlyph()
         {
-            MaximizeButton.Content = WindowState == WindowState.Maximized ? "[]" : "[ ]";
+            // Real Segoe MDL2 Assets glyphs (ChromeRestore / ChromeMaximize), not the old
+            // "[]" vs "[ ]" ASCII approximation - see the XAML button declarations for why.
+            MaximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
         }
 
         private void UpdateMaximizedBounds()

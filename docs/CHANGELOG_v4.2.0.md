@@ -58,7 +58,7 @@ New "Reduce motion" setting, combined with the Windows-wide "Show animations" pr
 
 `BackgroundPollingCoordinator` — the off-UI-thread counterpart to `UiPollingCoordinator`, sharing the same already-tested scheduler. 1000ms base cadence (background work has no render-responsiveness pressure), plus a reentrancy guard a `DispatcherTimer` doesn't need. 3 new tests.
 
-Not done: migrating `ProcessMonitoringService` onto it — it changes its poll interval at runtime, which the scheduler doesn't yet support for a live subscription. That's a design decision, not a typing task.
+**Follow-up: `ProcessMonitoringService` now consolidated onto it too.** It used to own a private `System.Timers.Timer` specifically because its poll rate changes at runtime (2s while a game is running, 10s idle, 20s when WMI eventing is doing the real work) and the shared scheduler had no way to change a live subscription's interval. Added that capability (`IPollingSubscription.UpdateInterval`) instead of working around its absence — one fewer independent OS timer running for the life of the app, same poll cadences and thread-pool-callback semantics as before. 5 new tests.
 
 ## Fixed: Games Tab Virtualization Was Silently Doing Nothing
 
@@ -84,7 +84,19 @@ The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock �
 
 Every button now has a distinct accessibility label naming its actual target and a plain-language tooltip, including the risk where relevant. Purely additive attributes — no layout, binding, or command wiring touched.
 
-Same gap still open at lower stakes on the Diagnostics and General tabs.
+**Same pass extended to the Diagnostics tab** — 9 buttons went from 0 accessibility labels and 2 tooltips to 9/9 and 9/9, including risk-aware wording on "Drop the adapter power clamp" (screens go black for a few seconds) matching its own inline warning text.
+
+## Fixed: General Tab's Profile Cards Were Completely Unusable by Keyboard
+
+Found while doing the same accessibility pass: the "Quick Profiles" and "Fan Mode" cards on the General tab — the app's default, first-seen screen — are plain `Border` elements with a mouse-click handler, not real buttons. No `Focusable`, no keyboard activation, no screen-reader exposure at all. A keyboard-only user could Tab past them entirely and had no way to switch performance or fan mode from this screen.
+
+All 7 cards (4 profiles, 3 fan modes) are now real Tab stops with the app's own accent-colored focus ring (not the default dotted rectangle) and Enter/Space activation wired to the same view-model calls the mouse click already used. Visual appearance and mouse behavior unchanged.
+
+## Fixed: Window Minimize/Maximize/Close Buttons Were Rendering ASCII Text, Not Icons
+
+Reported on Reddit: the title bar's maximize button showed literally as `[ ]`. Root cause: the button style already set the real Windows icon font (`Segoe MDL2 Assets`) as its `FontFamily`, but the button `Content` was plain ASCII (`"-"`, `"[ ]"`/`"[]"` toggling for maximize/restore, `"x"`) instead of that font's actual glyph codepoints — so it rendered exactly what it said, a literal bracket-space-bracket, not an icon. All three now use the standard Windows chrome glyphs (minimize/maximize/restore/close) the font was already selected for.
+
+Broke an existing test in the process (`ReleaseGateCodeHygieneTests`), which turned out to be guarding a real past incident — a raw Unicode symbol pasted into source mojibaked in v1.0.0.4. The new glyphs avoid the same failure mode (written as ASCII-safe `&#xNNNN;`/`\u` escapes, never a raw pasted character), and the test was rewritten to check that directly rather than just updated to match the new text. Full detail in the roadmap.
 
 ## Fixed: AMD Undervolt Status Overclaimed "Readback" It Doesn't Have
 
@@ -165,6 +177,6 @@ No code was copied from any of these — OmenCore is MIT and two of the three ar
 
 ---
 
-**Full suite:** 1367 Windows tests, 25 Linux tests.
+**Full suite:** 1372 Windows tests, 25 Linux tests.
 
 *(Further entries added as work lands.)*

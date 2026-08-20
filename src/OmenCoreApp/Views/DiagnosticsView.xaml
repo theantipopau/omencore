@@ -62,9 +62,13 @@
                         <TextBlock Text="{Binding CpuTempOverrideDiagnosticText}" FontSize="13" Margin="0,0,0,6" TextWrapping="Wrap" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Content="Export diagnostics" Command="{Binding Settings.ExportDiagnosticsCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" />
-                            <Button Content="Export telemetry" Command="{Binding ExportTelemetryCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" ToolTip="Create a copy of the telemetry JSON for upload" />
-                            <Button Content="Report model" Command="{Binding ReportModelCommand}" Style="{StaticResource OutlineButtonSmall}" ToolTip="Create diagnostics bundle and copy model info to clipboard" />
+                            <Button Content="Export diagnostics" Command="{Binding Settings.ExportDiagnosticsCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0"
+                                    ToolTip="Save the full core-control-readiness report to a file for troubleshooting or a bug report"
+                                    AutomationProperties.Name="Export full diagnostics report" />
+                            <Button Content="Export telemetry" Command="{Binding ExportTelemetryCommand}" Style="{StaticResource AccentButtonSmall}" Margin="0,0,8,0" ToolTip="Create a copy of the telemetry JSON for upload"
+                                    AutomationProperties.Name="Export telemetry JSON" />
+                            <Button Content="Report model" Command="{Binding ReportModelCommand}" Style="{StaticResource OutlineButtonSmall}" ToolTip="Create diagnostics bundle and copy model info to clipboard"
+                                    AutomationProperties.Name="Report this model to the maintainer" />
                         </StackPanel>
                     </StackPanel>
 
@@ -77,8 +81,12 @@
                         <TextBlock Text="{Binding HardwareMonitoringService.ConsecutiveTimeouts}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
 
                         <TextBlock Text="Quick actions" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                        <Button Content="Open app logs folder" Click="OpenDiagnosticsFolder_Click" Style="{StaticResource OutlineButtonSmall}" Margin="0,0,0,8" />
-                        <Button Content="Open OmenCore data folder" Click="OpenOmenCoreDataFolder_Click" Style="{StaticResource OutlineButtonSmall}" />
+                        <Button Content="Open app logs folder" Click="OpenDiagnosticsFolder_Click" Style="{StaticResource OutlineButtonSmall}" Margin="0,0,0,8"
+                                ToolTip="Open the folder containing OmenCore's log files in File Explorer"
+                                AutomationProperties.Name="Open app logs folder" />
+                        <Button Content="Open OmenCore data folder" Click="OpenOmenCoreDataFolder_Click" Style="{StaticResource OutlineButtonSmall}"
+                                ToolTip="Open the folder containing OmenCore's config and saved data in File Explorer"
+                                AutomationProperties.Name="Open OmenCore data folder" />
                     </StackPanel>
                 </Grid>
             </GroupBox>
@@ -94,7 +102,9 @@
 
                     <Button Content="{Binding TemperatureSourceDiagnostics.RunButtonLabel}"
                             Command="{Binding TemperatureSourceDiagnostics.RunComparisonCommand}"
-                            Style="{StaticResource OutlineButtonSmall}" HorizontalAlignment="Left"/>
+                            Style="{StaticResource OutlineButtonSmall}" HorizontalAlignment="Left"
+                            ToolTip="Read WMI BIOS, ACPI, and LibreHardwareMonitor CPU temperature sources side by side. Read-only, does not change anything."
+                            AutomationProperties.Name="Run temperature source comparison"/>
 
                     <Border Background="#2D2D1F" BorderBrush="{StaticResource WarningBrush}" BorderThickness="1"
                             CornerRadius="6" Padding="10,8" Margin="0,10,0,0"
@@ -162,7 +172,9 @@
                         <Button Content="{Binding CheckGpuPowerLimitLabel}"
                                 Command="{Binding CheckGpuPowerLimitCommand}"
                                 Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
-                                HorizontalAlignment="Left"/>
+                                HorizontalAlignment="Left"
+                                ToolTip="Read the GPU's current power limit directly from the driver. Read-only, does not change anything."
+                                AutomationProperties.Name="Check current GPU power limit"/>
 
                         <Separator Margin="0,12,0,10"/>
 
@@ -185,7 +197,9 @@
                                 Click="ApplyAdapterOverride_Click"
                                 IsEnabled="{Binding CanApplyAdapterOverride}"
                                 Style="{StaticResource OutlineButtonSmall}" Margin="0,10,0,0"
-                                HorizontalAlignment="Left"/>
+                                HorizontalAlignment="Left"
+                                ToolTip="Restarts the GPU device to force the driver to re-read your adapter's power capability. Screens go black for a few seconds - do not use this with a game or render running."
+                                AutomationProperties.Name="Drop the adapter power clamp"/>
 
                         <TextBlock Text="{Binding ApuClampStatus}" FontSize="11" Margin="0,8,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
@@ -195,7 +209,9 @@
                                 Command="{Binding ReleaseApuClampCommand}"
                                 Style="{StaticResource OutlineButtonSmall}" Margin="0,8,0,0"
                                 HorizontalAlignment="Left"
-                                Visibility="{Binding IsApuClampHeld, Converter={StaticResource BoolToVisibility}}"/>
+                                Visibility="{Binding IsApuClampHeld, Converter={StaticResource BoolToVisibility}}"
+                                ToolTip="Release the AMD SMU power limits OmenCore is currently holding pinned low to work around the adapter clamp"
+                                AutomationProperties.Name="Stop holding the CPU power limits"/>
 
                         <!-- Doing it without being asked every boot. Both off by default; the GPU one
                              carries its condition in the label, because that condition is the only

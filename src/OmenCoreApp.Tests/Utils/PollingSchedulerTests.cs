@@ -169,5 +169,76 @@ namespace OmenCoreApp.Tests.Utils
 
             act.Should().NotThrow();
         }
+
+        [Fact]
+        public void UpdateInterval_ChangesFutureCadence_WithoutUnsubscribing()
+        {
+            var clock = new FakeClock();
+            var scheduler = new PollingScheduler(clock.Get);
+            var fireCount = 0;
+
+            var subscription = scheduler.Subscribe("test", TimeSpan.FromSeconds(10), () => fireCount++);
+
+            // Speed up before the original 10s interval would ever have fired - like
+            // ProcessMonitoringService going from idle (10s) to fast (2s) the moment a game
+            // launches. If UpdateInterval didn't take effect, nothing would fire here.
+            subscription.UpdateInterval(TimeSpan.FromSeconds(2));
+
+            clock.Advance(TimeSpan.FromSeconds(2));
+            scheduler.Pump();
+
+            fireCount.Should().Be(1, "the new, shorter interval should govern the next fire, not the interval in effect when the subscription was created");
+            scheduler.SubscriptionCount.Should().Be(1, "changing the interval must not unsubscribe and resubscribe - that would lose subscription identity for no reason");
+        }
+
+        [Fact]
+        public void UpdateInterval_IsMeasuredFromNow_NotFromOriginalSubscribeTime()
+        {
+            var clock = new FakeClock();
+            var scheduler = new PollingScheduler(clock.Get);
+            var fireCount = 0;
+
+            var subscription = scheduler.Subscribe("test", TimeSpan.FromSeconds(2), () => fireCount++);
+
+            // Let 1.5s of the original 2s interval elapse, then slow down to 10s.
+            clock.Advance(TimeSpan.FromSeconds(1.5));
+            scheduler.Pump();
+            fireCount.Should().Be(0, "not due yet under the original interval");
+
+            subscription.UpdateInterval(TimeSpan.FromSeconds(10));
+
+            // If the new interval were added on top of the old NextDueUtc, this would fire at
+            // 1.5s + ~nothing; it must instead be 10s from the UpdateInterval call.
+            clock.Advance(TimeSpan.FromSeconds(2));
+            scheduler.Pump();
+            fireCount.Should().Be(0, "the slowed-down interval is measured from the UpdateInterval call, not from the original subscribe time");
+
+            clock.Advance(TimeSpan.FromSeconds(8));
+            scheduler.Pump();
+            fireCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void UpdateInterval_AfterDispose_IsANoOp()
+        {
+            var scheduler = new PollingScheduler();
+            var fireCount = 0;
+            var subscription = scheduler.Subscribe("test", TimeSpan.FromSeconds(1), () => fireCount++);
+
+            subscription.Dispose();
+            var act = () => subscription.UpdateInterval(TimeSpan.FromSeconds(5));
+
+            act.Should().NotThrow("a disposed subscription should silently ignore further interval changes, not throw on a stale handle");
+        }
+
+        [Fact]
+        public void UpdateInterval_RejectsNonPositiveInterval()
+        {
+            var scheduler = new PollingScheduler();
+            var subscription = scheduler.Subscribe("test", TimeSpan.FromSeconds(1), () => { });
+
+            subscription.Invoking(s => s.UpdateInterval(TimeSpan.Zero))
+                .Should().Throw<ArgumentOutOfRangeException>();
+        }
     }
 }

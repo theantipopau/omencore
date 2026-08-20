@@ -5,6 +5,24 @@ using System.Linq;
 namespace OmenCore.Utils
 {
     /// <summary>
+    /// A live subscription handle: dispose to unsubscribe, or call <see cref="UpdateInterval"/>
+    /// to change cadence without paying an unsubscribe/resubscribe cost. Exists so a service
+    /// whose natural polling rate changes at runtime (e.g. faster while something is active,
+    /// slower while idle) can consolidate onto a shared coordinator instead of running its own
+    /// independent timer just to keep that ability.
+    /// </summary>
+    public interface IPollingSubscription : IDisposable
+    {
+        /// <summary>
+        /// Change this subscription's interval, effective from the next due-time check onward.
+        /// The new interval is measured from now, not from when the subscription was originally
+        /// created - a service that just sped itself up wants its next fire measured against
+        /// the new, shorter interval, not whatever was left of the old one.
+        /// </summary>
+        void UpdateInterval(TimeSpan newInterval);
+    }
+
+    /// <summary>
     /// Pure due-time scheduling logic for coalescing multiple independent polling cadences
     /// onto a single driving tick, with no WPF/Dispatcher dependency so it can be unit
     /// tested directly. <see cref="UiPollingCoordinator"/> is the production wrapper that
@@ -44,9 +62,10 @@ namespace OmenCore.Utils
         /// <summary>
         /// Register a callback to fire roughly every <paramref name="interval"/>. The first
         /// fire happens no sooner than one interval after subscribing. Dispose the returned
-        /// handle to unsubscribe.
+        /// handle to unsubscribe, or call <see cref="IPollingSubscription.UpdateInterval"/> on
+        /// it to change cadence later without unsubscribing.
         /// </summary>
-        public IDisposable Subscribe(string name, TimeSpan interval, Action callback)
+        public IPollingSubscription Subscribe(string name, TimeSpan interval, Action callback)
         {
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Subscription name is required", nameof(name));
             if (interval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be positive");
@@ -112,7 +131,18 @@ namespace OmenCore.Utils
             }
         }
 
-        private sealed class Unsubscriber : IDisposable
+        private void ChangeInterval(Subscription sub, TimeSpan newInterval)
+        {
+            if (newInterval <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(newInterval), "Interval must be positive");
+
+            lock (_lock)
+            {
+                sub.Interval = newInterval;
+                sub.NextDueUtc = _utcNow() + newInterval;
+            }
+        }
+
+        private sealed class Unsubscriber : IPollingSubscription
         {
             private readonly PollingScheduler _owner;
             private readonly Subscription _sub;
@@ -122,6 +152,12 @@ namespace OmenCore.Utils
             {
                 _owner = owner;
                 _sub = sub;
+            }
+
+            public void UpdateInterval(TimeSpan newInterval)
+            {
+                if (_disposed) return;
+                _owner.ChangeInterval(_sub, newInterval);
             }
 
             public void Dispose()

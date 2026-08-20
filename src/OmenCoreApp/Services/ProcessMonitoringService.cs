@@ -7,6 +7,7 @@ using System.Management;
 using System.Timers;
 using Timer = System.Timers.Timer;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Services
 {
@@ -31,7 +32,8 @@ namespace OmenCore.Services
         private const double WindowTitleSettleDelayMs = 1500;
 
         private readonly LoggingService _logging;
-        private readonly Timer _pollTimer;
+        private IPollingSubscription? _pollSubscription;
+        private double _pollIntervalMs = FastPollIntervalMs;
         private readonly HashSet<string> _trackedProcesses = new();
         private readonly object _trackedLock = new();
         private bool _isMonitoring;
@@ -97,8 +99,6 @@ namespace OmenCore.Services
         public ProcessMonitoringService(LoggingService logging)
         {
             _logging = logging;
-            _pollTimer = new Timer(FastPollIntervalMs);
-            _pollTimer.Elapsed += OnPollTimer;
         }
 
         /// <summary>
@@ -145,9 +145,9 @@ namespace OmenCore.Services
                 // Event-based detection is primary here; keep the poll as an infrequent
                 // reconciliation pass rather than racing it back up to 2s just because a
                 // game is running (that would defeat the point of offloading to WMI events).
-                if (Math.Abs(_pollTimer.Interval - ReconciliationPollIntervalMs) > 100)
+                if (Math.Abs(_pollIntervalMs - ReconciliationPollIntervalMs) > 100)
                 {
-                    _pollTimer.Interval = ReconciliationPollIntervalMs;
+                    SetPollInterval(ReconciliationPollIntervalMs);
                 }
                 return;
             }
@@ -155,11 +155,35 @@ namespace OmenCore.Services
             // Fallback path: fast polling (2s) when games are running, slow (10s) when idle
             var newInterval = ActiveProcesses.Count > 0 ? FastPollIntervalMs : IdlePollIntervalMs;
 
-            if (Math.Abs(_pollTimer.Interval - newInterval) > 100) // Only update if changed significantly
+            if (Math.Abs(_pollIntervalMs - newInterval) > 100) // Only update if changed significantly
             {
-                _pollTimer.Interval = newInterval;
+                SetPollInterval(newInterval);
                 _logging.Info($"Process monitoring interval adjusted to {newInterval}ms (active processes: {ActiveProcesses.Count})");
             }
+        }
+
+        /// <summary>
+        /// Change the poll cadence in place via <see cref="IPollingSubscription.UpdateInterval"/>
+        /// rather than tearing down and recreating the subscription - this service used to own a
+        /// private <c>System.Timers.Timer</c> specifically so it could mutate <c>.Interval</c>
+        /// live; that capability now comes from the shared coordinator instead, so this is the
+        /// only service-owned timer this class needs.
+        /// </summary>
+        private void SetPollInterval(double intervalMs)
+        {
+            _pollIntervalMs = intervalMs;
+            _pollSubscription?.UpdateInterval(TimeSpan.FromMilliseconds(intervalMs));
+
+            // UpdateDescription, not Register: Register would reset RegisteredUtc on every
+            // cadence change (every game launch/exit), losing "how long has this timer been
+            // alive" diagnostics for no benefit. The interval is folded into the description
+            // text instead, since BackgroundTimerInfo.IntervalMs itself is a point-in-time
+            // snapshot from registration and UpdateDescription deliberately doesn't touch it.
+            BackgroundTimerRegistry.UpdateDescription(
+                "ProcessMonitor",
+                _wmiEventingActive
+                    ? $"Reconciliation poll backing up WMI event-based game process detection ({intervalMs:F0}ms)"
+                    : $"Polls running processes to detect game launches and workload switches ({intervalMs:F0}ms)");
         }
         
         /// <summary>
@@ -185,15 +209,20 @@ namespace OmenCore.Services
             _isMonitoring = true;
             TryStartWmiEventing();
 
-            _pollTimer.Interval = _wmiEventingActive ? ReconciliationPollIntervalMs : FastPollIntervalMs;
-            _pollTimer.Start();
+            _pollIntervalMs = _wmiEventingActive ? ReconciliationPollIntervalMs : FastPollIntervalMs;
+            // Background thread-pool cadence, consolidated onto the shared coordinator rather
+            // than this service owning its own System.Timers.Timer - see BackgroundPollingCoordinator
+            // (docs/ROADMAP_v4.2.0.md Pillar 2.4). Same threading semantics as before: Timer.Elapsed
+            // without a SynchronizingObject already fired on a thread-pool thread, same as this.
+            _pollSubscription = BackgroundPollingCoordinator.Subscribe(
+                "ProcessMonitor-Poll", TimeSpan.FromMilliseconds(_pollIntervalMs), ScanProcesses);
             BackgroundTimerRegistry.Register(
                 "ProcessMonitor",
                 "ProcessMonitoringService",
                 _wmiEventingActive
-                    ? "Reconciliation poll backing up WMI event-based game process detection"
-                    : "Polls running processes to detect game launches and workload switches",
-                (int)_pollTimer.Interval,
+                    ? $"Reconciliation poll backing up WMI event-based game process detection ({_pollIntervalMs:F0}ms)"
+                    : $"Polls running processes to detect game launches and workload switches ({_pollIntervalMs:F0}ms)",
+                (int)_pollIntervalMs,
                 BackgroundTimerTier.Optional);
             _logging.Info($"Process monitoring started ({_trackedProcesses.Count} tracked, event-based={_wmiEventingActive})");
 
@@ -210,15 +239,11 @@ namespace OmenCore.Services
                 return;
 
             _isMonitoring = false;
-            _pollTimer.Stop();
+            _pollSubscription?.Dispose();
+            _pollSubscription = null;
             StopWmiEventing();
             BackgroundTimerRegistry.Unregister("ProcessMonitor");
             _logging.Info("Process monitoring stopped");
-        }
-
-        private void OnPollTimer(object? sender, ElapsedEventArgs e)
-        {
-            ScanProcesses();
         }
 
         /// <summary>
@@ -511,7 +536,6 @@ namespace OmenCore.Services
         public void Dispose()
         {
             StopMonitoring();
-            _pollTimer?.Dispose();
         }
     }
 

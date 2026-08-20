@@ -66,9 +66,15 @@
                         
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
-                        <Button Content="-" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" FontSize="12" />
-                        <Button x:Name="MaximizeButton" Content="[ ]" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" FontSize="12" />
-                        <Button Content="x" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" FontSize="12" />
+                        <!-- Real Segoe MDL2 Assets glyphs, not ASCII placeholders (was "-"/"[ ]"/"x"
+                             rendered in the icon font, which just draws those literal characters -
+                             the font was already selected correctly by WindowControlButton/
+                             WindowCloseButton, the actual glyph codepoints were never used).
+                             E921/E922/E923/E8BB are the standard Windows chrome-button glyphs
+                             (ChromeMinimize/ChromeMaximize/ChromeRestore/ChromeClose). -->
+                        <Button Content="&#xE921;" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" />
+                        <Button x:Name="MaximizeButton" Content="&#xE922;" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" />
+                        <Button Content="&#xE8BB;" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" />
                     </StackPanel>
                 </Grid>
             </Border>

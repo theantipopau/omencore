@@ -64,6 +64,28 @@ namespace OmenCoreApp.Tests.Utils
         }
 
         [Fact]
+        public async Task UpdateInterval_ChangesRealFiringCadence()
+        {
+            var fireCount = 0;
+            using var subscription = BackgroundPollingCoordinator.Subscribe(
+                "test-update-interval", TimeSpan.FromMinutes(10), () => Interlocked.Increment(ref fireCount));
+
+            // 10 minutes would never fire within this test's timeout - only the speed-up should
+            // make it fire, confirming UpdateInterval reaches the real, live-timer-backed
+            // subscription end to end, not just PollingScheduler's own in-memory state.
+            subscription.UpdateInterval(TimeSpan.FromMilliseconds(1));
+
+            var deadline = DateTime.UtcNow.AddSeconds(10);
+            while (Volatile.Read(ref fireCount) == 0 && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(50);
+            }
+
+            Volatile.Read(ref fireCount).Should().BeGreaterThan(0,
+                "UpdateInterval should take effect on the real background coordinator, not just an in-memory scheduler");
+        }
+
+        [Fact]
         public void SubscriptionCount_ReflectsActiveSubscriptions()
         {
             var before = BackgroundPollingCoordinator.SubscriptionCount;

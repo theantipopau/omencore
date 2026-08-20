@@ -37,7 +37,7 @@ namespace OmenCore.Utils
         /// thread-pool thread. Dispose the returned handle to unsubscribe (e.g. from the owning
         /// service's Dispose()/StopMonitoring()).
         /// </summary>
-        public static IDisposable Subscribe(string name, TimeSpan interval, Action callback)
+        public static IPollingSubscription Subscribe(string name, TimeSpan interval, Action callback)
         {
             EnsureStarted();
             return _scheduler.Subscribe(name, interval, callback);

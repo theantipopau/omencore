@@ -34,7 +34,7 @@ namespace OmenCore.Utils
         /// thread. Dispose the returned handle to unsubscribe (e.g. from the owning window's
         /// Closed handler or a service's Dispose()).
         /// </summary>
-        public static IDisposable Subscribe(string name, TimeSpan interval, Action callback)
+        public static IPollingSubscription Subscribe(string name, TimeSpan interval, Action callback)
         {
             EnsureStarted();
             return _scheduler.Subscribe(name, interval, callback);
