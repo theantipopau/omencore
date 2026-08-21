@@ -8,63 +8,119 @@
 
 ---
 
-## Fixed: CPU Temperature Could Report a Chassis Sensor Instead of the CPU
+## Fixed
+
+### CPU Temperature Could Report a Chassis Sensor Instead of the CPU
 
 Reported on r/HPOmen: "it can show the CPU at 36 degrees when it's over 80." On boards exposing several ACPI thermal zones, OmenCore latched onto whichever zone WMI happened to enumerate first and kept it for the whole session — often a skin/ambient sensor sitting in the mid-30s. Fan curves consume this value, so it was a fan-control bug, not just a display one.
 
 Selection is now a pure, unit-tested function: prefer a previously-confirmed zone, else one whose name hints at CPU, else — only when genuinely ambiguous — the hottest zone, re-evaluated every poll rather than latched. Single-zone systems and name-matched boards are unaffected. Multi-zone selection reasoning is now logged so the next report is diagnosable from a log export. 14 new tests.
 
-## Added: CPU Temperature Source Is Now Visible
-
-OmenCore already tracked which source (WMI BIOS / ACPI / LibreHardwareMonitor fallback) it trusts and why — but nothing read it, not even the diagnostics export. The Dashboard CPU chip now shows it as a tooltip, with a warning glyph when the fallback source is active. The diagnostics export's `[CPU Temperature Authority]` section now reports the actual per-tick sensor authority instead of just the overall backend. 10 new tests.
-
-## Added: Temperature Source Comparison Diagnostic
-
-New card on the Diagnostics tab reads WMI BIOS, ACPI, and LibreHardwareMonitor side by side on demand, showing which is trusted, why, and a warning when they disagree by more than 18°C (the same threshold the live outlier guard uses). Read-only and side-effect-free — it can't perturb the background monitor loop. 24 new tests.
-
-## Added: OSD Fallback-Source Marker
-
-The OSD gets a small always-visible `~` marker next to the CPU temperature when the fallback source is active. Deliberately not a tooltip: the OSD is click-through at all times, so a hover tooltip would be permanently unreachable during gameplay — the one situation it exists for.
-
----
-
-## Fixed: Linux GUI Fan Warning Pointed at a Dead-End Workaround
+### Linux GUI Fan Warning Pointed at a Dead-End Workaround
 
 On boards with only a coarse `pwm_enable` toggle and no thermal-profile path (e.g. board `8E41`, [#99](https://github.com/theantipopau/omencore/issues/99)), the Linux GUI advised using performance profiles — which do nothing there. Meanwhile Max Fan *does* work on those boards and was never mentioned. The banner now uses the capability classifier's real per-case reason (already computed, previously unread) and notes the Max Fan override only where a write path genuinely exists. Messaging only, no control change. Build-verified.
 
-## Added: Linux Support for the `omen-rgb-keyboard` DKMS Driver
+### Games Tab Virtualization Was Silently Doing Nothing
 
-Keyboard RGB now also probes `/sys/devices/platform/omen-rgb-keyboard/rgb_zones/` and the `omen::kbd_backlight` LED class, alongside the existing hp-wmi paths. That out-of-tree driver requires blacklisting `hp_wmi`, so on machines running it none of the previously-known paths exist and OmenCore found no keyboard interface at all. Its tested-hardware list includes boards already in our field reports (`16-wf0xxx`/`8BCA`, `16-wd0xxx`/`8BA9`). Purely additive path detection — no change for existing users. 10 new tests.
+The games list declared `IsVirtualizing`/`Recycling`/`ScrollUnit=Pixel` but overrode its panel to a plain `WrapPanel`, which doesn't virtualize — so every detected game kept a full visual tree alive regardless of scroll position. Removed the override so the real virtualizing panel applies, and reflowed each game from a stacked card into a single-line row (also more scannable per screen). Bindings and styles unchanged. Build-verified only — worth an eyeball on the next real run.
+
+### AMD Undervolt Status Overclaimed "Readback" It Doesn't Have
+
+A real-hardware test flagged the CPU Tuning tab showing "Verified: readback matches requested" for an AMD undervolt, alongside a "degraded" warning, with no way to independently confirm anything actually changed. Investigation confirmed the write itself is real (a genuine SMU mailbox exchange, with a code comment citing a measured clock uplift from prior testing) — but the status text was comparing the app's own memory of the last value it wrote against itself, since AMD's Curve Optimizer path has no hardware register to read back from (unlike Intel's MSR path, which does). It could never have shown a mismatch. Now shows "Verified: write acknowledged (no independent hardware readback on this path)" for AMD instead. Wording only — no write, clamp, or SMU command changed. 1 new test.
+
+The "degraded" warning's exact trigger wasn't identified from code alone and needs a repeat report with the literal warning text to pin down.
+
+### RGB Page Showed a False "OMEN Keyboard" on Non-HP Hardware
+
+Reported on the portable test build, on a desktop PC with no HP hardware at all: the RGB page's "OMEN Keyboard" badge showed as present anyway. Root cause: keyboard-model detection's exception handler defaulted to a real HP OMEN config instead of "no config" on any detection failure — silently turning "couldn't determine the system" into "assume it's an OMEN." Fixed to match the same "not detected as HP" behavior already used everywhere else in that method. Pure logic fix, no keyboard write path touched.
+
+### iCUE Not Detected Despite Running
+
+Same report: iCUE was installed and running, but Corsair detection never found it. The check matched only a process named exactly `iCUE` — Corsair has changed that name across major iCUE releases. Now matches any process whose name contains "icue," case-insensitive.
+
+### Sidebar Status Text Clipped Instead of Ellipsizing
+
+The EC-backend status row had the same bug already fixed once this cycle for tab labels: a horizontal StackPanel gives its child unbounded width during layout, so `TextTrimming="CharacterEllipsis"` never actually engaged — text just got hard-clipped at the sidebar's edge instead of trimming with "…". Converted to a Grid, same fix pattern.
+
+### General Tab's Profile Cards Were Completely Unusable by Keyboard
+
+Found while doing an accessibility pass: the "Quick Profiles" and "Fan Mode" cards on the General tab — the app's default, first-seen screen — are plain `Border` elements with a mouse-click handler, not real buttons. No `Focusable`, no keyboard activation, no screen-reader exposure at all. A keyboard-only user could Tab past them entirely and had no way to switch performance or fan mode from this screen.
+
+All 7 cards (4 profiles, 3 fan modes) are now real Tab stops with the app's own accent-colored focus ring (not the default dotted rectangle) and Enter/Space activation wired to the same view-model calls the mouse click already used. Visual appearance and mouse behavior unchanged.
+
+### Window Minimize/Maximize/Close Buttons Were Rendering ASCII Text, Not Icons
+
+Reported on Reddit: the title bar's maximize button showed literally as `[ ]`. Root cause: the button style already set the real Windows icon font (`Segoe MDL2 Assets`) as its `FontFamily`, but the button `Content` was plain ASCII (`"-"`, `"[ ]"`/`"[]"` toggling for maximize/restore, `"x"`) instead of that font's actual glyph codepoints — so it rendered exactly what it said, a literal bracket-space-bracket, not an icon. All three now use the standard Windows chrome glyphs (minimize/maximize/restore/close) the font was already selected for.
+
+Broke an existing test in the process (`ReleaseGateCodeHygieneTests`), which turned out to be guarding a real past incident — a raw Unicode symbol pasted into source mojibaked in v1.0.0.4. The new glyphs avoid the same failure mode (written as ASCII-safe `&#xNNNN;`/`\u` escapes, never a raw pasted character), and the test was rewritten to check that directly rather than just updated to match the new text. Full detail in the roadmap.
 
 ---
 
-## Removed: Two RGB Services That Were Never Instantiated
+## Added
 
-`TemperatureRgbService` and `ScreenColorSamplingService` were fully-built polling services with zero references anywhere in production code (both duplicated functionality that is wired up elsewhere). Deleted, along with the one test that constructed one of them purely as a timer-registration example. Also documented why `LibreHardwareMonitorImpl.EnsureCacheFresh()`'s blocking IPC call is currently safe, so a future per-tick caller doesn't silently reintroduce a stall.
+### CPU Temperature Source Is Now Visible
 
-## Added: Startup and Tab-Switch Timing, Measured Every Run
+OmenCore already tracked which source (WMI BIOS / ACPI / LibreHardwareMonitor fallback) it trusts and why — but nothing read it, not even the diagnostics export. The Dashboard CPU chip now shows it as a tooltip, with a warning glyph when the fallback source is active. The diagnostics export's `[CPU Temperature Authority]` section now reports the actual per-tick sensor authority instead of just the overall backend. 10 new tests.
+
+### Temperature Source Comparison Diagnostic
+
+New card on the Diagnostics tab reads WMI BIOS, ACPI, and LibreHardwareMonitor side by side on demand, showing which is trusted, why, and a warning when they disagree by more than 18°C (the same threshold the live outlier guard uses). Read-only and side-effect-free — it can't perturb the background monitor loop. 24 new tests.
+
+### OSD Fallback-Source Marker
+
+The OSD gets a small always-visible `~` marker next to the CPU temperature when the fallback source is active. Deliberately not a tooltip: the OSD is click-through at all times, so a hover tooltip would be permanently unreachable during gameplay — the one situation it exists for.
+
+### Linux Support for the `omen-rgb-keyboard` DKMS Driver
+
+Keyboard RGB now also probes `/sys/devices/platform/omen-rgb-keyboard/rgb_zones/` and the `omen::kbd_backlight` LED class, alongside the existing hp-wmi paths. That out-of-tree driver requires blacklisting `hp_wmi`, so on machines running it none of the previously-known paths exist and OmenCore found no keyboard interface at all. Its tested-hardware list includes boards already in our field reports (`16-wf0xxx`/`8BCA`, `16-wd0xxx`/`8BA9`). Purely additive path detection — no change for existing users. 10 new tests.
+
+### Startup and Tab-Switch Timing, Measured Every Run
 
 Three prior UI-responsiveness passes fixed real problems without moving "feels laggy" reports — because the actual costs had never been measured. New `StartupAndNavigationPerformanceTracker` records startup time-to-interactive (from OS process start through first real paint) and per-tab switch cost (including lazy view construction and the render pass that follows). Both appear automatically in `runtime-performance.txt`. 7 new tests.
 
 Not yet done: multi-hour idle CPU and working-set growth — needs a longer-running capture mode.
 
-## Added: Reduce-Motion Preference
+### Reduce-Motion Preference
 
 New "Reduce motion" setting, combined with the Windows-wide "Show animations" preference, gating all future animation work. Defaults to *not* reducing motion if the OS read fails. Conveniently, the system preference is the same value the built-in "Best Performance" optimization already writes. 4 new tests.
 
 **No animation code shipped yet** — this is just the gate. Transitions need live UI verification this environment can't provide.
 
-## Added: Background-Thread Timer Coordinator
+### Background-Thread Timer Coordinator
 
 `BackgroundPollingCoordinator` — the off-UI-thread counterpart to `UiPollingCoordinator`, sharing the same already-tested scheduler. 1000ms base cadence (background work has no render-responsiveness pressure), plus a reentrancy guard a `DispatcherTimer` doesn't need. 3 new tests.
 
 **Follow-up: `ProcessMonitoringService` now consolidated onto it too.** It used to own a private `System.Timers.Timer` specifically because its poll rate changes at runtime (2s while a game is running, 10s idle, 20s when WMI eventing is doing the real work) and the shared scheduler had no way to change a live subscription's interval. Added that capability (`IPollingSubscription.UpdateInterval`) instead of working around its absence — one fewer independent OS timer running for the life of the app, same poll cadences and thread-pool-callback semantics as before. 5 new tests.
 
-## Fixed: Games Tab Virtualization Was Silently Doing Nothing
+### Fan Curve Share Codes
 
-The games list declared `IsVirtualizing`/`Recycling`/`ScrollUnit=Pixel` but overrode its panel to a plain `WrapPanel`, which doesn't virtualize — so every detected game kept a full visual tree alive regardless of scroll position. Removed the override so the real virtualizing panel applies, and reflowed each game from a stacked card into a single-line row (also more scannable per screen). Bindings and styles unchanged. Build-verified only — worth an eyeball on the next real run.
+Copy the current curve to the clipboard as a one-line code, or paste one in to import — for sharing in Discord/GitHub where a file attachment is awkward. File-based sharing already existed via Import/Export Presets. Malformed codes are rejected outright. 15 new tests.
 
-## Changed: Navigation Moved to a Vertical Rail, With Grouped Sections
+---
+
+## Improved
+
+### Tuning Tab Buttons Now Say What They Actually Do
+
+The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock — had 16 buttons with **no accessibility labels at all** and only 4 tooltips, on the page where a mis-click has the most real consequence. Worst case: four separate buttons labelled exactly "Reset to Defaults" (CPU limits, AMD limits, AMD GPU, NVIDIA GPU), indistinguishable to a screen reader and only disambiguated visually by which card you happen to be looking at.
+
+Every button now has a distinct accessibility label naming its actual target and a plain-language tooltip, including the risk where relevant. Purely additive attributes — no layout, binding, or command wiring touched.
+
+**Same pass extended to the Diagnostics tab** — 9 buttons went from 0 accessibility labels and 2 tooltips to 9/9 and 9/9, including risk-aware wording on "Drop the adapter power clamp" (screens go black for a few seconds) matching its own inline warning text.
+
+### Icon Color Cleanup on the Top Bar and RGB Page
+
+A design-taste pass flagged the top bar's Quick Actions row (fan preset, performance mode, lighting, gaming mode) using four different accent colors on five adjacent, equal-weight icon buttons — decorative color with no actual system behind it. All four now use the same neutral tone as the Restore button next to them; color is reserved for things that mean something (selection, status), not applied per-icon by default.
+
+Same pass on the RGB page: Scene Quick Select buttons (OMEN Red, Cool Blue, Rainbow, Heat Wave, etc.) rendered identically grey regardless of what color they actually apply — `RgbScene.PrimaryColor` already carried that data, it was just never drawn. Each scene button now shows a small color swatch. The "Active: SceneName" badge also had a stray, uncatalogued purple (`#9C27B0`) that matched nothing else in the app; now uses the same accent color the rest of the app uses for "this is selected."
+
+**RGB page still flagged as needing a broader pass** beyond these two spot-fixes — noted for next time, not blocking this release.
+
+---
+
+## Changed
+
+### Navigation Moved to a Vertical Rail, With Grouped Sections
 
 The main window's ~10 sections were in a horizontal strip inside a scroll viewer — so below a certain window width, tabs scrolled out of sight with nothing indicating they were there. Navigation is now a vertical rail down the left of the content area: every section visible at once, with room for readable labels (icon-only was rejected — "Optimizer" vs "Memory" vs "Bloatware" aren't guessable from an icon).
 
@@ -78,55 +134,13 @@ Implemented as a retemplate, not a restructure: same tabs, same order, same indi
 
 **Third follow-up:** group separators are now a small orange-to-red gradient bar instead of a flat grey hairline, so the sidebar carries some of the app's own brand color. And the tab list now shrinks itself — text, icons, and spacing together, as one scale — to fit a short window instead of just scrolling at full size; it stops shrinking at a floor (roughly 72% of normal size) and falls back to scrolling past that point, so it never gets shrunk down to unreadable. Full suite green.
 
-## Improved: Tuning Tab Buttons Now Say What They Actually Do
+---
 
-The Tuning tab — CPU undervolt, power limits, thermal offset, GPU overclock — had 16 buttons with **no accessibility labels at all** and only 4 tooltips, on the page where a mis-click has the most real consequence. Worst case: four separate buttons labelled exactly "Reset to Defaults" (CPU limits, AMD limits, AMD GPU, NVIDIA GPU), indistinguishable to a screen reader and only disambiguated visually by which card you happen to be looking at.
+## Removed
 
-Every button now has a distinct accessibility label naming its actual target and a plain-language tooltip, including the risk where relevant. Purely additive attributes — no layout, binding, or command wiring touched.
+### Two RGB Services That Were Never Instantiated
 
-**Same pass extended to the Diagnostics tab** — 9 buttons went from 0 accessibility labels and 2 tooltips to 9/9 and 9/9, including risk-aware wording on "Drop the adapter power clamp" (screens go black for a few seconds) matching its own inline warning text.
-
-## Fixed: General Tab's Profile Cards Were Completely Unusable by Keyboard
-
-Found while doing the same accessibility pass: the "Quick Profiles" and "Fan Mode" cards on the General tab — the app's default, first-seen screen — are plain `Border` elements with a mouse-click handler, not real buttons. No `Focusable`, no keyboard activation, no screen-reader exposure at all. A keyboard-only user could Tab past them entirely and had no way to switch performance or fan mode from this screen.
-
-All 7 cards (4 profiles, 3 fan modes) are now real Tab stops with the app's own accent-colored focus ring (not the default dotted rectangle) and Enter/Space activation wired to the same view-model calls the mouse click already used. Visual appearance and mouse behavior unchanged.
-
-## Fixed: Window Minimize/Maximize/Close Buttons Were Rendering ASCII Text, Not Icons
-
-Reported on Reddit: the title bar's maximize button showed literally as `[ ]`. Root cause: the button style already set the real Windows icon font (`Segoe MDL2 Assets`) as its `FontFamily`, but the button `Content` was plain ASCII (`"-"`, `"[ ]"`/`"[]"` toggling for maximize/restore, `"x"`) instead of that font's actual glyph codepoints — so it rendered exactly what it said, a literal bracket-space-bracket, not an icon. All three now use the standard Windows chrome glyphs (minimize/maximize/restore/close) the font was already selected for.
-
-Broke an existing test in the process (`ReleaseGateCodeHygieneTests`), which turned out to be guarding a real past incident — a raw Unicode symbol pasted into source mojibaked in v1.0.0.4. The new glyphs avoid the same failure mode (written as ASCII-safe `&#xNNNN;`/`\u` escapes, never a raw pasted character), and the test was rewritten to check that directly rather than just updated to match the new text. Full detail in the roadmap.
-
-## Fixed: AMD Undervolt Status Overclaimed "Readback" It Doesn't Have
-
-A real-hardware test flagged the CPU Tuning tab showing "Verified: readback matches requested" for an AMD undervolt, alongside a "degraded" warning, with no way to independently confirm anything actually changed. Investigation confirmed the write itself is real (a genuine SMU mailbox exchange, with a code comment citing a measured clock uplift from prior testing) — but the status text was comparing the app's own memory of the last value it wrote against itself, since AMD's Curve Optimizer path has no hardware register to read back from (unlike Intel's MSR path, which does). It could never have shown a mismatch. Now shows "Verified: write acknowledged (no independent hardware readback on this path)" for AMD instead. Wording only — no write, clamp, or SMU command changed. 1 new test.
-
-The "degraded" warning's exact trigger wasn't identified from code alone and needs a repeat report with the literal warning text to pin down.
-
-## Added: Fan Curve Share Codes
-
-Copy the current curve to the clipboard as a one-line code, or paste one in to import — for sharing in Discord/GitHub where a file attachment is awkward. File-based sharing already existed via Import/Export Presets. Malformed codes are rejected outright. 15 new tests.
-
-## Fixed: RGB Page Showed a False "OMEN Keyboard" on Non-HP Hardware
-
-Reported on the portable test build, on a desktop PC with no HP hardware at all: the RGB page's "OMEN Keyboard" badge showed as present anyway. Root cause: keyboard-model detection's exception handler defaulted to a real HP OMEN config instead of "no config" on any detection failure — silently turning "couldn't determine the system" into "assume it's an OMEN." Fixed to match the same "not detected as HP" behavior already used everywhere else in that method. Pure logic fix, no keyboard write path touched.
-
-## Fixed: iCUE Not Detected Despite Running
-
-Same report: iCUE was installed and running, but Corsair detection never found it. The check matched only a process named exactly `iCUE` — Corsair has changed that name across major iCUE releases. Now matches any process whose name contains "icue," case-insensitive.
-
-## Fixed: Sidebar Status Text Clipped Instead of Ellipsizing
-
-The EC-backend status row had the same bug already fixed once this cycle for tab labels: a horizontal StackPanel gives its child unbounded width during layout, so `TextTrimming="CharacterEllipsis"` never actually engaged — text just got hard-clipped at the sidebar's edge instead of trimming with "…". Converted to a Grid, same fix pattern.
-
-## Improved: Icon Color Cleanup on the Top Bar and RGB Page
-
-A design-taste pass flagged the top bar's Quick Actions row (fan preset, performance mode, lighting, gaming mode) using four different accent colors on five adjacent, equal-weight icon buttons — decorative color with no actual system behind it. All four now use the same neutral tone as the Restore button next to them; color is reserved for things that mean something (selection, status), not applied per-icon by default.
-
-Same pass on the RGB page: Scene Quick Select buttons (OMEN Red, Cool Blue, Rainbow, Heat Wave, etc.) rendered identically grey regardless of what color they actually apply — `RgbScene.PrimaryColor` already carried that data, it was just never drawn. Each scene button now shows a small color swatch. The "Active: SceneName" badge also had a stray, uncatalogued purple (`#9C27B0`) that matched nothing else in the app; now uses the same accent color the rest of the app uses for "this is selected."
-
-**RGB page still flagged as needing a broader pass** beyond these two spot-fixes — noted for next time, not blocking this release.
+`TemperatureRgbService` and `ScreenColorSamplingService` were fully-built polling services with zero references anywhere in production code (both duplicated functionality that is wired up elsewhere). Deleted, along with the one test that constructed one of them purely as a timer-registration example. Also documented why `LibreHardwareMonitorImpl.EnsureCacheFresh()`'s blocking IPC call is currently safe, so a future per-tick caller doesn't silently reintroduce a stall.
 
 ---
 
@@ -158,6 +172,8 @@ License note: Roboto Condensed is **SIL OFL 1.1** (an earlier note here said Apa
 **[#137](https://github.com/theantipopau/omencore/issues/137)** (board `8BCD`, Linux) — already handled; the capability classifier downgrades this board because its firmware aborts every WMI call (a genuine ACPI bug userspace can't fix). Verifying it surfaced a real gap: **`OmenCore.Linux` had no test project at all.** Added one — 25 tests now covering the classification matrix and sysfs path tables.
 
 **Discord (board `8DCD`)** — independent confirmation that the 4.1.7 Max-Fan-Latch fix resolved fans being stuck high/low. Also flagged [#146](https://github.com/theantipopau/omencore/issues/146) as a likely instance of the same bug — notable because it involved a thermal shutdown in a closed backpack.
+
+**Reddit (kn_kry)** — Victus, no board ID or diagnostics: the concrete, checkable claim (maximize button rendering as literal `[ ]`) was correct and is fixed, above. The rest (fan control, temperature display, RGB not working at all, perceived slowness) is real signal but not independently actionable without a board ID — full triage in the roadmap, including why several of those symptoms could be genuine hardware limitations on some Victus models rather than bugs.
 
 ---
 
