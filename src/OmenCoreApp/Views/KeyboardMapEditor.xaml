@@ -16,6 +16,24 @@
                        TextWrapping="Wrap"/>
         </Border>
 
+        <!-- Windows Dynamic Lighting owns this keyboard too, and it takes it back the moment
+             OmenCore exits. Nothing here fails, which is exactly why it needs saying: the picture
+             applies, holds while the app is open, and is gone on the next launch. Blue rather than
+             amber - this is information about another feature's setting, not a fault in ours. -->
+        <Border Background="#2230A0E0" BorderBrush="#30A0E0" BorderThickness="1" CornerRadius="6"
+                Padding="10" Margin="0,0,0,10"
+                Visibility="{Binding HasDynamicLightingWarning, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="{Binding DynamicLightingWarning}" FontSize="11" Foreground="#8CC8F0"
+                           TextWrapping="Wrap"/>
+                <Button Content="Open Dynamic Lighting settings"
+                        Command="{Binding OpenDynamicLightingSettingsCommand}"
+                        Style="{StaticResource ModernButton}" Padding="12,4" Margin="0,8,0,0"
+                        HorizontalAlignment="Left" FontSize="11"
+                        AutomationProperties.Name="Open the Windows Dynamic Lighting settings page"/>
+            </StackPanel>
+        </Border>
+
         <!-- Brush + actions -->
         <Grid Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
@@ -59,32 +77,63 @@
                         Style="{StaticResource ModernButton}" Padding="12,6" Margin="0,0,6,0"/>
             </StackPanel>
 
-            <Button Grid.Column="5" Content="Apply to keyboard" Command="{Binding ApplyCommand}"
-                    Style="{StaticResource AccentButton}" Padding="16,6" FontWeight="SemiBold"
-                    AutomationProperties.Name="Apply per-key colours to the keyboard"/>
+            <!-- Apply is volatile and free to repeat; Save writes MCU flash. The accent is on Apply
+                 because it is the one to press while painting - the flash write belongs at the end
+                 of the job, once, and it is styled as the quieter of the two for that reason. -->
+            <StackPanel Grid.Column="5" Orientation="Horizontal">
+                <Button Content="Apply to keyboard" Command="{Binding ApplyCommand}"
+                        Style="{StaticResource AccentButton}" Padding="16,6" FontWeight="SemiBold"
+                        AutomationProperties.Name="Apply per-key colours to the keyboard"/>
+                <Button Content="Save to keyboard" Command="{Binding SaveToKeyboardCommand}"
+                        Style="{StaticResource ModernButton}" Padding="16,6" Margin="8,0,0,0"
+                        AutomationProperties.Name="Save the picture into the keyboard so it survives a power cycle"
+                        ToolTip="Applies the picture, then stores it in the keyboard's own memory so it survives a power cycle and shows with OmenCore closed. This writes to the keyboard's flash, so use it when you have finished rather than after every change."/>
+            </StackPanel>
         </Grid>
 
-        <!-- Brightness. Not the MCU's - that command is refused by this firmware - but the
-             LampArray's per-lamp intensity channel, which scales a host-painted picture and is the
-             only brightness lever this keyboard has. -->
+        <!-- Brightness, in two halves that multiply.
+
+             Neither is a device setting. The MCU's own brightness command is refused by this
+             firmware, and the colour map it draws from is raw RGB with no intensity channel, so
+             both of these are arithmetic on the colours before they go out. That is also why
+             neither can touch a device-rendered effect: the MCU draws those from its own state
+             with no host involvement, measured, so there is no picture here to scale.
+
+             Whole keyboard is applied by the backend; Selected is applied per cell in the
+             view-model and shows up on the caps immediately. -->
         <Grid Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="160"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" Text="Brightness:" FontSize="12" Foreground="#B0B0B0"
+            <TextBlock Grid.Column="0" Text="Whole keyboard:" FontSize="12" Foreground="#B0B0B0"
                        VerticalAlignment="Center" Margin="0,0,8,0"/>
             <Slider Grid.Column="1" Minimum="0" Maximum="100" VerticalAlignment="Center"
                     Value="{Binding Brightness, Mode=TwoWay}"
-                    AutomationProperties.Name="Per-key lighting brightness"/>
+                    AutomationProperties.Name="Master brightness for the whole keyboard and light bar"/>
             <TextBlock Grid.Column="2" Text="{Binding Brightness}" FontSize="12" Width="34"
                        Foreground="#E0E0E0" VerticalAlignment="Center" Margin="8,0,0,0"/>
-            <TextBlock Grid.Column="3" FontSize="11" Foreground="#707070" VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       Text="Applies on the next Apply. It scales the colours you paint — a running keyboard effect cannot be dimmed."/>
+
+            <!-- Disabled rather than hidden with nothing selected: a control that vanishes is
+                 harder to find again than one that greys out, and the label says what to do. -->
+            <TextBlock Grid.Column="3" Text="Selected:" FontSize="12" Foreground="#B0B0B0"
+                       VerticalAlignment="Center" Margin="16,0,8,0"/>
+            <Slider Grid.Column="4" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                    Value="{Binding SelectionBrightness, Mode=TwoWay}"
+                    IsEnabled="{Binding HasSelection}"
+                    AutomationProperties.Name="Brightness of the selected keys and light bar zones"/>
+            <TextBlock Grid.Column="5" Text="{Binding SelectionBrightness}" FontSize="12" Width="34"
+                       Foreground="#E0E0E0" VerticalAlignment="Center" Margin="8,0,0,0"/>
+
+            <TextBlock Grid.Column="6" FontSize="11" Foreground="#707070" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="12,0,0,0"
+                       Text="{Binding BrightnessHint}"/>
         </Grid>
 
         <!-- The keyboard itself. Viewbox so the logical layout, computed in millimetres, scales to

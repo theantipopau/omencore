@@ -299,6 +299,101 @@ GitHub #175 asked whether OmenCore should coordinate with other Linux OMEN-contr
 
 Purely additive detection and fallback — nothing narrower, nothing removed. Verified by a clean build of the full solution (`OmenCore.sln`); as with the fan-control fix above, there is no automated test project for either Linux target and no Linux/OMEN hardware in this environment, so this is code-review-and-build-verified only, not field-confirmed on the board that prompted it.
 
+## Fixed: Per-Key RGB Brightness Slider Did Nothing on Boards With a Known Keyboard Layout (Board `8D87`, Community Report)
+
+Reported on board `8D87` (OMEN MAX 16-ak0xxx) against the per-key RGB editor shipped earlier this cycle: moving the Brightness slider and pressing Apply changed nothing. The colours applied correctly; the brightness setting was inert at every value.
+
+**Root cause:** the OMEN MAX keyboard has two lighting interfaces, and only one of them has a brightness channel. `mi_04` (HID LampArray) carries a per-lamp intensity byte. `mi_03` (the keyboard MCU's own 176-entry static colour map) does not — it is raw RGB, and the MCU draws exactly the bytes it is handed. `DojoPerKeyBackend` stored the slider's value in `_brightness` and applied it only where an intensity byte existed, which is `mi_04`.
+
+That was correct when it was written. It stopped being correct when per-key painting moved to `mi_03` so the picture would survive the Fn overlay — after that move, `mi_04` is reached only as the fallback for a board whose lamp ids cannot be resolved to colour-map positions. On every board that *does* have a layout, which is every board the per-key editor lists keys for, `_brightness` was written and never read. The reporter's log shows the shape exactly: `Apply: 176 LEDs ledsOk=True, 0 keys keysOk=True` — the whole picture through the colour map, and zero lamps through the one path that scaled it.
+
+Nothing surfaced this. The slider moved, the view-model held the value, the backend held the value, and the write returned `True` — there is no colour readback on either interface, so "accepted" was the entire software claim and it was accurate. Only the keyboard disagreed.
+
+**Fix:** brightness is now applied as host-side arithmetic in `DojoPerKeyBackend.WriteColorMap`, the single point every colour map passes through on its way to `mi_03`, scaling each channel linearly (rounded to nearest) exactly as `mi_04`'s intensity channel scales a lamp. The unscaled map is retained so `SetBrightnessAsync` can re-send the same picture at a new level rather than compounding each change on the last dimmed copy. A new `_mcuShowsHostMap` flag tracks whether that map is what the keyboard is actually drawing, so a brightness change repaints a static picture but never interrupts a running device animation, never un-blanks a keyboard whose backlight is off, and never fights host lamp ownership — the existing "a running effect cannot be dimmed" behaviour, which is a hardware limit on this board, is unchanged and the UI already says so.
+
+The MCU's own brightness command (`0x0C`) is still sent and still expected to fail here. Measured on `8D87`, it is not acknowledged at any payload value (`0`, `1`, `2`, `3`, `50`, `100`) while `0x03`, `0x83`, `0x09`, `0x0A` and `0x10` are all acknowledged through the same handle and the same frame builder. It costs one frame and is the right lever on a board that implements it. Its doc comment claimed to be unmeasured; it has been measured, and now says what was found.
+
+Two honesty fixes alongside: `KeyboardLightingServiceV2.SetPerKeyBrightness` returned `false` silently for any non-`DojoPerKeyBackend` backend, and now logs which backend declined; `KeyboardMapViewModel` now reports that in the Apply status line rather than leaving a user to infer a dead slider from an undimmed keyboard.
+
+8 new tests in `DojoPerKeyBrightnessTests.cs` pin the scaling: full intensity is byte-for-byte transparent across all 256 channel values (a rounding error there would tint every colour a user picks), zero is black, the scale is linear and monotonic, and the `channel * intensity` product never overflows the byte it is cast to. The device end cannot be tested — `DojoKeyboardMcu` is sealed over a raw handle and neither interface reads colour back — so the arithmetic is the last automatically checkable point. Hardware-exercised on board `8D87` through `LightingProbe --per-key --zones FF0000 --brightness N --commit`: the backend opens both interfaces, resolves the layout, and the scaled colour map is accepted at each level. Full suite 1296/1296, 0 build warnings.
+
+## Added: Separate Whole-Keyboard and Per-Selection Brightness in the Per-Key Editor (Board `8D87`, Community Report)
+
+Follow-up from the same reporter after testing the fix above. With brightness working, the single slider was visibly doing two unrelated jobs: it scaled the whole picture *and* drove the light bar, so "dim these four keys" had no expression at all and dimming the keys dimmed the bar along with them.
+
+**Change:** the editor now has a **Whole keyboard** master and a **Selected** level, which multiply. The master remains the backend's, applied on its way to the wire; the per-cell level is applied in `KeyboardMapViewModel` and is a separate field rather than a rewrite of the painted colour — baking it into the hex would be lossy and one-way, since dragging a key to 10% and back to 100% would quantise away the colour the user picked. Light bar zones take a level too: HP's frame carries one brightness byte for all four zones, so per-zone dimming cannot go to the firmware and is the same host-side arithmetic as the keys, with the master still riding the byte.
+
+The key caps preview their own level so per-key differences are visible while editing, and deliberately not the master — at master 3 the whole editor goes near-black and you cannot see what you are painting. The preview's rounding is pinned to `DojoPerKeyBackend.Scale` by a test; with no colour readback on this hardware, a disagreement between what the cap shows and what the key does has nothing to settle it.
+
+**Also closes an inference with a hole.** The "no device effect consumes the effect record's brightness field" verdict rested on `[4]` reading back unchanged through every frame ever sent — but every one of those frames carried `0`, so a firmware treating `0` as "leave alone" would have looked identical to one that ignores the field. Measured on `8D87` through a new `LightingProbe --effect-brightness` flag: `60` and `160` were each sent in a `0x03` frame the MCU demonstrably consumed (effect became Wave, colour became `#FF0000` then `#00FF00`, speed and direction took) and `[4]` read back `200` unchanged both times. `160` is a value this firmware has itself been observed holding, so it is not an out-of-range guess. The verdict now stands on measurement rather than on the absence of a test, and `SetBrightness`'s doc comment says so.
+
+13 new tests in `KeyboardMapBrightnessTests.cs`, covering the default (untouched cells stay at full), that dimming leaves unselected cells alone, that the painted colour survives a 100 → 5 → 100 round trip, that a mixed selection reports the neutral end rather than one member's value, and that the cap preview scales by exactly what the backend would send.
+
+## Added: Colour Pickers for the Device-Effect and Light Bar Colours
+
+Reported alongside the brightness work: the device-effects card and the light bar card accepted custom colours as hex text and nothing else, so choosing one meant already knowing its hex. The per-key editor has had a picker since it shipped; these two never got one.
+
+**Change:** both cards now use the same `ColorPickerDialog` the per-key editor uses, with the same gesture — the colour swatch *is* the picker button, and the hex box stays beside it for typing an exact value. Reused rather than reimplemented, since two colour-picking implementations in one app is how they end up disagreeing about what a hex string means.
+
+The swatches render on every keystroke, because the hex boxes bind with `UpdateSourceTrigger=PropertyChanged`, so they must survive the partial values typing walks through (`#`, `#F`, `#FF`…). They fall back to black rather than throwing. One of those intermediate states is not what it looks like and the tests now say so: WPF's `ColorConverter` reads four-character hex as `#ARGB` shorthand, so `#FF88` is a real colour rather than a parse failure and the swatch briefly shows it on the way to `#FF8800`. Found by asserting the obvious guess and watching it fail.
+
+11 new tests in `DeviceLightingSwatchTests.cs`.
+
+## Added: Curate the Keyboard's Own `Fn+1` / `Fn+2` Effect Cycle (Board `8D87`)
+
+Pressing `Fn+1` on this machine changes the keyboard lighting, and nothing in OmenCore knew why. Measured on `8D87` by polling the MCU's `0x83` state read in-process at 10 Hz while the keys were pressed, with HP's `OmenCommandCenterBackground` stopped:
+
+- **`Fn+1` and `Fn+2` are one control, not two** — next and previous through a single list. `Fn+3` through `Fn+0` do nothing to lighting.
+- **The list holds what a host wrote to it.** Two entries in the observed cycle were this project's own probe writes, and an ordinary command `0x03` effect frame was enough to install one — no flash write needed.
+- **One slot per effect type, holding that effect's last parameters.** Wave was written twice in one session, red then green, and only green appeared in the cycle. It is not an append-only history.
+- **`0x0A StoreLightingToFlash` neither creates nor reorders slots.** It does what its name says and no more.
+
+So the Fn keys are a usable hardware profile switcher, and driving them needs no command OmenCore did not already send.
+
+**Change:** a new "Fn+1 / Fn+2 cycle" card on the Lighting page. Configure an effect in the card above it, press *Add to cycle*, repeat, mark one as *Showing*, then *Write to keyboard*. The staged set persists in `config.json`. Profiles written this way are recalled by the keyboard itself — with OmenCore closed, or uninstalled, or on a fresh Windows install.
+
+Two firmware rules the plan has to honour rather than the other way round, both in `FnCyclePlan` where they can be tested: duplicate effect types collapse to the later one (the firmware would overwrite anyway, so sending both spends a frame on an entry nothing could recall), and the *Showing* profile is written **last**, because the keyboard displays whatever arrived most recently and there is no separate command to say which. Staging an effect and applying it go through the same record builder, so a profile in the cycle is byte-identical to the frame the user just watched Apply produce.
+
+**Stated in the card rather than discovered later:** writing *adds to or updates* what the keyboard holds. There is no command to remove or reorder an entry, and `0x83` reads only the effect currently showing — never the list — so taking a profile off the staged list does not take it off the keyboard, and nothing in the UI could show that it is still there.
+
+Swipe staged with a theme is warned about before any frame goes out (it has no preset palette on this firmware and renders black), and Audio Pulse is allowed with a note that it is fed live levels by the host, so in the cycle it shows a steady colour.
+
+Board-scoped: measured on `8D87` with BIOS F.07 and keyboard MCU `0D62:54BF`. The card appears only where a backend can reach that MCU.
+
+49 new tests across `FnCyclePlanTests.cs` and `DeviceLightingFnCycleTests.cs`.
+
+## Fixed: Per-Key Colours Reverted the Moment OmenCore Closed (Board `8D87`, Community Report)
+
+Reported as "the keyboard colors don't seem to stick if I close the program". Everything about the apply worked: colours applied, held perfectly while the app was open, and were gone the next time it launched.
+
+**Root cause: Windows Dynamic Lighting, not OmenCore.** It is a second owner of every HID LampArray on the machine and it wins whenever no application holds the device. While OmenCore holds host control it is incidentally locking Windows out; `Dispose` hands the lamps back on the way down — correctly, because leaving `AutonomousMode = 0` set is what strands a keyboard dark until a power cycle — and Dynamic Lighting repaints within one refresh interval, 33 ms on this board.
+
+The log is what rules OmenCore out as the culprit. `[KeyboardMap] Apply: 176 LEDs ledsOk=True, 0 keys keysOk=True` with `Layout Dojo/Global (176 LEDs, 99 keys)` — zero keys through `mi_04`, the whole picture through `mi_03`'s colour map, which the MCU holds and redraws autonomously. `DojoPerKeyBackend.Dispose` says as much itself and is correct in saying it. The picture should have survived, and did not.
+
+Confirmed by the one clean discriminator available on hardware with no colour readback: with `HKCU\Software\Microsoft\Lighting\AmbientLightingEnabled = 1` the picture reverted on exit; with Dynamic Lighting disabled and *nothing else changed*, the same picture held.
+
+**Change:** a new `DynamicLightingState` reads the master toggle and the per-device card, and the per-key editor shows an explanatory banner with a button that opens the Dynamic Lighting settings page. Read-only, deliberately: these are another feature's settings and the user owns them, so OmenCore explains rather than silently switching off a Microsoft feature to make its own look better.
+
+Registering as a Dynamic Lighting–aware app was considered and rejected for this symptom. Ambient (background) control requires MSIX package identity — [Microsoft's guidance](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/lighting-dynamic-lamparray) states it is enforced by the AmbientLightingServer, which "only accepts connections from an AmbientLightingClient in a process with package identity" — and, decisively, control of either kind ends when the process ends. Neither foreground nor ambient registration produces a picture that holds with OmenCore closed.
+
+## Added: Per-Key Pictures That Survive Closing OmenCore and a Power Cycle (Board `8D87`)
+
+The counterpart to the fix above. Microsoft's description of a device Windows is not driving is that it "operates in Autonomous mode … the hardware falls back to default behavior as defined by its firmware" — on this keyboard that is the `mi_03` colour map, so making the map the firmware's default is the supported way to have a picture persist, not a way around Dynamic Lighting.
+
+**Save to keyboard.** A new button beside Apply writes the picture and then stores it in MCU flash, so it survives a power cycle and shows with OmenCore closed or uninstalled. `StoreToFlash` already existed and was reachable, but only the Fn-cycle write called it, and that persists the effect record rather than a painted picture — no per-key apply flashed anything. It is a separate button rather than part of Apply because it is a real flash write: HP's own client passes `isWriteRegistry: true` on every per-key apply, which in an editor with a brightness slider would mean a flash write per drag.
+
+**Config restore.** The picture is also saved to `config.json` as painted — colour and per-cell level kept apart rather than flattened, since baking the level into the colour is lossy and one-way — and repainted at startup. Where a per-key picture exists it takes precedence over the four-zone restore, because the two describe the same keyboard at different resolutions and a zone fill would erase a picture completely.
+
+21 new tests. The load-bearing ones are in `PerKeyCellKeyAgreementTests`: saving and restoring compose a cell identity in two different files and agree only by convention, and the failure mode when they drift is silent — the restore matches nothing, the editor comes back at its defaults, and it is indistinguishable from the save never having happened. Those tests assert the two sides equal *each other* rather than a hard-coded string, since asserting the string would pass just as happily if someone changed one side and updated the test to match.
+
+## Fixed: Misleading Comment Claimed the PawnIO EC Module Was Embedded in the Executable
+
+`PawnIOEcAccess` caches the compiled `LpcACPIEC` module in a `static byte[]` whose comment read "Embedded LpcACPIEC.amx module binary". It is not embedded. `LoadEcModule` reads it from disk — `<appdir>\drivers\` or `C:\Program Files\PawnIO\modules\` — and `PublishSingleFile` does not bundle `None` content items, since `IncludeAllContentForSelfExtract` is deliberately off.
+
+This costs nothing for anyone using the installer, which takes the publish directory with `recursesubdirs`. It matters for hand-assembled deployments: copying only `OmenCore.exe` loses EC access, undervolt and the APU clamp lift in one go, and the only visible symptom is the sidebar badge reading **No EC** — the PawnIO driver is installed and running, so every other check passes. The PawnIO installer creates no `modules\` directory, so there is no second place for it to be found.
+
+**Change:** comment corrected to say where the module actually comes from and what breaks when it is absent.
+
 ## Adopted: Board 84DB (OMEN 15-dc0xxx) Linux Fan-Boost Documentation (Community PR #150, murilopontes)
 
 [GitHub PR #150](https://github.com/theantipopau/omencore/pull/150) is a community-submitted, docs-only change from `murilopontes` with real measured RPM data for an OMEN 15-dc0xxx (board `84DB`, BIOS F.19, kernel `7.0.0-27-generic`): on stock kernels, the `hp-wmi` `pwm1_enable=0` write fails with `EINVAL`, but the same fan-max behavior is reachable through direct EC access at offset `0xEC` (`1` = max, `0` = auto), with RPM readback confirmed working via `fan1_input`/`fan2_input`. Source data: [hp-omen-fan-linux](https://github.com/murilopontes/hp-omen-fan-linux). The PR was still open (unmerged) and its content wasn't present anywhere in `docs/LINUX_INSTALL_GUIDE.md` — this wasn't picked up automatically by anything in a prior pass.

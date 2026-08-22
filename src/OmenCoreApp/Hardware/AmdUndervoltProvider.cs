@@ -28,6 +28,16 @@ namespace OmenCore.Hardware
         /// </summary>
         private bool _lastRequestHadUnappliedPerCore;
 
+        /// <summary>
+        /// Why the most recent request's non-zero iGPU offset did not land, or null if it did (or
+        /// if none was asked for). Without this the drop is silent: on a CPU that
+        /// <see cref="RyzenControl.SupportsIgpuUndervolt"/> does not list, the offset never reaches
+        /// an SMU message at all, the readback stays at 0 mV, and the UI can only report "mismatch
+        /// between requested and readback" - which reads as a failed write rather than as a write
+        /// that was never attempted.
+        /// </summary>
+        private string? _lastIgpuSkipReason;
+
         public string ActiveBackend { get; private set; } = "None";
         public bool IsSupported => _cpuInfo.SupportsUndervolt;
         public bool SupportsIgpu => _cpuInfo.SupportsIgpuUndervolt;
@@ -57,7 +67,11 @@ namespace OmenCore.Hardware
             // Convert Intel-style mV offset to Curve Optimizer units
             // CO is roughly 3-5mV per count, we'll approximate
             int coCounts = (int)(safeOffset.CoreMv / 4.0);
-            int igpuCoCounts = SupportsIgpu ? (int)(safeOffset.CacheMv / 4.0) : 0;
+
+            // Passed through whether or not this CPU has an iGPU CO path. The gate lives in
+            // ApplyRyzenOffsetAsync so that dropping the offset is recorded once, in the one place
+            // that knows it happened, rather than being zeroed here and looking like a request for 0.
+            int igpuCoCounts = (int)(safeOffset.CacheMv / 4.0);
 
             _lastRequestHadUnappliedPerCore = safeOffset.HasPerCoreOffsets;
 
@@ -95,15 +109,41 @@ namespace OmenCore.Hardware
                 }
                 _lastAllCoreCO = allCoreCO;
 
-                // Apply iGPU CO if supported
-                if (_cpuInfo.SupportsIgpuUndervolt && igpuCO != 0)
+                // Apply iGPU CO if supported.
+                //
+                // _lastIgpuCO is the only thing ProbeAsync has to report as the applied iGPU
+                // offset, so it moves only when the mailbox accepted the message. Assigning it
+                // unconditionally made a refused write read back as a successful one - the false
+                // success this codebase keeps having to unlearn. A rejection is still non-fatal:
+                // the Core offset that already landed is not rolled back for it.
+                _lastIgpuSkipReason = null;
+
+                if (igpuCO != 0 && !_cpuInfo.SupportsIgpuUndervolt)
+                {
+                    _lastIgpuSkipReason =
+                        $"The iGPU Curve Optimizer offset was requested but not written: OmenCore has no confirmed " +
+                        $"iGPU CO message for {_cpuInfo.CpuName}, so only the all-core offset was applied.";
+                }
+                else if (igpuCO != 0)
                 {
                     status = SetIgpuCO(igpuCO);
-                    if (status != RyzenSmu.SmuStatus.Ok)
+                    if (status == RyzenSmu.SmuStatus.Ok)
                     {
-                        // iGPU CO failure is non-fatal
+                        _lastIgpuCO = igpuCO;
                     }
-                    _lastIgpuCO = igpuCO;
+                    else if (status == RyzenSmu.SmuStatus.UnknownCmd)
+                    {
+                        // No message was sent - SetIgpuCO has no confirmed id for this family.
+                        _lastIgpuSkipReason =
+                            $"The iGPU Curve Optimizer offset was requested but not written: there is no confirmed " +
+                            $"iGPU CO message for the {_cpuInfo.Family} family, so only the all-core offset was applied.";
+                    }
+                    else
+                    {
+                        _lastIgpuSkipReason =
+                            $"The iGPU Curve Optimizer offset was requested but the SMU refused it (status: {status}). " +
+                            $"The all-core offset was applied.";
+                    }
                 }
             }
 
@@ -134,6 +174,7 @@ namespace OmenCore.Hardware
                 _lastAllCoreCO = 0;
                 _lastIgpuCO = 0;
                 _lastRequestHadUnappliedPerCore = false;
+                _lastIgpuSkipReason = null;
             }
 
             return Task.CompletedTask;
@@ -192,6 +233,14 @@ namespace OmenCore.Hardware
                     status.Warning = string.IsNullOrEmpty(status.Warning)
                         ? perCoreWarning
                         : $"{status.Warning} {perCoreWarning}";
+                }
+
+                if (_lastIgpuSkipReason is not null)
+                {
+                    status.IgpuOffsetRequestedButNotApplied = true;
+                    status.Warning = string.IsNullOrEmpty(status.Warning)
+                        ? _lastIgpuSkipReason
+                        : $"{status.Warning} {_lastIgpuSkipReason}";
                 }
 
                 return Task.FromResult(status);
@@ -303,7 +352,52 @@ namespace OmenCore.Hardware
 
         /// <summary>
         /// Set iGPU Curve Optimizer offset (for APUs).
+        ///
+        /// The families and message ids here are RyzenAdj's <c>set_cogfx</c> (lib/api.c, v0.19.0),
+        /// used verbatim. That function lists Cezanne/Renoir/Lucienne on MP1 <c>0x64</c> and
+        /// Rembrandt/Phoenix/HawkPoint/Van Gogh on PSMU <c>0xB7</c>, and no others.
+        ///
+        /// Strix Point, Strix Halo and Mendocino were previously in the <c>0xB7</c> arm here, which
+        /// upstream does not support on any of them:
+        ///
+        ///   - <b>Strix Halo</b> has an explicit case in <c>set_cogfx</c> carrying only the comment
+        ///     "0xB7 is rejected on this architecture" before falling to <c>default</c>. Sending it
+        ///     there is a known-refused write, and this is the family a "RYZEN AI MAX" CPU name
+        ///     reaches - i.e. the one part <see cref="RyzenControl.SupportsIgpuUndervolt"/> actually
+        ///     lets through was aimed at the message upstream measured as rejected.
+        ///   - <b>Strix Point</b> has no case at all; <c>set_cogfx</c> returns
+        ///     <c>ADJ_ERR_FAM_UNSUPPORTED</c>. Note this is not upstream being behind: the same file
+        ///     gives Strix Point both <c>set_coall</c> (MP1 <c>0x4C</c>) and <c>set_coper</c>
+        ///     (MP1 <c>0x4b</c>), so the family is mapped - the graphics curve is the one that is not.
+        ///   - <b>Mendocino</b> has no case either.
+        ///
+        /// A family with no confirmed id returns <see cref="RyzenSmu.SmuStatus.UnknownCmd"/> rather
+        /// than having a plausible-looking one guessed for it, matching
+        /// <see cref="FamilySupportsPptLimits"/>. Do not add a family back without a citation or an
+        /// outcome measurement: this mailbox answers Ok to ids that do nothing, so a status code
+        /// from a guessed id is not evidence, and there is no iGPU CO readback to check it against.
         /// </summary>
+        internal static bool FamilySupportsIgpuCurveOptimizer(RyzenFamily family) => family switch
+        {
+            RyzenFamily.RenoirLucienne => true,   // MP1 0x64
+            RyzenFamily.CezanneBarcelo => true,   // MP1 0x64
+            RyzenFamily.VanGogh => true,          // PSMU 0xB7
+            RyzenFamily.Rembrandt => true,        // PSMU 0xB7
+            RyzenFamily.Phoenix => true,          // PSMU 0xB7
+            RyzenFamily.HawkPoint => true,        // PSMU 0xB7
+
+            // StrixPoint is false on a measurement, not on an absent upstream case. SmuProbe
+            // --igpu --scan on a Ryzen AI 9 HX 375 gets CmdRejectedPrereq from PSMU 0xB7 and
+            // UnknownCmd from MP1 0xB7, identically for CO -20 and CO 0, so the refusal is
+            // about machine state and not the argument. --prereq then shows the precondition
+            // is OC mode and that OC mode is itself locked: enable-oc (PSMU 0x17) returns
+            // CmdRejectedPrereq while disable-oc (0x18) returns Ok. There is no host-side
+            // sequence that reaches graphics CO on this part, so adding it here would ship a
+            // slider that cannot move. UXTU's socket table would send 0xB7 anyway; RyzenAdj,
+            // which withholds set_cogfx from Strix Point, has it right.
+            _ => false
+        };
+
         private RyzenSmu.SmuStatus SetIgpuCO(int value)
         {
             // Safety clamp: AMD Curve Optimizer safe range is -30 to +30
@@ -313,9 +407,14 @@ namespace OmenCore.Hardware
                 ? (uint)(0x100000 - (uint)(-value))
                 : (uint)value;
 
+            if (!FamilySupportsIgpuCurveOptimizer(_cpuInfo.Family))
+            {
+                return RyzenSmu.SmuStatus.UnknownCmd;
+            }
+
             uint[] args = new uint[6];
             args[0] = uvalue;
-            RyzenSmu.SmuStatus result = RyzenSmu.SmuStatus.Failed;
+            RyzenSmu.SmuStatus result = RyzenSmu.SmuStatus.UnknownCmd;
 
             switch (_cpuInfo.Family)
             {
@@ -329,10 +428,7 @@ namespace OmenCore.Hardware
                 case RyzenFamily.VanGogh:
                 case RyzenFamily.Rembrandt:
                 case RyzenFamily.Phoenix:
-                case RyzenFamily.Mendocino:
                 case RyzenFamily.HawkPoint:
-                case RyzenFamily.StrixPoint:
-                case RyzenFamily.StrixHalo:
                     result = _smu.SendPsmu(0xB7, ref args);
                     break;
             }
@@ -553,6 +649,42 @@ namespace OmenCore.Hardware
         /// driven, sustained overcurrent is not self-correcting, and "a reboot fixes it" stops
         /// being true. Different risk class, and not one this file should open by default.
         /// </summary>
+        /// <summary>
+        /// Read the four power limits back out of the SMU's own power-metrics table.
+        ///
+        /// This is the answer to the caveat every clamp-lift message used to carry: OmenCore
+        /// could report what the SMU accepted but not what it was running, so a write that
+        /// returned Ok and changed nothing was indistinguishable from one that worked. The
+        /// PawnIO RyzenSMU module already shipped exposes the table; only the per-version layout
+        /// had to be measured (see <see cref="AmdPmTable"/>).
+        ///
+        /// Returns null when the SMU is unavailable, when the table cannot be read, or when this
+        /// silicon's table version has no measured layout. Null means "no reading", never "zero
+        /// watts" - a caller must not present it as a value.
+        /// </summary>
+        public AmdPowerLimitReadback? ReadPowerLimits()
+        {
+            lock (_stateLock)
+            {
+                if (!_smu.IsAvailable) return null;
+
+                if (!_smu.TryResolvePmTable(out uint version, out _)) return null;
+                if (!AmdPmTable.TryGetLayout(version, out var layout) || layout is null) return null;
+
+                if (!_smu.TryReadPmTable(AmdPmTable.ReadSizeBytes(layout), out float[] table))
+                    return null;
+
+                if (table.Length <= layout.MaxIndex) return null;
+
+                return new AmdPowerLimitReadback(
+                    version,
+                    table[layout.Stapm],
+                    table[layout.Fast],
+                    table[layout.Slow],
+                    table[layout.ApuSlow]);
+            }
+        }
+
         public AmdPowerLimitReport ApplyPowerLimits(RyzenPowerLimits limits)
         {
             if (limits is null) throw new ArgumentNullException(nameof(limits));

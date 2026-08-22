@@ -67,6 +67,13 @@ namespace OmenCore.Services
         /// </summary>
         private const double MinimumSupplyFraction = 0.60;
 
+        /// <summary>
+        /// How far the SMU's reading may sit from the request and still count as honoured. The
+        /// limits are written as whole milliwatts and come back exact, so this only absorbs
+        /// float32 rounding - it is not slack for a limit that did not take.
+        /// </summary>
+        private const double ReadbackToleranceWatts = 1.0;
+
         private readonly LoggingService _logging;
         private readonly AmdUndervoltProvider _undervolt;
         private readonly object _sync = new();
@@ -193,7 +200,17 @@ namespace OmenCore.Services
             && AmdUndervoltProvider.FamilySupportsApuSlowLimit(family);
 
         /// <summary>The outcome of one attempt, in the terms the panel reports it.</summary>
-        public sealed record ClampLiftResult(bool Accepted, string Message);
+        /// <summary>
+        /// <paramref name="Effective"/> means the SMU is enforcing what was asked for, not merely
+        /// that it accepted the message. Those were the same field while there was no way to read
+        /// the limits back; they are not the same fact, and on this platform one of the four
+        /// messages is accepted and inert - so a caller that needs to know whether the clamp is
+        /// actually lifted has to read this rather than the per-message report.
+        ///
+        /// Where the table layout for the silicon is unknown there is nothing to verify against,
+        /// and this falls back to meaning "accepted" - the message says which case it is.
+        /// </summary>
+        public sealed record ClampLiftResult(bool Effective, string Message);
 
         /// <summary>
         /// Write all four limits and start holding them.
@@ -231,21 +248,47 @@ namespace OmenCore.Services
 
             StartHold(targetWatts);
 
-            // Deliberately does not say "the CPU is now running at N W". The mailbox took the
-            // message; whether the silicon honoured it is a different question and this cannot ask
-            // it. Saying which one this is, is the whole point.
             var partial = report.AllAccepted
                 ? string.Empty
                 : $" Not all four were accepted ({report}), so the ceiling may have passed to " +
                   "whichever one refused.";
 
-            return new ClampLiftResult(true,
-                $"The four CPU power limits were set to {targetWatts} W, and OmenCore will put them " +
-                "back after the things that take them away - a resume, a change of supply, or the " +
-                "next start. Nothing is written in between." + partial +
-                " OmenCore cannot read these back, so this is what the SMU accepted rather than what " +
-                "it is running: confirm it under load, where the clamp shows as CPU package power " +
-                "pinned around 25 W.");
+            var maintained = $"The four CPU power limits were set to {targetWatts} W, and OmenCore " +
+                             "will put them back after the things that take them away - a resume, a " +
+                             "change of supply, or the next start. Nothing is written in between." +
+                             partial;
+
+            // Ask the silicon rather than trusting the mailbox. A status code cannot tell an
+            // accepted write from an effective one, and on this platform at least one of the four
+            // messages is accepted-and-inert - so the report above is necessary but not
+            // sufficient. Where the table layout is known this turns "what the SMU accepted" into
+            // "what it is running"; where it is not, the honest caveat is still the answer.
+            var readback = _undervolt.ReadPowerLimits();
+            if (readback == null)
+            {
+                return new ClampLiftResult(true,
+                    maintained +
+                    " This CPU's SMU power table layout has not been identified, so the limits " +
+                    "cannot be read back: the above is what the SMU accepted rather than what it " +
+                    "is running. Confirm it under load, where the clamp shows as CPU package " +
+                    "power pinned around 25 W.");
+            }
+
+            bool holds = Math.Abs(readback.StapmWatts - targetWatts) <= ReadbackToleranceWatts;
+            _logging.Info($"APU clamp lift: requested {targetWatts} W, SMU reads " +
+                          $"{readback.StapmWatts:F1}/{readback.FastWatts:F1}/" +
+                          $"{readback.SlowWatts:F1}/{readback.ApuSlowWatts:F1} W " +
+                          $"(table 0x{readback.TableVersion:X})");
+
+            return new ClampLiftResult(holds,
+                holds
+                    ? maintained +
+                      $" Confirmed by reading the SMU back: it is enforcing " +
+                      $"{readback.StapmWatts:F0} W."
+                    : $"The SMU accepted the write ({report}) but is still enforcing " +
+                      $"{readback.StapmWatts:F1} W rather than the {targetWatts} W requested, so " +
+                      "the clamp is not lifted. Something is re-asserting it, or this limit is not " +
+                      "the binding one.");
         }
 
         /// <summary>

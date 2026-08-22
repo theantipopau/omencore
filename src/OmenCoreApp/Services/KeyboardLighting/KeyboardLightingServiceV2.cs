@@ -302,6 +302,16 @@ namespace OmenCore.Services.KeyboardLighting
         public KeyboardLayout? GetKeyboardLayout() => (_activeBackend as DojoPerKeyBackend)?.Layout;
 
         /// <summary>
+        /// What Windows Dynamic Lighting will do with this keyboard once we let go of it, or null
+        /// when the active backend cannot identify a device.
+        ///
+        /// Null is not "nothing to worry about" — it is "unknown", and a caller should say nothing
+        /// rather than guess in either direction.
+        /// </summary>
+        public DynamicLightingState? GetDynamicLightingState() =>
+            (_activeBackend as DojoPerKeyBackend)?.DynamicLighting;
+
+        /// <summary>
         /// Colour individually addressed keys, leaving every unnamed key alone.
         /// Keys are lamp ids from <see cref="GetMeasuredKeyMap"/>.
         /// </summary>
@@ -345,7 +355,16 @@ namespace OmenCore.Services.KeyboardLighting
         /// </summary>
         public bool SetPerKeyBrightness(int brightness)
         {
-            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+            if (_activeBackend is not DojoPerKeyBackend dojo)
+            {
+                // Not a failure to retry - the other backends have no per-write brightness at all.
+                // Logged because the caller's only alternative is to show a slider that does
+                // nothing and never say so.
+                _logging.Info($"[KeyboardLightingV2] Per-key brightness {brightness} not applied: " +
+                              $"backend '{_activeBackend?.Name ?? "none"}' scales nothing per write");
+                return false;
+            }
+
             dojo.SetLampIntensity(brightness);
             return true;
         }
@@ -388,6 +407,28 @@ namespace OmenCore.Services.KeyboardLighting
         /// <summary>The effect the device is currently holding, or null if it will not answer.</summary>
         public Hardware.DojoKeyboardMcu.EffectRecord? ReadDeviceEffect() =>
             (_activeBackend as DojoPerKeyBackend)?.ReadDeviceEffect();
+
+        /// <summary>
+        /// Persist the current lighting so it survives a power cycle.
+        ///
+        /// A REAL FLASH WRITE to the keyboard MCU, so it belongs on an explicit user action and
+        /// never in a loop. Takes the same lock as the effect writes because a flash write racing
+        /// an effect frame would persist whichever the firmware happened to finish with.
+        /// </summary>
+        public async Task<bool> StoreDeviceLightingToFlashAsync()
+        {
+            if (_activeBackend is not DojoPerKeyBackend dojo) return false;
+
+            await _backendOperationLock.WaitAsync();
+            try
+            {
+                return dojo.StoreToFlash();
+            }
+            finally
+            {
+                _backendOperationLock.Release();
+            }
+        }
 
         private async Task<IKeyboardBackend?> TryInitializeBackend(KeyboardMethod method)
         {
