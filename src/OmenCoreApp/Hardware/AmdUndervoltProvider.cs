@@ -649,6 +649,42 @@ namespace OmenCore.Hardware
         /// driven, sustained overcurrent is not self-correcting, and "a reboot fixes it" stops
         /// being true. Different risk class, and not one this file should open by default.
         /// </summary>
+        /// <summary>
+        /// Read the four power limits back out of the SMU's own power-metrics table.
+        ///
+        /// This is the answer to the caveat every clamp-lift message used to carry: OmenCore
+        /// could report what the SMU accepted but not what it was running, so a write that
+        /// returned Ok and changed nothing was indistinguishable from one that worked. The
+        /// PawnIO RyzenSMU module already shipped exposes the table; only the per-version layout
+        /// had to be measured (see <see cref="AmdPmTable"/>).
+        ///
+        /// Returns null when the SMU is unavailable, when the table cannot be read, or when this
+        /// silicon's table version has no measured layout. Null means "no reading", never "zero
+        /// watts" - a caller must not present it as a value.
+        /// </summary>
+        public AmdPowerLimitReadback? ReadPowerLimits()
+        {
+            lock (_stateLock)
+            {
+                if (!_smu.IsAvailable) return null;
+
+                if (!_smu.TryResolvePmTable(out uint version, out _)) return null;
+                if (!AmdPmTable.TryGetLayout(version, out var layout) || layout is null) return null;
+
+                if (!_smu.TryReadPmTable(AmdPmTable.ReadSizeBytes(layout), out float[] table))
+                    return null;
+
+                if (table.Length <= layout.MaxIndex) return null;
+
+                return new AmdPowerLimitReadback(
+                    version,
+                    table[layout.Stapm],
+                    table[layout.Fast],
+                    table[layout.Slow],
+                    table[layout.ApuSlow]);
+            }
+        }
+
         public AmdPowerLimitReport ApplyPowerLimits(RyzenPowerLimits limits)
         {
             if (limits is null) throw new ArgumentNullException(nameof(limits));

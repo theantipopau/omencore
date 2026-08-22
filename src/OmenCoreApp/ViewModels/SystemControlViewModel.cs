@@ -584,6 +584,107 @@ namespace OmenCore.ViewModels
 
         public string AmdTempLimitText => $"{AmdTempLimitC}°C";
 
+        private AmdPowerLimitReadback? _amdLimitReadback;
+        private string _amdLimitReadbackUnavailableReason =
+            "Not read yet - press Refresh to ask the SMU what it is running.";
+
+        /// <summary>
+        /// True once the SMU's own power table has been read. Everything else on this row is
+        /// meaningless until it is, which is why the UI binds visibility to it rather than
+        /// showing zeroes.
+        /// </summary>
+        public bool AmdLimitReadbackAvailable => _amdLimitReadback != null;
+
+        public bool ShowAmdLimitReadbackUnavailable => !AmdLimitReadbackAvailable;
+
+        public string AmdLimitReadbackUnavailableText => _amdLimitReadbackUnavailableReason;
+
+        /// <summary>
+        /// The four limits as the SMU reports them. Not what was requested - the whole reason
+        /// this exists is that those two can differ and used to be indistinguishable.
+        /// </summary>
+        public string AmdLimitReadbackText
+        {
+            get
+            {
+                if (_amdLimitReadback is not AmdPowerLimitReadback r) return string.Empty;
+                return $"STAPM {r.StapmWatts:F1} W  ·  Fast {r.FastWatts:F1} W  ·  " +
+                       $"Slow {r.SlowWatts:F1} W  ·  APU {r.ApuSlowWatts:F1} W";
+            }
+        }
+
+        public string AmdLimitReadbackSourceText =>
+            _amdLimitReadback is AmdPowerLimitReadback r
+                ? $"Read from the SMU power table (version 0x{r.TableVersion:X})."
+                : string.Empty;
+
+        /// <summary>
+        /// Whether the slider's value and the silicon agree. A whole watt of tolerance because
+        /// the slider is in watts and the table is a float.
+        /// </summary>
+        public bool AmdLimitReadbackDiffersFromRequest =>
+            _amdLimitReadback is AmdPowerLimitReadback r &&
+            Math.Abs(r.StapmWatts - AmdStapmLimitWatts) > 1.0;
+
+        public string AmdLimitReadbackMismatchText =>
+            _amdLimitReadback is AmdPowerLimitReadback r && AmdLimitReadbackDiffersFromRequest
+                ? $"The slider asks for {AmdStapmLimitWatts} W but the SMU is running " +
+                  $"{r.StapmWatts:F1} W. Press Apply, or check that another tool is not " +
+                  "re-asserting a limit."
+                : string.Empty;
+
+        /// <summary>
+        /// Ask the SMU what it is actually enforcing. Read-only: no limit is written on this path.
+        /// </summary>
+        public void RefreshAmdPowerLimitReadback()
+        {
+            try
+            {
+                if (_undervoltService?.Provider is not AmdUndervoltProvider amdProvider)
+                {
+                    _amdLimitReadback = null;
+                    _amdLimitReadbackUnavailableReason = "No AMD SMU provider on this system.";
+                }
+                else if (string.Equals(amdProvider.ActiveBackend, "None", StringComparison.OrdinalIgnoreCase))
+                {
+                    _amdLimitReadback = null;
+                    _amdLimitReadbackUnavailableReason =
+                        "The SMU backend is unavailable, so the limits cannot be read. Install " +
+                        "PawnIO and run OmenCore as administrator.";
+                }
+                else
+                {
+                    var readback = amdProvider.ReadPowerLimits();
+                    _amdLimitReadback = readback;
+                    if (readback == null)
+                    {
+                        // Say which of the two it is. "Unavailable" covering both a dead SMU and
+                        // an unmapped table version is what sent someone chasing a driver problem
+                        // that was really just a silicon we have not measured.
+                        _amdLimitReadbackUnavailableReason =
+                            "This CPU's SMU power table layout has not been identified, so a " +
+                            "reading would come from an unknown slot. OmenCore reports nothing " +
+                            "rather than a plausible wrong number. tools/SmuProbe --pmtable adds " +
+                            "a new table version.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _amdLimitReadback = null;
+                _amdLimitReadbackUnavailableReason = $"The SMU read failed: {ex.Message}";
+                _logging.Warn($"AMD power limit readback failed: {ex.Message}");
+            }
+
+            OnPropertyChanged(nameof(AmdLimitReadbackAvailable));
+            OnPropertyChanged(nameof(ShowAmdLimitReadbackUnavailable));
+            OnPropertyChanged(nameof(AmdLimitReadbackUnavailableText));
+            OnPropertyChanged(nameof(AmdLimitReadbackText));
+            OnPropertyChanged(nameof(AmdLimitReadbackSourceText));
+            OnPropertyChanged(nameof(AmdLimitReadbackDiffersFromRequest));
+            OnPropertyChanged(nameof(AmdLimitReadbackMismatchText));
+        }
+
         public bool AmdPowerLimitsAvailable =>
             IsAmdCpu &&
             _undervoltService?.Provider is AmdUndervoltProvider amdProvider &&
@@ -2539,6 +2640,7 @@ namespace OmenCore.ViewModels
         public ICommand DeleteGpuOcProfileCommand { get; }
         public ICommand ApplyAmdPowerLimitsCommand { get; }
         public ICommand ResetAmdPowerLimitsCommand { get; }
+        public ICommand RefreshAmdPowerLimitReadbackCommand { get; }
         public ICommand ApplyCpuPowerLimitsCommand { get; }
         public ICommand ResetCpuPowerLimitsCommand { get; }
         public ICommand RefreshCpuPowerLimitsCommand { get; }
@@ -2641,6 +2743,8 @@ namespace OmenCore.ViewModels
             ResetTccOffsetCommand = new RelayCommand(_ => ResetTccOffset(), _ => TccStatus.IsSupported);
             ApplyAmdPowerLimitsCommand = new RelayCommand(_ => ApplyAmdPowerLimits(), _ => AmdPowerLimitsAvailable);
             ResetAmdPowerLimitsCommand = new RelayCommand(_ => ResetAmdPowerLimits(), _ => AmdPowerLimitsAvailable);
+            RefreshAmdPowerLimitReadbackCommand =
+                new RelayCommand(_ => RefreshAmdPowerLimitReadback(), _ => AmdPowerLimitsAvailable);
             ApplyCpuPowerLimitsCommand = new RelayCommand(_ => ApplyCpuPowerLimits(), _ => CpuPowerLimitsAvailable && !CpuPowerLimitsLocked);
             ResetCpuPowerLimitsCommand = new RelayCommand(_ => ResetCpuPowerLimits(), _ => CpuPowerLimitsAvailable && !CpuPowerLimitsLocked);
             RefreshCpuPowerLimitsCommand = new RelayCommand(_ => RefreshCpuPowerLimits());
@@ -5490,21 +5594,43 @@ namespace OmenCore.ViewModels
 
             try
             {
-                // Apply STAPM limit (sustained power)
-                uint stapmMw = AmdStapmLimitWatts * 1000; // Convert W to mW
-                var stapmResult = amdProvider.SetStapmLimit(stapmMw);
-                
-                // Apply temperature limit
-                var tempResult = amdProvider.SetTctlTemp(AmdTempLimitC);
-                
-                if (stapmResult == RyzenSmu.SmuStatus.Ok && tempResult == RyzenSmu.SmuStatus.Ok)
+                // All four limits, not just STAPM.
+                //
+                // Sending only the stapm-limit message does nothing on Strix Point: measured
+                // 2026-08-22 on board 8D87, MP1 0x14 returns Ok and moves no slot in the SMU's
+                // own power table, because STAPM there mirrors the fast limit rather than being
+                // independently settable. And even where it does land, the ceiling passes to the
+                // next limit down - so raising three of four leaves PPT APU binding. This button
+                // used to write one inert message and report success.
+                uint mw = AmdStapmLimitWatts * 1000;
+                var report = amdProvider.ApplyPowerLimits(new RyzenPowerLimits
                 {
-                    _logging.Info($"AMD power limits applied: STAPM={AmdStapmLimitWatts}W, Temp={AmdTempLimitC}°C");
+                    StapmLimit = mw,
+                    FastLimit = mw,
+                    SlowLimit = mw,
+                    ApuSlowLimit = mw
+                });
+
+                var tempResult = amdProvider.SetTctlTemp(AmdTempLimitC);
+
+                if (report.AnyAccepted && tempResult == RyzenSmu.SmuStatus.Ok)
+                {
+                    _logging.Info($"AMD power limits applied: {AmdStapmLimitWatts}W to all four " +
+                                  $"({report}), Temp={AmdTempLimitC}°C");
                     SaveAmdPowerLimitsToConfig();
                 }
                 else
                 {
-                    _logging.Warn($"AMD power limits partially applied: STAPM={stapmResult}, Temp={tempResult}");
+                    _logging.Warn($"AMD power limits partially applied: limits={report}, Temp={tempResult}");
+                }
+
+                // Verify by outcome. A status code cannot tell an accepted write from an effective
+                // one - that is the whole reason the readback exists - so ask the silicon.
+                RefreshAmdPowerLimitReadback();
+                if (AmdLimitReadbackDiffersFromRequest)
+                {
+                    _logging.Warn($"AMD power limits: requested {AmdStapmLimitWatts} W but the SMU " +
+                                  $"reads back {_amdLimitReadback?.StapmWatts:F1} W.");
                 }
             }
             catch (Exception ex)

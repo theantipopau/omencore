@@ -707,7 +707,46 @@
                             </Grid>
                         </Border>
 
+                        <!-- What the SMU is actually enforcing, as opposed to what was asked for.
+                             These are two different facts and OmenCore could previously only
+                             report the second one. -->
+                        <Border Background="#0D1520" BorderBrush="#2A3441" BorderThickness="1"
+                                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="Currently enforced" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,6"/>
+
+                                <TextBlock Text="{Binding SystemControl.AmdLimitReadbackText}"
+                                           FontSize="13" FontFamily="{StaticResource MonospaceFontFamily}"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding SystemControl.AmdLimitReadbackAvailable, Converter={StaticResource BoolToVisibility}}"/>
+
+                                <TextBlock Text="{Binding SystemControl.AmdLimitReadbackSourceText}"
+                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding SystemControl.AmdLimitReadbackAvailable, Converter={StaticResource BoolToVisibility}}"/>
+
+                                <TextBlock Text="{Binding SystemControl.AmdLimitReadbackMismatchText}"
+                                           FontSize="11" Foreground="#FFB74D"
+                                           Margin="0,6,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding SystemControl.AmdLimitReadbackDiffersFromRequest, Converter={StaticResource BoolToVisibility}}"/>
+
+                                <TextBlock Text="{Binding SystemControl.AmdLimitReadbackUnavailableText}"
+                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding SystemControl.ShowAmdLimitReadbackUnavailable, Converter={StaticResource BoolToVisibility}}"/>
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Refresh"
+                                    Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding SystemControl.RefreshAmdPowerLimitReadbackCommand}"
+                                    Padding="16,8" Margin="0,0,8,0"
+                                    ToolTip="Read the four power limits back out of the SMU. Does not write anything."
+                                    AutomationProperties.Name="Refresh enforced AMD CPU power limits"/>
                             <Button Content="Apply AMD Limits"
                                     Style="{StaticResource ModernButton}"
                                     Command="{Binding SystemControl.ApplyAmdPowerLimitsCommand}"
