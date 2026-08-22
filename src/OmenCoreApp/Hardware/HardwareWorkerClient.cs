@@ -347,13 +347,30 @@ namespace OmenCore.Hardware
         
         private string? FindWorkerExecutable()
         {
-            // Check same directory as main exe
+            // The running exe's own directory, before anything derived from BaseDirectory.
+            // The two look interchangeable and are not: publishing with
+            // IncludeAllContentForSelfExtract - which build-installer.ps1 and the alpha CI
+            // workflow both pass - points AppDomain.CurrentDomain.BaseDirectory at the
+            // %TEMP%\.net\OmenCore\<hash> extraction directory, where no worker exists.
+            // Resolving from BaseDirectory alone therefore lost the worker on exactly the
+            // builds users install, and lost it quietly: StartAsync sets _enabled = false and
+            // monitoring drops to in-process, while the separately-prelaunched worker (which
+            // resolves its own path through WmiBiosMonitor and is immune) sits with no client
+            // until the orphan timeout kills it five minutes later.
+            var processDir = Path.GetDirectoryName(Environment.ProcessPath);
+            if (!string.IsNullOrEmpty(processDir))
+            {
+                var processWorkerPath = Path.Combine(processDir, WorkerExeName);
+                if (File.Exists(processWorkerPath))
+                    return processWorkerPath;
+            }
+
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
             var workerPath = Path.Combine(appDir, WorkerExeName);
-            
+
             if (File.Exists(workerPath))
                 return workerPath;
-            
+
             // Check Program Files installation
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             workerPath = Path.Combine(programFiles, "OmenCore", WorkerExeName);
