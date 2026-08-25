@@ -20,7 +20,14 @@ OmenCore is an independent control center for HP OMEN and Victus systems. It foc
 
 It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardware access is handled through local WMI BIOS, EC, PawnIO, Linux sysfs, and platform backends when the device exposes them.
 
-![OmenCore main window](docs/screenshots/main-window.png)
+![OmenCore main window, showing the vertical navigation rail, quick performance profiles, and live CPU/GPU/system stats](docs/screenshots/main-window.png)
+
+<details>
+<summary>More screenshots (CPU/GPU Tuning)</summary>
+
+![OmenCore CPU/GPU Tuning tab, showing AMD power-limit sliders and undervolt/overclock controls behind the same vertical rail](docs/screenshots/tuning-window.png)
+
+</details>
 
 ## At A Glance
 
