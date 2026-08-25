@@ -6,7 +6,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using OmenCore.Controls;
+using OmenCore.Utils;
 using OmenCore.ViewModels;
 
 namespace OmenCore.Views
@@ -235,6 +237,45 @@ namespace OmenCore.Views
             {
                 EnsureTabContentCreated(tab);
             }
+
+            AnimateTabContentTransition();
+        }
+
+        /// <summary>
+        /// Fades the newly-selected tab's content in, instead of it just popping into place.
+        /// Pillar 2.2 (docs/ROADMAP_v4.2.0.md): a small, easily-revertible first animation,
+        /// gated by <see cref="MotionPreference.ShouldReduceMotion"/> like every animation this
+        /// app adds must be. Deliberately triggered only from SelectionChanged - a real user
+        /// tab switch or programmatic navigation - never from an unrelated property notification,
+        /// which is exactly the class of bug the dashboard pulse animation had earlier this cycle
+        /// (an animation restarting on every unrelated update because its trigger condition was
+        /// too broad). Opacity is the one property WPF composites cheaply without forcing a
+        /// layout pass, matching this pillar's "GPU-composited where possible" constraint.
+        /// </summary>
+        private void AnimateTabContentTransition()
+        {
+            if (TabContentPresenter == null)
+            {
+                return;
+            }
+
+            if (MotionPreference.ShouldReduceMotion(App.Configuration.Config.ReduceMotion))
+            {
+                // No animation: make sure a prior fade isn't left holding this at a partial
+                // opacity if the preference changed mid-session.
+                TabContentPresenter.BeginAnimation(UIElement.OpacityProperty, null);
+                TabContentPresenter.Opacity = 1.0;
+                return;
+            }
+
+            var fadeIn = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 1.0,
+                Duration = new Duration(TimeSpan.FromMilliseconds(160)),
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+            TabContentPresenter.BeginAnimation(UIElement.OpacityProperty, fadeIn);
         }
 
         private void EnsureTabContentCreated(TabItem? tab)
@@ -444,9 +485,10 @@ namespace OmenCore.Views
 
         private void UpdateMaximizeButtonGlyph()
         {
-            // Real Segoe MDL2 Assets glyphs (ChromeRestore / ChromeMaximize), not the old
-            // "[]" vs "[ ]" ASCII approximation - see the XAML button declarations for why.
-            MaximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+            // Drawn vector icon, not a font glyph - see Icon.WindowMaximize/Icon.WindowRestore
+            // in ModernStyles.xaml for why.
+            MaximizeIconPath.Data = (Geometry)FindResource(
+                WindowState == WindowState.Maximized ? "Icon.WindowRestore" : "Icon.WindowMaximize");
         }
 
         private void UpdateMaximizedBounds()

@@ -44,7 +44,7 @@ namespace OmenCoreApp.Tests.Utils
                 InvokePrivateMethod(service, "SetPerformanceMode", "silent");
 
                 GetPrivateField<string>(service, "_currentPerformanceMode").Should().Be("Quiet");
-                GetMenuHeader(service, "_performanceModeMenuItem").Should().Be("Performance ▶ Quiet");
+                GetMenuHeader(service, "_performanceModeMenuItem").Should().Be("Performance: Quiet");
                 GetMenuHeader(service, "_perfBalancedMenuItem").Should().StartWith("  ");
                 GetMenuHeader(service, "_perfPerformanceMenuItem").Should().StartWith("  ");
                 GetMenuHeader(service, "_perfQuietMenuItem").Should().StartWith("✓");

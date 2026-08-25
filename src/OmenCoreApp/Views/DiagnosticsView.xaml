@@ -287,7 +287,7 @@
                         <TextBlock Text="{Binding DetectedCapabilities.ModelConfig.Notes}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </Border>
 
-                    <TextBlock Text="This reflects what OmenCore's model database knows about the specific board detected on this machine — a feature showing &quot;Not supported&quot; may be a real hardware/firmware limitation rather than an OmenCore bug. If your model shows unverified and something below looks wrong, please report it."
+                    <TextBlock Text="This reflects what OmenCore's model database knows about the specific board detected on this machine — a feature showing &quot;Not supported&quot; may be a real hardware/firmware limitation rather than an OmenCore bug. These entries describe advanced features (custom curves, independent zones, GPU power boost); basic Auto/Performance/Max fan modes on the General tab are controlled separately and aren't affected by this list. If your model shows unverified and something below looks wrong, please report it."
                                FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
 
                     <UniformGrid Columns="2">

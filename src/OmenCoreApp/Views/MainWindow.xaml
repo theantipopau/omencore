@@ -65,16 +65,31 @@
                         </Border>
                         
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,4,0">
-                        <!-- Real Segoe MDL2 Assets glyphs, not ASCII placeholders (was "-"/"[ ]"/"x"
-                             rendered in the icon font, which just draws those literal characters -
-                             the font was already selected correctly by WindowControlButton/
-                             WindowCloseButton, the actual glyph codepoints were never used).
-                             E921/E922/E923/E8BB are the standard Windows chrome-button glyphs
-                             (ChromeMinimize/ChromeMaximize/ChromeRestore/ChromeClose). -->
-                        <Button Content="&#xE921;" Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize" />
-                        <Button x:Name="MaximizeButton" Content="&#xE922;" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize" />
-                        <Button Content="&#xE8BB;" Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close" />
+                    <!-- Flush to the window's top-right corner (no right margin) so the close
+                         button's hit target actually reaches the corner pixel, same as native
+                         Windows caption buttons - the outer window Border's rounded corner clips
+                         it into shape automatically, it doesn't need to be inset to avoid overlap. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- Drawn vector icons, not a font glyph - see Icon.WindowMinimize etc. in
+                             ModernStyles.xaml for why (Segoe MDL2 Assets glyphs tofu'd on a real
+                             machine). Path.Stroke follows the button's own Foreground so the
+                             existing hover/close-red triggers on WindowControlButton/WindowCloseButton
+                             still apply without any extra wiring. -->
+                        <Button Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize">
+                            <Path Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
+                                  Data="{StaticResource Icon.WindowMinimize}"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button x:Name="MaximizeButton" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize">
+                            <Path x:Name="MaximizeIconPath" Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
+                                  Data="{StaticResource Icon.WindowMaximize}"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                        <Button Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close">
+                            <Path Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
+                                  Data="{StaticResource Icon.WindowClose}"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -753,7 +768,7 @@
                          SelectedContent is a normal bindable TabControl property, not
                          something that has to live inside the control's own template. -->
                     <Border Grid.Row="1" Margin="24,0,24,12">
-                        <ContentPresenter Content="{Binding SelectedContent, ElementName=TabControlMain}"/>
+                        <ContentPresenter x:Name="TabContentPresenter" Content="{Binding SelectedContent, ElementName=TabControlMain}"/>
                     </Border>
 
             <!-- Footer: Recent Activity and System Log (GitHub #48 - its-urbi: Collapsible logs) -->

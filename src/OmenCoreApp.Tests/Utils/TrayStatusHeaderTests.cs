@@ -14,21 +14,21 @@ namespace OmenCoreApp.Tests.Utils
         public void PerformanceHeader_UsesProvidedMode()
         {
             var header = TrayIconService.BuildPerformanceModeHeaderText("Balanced");
-            header.Should().Be("Performance ▶ Balanced");
+            header.Should().Be("Performance: Balanced");
         }
 
         [Fact]
         public void PerformanceHeader_TrimmedMode()
         {
             var header = TrayIconService.BuildPerformanceModeHeaderText("  Performance  ");
-            header.Should().Be("Performance ▶ Performance");
+            header.Should().Be("Performance: Performance");
         }
 
         [Fact]
         public void PerformanceHeader_EmptyMode_FallsBackToUnknown()
         {
             var header = TrayIconService.BuildPerformanceModeHeaderText("   ");
-            header.Should().Be("Performance ▶ Unknown");
+            header.Should().Be("Performance: Unknown");
         }
 
         [Fact]

@@ -48,7 +48,7 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 ## Current Release
 
 **Version:** 4.2.0<br>
-**Status:** Code-complete, test-verified (1367/1367 tests, 0 build warnings). Held for a field-testing window — portable test builds are out with a real-hardware tester — before tagging and building release artifacts.<br>
+**Status:** Code-complete, test-verified (1372/1372 tests, 0 build warnings). Latest portable-build round (tab-switch fade animation, title-bar chrome icons, tray context menu cleanup) tester-confirmed with no further issues. Two items remain open before tagging: [PR #176](https://github.com/theantipopau/omencore/pull/176)'s merge decision, and the Phase D/E hardware-gated items in the roadmap, both awaiting field validation/owner sign-off this environment can't provide.<br>
 **Release notes:** [docs/CHANGELOG_v4.2.0.md](docs/CHANGELOG_v4.2.0.md)<br>
 **Roadmap:** [docs/ROADMAP_v4.2.0.md](docs/ROADMAP_v4.2.0.md)
 
@@ -64,7 +64,9 @@ v4.2.0 centers on three pillars: sensor-truth/fan-control accuracy, perceived UI
 - **Fixed:** the Games tab's virtualization was silently doing nothing — a `WrapPanel` override defeated the `VirtualizingStackPanel` settings already declared next to it — and the per-game layout was reflowed into a more scannable single-line row.
 - **Improved:** the Tuning tab's 16 buttons (CPU undervolt, power limits, thermal offset, GPU overclock) went from zero accessibility labels and 4 tooltips to full labeling and risk-aware tooltips everywhere, on the page where a mis-click has the most real consequence.
 - **Added:** fan curve share codes — copy the current curve to the clipboard as a one-line code, or paste one in to import, for sharing in Discord/GitHub where a file attachment is awkward.
-- **Added:** startup and tab-switch timing measured on every run, a reduce-motion preference (gating future animation work), and a background-thread timer coordinator.
+- **Added:** startup and tab-switch timing measured on every run, a reduce-motion preference, and a background-thread timer coordinator. The reduce-motion gate now has its first real consumer: a 160ms opacity fade on tab switches, skipped entirely when reduce-motion is on.
+- **Fixed:** the title bar's minimize/maximize/close buttons — first a literal `[ ]` where the maximize icon should be, then (after a font-glyph fix that tofu'd on a real machine) replaced entirely with drawn vector icons that don't depend on a system font being present. Also fixed the buttons sitting inset with rounded corners instead of flush, square, and full-height like native Windows chrome.
+- **Improved:** the system tray right-click menu — every submenu item was showing two arrows (a typed "▶" plus the menu's own drawn arrow); removed the redundant one and standardized on a single "Label: value" convention throughout.
 - **Linux:** added sysfs support for the `omen-rgb-keyboard` DKMS driver, and fixed a fan-control warning that pointed users at a workaround that does nothing on boards where Max Fan is actually the working override.
 - **Typography:** Roboto Condensed font declarations consolidated onto two shared resources across 105 XAML sites and 13 C# call sites (step 1, shipped, zero visual change). The actual font switch (step 2) was attempted, found genuinely non-deterministic in testing (glyph resolution differed between an isolated test run and the full suite), and reverted rather than shipped in a state observed failing part of the time.
 - **Field reports:** five GitHub issues triaged (#177, #141, #163, #137, plus independent Discord confirmation the v4.1.7 Max-Fan-Latch fix is holding across a different board and reporter), and three community projects (OmenXHub, OmenCtl, `omen-rgb-keyboard`) reviewed for adaptable ideas — none of their code copied, since OmenCore is MIT and two of the three are GPLv3.

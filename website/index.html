@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v4.1.7</small>
+      <small>v4.2.0</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v4.1.7 is out now — a Linux overheat fix, EC safety hardening, per-LED lighting for every board, and a large batch of field-report and community-reviewed fixes
+      v4.2.0 is out now — a real fix for wrong CPU temperature readings, a full motion/perceived-performance pass, and a title-bar and tray menu cleanup from real-hardware field testing
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -163,7 +163,7 @@
       <div class="label">Core control modules</div>
     </div>
     <div class="stat">
-      <div class="num"><span class="count-up" data-target="1250">0</span><span class="unit">+</span></div>
+      <div class="num"><span class="count-up" data-target="1397">0</span><span class="unit">+</span></div>
       <div class="label">Automated tests</div>
     </div>
     <div class="stat">
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v4.1.7</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v4.2.0</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
 
@@ -378,8 +378,23 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v4.1.7</span>
+          <span class="v">v4.2.0</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>Three pillars: sensor-truth and fan-control accuracy, perceived performance and motion, and a typography move to Roboto Condensed — plus a title-bar and tray-menu polish pass driven directly by real-hardware field testing.</p>
+        <ul>
+          <li>Fixed CPU temperature reporting a chassis/ambient sensor instead of the CPU on boards with multiple ACPI thermal zones — a fan-control bug, not just a display one, since fan curves consume that same value</li>
+          <li>Added a reduce-motion-gated tab-switch fade, startup/tab-switch timing measured every run, and a background-thread timer coordinator that cut one more independent OS timer from the app's lifetime</li>
+          <li>Fixed the title bar's minimize/maximize/close buttons — a literal <code>[ ]</code> glyph, then a font-dependency bug in the fix for it — replaced with drawn vector icons that don't depend on any system font being present</li>
+          <li>Cleaned up the system tray right-click menu: every submenu item was showing two arrows (a typed one plus the menu's own drawn one); standardized on one clean label convention throughout</li>
+          <li>Fixed two RGB detection false positives and an AMD undervolt status overclaiming a hardware readback it doesn't have, both found via real-hardware field testing</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.2.0.md" target="_blank" rel="noopener">Full v4.2.0 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v4.1.7</span>
+          <span class="timeline-badge muted">Minor</span>
         </div>
         <p>A patch release built from field reports and community review — covering Linux fan control, EC safety checks, UI responsiveness, and a larger board-support pass that started with board <code>8D87</code> and grew into a wider set of fixes from real user logs.</p>
         <ul>
@@ -448,11 +463,6 @@
           <li>Low-contrast tray icon and new model support additions</li>
         </ul>
         <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.9.0.md" target="_blank" rel="noopener">Full v3.9.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head"><span class="v">v3.8.2</span> <span class="timeline-badge muted">Patch</span></div>
-        <p>A same-day critical-hang fix: a named-pipe desync between the app and its out-of-process hardware worker could freeze and force-close OmenCore within seconds of launch on affected boards.</p>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.8.2.md" target="_blank" rel="noopener">Full v3.8.2 changelog →</a>
       </div>
     </div>
 
@@ -545,7 +555,7 @@
           <li><a href="#features">Features</a></li>
           <li><a href="#compare">Compare to Gaming Hub</a></li>
           <li><a href="#download">Download</a></li>
-          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.0.0.md" target="_blank" rel="noopener">Roadmap</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.2.0.md" target="_blank" rel="noopener">Roadmap</a></li>
         </ul>
       </div>
 

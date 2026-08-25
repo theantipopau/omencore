@@ -954,20 +954,41 @@
         </Setter>
     </Style>
 
+    <!--
+        Title-bar chrome icons as vector geometry, not a font glyph. A prior version used
+        Segoe MDL2 Assets codepoints (E921/E922/E923/E8BB) - correct on paper, but on at
+        least one real machine those glyphs rendered as tofu boxes (missing-glyph squares),
+        worse than the plain-ASCII bug they replaced. Font glyph availability depends on
+        Windows version/font substitution in a way a drawn path just doesn't - this is also
+        how native Windows chrome and most well-made custom-titlebar apps (VS Code, Windows
+        Terminal) actually draw these, not through an icon font.
+    -->
+    <PathGeometry x:Key="Icon.WindowMinimize" Figures="M0,5 L10,5" />
+    <PathGeometry x:Key="Icon.WindowMaximize" Figures="M0.5,0.5 L9.5,0.5 L9.5,9.5 L0.5,9.5 Z" />
+    <PathGeometry x:Key="Icon.WindowRestore" Figures="M2.5,0.5 L9.5,0.5 L9.5,7.5 L7.5,7.5 M0.5,2.5 L7.5,2.5 L7.5,9.5 L0.5,9.5 Z" />
+    <PathGeometry x:Key="Icon.WindowClose" Figures="M0,0 L10,10 M0,10 L10,0" />
+
     <!-- Window Control Button (Minimize/Maximize) -->
+    <!--
+        Matches the native Windows caption-button convention: flush square corners
+        (the outer window Border's own CornerRadius clips them for free at the top
+        corners) and full title-bar height so the hover/click target runs edge-to-edge
+        with no dead margin above or below - not a floating rounded "chip" sitting
+        inside the title bar.
+    -->
     <Style x:Key="WindowControlButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Width" Value="46" />
-        <Setter Property="Height" Value="32" />
+        <Setter Property="Height" Value="44" />
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
         <Setter Property="FontSize" Value="10" />
-        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Cursor" Value="Arrow" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                    <Border Background="{TemplateBinding Background}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                 </ControlTemplate>

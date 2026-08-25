@@ -172,7 +172,7 @@ namespace OmenCore.Utils
             contextMenu.Items.Add(new Separator());
 
             // ═══ QUICK PROFILES (Combined Fan + Performance) ═══
-            var quickProfileMenuItem = new MenuItem { Header = "Quick Profile ▶" };
+            var quickProfileMenuItem = new MenuItem { Header = "Quick Profile" };
 
             var profilePerformance = new MenuItem { Header = "Performance — Gaming cooling + Performance mode" };
             profilePerformance.Click += (s, e) => QuickProfileChangeRequested?.Invoke("Performance");
@@ -216,8 +216,8 @@ namespace OmenCore.Utils
 
             contextMenu.Items.Add(quickProfileMenuItem);
 
-            // Single-click Max Fan shortcut — previously only reachable via Advanced ▶ Fan
-            // Control ▶ Max (three menu levels deep). Kept alongside that entry rather than
+            // Single-click Max Fan shortcut — previously only reachable via Advanced > Fan
+            // Control > Max (three menu levels deep). Kept alongside that entry rather than
             // replacing it; this mirrors how OGH exposes a single-click Max option.
             var maxFanQuickItem = new MenuItem { Header = "Max Fan" };
             maxFanQuickItem.Click += (s, e) => SetFanMode("Max");
@@ -228,7 +228,7 @@ namespace OmenCore.Utils
             // matching the lazy-refresh pattern used by the other dynamic submenus below.
             if (_notificationService != null)
             {
-                var notificationsMenuItem = new MenuItem { Header = "Recent Notifications ▶" };
+                var notificationsMenuItem = new MenuItem { Header = "Recent Notifications" };
                 notificationsMenuItem.ItemContainerStyle = menuItemStyle;
                 notificationsMenuItem.SubmenuOpened += (s, e) =>
                 {
@@ -292,10 +292,10 @@ namespace OmenCore.Utils
             contextMenu.Items.Add(reportProblemItem);
 
             // ═══ ADVANCED CONTROLS ═══
-            var advancedMenuItem = new MenuItem { Header = "Advanced ▶" };
+            var advancedMenuItem = new MenuItem { Header = "Advanced" };
 
             // Fan submenu
-            _fanModeMenuItem = new MenuItem { Header = "Fan Control ▶" };
+            _fanModeMenuItem = new MenuItem { Header = "Fan Control" };
             
             _fanAutoMenuItem = new MenuItem { Header = "✓ Auto — System controlled" };
             _fanAutoMenuItem.Click += (s, e) => SetFanMode("Auto");
@@ -334,7 +334,7 @@ namespace OmenCore.Utils
             advancedMenuItem.Items.Add(_fanModeMenuItem);
 
             // Performance submenu
-            _performanceModeMenuItem = new MenuItem { Header = "Power Profile ▶" };
+            _performanceModeMenuItem = new MenuItem { Header = "Power Profile" };
             
             _perfQuietMenuItem = new MenuItem { Header = "   Power Saver — Battery life" };
             _perfQuietMenuItem.Click += (s, e) => SetPerformanceMode("Quiet");
@@ -373,7 +373,7 @@ namespace OmenCore.Utils
             advancedMenuItem.Items.Add(_performanceModeMenuItem);
 
             // Display submenu
-            _displayMenuItem = new MenuItem { Header = "Display ▶" };
+            _displayMenuItem = new MenuItem { Header = "Display" };
 
             var refreshHigh = new MenuItem { Header = "High Refresh — Gaming mode" };
             refreshHigh.Click += (s, e) => SetHighRefreshRate();
@@ -419,7 +419,7 @@ namespace OmenCore.Utils
             advancedMenuItem.Items.Add(_displayMenuItem);
             
             // GPU Power submenu (v2.7.0)
-            _gpuPowerMenuItem = new MenuItem { Header = "GPU Power ▶" };
+            _gpuPowerMenuItem = new MenuItem { Header = "GPU Power" };
             
             _gpuPowerMinMenuItem = new MenuItem { Header = "   Minimum — Base TGP, best battery" };
             _gpuPowerMinMenuItem.Click += (s, e) => RequestGpuPowerChange("Minimum");
@@ -458,7 +458,7 @@ namespace OmenCore.Utils
             advancedMenuItem.Items.Add(_gpuPowerMenuItem);
             
             // Keyboard backlight toggle (v2.7.0)
-            _keyboardBacklightMenuItem = new MenuItem { Header = "Keyboard Backlight ▶" };
+            _keyboardBacklightMenuItem = new MenuItem { Header = "Keyboard Backlight" };
             
             var kbOff = new MenuItem { Header = "   Off" };
             kbOff.Click += (s, e) => RequestKeyboardBacklight(0);
@@ -553,6 +553,11 @@ namespace OmenCore.Utils
             var checkUpdateItem = new MenuItem { Header = "Check for Updates" };
             checkUpdateItem.Click += (s, e) => CheckForUpdatesRequested?.Invoke();
             contextMenu.Items.Add(checkUpdateItem);
+
+            // Own separator: Exit is the one genuinely hard-to-undo action in this menu
+            // (closes the whole app, drops the tray icon) - worth a beat of visual distance
+            // from "Check for Updates" right above it, same convention most tray apps use.
+            contextMenu.Items.Add(new Separator());
 
             var exitItem = new MenuItem { Header = "Exit OmenCore" };
             exitItem.Click += (s, e) => _shutdownApp();
@@ -816,7 +821,7 @@ namespace OmenCore.Utils
             UpdateGpuPowerCheckmarks(level);
             if (_gpuPowerMenuItem != null)
             {
-                _gpuPowerMenuItem.Header = $"GPU Power ▶ [{level}]";
+                _gpuPowerMenuItem.Header = $"GPU Power: {level}";
             }
         }
         
@@ -868,7 +873,7 @@ namespace OmenCore.Utils
                     2 => "Medium",
                     _ => "High"
                 };
-                _keyboardBacklightMenuItem.Header = $"Keyboard Backlight ▶ [{levelName}]";
+                _keyboardBacklightMenuItem.Header = $"Keyboard Backlight: {levelName}";
             }
         }
 
@@ -922,7 +927,7 @@ namespace OmenCore.Utils
             
             try
             {
-                _displayMenuItem.Header = $"Display ▶ {GetRefreshRateDisplay()}";
+                _displayMenuItem.Header = $"Display: {GetRefreshRateDisplay()}";
             }
             catch (Exception ex)
             {
@@ -1108,10 +1113,10 @@ namespace OmenCore.Utils
             if (normalizedPendingRequest != null &&
                 !string.Equals(normalizedPendingRequest, normalizedCurrentMode, StringComparison.OrdinalIgnoreCase))
             {
-                return $"Fan Mode ▶ {normalizedCurrentMode}{suffix} (requested: {normalizedPendingRequest})";
+                return $"Fan Mode: {normalizedCurrentMode}{suffix} (requested: {normalizedPendingRequest})";
             }
 
-            return $"Fan Mode ▶ {normalizedCurrentMode}{suffix}";
+            return $"Fan Mode: {normalizedCurrentMode}{suffix}";
         }
 
         /// <summary>
@@ -1120,7 +1125,7 @@ namespace OmenCore.Utils
         public static string BuildPerformanceModeHeaderText(string currentMode)
         {
             var normalizedCurrentMode = string.IsNullOrWhiteSpace(currentMode) ? "Unknown" : currentMode.Trim();
-            return $"Performance ▶ {normalizedCurrentMode}";
+            return $"Performance: {normalizedCurrentMode}";
         }
 
         /// <summary>

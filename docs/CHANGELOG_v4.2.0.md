@@ -1,10 +1,24 @@
 # OmenCore v4.2.0
 
-**Release Date:** TBD — code-complete as of 2026-08-19, held for a field-testing window before tagging.
-**Release Status:** Version bumped across the app/installer/build config. Awaiting bug reports from real-hardware portable-build testing before pushing/tagging a release.
+**Release Date:** TBD — code-complete as of 2026-08-23. The most recent portable-build testing round (tab-switch animation, title-bar chrome, tray context menu) came back tester-confirmed with no further issues.
+**Release Status:** Version bumped across the app/installer/build config. Two items remain before tagging: the [PR #176](https://github.com/theantipopau/omencore/pull/176) merge decision (pending owner call — see the roadmap) and the Phase D/E hardware-gated items (pending real-hardware field validation this environment can't provide). Everything else in this changelog is portable-build-verified.
 **Type:** Minor release. Three pillars: sensor-truth/fan-control accuracy, perceived performance and motion, and a typography move to Roboto Condensed. Also absorbs field-report bug fixes from v4.1.7 users as they arrive.
 **Base Version:** v4.1.7
 **Tracking doc:** `docs/ROADMAP_v4.2.0.md` — full investigation detail, rejected options, and evidence trails live there; this file stays short.
+
+---
+
+## Release Artifacts
+
+Built locally via `build-installer.ps1` (Windows) and `build-linux-package.ps1` (Linux), Release configuration, self-contained single-file publishes. Verify a download by hashing it yourself and comparing against the value below — on Windows, `certutil -hashfile <file> SHA256`; on Linux/macOS, `sha256sum <file>`.
+
+| Artifact | SHA256 |
+|---|---|
+| `OmenCoreSetup-4.2.0.exe` | `0DC9EF8558864181F5B27A7189251CD72CB45CA12123A912E4927552C7D6F14D` |
+| `OmenCore-4.2.0-win-x64.zip` | `2D001F18411E94A16F3E26533FECA65BE55B8302A087DC6DF77F8520AE368F75` |
+| `OmenCore-4.2.0-linux-x64.zip` | `5E99E64786F4F18A3EB9BB7889682C8AB5D64047C3D2CB83234FA59E17570C4B` |
+
+Combined checksum file: `artifacts/SHA256SUMS-4.2.0.txt` (same convention as every prior release back to 3.4.1).
 
 ---
 
@@ -54,6 +68,12 @@ Reported on Reddit: the title bar's maximize button showed literally as `[ ]`. R
 
 Broke an existing test in the process (`ReleaseGateCodeHygieneTests`), which turned out to be guarding a real past incident — a raw Unicode symbol pasted into source mojibaked in v1.0.0.4. The new glyphs avoid the same failure mode (written as ASCII-safe `&#xNNNN;`/`\u` escapes, never a raw pasted character), and the test was rewritten to check that directly rather than just updated to match the new text. Full detail in the roadmap.
 
+### Title-Bar Buttons Still Looked Off After the Glyph Fix — Twice
+
+First pass: the three caption buttons used `CornerRadius="4"` on their hover background and stopped 4px short of the window's right edge — a rounded, inset "chip" floating inside the title bar, not the flush, square-cornered strip every native Windows app uses. They also stopped 12px short of the title bar's own height (32 of 44px), leaving dead space above and below the actual click target. Fixed: flush to the corner (no margin), full title-bar height, square (`CornerRadius="0"`, relying on the outer window `Border`'s own rounded corner to clip them into shape at the very top edge). Cursor changed `Hand` → `Arrow` to match every OS caption button.
+
+Second pass, on a real machine: the underlying glyph fix from earlier this cycle — real Segoe MDL2 Assets codepoints instead of literal `[ ]` — rendered as **tofu boxes** (☐☐☐, the standard "missing glyph" placeholder), not icons. Correct codepoints, but font-glyph availability isn't guaranteed the way plain ASCII text is, and this system apparently couldn't resolve them. Replaced the font dependency entirely: the three buttons now draw simple vector `Path` geometry (a line, a square outline, two overlapping squares, an X — `Icon.WindowMinimize/Maximize/Restore/Close` in `ModernStyles.xaml`) instead of any icon font, which is how native Windows chrome and most well-made custom-titlebar apps (VS Code, Windows Terminal) actually do this. No font, no codepoint, nothing that can fail to resolve. `Path.Stroke` binds to the button's own `Foreground`, so the existing hover/close-red color triggers keep working with no extra wiring.
+
 ---
 
 ## Added
@@ -84,7 +104,9 @@ Not yet done: multi-hour idle CPU and working-set growth — needs a longer-runn
 
 New "Reduce motion" setting, combined with the Windows-wide "Show animations" preference, gating all future animation work. Defaults to *not* reducing motion if the OS read fails. Conveniently, the system preference is the same value the built-in "Best Performance" optimization already writes. 4 new tests.
 
-**No animation code shipped yet** — this is just the gate. Transitions need live UI verification this environment can't provide.
+### Tab-Switch Fade Transition
+
+First animation to actually use the gate above. Switching tabs now fades the new content in (160ms, ease-out, opacity only — no layout pass, GPU-composited) instead of popping in instantly. Skipped entirely when Reduce Motion is on (app setting or OS preference). Deliberately small and easily revertible: one `DoubleAnimation` on `Opacity`, triggered only from `TabControl.SelectionChanged` (a discrete, real tab change — not any property-changed notification, to avoid repeating the earlier dashboard-pulse-restarting-on-every-update bug class). No new automated tests — this is a live-feel judgment call, being verified via a portable build rather than assertions, same as the nav-rail redesign earlier this cycle.
 
 ### Background-Thread Timer Coordinator
 
@@ -115,6 +137,14 @@ A design-taste pass flagged the top bar's Quick Actions row (fan preset, perform
 Same pass on the RGB page: Scene Quick Select buttons (OMEN Red, Cool Blue, Rainbow, Heat Wave, etc.) rendered identically grey regardless of what color they actually apply — `RgbScene.PrimaryColor` already carried that data, it was just never drawn. Each scene button now shows a small color swatch. The "Active: SceneName" badge also had a stray, uncatalogued purple (`#9C27B0`) that matched nothing else in the app; now uses the same accent color the rest of the app uses for "this is selected."
 
 **RGB page still flagged as needing a broader pass** beyond these two spot-fixes — noted for next time, not blocking this release.
+
+### System Tray Right-Click Menu Had Double Arrows Throughout
+
+Every submenu item ("Advanced", "Fan Control", "GPU Power," etc.) carried a manually-typed "▶" in its header text — but the custom dark context-menu template already draws its own submenu-arrow glyph on the right edge for any item with children, so every one of these showed two arrows: the typed character mid-text and the real arrow past it. It was also inconsistent with the one item that didn't have this problem — "Monitor: Healthy" already used a plain colon. Removed the redundant "▶" everywhere (11 spots) and standardized the live-value headers ("Fan Mode: Auto", "Performance: Balanced", "GPU Power: Medium", "Display: 165Hz", "Keyboard Backlight: High") on the colon convention the menu already used in one place. Also added a separator before "Exit OmenCore" so it's not sitting directly under "Check for Updates" with no visual gap — the one genuinely hard-to-undo item in the menu. Text/layout only, no command wiring touched.
+
+### Model Capabilities Screen Clarified What It Does and Doesn't Cover
+
+A field report read "Custom fan curves: Not supported" / "GPU power boost: Not supported" on an unverified board and concluded the General tab's Auto/Performance/Max fan buttons must be gated by the same flag — they aren't; those buttons only check whether a fan-control backend was created at all, independent of the advanced-feature flags shown on this screen. Added one clarifying sentence to the existing disclaimer text so the next reader doesn't draw the same reasonable-looking but incorrect conclusion.
 
 ---
 
@@ -174,6 +204,8 @@ License note: Roboto Condensed is **SIL OFL 1.1** (an earlier note here said Apa
 **Discord (board `8DCD`)** — independent confirmation that the 4.1.7 Max-Fan-Latch fix resolved fans being stuck high/low. Also flagged [#146](https://github.com/theantipopau/omencore/issues/146) as a likely instance of the same bug — notable because it involved a thermal shutdown in a closed backpack.
 
 **Reddit (kn_kry)** — Victus, no board ID or diagnostics: the concrete, checkable claim (maximize button rendering as literal `[ ]`) was correct and is fixed, above. The rest (fan control, temperature display, RGB not working at all, perceived slowness) is real signal but not independently actionable without a board ID — full triage in the roadmap, including why several of those symptoms could be genuine hardware limitations on some Victus models rather than bugs.
+
+**[#140](https://github.com/theantipopau/omencore/issues/140) follow-up** (Victus 16-e0194nw, board `88EE`) — reporter concluded fans weren't ramping because the Model Capabilities screen showed several advanced features as "Not supported" on their unverified board. Traced the actual gating: those flags (custom fan curves, independent zones, GPU power boost) don't reach the General tab's Auto/Performance/Max fan buttons, which only check whether a control backend exists — `88EE` has `SupportsFanControlWmi = true`, so that path should work. Fixed the screen's wording (above) to say so directly; couldn't independently confirm whether Max mode itself works without their diagnostics log, which wasn't shared. Full trace in the roadmap.
 
 ---
 
