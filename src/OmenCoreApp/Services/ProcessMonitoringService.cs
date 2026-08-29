@@ -30,6 +30,14 @@ namespace OmenCore.Services
         // fire within milliseconds of process creation, well before a window exists.
         private const double WindowTitleSettleDelayMs = 1500;
 
+        // Extrinsic, push-delivered process notifications. These must never be swapped back to the
+        // intrinsic __InstanceCreationEvent/__InstanceDeletionEvent classes over Win32_Process: those
+        // have no notification source, so WMI services them by re-enumerating the whole process table
+        // on the WITHIN interval, inside WmiPrvSE where the cost is invisible to us. See
+        // TryStartWmiEventing for the measurements. ProcessMonitoringEventQueryTests pins this.
+        internal const string ProcessStartEventQuery = "SELECT * FROM Win32_ProcessStartTrace";
+        internal const string ProcessStopEventQuery = "SELECT * FROM Win32_ProcessStopTrace";
+
         private readonly LoggingService _logging;
         private readonly Timer _pollTimer;
         private readonly HashSet<string> _trackedProcesses = new();
@@ -39,7 +47,7 @@ namespace OmenCore.Services
         private ManagementEventWatcher? _deletionWatcher;
         private volatile bool _wmiEventingActive;
 
-        private static string NormalizeProcessName(string name)
+        internal static string NormalizeProcessName(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return string.Empty;
@@ -222,32 +230,53 @@ namespace OmenCore.Services
         }
 
         /// <summary>
-        /// Try to start WMI-based instant process creation/deletion notifications.
-        /// Falls back silently to polling-only if WMI eventing isn't available in this
+        /// Try to start push-based process creation/deletion notifications.
+        /// Falls back silently to polling-only if the subscription isn't available in this
         /// environment (restrictive WMI ACLs, WMI service unavailable, sandboxed host, etc.).
         /// </summary>
+        /// <remarks>
+        /// <para><b>Why the trace classes and not <c>__InstanceCreationEvent</c>.</b> The intrinsic
+        /// event classes have no notification source behind them. WMI satisfies
+        /// <c>__InstanceCreationEvent ... WITHIN 1 WHERE TargetInstance ISA 'Win32_Process'</c> by
+        /// enumerating the whole process table on that interval and diffing consecutive snapshots.
+        /// Subscribing to creation and deletion therefore ran that full enumeration twice a second
+        /// for as long as OmenCore was open — and it ran inside <c>WmiPrvSE.exe</c>, so it never
+        /// appeared against our own process in Task Manager.</para>
+        ///
+        /// <para>Measured on 8D87 (Ryzen AI 9 HX 375, ~380 processes) against a 0.2% idle baseline:
+        /// the two intrinsic subscriptions cost <b>15.6% of a core, continuously</b>.
+        /// <c>Win32_ProcessStartTrace</c> and <c>Win32_ProcessStopTrace</c> are extrinsic events
+        /// pushed from the kernel process trace provider — nothing polls — and measured <b>0.0%</b>
+        /// on the same machine while delivering the same notifications.</para>
+        ///
+        /// <para>The trace classes need an elevated caller, which <c>app.manifest</c> already
+        /// guarantees (<c>requireAdministrator</c>). If the subscription fails anyway we drop to
+        /// polling only, and deliberately do not fall back to an intrinsic subscription at a longer
+        /// <c>WITHIN</c>: <see cref="ScanProcesses"/> polls via <see cref="Process.GetProcesses"/>,
+        /// a native call that is cheaper at 2s than the intrinsic subscription was at 1s.</para>
+        /// </remarks>
         private void TryStartWmiEventing()
         {
             try
             {
-                var creationQuery = new WqlEventQuery("__InstanceCreationEvent", TimeSpan.FromSeconds(1), "TargetInstance isa \"Win32_Process\"");
-                _creationWatcher = new ManagementEventWatcher(creationQuery);
+                _creationWatcher = new ManagementEventWatcher(
+                    new WqlEventQuery(ProcessStartEventQuery));
                 _creationWatcher.EventArrived += OnProcessCreationEvent;
                 _creationWatcher.Start();
 
-                var deletionQuery = new WqlEventQuery("__InstanceDeletionEvent", TimeSpan.FromSeconds(1), "TargetInstance isa \"Win32_Process\"");
-                _deletionWatcher = new ManagementEventWatcher(deletionQuery);
+                _deletionWatcher = new ManagementEventWatcher(
+                    new WqlEventQuery(ProcessStopEventQuery));
                 _deletionWatcher.EventArrived += OnProcessDeletionEvent;
                 _deletionWatcher.Start();
 
                 _wmiEventingActive = true;
-                _logging.Info("Event-based process detection active (WMI __InstanceCreationEvent/__InstanceDeletionEvent)");
+                _logging.Info("Event-based process detection active (Win32_ProcessStartTrace/Win32_ProcessStopTrace)");
             }
             catch (Exception ex)
             {
                 _wmiEventingActive = false;
                 StopWmiEventing();
-                _logging.Warn($"WMI event-based process detection unavailable, falling back to polling only: {ex.Message}");
+                _logging.Warn($"Push-based process detection unavailable, falling back to polling only: {ex.Message}");
             }
         }
 
@@ -274,9 +303,11 @@ namespace OmenCore.Services
         {
             try
             {
-                var targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
-                var pid = Convert.ToInt32(targetInstance["ProcessId"]);
-                var name = targetInstance["Name"]?.ToString() ?? string.Empty;
+                // Win32_ProcessStartTrace exposes the fields directly; there is no TargetInstance
+                // wrapper as there was on the intrinsic classes. ProcessName carries the same
+                // "foo.exe" form Win32_Process.Name did, so NormalizeProcessName is unchanged.
+                var pid = Convert.ToInt32(e.NewEvent["ProcessID"]);
+                var name = e.NewEvent["ProcessName"]?.ToString() ?? string.Empty;
 
                 HashSet<string> trackedCopy;
                 lock (_trackedLock)
@@ -299,7 +330,7 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Error("Error handling WMI process-creation event", ex);
+                _logging.Error("Error handling process-start event", ex);
             }
         }
 
@@ -340,8 +371,7 @@ namespace OmenCore.Services
         {
             try
             {
-                var targetInstance = (ManagementBaseObject)e.NewEvent["TargetInstance"];
-                var pid = Convert.ToInt32(targetInstance["ProcessId"]);
+                var pid = Convert.ToInt32(e.NewEvent["ProcessID"]);
 
                 if (ActiveProcesses.TryRemove(pid, out var info))
                 {
@@ -352,7 +382,7 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                _logging.Error("Error handling WMI process-deletion event", ex);
+                _logging.Error("Error handling process-stop event", ex);
             }
         }
 
