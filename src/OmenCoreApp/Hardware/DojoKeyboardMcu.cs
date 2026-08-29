@@ -326,14 +326,18 @@ namespace OmenCore.Hardware
             Send(CmdSetLightingOnOff, 0, new byte[] { (byte)(enabled ? 1 : 0) });
 
         /// <summary>
-        /// Set the MCU's own brightness.
+        /// Set the MCU's own brightness. EXPECT THIS TO FAIL ON 8D87.
         ///
-        /// UNMEASURED ON HARDWARE. Command 0x0C is HP's, read out of McuSDK2, and OGH sends it -
-        /// but it is the one command in this class that has never been put on the wire from here,
-        /// so its ack has never been paired with a person looking. Treat a true return as "the
-        /// frame parsed" and nothing more until someone confirms the keyboard actually dimmed.
-        /// Brightness for STATIC colour does not need this: <see cref="HidLampArray"/> carries an
-        /// intensity channel per lamp, and that path is measured.
+        /// Command 0x0C is HP's, read out of McuSDK2, and OGH sends it - but measured on this board
+        /// the frame is not acknowledged at any payload value (0, 1, 2, 3, 50, 100), while 0x03,
+        /// 0x83, 0x09, 0x0A and 0x10 are all acknowledged through the same handle and the same
+        /// frame builder. Five accepted and one refused across six payloads is the command being
+        /// rejected, not a bad value or a broken transport. It is real somewhere; not here.
+        ///
+        /// It stays because it costs one frame and is the right lever on a board that implements
+        /// it. Brightness for STATIC colour does not depend on it:
+        /// <see cref="Services.KeyboardLighting.DojoPerKeyBackend"/> scales the picture on the
+        /// host, because the 176-entry colour map is raw RGB with no intensity channel of its own.
         /// </summary>
         public bool SetBrightness(byte level) =>
             Send(CmdSetBrightness, 0, new[] { level });
@@ -458,6 +462,10 @@ namespace OmenCore.Hardware
         /// to the static display mode, then three channels of colour pages fill the 176-entry map.
         /// The MCU holds the map and redraws it after the Fn overlay — which is the property the
         /// LampArray path does not have, and the reason this method exists.
+        ///
+        /// Raw, like everything on this interface: the map has no intensity channel, so these bytes
+        /// are what the MCU draws. Anything that owes a user a brightness setting scales before it
+        /// gets here.
         ///
         /// Volatile until <see cref="StoreToFlash"/>.
         /// </summary>

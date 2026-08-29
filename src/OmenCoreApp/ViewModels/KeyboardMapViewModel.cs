@@ -44,6 +44,12 @@ namespace OmenCore.ViewModels
         private readonly KeyboardLightingService? _keyboard;
         private readonly LoggingService _logging;
 
+        /// <summary>
+        /// Where the picture is remembered between runs. Optional: the editor is fully functional
+        /// without it and simply forgets, which is what the tests exercise.
+        /// </summary>
+        private readonly ConfigurationService? _configService;
+
         // Layout scale. The view scales the canvas to fit, so PixelsPerMm only sets the resolution
         // the layout is computed at. The device reports lamp CENTRES and no extents, so a key has to
         // be given a size: 15 mm sits under the ~18 mm pitch, leaving a gap between neighbours
@@ -63,10 +69,12 @@ namespace OmenCore.ViewModels
         private string _status = string.Empty;
         private int _brightness = 100;
 
-        public KeyboardMapViewModel(KeyboardLightingService? keyboard, LoggingService logging)
+        public KeyboardMapViewModel(KeyboardLightingService? keyboard, LoggingService logging,
+                                    ConfigurationService? configService = null)
         {
             _keyboard = keyboard;
             _logging = logging;
+            _configService = configService;
 
             PickColorCommand = new RelayCommand(_ => PickColor());
             SelectAllCommand = new RelayCommand(_ => SetSelection(Keys, true));
@@ -74,8 +82,14 @@ namespace OmenCore.ViewModels
             PaintSelectionCommand = new RelayCommand(_ => PaintSelection());
             ClearAllColorsCommand = new RelayCommand(_ => ClearAllColors());
             ApplyCommand = new AsyncRelayCommand(async _ => await ApplyAsync(), _ => IsAvailable);
+            OpenDynamicLightingSettingsCommand = new RelayCommand(_ => OpenDynamicLightingSettings());
+            SaveToKeyboardCommand = new AsyncRelayCommand(async _ => await SaveToKeyboardAsync(), _ => IsAvailable);
 
             Load();
+
+            // After Load, because it paints onto cells that Load creates. A saved picture for a
+            // different layout simply finds no matching cells and leaves the editor at its default.
+            RestoreSavedPicture();
         }
 
         public ObservableCollection<KeyLampViewModel> Keys { get; } = new();
@@ -104,6 +118,51 @@ namespace OmenCore.ViewModels
 
         public bool HasVerificationWarning => VerificationWarning.Length > 0;
 
+        /// <summary>
+        /// Warning text when Windows Dynamic Lighting is going to repaint this keyboard the moment
+        /// OmenCore lets go of it, or empty when it will not.
+        ///
+        /// THIS IS THE MOST CONFUSING FAILURE THIS EDITOR HAS, because nothing goes wrong. Every
+        /// write is accepted, the picture appears exactly as painted, and it holds for as long as
+        /// the app is open. Then the app closes, Windows takes the device back, and the keyboard is
+        /// its accent colour again — which reads as "OmenCore does not save my colours" and is
+        /// really two features owning one device with no arbitration between them.
+        ///
+        /// Told rather than fixed, deliberately. Dynamic Lighting is Windows' feature and the toggle
+        /// is the user's; silently turning off another feature's setting to make ours look better is
+        /// not a trade this application gets to make on its own. See
+        /// <see cref="OpenDynamicLightingSettingsCommand"/>, which takes them to the switch.
+        /// </summary>
+        public string DynamicLightingWarning
+        {
+            get
+            {
+                if (!IsAvailable) return string.Empty;
+
+                var state = _keyboard?.GetDynamicLightingState();
+                if (state == null || !state.WillRepaintWhenReleased) return string.Empty;
+
+                return "Windows Dynamic Lighting is switched on for this keyboard. Your colours will " +
+                       "look right while OmenCore is open, and Windows will repaint the keyboard as " +
+                       "soon as it closes. Turn Dynamic Lighting off for this device to keep them.";
+            }
+        }
+
+        public bool HasDynamicLightingWarning => DynamicLightingWarning.Length > 0;
+
+        /// <summary>
+        /// Re-read the Dynamic Lighting settings and update the banner.
+        ///
+        /// Worth calling whenever the editor comes back into view: the likeliest reason a user left
+        /// it was to go and change the setting the banner just told them about, and a banner still
+        /// saying so on their return would be its own small bug.
+        /// </summary>
+        public void RefreshDynamicLighting()
+        {
+            OnPropertyChanged(nameof(DynamicLightingWarning));
+            OnPropertyChanged(nameof(HasDynamicLightingWarning));
+        }
+
         /// <summary>Logical canvas size, in device-independent pixels.</summary>
         public double CanvasWidth { get; private set; }
         public double CanvasHeight { get; private set; }
@@ -123,12 +182,19 @@ namespace OmenCore.ViewModels
         public System.Windows.Media.SolidColorBrush BrushColorBrush => new(ParseColor(BrushColorHex));
 
         /// <summary>
-        /// 0-100, applied as the LampArray per-lamp intensity channel on the next apply.
+        /// Master brightness, 0-100, applied to the whole picture on the next apply. The per-cell
+        /// half is <see cref="SelectionBrightness"/>, and the two multiply.
         ///
-        /// The ONLY brightness lever this keyboard has: the MCU's own command is refused by this
-        /// firmware at every value, and no device effect consumes the effect record's brightness
-        /// field. So this scales a host-painted picture and nothing else - a running effect cannot be
-        /// dimmed, which the UI says rather than implying otherwise.
+        /// The ONLY brightness lever this keyboard has, and it reaches host-painted colour only.
+        /// Measured on 8D87: the MCU's own command 0x0C is refused at every payload value, and the
+        /// effect record's brightness field is ignored at 0, 60 and 160 alike - sent through frames
+        /// the MCU demonstrably consumed, and read back unchanged every time. So a running device
+        /// effect cannot be dimmed, which the UI says rather than implying otherwise.
+        ///
+        /// This one is scaled by the BACKEND, not here. Doing it here would dim the picture the
+        /// editor is holding, so the swatches would drift darker every time Apply was pressed.
+        /// <see cref="KeyLampViewModel.Level"/> is scaled here instead, and safely, because it is a
+        /// separate field rather than a rewrite of the colour the user picked.
         /// </summary>
         public int Brightness
         {
@@ -139,10 +205,70 @@ namespace OmenCore.ViewModels
                 if (_brightness == clamped) return;
                 _brightness = clamped;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(BrightnessHint));
             }
         }
 
         public int SelectedCount => Keys.Count(k => k.IsSelected);
+
+        /// <summary>Whether the per-selection brightness slider has anything to act on.</summary>
+        public bool HasSelection => SelectedCount > 0;
+
+        /// <summary>
+        /// What the two sliders are doing right now, in words, because their product is not obvious
+        /// from two numbers sitting side by side. Says the arithmetic when a selection is dimmed and
+        /// stays out of the way when it is not.
+        /// </summary>
+        public string BrightnessHint
+        {
+            get
+            {
+                const string always = " A running keyboard effect cannot be dimmed — the MCU draws those itself.";
+
+                if (!HasSelection)
+                    return "Applies on the next Apply. Select keys to dim them independently." + always;
+
+                int selection = SelectionBrightness;
+                if (selection >= 100)
+                    return $"{SelectedCount} selected, at full. Applies on the next Apply." + always;
+
+                return $"{SelectedCount} selected at {selection}% — they land at " +
+                       $"{Brightness * selection / 100}% once the master's {Brightness}% is applied." + always;
+            }
+        }
+
+        /// <summary>
+        /// The selection's own brightness, 0-100, multiplied with <see cref="Brightness"/> on the way
+        /// to the keyboard. This is the per-LED half of brightness; <see cref="Brightness"/> is the
+        /// whole-picture half.
+        ///
+        /// Reads back the level the selection AGREES on, and 100 when it does not. A mixed selection
+        /// has no single level to show, and showing one key's value would make the slider lie about
+        /// the other eleven - but the control still has to sit somewhere, and the neutral end is the
+        /// only position that is not a claim about the selection.
+        ///
+        /// Writing applies to every selected cell, light bar zones included. The bar's firmware
+        /// brightness is one byte for all four zones, so per-zone dimming there is the same host-side
+        /// arithmetic as the keys - see <see cref="ApplyAsync"/>.
+        /// </summary>
+        public int SelectionBrightness
+        {
+            get
+            {
+                var levels = Keys.Where(k => k.IsSelected).Select(k => k.Level).Distinct().Take(2).ToList();
+                return levels.Count == 1 ? levels[0] : 100;
+            }
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 100);
+                var targets = Keys.Where(k => k.IsSelected).ToList();
+                if (targets.Count == 0) return;
+
+                foreach (var key in targets) key.Level = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(BrightnessHint));
+            }
+        }
 
         public string Status
         {
@@ -157,6 +283,20 @@ namespace OmenCore.ViewModels
         public ICommand ClearAllColorsCommand { get; }
         public ICommand ApplyCommand { get; }
 
+        /// <summary>Opens the Windows Dynamic Lighting settings page. Shown with the warning banner.</summary>
+        public ICommand OpenDynamicLightingSettingsCommand { get; }
+
+        /// <summary>
+        /// Writes the current picture into the keyboard's own flash so it survives a power cycle.
+        ///
+        /// SEPARATE FROM APPLY ON PURPOSE. Apply is volatile and costs nothing to repeat; this is an
+        /// MCU flash write. HP's own client flashes on every per-key apply, which is what makes a
+        /// picture set in OGH survive a reboot — but in an editor where a user drags a brightness
+        /// slider, "every apply" is a flash write per drag, and flash has a finite write count.
+        /// One button, one write, one intent.
+        /// </summary>
+        public ICommand SaveToKeyboardCommand { get; }
+
         // ── Selection ──────────────────────────────────────────────────────────────
 
         /// <summary>Toggle one key: clicking a selected key deselects it.</summary>
@@ -164,6 +304,9 @@ namespace OmenCore.ViewModels
         {
             key.IsSelected = !key.IsSelected;
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         /// <summary>
@@ -186,12 +329,18 @@ namespace OmenCore.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         private void SetSelection(IEnumerable<KeyLampViewModel> keys, bool selected)
         {
             foreach (var key in keys) key.IsSelected = selected;
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
         }
 
         // ── Colour ─────────────────────────────────────────────────────────────────
@@ -241,6 +390,9 @@ namespace OmenCore.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionBrightness));
+            OnPropertyChanged(nameof(BrightnessHint));
             Status = $"Painted {targets.Count} key(s) {BrushColorHex}. " +
                      "Keep going, then Apply to send the whole map to the keyboard.";
         }
@@ -265,10 +417,16 @@ namespace OmenCore.ViewModels
 
             foreach (var key in Keys)
             {
-                var parsed = ParseColor(key.ColorHex);
+                // The cell's own level, applied here. The master is NOT applied here - the backend
+                // does that on its way to the wire, so this stays a picture rather than a dimmed
+                // copy of one. Effective brightness is the product of the two.
+                var parsed = ScaleForLevel(ParseColor(key.ColorHex), key.Level);
 
                 if (key.IsLightBar)
                 {
+                    // HP's light bar frame carries ONE brightness byte for all four zones, so a
+                    // per-zone level cannot go to the firmware and has to be arithmetic on the
+                    // colour, exactly as it is for the keys. The master still rides the byte.
                     barZones[key.ZoneIndex] = (parsed.R, parsed.G, parsed.B);
                     anyBar = true;
                     continue;
@@ -290,9 +448,9 @@ namespace OmenCore.ViewModels
                 foreach (ushort lampId in key.LampIds) colors[lampId] = color;
             }
 
-            // Brightness first: it is the intensity byte attached to each lamp in the write below,
-            // so setting it after would need a second full repaint to take effect.
-            await _keyboard.SetPerKeyBrightnessAsync(Brightness);
+            // Brightness first: the backend applies it to the colour writes below, so setting it
+            // after would need a second full repaint to take effect.
+            bool brightnessOk = await _keyboard.SetPerKeyBrightnessAsync(Brightness);
 
             // Black, not the brush: every cell in the editor is in the dictionary, so the background
             // only reaches positions the layout does not claim - padding, and anything the table
@@ -311,8 +469,179 @@ namespace OmenCore.ViewModels
             if (anyBar) parts.Add($"4 bar zones {(barOk ? "accepted" : "REFUSED")}");
 
             Status = string.Join(", ", parts) + ". Only looking confirms it.";
+
+            // A backend that cannot take brightness sends the colours at full strength, and the
+            // slider sitting at 20 while the keyboard blazes is exactly the silent no-op this fix
+            // was for. Say it happened rather than leaving the user to infer it from the light.
+            if (!brightnessOk && Brightness < 100)
+                Status += $" Brightness {Brightness} was NOT applied - this keyboard's backend has no brightness lever.";
+
             _logging.Info($"[KeyboardMap] Apply: {leds.Count} LEDs ledsOk={ledsOk}, " +
-                          $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}");
+                          $"{colors.Count} keys keysOk={keysOk}, bar={anyBar} barOk={barOk}, " +
+                          $"brightness={Brightness} brightnessOk={brightnessOk}");
+
+            // The setting can change while the editor is open, and this is the moment the user is
+            // most likely to be looking for an explanation of what they just saw.
+            RefreshDynamicLighting();
+
+            // Saved even when the keyboard refused: the editor should come back as the user left
+            // it, and a refusal is a hardware problem rather than a reason to forget their work.
+            SaveSavedPicture();
+        }
+
+        /// <summary>
+        /// Send the picture the editor was restored with to the keyboard.
+        ///
+        /// For startup only. The constructor restores the cells but deliberately sends nothing;
+        /// this is the caller that decides the keyboard should be repainted, which is a user
+        /// preference rather than a property of loading the editor.
+        /// </summary>
+        public Task ApplyRestoredPictureAsync() => ApplyAsync();
+
+        /// <summary>
+        /// Write the current picture to <c>config.json</c>.
+        ///
+        /// Called after a successful apply rather than on every brush stroke: what is worth
+        /// remembering is what the keyboard was actually asked to show, and saving mid-edit would
+        /// restore a half-painted picture on the next launch.
+        /// </summary>
+        private void SaveSavedPicture()
+        {
+            if (_configService?.Config == null) return;
+
+            try
+            {
+                var settings = _configService.Config.KeyboardLighting ??= new Models.KeyboardLightingSettings();
+
+                settings.PerKeyPicture = Keys.Select(k => new Models.SavedPerKeyCell
+                {
+                    Led = k.IsLed ? k.LedPositions[0] : -1,
+                    Lamp = !k.IsLed && !k.IsLightBar && k.LampIds.Count > 0 ? k.LampIds[0] : -1,
+                    Zone = k.IsLightBar ? k.ZoneIndex : -1,
+                    Color = k.ColorHex,
+                    Level = k.Level
+                }).ToList();
+
+                settings.PerKeyBrightness = Brightness;
+
+                _configService.Save(_configService.Config);
+                _logging.Info($"[KeyboardMap] Saved {settings.PerKeyPicture.Count} cells at master {Brightness}");
+            }
+            catch (Exception ex)
+            {
+                // Losing the saved copy is not worth failing an apply that already reached the
+                // keyboard. The picture is on the hardware either way.
+                _logging.Warn($"[KeyboardMap] Could not save the picture: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Paint the saved picture back onto the editor's cells.
+        ///
+        /// Does NOT send anything to the keyboard. Restoring the editor and repainting the hardware
+        /// are different decisions - the keyboard may well already be showing this picture, from its
+        /// own flash or from the previous run - and sending on construction would repaint over a
+        /// device effect the user chose since.
+        /// </summary>
+        private void RestoreSavedPicture()
+        {
+            var saved = _configService?.Config?.KeyboardLighting?.PerKeyPicture;
+            if (saved == null || saved.Count == 0 || Keys.Count == 0) return;
+
+            try
+            {
+                var byKey = new Dictionary<string, Models.SavedPerKeyCell>();
+                foreach (var cell in saved)
+                {
+                    if (cell.Key.Length > 0) byKey[cell.Key] = cell;
+                }
+
+                int restored = 0;
+                foreach (var key in Keys)
+                {
+                    if (!byKey.TryGetValue(CellKey(key), out var cell)) continue;
+
+                    key.ColorHex = cell.Color;
+                    key.Level = Math.Clamp(cell.Level, 0, 100);
+                    restored++;
+                }
+
+                Brightness = Math.Clamp(
+                    _configService?.Config?.KeyboardLighting?.PerKeyBrightness ?? 100, 0, 100);
+
+                if (restored > 0)
+                    Status = $"Restored the last picture ({restored} cells). " +
+                             "Apply to send it to the keyboard.";
+
+                _logging.Info($"[KeyboardMap] Restored {restored} of {saved.Count} saved cells");
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"[KeyboardMap] Could not restore the saved picture: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// The stored identity of one editor cell. Must agree with what <see cref="SaveSavedPicture"/>
+        /// writes, which is why both go through <see cref="Models.SavedPerKeyCell.Key"/>'s format.
+        /// </summary>
+        internal static string CellKey(KeyLampViewModel key) =>
+            key.IsLightBar ? $"zone:{key.ZoneIndex}" :
+            key.IsLed ? $"led:{key.LedPositions[0]}" :
+            key.LampIds.Count > 0 ? $"lamp:{key.LampIds[0]}" :
+            string.Empty;
+
+        /// <summary>
+        /// Opens Settings straight at Dynamic Lighting.
+        ///
+        /// <c>UseShellExecute</c> is required: <c>ms-settings:</c> is a protocol handler, not an
+        /// executable, and the default for <c>ProcessStartInfo</c> on .NET Core is false — which
+        /// fails with "The system cannot find the file specified" and looks like a missing
+        /// Settings app rather than a missing flag.
+        /// </summary>
+        private void OpenDynamicLightingSettings()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "ms-settings:personalization-lighting",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                // Not fatal: the banner already says what to do, this only saves them the clicks.
+                _logging.Warn($"[KeyboardMap] Could not open the Dynamic Lighting settings page: {ex.Message}");
+                Status = "Could not open Settings. It is under " +
+                         "Settings > Personalisation > Dynamic Lighting.";
+            }
+        }
+
+        /// <summary>
+        /// Send the picture, then persist it in the keyboard's own flash.
+        ///
+        /// Applies first rather than flashing whatever happens to be installed, so that what is
+        /// persisted is what the editor is showing. Flashing without applying would save the
+        /// PREVIOUS picture and report success, which is the worst of both.
+        /// </summary>
+        private async Task SaveToKeyboardAsync()
+        {
+            if (_keyboard == null || Keys.Count == 0) return;
+
+            await ApplyAsync();
+
+            bool flashed = await _keyboard.StoreDeviceLightingToFlashAsync();
+
+            Status = flashed
+                ? "Saved to the keyboard. This picture now survives a power cycle, and shows with " +
+                  "OmenCore closed."
+                : "Applied, but the keyboard refused the save-to-flash — the picture is showing now " +
+                  "and will not survive a power cycle.";
+
+            // Not a claim that the colours are right: the flash write is acknowledged over the same
+            // interface that cannot read a colour back. It says the MCU took the store command.
+            _logging.Info($"[KeyboardMap] Save to keyboard flash: {(flashed ? "accepted" : "REFUSED")}");
         }
 
         // ── Loading ────────────────────────────────────────────────────────────────
@@ -693,6 +1022,23 @@ namespace OmenCore.ViewModels
         private static System.Drawing.Color ToDrawingColor(System.Windows.Media.Color c) =>
             System.Drawing.Color.FromArgb(c.R, c.G, c.B);
 
+        /// <summary>
+        /// Scale a colour by a per-cell level, 0-100.
+        ///
+        /// Short-circuits at 100 so an untouched picture is passed through byte-for-byte rather than
+        /// through arithmetic that happens to be the identity. Same linear multiply and
+        /// round-to-nearest as <c>DojoPerKeyBackend.Scale</c>, so a cell dimmed to 50 here and the
+        /// master left at 100 lands on exactly the bytes the backend would have produced.
+        /// </summary>
+        private static System.Windows.Media.Color ScaleForLevel(System.Windows.Media.Color c, int level)
+        {
+            if (level >= 100) return c;
+            if (level <= 0) return System.Windows.Media.Colors.Black;
+
+            byte Scale(byte channel) => (byte)(((channel * level * 255 / 100) + 127) / 255);
+            return System.Windows.Media.Color.FromRgb(Scale(c.R), Scale(c.G), Scale(c.B));
+        }
+
         private static System.Windows.Media.Color ParseColor(string hex)
         {
             try
@@ -777,6 +1123,7 @@ namespace OmenCore.ViewModels
     {
         private bool _isSelected;
         private string _colorHex = "#000000";
+        private int _level = 100;
 
         /// <summary>
         /// Every lamp under this key. Usually one, but a wide key carries several - Space has five
@@ -873,14 +1220,49 @@ namespace OmenCore.ViewModels
             }
         }
 
+        /// <summary>
+        /// This cell's own brightness, 0-100, multiplied with the editor's master before the colour
+        /// goes out. 100 is "as painted", which is why it is the default - a cell nobody has dimmed
+        /// must behave exactly as it did before per-cell levels existed.
+        ///
+        /// Kept SEPARATE from <see cref="ColorHex"/> rather than baked into it. Scaling the hex in
+        /// place would be lossy and one-way: drag a key to 10% and back to 100% and the colour the
+        /// user picked is gone, quantised to whatever survived the round trip. The picked colour is
+        /// the user's, and this is a view on it.
+        /// </summary>
+        public int Level
+        {
+            get => _level;
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 100);
+                if (_level == clamped) return;
+                _level = clamped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(KeyBrush));
+                OnPropertyChanged(nameof(LabelBrush));
+            }
+        }
+
+        /// <summary>
+        /// The cap's colour: what was painted, scaled by this cell's own level.
+        ///
+        /// Deliberately does NOT include the editor's master brightness. Folding that in would be
+        /// more literally WYSIWYG and much worse to use - at master 3 the whole editor goes near
+        /// black and you cannot see what you are painting. Per-cell differences are the thing this
+        /// view has to show; the master is one number, shown next to its own slider.
+        /// </summary>
         public System.Windows.Media.SolidColorBrush KeyBrush
         {
             get
             {
                 try
                 {
+                    var c = (System.Windows.Media.Color)
+                        System.Windows.Media.ColorConverter.ConvertFromString(ColorHex);
+
                     return new System.Windows.Media.SolidColorBrush(
-                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(ColorHex));
+                        System.Windows.Media.Color.FromRgb(ScaleChannel(c.R), ScaleChannel(c.G), ScaleChannel(c.B)));
                 }
                 catch
                 {
@@ -888,6 +1270,13 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Mirrors <c>DojoPerKeyBackend.Scale</c> - same linear multiply, same round-to-nearest - so
+        /// the cap and the key agree. A different rounding here would make the editor a slightly
+        /// dishonest preview of the thing it exists to preview.
+        /// </summary>
+        private byte ScaleChannel(byte channel) => (byte)(((channel * Level * 255 / 100) + 127) / 255);
 
         /// <summary>
         /// Black text on a light key, white on a dark one. A single fixed label colour makes the

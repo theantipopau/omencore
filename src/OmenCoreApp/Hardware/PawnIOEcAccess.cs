@@ -19,8 +19,14 @@ namespace OmenCore.Hardware
         private bool _moduleLoaded;
         private bool _disposed;
 
-        // Embedded LpcACPIEC.amx module binary (compiled PawnIO module)
-        // This is the pre-compiled LpcACPIEC module from PawnIO.Modules releases
+        // The compiled LpcACPIEC PawnIO module, read from disk by LoadEcModule and cached here.
+        //
+        // NOT embedded in the assembly, despite how a cached static byte[] reads. PublishSingleFile
+        // bundles managed assemblies, not `None` content items, and IncludeAllContentForSelfExtract
+        // is deliberately off — so drivers\LpcACPIEC.bin has to ship as a loose file beside the exe.
+        // A deployment that copies only OmenCore.exe loses EC access, undervolt and the APU clamp in
+        // one go, and the only symptom is the "No EC" badge. The installer gets this right by taking
+        // the publish directory with recursesubdirs; hand-assembled drops are where it goes wrong.
         private static byte[]? _lpcAcpiEcModule;
 
         // ACPI EC standard ports
@@ -233,7 +239,13 @@ namespace OmenCore.Hardware
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // A registry read this can fail on is an unusual machine, and the fallback below
+                // silently covers it - which is exactly why it is worth a line. Someone debugging
+                // "No EC" wants to know the lookup threw rather than found nothing.
+                System.Diagnostics.Debug.WriteLine($"[PawnIO] Install-path registry lookup failed: {ex.Message}");
+            }
 
             // Fallback to default location
             string defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "PawnIO");

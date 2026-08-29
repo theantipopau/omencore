@@ -49,6 +49,18 @@ namespace OmenCore.Models
         public bool PerCoreOffsetsRequestedButNotApplied { get; set; }
 
         /// <summary>
+        /// True when a non-zero iGPU Curve Optimizer offset was requested and did not land - either
+        /// because the active backend has no confirmed iGPU CO message for this CPU, or because the
+        /// SMU refused the one it has. AMD only: on Intel the same model field
+        /// (<see cref="CurrentCacheOffsetMv"/>) really is a cache offset.
+        ///
+        /// Without this, the only visible symptom is <see cref="CurrentCacheOffsetMv"/> sitting at
+        /// 0 against a non-zero request, which the status line renders as a bare "mismatch between
+        /// requested and readback" - indistinguishable from a write that was attempted and failed.
+        /// </summary>
+        public bool IgpuOffsetRequestedButNotApplied { get; set; }
+
+        /// <summary>
         /// True when <see cref="CurrentCoreOffsetMv"/>/<see cref="CurrentCacheOffsetMv"/> were
         /// polled from an independent hardware register (e.g. the Intel MSR path). False when
         /// they are only the backend's own record of the last value it successfully wrote (the

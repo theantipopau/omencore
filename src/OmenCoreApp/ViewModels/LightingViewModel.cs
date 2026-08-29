@@ -653,7 +653,7 @@ namespace OmenCore.ViewModels
         /// keyboard for its lamp map and that should not happen while the view is being composed.
         /// </summary>
         public KeyboardMapViewModel KeyboardMap =>
-            _keyboardMap ??= new KeyboardMapViewModel(_keyboardLightingService, _logging);
+            _keyboardMap ??= new KeyboardMapViewModel(_keyboardLightingService, _logging, _configService);
 
         /// <summary>Whether the backend read a real key layout off this keyboard.</summary>
         public bool HasMeasuredKeyMap => KeyboardMap.IsAvailable;
@@ -669,7 +669,7 @@ namespace OmenCore.ViewModels
         /// <summary>The keyboard's built-in effect engine and the light bar - hardware-rendered
         /// surfaces, as opposed to the host-painted per-key picture above.</summary>
         public DeviceLightingViewModel DeviceLighting =>
-            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging);
+            _deviceLighting ??= new DeviceLightingViewModel(_keyboardLightingService, _logging, _configService);
 
         public bool HasDeviceEffects => DeviceLighting.SupportsDeviceEffects;
         public bool HasLightBar => DeviceLighting.IsLightBarAvailable;
@@ -2588,7 +2588,23 @@ namespace OmenCore.ViewModels
                     _logging.Info("Keyboard backlight was OFF - respecting user preference, not restoring colors");
                     return;
                 }
-                
+
+                // A per-key picture beats a four-zone fill and the two cannot both run - the fill
+                // would paint over every key the picture placed. Where a picture was saved it is
+                // the more specific record of what the user chose, so it wins and returns.
+                //
+                // ORDER MATTERS. KeyboardMap is lazy because constructing it interrogates the
+                // keyboard for its layout and lamp map, so it is tested LAST: on a machine with no
+                // saved picture - every machine, on first run - the cheap config checks short
+                // circuit and startup never touches the device at all.
+                if (config.RestorePerKeyPictureOnStartup && config.PerKeyPicture.Count > 0
+                    && KeyboardMap.IsAvailable)
+                {
+                    await KeyboardMap.ApplyRestoredPictureAsync();
+                    _logging.Info($"✓ Restored per-key picture on startup: {config.PerKeyPicture.Count} cells");
+                    return;
+                }
+
                 await _keyboardLightingService.SetAllZoneColors(BuildKeyboardZoneColorsForBackend());
                 _logging.Info($"✓ Restored keyboard colors on startup: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
             }

@@ -402,6 +402,102 @@ namespace OmenCore.Hardware
             }
         }
 
+        /// <summary>
+        /// Resolve the SMU power-metrics table: its version and the DRAM address the SMU will
+        /// transfer it to. Both come from the module rather than from a family table here, which
+        /// is why this works on parts whose layout we do not otherwise know.
+        /// </summary>
+        public bool TryResolvePmTable(out uint version, out uint tableBase)
+        {
+            version = 0;
+            tableBase = 0;
+            if (!IsAvailable || _pawnioExecute == null) return false;
+
+            if (!TryAcquirePciMutex()) return false;
+            try
+            {
+                ulong[] output = new ulong[2];
+                int hr = _pawnioExecute(_handle, "ioctl_resolve_pm_table",
+                    Array.Empty<ulong>(), IntPtr.Zero, output, (IntPtr)2, out _);
+                if (hr < 0)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[RyzenSmu] PM table resolve failed: HRESULT 0x{hr:X8}");
+                    return false;
+                }
+
+                version = (uint)output[0];
+                tableBase = (uint)output[1];
+                return version != 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RyzenSmu] PM table resolve threw: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                ReleasePciMutex();
+            }
+        }
+
+        /// <summary>
+        /// Ask the SMU to refresh the table in DRAM, then read it back as the flat little-endian
+        /// float array it is. READ PATH ONLY - no limit is written anywhere on it.
+        ///
+        /// The transfer and the read are taken under a SINGLE mutex hold deliberately. They are
+        /// two ioctls, and releasing between them lets another PCI-bus user transfer its own
+        /// snapshot into the same DRAM before this one is read - which surfaces as plausible
+        /// values from the wrong instant rather than as an error.
+        /// </summary>
+        /// <param name="sizeBytes">Table size in bytes. Must be a multiple of 4.</param>
+        public bool TryReadPmTable(uint sizeBytes, out float[] table)
+        {
+            table = Array.Empty<float>();
+            if (!IsAvailable || _pawnioExecute == null) return false;
+            if (sizeBytes == 0 || sizeBytes % 4 != 0) return false;
+
+            if (!TryAcquirePciMutex()) return false;
+            try
+            {
+                int hr = _pawnioExecute(_handle, "ioctl_update_pm_table",
+                    Array.Empty<ulong>(), IntPtr.Zero, Array.Empty<ulong>(), IntPtr.Zero, out _);
+                if (hr < 0)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[RyzenSmu] PM table update failed: HRESULT 0x{hr:X8}");
+                    return false;
+                }
+
+                // The module hands back 64-bit words; the table is 32-bit floats. Round the word
+                // count up so a size that is not a multiple of 8 still gets its last dword.
+                int words = (int)((sizeBytes + 7) / 8);
+                ulong[] raw = new ulong[words];
+                hr = _pawnioExecute(_handle, "ioctl_read_pm_table",
+                    Array.Empty<ulong>(), IntPtr.Zero, raw, (IntPtr)words, out _);
+                if (hr < 0)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[RyzenSmu] PM table read failed: HRESULT 0x{hr:X8}");
+                    return false;
+                }
+
+                var floats = new float[sizeBytes / 4];
+                Buffer.BlockCopy(raw, 0, floats, 0, (int)sizeBytes);
+                table = floats;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[RyzenSmu] PM table read threw: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                ReleasePciMutex();
+            }
+        }
+
         private SmuStatus SendMsg(uint addrMsg, uint addrRsp, uint addrArg, uint msg, ref uint[] args)
         {
             if (!IsAvailable) return SmuStatus.Failed;
