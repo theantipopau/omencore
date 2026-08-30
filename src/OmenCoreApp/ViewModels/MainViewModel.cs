@@ -5439,7 +5439,12 @@ namespace OmenCore.ViewModels
             {
                 try
                 {
-                    _fanService.ApplyMaxCooling();
+                    // suppressLinkedProfileSync: this override exists specifically to force
+                    // cooling while leaving the user's performance profile on Quiet - see
+                    // GitHub #181 and FanPresetAppliedEventArgs for why this must not cascade
+                    // into a linked performance-mode switch the way a user-initiated Max Fan
+                    // click legitimately should.
+                    _fanService.ApplyMaxCooling(suppressLinkedProfileSync: true);
                     var confirmedFanMode = _fanService.GetCurrentFanMode() ?? "Max";
                     CurrentFanMode = confirmedFanMode;
                     General?.SetQuietSafetyOverride(true);
@@ -5666,8 +5671,9 @@ namespace OmenCore.ViewModels
         /// Handle fan preset changes from FanService (e.g., power automation).
         /// Updates all UI indicators: sidebar, tray, dashboard.
         /// </summary>
-        private void OnFanPresetApplied(object? sender, string presetName)
+        private void OnFanPresetApplied(object? sender, FanPresetAppliedEventArgs e)
         {
+            var presetName = e.PresetName;
             Application.Current?.Dispatcher?.BeginInvoke(() =>
             {
                 try
@@ -5680,20 +5686,26 @@ namespace OmenCore.ViewModels
 
                     // Update MainViewModel's CurrentFanMode for tray/sidebar sync
                     CurrentFanMode = confirmedModeName;
-                    
+
                     // Update Dashboard if loaded
                     if (_dashboard != null)
                     {
                         _dashboard.CurrentFanMode = confirmedModeName;
                     }
-                    
+
                     // Update FanControlViewModel's selected preset if loaded
                     FanControl?.SelectPresetByNameNoApply(presetName);
                     _general?.SyncRuntimeState(CurrentPerformanceMode, confirmedModeName);
 
                     // When fan/performance linking is enabled, fan mode changes become
-                    // authoritative and update performance mode through one guarded path.
-                    if (IsFanPerformanceLinked && TryEnterProfileSync())
+                    // authoritative and update performance mode through one guarded path -
+                    // unless this change came from a safety-driven override (e.g. the Quiet
+                    // Safety Monitor) that explicitly intends to force cooling while leaving
+                    // the performance profile alone. GitHub #181: without this check, a
+                    // transient thermal spike on Quiet + linking silently switched the user to
+                    // Performance, contradicting the safety monitor's own "power mode retained"
+                    // guarantee.
+                    if (IsFanPerformanceLinked && !e.SuppressLinkedProfileSync && TryEnterProfileSync())
                     {
                         try
                         {
@@ -5710,7 +5722,11 @@ namespace OmenCore.ViewModels
                             ExitProfileSync();
                         }
                     }
-                    
+                    else if (e.SuppressLinkedProfileSync)
+                    {
+                        _logging.Info($"Link sync skipped for fan preset '{presetName}': safety-driven change, performance profile left as-is");
+                    }
+
                     _logging.Info($"UI synced: Fan preset '{presetName}' applied as runtime mode '{confirmedModeName}'");
                 }
                 catch (Exception ex)

@@ -577,7 +577,7 @@ namespace OmenCoreApp.Tests.Services
             var notificationService = new NotificationService(logging);
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var applied = new List<string>();
-            fanService.PresetApplied += (_, mode) => applied.Add(mode);
+            fanService.PresetApplied += (_, e) => applied.Add(e.PresetName);
 
             fanService.ApplyAutoMode();
             fanService.ApplyQuietMode();
@@ -603,12 +603,65 @@ namespace OmenCoreApp.Tests.Services
             string? delivered = null;
 
             fanService.PresetApplied += (_, _) => throw new InvalidOperationException("subscriber failed");
-            fanService.PresetApplied += (_, mode) => delivered = mode;
+            fanService.PresetApplied += (_, e) => delivered = e.PresetName;
 
             var act = () => fanService.ApplyAutoMode();
 
             act.Should().NotThrow("subscriber failures must not make a confirmed fan apply look failed");
             delivered.Should().Be("Auto");
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void ApplyMaxCooling_SuppressLinkedProfileSync_FlowsThroughToEventArgs()
+        {
+            // GitHub #181: the Quiet Safety Monitor calls ApplyMaxCooling specifically to keep
+            // fans cool while leaving the user's performance profile alone. Assert the
+            // suppressLinkedProfileSync parameter actually reaches subscribers via
+            // FanPresetAppliedEventArgs.SuppressLinkedProfileSync, since that's the only signal
+            // MainViewModel's link-sync has to distinguish this from a normal user-initiated
+            // Max Fan request.
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var suppressedFlags = new List<bool>();
+            fanService.PresetApplied += (_, e) => suppressedFlags.Add(e.SuppressLinkedProfileSync);
+
+            fanService.ApplyMaxCooling(suppressLinkedProfileSync: true);
+
+            suppressedFlags.Should().ContainSingle().Which.Should().BeTrue(
+                "a safety-driven Max Cooling apply must mark its PresetApplied event as suppressing linked-profile sync");
+
+            logging.Dispose();
+        }
+
+        [Fact]
+        public void ApplyMaxCooling_DefaultCall_DoesNotSuppressLinkedProfileSync()
+        {
+            // A normal, user-initiated Max Fan request (button, hotkey, OMEN key) must keep
+            // cascading into a linked performance-mode switch exactly as before - only the
+            // safety-driven caller opts out.
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var controller = new NoEffectController();
+            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
+            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var notificationService = new NotificationService(logging);
+            var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var suppressedFlags = new List<bool>();
+            fanService.PresetApplied += (_, e) => suppressedFlags.Add(e.SuppressLinkedProfileSync);
+
+            fanService.ApplyMaxCooling();
+
+            suppressedFlags.Should().ContainSingle().Which.Should().BeFalse(
+                "a normal Max Cooling apply must not suppress linked-profile sync");
 
             logging.Dispose();
         }
@@ -635,7 +688,7 @@ namespace OmenCoreApp.Tests.Services
             // Directly call internal forceApply path to simulate preset re-application
             typeof(FanService)
                 .GetMethod("ApplyMaxCooling", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!
-                .Invoke(fanService, new object[] { true }); // forceApply: true
+                .Invoke(fanService, new object[] { true, false }); // forceApply: true, suppressLinkedProfileSync: false
 
             int callCountAfterForced = controller.ApplyMaxCoolingCount;
             callCountAfterForced.Should().Be(2, "forced ApplyMaxCooling should always write even when already in Max");

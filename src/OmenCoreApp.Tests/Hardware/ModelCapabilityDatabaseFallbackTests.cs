@@ -36,6 +36,66 @@ namespace OmenCoreApp.Tests.Hardware
                 "default capabilities must specify at least one fan zone");
         }
 
+        // ─── GitHub #182: DefaultCapabilities must not claim write-capable features ───
+
+        [Fact]
+        public void DefaultCapabilities_DoesNotClaimWriteCapableFeaturesAsSupported()
+        {
+            // GitHub #182 (board 8603, OMEN 17-cb0xxx): a completely unrecognized board used to
+            // inherit SupportsFanCurves/SupportsGpuPowerBoost/HasFourZoneRgb = true from this
+            // fallback "so the app can still operate" - but those are hardware-specific,
+            // write-capable claims, not baseline operability. The reporter's own OmenMon probe
+            // showed GetGpuPower() failing outright on that exact hardware, directly
+            // contradicting the "Supported" badge this fallback was producing.
+            var caps = ModelCapabilityDatabase.DefaultCapabilities;
+
+            caps.SupportsFanControlEc.Should().BeFalse("EC fan control must not be assumed on a completely unrecognized board");
+            caps.SupportsFanCurves.Should().BeFalse("custom fan curves must not be assumed on a completely unrecognized board");
+            caps.SupportsIndependentFanCurves.Should().BeFalse("independent fan curves must not be assumed on a completely unrecognized board");
+            caps.SupportsGpuPowerBoost.Should().BeFalse("GPU Power Boost must not be assumed on a completely unrecognized board");
+            caps.SupportsUndervolt.Should().BeFalse("undervolt must not be assumed on a completely unrecognized board");
+            caps.SupportsTccOffset.Should().BeFalse("TCC offset must not be assumed on a completely unrecognized board");
+            caps.SupportsPowerLimits.Should().BeFalse("direct power limits must not be assumed on a completely unrecognized board");
+            caps.HasFourZoneRgb.Should().BeFalse("4-zone RGB must not be assumed on a completely unrecognized board");
+
+            // Basic WMI fan-mode switching and OEM performance profiles are the one thing safe
+            // to assume for any HP OMEN/Victus laptop - the app must still be able to operate.
+            caps.SupportsFanControlWmi.Should().BeTrue("WMI BIOS fan-mode switching is the one thing safe to assume for any HP OMEN/Victus laptop");
+            caps.SupportsPerformanceModes.Should().BeTrue("OEM performance profiles are the one thing safe to assume for any HP OMEN/Victus laptop");
+        }
+
+        [Fact]
+        public void GetCapabilitiesByFamily_DoesNotInheritWriteCapableFeaturesFromTemplateBoard()
+        {
+            // GitHub #182: this used to clone essentially every feature flag from "the first
+            // model of this family in dictionary order" - so whichever board happened to be
+            // enumerated first decided what every other, unrelated, unverified board in that
+            // family claimed to support. Assert it no longer does, across every family that
+            // actually has a template board in the database.
+            foreach (OmenModelFamily family in System.Enum.GetValues<OmenModelFamily>())
+            {
+                var caps = ModelCapabilityDatabase.GetCapabilitiesByFamily(family);
+                if (caps.ProductId == "DEFAULT")
+                {
+                    // No template board for this family - falls through to DefaultCapabilities,
+                    // already covered by the test above.
+                    continue;
+                }
+
+                caps.SupportsFanControlEc.Should().BeFalse($"{family}: EC fan control must not be inherited from an arbitrary template board");
+                caps.SupportsFanCurves.Should().BeFalse($"{family}: fan curves must not be inherited from an arbitrary template board");
+                caps.SupportsIndependentFanCurves.Should().BeFalse($"{family}: independent fan curves must not be inherited from an arbitrary template board");
+                caps.HasMuxSwitch.Should().BeFalse($"{family}: MUX switch presence must not be inherited from an arbitrary template board");
+                caps.SupportsGpuPowerBoost.Should().BeFalse($"{family}: GPU Power Boost must not be inherited from an arbitrary template board");
+                caps.HasFourZoneRgb.Should().BeFalse($"{family}: 4-zone RGB must not be inherited from an arbitrary template board");
+                caps.HasPerKeyRgb.Should().BeFalse($"{family}: per-key RGB must not be inherited from an arbitrary template board");
+                caps.SupportsUndervolt.Should().BeFalse($"{family}: undervolt must not be inherited from an arbitrary template board");
+                caps.SupportsTccOffset.Should().BeFalse($"{family}: TCC offset must not be inherited from an arbitrary template board");
+                caps.SupportsPowerLimits.Should().BeFalse($"{family}: direct power limits must not be inherited from an arbitrary template board");
+                caps.UserVerified.Should().BeFalse($"{family}: a family-fallback match is never user-verified");
+            }
+        }
+
         [Fact]
         public void GetCapabilities_EmptyString_ReturnsNonNullDefault()
         {

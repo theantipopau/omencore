@@ -285,8 +285,23 @@ namespace OmenCore.Hardware
             Vibrance25C1BoardIds.Contains(productId, StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Default capabilities used when model is not in the database.
-        /// Assumes standard OMEN laptop capabilities.
+        /// Default capabilities used when model is not in the database at all — no ProductId
+        /// match, no WMI model-name pattern match, no family match either.
+        ///
+        /// GitHub #182 (board 8603, OMEN 17-cb0xxx, 2019-era i9-9880H + RTX 2080): this used to
+        /// claim SupportsFanCurves/SupportsIndependentFanCurves/SupportsGpuPowerBoost/
+        /// HasFourZoneRgb = true "so the app can still operate" — but those are write-capable,
+        /// hardware-specific claims, not baseline operability. The reporter's own OmenMon probe
+        /// showed the BIOS GetGpuPower() call failing outright ("Command not available") on this
+        /// exact hardware, directly contradicting the "Supported" badge OmenCore was showing for
+        /// GPU Power Boost. Same class of bug SupportsEcPowerLimits was already fixed for
+        /// (GitHub #159) — an unconfirmed write path attempted by default on every board that
+        /// didn't explicitly opt out, just for a different feature. Only the two things actually
+        /// safe to assume for *any* HP OMEN/Victus laptop stay true here: basic WMI BIOS fan-mode
+        /// switching and OEM performance profiles. Everything with its own write path (fan
+        /// curves, EC fan control, GPU power boost, undervolt, TCC offset, direct power limits)
+        /// defaults to false until a real board entry confirms it, same as every named entry in
+        /// this file already does.
         /// </summary>
         public static ModelCapabilities DefaultCapabilities { get; } = new ModelCapabilities
         {
@@ -295,17 +310,20 @@ namespace OmenCore.Hardware
             ModelYear = 2023,
             Family = OmenModelFamily.Unknown,
             SupportsFanControlWmi = true,
-            SupportsFanControlEc = true,
-            SupportsFanCurves = true,
-            SupportsIndependentFanCurves = true,
+            SupportsFanControlEc = false,
+            SupportsFanCurves = false,
+            SupportsIndependentFanCurves = false,
             SupportsRpmReadback = true,
             FanZoneCount = 2,
             SupportsPerformanceModes = true,
             PerformanceModes = new[] { "Default", "Performance", "Cool" },
-            SupportsGpuPowerBoost = true,
+            SupportsGpuPowerBoost = false,
+            SupportsUndervolt = false,
+            SupportsTccOffset = false,
+            SupportsPowerLimits = false,
             HasKeyboardBacklight = true,
-            HasFourZoneRgb = true,
-            Notes = "Default configuration - some features may not work on your model"
+            HasFourZoneRgb = false,
+            Notes = "Truly unrecognized model (no ProductId, name-pattern, or family match) - conservative defaults, most write-capable features hidden until this board is added to the database"
         };
         
         static ModelCapabilityDatabase()
@@ -1246,6 +1264,39 @@ namespace OmenCore.Hardware
             // OMEN 17 Series (17.3" laptops)
             // -----------------------------------------------------------------------------------
 
+            // GitHub #182: HP OMEN 17-cb0xxx (i9-9880H + RTX 2080, BIOS AMI F.53), exact
+            // ProductId 8603. Pre-dates the 2021-2023 OMEN17 family range (OmenModelFamily.Legacy
+            // instead), so it was previously falling through to GetCapabilitiesByFamily's
+            // "Unknown OMEN17 Model" path and inheriting whichever board happened to be that
+            // family's dictionary-order template - which is how this board ended up showing
+            // Custom fan curves / Independent fan curves / GPU Power Boost / 4-zone RGB / CPU
+            // undervolting / power limits as all "Supported". Reporter's own OmenMon probe
+            // (a completely independent tool from OmenCore) shows the BIOS's GetGpuPower() call
+            // failing outright — "Command not available" — directly contradicting the GPU Power
+            // Boost claim this board was showing. No confirming data for the other flags either,
+            // so all default to the same conservative false the family-fallback fix above now
+            // uses; this named entry mainly stops 8603 from depending on that fallback path at
+            // all, and gives a fixed point future field data can update in place.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8603",
+                ModelName = "OMEN 17-cb0xxx (2019)",
+                ModelNamePattern = "17-cb0",
+                ModelYear = 2019,
+                Family = OmenModelFamily.Legacy,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #182 — HP OMEN 17-cb0xxx (i9-9880H + RTX 2080), ProductId 8603. Was resolving via family fallback and inheriting an unrelated template board's capabilities; GPU Power Boost specifically confirmed non-functional on this hardware via an independent OmenMon BIOS probe (GetGpuPower() fails with 'Command not available'). Feature flags conservative pending field verification."
+            });
+
             // OMEN 17 (2021) Intel - product ID 8BB1 is also shared with Victus 15-fa1xxx;
             // this ID is explicitly marked ambiguous so WMI model context can select the
             // Victus disambiguation entry (8BB1-VICTUS15) when needed.
@@ -1330,6 +1381,36 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false,
                 UserVerified = false,
                 Notes = "Victus 15-fa1xxx — single-color backlight; shares 8BB1 product ID with OMEN 17 (2021)"
+            });
+
+            // GitHub #178: HP Victus 15-fa2303TX (C2JQ3PA), exact ProductId 8E5E. Reporter's own
+            // fan-verification diagnostic: "Backend: WMI BIOS | RPM source: Estimated", 3/6 tests
+            // passed (60/100, Fair) — WMI fan-level control responds, but the app is reading back
+            // its own commanded level, not a physical tachometer, and that estimate diverged from
+            // reality at higher loads (CPU@60%, CPU@100%, GPU@100% all failed with "evidence:
+            // None"). SupportsRpmReadback = false reflects that directly rather than claiming a
+            // reliable RPM number this board hasn't demonstrated. Reporter confirms single-zone,
+            // static-color-only keyboard backlight, matching the established 15-fa-series pattern.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8E5E",
+                ModelName = "HP Victus 15-fa2303TX (2024)",
+                ModelNamePattern = "15-fa2",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #178 — HP Victus 15-fa2303TX / C2JQ3PA, ProductId 8E5E. Fan-verification diagnostic showed WMI fan-level control responding but RPM readback is level-estimated, not a real tachometer, and diverged from expectations under load (3/6 tests passed). Single-zone, static-color-only keyboard backlight per reporter. Feature flags conservative pending further field verification."
             });
 
             AddModel(new ModelCapabilities
@@ -1965,7 +2046,27 @@ namespace OmenCore.Hardware
         }
         
         /// <summary>
-        /// Get capabilities by model family (fallback when Product ID not known).
+        /// Get capabilities by model family (fallback when Product ID and WMI name pattern are
+        /// both unknown, but the family itself was resolved).
+        ///
+        /// GitHub #182: this used to pick "the first model of this family" in dictionary order
+        /// as a template and clone essentially all of its feature flags — MUX switch, GPU Power
+        /// Boost, 4-zone RGB, per-key RGB, undervolt support, direct EC fan control, custom fan
+        /// curves. Whichever board happened to be enumerated first for that family decided what
+        /// every *other*, completely different, unverified board in that family claimed to
+        /// support. An OMEN17 board from 2019 (i9-9880H + RTX 2080) inherited GPU Power Boost as
+        /// "Supported" this way — the reporter's OmenMon probe showed the underlying BIOS call
+        /// failing outright on that exact hardware.
+        ///
+        /// Only WMI BIOS fan-mode switching and OEM performance profiles are safe to assume
+        /// family-wide (matching the existing precedent at the OMEN Slim 16 8D40 entry: "core
+        /// WMI fan/profile control already works via family fallback, so that much is shared" —
+        /// explicitly followed by a warning not to assume MUX switch, GPU TGP range, undervolt,
+        /// or keyboard RGB just because two boards share a family or WMI command generation).
+        /// Fan zone count is kept too since it reflects a physical layout convention
+        /// (CPU+GPU fans) that's stable across nearly every family member, not a write-gated
+        /// feature claim. Everything else defaults to false/null here regardless of what the
+        /// template board supports, until a real ProductId entry confirms it for this board.
         /// </summary>
         public static ModelCapabilities GetCapabilitiesByFamily(OmenModelFamily family)
         {
@@ -1973,7 +2074,9 @@ namespace OmenCore.Hardware
             var templateModel = _knownModels.Values.FirstOrDefault(m => m.Family == family);
             if (templateModel != null)
             {
-                // Clone the template but mark as not user-verified
+                // Clone only what's genuinely safe to assume family-wide; every write-capable
+                // or hardware-specific claim is a conservative default, not inherited from
+                // whichever board happened to be the template.
                 return new ModelCapabilities
                 {
                     ProductId = "FAMILY_" + family.ToString().ToUpperInvariant(),
@@ -1981,23 +2084,25 @@ namespace OmenCore.Hardware
                     ModelYear = templateModel.ModelYear,
                     Family = family,
                     SupportsFanControlWmi = templateModel.SupportsFanControlWmi,
-                    SupportsFanControlEc = templateModel.SupportsFanControlEc,
-                    SupportsFanCurves = templateModel.SupportsFanCurves,
-                    SupportsIndependentFanCurves = templateModel.SupportsIndependentFanCurves,
+                    SupportsFanControlEc = false,
+                    SupportsFanCurves = false,
+                    SupportsIndependentFanCurves = false,
                     FanZoneCount = templateModel.FanZoneCount,
                     SupportsPerformanceModes = templateModel.SupportsPerformanceModes,
-                    AllowDecoupledWmiThermalPolicyFallback = templateModel.AllowDecoupledWmiThermalPolicyFallback,
-                    AllowV1AutoModeFloorClear = templateModel.AllowV1AutoModeFloorClear,
-                    HasMuxSwitch = templateModel.HasMuxSwitch,
-                    SupportsGpuPowerBoost = templateModel.SupportsGpuPowerBoost,
-                    HasFourZoneRgb = templateModel.HasFourZoneRgb,
-                    HasPerKeyRgb = templateModel.HasPerKeyRgb,
-                    SupportsUndervolt = templateModel.SupportsUndervolt,
+                    AllowDecoupledWmiThermalPolicyFallback = false,
+                    AllowV1AutoModeFloorClear = null,
+                    HasMuxSwitch = false,
+                    SupportsGpuPowerBoost = false,
+                    HasFourZoneRgb = false,
+                    HasPerKeyRgb = false,
+                    SupportsUndervolt = false,
+                    SupportsTccOffset = false,
+                    SupportsPowerLimits = false,
                     UserVerified = false,
-                    Notes = $"Based on typical {family} model - actual capabilities may vary"
+                    Notes = $"Family match only (no ProductId or WMI name-pattern match) - conservative defaults; only WMI fan-mode switching and performance profiles are assumed to work, everything else needs this exact board added to the database"
                 };
             }
-            
+
             return DefaultCapabilities;
         }
         

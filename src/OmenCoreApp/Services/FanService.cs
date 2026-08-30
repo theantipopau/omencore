@@ -11,6 +11,33 @@ using OmenCore.Services.Diagnostics;
 namespace OmenCore.Services
 {
     /// <summary>
+    /// Payload for <see cref="FanService.PresetApplied"/>. Carries whether this preset change
+    /// originated from a safety-driven mechanism that must not cascade into a linked
+    /// performance-mode switch.
+    ///
+    /// GitHub #181: the Quiet Safety Monitor forces fans to Max while explicitly intending to
+    /// leave the user's performance profile alone (its own log message says "Quiet power mode
+    /// retained"), but <see cref="FanService.PresetApplied"/> fires for every fan-mode change
+    /// regardless of source — a user clicking Max Fan, a hotkey, or an internal safety override
+    /// all looked identical to the subscriber. When Fan/Performance linking was enabled, that
+    /// meant a transient thermal spike silently switched the user off Quiet entirely, exactly
+    /// contradicting the safety monitor's own stated intent. <see cref="SuppressLinkedProfileSync"/>
+    /// lets a safety-driven caller opt out of that cascade while every other subscriber (tray,
+    /// sidebar, dashboard) still sees the fan-mode change normally.
+    /// </summary>
+    public sealed class FanPresetAppliedEventArgs : EventArgs
+    {
+        public string PresetName { get; }
+        public bool SuppressLinkedProfileSync { get; }
+
+        public FanPresetAppliedEventArgs(string presetName, bool suppressLinkedProfileSync = false)
+        {
+            PresetName = presetName;
+            SuppressLinkedProfileSync = suppressLinkedProfileSync;
+        }
+    }
+
+    /// <summary>
     /// Fan service that implements continuous fan curve monitoring like OmenMon.
     /// 
     /// Key differences from v1.2.x:
@@ -822,7 +849,7 @@ namespace OmenCore.Services
         /// <summary>
         /// Event raised when a preset is applied (for UI synchronization).
         /// </summary>
-        public event EventHandler<string>? PresetApplied;
+        public event EventHandler<FanPresetAppliedEventArgs>? PresetApplied;
 
         /// <summary>
         /// Event raised when curve or backend hold activity changes.
@@ -2850,7 +2877,13 @@ namespace OmenCore.Services
         /// <summary>
         /// Apply max cooling mode (100% fans).
         /// </summary>
-        public void ApplyMaxCooling(bool forceApply = false)
+        /// <param name="forceApply">Re-apply even if already believed to be in Max mode.</param>
+        /// <param name="suppressLinkedProfileSync">
+        /// True when this call comes from a safety-driven mechanism (e.g. the Quiet Safety
+        /// Monitor) that intends to force cooling while explicitly leaving the user's
+        /// performance profile alone. See <see cref="FanPresetAppliedEventArgs"/>.
+        /// </param>
+        public void ApplyMaxCooling(bool forceApply = false, bool suppressLinkedProfileSync = false)
         {
             if (!FanWritesAvailable)
             {
@@ -2864,7 +2897,7 @@ namespace OmenCore.Services
             {
                 RecordFanCommand("ApplyMaxCooling", "Max", true, "Already in Max mode - write skipped");
                 ScheduleDeferredMaxVerification();
-                PublishPresetApplied(_currentFanMode);
+                PublishPresetApplied(_currentFanMode, suppressLinkedProfileSync);
                 return;
             }
             
@@ -2919,7 +2952,7 @@ namespace OmenCore.Services
                 _logging.Warn("Max cooling mode NOT applied - all write attempts failed");
             }
             ScheduleDeferredMaxVerification();
-            PublishPresetApplied(_currentFanMode);
+            PublishPresetApplied(_currentFanMode, suppressLinkedProfileSync);
         }
 
         private void ScheduleDeferredMaxVerification()
@@ -3035,7 +3068,7 @@ namespace OmenCore.Services
 
         private string _currentFanMode = "Auto";
 
-        private void PublishPresetApplied(string presetName)
+        private void PublishPresetApplied(string presetName, bool suppressLinkedProfileSync = false)
         {
             var handlers = PresetApplied;
             if (handlers == null)
@@ -3043,11 +3076,12 @@ namespace OmenCore.Services
                 return;
             }
 
-            foreach (EventHandler<string> handler in handlers.GetInvocationList())
+            var args = new FanPresetAppliedEventArgs(presetName, suppressLinkedProfileSync);
+            foreach (EventHandler<FanPresetAppliedEventArgs> handler in handlers.GetInvocationList())
             {
                 try
                 {
-                    handler(this, presetName);
+                    handler(this, args);
                 }
                 catch (Exception ex)
                 {
