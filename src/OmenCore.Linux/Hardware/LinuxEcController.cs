@@ -1311,11 +1311,82 @@ public class LinuxEcController
                 FanProfile.Gaming => 2,     // Let BIOS handle with performance profile
                 _ => 2
             };
-            
+
             success = SetHwmonPwmEnable(pwmValue) || success;
         }
-        
+
+        // GitHub #183 (board 8D87): pwm_enable=2 is a policy flag telling the firmware "you
+        // take over" - it is not a guarantee the firmware actually resumes driving pwm1. On
+        // this board, degraded ACPI (kernel logs showed WMAA/WHCM/WQB* method aborts) let the
+        // write succeed while both fans stayed at 0 RPM under a full gaming load, with nothing
+        // else watching (this is a one-shot CLI command, not a monitored daemon) - the machine
+        // thermally shut down. Verify the transition actually resumed cooling before reporting
+        // Auto as applied.
+        if (success && profile == FanProfile.Auto && HasHwmonFanAccess)
+        {
+            success = VerifyAutoModeResumedCoolingOrFallBackToMax();
+        }
+
         return success;
+    }
+
+    /// <summary>
+    /// Polls fan RPM for a few seconds after an Auto-mode write. If both fans are still at
+    /// 0 RPM while CPU or GPU temperature is above a safety threshold, restores Max mode (the
+    /// same write path GitHub #183's reporter confirmed works reliably on this board) instead
+    /// of leaving the user with dead cooling under load. Returns false when the fallback fired,
+    /// so the caller reports the Auto transition as failed rather than successful - matching
+    /// the issue's own suggested fix ("report Auto as failed when RPM readback contradicts the
+    /// requested state").
+    ///
+    /// 85C is a deliberately conservative "clearly not idle, needs airflow" bar - well below
+    /// the 90-95C ramp/emergency range this project already treats as thermal-protection
+    /// territory elsewhere, so this fires with margin to spare rather than waiting until
+    /// things are already dangerous. A machine that's merely cool and briefly fanless while
+    /// idle never reaches this threshold and is left alone.
+    /// </summary>
+    private bool VerifyAutoModeResumedCoolingOrFallBackToMax()
+    {
+        const int SafetyTempThresholdC = 85;
+        const int PollAttempts = 4;
+        const int PollIntervalMs = 1000;
+
+        var hwmon = new LinuxHwMonController();
+
+        for (var i = 0; i < PollAttempts; i++)
+        {
+            Thread.Sleep(PollIntervalMs);
+
+            var (fan1, fan2) = GetFanSpeeds();
+            if (fan1 > 0 || fan2 > 0)
+            {
+                // Fans responded - Auto genuinely took over.
+                return true;
+            }
+
+            var cpuTemp = LinuxTelemetryResolver.GetCpuTemperature(this, hwmon)?.Temperature ?? 0;
+            var gpuTemp = LinuxTelemetryResolver.GetGpuTemperature(this, hwmon)?.Temperature ?? 0;
+            var hottest = Math.Max(cpuTemp, gpuTemp);
+
+            if (hottest < SafetyTempThresholdC)
+            {
+                // Not obviously dangerous yet - keep watching rather than jumping straight to
+                // Max on a machine that may just be genuinely idle.
+                continue;
+            }
+
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"⚠ SAFETY: both fans stayed at 0 RPM after switching to Auto while CPU/GPU is at {hottest}°C.");
+            Console.WriteLine("  Restoring Max fan mode automatically to prevent a thermal shutdown (see GitHub issue #183).");
+            Console.ResetColor();
+
+            SetFanProfileViaAcpiHwmon(FanProfile.Max);
+            return false;
+        }
+
+        // Fans stayed at 0 for the whole poll window but never got hot enough to trip the
+        // safety threshold - most likely a genuinely idle machine, not the #183 failure mode.
+        return true;
     }
     
     /// <summary>
@@ -1333,17 +1404,17 @@ public class LinuxEcController
             return RestoreAutoModeViaHpWmi();
         }
         
-        // Try ACPI/hwmon path (2025+ OMEN Max models)
+        // Try ACPI/hwmon path (2025+ OMEN Max models). Routed through the same
+        // SetFanProfileViaAcpiHwmon(Auto) path SetFanProfile() itself uses (rather than
+        // duplicating the ACPI-profile/pwm_enable writes here) so this gets the GitHub #183
+        // fan-resumed-cooling safety check for free - this method is also called directly by
+        // the fan-curve daemon (Daemon/FanCurveEngine.cs), which needs that protection at
+        // least as much as the one-shot CLI does, since nothing else is watching either way.
         if (HasAcpiProfileAccess || HasHwmonFanAccess)
         {
-            bool success = false;
-            if (HasAcpiProfileAccess)
-                success = SetAcpiProfile("balanced");
-            if (HasHwmonFanAccess)
-                success = SetHwmonPwmEnable(2) || success; // 2 = BIOS auto
-            return success;
+            return SetFanProfileViaAcpiHwmon(FanProfile.Auto);
         }
-        
+
         // Fall back to EC register method (older models)
         if (!HasEcAccess)
             return false;

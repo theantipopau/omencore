@@ -467,8 +467,14 @@ namespace OmenCore.Services
             {
                 if (_hotkeySource != null)
                 {
-                    var helper = new WindowInteropHelper(Application.Current.MainWindow);
-                    UnregisterHotKey(helper.Handle, HOTKEY_ID);
+                    // Use the handle the hotkey was actually registered against, not
+                    // Application.Current.MainWindow - by the time this runs during shutdown
+                    // the main window can already be null (WindowInteropHelper's constructor
+                    // throws ArgumentNullException("window") in that case), and even when it
+                    // isn't, HwndSource.Handle is guaranteed to be the same hwnd RegisterHotKey
+                    // was called with in RegisterHotkeyWithHandle - re-deriving it from
+                    // MainWindow is both riskier and not actually more correct.
+                    UnregisterHotKey(_hotkeySource.Handle, HOTKEY_ID);
                     _hotkeySource.RemoveHook(HwndHook);
                     _hotkeySource = null;
                 }

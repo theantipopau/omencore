@@ -41,6 +41,20 @@ Corsair macro upload has the identical "not supported, no-op" shape on every bac
 
 One incidental fix along the way: the `ApplyDpiStagesAsync` signature change shifted two pre-existing, already-tracked bare `catch {}` blocks in `CorsairHidDirect.cs` down by two lines, which the code-hygiene gate's line-pinned baseline correctly flagged as "new" violations. Updated the baseline's line numbers with the same shift-tracking convention already used elsewhere in that file (`ReleaseGateCodeHygieneTests.cs`) rather than suppressing the check. Full suite: 1377/1377.
 
+### Linux: Switching Max → Auto Under Load Could Leave Both Fans Dead and Cause a Thermal Shutdown
+
+**High-severity safety fix.** [#183](https://github.com/theantipopau/omencore/issues/183) (OMEN MAX 16-ak0xxx, board `8D87`, Ryzen AI 9 HX 375 + RTX 5080): switching the fan profile from `max` to `auto` via `omencore-cli fan --profile auto` while under a full gaming load left both fans at 0 RPM indefinitely — they never resumed as temperatures kept climbing — and the laptop thermally shut down shortly after.
+
+Traced to `LinuxEcController.SetFanProfileViaAcpiHwmon`: on this board, `pwm_enable=2` ("firmware auto") is a policy flag telling the firmware to take over, not a guarantee it actually does — degraded ACPI on this board (kernel logs showed `WMAA`/`WHCM`/`WQB*` method aborts) let the write report success while the firmware's own fan-curve handler never resumed driving `pwm1` upward. Nothing else was watching: `omencore-cli` is a one-shot command, not a monitored daemon.
+
+Fixed by polling fan RPM for a few seconds after every Auto-mode write on this code path; if both fans are still at 0 while CPU or GPU temperature is above a conservative 85°C safety bar, automatically falls back to Max mode (the exact write path the reporter confirmed reaches ~6000 RPM reliably on this board) instead of reporting Auto as applied. `RestoreAutoMode()` — also called directly by the fan-curve daemon (`Daemon/FanCurveEngine.cs`) — was refactored to route through the same fixed code path instead of duplicating the unprotected writes, so the daemon gets the same protection. No new/unverified write path was introduced — the fallback only ever reuses a mode already proven to work on this exact board.
+
+### Windows: OSD Toggle-Hotkey Cleanup Could Throw a Null-Reference During Shutdown
+
+Found while auditing a diagnostics bundle for GitHub #184: `[WARN] OSD: Hotkey cleanup encountered an error: Value cannot be null. (Parameter 'window')` appeared during shutdown, right before the app finished exiting.
+
+`OsdService.UnregisterToggleHotkey()` re-derived the window handle via `new WindowInteropHelper(Application.Current.MainWindow)` — `Application.Current.MainWindow` can already be null by the time this cleanup runs, and `WindowInteropHelper`'s constructor throws exactly this exception when passed null. The fix uses `_hotkeySource.Handle` instead — `HwndSource.Handle` is guaranteed to be the same hwnd the hotkey was originally registered against (`RegisterHotkeyWithHandle`), so this is strictly more correct as well as null-safe. Caught and logged rather than crashing either way, so this was silent/cosmetic in practice, not a functional bug — fixed anyway since the correct fix was small and unambiguous once traced.
+
 ### RGB Page's "Control Ownership" Card Could Show "Confirmed" With No Real Keyboard Backend
 
 Found by actually driving the app and looking at the Lighting page (a live-machine look, not just a code read) — on a desktop PC with no HP hardware at all, the "Control ownership" card showed "HP Keyboard (None)" as its summary text, right next to a green "Confirmed" ownership badge, and the "OMEN Keyboard" status chip at the top of the page was highlighted as if active.
