@@ -67,7 +67,17 @@ namespace OmenCore.Services
             Off = 0xFF
         }
 
-        public bool IsAvailable => _useV2Backend || _wmiBiosAvailable || _wmiAvailable || _ecAvailable || (_oghProxy != null && _oghProxy.IsAvailable);
+        // _ecAvailable only means "we can talk to *an* embedded controller via PawnIO" -
+        // virtually every modern PC has one for basic power management, regardless of whether
+        // it's an HP OMEN keyboard-controlling EC. BackendType (below) already correctly
+        // refuses to report an EC backend unless the user has opted into the experimental,
+        // riskier EC keyboard-write path (IsExperimentalEcEnabled) - IsAvailable didn't apply
+        // that same gate, so a random desktop with PawnIO installed and a completely ordinary
+        // EC chip (e.g. this dev/test machine, AMD desktop, no HP hardware at all) reported
+        // keyboard lighting as "available" while BackendType simultaneously and correctly said
+        // "None", producing a UI that showed "HP Keyboard (None)" next to a green "Confirmed"
+        // ownership badge. Keep this in sync with BackendType's own EC gating below.
+        public bool IsAvailable => _useV2Backend || _wmiBiosAvailable || _wmiAvailable || (_ecAvailable && IsExperimentalEcEnabled) || (_oghProxy != null && _oghProxy.IsAvailable);
 
         public bool IsPerKey => _useV2Backend && (_v2Service?.IsPerKey ?? false);
 

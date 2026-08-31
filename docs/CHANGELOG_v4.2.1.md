@@ -38,6 +38,12 @@ Corsair macro upload has the identical "not supported, no-op" shape on every bac
 
 One incidental fix along the way: the `ApplyDpiStagesAsync` signature change shifted two pre-existing, already-tracked bare `catch {}` blocks in `CorsairHidDirect.cs` down by two lines, which the code-hygiene gate's line-pinned baseline correctly flagged as "new" violations. Updated the baseline's line numbers with the same shift-tracking convention already used elsewhere in that file (`ReleaseGateCodeHygieneTests.cs`) rather than suppressing the check. Full suite: 1377/1377.
 
+### RGB Page's "Control Ownership" Card Could Show "Confirmed" With No Real Keyboard Backend
+
+Found by actually driving the app and looking at the Lighting page (a live-machine look, not just a code read) — on a desktop PC with no HP hardware at all, the "Control ownership" card showed "HP Keyboard (None)" as its summary text, right next to a green "Confirmed" ownership badge, and the "OMEN Keyboard" status chip at the top of the page was highlighted as if active.
+
+Traced to `KeyboardLightingService.IsAvailable` including `_ecAvailable` unconditionally, while `BackendType` (which correctly produced "None" in this exact case) only ever reports an EC backend when the user has explicitly opted into the experimental EC keyboard-write path (`IsExperimentalEcEnabled`). `_ecAvailable` only means "we can talk to *an* embedded controller via PawnIO" — true on almost any modern PC for basic power management, regardless of whether it's an HP OMEN keyboard-controlling EC. `IsAvailable` now applies the same experimental-opt-in gate `BackendType` already used, so the two agree. 3 new tests (`KeyboardLightingServiceAvailabilityTests.cs`, using the uninitialized-object + reflection pattern already established elsewhere in this test project, since the class's constructor needs real hardware access objects). Full suite: 1380/1380.
+
 ---
 
 ## Added
