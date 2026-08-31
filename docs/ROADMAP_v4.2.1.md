@@ -109,6 +109,68 @@ Flagged above and worth recording explicitly: `ModelCapabilities`'s property-lev
 
 ---
 
+## Planning: What Else Goes In This Cycle, and What Doesn't
+
+Written 2026-08-30. Audited all 17 pre-4.2.1 roadmap documents (`ROADMAP_v1.2.md` → `ROADMAP_v4.0.0.md`) plus the README's "Known Limits" / "Active Validation Targets" carry-forward lists, and verified every candidate against current code rather than trusting the doc. That verification step mattered: a large fraction of old roadmap items describe work that was quietly done in a later cycle without the originating document ever being updated to say so (fan curve editor, battery charge limit, per-core UV UI, AMD Curve Optimizer, OSD, WinRing0 removal, the whole Linux CLI/daemon/Avalonia GUI, OpenRGB, per-key RGB backends, PawnIO-only mode, Steam detection, NVAPI GPU OC, PL1/PL2, STAPM). Those were dropped. What follows is what's genuinely still missing.
+
+**Framing, before the list: v4.2.1 is a patch release.** It exists because five field reports (#178–#182) landed within hours of v4.2.0 going live. Nearly everything the audit surfaced is minor-release material, and dropping a new feature subsystem into a `.1` would be the wrong call however ready it looks. This section is split accordingly.
+
+### Could still reasonably land in v4.2.1
+
+Small, contained, no new subsystems, no evidence gate:
+
+1. **Corsair `NotSupported` stubs — decide and be honest either way.** `Services/Corsair/ICorsairSdkProvider.cs:498,506` log `"DPI configuration not supported via RGB.NET"` / `"Macro upload not supported via RGB.NET"`, and lines 300-302 / 549-551 hardcode `BatteryPercent = 100` and `FirmwareVersion = "Unknown"` for every Corsair device. Tracked since `ROADMAP_v3.3.0.md` Enhancement #16 and still open in `v4.0.0.md`. A hardcoded 100% battery is the same class of defect this project has now fixed three separate times this cycle (the AMD undervolt "readback," the phantom OMEN keyboard, the optimistic capability fallbacks): the UI states something confidently that the code never actually determined. Either surface these as genuinely unknown, or hide the fields. Pure display honesty, no write path, ~an afternoon.
+
+2. **RGB page pass.** Raised by the owner during v4.2.0 and explicitly deferred twice (`ROADMAP_v4.2.0.md:376`, `:597`) — only two spot-fixes landed (scene swatches, the stray purple badge). This is the one deferred item with a standing owner request behind it.
+
+3. **`FanControlView`'s "Custom: Unavailable" state.** From the r/omencore question this session. `FanControlViewModel.cs:508` renders the bare word `Unavailable` with no indication of *why*, and the two causes are very different for the user: no fan backend at all (`FanWritesAvailable == false`) versus this board's `SupportsFanCurves` flag being conservatively false. The Model Capabilities screen already carries the right explanatory language; this card doesn't link to it or distinguish the cases. Owner chose "leave as information for now" — reconsider only if it recurs.
+
+### v4.3.0 candidate slate
+
+Ordered by what the audit suggests is worth doing, not by how loud the original request was.
+
+**1. Extract `OmenCore.Core` — and note that this is secretly the gating item for several others.**
+
+`OmenCoreApp.csproj` is `<OutputType>WinExe</OutputType>` with `<UseWPF>true</UseWPF>`, so the entire service layer currently lives inside a WPF application assembly. But the services themselves are cleaner than that implies — `FanService.cs`, `PerformanceModeService.cs`, and `ConfigurationService.cs` contain **zero** `System.Windows` references; only `NotificationService.cs` does (2), and that's a small, contained coupling. So the code is already most of the way to headless-capable; it's the project structure that isn't.
+
+This matters because three separate wishlist items all silently depend on it:
+- **Windows CLI** (`ROADMAP_v4.0.0.md`, "Windows CLI") — Linux has a full `omencore-cli` with a clean per-verb command structure (`src/OmenCore.Linux/Commands/`: Fan, Performance, Keyboard, Monitor, Status, Config, Daemon, Diagnose — a ready-made template) while Windows is WPF-only. Without a shared core, a Windows CLI either drags WPF into a console app or duplicates logic.
+- **Local HTTP / named-pipe control API** (`ROADMAP_v2.5.0.md`, nice-to-have) for Stream Deck / scripting / home automation.
+- **Any future headless or service-mode operation.**
+
+Decision to make first, before any of the three: extract a real `OmenCore.Core` class library, or have a CLI project reference the WPF assembly directly (functional on Windows, structurally ugly). Recommend the extraction — it's the version that doesn't have to be undone later.
+
+**2. Extend `PowerAutomationService` rather than building a scheduler — but settle profile ownership first.**
+
+`ROADMAP_v2.5.0.md` §7 asks for time-of-day / lid-close / charger-connect profile triggers. This is **not** greenfield: `Services/PowerAutomationService.cs` already implements exactly this shape for one trigger type, with a clean settings model (`AcFanPreset`, `AcPerformanceMode`, `AcGpuMode`, and Battery equivalents) and existing `PowerStateChanged` / `SystemSuspending` / `SystemResuming` events. Adding trigger sources to a working service is far cheaper than a new subsystem.
+
+**The trap, and it's a real one:** this is the same service diagnosed in v4.2.0's #177 triage as the cause of "custom fan curve not restored on restart" — it reapplies a per-power-source preset on *every* AC/Battery transition including startup, silently overriding whatever the user last selected. That was recorded as "working as designed with a surprising default." Adding more trigger types multiplies that surprise across more moments. **Whoever picks this up should settle the "who owns the currently-active profile" question first** — user selection vs. automation, and how a user override survives the next trigger — otherwise this ships a bigger version of an existing complaint. That ownership question is arguably the more valuable piece of work of the two.
+
+**3. Localization / i18n.** Requested in four separate cycles (`v1.4.md` §17, `v2.5.0.md`, `v2.6.0.md` §10, `v4.0.0.md`) — the single most persistently-asked-for item in the project's history, with zero infrastructure today (no `.resx`, no culture handling, confirmed 0 matches). Two things make it more expensive now than when first raised, and both should be priced in: v4.2.0's nav-rail redesign and accessibility passes *added* user-facing strings, and the Roboto Condensed switch (Pillar 3, still blocked on a genuine font-rendering non-determinism) has glyph-coverage implications for non-Latin scripts that would need resolving in the same breath. Big, but the demand signal is unambiguous.
+
+**4. `MainViewModel` feature-scoped extraction (6,247 lines).** Deferred out of v4.2.0's Phase C when the owner chose the animation experiment instead. It keeps getting deferred, and it's increasingly the thing that makes everything else expensive — it's where the #181 link-cascade bug lived, where the fan/performance sync tangles, and it would need touching by the profile-ownership work above. Worth doing on its own terms rather than waiting for a cycle where it's blocking something urgent.
+
+**5. Linux `omencore-gui` tray icon + GUI-side config persistence.** Planned since `ROADMAP_v2.0.md`, still open. Verified absent — `TrayIcon` appears only in compiled Avalonia framework DLLs, never in project source; the tray only exists today as an external shell script. This is a real gap against the README's own "feature parity with Windows" claim.
+
+**6. Smaller, genuinely-absent, no-gate items** (all verified missing, all from `v1.4.md`/`v2.6.0.md` unless noted): network dashboard (per-app bandwidth, ping, QoS — `NetworkOptimizer.cs` today only does TCP/Nagle registry tweaks); storage health/SMART/TBW dashboard; config cloud sync (`v1.4.md` §11); display calibration & night mode (§13); external-monitor DDC/CI brightness (§18, and `ScreenSamplingService` is still single-monitor only per `v2.1.md` §4); webcam/mic privacy toggles (§19); battery calibration wizard (`v1.2`/`v1.3`); Discord Rich Presence / OBS integration (`v2.6.0.md` §7); plugin system (`v1.4.md` §16); SteelSeries RGB (`v1.5.md` §11); dashboard personalization and a per-model first-run tuning wizard (`v3.2.5.md` §8).
+
+### Still hardware-gated — group these into one testing round
+
+These can't be built or verified from this environment, but several would be cleared by a *single* cooperative tester rather than needing separate campaigns. Worth batching next time a tester volunteers: per-core overclocking (`v1.5.md`, deferred for warranty/BIOS-lock risk and recommended to stay deferred absent strong demand); a dedicated Balanced fan mode decoupled from Auto (`v4.0.0.md`); independent CPU/GPU fan curves (UI-visible but `FanControlViewModel.cs` hardcodes `IndependentCurvesFeatureAvailable => false`, `v3.3.0.md` #19); AMD GPU OC / Curve Optimizer startup persistence; a self-validating PL1/PL2 readback loop; board `8D41`'s Darfon `0x0D62:0x54BF` per-key HID backend (deliberately unimplemented — nobody has confirmed the device speaks `CMD_BYTE 0x0F`, and writing untested bytes to real hardware every launch was judged unacceptable); real Razer per-key/standalone Chroma (`RazerService.cs` still requires Synapse 3 running; `v4.0.0.md` calls it "the weakest of the three"); Logitech DPI via direct HID; and the GPU Dynamic Boost ceiling question (`v1.5.md` §3) — which is now the *same underlying question* as #181's GPU Power Boost report above, and should be investigated as one item, not two.
+
+### Settled — do not revive without new information
+
+Recorded so nobody re-litigates them: **NVIDIA V/F-curve editor** — planned across three roadmaps (`v1.3`, `v2.0`, `v2.1`), never built, and `TuningView.xaml` now actively directs users to MSI Afterburner instead; treat as a deliberate punt, not an oversight. **HP ENVY / non-gaming HP support** — ruled out of scope in `v4.0.0.md` (GitHub #154): `hp-wmi` loads but exposes no fan-control interface on that firmware. **Logs in `Program Files`** — won't-fix by design (`v1.4.md` BUG-12); `%APPDATA%` avoids requiring elevation on every write. **The Max Fan re-assert-loop's narrower mitigation** — rejected because backing off after repeated identical readings is indistinguishable from a genuinely-reverting fan, risking under-cooling a different board.
+
+### Also still open from this cycle
+
+- **PR #176** — owner decision still pending (wait / fix-ourselves / merge-as-is), now with a rebase requirement on top since `main` moved. Fresh evidence is in the section above.
+- **Class-level capability defaults audit** — the remaining half of the fix that shipped this cycle; see "Possible Future Pass: Class-Level Capability Defaults" above.
+- **#180** — needs repro steps or a diagnostics export before it's actionable at all.
+- **#179** — real feature work (new Linux HID backend), reporter has offered to test builds.
+
+---
+
 ## Standing Rules (unchanged, carried from v4.2.0)
 
 - **Evidence gate.** Fan/EC/thermal/OC/UV *behavior* changes need field validation before shipping. Architecture, performance, display-honesty, and pure-UI items do not. Both fixes in this document tighten false-positive claims toward conservative — they reduce what an unverified board is offered, never add a new hardware-write path — so neither needed field validation to ship.
