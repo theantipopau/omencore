@@ -49,10 +49,30 @@ behavior change, and the tests back that up.
 
 ---
 
+### Windows CLI — first slice (`status` / `fan` / `performance`)
+
+New `omencore-cli` console app (`src/OmenCore.Cli`), built directly on `OmenCore.Core` — no
+duplicated hardware logic. `status [--json]` reports model/board ID, EC and fan-controller
+availability, live fan RPM/duty, and current performance mode. `fan --profile <name>` / `--status`
+and `performance --mode <name>` / `--status` apply presets from the same config the GUI's preset
+buttons use, through the same `FanService.ApplyPreset`/`PerformanceModeService.Apply` calls the
+GUI makes — a new caller of already-shipped code, not new hardware-write behavior.
+
+Command parsing verified end-to-end (root and all three subcommands' `--help` render correctly).
+**Not yet verified against real hardware** — that needs an actual elevated run, which is next.
+See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of scope
+(curve presets, keyboard, `monitor`, `config`, `daemon`).
+
+---
+
 ## Investigated, Not Yet Actioned
 
-Nothing yet — see `docs/ROADMAP_v4.3.0.md` for what building on top of this (Windows CLI, the
-HTTP/named-pipe API) still requires.
+- **Package-reference cleanup on `OmenCoreApp.csproj`** — several packages (CUE.NET, HidSharp,
+  LibreHardwareMonitorLib, NAudio, NvAPIWrapper.Net, RGB.NET.*, System.Management,
+  System.ServiceProcess.ServiceController) are now only needed transitively via the Core project
+  reference. Redundant, not broken; deferred rather than risking a last-minute trim.
+- Remaining Windows CLI commands (`keyboard`, `monitor`, `config`, `daemon`) and the local
+  HTTP/named-pipe control API — both unblocked by the Core extraction, neither started.
 
 ---
 

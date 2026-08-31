@@ -132,17 +132,77 @@ paired with it), and `MacroService.cs` itself (kept its WPF `Key`-typed `PushEve
 nothing calls it either way — no reason to touch a second file for a change already isolated to
 the type it constructs).
 
+### Windows CLI — first slice: `status` / `fan` / `performance`
+
+The actual point of the extraction, started the same session right after Core landed. New
+`src/OmenCore.Cli` console project (`AssemblyName: omencore-cli`, matching Linux's binary name),
+referencing `OmenCore.Core` directly — no duplicated hardware logic. `System.CommandLine
+2.0.0-beta4.22272.1`, the same package/version Linux's CLI uses, for a consistent option-parsing
+feel across platforms (`-p`/`--profile`, `-j`/`--json`, etc.).
+
+Linux's `Commands/` folder was read as a **structural** template (per-verb `Command.Create()`
+factories, `--json` for scripting, a boxed human-readable default) — not a source of Windows
+hardware logic, since Linux talks to sysfs paths directly and shares none of that with
+`OmenCore.Core`.
+
+**`CliContext.cs`** is the actual new work: a bootstrap that constructs `HardwareBringup` →
+`FanService`/`PerformanceModeService` the *same way* `MainViewModel`'s constructor does
+(`src/OmenCoreApp/ViewModels/MainViewModel.cs`, ~line 2490 onward, traced line-by-line rather than
+guessed at) — so a CLI command exercises the identical, already-shipped `ApplyPreset`/`Apply` code
+paths a GUI click would, not a second implementation. One deliberate behavioral difference,
+called out in its own doc comment: **the CLI never calls `FanService.Dispose()`**.
+`Dispose()` resets the EC back to BIOS auto-control, which is correct when the GUI app quits but
+wrong for a CLI — `fan --profile quiet` is supposed to leave the fan on quiet after the process
+exits, matching how the Linux CLI's writes persist past the invocation that made them. Also
+disables `NotificationService` (`IsEnabled = false`) so a script looping fan-profile changes
+doesn't get spammed with toasts — a GUI affordance the CLI shouldn't inherit by default.
+
+**Scope of this first slice:** `status` (read-only: model/board ID, EC/fan-controller
+availability and backend, live fan RPM/duty via `IFanController.ReadFanSpeeds()`, current
+performance mode; `--json` for scripting), `fan --profile <name>` / `--status` (applies a preset
+by name from `config.FanPresets`, matching what the GUI's preset buttons already do), `performance
+--mode <name>` / `--status` (same shape against `config.PerformanceModes`). Deliberately **not**
+included: curve presets won't keep re-evaluating temperature after the process exits (that needs
+`FanService.Start()`'s background monitor loop running continuously — i.e. a persistent process,
+which is exactly what Linux's `daemon` command is for and this doesn't have yet), keyboard
+lighting, `monitor` (continuous telemetry stream), `config` (get/set arbitrary config keys), and
+`diagnose` (would want to reuse `DiagnosticExportService`, which stayed in `OmenCoreApp` — see
+above).
+
+**Verified:** full solution build clean (0 warnings, 0 errors), and `--help` for the root command
+and all three subcommands rendered correctly via the framework-dependent host
+(`dotnet omencore-cli.dll --help`, which never reaches `CliContext.Create()` — System.CommandLine
+handles `--help` before invoking a handler, so this checks the option/argument wiring without
+touching any hardware code). **Not verified: an actual elevated run against real hardware.**
+Running the self-contained `.exe` directly triggers the `requireAdministrator` manifest's UAC
+prompt (same as `OmenCoreApp.exe`), and bypassing that via the non-elevated `dotnet
+omencore-cli.dll <command>` path is the same trick that produced a genuine native access
+violation in `coreclr.dll` earlier this cycle when tried against the WPF app (documented in the
+RGB-page-pass entry above) — not worth risking again just to "test" something the owner can
+verify directly and safely by running the real elevated binary. This is new-caller-of-
+already-shipped-methods, not new hardware-write logic, so it doesn't need the evidence-gate's
+field-validation bar the way a fan/EC *behavior* change would — but it does need an actual
+elevated run before anyone should treat it as done, and that hasn't happened yet.
+
+**One packaging note, not a functional problem:** the self-contained publish output pulls in the
+full Windows Desktop shared runtime (`PresentationCore`, `PresentationFramework`,
+`System.Windows.Forms.*`) even though neither `OmenCore.Cli.csproj` nor `OmenCore.Core.csproj` set
+`UseWPF`/`UseWindowsForms` — an artifact of the `net8.0-windows10.0.19041.0` TFM (needed for the
+WinRT `Windows.Devices.Power.Battery` fallback in `PowerAutomationService`) plus
+`SelfContained=true` bundling whatever the Windows Desktop runtime pack makes available, not of
+the CLI actually referencing WPF types anywhere (0 build errors with no `UseWPF` confirms that).
+Bigger download than a "lean CLI" ideally would be; not investigated further this pass since it
+doesn't affect correctness.
+
 ---
 
 ## Not Yet Started
 
-### Windows CLI
+### Windows CLI — remaining commands
 
-The actual point of the extraction. Linux already has a full `omencore-cli` with a clean per-verb
-command structure (`src/OmenCore.Linux/Commands/`: Fan, Performance, Keyboard, Monitor, Status,
-Config, Daemon, Diagnose) that Windows can use as a template rather than designing from scratch.
-Not started — this roadmap entry exists to record that Core alone doesn't ship a CLI, it only
-removes the reason one couldn't exist.
+`keyboard`, `monitor`, `config`, and `daemon` (continuous curve/hold as a persistent process,
+matching Linux's shape) are not built yet — see the scope note in the "Done" section above for
+why each was left out of the first slice.
 
 ### Local HTTP / named-pipe control API
 
