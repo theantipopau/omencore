@@ -108,19 +108,21 @@ WPF behavior from `OmenCoreApp.App`'s constructor.
 Full suite: 1380/1380, unchanged from before the move — this was a structural extraction, not a
 behavior change, and the tests back that up.
 
-### Windows CLI — first slice (`status` / `fan` / `performance`)
+### Windows CLI — `status` / `fan` / `performance` / `keyboard`
 
 New `omencore-cli` console app (`src/OmenCore.Cli`), built directly on `OmenCore.Core` — no
 duplicated hardware logic. `status [--json]` reports model/board ID, EC and fan-controller
 availability, live fan RPM/duty, and current performance mode. `fan --profile <name>` / `--status`
 and `performance --mode <name>` / `--status` apply presets from the same config the GUI's preset
 buttons use, through the same `FanService.ApplyPreset`/`PerformanceModeService.Apply` calls the
-GUI makes — a new caller of already-shipped code, not new hardware-write behavior.
+GUI makes — a new caller of already-shipped code, not new hardware-write behavior. `keyboard
+--color <hex>` / `--status` applies a static color across the whole keyboard via the same
+`KeyboardLightingService.ApplyEffect` the GUI's lighting controls use.
 
-Command parsing verified end-to-end (root and all three subcommands' `--help` render correctly).
+Command parsing verified end-to-end (root and every subcommand's `--help` renders correctly).
 **Not yet verified against real hardware** — that needs an actual elevated run, which is next.
 See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of scope
-(curve presets, keyboard, `monitor`, `config`, `daemon`).
+(curve presets, `monitor`, `config`, `daemon`).
 
 ---
 

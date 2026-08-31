@@ -25,19 +25,22 @@ public sealed class CliContext
     public HardwareBringup Bringup { get; }
     public FanService FanService { get; }
     public PerformanceModeService PerformanceModeService { get; }
+    public KeyboardLightingService KeyboardLightingService { get; }
 
     private CliContext(
         LoggingService logging,
         AppConfig config,
         HardwareBringup bringup,
         FanService fanService,
-        PerformanceModeService performanceModeService)
+        PerformanceModeService performanceModeService,
+        KeyboardLightingService keyboardLightingService)
     {
         Logging = logging;
         Config = config;
         Bringup = bringup;
         FanService = fanService;
         PerformanceModeService = performanceModeService;
+        KeyboardLightingService = keyboardLightingService;
     }
 
     public static CliContext Create()
@@ -92,6 +95,16 @@ public sealed class CliContext
             LinkFanToPerformanceMode = config.LinkFanToPerformanceMode
         };
 
-        return new CliContext(logging, config, bringup, fanService, performanceModeService);
+        var wmiBios = new HpWmiBios(logging);
+        var systemInfoService = new SystemInfoService(logging);
+        var keyboardLightingService = new KeyboardLightingService(
+            logging,
+            bringup.EcAccess,
+            wmiBios,
+            AppHost.Configuration,
+            systemInfoService,
+            ecOperationCoordinator);
+
+        return new CliContext(logging, config, bringup, fanService, performanceModeService, keyboardLightingService);
     }
 }
