@@ -55,6 +55,16 @@ Found while auditing a diagnostics bundle for GitHub #184: `[WARN] OSD: Hotkey c
 
 `OsdService.UnregisterToggleHotkey()` re-derived the window handle via `new WindowInteropHelper(Application.Current.MainWindow)` — `Application.Current.MainWindow` can already be null by the time this cleanup runs, and `WindowInteropHelper`'s constructor throws exactly this exception when passed null. The fix uses `_hotkeySource.Handle` instead — `HwndSource.Handle` is guaranteed to be the same hwnd the hotkey was originally registered against (`RegisterHotkeyWithHandle`), so this is strictly more correct as well as null-safe. Caught and logged rather than crashing either way, so this was silent/cosmetic in practice, not a functional bug — fixed anyway since the correct fix was small and unambiguous once traced.
 
+### In-Process Telemetry Fallback Could Crash the Whole App on Hybrid AMD+NVIDIA Hardware
+
+**High-severity stability fix**, found via a recurring test-suite crash (3 of 4 full runs this session), not a field report. Full test runs kept aborting with an unrecoverable `System.AccessViolationException` in `LibreHardwareMonitor.Hardware.Gpu.AmdGpu.Update()` → `AtiAdlxx.ADL2_Adapter_DedicatedVRAMUsage_Get` — a native, corrupted-state exception no C# `catch` block can intercept, so it kills the whole process outright.
+
+`OmenCore.HardwareWorker` (the out-of-process telemetry host) already quarantines exactly this: on startup, if both an AMD and an NVIDIA GPU are detected, it disables AMD ADL telemetry entirely rather than risk this exact crash. But `LibreHardwareMonitorImpl` — the in-process fallback `ThermalSensorProvider`/`FanService`/`HardwareMonitoringService` use when the out-of-process worker isn't available — had no equivalent protection on its own local `Computer` object. This isn't hypothetical: the #184 diagnostics bundle (a real hybrid AMD+NVIDIA laptop) shows `WmiBiosMonitor` switching to this exact "LHM Fallback" CPU-temperature authority repeatedly during normal use.
+
+Added `QuarantineHybridAmdGpuTelemetryIfNeeded()` to `LibreHardwareMonitorImpl`, mirroring the worker's own detection (`hasAmdGpu && hasNvidiaGpu` → never call `.Update()` on the AMD GPU hardware object at all), applied at both call sites that dispatch GPU updates (`UpdateHardwareReadings`, `GetFanSpeeds`). CPU/fan/memory/storage telemetry and the NVIDIA GPU (a separate, already-hardened NVML path) are unaffected — only the specific AMD ADL call this instability traces to is skipped.
+
+Full suite: 1380/1380, confirmed clean across repeated runs after the fix (pre-fix: crashed 3 of 4 full runs at this exact spot).
+
 ### RGB Page's "Control Ownership" Card Could Show "Confirmed" With No Real Keyboard Backend
 
 Found by actually driving the app and looking at the Lighting page (a live-machine look, not just a code read) — on a desktop PC with no HP hardware at all, the "Control ownership" card showed "HP Keyboard (None)" as its summary text, right next to a green "Confirmed" ownership badge, and the "OMEN Keyboard" status chip at the top of the page was highlighted as if active.
@@ -124,6 +134,13 @@ Command parsing verified end-to-end (root and every subcommand's `--help` render
 See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of scope
 (curve presets, `monitor`, `config`, `daemon`).
 
+### Package-Reference Cleanup on `OmenCoreApp.csproj`
+
+Removed nine packages (`CUE.NET`, `HidSharp`, `LibreHardwareMonitorLib`, `NAudio`,
+`NvAPIWrapper.Net`, `RGB.NET.Core`, `RGB.NET.Devices.Corsair`, `System.Management`,
+`System.ServiceProcess.ServiceController`) now reached only transitively via the `OmenCore.Core`
+project reference. Full solution build and test suite (1380/1380) confirmed clean.
+
 ---
 
 ## Investigated, Not Yet Actioned
@@ -132,7 +149,6 @@ See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberatel
 - **[#180](https://github.com/theantipopau/omencore/issues/180)** — "Doesn't start with Windows, config not saving." One sentence, no diagnostics, no repro steps. Needs a diagnostics export or repro steps before it's actionable.
 - **[#181](https://github.com/theantipopau/omencore/issues/181)** GPU Power Boost wattage — architectural, not a code bug: OmenCore and OGH both send relative *boost steps* to the firmware, not absolute wattages (already documented in code as "+15-25W depending on model"), so the actual ceiling is firmware-determined and can be influenced by whatever OGH last configured. Needs the reporter to test with OGH fully closed to isolate further.
 - **PR [#176](https://github.com/theantipopau/omencore/pull/176)** — re-reviewed 2026-08-30. The process-monitoring fix from 2026-08-29 is real and correct, but two bugs from the 2026-08-19 review (keyboard "effect-freeze," iGPU Curve Optimizer gating) are **still broken**, with the keyboard bug relocated a second time. Branch is also now stale against `main`. Recommend against merging as-is; decision still pending owner call.
-- **Package-reference cleanup on `OmenCoreApp.csproj`** — several packages (CUE.NET, HidSharp, LibreHardwareMonitorLib, NAudio, NvAPIWrapper.Net, RGB.NET.*, System.Management, System.ServiceProcess.ServiceController) are now only needed transitively via the Core project reference. Redundant, not broken; deferred rather than risking a last-minute trim.
 - Remaining Windows CLI commands (`keyboard`, `monitor`, `config`, `daemon`) and the local HTTP/named-pipe control API — both unblocked by the Core extraction, neither started.
 - Class-level capability defaults audit (the ~150 named board entries in `ModelCapabilityDatabase.cs` haven't been checked for silent reliance on the class-level `= true` defaults) — see `docs/ROADMAP_v4.3.0.md`.
 

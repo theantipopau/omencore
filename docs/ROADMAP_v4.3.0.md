@@ -137,6 +137,48 @@ Full suite: 1380/1380 (unaffected — this only touches the shutdown-cleanup pat
 
 ---
 
+### In-Process Telemetry Fallback Could Crash the Whole App on Hybrid AMD+NVIDIA Hardware
+
+**High-severity stability fix**, found via test-suite instability rather than a field report: 3 of 4 full `dotnet test` runs this session aborted mid-run with `System.AccessViolationException: Attempted to read or write protected memory` from `LibreHardwareMonitor.Interop.AtiAdlxx.ADL2_Adapter_DedicatedVRAMUsage_Get`, always via the identical stack —
+
+```
+LibreHardwareMonitor.Hardware.Gpu.AmdGpu.Update()
+OmenCore.Hardware.LibreHardwareMonitorImpl.TryUpdateGpuHardware(IHardware)
+OmenCore.Hardware.LibreHardwareMonitorImpl.UpdateHardwareReadings()
+OmenCore.Hardware.LibreHardwareMonitorImpl.EnsureCacheFresh()
+OmenCore.Hardware.LibreHardwareMonitorImpl.GetCpuTemperature()
+OmenCore.Hardware.ThermalSensorProvider.ReadTemperatures()
+OmenCore.Services.FanService+<MonitorLoop>d__229.MoveNext()
+```
+
+— on a background `FanService.MonitorLoop` timer tick, at an unpredictable point (one run got 1193/1380 tests in before aborting, another 1379/1380 — consistent with a genuine hardware-driver-level race, not a specific failing test). `AccessViolationException` is a corrupted-state exception; no C# `catch` block (with or without an exception filter) can intercept it by default in .NET Core, so it doesn't fail a test, it kills the entire test host process outright — the same thing would happen to the real `OmenCore.exe` if the identical code path fired in production. One crashed run also left an orphaned `testhost.exe` holding a file lock that blocked the next build until manually killed.
+
+**Root cause.** `OmenCore.HardwareWorker`'s own `Program.cs` already has exactly this protection: `QuarantineHybridAmdGpuTelemetryIfNeeded()`, called once at worker startup, detects "both an AMD and an NVIDIA GPU present" and permanently disables AMD ADL telemetry for that process's lifetime rather than risk the crash — this is the mechanism behind the "AMD GPU telemetry quarantined after instability" log lines already visible in every diagnostics bundle collected this cycle. But `OmenCore.Core/Hardware/LibreHardwareMonitorImpl.cs` is a *second*, independent implementation: `ThermalSensorProvider`/`FanService`/`HardwareMonitoringService` prefer routing through the out-of-process worker, but fall back to constructing their own local, in-process `LibreHardwareMonitor.Hardware.Computer` when the worker isn't available (`InitializeComputer()`'s "worker didn't start, fall back to in-process" branch) — and that local fallback had no AMD-hybrid protection of its own. A pre-existing comment in the file (`"Worker-only quarantine signal should not persist when running in-process"`) confirms this was a known, deliberate gap for the worker-reported *signal*, just never backfilled with the fallback's own independent detection.
+
+**This is not test-only.** The #184 diagnostics bundle (HP Victus 15, board `8C2F` — a real hybrid AMD iGPU + NVIDIA RTX 4050 laptop) shows `WmiBiosMonitor` switching CPU-temperature authority to `"LHM Fallback"` repeatedly across all four of that session's logs — confirming this exact in-process code path is genuinely reached during normal use on real hybrid-GPU hardware, not just when a test constructs `LibreHardwareMonitorImpl` directly. Whether the *specific* crash has fired for a real user isn't provable from a diagnostics bundle alone, but the reachable, unprotected code path is real.
+
+**Fix.** Added `LibreHardwareMonitorImpl.QuarantineHybridAmdGpuTelemetryIfNeeded()`, called once right after `_computer.Open()` succeeds in `InitializeComputer()`, mirroring the worker's own detection exactly (`hasAmdGpu && hasNvidiaGpu` → quarantine). Stored in a new field, `_localAmdGpuTelemetryQuarantined` — deliberately **not** reusing the existing `_cachedAmdGpuTelemetryQuarantined` field, which is explicitly worker-signal-only and reset to `false` every single `UpdateHardwareReadings()` cycle when running in-process (changing that field's meaning would have undone the very comment explaining why it resets). Both places that dispatch a GPU hardware update (`UpdateHardwareReadings`'s main loop, and `GetFanSpeeds`'s separate loop — confirmed to be the only two call sites of `TryUpdateGpuHardware` reachable for an AMD GPU; the third call site is behind an `HardwareType.GpuIntel`-only guard and can never see AMD hardware) now `continue` past the AMD GPU entirely when quarantined, never calling `.Update()` on it at all — matching the worker's own "don't call it, don't try to recover from it" design, since recovery-after-the-fact is exactly what doesn't work for a corrupted-state exception. CPU, fan, memory, storage, and the NVIDIA GPU (already on its own separate, independently-hardened NVML failure-counter path) are unaffected.
+
+**Verification.** No dedicated unit test added — `LibreHardwareMonitorImpl` has no existing test file of its own in this project (it's tightly coupled to a real `LibreHardwareMonitor.Hardware.Computer`, the same reason `LinuxEcController` above has none either), and this class's constructor/hardware access isn't structured for easy fakes. Verified empirically instead: full test suite run repeatedly after the fix — clean 1380/1380 across multiple consecutive runs, where 3 of the 4 pre-fix runs this session had crashed at this exact spot. Not a field-validation item in the evidence-gate sense (no fan/EC/thermal/OC/UV write behavior changed) — this only ever prevents a specific, already-crash-prone read call from being attempted at all.
+
+---
+
+### Package-Reference Cleanup on `OmenCoreApp.csproj`
+
+Removed `CUE.NET`, `HidSharp`, `LibreHardwareMonitorLib`, `NAudio`, `NvAPIWrapper.Net`,
+`RGB.NET.Core`, `RGB.NET.Devices.Corsair`, `System.Management`, and
+`System.ServiceProcess.ServiceController` — grep had confirmed none of `ViewModels/`, `Views/`,
+`Controls/`, or the remaining `Utils/` reference those namespaces directly anymore; they now reach
+the app only transitively through the `OmenCore.Core` project reference, which still lists all
+nine itself. Removed all nine in a single edit rather than one-at-a-time, verified with a full
+solution build (0 errors) immediately after — the transitive-reference theory held on the first
+try. `Microsoft.Extensions.DependencyInjection`, `Microsoft.Toolkit.Uwp.Notifications`, and
+`Hardcodet.NotifyIcon.Wpf` stay: the DI container in `App.xaml.cs`, `ToastNotificationService.cs`,
+and `TrayIconService.cs` (all still in `OmenCoreApp`) use them directly. Full test suite
+1380/1380 (crash-related retries below are unrelated to this change — see the AMD GPU entry).
+
+---
+
 ### Two New Model Database Entries
 
 - **`8E5E`** — HP Victus 15-fa2303TX (C2JQ3PA), [#178](https://github.com/theantipopau/omencore/issues/178). Reporter's own fan-verification diagnostic: `Backend: WMI BIOS | RPM source: Estimated`, 3/6 tests passed (60/100, "Fair") — WMI fan-level control responds, but RPM comes back as the commanded level echoed, not a real tachometer reading, and that estimate diverged from expectations under sustained load (CPU@60%, CPU@100%, GPU@100% all failed with "evidence: None"). Reflected as `SupportsRpmReadback = false` rather than claiming a number this board hasn't actually demonstrated. Single-zone, static-color-only keyboard backlight per the reporter, matching the established `15-fa`-series pattern (`FanZoneCount = 1`, `HasFourZoneRgb = false`).
@@ -417,17 +459,6 @@ left out. (`keyboard` shipped since this section was first written — see "Done
 
 `ROADMAP_v2.5.0.md`'s nice-to-have, for Stream Deck / scripting / home-automation integration.
 Unblocked by the Core extraction, not started.
-
-### Package-reference cleanup on `OmenCoreApp.csproj` (minor, deliberately deferred)
-
-`OmenCoreApp.csproj` still lists `CUE.NET`, `HidSharp`, `LibreHardwareMonitorLib`, `NAudio`,
-`NvAPIWrapper.Net`, `RGB.NET.Core`, `RGB.NET.Devices.Corsair`, `System.Management`, and
-`System.ServiceProcess.ServiceController` even though grep confirms none of `ViewModels/`,
-`Views/`, `Controls/`, or the remaining `Utils/` reference those namespaces directly anymore — they
-now reach the app only transitively through the `OmenCore.Core` project reference. Redundant, not
-broken (doesn't affect correctness, only a marginally larger restore/reference set). Left alone
-here rather than risking a last-minute trim after a green full-suite run; a follow-up pass can
-verify each package is genuinely droppable and remove them one at a time.
 
 ### Extend `PowerAutomationService` rather than building a scheduler — but settle profile ownership first
 

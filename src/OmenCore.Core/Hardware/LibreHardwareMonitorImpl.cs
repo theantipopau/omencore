@@ -73,6 +73,14 @@ namespace OmenCore.Hardware
         private double _cachedGpuHotspot = 0;
         private bool _cachedAmdGpuTelemetryQuarantined = false;
         private string _cachedAmdGpuTelemetryQuarantineReason = string.Empty;
+
+        // Distinct from _cachedAmdGpuTelemetryQuarantined above, which only ever mirrors a
+        // signal reported BY the out-of-process worker and is deliberately reset every cycle
+        // when running in-process (see UpdateHardwareReadings). This flag is this class's own
+        // determination, made once against its own local _computer when InitializeComputer()'s
+        // worker-unavailable fallback constructs one, and it must persist for the rest of this
+        // instance's life - see QuarantineHybridAmdGpuTelemetryIfNeeded().
+        private bool _localAmdGpuTelemetryQuarantined = false;
         
         // Throttling detection (v1.2)
         private bool _cachedCpuThermalThrottling = false;
@@ -298,14 +306,62 @@ namespace OmenCore.Hardware
                 _systemRamTotalGb = GetTotalPhysicalMemoryGB();
                 
                 _logger?.Invoke("LibreHardwareMonitor initialized successfully");
-                
+
                 // Log detected GPUs for diagnostic purposes
                 LogDetectedGpus();
+
+                QuarantineHybridAmdGpuTelemetryIfNeeded();
             }
             catch (Exception ex)
             {
                 _initialized = false;
                 _logger?.Invoke($"LibreHardwareMonitor init failed: {ex.Message}. Using WMI fallback.");
+            }
+        }
+
+        /// <summary>
+        /// This class prefers routing through the out-of-process HardwareWorker precisely
+        /// because it already contains an access violation from LHM's AMD ADL path
+        /// (OmenCore.HardwareWorker/Program.cs's own QuarantineHybridAmdGpuTelemetryIfNeeded) -
+        /// but InitializeComputer() above is the "worker didn't start, fall back to a local
+        /// in-process Computer" path, which had no equivalent protection at all. On a hybrid
+        /// AMD+NVIDIA laptop that gap is real, not theoretical: this exact combination has
+        /// produced a genuine unrecoverable AccessViolationException in
+        /// LibreHardwareMonitor.Hardware.Gpu.AmdGpu.Update() -&gt; AtiAdlxx.ADL2_Adapter_
+        /// DedicatedVRAMUsage_Get, which no C# catch block can intercept (it's a corrupted-state
+        /// exception) - it kills the whole process outright, not just the monitoring loop.
+        ///
+        /// Mirrors the worker's detection exactly: hardware.Update() is never called on the
+        /// AMD GPU at all once both an AMD and an NVIDIA GPU are present, rather than trying to
+        /// recover after a crash that can't be recovered from. CPU/fan/memory/storage telemetry
+        /// (and the NVIDIA GPU, which has its own separate, already-hardened NVML path) are
+        /// unaffected - only the specific AMD ADL call this instability traces to is skipped.
+        /// </summary>
+        private void QuarantineHybridAmdGpuTelemetryIfNeeded()
+        {
+            try
+            {
+                var hardware = _computer?.Hardware?.ToList();
+                if (hardware == null || hardware.Count == 0)
+                {
+                    return;
+                }
+
+                var hasAmdGpu = hardware.Any(h => h.HardwareType == HardwareType.GpuAmd);
+                var hasNvidiaGpu = hardware.Any(h => h.HardwareType == HardwareType.GpuNvidia);
+                if (!hasAmdGpu || !hasNvidiaGpu)
+                {
+                    return;
+                }
+
+                _localAmdGpuTelemetryQuarantined = true;
+                _logger?.Invoke("[GPU] AMD GPU telemetry quarantined in-process: hybrid AMD+NVIDIA laptop detected; " +
+                                 "AMD ADL telemetry is disabled to avoid a LibreHardwareMonitor access violation " +
+                                 "(same protection OmenCore.HardwareWorker already applies out-of-process).");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"[GPU] Failed to evaluate in-process hybrid AMD GPU telemetry quarantine: {ex.Message}");
             }
         }
         
@@ -958,15 +1014,23 @@ namespace OmenCore.Hardware
                 foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                 {
                     if (_disposed) return; // Check before each hardware update
-                    
+
+                    if (_localAmdGpuTelemetryQuarantined && hardware.HardwareType == HardwareType.GpuAmd)
+                    {
+                        // Never call Update() at all - see QuarantineHybridAmdGpuTelemetryIfNeeded's
+                        // doc comment. The try/catch below cannot help here; this specific call has
+                        // produced an AccessViolationException, which is not a normal exception.
+                        continue;
+                    }
+
                     try
                     {
                         // Use safe GPU update for all discrete GPUs (NVIDIA/AMD/Intel Arc)
-                        bool isDiscreteGpu = hardware.HardwareType == HardwareType.GpuNvidia || 
+                        bool isDiscreteGpu = hardware.HardwareType == HardwareType.GpuNvidia ||
                             hardware.HardwareType == HardwareType.GpuAmd ||
-                            (hardware.HardwareType == HardwareType.GpuIntel && 
+                            (hardware.HardwareType == HardwareType.GpuIntel &&
                              hardware.Name.Contains("Arc", StringComparison.OrdinalIgnoreCase));
-                        
+
                         if (isDiscreteGpu)
                         {
                             if (!TryUpdateGpuHardware(hardware))
@@ -1962,13 +2026,20 @@ namespace OmenCore.Hardware
                     foreach (var hardware in _computer?.Hardware ?? Array.Empty<IHardware>())
                     {
                         if (_disposed) return results;
-                        
+
+                        if (_localAmdGpuTelemetryQuarantined && hardware.HardwareType == HardwareType.GpuAmd)
+                        {
+                            // Same reason as UpdateHardwareReadings's identical guard - see
+                            // QuarantineHybridAmdGpuTelemetryIfNeeded's doc comment.
+                            continue;
+                        }
+
                         // Use safe GPU update for all discrete GPUs (NVIDIA/AMD/Intel Arc)
-                        bool isDiscreteGpu = hardware.HardwareType == HardwareType.GpuNvidia || 
+                        bool isDiscreteGpu = hardware.HardwareType == HardwareType.GpuNvidia ||
                             hardware.HardwareType == HardwareType.GpuAmd ||
-                            (hardware.HardwareType == HardwareType.GpuIntel && 
+                            (hardware.HardwareType == HardwareType.GpuIntel &&
                              hardware.Name.Contains("Arc", StringComparison.OrdinalIgnoreCase));
-                        
+
                         if (isDiscreteGpu)
                         {
                             if (!TryUpdateGpuHardware(hardware))
