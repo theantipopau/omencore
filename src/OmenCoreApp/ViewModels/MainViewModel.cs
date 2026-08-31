@@ -3901,8 +3901,10 @@ namespace OmenCore.ViewModels
             {
                 return;
             }
-            await _corsairDeviceService.ApplyDpiStagesAsync(SelectedCorsairDevice, EditableDpiStages);
-            PushEvent($"DPI stages updated for {SelectedCorsairDevice.Name}");
+            var applied = await _corsairDeviceService.ApplyDpiStagesAsync(SelectedCorsairDevice, EditableDpiStages);
+            PushEvent(applied
+                ? $"DPI stages updated for {SelectedCorsairDevice.Name}"
+                : $"DPI stages NOT applied to {SelectedCorsairDevice.Name} - active Corsair backend doesn't support writing DPI");
         }
 
         private async Task ApplyMacroToDevice()

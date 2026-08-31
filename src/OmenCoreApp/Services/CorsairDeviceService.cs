@@ -433,25 +433,37 @@ namespace OmenCore.Services
         }
 
         /// <summary>
-        /// Configure DPI stages for a mouse.
+        /// Configure DPI stages for a mouse. Returns true only if the write actually reached
+        /// the device - callers must not update UI/config state as if it succeeded when this
+        /// returns false (e.g. the active backend has no DPI write path at all, like RGB.NET).
         /// </summary>
-        public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
+        public async Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
         {
             if (device == null)
             {
                 _logging.Warn("Cannot apply DPI: device is null");
-                return;
+                return false;
             }
 
             try
             {
-                await _sdk.ApplyDpiStagesAsync(device, stages);
-                device.DpiStages = stages.ToList();
-                _logging.Info($"Updated DPI stages for {device.Name}");
+                var applied = await _sdk.ApplyDpiStagesAsync(device, stages);
+                if (applied)
+                {
+                    device.DpiStages = stages.ToList();
+                    _logging.Info($"Updated DPI stages for {device.Name}");
+                }
+                else
+                {
+                    _logging.Warn($"DPI stages were not applied to {device.Name} - active Corsair backend does not support writing DPI");
+                }
+
+                return applied;
             }
             catch (Exception ex)
             {
                 _logging.Error($"Failed to apply DPI stages to {device.Name}", ex);
+                return false;
             }
         }
 

@@ -1984,7 +1984,17 @@ namespace OmenCore.ViewModels
 
                 try
                 {
-                    await _corsairService.ApplyDpiStagesAsync(SelectedCorsairDevice, CorsairDpiStages);
+                    var applied = await _corsairService.ApplyDpiStagesAsync(SelectedCorsairDevice, CorsairDpiStages);
+                    if (!applied)
+                    {
+                        _logging.Warn("DPI settings were not applied - active Corsair backend does not support writing DPI to this device");
+                        MessageBox.Show(
+                            "OmenCore couldn't actually write these DPI settings to the device - the active Corsair connection (RGB.NET/iCUE) doesn't support DPI configuration. Nothing on the mouse changed.",
+                            "DPI Settings Not Applied",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
 
                     // Update the device model to reflect the new DPI values
                     SelectedCorsairDevice.DpiStages.Clear();

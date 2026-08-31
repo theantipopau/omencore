@@ -64,7 +64,9 @@ namespace OmenCoreApp.Tests.Services
             d.Should().NotBeNull();
 
             // Apply DPI (should retry and succeed)
-            await flaky.ApplyDpiStagesAsync(d!, new[] { new OmenCore.Corsair.CorsairDpiStage { Index = 0, Dpi = 800 } });
+            var applied = await flaky.ApplyDpiStagesAsync(d!, new[] { new OmenCore.Corsair.CorsairDpiStage { Index = 0, Dpi = 800 } });
+
+            applied.Should().BeTrue("the write eventually succeeded within the retry budget, so the caller must be told it actually reached the device");
 
             var stats = telemetry.GetStats();
             stats.Should().ContainKey(((int)0x1B2E).ToString());
@@ -89,7 +91,11 @@ namespace OmenCoreApp.Tests.Services
             d.Should().NotBeNull();
 
             // Apply DPI (will fail after retries)
-            await flaky.ApplyDpiStagesAsync(d!, new[] { new OmenCore.Corsair.CorsairDpiStage { Index = 1, Dpi = 1600 } });
+            var applied = await flaky.ApplyDpiStagesAsync(d!, new[] { new OmenCore.Corsair.CorsairDpiStage { Index = 1, Dpi = 1600 } });
+
+            applied.Should().BeFalse(
+                "GitHub roadmap v4.2.1: a failed DPI write must be reported back to the caller as false, not silently swallowed - " +
+                "the DPI editor shows a real hardware-write confirmation dialog and must not tell the user it succeeded when it didn't");
 
             var stats = telemetry.GetStats();
             stats.Should().ContainKey(((int)0x1B1E).ToString());

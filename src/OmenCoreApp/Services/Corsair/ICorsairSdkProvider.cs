@@ -34,8 +34,13 @@ namespace OmenCore.Services.Corsair
 
         /// <summary>
         /// Configure DPI stages for a mouse.
+        /// Returns true only if the write actually reached the device - same contract as
+        /// <see cref="ApplyLightingAsync"/>. The DPI editor shows a real confirmation dialog
+        /// implying a hardware write is about to happen, so a backend that cannot actually
+        /// write DPI (e.g. RGB.NET has no DPI API) must say so via the return value rather than
+        /// completing as if it succeeded.
         /// </summary>
-        Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages);
+        Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages);
 
         /// <summary>
         /// Upload and apply a macro profile to a device.
@@ -99,10 +104,12 @@ namespace OmenCore.Services.Corsair
             return Task.FromResult(true);
         }
 
-        public Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
+        public Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
         {
+            // Matches ApplyLightingAsync's stub behavior above - unreachable in practice since
+            // DiscoverDevicesAsync never returns a device for this backend to begin with.
             _logging.Info($"[Stub] Updated DPI stages for {device.Name}");
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task ApplyMacroAsync(CorsairDevice device, MacroProfile macro)
@@ -297,7 +304,13 @@ namespace OmenCore.Services.Corsair
                     Zones = new List<string> { "RGB" }, // RGB.NET handles LED zones internally
                     Status = new CorsairDeviceStatus
                     {
-                        BatteryPercent = 100, // RGB.NET doesn't expose battery info
+                        // RGB.NET doesn't expose battery info - 0 rather than a fabricated 100%,
+                        // matching CorsairDeviceStatus.ToString()'s existing "only show it if
+                        // BatteryPercent > 0" convention so this correctly shows nothing rather
+                        // than a fake full-charge reading (wired devices don't have a battery
+                        // anyway, and a wireless one reading "100%" when it's actually dying is
+                        // actively misleading, not just uninformative).
+                        BatteryPercent = 0,
                         PollingRateHz = 1000,
                         FirmwareVersion = "Unknown",
                         ConnectionType = "USB"
@@ -491,12 +504,13 @@ namespace OmenCore.Services.Corsair
             return new Color(r, g, b);
         }
 
-        public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
+        public async Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
         {
             // NOTE: RGB.NET is primarily for lighting control, not device configuration
             // DPI settings require direct Corsair SDK which is not available in RGB.NET
             _logging.Warn($"DPI configuration not supported via RGB.NET for {device.Name}");
             await Task.CompletedTask;
+            return false;
         }
 
         public async Task ApplyMacroAsync(CorsairDevice device, MacroProfile macro)
@@ -546,7 +560,7 @@ namespace OmenCore.Services.Corsair
             // TODO: Query device status via iCUE SDK
             return await Task.FromResult(new CorsairDeviceStatus
             {
-                BatteryPercent = 100,
+                BatteryPercent = 0, // not fabricated - see the same fix in DiscoverDevicesAsync above
                 PollingRateHz = 1000,
                 FirmwareVersion = "Unknown",
                 ConnectionType = "USB"

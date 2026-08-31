@@ -808,7 +808,7 @@ namespace OmenCore.Services.Corsair
 
         // ── End Effect Implementations ──────────────────────────────────
 
-        public async Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages)
+        public async Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages)
         {
             if (device == null) throw new ArgumentNullException(nameof(device));
             if (stages == null) throw new ArgumentNullException(nameof(stages));
@@ -818,8 +818,10 @@ namespace OmenCore.Services.Corsair
             if (hidDevice == null)
             {
                 _logging.Warn($"No HID device found for {device.Name} (device id: {device.DeviceId})");
-                return;
+                return false;
             }
+
+            var allStagesSucceeded = true;
 
             // Build and send per-stage reports based on product heuristics
             foreach (var s in stages)
@@ -828,7 +830,7 @@ namespace OmenCore.Services.Corsair
                 if (report == null)
                 {
                     _logging.Warn($"DPI update not supported for PID 0x{hidDevice.ProductId:X4}");
-                    return;
+                    return false;
                 }
 
                 // Retry loop for inkling of reliability similar to color writes
@@ -861,8 +863,11 @@ namespace OmenCore.Services.Corsair
                 if (!success)
                 {
                     try { _telemetry?.IncrementPidFailure(hidDevice.ProductId); } catch { }
+                    allStagesSucceeded = false;
                 }
             }
+
+            return allStagesSucceeded;
         }
 
         /// <summary>

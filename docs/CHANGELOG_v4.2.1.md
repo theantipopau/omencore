@@ -26,6 +26,18 @@ Traced to a real interaction bug. The Quiet Safety Monitor (on by default, trigg
 
 Fixed by giving `FanService.PresetApplied` a real payload (`FanPresetAppliedEventArgs`, replacing the old plain `string`) carrying a `SuppressLinkedProfileSync` flag, and threading a `suppressLinkedProfileSync` parameter through `ApplyMaxCooling(...)` down to that event. The Quiet Safety Monitor is now the one caller that passes `suppressLinkedProfileSync: true`; every user-initiated Max Fan trigger (button, hotkey, OMEN key) still passes the default `false` and keeps cascading into the linked performance-mode switch exactly as before. `MainViewModel.OnFanPresetApplied` checks the flag before running the link-sync block — every other consumer (tray icon, sidebar, dashboard) is unaffected and still correctly shows Max fan state regardless. 2 new tests confirming the flag reaches `PresetApplied` correctly in both the suppressed and default cases, plus 3 existing tests updated for the new event-argument type (2 call-site updates, 1 reflection-based test that needed both parameters passed explicitly since `MethodInfo.Invoke` doesn't apply C# default-parameter values). Full suite: 1376/1376.
 
+### Corsair DPI Editor Could Show "Success" for a Write That Never Reached the Mouse
+
+Found while working the roadmap's "decide and be honest" item on Corsair's RGB.NET-backed provider (`CorsairICueSdk`). Two related honesty gaps:
+
+`DiscoverDevicesAsync`/`GetDeviceStatusAsync` hardcoded `BatteryPercent = 100` for every Corsair device with the comment "RGB.NET doesn't expose battery info" — a fabricated full-charge reading, not a placeholder. `CorsairDeviceStatus`'s own display logic already only shows a battery line `if (BatteryPercent > 0)`, so the fix is just using that existing convention honestly: `BatteryPercent = 0` now correctly shows nothing instead of a fake 100%.
+
+The bigger issue: `ApplyDpiStagesAsync` presents a real confirmation dialog — "This will change the hardware DPI settings on the selected device" — then, on this backend, logs "DPI configuration not supported via RGB.NET" and returns without writing anything. Nothing in the call chain checked for that: the ViewModel updated the device model, saved config defaults, and updated the saved DPI profile as if the write had succeeded, with no failure ever surfaced to the user. `ApplyDpiStagesAsync` now returns `Task<bool>` end to end (interface → `CorsairSdkStub`/`CorsairICueSdk`/`CorsairHidDirect` → `CorsairDeviceService` → both ViewModel call sites), matching the same "return true only if the write actually reached the device" contract `ApplyLightingAsync` already used. A failed apply now shows an explicit "DPI Settings Not Applied" dialog instead of silently updating state. 3 new/strengthened tests (`CorsairRgbProviderTests`, `CorsairHidDpiIntegrationTests`) plus 2 test fakes updated for the new signature.
+
+Corsair macro upload has the identical "not supported, no-op" shape on every backend including the real HID-direct one, but is never called from any ViewModel — no UI action reaches it, so it's dead code rather than a live honesty bug. Left alone; noted in the roadmap as needing an actual implementation decision, not a quick fix.
+
+One incidental fix along the way: the `ApplyDpiStagesAsync` signature change shifted two pre-existing, already-tracked bare `catch {}` blocks in `CorsairHidDirect.cs` down by two lines, which the code-hygiene gate's line-pinned baseline correctly flagged as "new" violations. Updated the baseline's line numbers with the same shift-tracking convention already used elsewhere in that file (`ReleaseGateCodeHygieneTests.cs`) rather than suppressing the check. Full suite: 1377/1377.
+
 ---
 
 ## Added

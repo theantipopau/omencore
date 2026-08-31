@@ -19,7 +19,7 @@ namespace OmenCoreApp.Tests.ViewModels
                 return Task.FromResult<IEnumerable<OmenCore.Corsair.CorsairDevice>>(list);
             }
             public Task<bool> ApplyLightingAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.CorsairLightingPreset preset) => Task.FromResult(true);
-            public Task ApplyDpiStagesAsync(OmenCore.Corsair.CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages) => Task.CompletedTask;
+            public Task<bool> ApplyDpiStagesAsync(OmenCore.Corsair.CorsairDevice device, IEnumerable<OmenCore.Corsair.CorsairDpiStage> stages) => Task.FromResult(true);
             public Task ApplyMacroAsync(OmenCore.Corsair.CorsairDevice device, OmenCore.Corsair.MacroProfile macro) => Task.CompletedTask;
             public Task SyncWithThemeAsync(IEnumerable<OmenCore.Corsair.CorsairDevice> devices, OmenCore.Models.LightingProfile theme) => Task.CompletedTask;
             public Task<OmenCore.Corsair.CorsairDeviceStatus> GetDeviceStatusAsync(OmenCore.Corsair.CorsairDevice device) => Task.FromResult(device.Status);

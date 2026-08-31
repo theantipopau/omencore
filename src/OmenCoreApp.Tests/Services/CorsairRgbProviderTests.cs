@@ -38,7 +38,12 @@ namespace OmenCoreApp.Tests.Services
                 LastPreset = preset;
                 return Task.FromResult(!ShouldFail);
             }
-            public Task ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages) => Task.CompletedTask;
+            public int ApplyDpiCallCount;
+            public Task<bool> ApplyDpiStagesAsync(CorsairDevice device, IEnumerable<CorsairDpiStage> stages)
+            {
+                ApplyDpiCallCount++;
+                return Task.FromResult(!ShouldFail);
+            }
             public Task ApplyMacroAsync(CorsairDevice device, MacroProfile macro) => Task.CompletedTask;
             public Task SyncWithThemeAsync(IEnumerable<CorsairDevice> devices, LightingProfile theme) => Task.CompletedTask;
             public Task<CorsairDeviceStatus> GetDeviceStatusAsync(CorsairDevice device) => Task.FromResult(device.Status);
@@ -110,6 +115,34 @@ namespace OmenCoreApp.Tests.Services
 
             applied.Should().BeFalse("the SDK reported failure for every device, so the sync as a whole must not be reported as successful");
             testProvider.ApplyLightingCallCount.Should().Be(1, "the write should still have been attempted");
+        }
+
+        [Fact]
+        public async Task ApplyDpiStagesAsync_SdkReturnsFalse_DoesNotUpdateDeviceModelOrReportSuccess()
+        {
+            // GitHub roadmap v4.2.1: CorsairICueSdk (the RGB.NET-backed provider) cannot
+            // actually write DPI stages - it has no DPI API - and used to complete as if it
+            // had, so the DPI editor's device model, saved defaults, and saved profile all
+            // silently updated to values that were never written to the mouse, right after a
+            // confirmation dialog told the user hardware settings were about to change. Same
+            // "SDK didn't throw != SDK succeeded" bug class as the lighting fix above, for DPI.
+            var logging = new LoggingService();
+            logging.Initialize();
+
+            var device = new CorsairDevice { Name = "Test Mouse", DeviceType = CorsairDeviceType.Mouse };
+            var testProvider = new TestProvider { Device = device, ShouldFail = true };
+            var corsairService = new CorsairDeviceService(testProvider, logging);
+
+            var originalStages = new List<CorsairDpiStage> { new() { Name = "Low", Dpi = 800 } };
+            device.DpiStages = originalStages;
+
+            var newStages = new List<CorsairDpiStage> { new() { Name = "High", Dpi = 16000 } };
+            var applied = await corsairService.ApplyDpiStagesAsync(device, newStages);
+
+            applied.Should().BeFalse("the RGB.NET backend has no DPI write path and must report that honestly instead of a silent no-op success");
+            testProvider.ApplyDpiCallCount.Should().Be(1, "the write should still have been attempted");
+            device.DpiStages.Should().BeSameAs(originalStages,
+                "the device model must not be updated to reflect DPI values that were never actually written to the hardware");
         }
     }
 }
