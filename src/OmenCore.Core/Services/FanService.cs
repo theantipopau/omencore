@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Services
 {
@@ -954,16 +955,13 @@ namespace OmenCore.Services
                 _fanChangeConfirmCounters = Enumerable.Repeat(0, _lastFanSpeeds.Count).ToList();
                 _fanChangePendingRpms = new List<int>(_lastFanSpeeds);
 
-                // Update UI-bound collection only when a WPF dispatcher is available.
-                // Use BeginInvoke (fire-and-forget) to avoid a blocking cross-thread call
-                // during service startup, which could deadlock if Start() is called from the UI thread.
-                if (App.Current?.Dispatcher != null)
+                // Marshal to the UI thread if one exists (fire-and-forget, to avoid a blocking
+                // cross-thread call during service startup that could deadlock if Start() is
+                // called from the UI thread); runs inline for a headless/no-UI-thread host.
+                UiThreadMarshaller.BeginInvoke(() =>
                 {
-                    App.Current.Dispatcher.BeginInvoke(() =>
-                    {
-                        SyncFanTelemetryCollection(fanSpeeds);
-                    });
-                }
+                    SyncFanTelemetryCollection(fanSpeeds);
+                });
             }
             catch (Exception ex)
             {
@@ -2016,7 +2014,7 @@ namespace OmenCore.Services
                     _lastFanRpmStates = rpmStates;
 
                     // Use BeginInvoke to avoid potential deadlocks
-                    App.Current?.Dispatcher?.BeginInvoke(() =>
+                    UiThreadMarshaller.BeginInvoke(() =>
                     {
                         _thermalSamples.Add(sample);
                         const int window = 120;

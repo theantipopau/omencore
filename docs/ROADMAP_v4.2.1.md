@@ -151,7 +151,7 @@ Small, contained, no new subsystems, no evidence gate:
 
 Ordered by what the audit suggests is worth doing, not by how loud the original request was.
 
-**1. Extract `OmenCore.Core` — and note that this is secretly the gating item for several others.**
+**1. Extract `OmenCore.Core` — and note that this is secretly the gating item for several others. STARTED 2026-08-31 — see `docs/ROADMAP_v4.3.0.md`.**
 
 `OmenCoreApp.csproj` is `<OutputType>WinExe</OutputType>` with `<UseWPF>true</UseWPF>`, so the entire service layer currently lives inside a WPF application assembly. But the services themselves are cleaner than that implies — `FanService.cs`, `PerformanceModeService.cs`, and `ConfigurationService.cs` contain **zero** `System.Windows` references; only `NotificationService.cs` does (2), and that's a small, contained coupling. So the code is already most of the way to headless-capable; it's the project structure that isn't.
 

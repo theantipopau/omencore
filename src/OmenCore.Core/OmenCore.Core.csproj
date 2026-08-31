@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>OmenCore.Core</AssemblyName>
+    <Version>4.2.0</Version>
+    <AssemblyVersion>4.2.0.0</AssemblyVersion>
+    <FileVersion>4.2.0.0</FileVersion>
+    <InformationalVersion>4.2.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Hardware/service layer extracted out of OmenCoreApp (see docs/ROADMAP_v4.2.1.md,
+    "v4.3.0 candidate slate" item 1). No UseWPF here - that's the entire point: this is the
+    dependency a Windows CLI or a local HTTP/named-pipe control API can reference without
+    dragging WPF into a console app. Targets the same net8.0-windows10.0.19041.0 as
+    OmenCoreApp (not plain net8.0-windows) because a couple of services fall back to WinRT
+    (Windows.Devices.Power.Battery) when the primary detection path fails - that projection
+    needs the Windows SDK-versioned TFM, which is unrelated to WPF.
+  -->
+
+  <ItemGroup>
+    <PackageReference Include="CUE.NET" Version="1.2.0.1" />
+    <PackageReference Include="HidSharp" Version="2.6.4" />
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
+    <PackageReference Include="Microsoft.Management.Infrastructure" Version="3.0.0" />
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NvAPIWrapper.Net" Version="0.8.1.101" />
+    <PackageReference Include="RGB.NET.Core" Version="3.1.0" />
+    <PackageReference Include="RGB.NET.Devices.Corsair" Version="3.1.0" />
+    <PackageReference Include="System.Management" Version="10.0.2" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Per-key keyboard layouts, moved with its one consumer (KeyboardLayoutCatalog.cs).
+         Looked up by Assembly.GetExecutingAssembly() + resource-name suffix match, so it
+         is not sensitive to this project's default namespace. -->
+    <EmbeddedResource Include="Services\KeyboardLighting\KeyboardLayouts.json" />
+  </ItemGroup>
+</Project>

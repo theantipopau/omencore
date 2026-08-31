@@ -1077,14 +1077,14 @@ namespace OmenCore.Services
             try
             {
                 // Check configuration setting first
-                var config = App.Configuration?.Config;
+                var config = AppHost.Configuration?.Config;
                 if (config?.Features?.SuppressHotkeysInRdp != true)
                 {
                     return false; // User disabled RDP suppression
                 }
                 
                 // Check if we're in a remote session
-                return App.ShouldSuppressWindowActivation;
+                return OmenCore.Utils.UiThreadMarshaller.ShouldSuppressActivation();
             }
             catch
             {

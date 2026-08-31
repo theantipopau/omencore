@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using OmenCore.Models;
-using OmenCore.ViewModels;
+using OmenCore.Utils;
 using Windows.Devices.Power;
 
 namespace OmenCore.Services
@@ -135,10 +135,9 @@ namespace OmenCore.Services
         {
             try
             {
-                // Method 1: Use System.Windows.Forms.SystemInformation for reliable AC detection
-                var powerStatus = System.Windows.Forms.SystemInformation.PowerStatus;
-                var isOnAc = powerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
-                _logging.Debug($"AC detection (SystemInformation): PowerLineStatus={powerStatus.PowerLineStatus}, IsOnAc={isOnAc}");
+                // Method 1: GetSystemPowerStatus for reliable AC detection
+                var isOnAc = PowerStatusHelper.IsAcPowerOnline();
+                _logging.Debug($"AC detection (GetSystemPowerStatus): IsOnAc={isOnAc}");
                 return isOnAc;
             }
             catch (Exception ex)
@@ -337,24 +336,17 @@ namespace OmenCore.Services
         {
             try
             {
-                var dispatcher = System.Windows.Application.Current?.Dispatcher;
-                if (dispatcher != null)
+                UiThreadMarshaller.BeginInvoke(() =>
                 {
-                    _ = dispatcher.BeginInvoke(new Action(() =>
+                    try
                     {
-                        try
-                        {
-                            PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(isOnAc));
-                        }
-                        catch (Exception ex)
-                        {
-                            _logging.Warn($"PowerStateChanged subscriber threw during {source}: {ex.Message}");
-                        }
-                    }));
-                    return;
-                }
-
-                PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(isOnAc));
+                        PowerStateChanged?.Invoke(this, new PowerStateChangedEventArgs(isOnAc));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logging.Warn($"PowerStateChanged subscriber threw during {source}: {ex.Message}");
+                    }
+                });
             }
             catch (Exception ex)
             {

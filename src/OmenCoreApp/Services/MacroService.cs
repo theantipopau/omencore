@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using OmenCore.Corsair;
 
 namespace OmenCore.Services
@@ -28,7 +27,7 @@ namespace OmenCore.Services
             _recording = false;
         }
 
-        public void PushEvent(Key key, bool down, int delayMs)
+        public void PushEvent(int key, bool down, int delayMs)
         {
             if (!_recording)
             {

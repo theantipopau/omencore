@@ -66,7 +66,7 @@ namespace OmenCore.Hardware
                     // Some callers (OSD, UI controls) may call this on the UI thread — block at most 250ms there.
                     var readTask = _wmiBiosMonitor.ReadSampleAsync(CancellationToken.None);
 
-                    bool onUiThread = System.Windows.Application.Current?.Dispatcher?.CheckAccess() == true;
+                    bool onUiThread = OmenCore.Utils.UiThreadMarshaller.IsOnUiThread();
                     if (onUiThread)
                     {
                         // Bound the wait on UI thread to keep UI responsive.
@@ -83,7 +83,7 @@ namespace OmenCore.Hardware
                         catch (TimeoutException)
                         {
                             // Timed out on UI thread — return cached/empty values to avoid freeze and log for diagnostics
-                            try { App.Logging?.Warn("[ThermalSensorProvider] UI-thread ReadSampleAsync timed out (250ms)"); } catch { }
+                            try { AppHost.Logging?.Warn("[ThermalSensorProvider] UI-thread ReadSampleAsync timed out (250ms)"); } catch { }
                             TryReuseLastGoodTemperatures(ref cpuTemp, ref gpuTemp);
                         }
                     }
@@ -98,7 +98,7 @@ namespace OmenCore.Hardware
                 catch (Exception ex)
                 {
                     // If ReadSampleAsync fails, temps stay at 0 — log for diagnostics
-                    try { App.Logging?.Debug($"[ThermalSensorProvider] ReadSampleAsync failed: {ex.Message}"); } catch { }
+                    try { AppHost.Logging?.Debug($"[ThermalSensorProvider] ReadSampleAsync failed: {ex.Message}"); } catch { }
                     TryReuseLastGoodTemperatures(ref cpuTemp, ref gpuTemp);
                 }
             }

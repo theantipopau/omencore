@@ -4,10 +4,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Services
 {
@@ -634,7 +634,7 @@ namespace OmenCore.Services
                             {
                                 _pendingUIUpdate = true;
                                 // Use BeginInvoke to avoid potential deadlocks
-                                Application.Current?.Dispatcher?.BeginInvoke(() =>
+                                UiThreadMarshaller.BeginInvoke(() =>
                                 {
                                     _samples.Add(sample);
                                     while (_samples.Count > _history)

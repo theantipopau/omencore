@@ -35,8 +35,8 @@ namespace OmenCore
         private static DateTime _lastSessionUnlock = DateTime.MinValue;
         private const int SessionUnlockGracePeriodMs = 2000;  // Ignore activations for 2s after unlock
 
-        public static LoggingService Logging { get; } = new();
-        public static ConfigurationService Configuration { get; } = new();
+        public static LoggingService Logging => AppHost.Logging;
+        public static ConfigurationService Configuration => AppHost.Configuration;
         public static IServiceProvider? ServiceProvider => ((App)Current)._serviceProvider;
         
         /// <summary>
@@ -56,10 +56,38 @@ namespace OmenCore
         public App()
         {
             ForceInvariantNumberFormatting();
+            WireUiThreadMarshaller();
 
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        }
+
+        /// <summary>
+        /// Wires OmenCore.Core's UI-thread-agnostic UiThreadMarshaller to this app's real WPF
+        /// Dispatcher. Core services (Corsair/Logitech discovery, hardware monitoring's sample
+        /// buffer, thermal sensor reads, notifications) call through UiThreadMarshaller instead
+        /// of touching System.Windows directly, so Core doesn't need a WPF reference at all -
+        /// this is the one place that fact gets undone for the WPF host. Must run before any of
+        /// those services can be constructed, so it's the second thing the constructor does.
+        /// </summary>
+        private static void WireUiThreadMarshaller()
+        {
+            OmenCore.Utils.UiThreadMarshaller.BeginInvoke = OmenCore.Utils.DispatcherHelper.RunOnUiThread;
+            OmenCore.Utils.UiThreadMarshaller.IsOnUiThread = OmenCore.Utils.DispatcherHelper.IsOnUiThread;
+            OmenCore.Utils.UiThreadMarshaller.ShouldSuppressActivation = () => ShouldSuppressWindowActivation;
+            OmenCore.Utils.UiThreadMarshaller.InvokeAsync = async action =>
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                {
+                    await dispatcher.InvokeAsync(action);
+                }
+                else
+                {
+                    action();
+                }
+            };
         }
 
         /// <summary>

@@ -2066,7 +2066,7 @@ namespace OmenCore.Hardware
 
                 try
                 {
-                    var cfg = App.Configuration?.Config;
+                    var cfg = AppHost.Configuration?.Config;
                     if (cfg != null)
                     {
                         orphanTimeoutEnabled = cfg.HardwareWorkerOrphanTimeoutEnabled;
@@ -2134,7 +2134,7 @@ namespace OmenCore.Hardware
                 int orphanTimeoutMinutes = 5;
                 try
                 {
-                    var cfg = App.Configuration?.Config;
+                    var cfg = AppHost.Configuration?.Config;
                     if (cfg != null)
                     {
                         orphanTimeoutEnabled = cfg.HardwareWorkerOrphanTimeoutEnabled;
@@ -2401,9 +2401,8 @@ namespace OmenCore.Hardware
             
             try
             {
-                // Use SystemInformation first — doesn't go through EC
-                var powerStatus = System.Windows.Forms.SystemInformation.PowerStatus;
-                return powerStatus.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                // Use GetSystemPowerStatus first — doesn't go through EC
+                return OmenCore.Utils.PowerStatusHelper.IsAcPowerOnline();
             }
             catch (Exception ex)
             {

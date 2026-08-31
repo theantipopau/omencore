@@ -87,7 +87,7 @@ namespace OmenCore.Hardware
                         // WMI answered but named neither AMD nor Intel - a genuinely unrecognized
                         // CPU, not a transient failure, so this is safe to memoize like any other
                         // resolved vendor (finding F10: only the exception path below must not be).
-                        App.Logging.Warn($"CPU vendor detection: unrecognized CPU '{CpuName}' (manufacturer '{manufacturer}') - defaulting to Intel (more common in gaming laptops)");
+                        AppHost.Logging.Warn($"CPU vendor detection: unrecognized CPU '{CpuName}' (manufacturer '{manufacturer}') - defaulting to Intel (more common in gaming laptops)");
                         DetectedVendor = CpuVendor.Intel;
                     }
                     break;
@@ -100,7 +100,7 @@ namespace OmenCore.Hardware
                 // "this CPU is unrecognized" answer, so the next call should retry rather than be
                 // permanently stuck on a guess. Callers that compare against a specific vendor
                 // (== AMD) already treat Unknown the same as the old Intel-default did.
-                App.Logging.Warn($"CPU vendor detection failed via WMI: {ex.Message} - will retry on next call");
+                AppHost.Logging.Warn($"CPU vendor detection failed via WMI: {ex.Message} - will retry on next call");
             }
         }
     }

@@ -45,6 +45,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\OmenCore.Core\OmenCore.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="CUE.NET" Version="1.2.0.1" />
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
     <PackageReference Include="HidSharp" Version="2.6.4" />
@@ -119,10 +122,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>LogitechLedEnginesWrapper.dll</Link>
     </Content>
-    <!-- Per-key keyboard layouts: which LED byte belongs to which key, and which keyboard a
-         given board has. Generated - regenerate with omen-max-16's
-         tools/static/emit-omencore-layouts.py rather than editing it. -->
-    <EmbeddedResource Include="Services\KeyboardLighting\KeyboardLayouts.json" />
   </ItemGroup>
 
   <!-- Ensure ModernStyles.xaml is compiled as a WPF resource (BAML) and embedded -->

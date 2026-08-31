@@ -592,7 +592,7 @@ namespace OmenCore.Services
         /// </summary>
         public IEnumerable<PerformanceMode> GetAvailableModes()
         {
-            return App.Configuration?.Config.PerformanceModes ?? new List<PerformanceMode>();
+            return AppHost.Configuration?.Config.PerformanceModes ?? new List<PerformanceMode>();
         }
 
         public IReadOnlyList<PerformanceMode> GetModes(AppConfig config) => config.PerformanceModes;

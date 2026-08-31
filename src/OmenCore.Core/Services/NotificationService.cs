@@ -4,8 +4,6 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Threading;
 using Microsoft.Toolkit.Uwp.Notifications;
 using OmenCore.Utils;
 using Windows.UI.Notifications;
@@ -620,7 +618,7 @@ namespace OmenCore.Services
         /// </summary>
         public void AddInAppNotification(InAppNotificationType type, string title, string message, string? actionTarget = null)
         {
-            DispatcherHelper.RunOnUiThread(() =>
+            UiThreadMarshaller.BeginInvoke(() =>
             {
                 var notification = new InAppNotification
                 {
@@ -708,7 +706,7 @@ namespace OmenCore.Services
         /// </summary>
         public void DismissNotification(Guid notificationId)
         {
-            DispatcherHelper.RunOnUiThread(() =>
+            UiThreadMarshaller.BeginInvoke(() =>
             {
                 var notification = _inAppNotifications.FirstOrDefault(n => n.Id == notificationId);
                 if (notification != null)

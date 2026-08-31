@@ -50,7 +50,7 @@ namespace OmenCore.Services
                 
                 if (config == null)
                 {
-                    App.Logging.Warn("Config file is invalid, using defaults");
+                    AppHost.Logging.Warn("Config file is invalid, using defaults");
                     return DefaultConfiguration.Create();
                 }
 
@@ -60,7 +60,7 @@ namespace OmenCore.Services
             }
             catch (Exception ex)
             {
-                App.Logging.Error($"Failed to load config, using defaults: {ex.Message}");
+                AppHost.Logging.Error($"Failed to load config, using defaults: {ex.Message}");
                 return DefaultConfiguration.Create();
             }
         }
@@ -85,7 +85,7 @@ namespace OmenCore.Services
             // Validate monitoring interval
             if (config.MonitoringIntervalMs < 500 || config.MonitoringIntervalMs > 10000)
             {
-                App.Logging.Warn($"Invalid MonitoringIntervalMs ({config.MonitoringIntervalMs}), resetting to 1000");
+                AppHost.Logging.Warn($"Invalid MonitoringIntervalMs ({config.MonitoringIntervalMs}), resetting to 1000");
                 config.MonitoringIntervalMs = 1000;
             }
 

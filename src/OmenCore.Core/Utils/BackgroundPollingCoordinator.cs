@@ -82,7 +82,7 @@ namespace OmenCore.Utils
             try
             {
                 _scheduler.Pump(static (name, ex) =>
-                    App.Logging.Warn($"[BackgroundPollingCoordinator] Subscriber '{name}' threw: {ex.Message}"));
+                    AppHost.Logging.Warn($"[BackgroundPollingCoordinator] Subscriber '{name}' threw: {ex.Message}"));
             }
             finally
             {

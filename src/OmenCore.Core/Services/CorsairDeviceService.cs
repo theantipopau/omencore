@@ -118,14 +118,7 @@ namespace OmenCore.Services
 
         private async Task ReplaceDevicesAsync(IReadOnlyCollection<CorsairDevice> discovered)
         {
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-            {
-                await dispatcher.InvokeAsync(() => ReplaceDevices(discovered));
-                return;
-            }
-
-            ReplaceDevices(discovered);
+            await OmenCore.Utils.UiThreadMarshaller.InvokeAsync(() => ReplaceDevices(discovered));
         }
 
         private void ReplaceDevices(IReadOnlyCollection<CorsairDevice> discovered)

@@ -58,7 +58,12 @@ namespace OmenCore.Utils
         {
             try
             {
-                var asm = Assembly.GetExecutingAssembly();
+                // GetEntryAssembly (the actual running .exe), not GetExecutingAssembly (whichever
+                // assembly happens to host this class) - this moved into OmenCore.Core, and the
+                // app's version should reflect OmenCoreApp.exe regardless of where the code that
+                // reads it lives. Falls back to GetExecutingAssembly for hosts where the entry
+                // assembly isn't resolvable (e.g. some test runners).
+                var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
                 var informationalVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
                 if (!string.IsNullOrWhiteSpace(informationalVersion))
                 {

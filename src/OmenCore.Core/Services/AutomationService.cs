@@ -5,10 +5,10 @@ using System.Management;
 using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using OmenCore.Hardware;
 using OmenCore.Models;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Services
 {
@@ -218,10 +218,10 @@ namespace OmenCore.Services
 
             try
             {
-                var battery = SystemInformation.PowerStatus.BatteryLifePercent * 100;
-                // BatteryLifePercent is 255f when unknown (no battery / sensor failure),
-                // which would make any "above" rule fire permanently (255*100 = 25500).
-                if (battery < 0 || battery > 100)
+                var battery = PowerStatusHelper.GetBatteryLifePercent();
+                // Null means unknown (no battery / sensor failure), which would otherwise make
+                // any "above" rule fire permanently.
+                if (battery == null)
                     return false;
 
                 var threshold = config.BatteryThreshold.Value;
@@ -246,7 +246,7 @@ namespace OmenCore.Services
 
             try
             {
-                var isACConnected = SystemInformation.PowerStatus.PowerLineStatus == PowerLineStatus.Online;
+                var isACConnected = PowerStatusHelper.IsAcPowerOnline();
                 return isACConnected == config.ACConnected.Value;
             }
             catch
