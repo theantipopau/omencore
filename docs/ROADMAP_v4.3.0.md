@@ -307,7 +307,7 @@ the type it constructs).
 
 ---
 
-### Windows CLI — `status` / `fan` / `performance` / `keyboard`
+### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor`
 
 The actual point of the extraction, started the same session right after Core landed. New
 `src/OmenCore.Cli` console project (`AssemblyName: omencore-cli`, matching Linux's binary name),
@@ -339,14 +339,16 @@ matching what the GUI's preset buttons already do), `performance --mode <name>` 
 shape against `config.PerformanceModes`), `keyboard --color <hex>` / `--status` (a single static
 color across the whole keyboard via `KeyboardLightingService.ApplyEffect(LightingEffectType.Static,
 ...)`, matching Linux's `keyboard --color` scope — not per-zone, not per-key, not any of the other
-five `LightingEffectType` values). Deliberately **not** included: curve presets won't keep
-re-evaluating temperature after the process exits (that needs `FanService.Start()`'s background
-monitor loop running continuously — i.e. a persistent process, which is exactly what Linux's
-`daemon` command is for and this doesn't have yet), `monitor` (continuous telemetry stream),
-`config` (get/set arbitrary config keys — `AppConfig` is a much larger, more organically-grown
-object than Linux's TOML schema; scoping a sensible key subset is its own task, not done here),
-and `diagnose` (would want to reuse `DiagnosticExportService`, which stayed in `OmenCoreApp` — see
-above).
+five `LightingEffectType` values), `monitor --interval <ms>` (redraws CPU/GPU temperature and fan
+RPM/duty in place until Ctrl+C — reuses the `CliContext` bootstrap once rather than reprobing
+hardware every tick, and reads temperature the same way `FanService.MonitorLoop` does, via a
+`ThermalSensorProvider` constructed over the same `HardwareBringup.WmiBiosMonitor`). Deliberately
+**not** included: curve presets won't keep re-evaluating temperature after the process exits (that
+needs `FanService.Start()`'s background monitor loop running continuously — i.e. a persistent
+process, which is exactly what Linux's `daemon` command is for and this doesn't have yet), `config`
+(get/set arbitrary config keys — `AppConfig` is a much larger, more organically-grown object than
+Linux's TOML schema; scoping a sensible key subset is its own task, not done here), and `diagnose`
+(would want to reuse `DiagnosticExportService`, which stayed in `OmenCoreApp` — see above).
 
 **`keyboard`'s one caveat, worth flagging rather than glossing over:** `KeyboardLightingService.ApplyEffect`
 is `void` — on a backend mismatch it logs "not applied" internally rather than giving the caller
@@ -451,9 +453,9 @@ Flagged above and worth recording explicitly: `ModelCapabilities`'s property-lev
 
 ### Windows CLI — remaining commands
 
-`monitor`, `config`, and `daemon` (continuous curve/hold as a persistent process, matching Linux's
-shape) are not built yet — see the scope note in the CLI's "Done" entry above for why each was
-left out. (`keyboard` shipped since this section was first written — see "Done" above.)
+`config` and `daemon` (continuous curve/hold as a persistent process, matching Linux's shape) are
+not built yet — see the scope note in the CLI's "Done" entry above for why each was left out.
+(`keyboard` and `monitor` shipped since this section was first written — see "Done" above.)
 
 ### Local HTTP / named-pipe control API
 
