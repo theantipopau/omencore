@@ -159,5 +159,34 @@ namespace OmenCoreApp.Tests.Services
             applied.Name.Should().Be(expectedName,
                 "SetPerformanceMode must normalize the configured alias (e.g. 'Silent') to its canonical mode name");
         }
+
+        // GitHub #177 ("custom fan curve not restored on restart") - root cause traced this cycle:
+        // ApplyCurrentProfile() force-applied unconditionally on every startup whenever automation
+        // was enabled, silently overriding a user's last manual fan/performance selection even when
+        // the power source never actually changed between sessions. Fixed via
+        // TransitionOccurredSincePriorSession, which compares the freshly-detected AC state against
+        // what PowerAutomationService persisted at the end of the prior session.
+        [Fact]
+        public void ApplyCurrentProfile_SkipsApply_WhenPowerSourceUnchangedSincePriorSession()
+        {
+            // "Session" 1: no prior persisted baseline exists yet, so this is treated the same as
+            // the always-apply behavior before this fix - it applies once and persists the
+            // currently-detected (real) AC/Battery state as the new baseline for next time.
+            var (service1, controller1, _, _) = CreateService(enabled: true);
+            service1.ApplyCurrentProfile();
+            controller1.AppliedPresets.Should().NotBeEmpty(
+                "a first-ever session has no persisted baseline to compare against, so it should still apply once");
+
+            // "Session" 2: same config dir, same process - GetSystemPowerStatus can't have changed
+            // between the two constructions above, so the baseline session 1 just persisted should
+            // exactly match session 2's freshly-detected state, meaning no real transition happened.
+            var (service2, controller2, _, _) = CreateService(enabled: true);
+            service2.TransitionOccurredSincePriorSession.Should().BeFalse(
+                "the power source did not actually change between the two sessions in this test");
+
+            service2.ApplyCurrentProfile();
+            controller2.AppliedPresets.Should().BeEmpty(
+                "a startup with no real power-source transition must not override the user's last manual selection");
+        }
     }
 }

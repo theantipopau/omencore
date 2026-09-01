@@ -26,6 +26,7 @@ namespace OmenCore.Services
         private readonly GpuSwitchService? _gpuSwitchService;
         private bool _isEnabled;
         private bool _lastKnownAcState;
+        private bool? _priorSessionAcState;
         private bool _disposed;
         private CancellationTokenSource? _stateChangeCts;
         private readonly object _stateChangeLock = new();
@@ -60,6 +61,16 @@ namespace OmenCore.Services
 
         public bool IsOnAcPower => _lastKnownAcState;
 
+        /// <summary>
+        /// True when the AC/Battery power source differs from what this service last persisted as
+        /// known-true (a real transition happened while the app was closed, or crashed, or this is
+        /// the very first session automation has ever run) - the "ownership" signal
+        /// <see cref="ApplyCurrentProfile"/> uses to decide whether a startup profile apply is a
+        /// genuine automation reaction or would just be silently overriding the user's last manual
+        /// selection for no real-world reason. See that method's own doc comment.
+        /// </summary>
+        public bool TransitionOccurredSincePriorSession { get; private set; }
+
         public PowerAutomationService(
             LoggingService logging,
             FanService fanService,
@@ -79,10 +90,19 @@ namespace OmenCore.Services
             // Detect initial power state
             _lastKnownAcState = GetCurrentAcState();
 
+            // Compare against what was persisted at the end of the prior session, before
+            // overwriting it below - this is the one-shot "did the power source actually change
+            // while the app wasn't running" signal ApplyCurrentProfile() needs. Unknown (no prior
+            // session ever persisted a value) counts as "yes, apply" - same as this service's
+            // original always-apply behavior - since there's no established baseline to protect.
+            TransitionOccurredSincePriorSession = !_priorSessionAcState.HasValue
+                || _priorSessionAcState.Value != _lastKnownAcState;
+            PersistLastKnownAcState(_lastKnownAcState);
+
             // Subscribe to power events
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
-            
-            _logging.Info($"PowerAutomationService initialized. AC Power: {_lastKnownAcState}, Enabled: {_isEnabled}");
+
+            _logging.Info($"PowerAutomationService initialized. AC Power: {_lastKnownAcState}, Enabled: {_isEnabled}, TransitionSincePriorSession: {TransitionOccurredSincePriorSession}");
         }
 
         private void LoadSettings()
@@ -98,7 +118,8 @@ namespace OmenCore.Services
                 BatteryFanPreset = config.PowerAutomation?.BatteryFanPreset ?? "Quiet";
                 BatteryPerformanceMode = config.PowerAutomation?.BatteryPerformanceMode ?? "Silent";
                 BatteryGpuMode = config.PowerAutomation?.BatteryGpuMode ?? "Eco";
-                
+                _priorSessionAcState = config.PowerAutomation?.LastKnownAcState;
+
                 _logging.Info($"Power automation settings loaded: Enabled={_isEnabled}, AC={AcPerformanceMode}, Battery={BatteryPerformanceMode}");
             }
             catch (Exception ex)
@@ -128,6 +149,28 @@ namespace OmenCore.Services
             catch (Exception ex)
             {
                 _logging.Error("Failed to save power automation settings", ex);
+            }
+        }
+
+        /// <summary>
+        /// Persists the AC/Battery state this service currently believes is true, independent of
+        /// <see cref="SaveSettings"/> (which only runs on an explicit user settings change) - this
+        /// needs to happen every session at startup and on every verified transition, so the next
+        /// session's <see cref="TransitionOccurredSincePriorSession"/> check has an up-to-date
+        /// baseline to compare against rather than a stale one from whenever settings last saved.
+        /// </summary>
+        private void PersistLastKnownAcState(bool isOnAc)
+        {
+            try
+            {
+                var config = _configService.Load();
+                config.PowerAutomation ??= new PowerAutomationSettings();
+                config.PowerAutomation.LastKnownAcState = isOnAc;
+                _configService.Save(config);
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to persist last-known AC state: {ex.Message}");
             }
         }
 
@@ -297,6 +340,7 @@ namespace OmenCore.Services
 
                 _lastKnownAcState = stableState;
                 _logging.Info($"Power state verified ({reason}): {(stableState ? "AC Connected" : "On Battery")}");
+                PersistLastKnownAcState(stableState);
 
                 // Raise event for UI updates with guarded callback execution.
                 RaisePowerStateChangedSafe(stableState, reason);
@@ -530,14 +574,42 @@ namespace OmenCore.Services
         }
 
         /// <summary>
-        /// Force apply the current power profile (useful for initial setup).
+        /// Apply the configured profile for the current power source, but only if it's actually
+        /// warranted - called once at startup (see <c>MainViewModel.RestoreSavedSettingsAsync</c>).
+        ///
+        /// This is the resolution of the "who owns the currently-active profile, user selection or
+        /// automation" question flagged in the v4.3.0 roadmap. Originally this force-applied
+        /// unconditionally whenever automation was enabled, on every single startup - which meant
+        /// a user who manually picked a different fan/performance preset mid-session, then closed
+        /// and reopened the app on the *same* power source, had that manual choice silently
+        /// discarded and replaced with automation's configured preset for a transition that never
+        /// actually happened. That's the root cause GitHub #177 diagnosed as "custom fan curve not
+        /// restored on restart" - not a restore bug, automation overwriting the restore a few lines
+        /// later, every single time, by design.
+        ///
+        /// The fix: automation should own the profile at the moment of a real AC/Battery
+        /// transition (including one that happened while the app was closed - see
+        /// <see cref="TransitionOccurredSincePriorSession"/>), and the user's last selection should
+        /// own everything else, including "the app just restarted, nothing about the power source
+        /// changed." So this now only force-applies when a transition is actually known or
+        /// suspected to have happened since the app last had control; otherwise it's a no-op and
+        /// leaves whatever the generic last-manual-state restore (which runs immediately before
+        /// this, in the same startup sequence) already put in place.
         /// </summary>
         public void ApplyCurrentProfile()
         {
-            if (_isEnabled)
+            if (!_isEnabled)
             {
-                ApplyPowerProfile(_lastKnownAcState, "manual-sync");
+                return;
             }
+
+            if (!TransitionOccurredSincePriorSession)
+            {
+                _logging.Info("Power automation: power source unchanged since last known state - skipping startup profile apply, keeping the user's last manual selection");
+                return;
+            }
+
+            ApplyPowerProfile(_lastKnownAcState, "manual-sync");
         }
 
         public void Dispose()

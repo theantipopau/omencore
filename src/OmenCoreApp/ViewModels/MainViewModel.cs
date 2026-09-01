@@ -3147,12 +3147,14 @@ namespace OmenCore.ViewModels
                     }
                 }
 
-                // Apply Power Automation's AC/Battery profile for the current power source.
-                // This was previously never invoked at startup - ApplyCurrentProfile() existed
-                // but had no caller, so a user with Power Automation enabled and on battery at
-                // launch kept whatever fan/performance state was last manually set instead of
-                // their configured Battery profile until the next AC<->battery transition.
-                // Runs last so it has final say over the generic last-state restores above.
+                // Apply Power Automation's AC/Battery profile for the current power source, but
+                // only if a real AC<->Battery transition actually happened since the app last had
+                // control (see ApplyCurrentProfile's own doc comment for the "who owns the active
+                // profile" reasoning - this used to force-apply unconditionally on every startup,
+                // silently overriding whatever the user manually selected mid-session even when
+                // the power source never changed, which was GitHub #177's actual root cause).
+                // Runs last so a genuine transition still has final say over the generic
+                // last-manual-state restores above; a no-transition startup leaves them standing.
                 try
                 {
                     _powerAutomationService?.ApplyCurrentProfile();

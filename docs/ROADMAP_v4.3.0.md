@@ -127,6 +127,27 @@ Raised by the owner during v4.2.0 and explicitly deferred twice (`ROADMAP_v4.2.0
 
 ---
 
+### `PowerAutomationService` Silently Overwrote the User's Manual Selection on Every Startup, Not Just on Real Transitions
+
+Settles the "who owns the currently-active profile" question the "Not Yet Started" section flagged as a precondition for extending `PowerAutomationService` with more trigger types — resolving it, rather than extending the service further this pass, since a design decision this load-bearing needed settling on its own terms first, not as a rider on an unrelated feature addition.
+
+**Re-confirmed the root cause v4.2.0's #177 triage already found**, this time tracing it to the exact call site rather than just the symptom: `MainViewModel.RestoreSavedSettingsAsync` calls `_powerAutomationService?.ApplyCurrentProfile()` unconditionally on every startup when Power Automation is enabled, deliberately "runs last so it has final say over the generic last-state restores above" (the code's own prior comment). `ApplyCurrentProfile()` in turn force-applied the configured AC/Battery preset with no further check. The result: a user who manually picked, say, a custom curve mid-session, then closed and reopened the app **on the exact same power source** — no AC/Battery transition at all — had that manual choice silently discarded and replaced by automation's configured preset, every single time, by design. #177 correctly identified this as "working as designed with a surprising default" rather than a restore bug; this pass fixes the design.
+
+**The ownership rule this settles on:** automation owns the active profile at the moment of a genuine AC↔Battery transition — including one that happened while the app was closed or crashed, which the app still needs to react to on next launch. The user's last manual selection owns the profile at every other moment, including "the app just restarted and nothing about the power source changed." App startup is not itself a transition and should not be treated as one.
+
+**Implementation.** Added `PowerAutomationSettings.LastKnownAcState` (`bool?`, config-persisted) — the AC/Battery state the service last confirmed. `PowerAutomationService` now:
+- Loads the *prior* session's persisted value into `_priorSessionAcState` before detecting the live current state, then computes `TransitionOccurredSincePriorSession` once, in the constructor, by comparing the two — `true` if they differ, or if there's no prior value at all (first-ever session, or automation just enabled — no baseline exists to protect, so this preserves the original always-apply behavior for that one case).
+- Persists the live current state back to `LastKnownAcState` immediately after that comparison (so this session's own baseline is ready for whichever session comes next), and again on every verified AC/Battery transition during the session (`QueueVerifiedPowerStateChangeAsync`, right after `_lastKnownAcState` itself updates) — keeping the persisted value current continuously, not just once per session, so a mid-session transition followed by a crash (not a clean `Dispose()`) still leaves an accurate baseline behind.
+- `ApplyCurrentProfile()` now checks `TransitionOccurredSincePriorSession` before force-applying; if false, it logs and returns, leaving whichever preset the generic last-manual-state restore (which runs immediately before it in `RestoreSavedSettingsAsync`) already put in place.
+
+**Deliberately not changed:** `ApplyPowerProfile(bool, string)` itself (the method that actually calls `FanService.ApplyPreset`/`PerformanceModeService.SetPerformanceMode`) — that's still called unconditionally from the verified-transition path, exactly as before. This fix is scoped to the one call site that was conflating "app restarted" with "a transition happened," not to automation's core reactive behavior, which was already correct.
+
+**Tests.** New `ApplyCurrentProfile_SkipsApply_WhenPowerSourceUnchangedSincePriorSession` in `PowerAutomationServiceApplyCurrentProfileTests.cs`: constructs two `PowerAutomationService` instances back-to-back against the same config directory (simulating two sessions) — since real hardware AC/Battery state can't change *within* a single test process between the two constructions, the second instance's freshly-detected state necessarily matches the first instance's persisted baseline, giving a reliable `TransitionOccurredSincePriorSession == false` case without needing a mock seam for `GetCurrentAcState()` (which the class doesn't have — a pre-existing gap, not something this fix needed to solve). The two pre-existing tests in the same file (unconditional-apply-when-enabled, no-op-when-disabled) needed no changes — a fresh temp config directory has no persisted `LastKnownAcState`, which is exactly the "unknown → still apply" case, so they continue exercising the same behavior they always did. Full suite: 1381/1381 (up from 1380).
+
+**Not a field-validation item.** No new fan/EC/thermal write path — this only changes *when* an already-shipped, already-tested apply path (`ApplyPowerProfile`) gets called, gating a call site rather than touching hardware I/O.
+
+---
+
 ### GPU Power Boost Card's Wattage Badge Was Hardcoded, and Its Firmware-Ceiling Nuance Was Undocumented in the UI
 
 Continuation of the [#181](https://github.com/theantipopau/omencore/issues/181) triage above — that section fixed the Quiet Safety/linking cascade; this addresses the *display-honesty* half of the report's separate GPU Power Boost wattage complaint, flagged in "Investigated, Not Yet Actioned" as "plausible the UI doesn't communicate this uncertainty clearly enough."
@@ -514,11 +535,11 @@ section was first written — see "Done" above.)
 `ROADMAP_v2.5.0.md`'s nice-to-have, for Stream Deck / scripting / home-automation integration.
 Unblocked by the Core extraction, not started.
 
-### Extend `PowerAutomationService` rather than building a scheduler — but settle profile ownership first
+### Extend `PowerAutomationService` rather than building a scheduler
 
 `ROADMAP_v2.5.0.md` §7 asks for time-of-day / lid-close / charger-connect profile triggers. This is **not** greenfield: `Services/PowerAutomationService.cs` already implements exactly this shape for one trigger type, with a clean settings model (`AcFanPreset`, `AcPerformanceMode`, `AcGpuMode`, and Battery equivalents) and existing `PowerStateChanged` / `SystemSuspending` / `SystemResuming` events. Adding trigger sources to a working service is far cheaper than a new subsystem.
 
-**The trap, and it's a real one:** this is the same service diagnosed in v4.2.0's #177 triage as the cause of "custom fan curve not restored on restart" — it reapplies a per-power-source preset on *every* AC/Battery transition including startup, silently overriding whatever the user last selected. That was recorded as "working as designed with a surprising default." Adding more trigger types multiplies that surprise across more moments. **Whoever picks this up should settle the "who owns the currently-active profile" question first** — user selection vs. automation, and how a user override survives the next trigger — otherwise this ships a bigger version of an existing complaint. That ownership question is arguably the more valuable piece of work of the two.
+**The profile-ownership precondition this section used to flag is now settled** — see "Done" above (`PowerAutomationService` Silently Overwrote the User's Manual Selection on Every Startup...). The rule going forward: automation owns the active profile at the moment of a genuine trigger (a real AC/Battery transition, and by the same logic, a real lid-close/time-of-day/charger-connect event once those exist); the user's last manual selection owns it at every other moment, including app restart with no real trigger having fired. Any new trigger type added here should follow that same shape — fire on the real, verified event, never as a side effect of the app merely starting up or re-checking state — rather than reintroducing the same class of surprise for a new trigger source.
 
 ### Localization / i18n
 

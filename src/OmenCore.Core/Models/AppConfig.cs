@@ -486,6 +486,15 @@ namespace OmenCore.Models
         public string BatteryFanPreset { get; set; } = "Quiet";
         public string BatteryPerformanceMode { get; set; } = "Silent";
         public string BatteryGpuMode { get; set; } = "Eco";
+
+        /// <summary>
+        /// AC/Battery state PowerAutomationService last confirmed, persisted so a fresh launch can
+        /// tell "the power source changed while the app was closed" (a real transition automation
+        /// should react to) apart from "the app just restarted on the same power source" (not a
+        /// transition - the user's last manual fan/performance selection should stand). Null means
+        /// no prior session has recorded one yet (first run, or automation just enabled).
+        /// </summary>
+        public bool? LastKnownAcState { get; set; } = null;
     }
     
     /// <summary>
