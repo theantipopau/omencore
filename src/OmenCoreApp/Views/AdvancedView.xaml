@@ -282,10 +282,23 @@
                         <TextBlock Text="GPU Power Boost (TGP/Dynamic Boost)" FontSize="20" FontWeight="SemiBold" 
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
                         
-                        <TextBlock Text="Control GPU Total Graphics Power (TGP) and Dynamic Boost (PPAB). Higher settings enable more GPU wattage. Extended option is for RTX 5080 and newer GPUs that may support +25W boost." 
-                                   FontSize="12" 
+                        <TextBlock Text="Control GPU Total Graphics Power (TGP) and Dynamic Boost (PPAB). Higher settings enable more GPU wattage. Extended option is for RTX 5080 and newer GPUs that may support +25W boost."
+                                   FontSize="12"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Margin="0,0,0,16" TextWrapping="Wrap"/>
+                                   Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                        <!-- Firmware Ceiling Caveat -->
+                        <Border Background="#2D2D1F"
+                                BorderBrush="#FF9800"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="10,8"
+                                Margin="0,0,0,16">
+                            <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                <Run Text="⚠ Firmware-Determined Ceiling: " FontWeight="SemiBold" Foreground="#FF9800"/>
+                                <Run Text="these levels are relative boost requests sent to the same GPU firmware handler OMEN Gaming Hub uses, not an absolute wattage guarantee. The actual ceiling can be affected by GPU firmware/EC state left over from other power-control software - if the wattage you see doesn't match a level's description, try fully closing OMEN Gaming Hub first."/>
+                            </TextBlock>
+                        </Border>
 
                         <!-- Current Status - Prominent Indicator -->
                         <Border CornerRadius="10"
@@ -339,7 +352,7 @@
                                         <TextBlock Text="EXTRA POWER" FontSize="9" FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    HorizontalAlignment="Center" Margin="0,0,0,2"/>
-                                        <TextBlock Text="+15W" FontSize="20" FontWeight="Bold"
+                                        <TextBlock Text="{Binding SystemControl.GpuPowerBoostWattageText}" FontSize="20" FontWeight="Bold"
                                                    Foreground="#00FF88" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>

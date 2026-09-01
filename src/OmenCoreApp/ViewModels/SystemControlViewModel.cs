@@ -704,6 +704,7 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(GpuPowerBoostDescription));
                     OnPropertyChanged(nameof(GpuPowerBoostStatusDescription));
+                    OnPropertyChanged(nameof(GpuPowerBoostWattageText));
                     OnPropertyChanged(nameof(IsGpuFullPowerActive));
                     OnPropertyChanged(nameof(ShowGpuFullPowerPill));
                     OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
@@ -793,6 +794,20 @@ namespace OmenCore.ViewModels
             "Maximum" => "Custom TGP + Dynamic Boost (PPAB) - Maximum GPU wattage (+15W boost)",
             "Extended" => "Extended Boost (PPAB+) - Try if Maximum doesn't reach your GPU's rated TGP (RTX 50-series and up)",
             _ => "Select GPU power level"
+        };
+
+        // "EXTRA POWER" badge on the GPU Power Boost card - was previously a hardcoded "+15W",
+        // which was wrong for Extended (which HpWmiBios.BuildGpuPowerPayload documents as +25W or
+        // more on RTX 4080/5080+). Same per-level delta table CurrentPerformanceModeIndicator
+        // already uses below, kept in sync intentionally rather than shared via a helper - two
+        // near-identical four-branch switches over a stable, rarely-changed set of levels didn't
+        // seem worth a shared method for.
+        public string GpuPowerBoostWattageText => GpuPowerBoostLevel switch
+        {
+            "Maximum" => "+15W",
+            "Extended" => "+25W",
+            "Medium" => "Custom",
+            _ => "+0W"
         };
 
         public string GpuPowerBoostStatusDescription

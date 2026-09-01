@@ -65,6 +65,10 @@ Added `QuarantineHybridAmdGpuTelemetryIfNeeded()` to `LibreHardwareMonitorImpl`,
 
 Full suite: 1380/1380, confirmed clean across repeated runs after the fix (pre-fix: crashed 3 of 4 full runs at this exact spot).
 
+### GPU Power Boost Card Always Showed "+15W" Even When Extended Was Selected, With No Ceiling Caveat
+
+Follow-up to [#181](https://github.com/theantipopau/omencore/issues/181)'s non-linking half (see "Investigated, Not Yet Actioned" below): the "EXTRA POWER" badge on the GPU Power Boost card was a hardcoded `"+15W"` string regardless of which level was actually selected, so choosing Extended (documented elsewhere in the same file as "+25W or more") still showed the Maximum level's number. Now bound to a per-level `GpuPowerBoostWattageText` property (Minimum/base → `+0W`, Medium → `Custom`, Maximum → `+15W`, Extended → `+25W`), matching the level-aware wording a different summary property in the same ViewModel already used elsewhere. Also added a caveat callout on the card itself (matching the existing "Hardware Limitation" warning style used on the GPU Switching card) explaining that these are relative boost requests to shared firmware, not an absolute wattage guarantee, and suggesting a full OMEN Gaming Hub close if the observed wattage doesn't match. Pure UI/display-honesty change — no hardware-write path touched, no field validation needed. Full suite unaffected (no logic under test changed, only bound display text).
+
 ### RGB Page's "Control Ownership" Card Could Show "Confirmed" With No Real Keyboard Backend
 
 Found by actually driving the app and looking at the Lighting page (a live-machine look, not just a code read) — on a desktop PC with no HP hardware at all, the "Control ownership" card showed "HP Keyboard (None)" as its summary text, right next to a green "Confirmed" ownership badge, and the "OMEN Keyboard" status chip at the top of the page was highlighted as if active.
@@ -163,9 +167,9 @@ project reference. Full solution build and test suite (1380/1380) confirmed clea
 
 - **[#179](https://github.com/theantipopau/omencore/issues/179)** — Linux per-key RGB for OMEN MAX 16-ak0xxx (board `8D87`) via direct HID (`0D62:54BF`, interface 3). Excellent, detailed field data — a real feature addition (new Linux HID backend), not a quick fix. Scoped for a future pass.
 - **[#180](https://github.com/theantipopau/omencore/issues/180)** — "Doesn't start with Windows, config not saving." One sentence, no diagnostics, no repro steps. Needs a diagnostics export or repro steps before it's actionable.
-- **[#181](https://github.com/theantipopau/omencore/issues/181)** GPU Power Boost wattage — architectural, not a code bug: OmenCore and OGH both send relative *boost steps* to the firmware, not absolute wattages (already documented in code as "+15-25W depending on model"), so the actual ceiling is firmware-determined and can be influenced by whatever OGH last configured. Needs the reporter to test with OGH fully closed to isolate further.
+- **[#181](https://github.com/theantipopau/omencore/issues/181)** GPU Power Boost wattage — architectural, not a code bug: OmenCore and OGH both send relative *boost steps* to the firmware, not absolute wattages (already documented in code as "+15-25W depending on model"), so the actual ceiling is firmware-determined and can be influenced by whatever OGH last configured. The UI-clarity half of this is now fixed (see "Fixed" above); still needs the reporter to test with OGH fully closed to isolate the wattage-ceiling question itself further.
 - **PR [#176](https://github.com/theantipopau/omencore/pull/176)** — re-reviewed 2026-08-30. The process-monitoring fix from 2026-08-29 is real and correct, but two bugs from the 2026-08-19 review (keyboard "effect-freeze," iGPU Curve Optimizer gating) are **still broken**, with the keyboard bug relocated a second time. Branch is also now stale against `main`. Recommend against merging as-is; decision still pending owner call.
-- Remaining Windows CLI commands (`keyboard`, `monitor`, `config`, `daemon`) and the local HTTP/named-pipe control API — both unblocked by the Core extraction, neither started.
+- The local HTTP/named-pipe control API — unblocked by the Core extraction, not started.
 - Class-level capability defaults audit (the ~150 named board entries in `ModelCapabilityDatabase.cs` haven't been checked for silent reliance on the class-level `= true` defaults) — see `docs/ROADMAP_v4.3.0.md`.
 
 ---

@@ -127,6 +127,21 @@ Raised by the owner during v4.2.0 and explicitly deferred twice (`ROADMAP_v4.2.0
 
 ---
 
+### GPU Power Boost Card's Wattage Badge Was Hardcoded, and Its Firmware-Ceiling Nuance Was Undocumented in the UI
+
+Continuation of the [#181](https://github.com/theantipopau/omencore/issues/181) triage above — that section fixed the Quiet Safety/linking cascade; this addresses the *display-honesty* half of the report's separate GPU Power Boost wattage complaint, flagged in "Investigated, Not Yet Actioned" as "plausible the UI doesn't communicate this uncertainty clearly enough."
+
+**Two things found while looking at `AdvancedView.xaml`'s GPU Power Boost card:**
+
+1. The "EXTRA POWER" badge (the small green number next to the current-status indicator) was `Text="+15W"`, a hardcoded literal with no binding at all — it showed `+15W` regardless of whether the selected level was Maximum (which the level description itself documents as +15W) or Extended (documented in the same file, and in `HpWmiBios.BuildGpuPowerPayload`'s own XML comments, as "+25W or more"). A user on Extended was shown the wrong number for their own selection.
+2. Nothing on the card told the user that these levels are *relative boost requests* to a shared firmware handler (`HpWmiBios.BuildGpuPowerPayload` — see the #181 triage entry above for the full architectural trace: OmenCore and OGH both hand the same relative step to the same BIOS handler, and the resulting ceiling is firmware/EC-state-determined, not something either app fully controls independently) rather than an absolute wattage command OmenCore guarantees.
+
+**Fix.** Added `SystemControlViewModel.GpuPowerBoostWattageText`, a level-keyed property (`Minimum`→`+0W`, `Medium`→`Custom`, `Maximum`→`+15W`, `Extended`→`+25W`) mirroring the level-aware wording `CurrentPerformanceModeIndicator` (a separate summary property, used elsewhere) already used — the two switches were kept separate rather than factored into a shared helper, since both are small, stable, and rarely change independently of each other. Wired into `GpuPowerBoostLevel`'s setter alongside the property's other `OnPropertyChanged` calls, and bound in the XAML in place of the literal. Added a caveat callout to the card itself, styled identically to the existing "⚠ Hardware Limitation" warning box already used on the adjacent GPU Switching card (same background/border colors, same `Run`-based bold-label pattern) — explaining the relative-request/firmware-ceiling distinction in plain language and suggesting a full OMEN Gaming Hub close as a troubleshooting step if the observed wattage doesn't match what a level's own description implies.
+
+**Not a field-validation item.** Pure UI/display-honesty change — corrects what's shown, doesn't touch `HpWmiBios`'s actual write payload or any EC/WMI call. Full solution build clean (0 warnings/errors); full test suite unaffected (no logic under test changed, only bound display text and a static XAML string) — verified via a full `dotnet test` run rather than assumed.
+
+---
+
 ### Windows: OSD Toggle-Hotkey Cleanup Could Throw a Null-Reference During Shutdown
 
 Found auditing a diagnostics bundle attached to [#184](https://github.com/theantipopau/omencore/issues/184) (unrelated to that issue's own subject — see below): `[WARN] OSD: Hotkey cleanup encountered an error: Value cannot be null. (Parameter 'window')` in the shutdown sequence of every one of the four `OmenCore_*.log` files in the bundle.
@@ -448,9 +463,11 @@ One sentence, no board ID, no diagnostics export, no repro steps. A quick scan o
 
 Separate from the Quiet Safety/linking bug fixed above: the reporter's transcribed wattage table shows OmenCore's GPU Power Boost levels landing at different absolute wattages than expected, and specifically that the ceiling seems to track whatever OGH last configured rather than an OmenCore-controlled absolute value.
 
-Traced to `HpWmiBios.BuildGpuPowerPayload` (`GpuPowerLevel` enum): every level (`Minimum`/`Medium`/`Maximum`/`Extended3`/`Extended4`) is documented in its own XML comments as a **relative boost step** ("Custom TGP enabled (+15W on most models)", "+15-25W depending on model") sent via the same `customTgp`/`ppab` bit pattern HP's own BIOS handler expects — not an absolute-wattage command. OmenCore and OGH both ultimately hand the same relative step to the same firmware handler; the actual resulting wattage ceiling is therefore firmware/EC-state-determined, not something either app fully controls independently. This is an architectural constraint already correctly documented in code, not a silent bug — though it's plausible the *UI* doesn't communicate this uncertainty clearly enough to the user, worth a look in a future pass.
+Traced to `HpWmiBios.BuildGpuPowerPayload` (`GpuPowerLevel` enum): every level (`Minimum`/`Medium`/`Maximum`/`Extended3`/`Extended4`) is documented in its own XML comments as a **relative boost step** ("Custom TGP enabled (+15W on most models)", "+15-25W depending on model") sent via the same `customTgp`/`ppab` bit pattern HP's own BIOS handler expects — not an absolute-wattage command. OmenCore and OGH both ultimately hand the same relative step to the same firmware handler; the actual resulting wattage ceiling is therefore firmware/EC-state-determined, not something either app fully controls independently. This is an architectural constraint already correctly documented in code, not a silent bug.
 
-Not actioned: would need the reporter to test with OGH fully closed (not just not running — fully uninstalled or its background services stopped) between profile switches to isolate whether the ceiling genuinely persists across OGH's absence, before any code change is justified. Real-hardware, RTX 5090-specific behavior this environment cannot reproduce.
+**The UI-clarity half is now fixed** — see "Done" above ("GPU Power Boost Card's Wattage Badge Was Hardcoded, and Its Firmware-Ceiling Nuance Was Undocumented in the UI"). The card now shows the correct per-level wattage and a plain-language caveat about the firmware-determined ceiling.
+
+**Still not actioned: the underlying wattage-ceiling question itself.** Would need the reporter to test with OGH fully closed (not just not running — fully uninstalled or its background services stopped) between profile switches to isolate whether the ceiling genuinely persists across OGH's absence, before any code change is justified. Real-hardware, RTX 5090-specific behavior this environment cannot reproduce.
 
 ### PR #176 — Re-reviewed 2026-08-30, Recommend Against Merging As-Is
 
