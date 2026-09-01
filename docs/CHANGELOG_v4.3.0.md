@@ -118,7 +118,7 @@ WPF behavior from `OmenCoreApp.App`'s constructor.
 Full suite: 1380/1380, unchanged from before the move — this was a structural extraction, not a
 behavior change, and the tests back that up.
 
-### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor`
+### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config`
 
 New `omencore-cli` console app (`src/OmenCore.Cli`), built directly on `OmenCore.Core` — no
 duplicated hardware logic. `status [--json]` reports model/board ID, EC and fan-controller
@@ -129,12 +129,19 @@ GUI makes — a new caller of already-shipped code, not new hardware-write behav
 --color <hex>` / `--status` applies a static color across the whole keyboard via the same
 `KeyboardLightingService.ApplyEffect` the GUI's lighting controls use. `monitor [--interval ms]`
 redraws live CPU/GPU temperature and fan RPM/duty in place until Ctrl+C, matching the Linux CLI's
-`monitor` command in shape.
+`monitor` command in shape. `config --show` / `--get <key>` / `--set key=value` reads/writes a
+curated subset of settings (polling interval, log level, diagnostics/telemetry opt-in,
+fan/performance linking, Quiet Safety Monitor threshold) — not all of `AppConfig`, which has 60+
+top-level properties; scoping the full thing wasn't attempted.
 
 Command parsing verified end-to-end (root and every subcommand's `--help` renders correctly).
-**Not yet verified against real hardware** — that needs an actual elevated run, which is next.
-See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of scope
-(curve presets, `config`, `daemon`).
+`config --show`/`--get` additionally verified for real (it doesn't touch hardware, so this was
+safe to actually run against the real `%APPDATA%\OmenCore\config.json`) — `--set` was not run for
+real to avoid mutating that live file from an unsupervised test; its logic mirrors the same
+tested pattern the other commands' setters already use. **`status`/`fan`/`performance`/`keyboard`/
+`monitor` not yet verified against real hardware** — that needs an actual elevated run, which is
+next. See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of
+scope (curve presets, `daemon`).
 
 ### Package-Reference Cleanup on `OmenCoreApp.csproj`
 

@@ -307,7 +307,7 @@ the type it constructs).
 
 ---
 
-### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor`
+### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config`
 
 The actual point of the extraction, started the same session right after Core landed. New
 `src/OmenCore.Cli` console project (`AssemblyName: omencore-cli`, matching Linux's binary name),
@@ -342,13 +342,19 @@ color across the whole keyboard via `KeyboardLightingService.ApplyEffect(Lightin
 five `LightingEffectType` values), `monitor --interval <ms>` (redraws CPU/GPU temperature and fan
 RPM/duty in place until Ctrl+C — reuses the `CliContext` bootstrap once rather than reprobing
 hardware every tick, and reads temperature the same way `FanService.MonitorLoop` does, via a
-`ThermalSensorProvider` constructed over the same `HardwareBringup.WmiBiosMonitor`). Deliberately
-**not** included: curve presets won't keep re-evaluating temperature after the process exits (that
-needs `FanService.Start()`'s background monitor loop running continuously — i.e. a persistent
-process, which is exactly what Linux's `daemon` command is for and this doesn't have yet), `config`
-(get/set arbitrary config keys — `AppConfig` is a much larger, more organically-grown object than
-Linux's TOML schema; scoping a sensible key subset is its own task, not done here), and `diagnose`
-(would want to reuse `DiagnosticExportService`, which stayed in `OmenCoreApp` — see above).
+`ThermalSensorProvider` constructed over the same `HardwareBringup.WmiBiosMonitor`), `config --show`
+/ `--get <key>` / `--set key=value` (a curated subset of `AppConfig` — polling interval, log
+level, diagnostics/telemetry opt-in, fan/performance linking, Quiet Safety threshold — not a
+full 1:1 mapping; `AppConfig` has 60+ top-level properties plus several nested settings objects,
+and picking a sensible complete key schema for all of it is its own multi-day task, not attempted
+here). `config` deliberately bypasses `CliContext` entirely — a config read/write has no reason
+to pay for `HardwareBringup`'s NVAPI/PawnIO/WMI probing, so it talks to `AppHost.Configuration`
+directly, making it the only command in this CLI that's genuinely fast and side-effect-free to
+invoke. Deliberately **not** included: curve presets won't keep re-evaluating temperature after
+the process exits (that needs `FanService.Start()`'s background monitor loop running
+continuously — i.e. a persistent process, which is exactly what Linux's `daemon` command is for
+and this doesn't have yet), and `diagnose` (would want to reuse `DiagnosticExportService`, which
+stayed in `OmenCoreApp` — see above).
 
 **`keyboard`'s one caveat, worth flagging rather than glossing over:** `KeyboardLightingService.ApplyEffect`
 is `void` — on a backend mismatch it logs "not applied" internally rather than giving the caller
@@ -362,8 +368,14 @@ change — out of scope for adding one CLI command.
 and every subcommand rendered correctly via the framework-dependent host (`dotnet omencore-cli.dll
 --help`, which never reaches `CliContext.Create()` — System.CommandLine handles `--help` before
 invoking a handler, so this checks the option/argument wiring without touching any hardware code).
-Full Windows test suite (1380/1380) re-confirmed clean after each command addition.
-**Not verified: an actual elevated run against real hardware.**
+`config --show`/`--get` were also run for real (not just `--help`) — safe to, since `config`
+bypasses `CliContext`/hardware entirely — against the real `%APPDATA%\OmenCore\config.json` on
+this dev machine, and returned correct values matching `AppConfig`'s known defaults.
+Deliberately did **not** run `config --set` for real, to avoid mutating that live file from an
+unsupervised test; its logic mirrors the already-tested `TrySetBool`/`TrySetInt` pattern the other
+commands use. Full Windows test suite (1380/1380) re-confirmed clean after each command addition.
+**Not verified: an actual elevated run against real hardware**, for the five hardware-touching
+commands (`status`/`fan`/`performance`/`keyboard`/`monitor`).
 Running the self-contained `.exe` directly triggers the `requireAdministrator` manifest's UAC
 prompt (same as `OmenCoreApp.exe`), and bypassing that via the non-elevated `dotnet
 omencore-cli.dll <command>` path is the same trick that produced a genuine native access
@@ -453,9 +465,10 @@ Flagged above and worth recording explicitly: `ModelCapabilities`'s property-lev
 
 ### Windows CLI — remaining commands
 
-`config` and `daemon` (continuous curve/hold as a persistent process, matching Linux's shape) are
-not built yet — see the scope note in the CLI's "Done" entry above for why each was left out.
-(`keyboard` and `monitor` shipped since this section was first written — see "Done" above.)
+`daemon` (continuous curve/hold as a persistent process, matching Linux's shape) and `diagnose`
+are not built yet — see the scope note in the CLI's "Done" entry above for why each was left out.
+(`keyboard`, `monitor`, and `config` shipped since this section was first written — see "Done"
+above.)
 
 ### Local HTTP / named-pipe control API
 
