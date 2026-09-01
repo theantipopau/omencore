@@ -307,7 +307,7 @@ the type it constructs).
 
 ---
 
-### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config`
+### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config` / `daemon`
 
 The actual point of the extraction, started the same session right after Core landed. New
 `src/OmenCore.Cli` console project (`AssemblyName: omencore-cli`, matching Linux's binary name),
@@ -349,12 +349,31 @@ full 1:1 mapping; `AppConfig` has 60+ top-level properties plus several nested s
 and picking a sensible complete key schema for all of it is its own multi-day task, not attempted
 here). `config` deliberately bypasses `CliContext` entirely — a config read/write has no reason
 to pay for `HardwareBringup`'s NVAPI/PawnIO/WMI probing, so it talks to `AppHost.Configuration`
-directly, making it the only command in this CLI that's genuinely fast and side-effect-free to
-invoke. Deliberately **not** included: curve presets won't keep re-evaluating temperature after
-the process exits (that needs `FanService.Start()`'s background monitor loop running
-continuously — i.e. a persistent process, which is exactly what Linux's `daemon` command is for
-and this doesn't have yet), and `diagnose` (would want to reuse `DiagnosticExportService`, which
-stayed in `OmenCoreApp` — see above).
+directly, making it one of two commands in this CLI that are fast and side-effect-free to invoke
+(the other is `daemon --status`, see below). `daemon --profile <name>` runs a fan preset in the
+foreground with `FanService.Start()`'s continuous monitor loop actually running, until Ctrl+C —
+the piece the other commands explicitly can't do, since curve/hold presets only stay correct
+while something keeps re-evaluating temperature against them. `daemon --status` (no hardware
+bringup, same reasoning as `config`) checks `Process.GetProcessesByName("OmenCore")` and warns if
+the GUI app is already running, since both processes would compete for the same fan hardware, and
+lists the real configured preset names. **Deliberately scoped to foreground-only** — see
+`DaemonCommand`'s own doc comment for the full reasoning: Linux's `daemon` also manages a real
+systemd service (`--install`/`--start`/`--stop`/`--uninstall`, unit-file generation, PID files);
+the Windows equivalent (`Microsoft.Extensions.Hosting.WindowsServices`/`ServiceBase`, or a
+Scheduled Task at logon matching `SettingsViewModel.SetStartWithWindows`'s already-working
+pattern) is a real, separate decision — most importantly, whether a CLI daemon should be able to
+install itself to run unattended at every boot at all, competing with the GUI app for the same
+hardware — not something to default into while adding one command. Deliberately **not** included
+beyond that: `diagnose` (would want to reuse `DiagnosticExportService`, which stayed in
+`OmenCoreApp` — see above).
+
+**`daemon`'s one deliberate inconsistency with every other command here, and why:** every other
+command in this CLI never calls `FanService.Dispose()`, because a one-shot `fan --profile quiet`
+is supposed to leave the fan on quiet after the process exits. `daemon` is different in kind, not
+degree — once its process exits, nothing is left driving the curve loop it was running, so the
+fan would freeze at whatever RPM was last computed rather than continuing to track temperature.
+`daemon`'s Ctrl+C handler therefore does call `Dispose()`, restoring BIOS auto control cleanly on
+exit — the one case in this CLI where that's the correct behavior instead of the wrong one.
 
 **`keyboard`'s one caveat, worth flagging rather than glossing over:** `KeyboardLightingService.ApplyEffect`
 is `void` — on a backend mismatch it logs "not applied" internally rather than giving the caller
@@ -368,14 +387,16 @@ change — out of scope for adding one CLI command.
 and every subcommand rendered correctly via the framework-dependent host (`dotnet omencore-cli.dll
 --help`, which never reaches `CliContext.Create()` — System.CommandLine handles `--help` before
 invoking a handler, so this checks the option/argument wiring without touching any hardware code).
-`config --show`/`--get` were also run for real (not just `--help`) — safe to, since `config`
-bypasses `CliContext`/hardware entirely — against the real `%APPDATA%\OmenCore\config.json` on
-this dev machine, and returned correct values matching `AppConfig`'s known defaults.
-Deliberately did **not** run `config --set` for real, to avoid mutating that live file from an
-unsupervised test; its logic mirrors the already-tested `TrySetBool`/`TrySetInt` pattern the other
-commands use. Full Windows test suite (1380/1380) re-confirmed clean after each command addition.
-**Not verified: an actual elevated run against real hardware**, for the five hardware-touching
-commands (`status`/`fan`/`performance`/`keyboard`/`monitor`).
+`config --show`/`--get` and `daemon --status` were also run for real (not just `--help`) — safe
+to, since neither touches `CliContext`/hardware — against the real
+`%APPDATA%\OmenCore\config.json` on this dev machine; both returned correct values (`config`
+matching `AppConfig`'s known defaults, `daemon --status` correctly reporting the GUI app wasn't
+running and listing the real configured preset names). Deliberately did **not** run `config --set`
+for real, to avoid mutating that live file from an unsupervised test; its logic mirrors the
+already-tested `TrySetBool`/`TrySetInt` pattern the other commands use. Full Windows test suite
+(1380/1380) re-confirmed clean after each command addition. **Not verified: an actual elevated
+run against real hardware**, for the six hardware-touching commands
+(`status`/`fan`/`performance`/`keyboard`/`monitor`/`daemon --profile`).
 Running the self-contained `.exe` directly triggers the `requireAdministrator` manifest's UAC
 prompt (same as `OmenCoreApp.exe`), and bypassing that via the non-elevated `dotnet
 omencore-cli.dll <command>` path is the same trick that produced a genuine native access
@@ -465,10 +486,11 @@ Flagged above and worth recording explicitly: `ModelCapabilities`'s property-lev
 
 ### Windows CLI — remaining commands
 
-`daemon` (continuous curve/hold as a persistent process, matching Linux's shape) and `diagnose`
-are not built yet — see the scope note in the CLI's "Done" entry above for why each was left out.
-(`keyboard`, `monitor`, and `config` shipped since this section was first written — see "Done"
-above.)
+`diagnose` is not built yet — see the scope note in the CLI's "Done" entry above for why. Also
+still open: whether `daemon` should ever gain Windows Service or Scheduled Task
+self-installation (it currently only runs in the foreground) — a real deployment decision, not
+a code gap. (`keyboard`, `monitor`, `config`, and foreground-only `daemon` shipped since this
+section was first written — see "Done" above.)
 
 ### Local HTTP / named-pipe control API
 

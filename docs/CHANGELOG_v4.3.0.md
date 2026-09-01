@@ -118,7 +118,7 @@ WPF behavior from `OmenCoreApp.App`'s constructor.
 Full suite: 1380/1380, unchanged from before the move — this was a structural extraction, not a
 behavior change, and the tests back that up.
 
-### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config`
+### Windows CLI — `status` / `fan` / `performance` / `keyboard` / `monitor` / `config` / `daemon`
 
 New `omencore-cli` console app (`src/OmenCore.Cli`), built directly on `OmenCore.Core` — no
 duplicated hardware logic. `status [--json]` reports model/board ID, EC and fan-controller
@@ -132,16 +132,23 @@ redraws live CPU/GPU temperature and fan RPM/duty in place until Ctrl+C, matchin
 `monitor` command in shape. `config --show` / `--get <key>` / `--set key=value` reads/writes a
 curated subset of settings (polling interval, log level, diagnostics/telemetry opt-in,
 fan/performance linking, Quiet Safety Monitor threshold) — not all of `AppConfig`, which has 60+
-top-level properties; scoping the full thing wasn't attempted.
+top-level properties; scoping the full thing wasn't attempted. `daemon --profile <name>` runs a
+fan preset in the foreground with `FanService.Start()`'s continuous monitor loop actually running
+(curve/hold support), until Ctrl+C; `daemon --status` checks whether the GUI app is already
+running before you start it (both would fight for fan ownership). Foreground-only — no
+Windows Service or Scheduled Task self-installation, unlike Linux's systemd-managed `daemon`;
+that's a real, separate deployment decision, not something to default into.
 
 Command parsing verified end-to-end (root and every subcommand's `--help` renders correctly).
-`config --show`/`--get` additionally verified for real (it doesn't touch hardware, so this was
-safe to actually run against the real `%APPDATA%\OmenCore\config.json`) — `--set` was not run for
-real to avoid mutating that live file from an unsupervised test; its logic mirrors the same
-tested pattern the other commands' setters already use. **`status`/`fan`/`performance`/`keyboard`/
-`monitor` not yet verified against real hardware** — that needs an actual elevated run, which is
-next. See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately out of
-scope (curve presets, `daemon`).
+`config --show`/`--get` and `daemon --status` were additionally run for real (neither touches
+hardware, so both were safe to actually run) — `config --show`/`--get` against the real
+`%APPDATA%\OmenCore\config.json`, and `daemon --status` correctly detected the GUI app wasn't
+running and listed the real configured presets. `config --set` was not run for real, to avoid
+mutating that live file from an unsupervised test; its logic mirrors the same tested pattern the
+other commands' setters already use. **`status`/`fan`/`performance`/`keyboard`/`monitor`/
+`daemon --profile` not yet verified against real hardware** — that needs an actual elevated run,
+which is next. See `docs/ROADMAP_v4.3.0.md` for the full bootstrap trace and what's deliberately
+out of scope.
 
 ### Package-Reference Cleanup on `OmenCoreApp.csproj`
 
