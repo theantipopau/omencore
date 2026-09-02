@@ -21,7 +21,27 @@ public static class LinuxTelemetryResolver
 
     public static LinuxTemperatureReading? GetGpuTemperature(LinuxEcController ec, LinuxHwMonController hwmon)
     {
-        return FilterPlausible(hwmon.GetGpuTemperatureReading()) ?? CreateEcReading(ec.GetGpuTemperature(), GpuEcPath);
+        // NVML first: it's what nvidia-smi itself reads from, and it's authoritative for NVIDIA
+        // GPUs regardless of whether the proprietary driver happens to register a hwmon device on
+        // this system (it often doesn't - see GitHub #186, where hwmon and EC both came back empty
+        // for a real RTX 5080 laptop GPU that nvidia-smi read correctly the whole time).
+        return CreateNvmlReading() ?? FilterPlausible(hwmon.GetGpuTemperatureReading()) ?? CreateEcReading(ec.GetGpuTemperature(), GpuEcPath);
+    }
+
+    private static LinuxTemperatureReading? CreateNvmlReading()
+    {
+        var snapshot = NvmlInterop.TryGetPrimaryGpu();
+        if (snapshot?.TemperatureC is not int temperature || !IsPlausibleTemperature(temperature))
+        {
+            return null;
+        }
+
+        return new LinuxTemperatureReading
+        {
+            Temperature = temperature,
+            Source = "nvml",
+            Path = "nvml:0"
+        };
     }
 
     private static LinuxTemperatureReading? CreateEcReading(int? temperature, string path)

@@ -71,9 +71,16 @@ public static class MonitorCommand
     {
         var now = DateTime.Now;
         
-        // Get data
-        var cpuTemp = hwmon.GetCpuTemperature() ?? ec.GetCpuTemperature();
-        var gpuTemp = hwmon.GetGpuTemperature() ?? ec.GetGpuTemperature();
+        // Get data. Routed through LinuxTelemetryResolver rather than this command's own
+        // hwmon-then-EC chain (the previous shape here) - that ad-hoc chain never queried NVML at
+        // all, which is exactly the GPU-telemetry gap GitHub #186 reported (0C/unavailable on a
+        // real NVIDIA laptop GPU that nvidia-smi read correctly). The resolver already has NVML
+        // wired in as its first-priority source.
+        var cpuReading = LinuxTelemetryResolver.GetCpuTemperature(ec, hwmon);
+        var gpuReading = LinuxTelemetryResolver.GetGpuTemperature(ec, hwmon);
+        var cpuTemp = cpuReading?.Temperature;
+        var gpuTemp = gpuReading?.Temperature;
+        var nvmlGpu = NvmlInterop.TryGetPrimaryGpu();
         var (fan1Rpm, fan2Rpm) = ec.IsAvailable ? ec.GetFanSpeeds() : (0, 0);
         var (fan1Pct, fan2Pct) = ec.IsAvailable ? ec.GetFanSpeedPercent() : (0, 0);
         
@@ -82,14 +89,16 @@ public static class MonitorCommand
         var gpuBar = GetProgressBar(gpuTemp ?? 0, 100, 20);
         var fan1Bar = GetProgressBar(fan1Pct, 100, 20);
         var fan2Bar = GetProgressBar(fan2Pct, 100, 20);
-        
+        var gpuPowerText = nvmlGpu?.PowerWatts.HasValue == true ? $"{nvmlGpu.PowerWatts.Value:F0}W" : "  -";
+        var gpuUsageText = nvmlGpu?.UtilizationPercent.HasValue == true ? $"{nvmlGpu.UtilizationPercent.Value,3}%" : " -  ";
+
         Console.WriteLine("╔═══════════════════════════════════════════════════════════════╗");
         Console.WriteLine($"║   OmenCore Linux Monitor            {now:HH:mm:ss}   [Ctrl+C to exit]   ║");
         Console.WriteLine("╠═══════════════════════════════════════════════════════════════╣");
         Console.WriteLine("║                                                               ║");
         Console.WriteLine("║   TEMPERATURES                                                ║");
         Console.WriteLine($"║   CPU: {GetTempColorCode(cpuTemp ?? 0)}{cpuTemp,3}°C\u001b[0m [{cpuBar}]                    ║");
-        Console.WriteLine($"║   GPU: {GetTempColorCode(gpuTemp ?? 0)}{gpuTemp,3}°C\u001b[0m [{gpuBar}]                    ║");
+        Console.WriteLine($"║   GPU: {GetTempColorCode(gpuTemp ?? 0)}{gpuTemp,3}°C\u001b[0m [{gpuBar}]  {gpuUsageText} {gpuPowerText}  ║");
         Console.WriteLine("║                                                               ║");
         Console.WriteLine("║   FAN SPEEDS                                                  ║");
         Console.WriteLine($"║   Fan 1 (CPU): {fan1Rpm,5} RPM  {fan1Pct,3}% [{fan1Bar}]       ║");

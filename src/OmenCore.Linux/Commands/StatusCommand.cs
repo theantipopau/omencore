@@ -49,6 +49,10 @@ public static class StatusCommand
         var gpuReading = LinuxTelemetryResolver.GetGpuTemperature(ec, hwmon);
         var cpuTemp = cpuReading?.Temperature;
         var gpuTemp = gpuReading?.Temperature;
+        // Separate from GetGpuTemperature's own NVML call above - name/power/utilization aren't
+        // part of LinuxTemperatureReading's shape (temperature-only, shared with hwmon/EC sources).
+        // A second NVML query per invocation is cheap and irrelevant for a one-shot CLI command.
+        var nvmlGpu = NvmlInterop.TryGetPrimaryGpu();
         
         var (fan1Rpm, fan2Rpm) = ec.IsAvailable ? ec.GetFanSpeeds() : (0, 0);
         var (fan1Pct, fan2Pct) = ec.IsAvailable ? ec.GetFanSpeedPercent() : (0, 0);
@@ -130,6 +134,12 @@ public static class StatusCommand
                 },
                 GpuTelemetrySource = gpuReading?.Source ?? "unavailable",
                 GpuTelemetryPath = gpuReading?.Path ?? string.Empty,
+                Gpu = new GpuInfo
+                {
+                    Name = nvmlGpu?.Name ?? string.Empty,
+                    PowerWatts = nvmlGpu?.PowerWatts,
+                    UtilizationPercent = nvmlGpu?.UtilizationPercent
+                },
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             };
             
@@ -191,6 +201,12 @@ public static class StatusCommand
         Console.WriteLine($"║    CPU Temperature: {cpuTemp ?? 0,3}°C                                ║");
         Console.WriteLine($"║    GPU Temperature: {gpuTemp ?? 0,3}°C                                ║");
         Console.WriteLine($"║    GPU Telemetry:  {Truncate(gpuReading == null ? "unavailable" : $"{gpuReading.Source} ({gpuReading.Path})", 36),-36}║");
+        if (nvmlGpu != null)
+        {
+            Console.WriteLine($"║    GPU Name:       {Truncate(string.IsNullOrEmpty(nvmlGpu.Name) ? "unknown" : nvmlGpu.Name, 36),-36}║");
+            Console.WriteLine($"║    GPU Power:      {(nvmlGpu.PowerWatts.HasValue ? $"{nvmlGpu.PowerWatts.Value:F1} W" : "unavailable"),-36}║");
+            Console.WriteLine($"║    GPU Usage:      {(nvmlGpu.UtilizationPercent.HasValue ? $"{nvmlGpu.UtilizationPercent.Value}%" : "unavailable"),-36}║");
+        }
         
         // Fans
         Console.WriteLine("╠═══════════════════════════════════════════════════════════╣");

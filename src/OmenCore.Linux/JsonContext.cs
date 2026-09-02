@@ -34,7 +34,15 @@ public class SystemStatus
     public LinuxAccessInfo Access { get; set; } = new();
     public string GpuTelemetrySource { get; set; } = "unavailable";
     public string GpuTelemetryPath { get; set; } = string.Empty;
+    public GpuInfo Gpu { get; set; } = new();
     public long Timestamp { get; set; }
+}
+
+public class GpuInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public double? PowerWatts { get; set; }
+    public int? UtilizationPercent { get; set; }
 }
 
 public class LinuxAccessInfo

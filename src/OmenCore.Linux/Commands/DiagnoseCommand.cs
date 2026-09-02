@@ -352,9 +352,17 @@ public static class DiagnoseCommand
 
         if (gpuReading == null)
         {
-            info.Notes.Add("GPU telemetry fallback chain exhausted: no hwmon, thermal-zone, or EC temperature source is currently readable.");
+            // NvmlInterop.LastFailureReason is populated as a side effect of the
+            // LinuxTelemetryResolver.GetGpuTemperature call above (it tries NVML first) - surfacing
+            // it here directly answers GitHub #186's own request: "if NVML loading is attempted and
+            // fails, surfacing the error... would make this class of report much easier to triage."
+            var nvmlNote = NvmlInterop.LastFailureReason;
+            info.Notes.Add(nvmlNote != null
+                ? $"GPU telemetry fallback chain exhausted: NVML unavailable ({nvmlNote}); hwmon, thermal-zone, and EC temperature sources are also unreadable."
+                : "GPU telemetry fallback chain exhausted: no NVML, hwmon, thermal-zone, or EC temperature source is currently readable.");
         }
-        else if (!string.Equals(gpuReading.Source, "hwmon", StringComparison.Ordinal))
+        else if (!string.Equals(gpuReading.Source, "nvml", StringComparison.Ordinal) &&
+                 !string.Equals(gpuReading.Source, "hwmon", StringComparison.Ordinal))
         {
             info.Notes.Add($"GPU telemetry is running on fallback source '{gpuReading.Source}' via {gpuReading.Path}.");
         }

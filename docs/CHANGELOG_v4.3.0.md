@@ -13,6 +13,20 @@ first.
 
 ## Fixed
 
+### Linux: GPU Telemetry Never Queried NVML, So a Real NVIDIA GPU Read as 0°C/Unavailable
+
+**Report:** [#186](https://github.com/theantipopau/omencore/issues/186) — OMEN Max 16-ah0xxx (board `8D41`, RTX 5080). `omencore-cli status` reported `GPU Temperature: 0°C` / `GPU Telemetry: unavailable` and the GUI showed `0°`, `0% usage`, `Power: 0 W`, with the adapter shown by raw PCI ID (`NVIDIA GPU (0x2c59)`) — while `nvidia-smi` read the exact same GPU correctly (41°C, 24W) in the same second, unprivileged, no root needed.
+
+Traced to a real gap, not a driver/permissions problem as the reporter already suspected: OmenCore's Linux GPU telemetry only ever checked `hwmon` (`/sys/class/hwmon/*/name == "nvidia"`, which the proprietary NVIDIA driver typically doesn't register — unlike `amdgpu`/`nouveau`) and the OMEN EC's GPU thermal register. NVML — the library `nvidia-smi` itself is built on, and the correct way to read an NVIDIA GPU on Linux regardless of hwmon exposure — was never referenced anywhere in the codebase.
+
+Added `NvmlInterop` (`OmenCore.Linux/Hardware/NvmlInterop.cs`), a P/Invoke wrapper around `libnvidia-ml.so.1` with a custom `NativeLibrary` resolver (systems with only the runtime driver package installed, no `-dev` symlink, often only have the versioned `.so.1`, which .NET's default Linux library probing doesn't try). Wired in as the first-priority source in `LinuxTelemetryResolver.GetGpuTemperature` — ahead of hwmon and EC — since it's authoritative for NVIDIA GPUs. Also fixed **`MonitorCommand`**, which turned out to have its own third, independent `hwmon.GetGpuTemperature() ?? ec.GetGpuTemperature()` chain bypassing the shared resolver entirely (same underlying bug, a second time); it now routes through `LinuxTelemetryResolver` like `StatusCommand`/`DiagnoseCommand` already did. `status`/`monitor` now also show GPU name, power draw, and utilization from NVML. Per the reporter's own suggestion, `diagnose`'s Notes now surface *why* GPU telemetry is unavailable (NVML load/init failure reason, not just "unavailable") when the whole fallback chain is exhausted.
+
+3 new tests (`NvmlInteropTests.cs`) confirm NVML absence fails closed (null, not a thrown exception) with a diagnosable reason — the one thing verifiable without real NVIDIA hardware. Linux suite: 28/28 (up from 25/25).
+
+**GUI (`OmenCore.Avalonia`) parity not done in this pass** — it has its own separate, duplicate GPU-temperature implementation (`LinuxHardwareService.cs`) with the same gap, plus its own `FormatGpuName`-from-raw-PCI-ID fallback (the `0x2c59` the reporter saw). Scoped as a follow-up rather than rushed alongside the CLI fix — see `docs/ROADMAP_v4.3.0.md`.
+
+**Not a field-validation item** in the evidence-gate sense — this is a read-only telemetry addition, no fan/EC/thermal/OC/UV write path touched. It is, however, genuinely unverifiable from this environment (no Linux machine with an NVIDIA GPU to run it against) — the P/Invoke bindings match NVML's documented, ABI-stable public API, and both build targets (`win-x64`, cross-compiled `linux-x64`) compile clean, but an actual run against real hardware is the real verification still needed.
+
 ### Model Capability Fallbacks Were Optimistic Instead of Conservative
 
 Traced from [#182](https://github.com/theantipopau/omencore/issues/182) (board `8603`, a 2019 OMEN 17-cb0xxx): the Model Capabilities screen showed GPU Power Boost, custom fan curves, independent fan curves, and 4-zone RGB all as "Supported" on a board OmenCore had never seen before — and the reporter's own independent OmenMon probe confirmed the underlying BIOS `GetGpuPower()` call fails outright on that hardware.
@@ -198,6 +212,7 @@ project reference. Full solution build and test suite (1380/1380) confirmed clea
 - Class-level capability defaults audit (the ~150 named board entries in `ModelCapabilityDatabase.cs` haven't been checked for silent reliance on the class-level `= true` defaults) — see `docs/ROADMAP_v4.3.0.md`.
 - **Discord (GHOST), 2026-09-02** — "OMEN key also not working" on board `8BA9`. The attached `LastOmenKeyCandidate` (`vk=0xFF, scan=0x002B, rejected, reason=strict-mode-oem-omen-scan-mismatch, ageMs=369800`) is **not evidence of a bug** — this exact `(VK, scan)` pair was already diagnosed as a real brightness-key/OMEN-key collision on a different OMEN 16 board (GitHub #141) and is deliberately rejected by design, pinned by an existing regression test (`OmenKeyServiceTests.VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode`). The 6-minute-old timestamp means this was very likely captured from an earlier brightness-key press, not a fresh physical OMEN-key test. Needs a clean re-test (press the physical OMEN key once, export diagnostics immediately after) before this is actionable — see `docs/ROADMAP_v4.3.0.md`.
 - **Discord (PRIMUS_626), 2026-09-02** — "can't do anything is Tuning" on HP Victus 16-e0xxx (board `88ED`, matched via the existing #128 `88EC` name-pattern entry). Not a bug: `SupportsUndervolt=false` on this board is an intentional, already-documented conservative default pending field verification (same discipline as every other Victus/OMEN entry this cycle) — GPU OC via NVAPI should still be usable (`Supports OC: True` in every session log in the bundle). See `docs/ROADMAP_v4.3.0.md`.
+- **[#123](https://github.com/theantipopau/omencore/issues/123)** — GPU TGP capped at 80W on Linux for the OMEN Max 16-ah0xxx / RTX 5080 (board `8D41`; independently confirmed on a second BIOS/distro in [a follow-up comment](https://github.com/theantipopau/omencore/issues/123#issuecomment-5516731635)). Traced and confirmed **not actionable in OmenCore's own code** — see `docs/ROADMAP_v4.3.0.md` for the full trace.
 
 ---
 
