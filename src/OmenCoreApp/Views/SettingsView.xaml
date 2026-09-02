@@ -3337,7 +3337,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Automation Rules" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        <TextBlock Text="Promoted triggers for shipped automation: time window, battery threshold, and AC power state." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Promoted triggers for shipped automation: time window, battery threshold, AC power state, and CPU/GPU temperature." FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                                     </StackPanel>
                                     <Button AutomationProperties.Name="Add Automation Rule" Grid.Column="1" Content="+ Add Automation Rule" Command="{Binding AddAutomationRuleCommand}"
                                             Style="{StaticResource SecondaryButton}" VerticalAlignment="Center"/>
@@ -3410,6 +3410,26 @@
                                                                     Visibility="{Binding IsACPowerTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                             <TextBlock Text="AC power state" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
                                                             <ComboBox AutomationProperties.Name="AC power state" ItemsSource="{Binding AcPowerStates}" SelectedItem="{Binding AcPowerState, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsTemperatureTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Temperature threshold (°C)" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <TextBox AutomationProperties.Name="Temperature threshold" Text="{Binding TemperatureThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Padding="8,4"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsTemperatureTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Temperature condition" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox AutomationProperties.Name="Temperature condition" ItemsSource="{Binding TemperatureConditions}" SelectedItem="{Binding TemperatureCondition, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="2"
+                                                                    Visibility="{Binding IsTemperatureTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Sensor" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox AutomationProperties.Name="Temperature sensor" ItemsSource="{Binding TemperatureSensors}" SelectedItem="{Binding TemperatureSensor, Mode=TwoWay}"
                                                                       Style="{StaticResource ModernComboBox}"/>
                                                         </StackPanel>
                                                     </Grid>

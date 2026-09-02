@@ -487,7 +487,8 @@ namespace OmenCore.Services
         {
             TriggerType.Time,
             TriggerType.Battery,
-            TriggerType.ACPower
+            TriggerType.ACPower,
+            TriggerType.Temperature
         };
 
         public static bool IsSupportedTriggerType(TriggerType triggerType)
@@ -509,7 +510,7 @@ namespace OmenCore.Services
 
             if (!IsSupportedTriggerType(rule.Trigger))
             {
-                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power.";
+                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature.";
                 return false;
             }
 
@@ -564,6 +565,26 @@ namespace OmenCore.Services
                         error = "AC power rules must specify connected or disconnected.";
                         return false;
                     }
+                    break;
+
+                case TriggerType.Temperature:
+                    if (!rule.TriggerData.TemperatureThreshold.HasValue ||
+                        rule.TriggerData.TemperatureThreshold.Value < 1 ||
+                        rule.TriggerData.TemperatureThreshold.Value > 110)
+                    {
+                        error = "Temperature rules require a threshold between 1 and 110°C.";
+                        return false;
+                    }
+
+                    if (!string.Equals(rule.TriggerData.TemperatureCondition, "Above", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(rule.TriggerData.TemperatureCondition, "Below", StringComparison.OrdinalIgnoreCase))
+                    {
+                        error = "Temperature rules require condition 'Above' or 'Below'.";
+                        return false;
+                    }
+                    // TemperatureSensor is deliberately not required here - EvaluateTemperatureTrigger
+                    // already defaults a null/empty sensor to "cpu", matching every other optional
+                    // field in this validator that has a safe runtime default.
                     break;
             }
 

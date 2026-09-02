@@ -4720,12 +4720,17 @@ namespace OmenCore.ViewModels
             private int _batteryThreshold = 30;
             private string _batteryCondition = "Below";
             private string _acPowerState = "Connected";
+            private int _temperatureThreshold = 85;
+            private string _temperatureCondition = "Above";
+            private string _temperatureSensor = "CPU";
             private string _fanPreset = string.Empty;
             private string _performanceMode = string.Empty;
 
             public IEnumerable<TriggerType> SupportedTriggerTypes => AutomationRuleSchemaValidator.SupportedTriggerTypes;
             public IEnumerable<string> BatteryConditions { get; } = new[] { "Below", "Above" };
             public IEnumerable<string> AcPowerStates { get; } = new[] { "Connected", "Disconnected" };
+            public IEnumerable<string> TemperatureConditions { get; } = new[] { "Above", "Below" };
+            public IEnumerable<string> TemperatureSensors { get; } = new[] { "CPU", "GPU" };
             public IEnumerable<string> FanPresetOptions { get; } = new[] { string.Empty, "Auto", "Silent", "Gaming", "Extreme", "Max" };
             public IEnumerable<string> PerformanceModeOptions { get; } = new[] { string.Empty, "Balanced", "Performance", "Quiet" };
 
@@ -4744,6 +4749,7 @@ namespace OmenCore.ViewModels
                         OnPropertyChanged(nameof(IsTimeTrigger));
                         OnPropertyChanged(nameof(IsBatteryTrigger));
                         OnPropertyChanged(nameof(IsACPowerTrigger));
+                        OnPropertyChanged(nameof(IsTemperatureTrigger));
                         OnPropertyChanged(nameof(ValidationMessage));
                     }
                 }
@@ -4752,12 +4758,16 @@ namespace OmenCore.ViewModels
             public bool IsTimeTrigger => Trigger == TriggerType.Time;
             public bool IsBatteryTrigger => Trigger == TriggerType.Battery;
             public bool IsACPowerTrigger => Trigger == TriggerType.ACPower;
+            public bool IsTemperatureTrigger => Trigger == TriggerType.Temperature;
 
             public string StartTimeText { get => _startTimeText; set => UpdateField(ref _startTimeText, value); }
             public string EndTimeText { get => _endTimeText; set => UpdateField(ref _endTimeText, value); }
             public int BatteryThreshold { get => _batteryThreshold; set => UpdateField(ref _batteryThreshold, Math.Clamp(value, 1, 100)); }
             public string BatteryCondition { get => _batteryCondition; set => UpdateField(ref _batteryCondition, value); }
             public string AcPowerState { get => _acPowerState; set => UpdateField(ref _acPowerState, value); }
+            public int TemperatureThreshold { get => _temperatureThreshold; set => UpdateField(ref _temperatureThreshold, Math.Clamp(value, 1, 110)); }
+            public string TemperatureCondition { get => _temperatureCondition; set => UpdateField(ref _temperatureCondition, value); }
+            public string TemperatureSensor { get => _temperatureSensor; set => UpdateField(ref _temperatureSensor, value); }
             public string FanPreset { get => _fanPreset; set => UpdateField(ref _fanPreset, value); }
             public string PerformanceMode { get => _performanceMode; set => UpdateField(ref _performanceMode, value); }
 
@@ -4781,6 +4791,11 @@ namespace OmenCore.ViewModels
                         break;
                     case TriggerType.ACPower:
                         triggerData.ACConnected = string.Equals(AcPowerState, "Connected", StringComparison.OrdinalIgnoreCase);
+                        break;
+                    case TriggerType.Temperature:
+                        triggerData.TemperatureThreshold = TemperatureThreshold;
+                        triggerData.TemperatureCondition = TemperatureCondition;
+                        triggerData.TemperatureSensor = TemperatureSensor;
                         break;
                 }
 
@@ -4821,6 +4836,9 @@ namespace OmenCore.ViewModels
                     BatteryThreshold = rule.TriggerData.BatteryThreshold ?? 30,
                     BatteryCondition = string.IsNullOrWhiteSpace(rule.TriggerData.BatteryCondition) ? "Below" : rule.TriggerData.BatteryCondition,
                     AcPowerState = rule.TriggerData.ACConnected == false ? "Disconnected" : "Connected",
+                    TemperatureThreshold = rule.TriggerData.TemperatureThreshold ?? 85,
+                    TemperatureCondition = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureCondition) ? "Above" : rule.TriggerData.TemperatureCondition,
+                    TemperatureSensor = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureSensor) ? "CPU" : rule.TriggerData.TemperatureSensor,
                     FanPreset = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetFanPreset)?.Parameter ?? string.Empty,
                     PerformanceMode = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetPerformanceMode)?.Parameter ?? string.Empty
                 };

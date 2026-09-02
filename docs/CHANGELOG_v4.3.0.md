@@ -95,6 +95,14 @@ Traced to `KeyboardLightingService.IsAvailable` including `_ecAvailable` uncondi
 
 ## Added
 
+### Temperature Trigger for Automation Rules
+
+Discovered mid-cycle while scoping "extend `PowerAutomationService` with time-of-day/lid-close/charger-connect triggers" (roadmap "Not Yet Started"): that framing was stale. A separate, more general rule engine (`AutomationService` + a real "Automation Rules" editor in Settings) already ships time-window and AC-power triggers today — the roadmap entry didn't know it existed. `AutomationService`'s backend has actually supported **seven** trigger types since v2.3.0 (Time, Battery, ACPower, Temperature, Process, Idle, WiFiSSID), but the UI/validator only ever exposed three (`AutomationRuleSchemaValidator.SupportedTriggerTypes`) — the other four were implemented and functional but deliberately held back as "not shipped yet," with no comment on record explaining which ones were actually safe to promote.
+
+Reviewed all four gated types before touching anything: **Temperature** (CPU/GPU threshold, e.g. "above 85°C") is complete and correct — same `ThermalSensorProvider` reading already used elsewhere, no gaps found. **WiFiSSID** has a real, confirmed bug — its fallback path (when the primary WMI SSID query fails) doesn't actually match the configured SSID at all, just checks whether *any* wireless interface is up; promoting it as-is would ship a rule that silently doesn't do what its name says. **Process** and **Idle** weren't reviewed deeply enough this pass to promote with confidence.
+
+Promoted only **Temperature** this cycle: added it to `SupportedTriggerTypes`, a validation case (threshold 1-110°C, condition Above/Below — sensor is optional, matching the runtime default of CPU), and matching UI fields (threshold/condition/sensor) in the Settings → Automation Rules editor, mirroring the existing Battery trigger's fields exactly. 8 new tests (`AutomationRuleSchemaValidatorTests.cs` — first test coverage this validator has ever had) cover acceptance, the numeric range, both required fields, and a regression guard confirming Process/Idle/WiFiSSID stay gated. Not a field-validation item — this only exposes an already-shipped, already-tested read+action path (`ThermalSensorProvider.ReadTemperatures` → `FanService.ApplyPreset`/`PerformanceModeService.SetPerformanceMode`) to a new UI trigger, no new hardware I/O.
+
 ### Three New Model Database Entries From Field Reports
 
 - **[#178](https://github.com/theantipopau/omencore/issues/178)** — HP Victus 15-fa2303TX (C2JQ3PA), board `8E5E`. Added using the reporter's own fan-verification diagnostic (WMI fan-level control responds, but RPM readback is level-estimated rather than a real tachometer — reflected as `SupportsRpmReadback = false` rather than claiming a number this board hasn't demonstrated). Single-zone, static-color-only keyboard backlight per the reporter.
