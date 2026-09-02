@@ -738,6 +738,38 @@ namespace OmenCore.Hardware
                 Notes = "OMEN 16-wf1xxx (2024 Intel) — ProductId 8C77, BIOS F.19. Crash report 2026-07: FileNotFoundException on Custom Fan Curve/Quiet mode (8BAB V2 mismatch). Profile mirrors confirmed 8C76 sibling; V1 WMI 55-level fan control."
             });
 
+            // OMEN 16-wd0xxx (2023 Intel) — ProductId 8BA9. Discord report 2026-09-02 (GHOST):
+            // i7-13620H + RTX 4060 Laptop GPU, 16GB DDR5-5200. Diagnostics bundle confirmed via
+            // live capability probe (not just this AddModel entry): WMI BIOS fan control (2 fans,
+            // classic 55-level range, Thermal Policy V1, SW fan control + BIOS OC both true per
+            // system-design readout), MUX switch available via WMI BIOS, GPU Power Boost available
+            // via WMI BIOS, 4-zone RGB (FourZoneWithoutNumpad topology), Intel undervolt runtime-
+            // ready via PawnIO. Previously resolved only as "Unknown OMEN16 Model" via the (already
+            // conservative, see GitHub #182 fix above) family fallback — this exact entry replaces
+            // that with a named identity and the same conservative-until-verified flags. Not a
+            // capability change: every flag here mirrors what the live probe already granted this
+            // board every session; this only fixes the "Model Not Yet Field-Confirmed"/family-
+            // fallback identity, not any functional gap. Not from a full field-validation-script
+            // pass (no Direct/curve/RGB-color test log attached) — UserVerified stays false.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BA9",
+                ModelName = "OMEN 16-wd0xxx (2023) Intel",
+                ModelNamePattern = "16-wd0",
+                ModelYear = 2023,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = true,
+                SupportsGpuPowerBoost = true,
+                HasFourZoneRgb = true,
+                UserVerified = false,
+                Notes = "Discord GHOST 2026-09-02 — HP OMEN by HP Gaming Laptop 16-wd0xxx, ProductId 8BA9, i7-13620H + RTX 4060. Exact entry replaces low-confidence OMEN16 family fallback with a named, still-conservative identity; flags mirror what the live capability probe already confirmed each session."
+            });
+
             // OMEN 16 (2024) - xf series
             AddModel(new ModelCapabilities
             {

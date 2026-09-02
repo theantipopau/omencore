@@ -163,6 +163,18 @@ Continuation of the [#181](https://github.com/theantipopau/omencore/issues/181) 
 
 ---
 
+### Keyboard RGB "Did Not Verify" Status Had No Path to Its Own Fix Suggestion
+
+**Report:** Discord ("GHOST"), 2026-09-02 — "keyboard rgb aint changing," diagnostics bundle for HP OMEN 16-wd0xxx, board `8BA9` (i7-13620H + RTX 4060, not previously in the database — see "Added" below for the new entry this same investigation produced).
+
+**Traced, not guessed.** `core-control-readiness.txt`: `HpKeyboardBackend: V2:WMI BIOS (ColorTable)`, `LastApplyStatus: V2 WMI BIOS (ColorTable) accepted the write but did not verify: Color verification failed - keyboard may not support this method`. The session log confirms the same story end to end: the WMI `ColorTable` write itself reports success (`✓ Keyboard color table set (128-byte OmenMon format)`), but the immediate readback check fails (`[WARN] [WmiBiosBackend] Color verification failed - keyboard may not support this method`), `Keyboard telemetry: WMI 0% success, EC 0% success` (every attempt this session failed to verify), and the code already has the exact right troubleshooting suggestion logged right there: `💡 WMI keyboard commands aren't working on your model. Try enabling 'Experimental EC Keyboard' in Settings if RGB doesn't change.` — **but only to the log file.** `LightingViewModel.ApplyKeyboardColorsAsync` builds `KeyboardRestoreStatusText` (the text `LightingView.xaml` actually shows on the page, confirmed bound and visible, not collapsed) from `_keyboardLightingService.LastApplyStatus` alone — "...did not verify: Color verification failed..." with no next step — while the one concrete fix suggestion the app had already computed for exactly this situation never left the log.
+
+**Fix.** `ApplyKeyboardColorsAsync` now appends the same hint text to `KeyboardRestoreStatusText` whenever `telemetry.WmiSuccessCount == 0 && telemetry.WmiFailureCount > 0`, instead of only logging it. A user on this exact board now sees, right on the Lighting page: *"...did not verify: Color verification failed - keyboard may not support this method. Surface: HP WMI ColorTable zones... WMI keyboard commands aren't verifying on your model - try enabling 'Experimental EC Keyboard' in Settings if colors don't visibly change."*
+
+**Not a field-validation item.** Pure UI/display-honesty change — surfaces an already-computed diagnosis to the page that already shows its neighbor text; no lighting write path touched. Full solution build clean; full test suite re-confirmed after this and the model-database addition below landed in the same pass.
+
+---
+
 ### Windows: OSD Toggle-Hotkey Cleanup Could Throw a Null-Reference During Shutdown
 
 Found auditing a diagnostics bundle attached to [#184](https://github.com/theantipopau/omencore/issues/184) (unrelated to that issue's own subject — see below): `[WARN] OSD: Hotkey cleanup encountered an error: Value cannot be null. (Parameter 'window')` in the shutdown sequence of every one of the four `OmenCore_*.log` files in the bundle.
@@ -215,10 +227,11 @@ and `TrayIconService.cs` (all still in `OmenCoreApp`) use them directly. Full te
 
 ---
 
-### Two New Model Database Entries
+### Three New Model Database Entries
 
 - **`8E5E`** — HP Victus 15-fa2303TX (C2JQ3PA), [#178](https://github.com/theantipopau/omencore/issues/178). Reporter's own fan-verification diagnostic: `Backend: WMI BIOS | RPM source: Estimated`, 3/6 tests passed (60/100, "Fair") — WMI fan-level control responds, but RPM comes back as the commanded level echoed, not a real tachometer reading, and that estimate diverged from expectations under sustained load (CPU@60%, CPU@100%, GPU@100% all failed with "evidence: None"). Reflected as `SupportsRpmReadback = false` rather than claiming a number this board hasn't actually demonstrated. Single-zone, static-color-only keyboard backlight per the reporter, matching the established `15-fa`-series pattern (`FanZoneCount = 1`, `HasFourZoneRgb = false`).
 - **`8603`** — HP OMEN 17-cb0xxx (2019, i9-9880H + RTX 2080), [#182](https://github.com/theantipopau/omencore/issues/182). Pre-dates the 2021-2023 `OmenModelFamily.OMEN17` range, so classified `Legacy` instead. Gives this board a fixed, named entry instead of depending on the family-fallback path (now itself fixed, but still generic) — GPU Power Boost specifically confirmed non-functional via the reporter's independent OmenMon probe, everything else conservative pending further field data.
+- **`8BA9`** — HP OMEN 16-wd0xxx (2023, i7-13620H + RTX 4060), Discord ("GHOST"), 2026-09-02. Two diagnostics bundles plus the reporter's own follow-up specs (CPU/GPU/RAM, board ID, "Omen wd0xxx") confirmed the identity; previously resolved only as "Unknown OMEN16 Model" via the (already-conservative, see the #182 fallback fix above) family template. Every flag in the new entry mirrors what the live capability probe already granted this exact board every session in both bundles (WMI fan control, MUX switch, GPU Power Boost, 4-zone RGB, Intel undervolt via PawnIO) — this is an identity fix, not a capability change, and `UserVerified` stays `false` since no full `field-validation-script.txt` pass (Direct/curve/RGB-color test log) was attached.
 
 ---
 
@@ -511,6 +524,24 @@ Not a bug report — a diagnostics-bundle submission for board `8C2F` (already i
 Two smaller things surfaced in the same bundle, unrelated to verification status: the OSD null-reference fix above (found here, fixed above, not specific to this board), and a real but low-priority observation — this exact machine's CPU thermal-authority reconciliation (`WmiBiosMonitor`) switched sources 20+ times across the session's four log files (WMI/ACPI ↔ LibreHardwareMonitor fallback), including one confirmed-legitimate `THERMAL EMERGENCY: 96°C` event that the watchdog handled correctly (fan max engaged, temperature recovered to 73°C within ~20 seconds — the safety system worked as designed, not a false positive). The switching itself isn't obviously wrong — it's the existing reconciliation heuristic doing its job amid genuinely disagreeing sensor sources on this board — but it's a lot of switching for one session; worth another look if a pattern shows up across more 8C2F reports rather than acting on a single bundle now.
 
 **Not actioned as a database change.** Reply drafted for the reporter explaining exactly what's confirmed vs. what the remaining validation steps would need (see conversation) rather than promoting the entry on partial evidence.
+
+### Discord (GHOST), 2026-09-02 — "OMEN key also not working" on board `8BA9`
+
+The attached diagnostics' `LastOmenKeyCandidate` field reads `source=keyboard-hook; vk=0xFF; scan=0x002B; accepted=no; reason=strict-mode-oem-omen-scan-mismatch; ageMs=369800`. Traced this against `OmenKeyService.IsOmenKey` before concluding anything — and this is **not new evidence of a bug**. `vk=0xFF` is `VK_OEM_OMEN`; under `StrictOmenKeyMode` (on by default), that VK is only accepted when its scan code is one of the four confirmed dedicated OMEN scan codes (`OmenScanCodes = { 0xE045, 0xE046, 0x0046, 0x009D }`). `0x002B` isn't one of them — and that's deliberate: this **exact** `(vk=0xFF, scan=0x002B)` pair was already root-caused once, on a *different* OMEN 16 board, as Fn+F2 brightness-down misfiring as the OMEN key (GitHub #141) — HP's own firmware reuses this VK/scan combination for a brightness key on some boards. `OmenKeyServiceTests.VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode` pins this rejection down specifically so nobody "fixes" it back and reopens #141.
+
+Two things point away from this being a repro of the real OMEN key on `8BA9`: the `ageMs=369800` (~6.2 minutes old at export time) means this is very likely a stale entry from an earlier, unrelated keypress during the session — not a live, deliberate OMEN-key press captured moments before export — and accepting `0x002B` for this VK globally would risk resurrecting #141 on whichever board(s) it originally affected, since `OmenScanCodes` is a single shared array read by three separate VK branches (`VK_OEM_OMEN`, `VK_OMEN_157`, `VK_F24`), not scoped per board.
+
+**Not actioned.** Needs a clean, deliberate re-test: press the physical OMEN key exactly once, then export diagnostics immediately after (not minutes later), and check whether `LastOmenKeyCandidate` shows a *fresh* rejection with the same or a different scan code. If it's genuinely a fresh rejection with a scan code not in `OmenScanCodes`, that's real evidence this board's OMEN key uses a scan code the current allowlist doesn't cover, and the fix would be a board-scoped allowlist addition (not touching the shared array `#141` depends on) — not attempted here without that fresh evidence.
+
+### Discord (PRIMUS_626), 2026-09-02 — "can't do anything is Tuning" on HP Victus 16-e0xxx (board `88ED`)
+
+Traced against the diagnostics bundle rather than assumed. This board resolves via the existing `88EC` name-pattern entry (GitHub #128, already in the database, explicitly documented in its own note as "feature flags intentionally conservative pending field verification"). The session log confirms this is working as designed: `Phase 9: Undervolt capabilities... -> Undervolt disabled per model database (not supported on HP Victus 16-e0xxx)`, and `GPU Power Boost: skipped — HP Victus does not support WMI TGP/PPAB control` — both intentional, both already documented, neither a regression from this cycle's work.
+
+One thing worth noting for the reply rather than for a code change: `tuning-fan-focus.txt`'s `AmdUndervoltProvider` probe reports `AMD IsSupported: True` for this board's CezanneBarcelo Ryzen 7 5800H — but that's a generic "can this backend talk to *an* AMD SMU via PawnIO" signal, the same class of over-broad signal the `KeyboardLightingService.IsAvailable`/`_ecAvailable` fix earlier this cycle was about — not board-specific confirmation that undervolting is safe and stable on this exact chassis/BIOS. Flipping `SupportsUndervolt` on this alone would repeat exactly the mistake the evidence-gate discipline exists to prevent.
+
+GPU overclocking via NVAPI should still work regardless (`GPU OC initialized: ..., Supports OC: True` in every session log in the bundle) — it isn't gated by the HP model database the same way Undervolt/GPU Power Boost are. Reply should point the reporter at GPU OC as the available Tuning surface on this board today, and note that Undervolt/GPU Power Boost are conservatively disabled pending a real field-validation pass, not a new bug in this release.
+
+**Not actioned as a capability change** — no code touched for either report; both are draft-reply-only.
 
 ---
 

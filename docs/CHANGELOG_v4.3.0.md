@@ -81,16 +81,27 @@ Found by actually driving the app and looking at the Lighting page (a live-machi
 
 Traced to `KeyboardLightingService.IsAvailable` including `_ecAvailable` unconditionally, while `BackendType` (which correctly produced "None" in this exact case) only ever reports an EC backend when the user has explicitly opted into the experimental EC keyboard-write path (`IsExperimentalEcEnabled`). `_ecAvailable` only means "we can talk to *an* embedded controller via PawnIO" — true on almost any modern PC for basic power management, regardless of whether it's an HP OMEN keyboard-controlling EC. `IsAvailable` now applies the same experimental-opt-in gate `BackendType` already used, so the two agree. 3 new tests (`KeyboardLightingServiceAvailabilityTests.cs`, using the uninitialized-object + reflection pattern already established elsewhere in this test project, since the class's constructor needs real hardware access objects). Full suite: 1380/1380.
 
+### Keyboard RGB "Did Not Verify" Status Didn't Surface Its Own Fix Suggestion
+
+Traced from a Discord report ("keyboard rgb aint changing") plus its attached diagnostics: on this board (HP OMEN 16-wd0xxx, `8BA9`), the WMI ColorTable keyboard-lighting write is accepted but its color readback never verifies, and `KeyboardLightingService`'s telemetry shows 0% WMI success across the whole session. The code already had the right troubleshooting suggestion — "Try enabling 'Experimental EC Keyboard' in Settings if RGB doesn't change" — but it was only ever written to the log file, never to the same status text the Lighting page already shows the user (`KeyboardRestoreStatusText`, which said only "...did not verify..." with no next step). `LightingViewModel.ApplyKeyboardColorsAsync` now appends the hint to that visible status text whenever WMI has zero verified successes, instead of leaving it log-only. Pure UI/display fix — no lighting write path changed.
+
+### RGB Page's "Control Ownership" Card Could Show "Confirmed" With No Real Keyboard Backend
+
+Found by actually driving the app and looking at the Lighting page (a live-machine look, not just a code read) — on a desktop PC with no HP hardware at all, the "Control ownership" card showed "HP Keyboard (None)" as its summary text, right next to a green "Confirmed" ownership badge, and the "OMEN Keyboard" status chip at the top of the page was highlighted as if active.
+
+Traced to `KeyboardLightingService.IsAvailable` including `_ecAvailable` unconditionally, while `BackendType` (which correctly produced "None" in this exact case) only ever reports an EC backend when the user has explicitly opted into the experimental EC keyboard-write path (`IsExperimentalEcEnabled`). `_ecAvailable` only means "we can talk to *an* embedded controller via PawnIO" — true on almost any modern PC for basic power management, regardless of whether it's an HP OMEN keyboard-controlling EC. `IsAvailable` now applies the same experimental-opt-in gate `BackendType` already used, so the two agree. 3 new tests (`KeyboardLightingServiceAvailabilityTests.cs`, using the uninitialized-object + reflection pattern already established elsewhere in this test project, since the class's constructor needs real hardware access objects). Full suite: 1380/1380.
+
 ---
 
 ## Added
 
-### Two New Model Database Entries From Field Reports
+### Three New Model Database Entries From Field Reports
 
 - **[#178](https://github.com/theantipopau/omencore/issues/178)** — HP Victus 15-fa2303TX (C2JQ3PA), board `8E5E`. Added using the reporter's own fan-verification diagnostic (WMI fan-level control responds, but RPM readback is level-estimated rather than a real tachometer — reflected as `SupportsRpmReadback = false` rather than claiming a number this board hasn't demonstrated). Single-zone, static-color-only keyboard backlight per the reporter.
 - **[#182](https://github.com/theantipopau/omencore/issues/182)** — HP OMEN 17-cb0xxx (i9-9880H + RTX 2080), board `8603`. Gives this board a fixed database entry instead of depending on the now-fixed-but-still-generic family fallback.
+- **Discord (GHOST), 2026-09-02** — HP OMEN 16-wd0xxx (i7-13620H + RTX 4060), board `8BA9`. Was resolving only as "Unknown OMEN16 Model" via family fallback; this entry gives it a named identity with the same conservative flags the live capability probe already granted it every session (not a capability change).
 
-Both entries are conservative and unverified pending further field confirmation, consistent with every other database addition this cycle.
+All three entries are conservative and unverified pending further field confirmation, consistent with every other database addition this cycle.
 
 ### `OmenCore.Core` — a standalone class library for the hardware/service layer
 
@@ -177,6 +188,8 @@ project reference. Full solution build and test suite (1380/1380) confirmed clea
 - **PR [#176](https://github.com/theantipopau/omencore/pull/176)** — re-reviewed 2026-08-30. The process-monitoring fix from 2026-08-29 is real and correct, but two bugs from the 2026-08-19 review (keyboard "effect-freeze," iGPU Curve Optimizer gating) are **still broken**, with the keyboard bug relocated a second time. Branch is also now stale against `main`. Recommend against merging as-is; decision still pending owner call.
 - The local HTTP/named-pipe control API — unblocked by the Core extraction, not started.
 - Class-level capability defaults audit (the ~150 named board entries in `ModelCapabilityDatabase.cs` haven't been checked for silent reliance on the class-level `= true` defaults) — see `docs/ROADMAP_v4.3.0.md`.
+- **Discord (GHOST), 2026-09-02** — "OMEN key also not working" on board `8BA9`. The attached `LastOmenKeyCandidate` (`vk=0xFF, scan=0x002B, rejected, reason=strict-mode-oem-omen-scan-mismatch, ageMs=369800`) is **not evidence of a bug** — this exact `(VK, scan)` pair was already diagnosed as a real brightness-key/OMEN-key collision on a different OMEN 16 board (GitHub #141) and is deliberately rejected by design, pinned by an existing regression test (`OmenKeyServiceTests.VkOemOmen_WithBrightnessDownScanCode_IsRejectedInStrictMode`). The 6-minute-old timestamp means this was very likely captured from an earlier brightness-key press, not a fresh physical OMEN-key test. Needs a clean re-test (press the physical OMEN key once, export diagnostics immediately after) before this is actionable — see `docs/ROADMAP_v4.3.0.md`.
+- **Discord (PRIMUS_626), 2026-09-02** — "can't do anything is Tuning" on HP Victus 16-e0xxx (board `88ED`, matched via the existing #128 `88EC` name-pattern entry). Not a bug: `SupportsUndervolt=false` on this board is an intentional, already-documented conservative default pending field verification (same discipline as every other Victus/OMEN entry this cycle) — GPU OC via NVAPI should still be usable (`Supports OC: True` in every session log in the bundle). See `docs/ROADMAP_v4.3.0.md`.
 
 ---
 

@@ -2261,19 +2261,26 @@ namespace OmenCore.ViewModels
                 
                 // Log telemetry to help user understand which backend works
                 var telemetry = _keyboardLightingService.GetTelemetry();
+                string backendHint = "";
                 if (telemetry != null)
                 {
                     _logging.Info($"Keyboard telemetry: WMI {telemetry.WmiSuccessRate:F0}% success, EC {telemetry.EcSuccessRate:F0}% success");
-                    
-                    // If WMI has high failure rate, suggest EC
+
+                    // If WMI has never once verified successfully, suggest the EC fallback. This
+                    // used to be logged only - a user reading "accepted the write but did not
+                    // verify" on the Lighting page itself had no path to this actual fix without
+                    // opening a log file most people never look at (Discord field reports kept
+                    // asking "RGB isn't changing" for exactly this reason). Surfaced into the same
+                    // status text the page already shows.
                     if (telemetry.WmiSuccessCount == 0 && telemetry.WmiFailureCount > 0)
                     {
-                        _logging.Warn("💡 WMI keyboard commands aren't working on your model. Try enabling 'Experimental EC Keyboard' in Settings if RGB doesn't change.");
+                        backendHint = " WMI keyboard commands aren't verifying on your model - try enabling 'Experimental EC Keyboard' in Settings if colors don't visibly change.";
+                        _logging.Warn($"💡{backendHint}");
                     }
                 }
-                
+
                 _logging.Info($"✓ Applied keyboard zone colors: Z1={_zone1ColorHex}, Z2={_zone2ColorHex}, Z3={_zone3ColorHex}, Z4={_zone4ColorHex}");
-                KeyboardRestoreStatusText = $"{_keyboardLightingService.LastApplyStatus} Surface: {_keyboardLightingService.LastApplySurface}.";
+                KeyboardRestoreStatusText = $"{_keyboardLightingService.LastApplyStatus} Surface: {_keyboardLightingService.LastApplySurface}.{backendHint}";
                 await Task.CompletedTask;
             }, "Applying keyboard colors...");
         }
