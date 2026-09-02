@@ -79,10 +79,17 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static bool HasStatusChanged(HardwareStatus old, HardwareStatus current)
     {
+        // GpuUsage/PowerConsumption were dead fields on Linux before the NVML fix above (always
+        // 0, so comparing them here was moot) - now that they carry real data on NVIDIA systems,
+        // leaving them out of this comparison would mean the dashboard's StatusChanged-driven
+        // update misses a GPU load/power change that happens without temperature or fan RPM also
+        // moving enough to cross their own thresholds.
         return Math.Abs(old.CpuTemperature - current.CpuTemperature) > 1 ||
                Math.Abs(old.GpuTemperature - current.GpuTemperature) > 1 ||
                old.CpuFanRpm != current.CpuFanRpm ||
-               old.GpuFanRpm != current.GpuFanRpm;
+               old.GpuFanRpm != current.GpuFanRpm ||
+               Math.Abs(old.GpuUsage - current.GpuUsage) > 2 ||
+               Math.Abs(old.PowerConsumption - current.PowerConsumption) > 1;
     }
 
     public async Task<HardwareStatus> GetStatusAsync()
@@ -100,8 +107,24 @@ public class LinuxHardwareService : IHardwareService, IDisposable
             // Read CPU temperature from hwmon
             status.CpuTemperature = await ReadTemperatureAsync("coretemp") / 1000.0;
 
-            // Read GPU temperature (NVIDIA or AMD)
-            status.GpuTemperature = await ReadGpuTemperatureAsync() / 1000.0;
+            // GitHub #186: GPU temperature/usage/power all read as 0/unavailable on a real NVIDIA
+            // laptop GPU, because this whole service never queried NVML - only hwmon, which the
+            // proprietary NVIDIA driver typically doesn't register a device for (unlike
+            // amdgpu/nouveau). NVML first, since it's authoritative for NVIDIA GPUs regardless of
+            // hwmon exposure; falls through to the existing hwmon-only path unchanged for AMD/Intel
+            // GPUs or when NVML itself isn't available.
+            var nvmlGpu = NvmlInterop.TryGetPrimaryGpu();
+            status.GpuTemperature = nvmlGpu?.TemperatureC is int nvmlTempC
+                ? nvmlTempC
+                : await ReadGpuTemperatureAsync() / 1000.0;
+            if (nvmlGpu?.UtilizationPercent is int nvmlUtil)
+            {
+                status.GpuUsage = nvmlUtil;
+            }
+            if (nvmlGpu?.PowerWatts is double nvmlWatts)
+            {
+                status.PowerConsumption = nvmlWatts;
+            }
 
             // Read fan speeds
             status.CpuFanRpm = await ReadFanRpmAsync("cpu");
@@ -1335,6 +1358,15 @@ public class LinuxHardwareService : IHardwareService, IDisposable
 
     private static async Task<string> ReadGpuNameAsync()
     {
+        // GitHub #186: the raw-PCI-ID fallback below ("NVIDIA GPU (0x2c59)") was the only name this
+        // ever produced for a real RTX 5080 - NVML reports the actual product name
+        // ("NVIDIA GeForce RTX 5080 Laptop GPU") directly, so prefer it when available.
+        var nvmlGpu = NvmlInterop.TryGetPrimaryGpu();
+        if (!string.IsNullOrWhiteSpace(nvmlGpu?.Name))
+        {
+            return nvmlGpu.Name;
+        }
+
         var gpuVendors = await ReadDrmGpuVendorsAsync();
         var selected = gpuVendors.FirstOrDefault(v => IsDiscreteGpuVendor(v.vendorId));
         if (string.IsNullOrWhiteSpace(selected.vendorId))
