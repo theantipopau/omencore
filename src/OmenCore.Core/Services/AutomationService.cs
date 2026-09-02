@@ -488,7 +488,8 @@ namespace OmenCore.Services
             TriggerType.Time,
             TriggerType.Battery,
             TriggerType.ACPower,
-            TriggerType.Temperature
+            TriggerType.Temperature,
+            TriggerType.Idle
         };
 
         public static bool IsSupportedTriggerType(TriggerType triggerType)
@@ -510,7 +511,7 @@ namespace OmenCore.Services
 
             if (!IsSupportedTriggerType(rule.Trigger))
             {
-                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature.";
+                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature, Idle.";
                 return false;
             }
 
@@ -585,6 +586,16 @@ namespace OmenCore.Services
                     // TemperatureSensor is deliberately not required here - EvaluateTemperatureTrigger
                     // already defaults a null/empty sensor to "cpu", matching every other optional
                     // field in this validator that has a safe runtime default.
+                    break;
+
+                case TriggerType.Idle:
+                    if (!rule.TriggerData.IdleMinutes.HasValue ||
+                        rule.TriggerData.IdleMinutes.Value < 1 ||
+                        rule.TriggerData.IdleMinutes.Value > 999)
+                    {
+                        error = "Idle rules require a threshold between 1 and 999 minutes.";
+                        return false;
+                    }
                     break;
             }
 

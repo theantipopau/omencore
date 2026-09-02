@@ -4723,6 +4723,7 @@ namespace OmenCore.ViewModels
             private int _temperatureThreshold = 85;
             private string _temperatureCondition = "Above";
             private string _temperatureSensor = "CPU";
+            private int _idleMinutes = 15;
             private string _fanPreset = string.Empty;
             private string _performanceMode = string.Empty;
 
@@ -4750,6 +4751,7 @@ namespace OmenCore.ViewModels
                         OnPropertyChanged(nameof(IsBatteryTrigger));
                         OnPropertyChanged(nameof(IsACPowerTrigger));
                         OnPropertyChanged(nameof(IsTemperatureTrigger));
+                        OnPropertyChanged(nameof(IsIdleTrigger));
                         OnPropertyChanged(nameof(ValidationMessage));
                     }
                 }
@@ -4759,6 +4761,7 @@ namespace OmenCore.ViewModels
             public bool IsBatteryTrigger => Trigger == TriggerType.Battery;
             public bool IsACPowerTrigger => Trigger == TriggerType.ACPower;
             public bool IsTemperatureTrigger => Trigger == TriggerType.Temperature;
+            public bool IsIdleTrigger => Trigger == TriggerType.Idle;
 
             public string StartTimeText { get => _startTimeText; set => UpdateField(ref _startTimeText, value); }
             public string EndTimeText { get => _endTimeText; set => UpdateField(ref _endTimeText, value); }
@@ -4768,6 +4771,7 @@ namespace OmenCore.ViewModels
             public int TemperatureThreshold { get => _temperatureThreshold; set => UpdateField(ref _temperatureThreshold, Math.Clamp(value, 1, 110)); }
             public string TemperatureCondition { get => _temperatureCondition; set => UpdateField(ref _temperatureCondition, value); }
             public string TemperatureSensor { get => _temperatureSensor; set => UpdateField(ref _temperatureSensor, value); }
+            public int IdleMinutes { get => _idleMinutes; set => UpdateField(ref _idleMinutes, Math.Clamp(value, 1, 999)); }
             public string FanPreset { get => _fanPreset; set => UpdateField(ref _fanPreset, value); }
             public string PerformanceMode { get => _performanceMode; set => UpdateField(ref _performanceMode, value); }
 
@@ -4796,6 +4800,9 @@ namespace OmenCore.ViewModels
                         triggerData.TemperatureThreshold = TemperatureThreshold;
                         triggerData.TemperatureCondition = TemperatureCondition;
                         triggerData.TemperatureSensor = TemperatureSensor;
+                        break;
+                    case TriggerType.Idle:
+                        triggerData.IdleMinutes = IdleMinutes;
                         break;
                 }
 
@@ -4839,6 +4846,7 @@ namespace OmenCore.ViewModels
                     TemperatureThreshold = rule.TriggerData.TemperatureThreshold ?? 85,
                     TemperatureCondition = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureCondition) ? "Above" : rule.TriggerData.TemperatureCondition,
                     TemperatureSensor = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureSensor) ? "CPU" : rule.TriggerData.TemperatureSensor,
+                    IdleMinutes = rule.TriggerData.IdleMinutes ?? 15,
                     FanPreset = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetFanPreset)?.Parameter ?? string.Empty,
                     PerformanceMode = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetPerformanceMode)?.Parameter ?? string.Empty
                 };
