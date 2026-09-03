@@ -612,6 +612,16 @@ GPU overclocking via NVAPI should still work regardless (`GPU OC initialized: ..
 
 **Not actioned as a capability change** — no code touched for either report; both are draft-reply-only.
 
+### Community Resource — `omen-acpi` (Discord, Eric [GOG], 2026-09-03): Linux S5 Shutdown / dGPU Power-Off Fix for OMEN MAX 16-ap0xxx
+
+Discord report, not a GitHub issue and not something OmenCore itself has an open complaint about (checked: no existing issue mentions S5/shutdown/sleep on any `16-ap0xxx` board). Reporter (fresh CachyOS/KDE Plasma 6.7.4/Wayland install, OMEN MAX 16-ap0xxx, Ryzen 9 8940HX + RTX 5060) used a third-party tool, [`paolo-de-marinis/omen-acpi`](https://github.com/paolo-de-marinis/omen-acpi) (GPL-3.0, "Experimental Linux ACPI toolkit for incomplete S5 shutdown and NVIDIA dGPU power-off on the HP OMEN MAX 16-ap0006sl (BIOS F.13)"), and reported it as the fix that let them fully move off Windows — laptop stayed cold after a 10-minute shutdown, sleep/wake also confirmed cold, described as reliable across several repeat tests the same day.
+
+**What it actually does, and why it's a different layer from anything OmenCore touches today:** DSDT overrides applied via the bootloader (Limine boot entries, with a documented stock-recovery path) — patching the system's own ACPI tables at boot, not a userspace hardware-control write. OmenCore's Linux backend (`LinuxEcController`, `hp-wmi` sysfs surface, `NvmlInterop`) operates entirely in userspace against interfaces the kernel/firmware already expose; it has no mechanism for shipping or applying DSDT patches, and building one would be a different category of tool with a different risk profile (modifying ACPI tables can hard-brick a boot if wrong, unlike anything OmenCore currently writes).
+
+**Same "reference, don't port" policy as the OmenMon-Reborn/OmenXHub cross-references above applies** — GPL-3.0 is compatible in principle, but a DSDT-patching bootloader tool doesn't transplant into this codebase's architecture regardless of license; at most, facts (root cause, affected board/BIOS) could inform a future OmenCore-side detection/guidance feature (e.g., surfacing "known incomplete-S5 board, see this external tool" in `diagnose` output), not code reuse.
+
+**Not actioned.** No corresponding OmenCore bug exists to fix, and building DSDT-patching capability into OmenCore itself is out of scope for this project as currently architected. Recorded here as a real, reporter-confirmed resource worth pointing other `16-ap0xxx` (and possibly sibling `ap0xxx`-family) Linux users at if incomplete-shutdown/sleep reports come in — matching this project's established pattern of cross-referencing useful external tools rather than staying silent about them.
+
 ---
 
 ## Possible Future Pass: Class-Level Capability Defaults
