@@ -235,6 +235,41 @@ namespace OmenCoreApp.Tests.Services
             error.Should().Contain("SSID");
         }
 
+        [Fact]
+        public void SupportedTriggerTypes_IncludesLidState()
+        {
+            AutomationRuleSchemaValidator.IsSupportedTriggerType(TriggerType.LidState).Should().BeTrue();
+        }
+
+        [Fact]
+        public void TryValidate_AcceptsValidLidStateRule()
+        {
+            var rule = new AutomationRule
+            {
+                Name = "Lid closed",
+                Trigger = TriggerType.LidState,
+                TriggerData = new TriggerConfig { LidClosed = true },
+                Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Quiet" } }
+            };
+
+            AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeTrue(error);
+        }
+
+        [Fact]
+        public void TryValidate_RejectsLidStateRule_MissingLidClosed()
+        {
+            var rule = new AutomationRule
+            {
+                Name = "No lid state",
+                Trigger = TriggerType.LidState,
+                TriggerData = new TriggerConfig(),
+                Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Quiet" } }
+            };
+
+            AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeFalse();
+            error.Should().Contain("open or closed");
+        }
+
         // Regression guard for GetProcessTriggerExecutableNames (AutomationService.EvaluateRules'
         // TrackProcess-registration fix): only enabled Process-trigger rules with a real executable
         // name should be registered, names should be deduplicated case-insensitively, and other

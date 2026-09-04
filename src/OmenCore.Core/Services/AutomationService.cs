@@ -201,6 +201,7 @@ namespace OmenCore.Services
                 TriggerType.Process => EvaluateProcessTrigger(rule.TriggerData),
                 TriggerType.Idle => EvaluateIdleTrigger(rule.TriggerData),
                 TriggerType.WiFiSSID => EvaluateWiFiTrigger(rule.TriggerData),
+                TriggerType.LidState => EvaluateLidTrigger(rule.TriggerData),
                 _ => false
             };
         }
@@ -354,6 +355,18 @@ namespace OmenCore.Services
                 && string.Equals(connectedSsid, config.WiFiSSID, StringComparison.OrdinalIgnoreCase);
         }
 
+        private bool EvaluateLidTrigger(TriggerConfig config)
+        {
+            if (!config.LidClosed.HasValue)
+                return false;
+
+            // Fails closed (false) rather than firing on an assumed state when no lid-change
+            // notification has been observed yet, or on a desktop with no lid at all - matching
+            // every other trigger's "unknown means don't fire" convention in this file.
+            var currentLidClosed = LidSwitchMonitor.IsLidClosed;
+            return currentLidClosed.HasValue && currentLidClosed.Value == config.LidClosed.Value;
+        }
+
         private void ExecuteActions(AutomationRule rule)
         {
             foreach (var action in rule.Actions)
@@ -479,7 +492,8 @@ namespace OmenCore.Services
             TriggerType.Temperature,
             TriggerType.Idle,
             TriggerType.Process,
-            TriggerType.WiFiSSID
+            TriggerType.WiFiSSID,
+            TriggerType.LidState
         };
 
         public static bool IsSupportedTriggerType(TriggerType triggerType)
@@ -501,7 +515,7 @@ namespace OmenCore.Services
 
             if (!IsSupportedTriggerType(rule.Trigger))
             {
-                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature, Idle, Process, WiFi SSID.";
+                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature, Idle, Process, WiFi SSID, Lid state.";
                 return false;
             }
 
@@ -600,6 +614,14 @@ namespace OmenCore.Services
                     if (string.IsNullOrWhiteSpace(rule.TriggerData.WiFiSSID))
                     {
                         error = "WiFi rules require an SSID.";
+                        return false;
+                    }
+                    break;
+
+                case TriggerType.LidState:
+                    if (!rule.TriggerData.LidClosed.HasValue)
+                    {
+                        error = "Lid state rules must specify open or closed.";
                         return false;
                     }
                     break;

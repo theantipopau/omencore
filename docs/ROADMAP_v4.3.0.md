@@ -235,6 +235,22 @@ Fix, in `AutomationService.EvaluateRules`: before evaluating any rule each tick,
 
 ---
 
+### Lid-Close Automation Trigger — the Last Piece of the Time-of-Day/Lid-Close/Charger-Connect Ask
+
+`ROADMAP_v2.5.0.md` §7 asked for time-of-day / lid-close / charger-connect profile triggers. Time-of-day and charger-connect (AC power) turned out to already ship, via `AutomationService`'s rule engine rather than `PowerAutomationService` (see "The 'Not Yet Started' Framing..." entry above) — lid-close was the one genuinely missing piece, and this closes it out, completing the original three-trigger ask from `v2.5.0`.
+
+**Why this needed new infrastructure, not just a validator entry like Temperature/Idle/Process/WiFiSSID.** Every other trigger in this file is evaluatable synchronously, on demand, from `AutomationService`'s own 5-second poll (`GetSystemPowerStatus`, `ThermalSensorProvider.ReadTemperatures`, `GetLastInputInfo`, a `wlanapi.dll` query). Lid state has no equivalent poll-on-demand API — Windows only ever pushes it, via `WM_POWERBROADCAST`/`PBT_POWERSETTINGCHANGE` for `GUID_LIDSWITCH_STATE_CHANGE`, delivered to a real window's message queue. `SystemEvents.PowerModeChanged` (the WinForms event several other triggers' fallback paths already lean on elsewhere in this codebase) doesn't carry lid transitions at all — only AC/battery and suspend/resume. And `AutomationService`/Core has no window of its own; every real WPF window lives in `OmenCoreApp`, and routing this through the WPF Dispatcher would have reintroduced exactly the kind of Core→WPF coupling the `OmenCore.Core` extraction earlier this cycle worked to remove.
+
+**Fix.** New `OmenCore.Utils.LidSwitchMonitor` (Core, no WPF dependency): a tiny message-only window (`HWND_MESSAGE` parent — never visible, no taskbar entry, no owner window needed) created and pumped on its own dedicated background thread (`GetMessage`/`TranslateMessage`/`DispatchMessage`, `IsBackground = true` so it never blocks process exit), started lazily on first access to `LidSwitchMonitor.IsLidClosed`. Registers for `GUID_LIDSWITCH_STATE_CHANGE` via `RegisterPowerSettingNotification`; its window procedure parses the `POWERBROADCAST_SETTING` payload (`GUID PowerSetting` at offset 0, `DWORD DataLength` at offset 16, `Data` at offset 20) and caches the interpreted lid state for `AutomationService.EvaluateLidTrigger`'s poll to read — per the notification's own documented contract, `Data == 0` means the lid just closed, `1` means it just opened. `IsLidClosed` is `bool?`: `null` until a real notification arrives (covers monitoring-not-started, window/registration failure, and a desktop with no lid at all), and `EvaluateLidTrigger` fails closed (never fires) on `null`, matching every other trigger's "unknown means don't fire" convention in this file.
+
+**New `TriggerType.LidState`** and `TriggerConfig.LidClosed` (`bool?`, mirroring `ACConnected`'s exact binary shape rather than the condition-string pattern Battery/Temperature use, since lid state is a plain open/closed flag). Added to `SupportedTriggerTypes`, a validation case (`LidClosed` must be set), and a UI field in Settings → Automation Rules (`LidState` combo, "Closed"/"Open", reusing the same single-column slot AC-power's own field already uses) — same promotion shape every prior trigger this cycle went through.
+
+**Tests.** The window/message-pump/native-registration plumbing genuinely needs a live Win32 message queue and isn't something this environment can fake or usefully mock — consistent with why `WlanSsidHelper` also has no dedicated test. But the one piece of real logic in this fix, `LidSwitchMonitor.InterpretLidBroadcast(Guid, int, int)`, was deliberately factored out as a pure function so it could be tested anyway: 4 new tests (`LidSwitchMonitorTests.cs`) confirm `Data == 0` → closed, `Data == 1` → open, an unrelated GUID is ignored (returns `null`, doesn't touch the cached state), and a too-short payload is likewise ignored rather than misread. Plus 3 validator tests (`AutomationRuleSchemaValidatorTests.cs`: supported-type check, acceptance, missing-value rejection). Full suite: 1407/1407 (up from 1400).
+
+**Not verified against real hardware.** This environment has no physical lid to close/open, so the actual end-to-end path — window creation succeeding, the notification actually arriving, the cache actually updating — is unverified beyond a clean build and the pure-logic tests above. Unlike the fan/EC changes this cycle's evidence gate is built around, a wrong result here can only ever under-fire (rule silently never triggers) or not fire at all — there is no write path, no thermal/EC risk, and the worst case is "the automation rule doesn't do anything," not a hardware-unsafe state — so this was judged reasonable to ship as "implemented, awaiting confirmation" rather than holding it back entirely for lack of a tester, consistent with how every other hardware-signal fix this cycle without a cooperative tester has been framed.
+
+---
+
 ### GPU Power Boost Card's Wattage Badge Was Hardcoded, and Its Firmware-Ceiling Nuance Was Undocumented in the UI
 
 Continuation of the [#181](https://github.com/theantipopau/omencore/issues/181) triage above — that section fixed the Quiet Safety/linking cascade; this addresses the *display-honesty* half of the report's separate GPU Power Boost wattage complaint, flagged in "Investigated, Not Yet Actioned" as "plausible the UI doesn't communicate this uncertainty clearly enough."
@@ -662,14 +678,6 @@ section was first written — see "Done" above.)
 
 `ROADMAP_v2.5.0.md`'s nice-to-have, for Stream Deck / scripting / home-automation integration.
 Unblocked by the Core extraction, not started.
-
-### Lid-close automation trigger
-
-`ROADMAP_v2.5.0.md` §7 asked for time-of-day / lid-close / charger-connect profile triggers. **Time-of-day and charger-connect (AC power) already ship today** — see "Done" above ("The 'Not Yet Started' Framing Around Time-of-Day/Charger Automation Was Stale"): they're implemented in `AutomationService`'s rule engine, not `PowerAutomationService`, with a real Settings → Automation Rules editor already in production. This section used to (incorrectly) frame all three as unstarted work for `PowerAutomationService` to build — that framing is now corrected.
-
-**Lid-close is the one genuinely missing piece.** Neither `AutomationService` nor `PowerAutomationService` has a lid-switch trigger. Windows exposes this via `WM_POWERBROADCAST` + `RegisterPowerSettingNotification(GUID_LIDSWITCH_STATE_CHANGE)`, not `SystemEvents.PowerModeChanged` (which only covers AC/battery and suspend/resume) — a new, small P/Invoke surface, plus a new `TriggerType.LidState` added to `AutomationService`'s already-existing rule engine (the same promotion path Temperature just went through, not a new subsystem). Sizing: smaller than it looks, since the rule engine, UI editor, and validation pattern all already exist and just need one more trigger type slotted in — but not attempted this pass.
-
-**The profile-ownership rule settled earlier this cycle** (see the `PowerAutomationService` fix above) still applies to any future trigger, wherever it lands: automation owns the active profile at the moment of a genuine trigger; the user's last manual selection owns it at every other moment, including app restart with no real trigger having fired.
 
 ### Localization / i18n
 

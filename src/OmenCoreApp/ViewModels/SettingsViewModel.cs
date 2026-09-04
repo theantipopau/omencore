@@ -4726,12 +4726,14 @@ namespace OmenCore.ViewModels
             private int _idleMinutes = 15;
             private string _processName = string.Empty;
             private string _wiFiSsid = string.Empty;
+            private string _lidState = "Closed";
             private string _fanPreset = string.Empty;
             private string _performanceMode = string.Empty;
 
             public IEnumerable<TriggerType> SupportedTriggerTypes => AutomationRuleSchemaValidator.SupportedTriggerTypes;
             public IEnumerable<string> BatteryConditions { get; } = new[] { "Below", "Above" };
             public IEnumerable<string> AcPowerStates { get; } = new[] { "Connected", "Disconnected" };
+            public IEnumerable<string> LidStates { get; } = new[] { "Closed", "Open" };
             public IEnumerable<string> TemperatureConditions { get; } = new[] { "Above", "Below" };
             public IEnumerable<string> TemperatureSensors { get; } = new[] { "CPU", "GPU" };
             public IEnumerable<string> FanPresetOptions { get; } = new[] { string.Empty, "Auto", "Silent", "Gaming", "Extreme", "Max" };
@@ -4756,6 +4758,7 @@ namespace OmenCore.ViewModels
                         OnPropertyChanged(nameof(IsIdleTrigger));
                         OnPropertyChanged(nameof(IsProcessTrigger));
                         OnPropertyChanged(nameof(IsWiFiTrigger));
+                        OnPropertyChanged(nameof(IsLidTrigger));
                         OnPropertyChanged(nameof(ValidationMessage));
                     }
                 }
@@ -4768,6 +4771,7 @@ namespace OmenCore.ViewModels
             public bool IsIdleTrigger => Trigger == TriggerType.Idle;
             public bool IsProcessTrigger => Trigger == TriggerType.Process;
             public bool IsWiFiTrigger => Trigger == TriggerType.WiFiSSID;
+            public bool IsLidTrigger => Trigger == TriggerType.LidState;
 
             public string StartTimeText { get => _startTimeText; set => UpdateField(ref _startTimeText, value); }
             public string EndTimeText { get => _endTimeText; set => UpdateField(ref _endTimeText, value); }
@@ -4780,6 +4784,7 @@ namespace OmenCore.ViewModels
             public int IdleMinutes { get => _idleMinutes; set => UpdateField(ref _idleMinutes, Math.Clamp(value, 1, 999)); }
             public string ProcessName { get => _processName; set => UpdateField(ref _processName, value); }
             public string WiFiSSID { get => _wiFiSsid; set => UpdateField(ref _wiFiSsid, value); }
+            public string LidState { get => _lidState; set => UpdateField(ref _lidState, value); }
             public string FanPreset { get => _fanPreset; set => UpdateField(ref _fanPreset, value); }
             public string PerformanceMode { get => _performanceMode; set => UpdateField(ref _performanceMode, value); }
 
@@ -4817,6 +4822,9 @@ namespace OmenCore.ViewModels
                         break;
                     case TriggerType.WiFiSSID:
                         triggerData.WiFiSSID = WiFiSSID;
+                        break;
+                    case TriggerType.LidState:
+                        triggerData.LidClosed = string.Equals(LidState, "Closed", StringComparison.OrdinalIgnoreCase);
                         break;
                 }
 
@@ -4863,6 +4871,7 @@ namespace OmenCore.ViewModels
                     IdleMinutes = rule.TriggerData.IdleMinutes ?? 15,
                     ProcessName = rule.TriggerData.ProcessName ?? string.Empty,
                     WiFiSSID = rule.TriggerData.WiFiSSID ?? string.Empty,
+                    LidState = rule.TriggerData.LidClosed == false ? "Open" : "Closed",
                     FanPreset = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetFanPreset)?.Parameter ?? string.Empty,
                     PerformanceMode = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetPerformanceMode)?.Parameter ?? string.Empty
                 };

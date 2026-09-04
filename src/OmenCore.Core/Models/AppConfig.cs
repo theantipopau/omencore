@@ -891,7 +891,10 @@ namespace OmenCore.Models
         Idle,
         
         /// <summary>WiFi SSID connected (location-based)</summary>
-        WiFiSSID
+        WiFiSSID,
+
+        /// <summary>Laptop lid opened/closed</summary>
+        LidState
     }
 
     /// <summary>
@@ -924,6 +927,9 @@ namespace OmenCore.Models
         
         // WiFi trigger
         public string? WiFiSSID { get; set; }
+
+        // LidState trigger
+        public bool? LidClosed { get; set; }
     }
 
     /// <summary>

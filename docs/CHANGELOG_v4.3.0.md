@@ -124,6 +124,14 @@ Promoted **Temperature and Idle** first: added both to `SupportedTriggerTypes`, 
 
 All 7 backend trigger types (Time, Battery, ACPower, Temperature, Process, Idle, WiFiSSID) are shipped as of this pass. New/updated tests: 6 in `AutomationRuleSchemaValidatorTests.cs` (Process/WiFiSSID acceptance + required-field rejection) plus a regression guard for `GetProcessTriggerExecutableNames` (dedup, enabled-only, correct trigger type). Not a field-validation item — the trigger evaluation itself reuses already-shipped action paths; the fixes are read-path correctness (a real SSID query instead of a broken one, and registering the right processes to track), not a new hardware write.
 
+### Lid-Close Automation Trigger
+
+Completes the `ROADMAP_v2.5.0.md` §7 ask (time-of-day / lid-close / charger-connect) — the first two already shipped via `AutomationService` (see above); this adds the third, genuinely-missing one: a new `TriggerType.LidState`.
+
+Lid state has no poll-on-demand Win32 API the way AC/battery does — Windows only pushes lid transitions, via `WM_POWERBROADCAST` to a real window's message queue. New `OmenCore.Utils.LidSwitchMonitor` runs a tiny, invisible message-only window on its own dedicated background thread (no WPF dependency, staying consistent with the Core/App split from earlier this cycle), registers for `GUID_LIDSWITCH_STATE_CHANGE`, and caches the latest lid state for `AutomationService`'s regular poll to read — fails closed (rule never fires) until a real notification arrives or on a desktop with no lid at all. New "Lid state" field in Settings → Automation Rules (Closed/Open). 7 new tests: 4 for the pure broadcast-interpretation logic, 3 for the validator. Full suite: 1407/1407.
+
+Not verified against real hardware (no physical lid to test in this environment) — but unlike a fan/EC write, the failure mode here is strictly "the rule doesn't fire," never a hardware-unsafe state, so this ships as implemented-pending-confirmation rather than held back.
+
 ### Three New Model Database Entries From Field Reports
 
 - **[#178](https://github.com/theantipopau/omencore/issues/178)** — HP Victus 15-fa2303TX (C2JQ3PA), board `8E5E`. Added using the reporter's own fan-verification diagnostic (WMI fan-level control responds, but RPM readback is level-estimated rather than a real tachometer — reflected as `SupportsRpmReadback = false` rather than claiming a number this board hasn't demonstrated). Single-zone, static-color-only keyboard backlight per the reporter.

@@ -3450,6 +3450,13 @@
                                                             <TextBlock Text="WiFi network name (SSID)" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
                                                             <TextBox AutomationProperties.Name="WiFi SSID" Text="{Binding WiFiSSID, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource ModernTextBox}" Padding="8,4"/>
                                                         </StackPanel>
+
+                                                        <StackPanel Grid.Column="0" Margin="0,0,12,0"
+                                                                    Visibility="{Binding IsLidTrigger, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Lid state" FontSize="11" Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox AutomationProperties.Name="Lid state" ItemsSource="{Binding LidStates}" SelectedItem="{Binding LidState, Mode=TwoWay}"
+                                                                      Style="{StaticResource ModernComboBox}"/>
+                                                        </StackPanel>
                                                     </Grid>
 
                                                     <Grid Margin="0,0,0,10">
