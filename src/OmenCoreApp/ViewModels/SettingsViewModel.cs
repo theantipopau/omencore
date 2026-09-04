@@ -4724,6 +4724,8 @@ namespace OmenCore.ViewModels
             private string _temperatureCondition = "Above";
             private string _temperatureSensor = "CPU";
             private int _idleMinutes = 15;
+            private string _processName = string.Empty;
+            private string _wiFiSsid = string.Empty;
             private string _fanPreset = string.Empty;
             private string _performanceMode = string.Empty;
 
@@ -4752,6 +4754,8 @@ namespace OmenCore.ViewModels
                         OnPropertyChanged(nameof(IsACPowerTrigger));
                         OnPropertyChanged(nameof(IsTemperatureTrigger));
                         OnPropertyChanged(nameof(IsIdleTrigger));
+                        OnPropertyChanged(nameof(IsProcessTrigger));
+                        OnPropertyChanged(nameof(IsWiFiTrigger));
                         OnPropertyChanged(nameof(ValidationMessage));
                     }
                 }
@@ -4762,6 +4766,8 @@ namespace OmenCore.ViewModels
             public bool IsACPowerTrigger => Trigger == TriggerType.ACPower;
             public bool IsTemperatureTrigger => Trigger == TriggerType.Temperature;
             public bool IsIdleTrigger => Trigger == TriggerType.Idle;
+            public bool IsProcessTrigger => Trigger == TriggerType.Process;
+            public bool IsWiFiTrigger => Trigger == TriggerType.WiFiSSID;
 
             public string StartTimeText { get => _startTimeText; set => UpdateField(ref _startTimeText, value); }
             public string EndTimeText { get => _endTimeText; set => UpdateField(ref _endTimeText, value); }
@@ -4772,6 +4778,8 @@ namespace OmenCore.ViewModels
             public string TemperatureCondition { get => _temperatureCondition; set => UpdateField(ref _temperatureCondition, value); }
             public string TemperatureSensor { get => _temperatureSensor; set => UpdateField(ref _temperatureSensor, value); }
             public int IdleMinutes { get => _idleMinutes; set => UpdateField(ref _idleMinutes, Math.Clamp(value, 1, 999)); }
+            public string ProcessName { get => _processName; set => UpdateField(ref _processName, value); }
+            public string WiFiSSID { get => _wiFiSsid; set => UpdateField(ref _wiFiSsid, value); }
             public string FanPreset { get => _fanPreset; set => UpdateField(ref _fanPreset, value); }
             public string PerformanceMode { get => _performanceMode; set => UpdateField(ref _performanceMode, value); }
 
@@ -4803,6 +4811,12 @@ namespace OmenCore.ViewModels
                         break;
                     case TriggerType.Idle:
                         triggerData.IdleMinutes = IdleMinutes;
+                        break;
+                    case TriggerType.Process:
+                        triggerData.ProcessName = ProcessName;
+                        break;
+                    case TriggerType.WiFiSSID:
+                        triggerData.WiFiSSID = WiFiSSID;
                         break;
                 }
 
@@ -4847,6 +4861,8 @@ namespace OmenCore.ViewModels
                     TemperatureCondition = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureCondition) ? "Above" : rule.TriggerData.TemperatureCondition,
                     TemperatureSensor = string.IsNullOrWhiteSpace(rule.TriggerData.TemperatureSensor) ? "CPU" : rule.TriggerData.TemperatureSensor,
                     IdleMinutes = rule.TriggerData.IdleMinutes ?? 15,
+                    ProcessName = rule.TriggerData.ProcessName ?? string.Empty,
+                    WiFiSSID = rule.TriggerData.WiFiSSID ?? string.Empty,
                     FanPreset = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetFanPreset)?.Parameter ?? string.Empty,
                     PerformanceMode = rule.Actions.FirstOrDefault(a => a.Type == ActionType.SetPerformanceMode)?.Parameter ?? string.Empty
                 };

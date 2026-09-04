@@ -1,13 +1,23 @@
-// Temperature- and Idle-trigger automation rules shipped this cycle: the backend
-// (AutomationService.EvaluateTemperatureTrigger/EvaluateIdleTrigger) has existed since v2.3.0,
-// but AutomationRuleSchemaValidator.SupportedTriggerTypes only ever exposed Time/Battery/ACPower
-// to the UI - Temperature, Process, Idle, and WiFiSSID were implemented but deliberately gated as
-// "not shipped yet". Promoted Temperature and Idle after reviewing all four for correctness gaps;
-// WiFiSSID stays gated (its fallback path doesn't actually match SSIDs) and so does Process (its
-// trigger only ever sees processes separately tracked via a configured Game Profile - see the
-// dedicated comment on the regression test below). No prior test file covered this validator at
-// all before this cycle.
+// Automation-rule trigger types shipped this cycle in two passes: the backend
+// (AutomationService.Evaluate*Trigger) has existed since v2.3.0, but
+// AutomationRuleSchemaValidator.SupportedTriggerTypes only ever exposed Time/Battery/ACPower to
+// the UI - the other four were implemented but deliberately gated as "not shipped yet".
+// Pass 1 promoted Temperature and Idle after confirming both were already correct.
+// Pass 2 promotes Process and WiFiSSID, after fixing the real bug each one had:
+//   - WiFiSSID's WMI SSID lookup ("root\WlanApi") and its own fallback (which didn't check the
+//     SSID at all, just whether any wireless interface was up) are both replaced by
+//     OmenCore.Utils.WlanSsidHelper, a native wlanapi.dll P/Invoke wrapper - the same API the
+//     Windows network flyout itself is built on.
+//   - Process's trigger reads ProcessMonitoringService.ActiveProcesses, which only ever contains
+//     processes registered via TrackProcess() - previously only GameProfileService called that,
+//     for configured Game Profiles. AutomationService.EvaluateRules now also calls TrackProcess()
+//     for every enabled Process-trigger rule's executable (see
+//     AutomationService.GetProcessTriggerExecutableNames), so a rule for any executable - not
+//     just a configured Game Profile - actually gets evaluated now.
+// All 7 backend trigger types are shipped as of this pass. No prior test file covered this
+// validator at all before Pass 1.
 
+using System.Linq;
 using FluentAssertions;
 using OmenCore.Models;
 using OmenCore.Services;
@@ -155,28 +165,95 @@ namespace OmenCoreApp.Tests.Services
             AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeFalse();
         }
 
-        // GitHub issue-free finding: EvaluateProcessTrigger reads ProcessMonitoringService.ActiveProcesses,
-        // which only ever contains processes explicitly registered via TrackProcess() - and that's only
-        // ever called from GameProfileService for configured Game Profiles. A Process-trigger automation
-        // rule for any executable that isn't ALSO a configured Game Profile would silently never fire.
-        // Left gated until AutomationService tracks Process-trigger rule executables too (or does its own
-        // independent enumeration) - promoting it as-is would ship a rule that looks configured but never
-        // actually evaluates true.
         [Fact]
-        public void TryValidate_StillRejectsUnshippedTriggerTypes()
+        public void SupportedTriggerTypes_IncludesProcess()
         {
-            // Process/WiFiSSID stay gated - regression guard so a future change doesn't accidentally
-            // widen SupportedTriggerTypes without deliberate review of each type's own correctness.
+            AutomationRuleSchemaValidator.IsSupportedTriggerType(TriggerType.Process).Should().BeTrue();
+        }
+
+        [Fact]
+        public void TryValidate_AcceptsValidProcessRule()
+        {
             var rule = new AutomationRule
             {
-                Name = "Process trigger",
+                Name = "Game running",
                 Trigger = TriggerType.Process,
                 TriggerData = new TriggerConfig { ProcessName = "game.exe" },
                 Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Max" } }
             };
 
+            AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeTrue(error);
+        }
+
+        [Fact]
+        public void TryValidate_RejectsProcessRule_MissingProcessName()
+        {
+            var rule = new AutomationRule
+            {
+                Name = "No process name",
+                Trigger = TriggerType.Process,
+                TriggerData = new TriggerConfig(),
+                Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Max" } }
+            };
+
             AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeFalse();
-            error.Should().Contain("not shipped yet");
+            error.Should().Contain("executable");
+        }
+
+        [Fact]
+        public void SupportedTriggerTypes_IncludesWiFiSSID()
+        {
+            AutomationRuleSchemaValidator.IsSupportedTriggerType(TriggerType.WiFiSSID).Should().BeTrue();
+        }
+
+        [Fact]
+        public void TryValidate_AcceptsValidWiFiRule()
+        {
+            var rule = new AutomationRule
+            {
+                Name = "Connected to home network",
+                Trigger = TriggerType.WiFiSSID,
+                TriggerData = new TriggerConfig { WiFiSSID = "Home-WiFi" },
+                Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Quiet" } }
+            };
+
+            AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeTrue(error);
+        }
+
+        [Fact]
+        public void TryValidate_RejectsWiFiRule_MissingSsid()
+        {
+            var rule = new AutomationRule
+            {
+                Name = "No SSID",
+                Trigger = TriggerType.WiFiSSID,
+                TriggerData = new TriggerConfig(),
+                Actions = { new RuleAction { Type = ActionType.SetFanPreset, Parameter = "Quiet" } }
+            };
+
+            AutomationRuleSchemaValidator.TryValidate(rule, out var error).Should().BeFalse();
+            error.Should().Contain("SSID");
+        }
+
+        // Regression guard for GetProcessTriggerExecutableNames (AutomationService.EvaluateRules'
+        // TrackProcess-registration fix): only enabled Process-trigger rules with a real executable
+        // name should be registered, names should be deduplicated case-insensitively, and other
+        // trigger types must never leak in.
+        [Fact]
+        public void GetProcessTriggerExecutableNames_ReturnsDistinctNamesFromEnabledProcessRulesOnly()
+        {
+            var rules = new[]
+            {
+                new AutomationRule { Enabled = true, Trigger = TriggerType.Process, TriggerData = new TriggerConfig { ProcessName = "Game.exe" } },
+                new AutomationRule { Enabled = true, Trigger = TriggerType.Process, TriggerData = new TriggerConfig { ProcessName = "game.exe" } },
+                new AutomationRule { Enabled = false, Trigger = TriggerType.Process, TriggerData = new TriggerConfig { ProcessName = "disabled.exe" } },
+                new AutomationRule { Enabled = true, Trigger = TriggerType.Process, TriggerData = new TriggerConfig() },
+                new AutomationRule { Enabled = true, Trigger = TriggerType.Temperature, TriggerData = new TriggerConfig { TemperatureThreshold = 85, TemperatureCondition = "Above" } }
+            };
+
+            var names = AutomationService.GetProcessTriggerExecutableNames(rules).ToList();
+
+            names.Should().ContainSingle().Which.Should().Be("Game.exe");
         }
     }
 }

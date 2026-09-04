@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management;
-using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Hardware;
@@ -111,6 +109,19 @@ namespace OmenCore.Services
                     .OrderBy(r => r.Priority) // Lower priority number = higher priority
                     .ToList();
 
+                // EvaluateProcessTrigger reads _processMonitor.ActiveProcesses, which only ever
+                // contains processes explicitly registered via TrackProcess() - previously only
+                // GameProfileService did that, so a Process-trigger rule for any executable that
+                // wasn't also a configured Game Profile would silently never fire. Register every
+                // enabled Process-trigger rule's executable here, every tick - TrackProcess() is an
+                // idempotent HashSet add, so re-registering an already-tracked name is a no-op, and
+                // this never un-tracks (matching GameProfileService's own never-untrack behavior),
+                // so it can't undo tracking another owner still relies on.
+                foreach (var processName in GetProcessTriggerExecutableNames(enabledRules))
+                {
+                    _processMonitor.TrackProcess(processName);
+                }
+
                 foreach (var rule in enabledRules)
                 {
                     try
@@ -165,6 +176,18 @@ namespace OmenCore.Services
             {
                 Interlocked.Exchange(ref _evaluationInProgress, 0);
             }
+        }
+
+        /// <summary>
+        /// Pure helper (no hardware/service dependency, unit-testable in isolation): the distinct,
+        /// normalized set of executable names any enabled Process-trigger rule needs tracked.
+        /// </summary>
+        internal static IEnumerable<string> GetProcessTriggerExecutableNames(IEnumerable<AutomationRule> rules)
+        {
+            return rules
+                .Where(r => r.Enabled && r.Trigger == TriggerType.Process && !string.IsNullOrWhiteSpace(r.TriggerData?.ProcessName))
+                .Select(r => r.TriggerData.ProcessName!)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
         private bool EvaluateTrigger(AutomationRule rule)
@@ -327,43 +350,8 @@ namespace OmenCore.Services
             if (string.IsNullOrWhiteSpace(config.WiFiSSID))
                 return false;
 
-            try
-            {
-                // Query WMI for connected WiFi networks
-                using var searcher = new ManagementObjectSearcher(
-                    "root\\WlanApi",
-                    "SELECT * FROM MSNdis_80211_ServiceSetIdentifier");
-
-                foreach (ManagementObject obj in searcher.Get())
-                {
-                    var ssidBytes = obj["Ndis80211SsId"] as byte[];
-                    if (ssidBytes != null)
-                    {
-                        var ssid = System.Text.Encoding.UTF8.GetString(ssidBytes).Trim('\0');
-                        if (string.Equals(ssid, config.WiFiSSID, StringComparison.OrdinalIgnoreCase))
-                            return true;
-                    }
-                }
-            }
-            catch
-            {
-                // WMI query failed or no WiFi - fall back to simple check
-                try
-                {
-                    var activeConnections = NetworkInterface.GetAllNetworkInterfaces()
-                        .Where(ni => ni.OperationalStatus == OperationalStatus.Up &&
-                                   ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211);
-                    
-                    // This is a simplified check - actual SSID retrieval requires native WiFi API
-                    return activeConnections.Any();
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-
-            return false;
+            return WlanSsidHelper.TryGetCurrentConnectedSsid(out var connectedSsid)
+                && string.Equals(connectedSsid, config.WiFiSSID, StringComparison.OrdinalIgnoreCase);
         }
 
         private void ExecuteActions(AutomationRule rule)
@@ -489,7 +477,9 @@ namespace OmenCore.Services
             TriggerType.Battery,
             TriggerType.ACPower,
             TriggerType.Temperature,
-            TriggerType.Idle
+            TriggerType.Idle,
+            TriggerType.Process,
+            TriggerType.WiFiSSID
         };
 
         public static bool IsSupportedTriggerType(TriggerType triggerType)
@@ -511,7 +501,7 @@ namespace OmenCore.Services
 
             if (!IsSupportedTriggerType(rule.Trigger))
             {
-                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature, Idle.";
+                error = $"Trigger '{rule.Trigger}' is not shipped yet. Supported triggers: Time, Battery, AC power, Temperature, Idle, Process, WiFi SSID.";
                 return false;
             }
 
@@ -594,6 +584,22 @@ namespace OmenCore.Services
                         rule.TriggerData.IdleMinutes.Value > 999)
                     {
                         error = "Idle rules require a threshold between 1 and 999 minutes.";
+                        return false;
+                    }
+                    break;
+
+                case TriggerType.Process:
+                    if (string.IsNullOrWhiteSpace(rule.TriggerData.ProcessName))
+                    {
+                        error = "Process rules require an executable name.";
+                        return false;
+                    }
+                    break;
+
+                case TriggerType.WiFiSSID:
+                    if (string.IsNullOrWhiteSpace(rule.TriggerData.WiFiSSID))
+                    {
+                        error = "WiFi rules require an SSID.";
                         return false;
                     }
                     break;
