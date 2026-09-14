@@ -13,6 +13,7 @@ namespace OmenCore.Services.Diagnostics
         public string RawWmiModel { get; set; } = "Unknown";
         public string RawBaseboardProduct { get; set; } = "Unknown";
         public string RawSystemSku { get; set; } = "Unknown";
+        public string RawSystemProductIdentifyingNumber { get; set; } = "Unknown";
         public string HpSupportProductNumber { get; set; } = "Unknown";
         public string CapabilityProductId { get; set; } = "Unknown";
         public string CapabilityModelFamily { get; set; } = "Unknown";
@@ -61,6 +62,7 @@ namespace OmenCore.Services.Diagnostics
                 RawWmiModel = Clean(systemInfo.Model),
                 RawBaseboardProduct = Clean(systemInfo.ProductName),
                 RawSystemSku = Clean(systemInfo.SystemSku),
+                RawSystemProductIdentifyingNumber = Clean(systemInfo.SystemProductIdentifyingNumber),
                 HpSupportProductNumber = ExtractHpSupportProductNumber(systemInfo.SystemSku),
                 CapabilityProductId = Clean(effectiveCapabilities.ProductId),
                 CapabilityModelFamily = effectiveCapabilities.ModelFamily.ToString(),
@@ -77,7 +79,7 @@ namespace OmenCore.Services.Diagnostics
             PopulateCapabilityResolution(summary, effectiveCapabilities);
             PopulateKeyboardResolution(summary, systemInfo);
 
-            summary.RawIdentitySummary = $"WMI Model: {summary.RawWmiModel} | Baseboard ProductId: {summary.RawBaseboardProduct} | System SKU: {summary.RawSystemSku} | HP support product: {summary.HpSupportProductNumber}";
+            summary.RawIdentitySummary = $"WMI Model: {summary.RawWmiModel} | Baseboard ProductId: {summary.RawBaseboardProduct} | System SKU: {summary.RawSystemSku} | System product identifying number: {summary.RawSystemProductIdentifyingNumber} | HP support product: {summary.HpSupportProductNumber}";
             summary.Summary = BuildShortSummary(summary);
             summary.ClipboardSummary = BuildClipboardSummary(summary);
             summary.TraceText = BuildTraceText(summary, systemInfo);
@@ -274,6 +276,7 @@ namespace OmenCore.Services.Diagnostics
             sb.AppendLine($"WMI model: {summary.RawWmiModel}");
             sb.AppendLine($"Baseboard ProductId: {summary.RawBaseboardProduct}");
             sb.AppendLine($"System SKU: {summary.RawSystemSku}");
+            sb.AppendLine($"System product identifying number: {summary.RawSystemProductIdentifyingNumber}");
             sb.AppendLine($"HP support product number: {summary.HpSupportProductNumber}");
             sb.AppendLine($"Keyboard model: {summary.KeyboardModel}");
             sb.AppendLine($"Keyboard source: {summary.KeyboardResolutionSource}");
@@ -314,9 +317,10 @@ namespace OmenCore.Services.Diagnostics
             sb.AppendLine($"  WMI Model: {summary.RawWmiModel}");
             sb.AppendLine($"  Baseboard ProductId: {summary.RawBaseboardProduct}");
             sb.AppendLine($"  System SKU: {summary.RawSystemSku}");
+            sb.AppendLine($"  System product identifying number: {summary.RawSystemProductIdentifyingNumber}");
             sb.AppendLine($"  HP support product number: {summary.HpSupportProductNumber}");
             sb.AppendLine($"  BIOS Version: {Clean(systemInfo.BiosVersion)}");
-            sb.AppendLine("  Note: Baseboard ProductId drives OmenCore capability lookup; HP support product number is the public support/catalog SKU.");
+            sb.AppendLine("  Note: Baseboard ProductId drives OmenCore capability lookup; System SKU is the public support/catalog value. System product identifying number is reported separately because it may be an asset/serial-like identifier.");
             sb.AppendLine();
 
             sb.AppendLine("Capability Detection Output:");

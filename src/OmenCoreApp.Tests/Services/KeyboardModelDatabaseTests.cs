@@ -146,6 +146,7 @@ namespace OmenCoreApp.Tests.Services
             cfg.KeyboardType.Should().Be(KeyboardType.FourZone);
             cfg.UserVerified.Should().BeFalse();
             cfg.Notes.Should().Contain("1H85430PWY");
+            cfg.Notes.Should().Contain("BP1Q1UA#ABA");
         }
 
         [Fact]

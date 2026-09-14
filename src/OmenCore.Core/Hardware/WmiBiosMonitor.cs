@@ -45,6 +45,7 @@ namespace OmenCore.Hardware
         private double _cachedGpuTemp;
         private int _cachedCpuFanRpm;
         private int _cachedGpuFanRpm;
+        private RpmSource _cachedFanRpmSource = RpmSource.Unknown;
         private DateTime _lastUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheLifetime = TimeSpan.FromMilliseconds(500);
         private readonly SemaphoreSlim _updateGate = new(1, 1);
@@ -697,6 +698,7 @@ namespace OmenCore.Hardware
                         var (cpuRpm, gpuRpm) = rpms.Value;
                         _cachedCpuFanRpm = HpWmiBios.IsValidRpm(cpuRpm) ? cpuRpm : 0;
                         _cachedGpuFanRpm = HpWmiBios.IsValidRpm(gpuRpm) ? gpuRpm : 0;
+                        _cachedFanRpmSource = RpmSource.WmiBios;
                     }
                     else
                     {
@@ -710,6 +712,7 @@ namespace OmenCore.Hardware
                             int fan2Rpm = fan2Level * 100;
                             _cachedCpuFanRpm = HpWmiBios.IsValidRpm(fan1Rpm) ? fan1Rpm : 0;
                             _cachedGpuFanRpm = HpWmiBios.IsValidRpm(fan2Rpm) ? fan2Rpm : 0;
+                            _cachedFanRpmSource = RpmSource.Estimated;
                         }
                     }
                 }
@@ -1169,6 +1172,8 @@ namespace OmenCore.Hardware
                 CpuPowerState = GetPowerState(_cachedCpuPowerWatts),
                 Fan1RpmState = GetRpmState(_cachedCpuFanRpm),
                 Fan2RpmState = GetRpmState(_cachedGpuFanRpm),
+                Fan1RpmSource = _cachedFanRpmSource,
+                Fan2RpmSource = _cachedFanRpmSource,
                 
                 // PerformanceCounter — CPU load
                 CpuLoadPercent = _cachedCpuLoad,

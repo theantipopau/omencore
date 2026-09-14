@@ -119,7 +119,13 @@ namespace OmenCore.Models
         public string BiosVersion { get; set; } = string.Empty;
         public string BiosDate { get; set; } = string.Empty;
         public string SerialNumber { get; set; } = string.Empty;
-        public string SystemSku { get; set; } = string.Empty;  // HP support/catalog SKU (e.g., "6G103EA#ABU")
+        // Product SKU reported by Win32_ComputerSystem.SystemSKUNumber. This is the value
+        // HP support and driver tools use (for example, "6G103EA#ABU").
+        public string SystemSku { get; set; } = string.Empty;
+        // Chassis/asset identifier from Win32_ComputerSystemProduct.IdentifyingNumber.
+        // It is intentionally distinct from SystemSku: on some HP systems it is a serial-like
+        // value rather than a support product number.
+        public string SystemProductIdentifyingNumber { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty; // Baseboard ProductId used for capability lookup (e.g., "8A43")
         public string SystemFamily { get; set; } = string.Empty; // e.g., "OMEN by HP Laptop 16-wd0000"
     }

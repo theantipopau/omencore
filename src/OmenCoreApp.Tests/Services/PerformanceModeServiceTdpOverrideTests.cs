@@ -407,6 +407,7 @@ namespace OmenCoreApp.Tests.Services
             trace.WmiPolicyFallbackAttempted.Should().BeTrue();
             trace.WmiPolicyFallbackApplied.Should().BeTrue();
             trace.FanPolicyAction.Should().Contain("WMI thermal policy fallback");
+            trace.ApplicationEvidence.Should().Be("Firmware power policy applied.");
 
             service.GetApplyTraceReport().Should().Contain("Performance Mode Apply Trace");
             service.GetApplyTraceReport().Should().Contain("fallbackApplied=True");
@@ -440,6 +441,8 @@ namespace OmenCoreApp.Tests.Services
             fan.SetPerformanceModeCallCount.Should().Be(0,
                 "the WMI policy hold should still require the explicit fallback flag");
             service.EcPowerControlAvailable.Should().BeFalse();
+            service.GetApplyTraceSnapshot().Should().ContainSingle().Which.ApplicationEvidence
+                .Should().Be("No firmware power or fan policy was applied; this records only OmenCore's selected mode.");
         }
 
         [Fact]

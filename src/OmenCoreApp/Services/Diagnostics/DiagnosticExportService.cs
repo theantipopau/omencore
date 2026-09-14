@@ -765,7 +765,7 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine($"  TraceCount: {trace.Count}");
                 foreach (var entry in trace.TakeLast(5))
                 {
-                    sb.AppendLine($"  {entry.TimestampUtc:O} | requested={entry.RequestedModeName} | effective={entry.EffectiveModeName} | ecPowerApplied={entry.EcPowerLimitApplied} | wmiFallbackApplied={entry.WmiPolicyFallbackApplied} | fanAction={entry.FanPolicyAction}");
+                    sb.AppendLine($"  {entry.TimestampUtc:O} | requested={entry.RequestedModeName} | effective={entry.EffectiveModeName} | ecPowerApplied={entry.EcPowerLimitApplied} | wmiFallbackApplied={entry.WmiPolicyFallbackApplied} | fanAction={entry.FanPolicyAction} | evidence={entry.ApplicationEvidence}");
                 }
             }
 
@@ -2415,8 +2415,8 @@ namespace OmenCore.Services.Diagnostics
                 sb.AppendLine($"GPU Temp: {sample.GpuTemperatureC:F1}°C (state: {sample.GpuTemperatureState})");
                 sb.AppendLine($"CPU Load: {sample.CpuLoadPercent:F0}%");
                 sb.AppendLine($"GPU Load: {sample.GpuLoadPercent:F0}%");
-                sb.AppendLine($"Fan1 RPM: {sample.Fan1Rpm} (state: {sample.Fan1RpmState})");
-                sb.AppendLine($"Fan2 RPM: {sample.Fan2Rpm} (state: {sample.Fan2RpmState})");
+                sb.AppendLine($"Fan1 RPM: {sample.Fan1Rpm} (state: {sample.Fan1RpmState}; source: {sample.Fan1RpmSource})");
+                sb.AppendLine($"Fan2 RPM: {sample.Fan2Rpm} (state: {sample.Fan2RpmState}; source: {sample.Fan2RpmSource})");
                 sb.AppendLine($"GPU Name: {sample.GpuName}");
 
                 File.WriteAllText(Path.Combine(exportPath, "hardware-info.txt"), sb.ToString());

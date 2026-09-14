@@ -47,6 +47,12 @@ namespace OmenCore.Models
         public TelemetryDataState GpuTemperatureState { get; set; } = TelemetryDataState.Unknown;
         public TelemetryDataState Fan1RpmState { get; set; } = TelemetryDataState.Unknown;
         public TelemetryDataState Fan2RpmState { get; set; } = TelemetryDataState.Unknown;
+        /// <summary>
+        /// Provenance of each fan RPM value. A fan-level conversion is an estimate, not a
+        /// tachometer measurement, even when its numeric value is non-zero.
+        /// </summary>
+        public RpmSource Fan1RpmSource { get; set; } = RpmSource.Unknown;
+        public RpmSource Fan2RpmSource { get; set; } = RpmSource.Unknown;
 
         // Commit-4 prototype: explicit telemetry envelopes for CPU temp/power.
         // Existing scalar/state properties remain for compatibility with current UI/view-model bindings.
@@ -171,6 +177,8 @@ namespace OmenCore.Models
             GpuTemperatureState       = source.GpuTemperatureState;
             Fan1RpmState              = source.Fan1RpmState;
             Fan2RpmState              = source.Fan2RpmState;
+            Fan1RpmSource             = source.Fan1RpmSource;
+            Fan2RpmSource             = source.Fan2RpmSource;
             CpuTemperatureTelemetry   = new TelemetryValue<double>(source.CpuTemperatureTelemetry);
             CpuPowerTelemetry         = new TelemetryValue<double>(source.CpuPowerTelemetry);
             Fan1Rpm                   = source.Fan1Rpm;

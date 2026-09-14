@@ -639,7 +639,7 @@ namespace OmenCore.Controls
                 data.ApplyTraceCount = trace.Count;
                 data.RecentApplyTrace = trace
                     .TakeLast(5)
-                    .Select(entry => $"{entry.TimestampUtc:O} | requested={entry.RequestedModeName} | effective={entry.EffectiveModeName} | ecPowerApplied={entry.EcPowerLimitApplied} | wmiFallbackApplied={entry.WmiPolicyFallbackApplied} | fanAction={entry.FanPolicyAction}")
+                    .Select(entry => $"{entry.TimestampUtc:O} | requested={entry.RequestedModeName} | effective={entry.EffectiveModeName} | ecPowerApplied={entry.EcPowerLimitApplied} | wmiFallbackApplied={entry.WmiPolicyFallbackApplied} | fanAction={entry.FanPolicyAction} | evidence={entry.ApplicationEvidence}")
                     .ToArray();
                 data.ReadbackRule = "Treat tuning as verified only when requested value, readback value, and locked/unsupported state are visible after apply.";
             }

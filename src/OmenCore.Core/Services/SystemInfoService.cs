@@ -471,6 +471,7 @@ private DependencyCheck CheckPawnIODriver()
                             info.Manufacturer = system["Manufacturer"]?.ToString()?.Trim() ?? "Unknown";
                             info.Model = system["Model"]?.ToString()?.Trim() ?? "Unknown";
                             info.SystemFamily = system["SystemFamily"]?.ToString()?.Trim() ?? "";
+                            info.SystemSku = system["SystemSKUNumber"]?.ToString()?.Trim() ?? "";
                             
                             // Detect HP Gaming laptops (OMEN and Victus) and HP Spectre
                             var manufacturer = info.Manufacturer.ToLowerInvariant();
@@ -517,7 +518,7 @@ private DependencyCheck CheckPawnIODriver()
                         }
                     }
                     
-                    // Baseboard Information (for HP System SKU)
+                    // Baseboard Information (ProductId drives OmenCore capability lookup).
                     using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard"))
                     {
                         var baseboard = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
@@ -533,10 +534,13 @@ private DependencyCheck CheckPawnIODriver()
                         var product = searcher.Get().Cast<ManagementObject>().FirstOrDefault();
                         if (product != null)
                         {
-                            info.SystemSku = product["SKUNumber"]?.ToString()?.Trim() ?? "";
+                            // Some firmware exposes the SKU only through ComputerSystemProduct.
+                            // Prefer Win32_ComputerSystem.SystemSKUNumber when it is present,
+                            // because IdentifyingNumber may be an asset/serial-like identifier.
                             if (string.IsNullOrEmpty(info.SystemSku))
-                                info.SystemSku = product["IdentifyingNumber"]?.ToString()?.Trim() ?? "";
-                            _logging.Info($"System SKU: {info.SystemSku}");
+                                info.SystemSku = product["SKUNumber"]?.ToString()?.Trim() ?? "";
+                            info.SystemProductIdentifyingNumber = product["IdentifyingNumber"]?.ToString()?.Trim() ?? "";
+                            _logging.Info($"System SKU: {info.SystemSku}; system product identifying number: {info.SystemProductIdentifyingNumber}");
                         }
                     }
                     

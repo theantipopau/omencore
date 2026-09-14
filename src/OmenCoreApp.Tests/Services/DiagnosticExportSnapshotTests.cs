@@ -886,6 +886,8 @@ namespace OmenCoreApp.Tests.Services
                 GpuTemperatureC = 58.0,
                 Fan1Rpm = 3200,
                 Fan2Rpm = 3100,
+                Fan1RpmSource = RpmSource.WmiBios,
+                Fan2RpmSource = RpmSource.Estimated,
                 GpuName = "Test GPU"
             });
 
@@ -895,6 +897,8 @@ namespace OmenCoreApp.Tests.Services
             string content = ReadFileFromExport(zipPath, "hardware-info.txt");
             content.Should().Contain("62.5", "the real CPU temperature from LastSample must be reported");
             content.Should().Contain("3200", "the real fan RPM from LastSample must be reported");
+            content.Should().Contain("Fan1 RPM: 3200 (state: Unknown; source: WmiBios)");
+            content.Should().Contain("Fan2 RPM: 3100 (state: Unknown; source: Estimated)");
             content.Should().NotBe("Hardware monitoring not available");
         }
 

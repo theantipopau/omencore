@@ -371,6 +371,7 @@ namespace OmenCore.Services
                 lines.AppendLine($"  limits: PL1={entry.CpuPowerLimitWatts}W; PL2={(entry.CpuBoostPowerLimitWatts?.ToString() ?? "auto")}W; GPU={entry.GpuPowerLimitWatts}W; plan={entry.LinkedPowerPlanGuid ?? "<none>"}");
                 lines.AppendLine($"  ecPower: available={entry.EcPowerLimitAvailable}; applied={entry.EcPowerLimitApplied}; skip={FormatTraceValue(entry.EcPowerLimitSkipReason)}");
                 lines.AppendLine($"  fanPolicy: linked={entry.LinkFanToPerformanceMode}; fallbackAllowed={entry.AllowWmiThermalPolicyFallback}; fallbackAttempted={entry.WmiPolicyFallbackAttempted}; fallbackApplied={entry.WmiPolicyFallbackApplied}; action={entry.FanPolicyAction}");
+                lines.AppendLine($"  result: {entry.ApplicationEvidence}");
             }
 
             return lines.ToString();
@@ -618,5 +619,15 @@ namespace OmenCore.Services
         public bool WmiPolicyFallbackAttempted { get; init; }
         public bool WmiPolicyFallbackApplied { get; init; }
         public string FanPolicyAction { get; init; } = string.Empty;
+
+        /// <summary>
+        /// States whether this apply recorded a firmware-facing policy action. Selecting a mode
+        /// in OmenCore is not evidence that CPU/GPU limits changed when every backend declines.
+        /// </summary>
+        public string ApplicationEvidence => EcPowerLimitApplied || WmiPolicyFallbackApplied
+            ? "Firmware power policy applied."
+            : LinkFanToPerformanceMode && FanPolicyAction.StartsWith("Linked", StringComparison.Ordinal)
+                ? "Linked fan policy applied; firmware power policy was not recorded."
+                : "No firmware power or fan policy was applied; this records only OmenCore's selected mode.";
     }
 }

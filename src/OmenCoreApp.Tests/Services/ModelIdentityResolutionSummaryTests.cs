@@ -17,6 +17,7 @@ namespace OmenCoreApp.Tests.Services
                 Model = "OMEN Gaming Laptop 16-n0xxx",
                 ProductName = "8A43",
                 SystemSku = "6G103EA#ABU",
+                SystemProductIdentifyingNumber = "5CD0000000",
                 BiosVersion = "F.17"
             };
             var capabilities = new DeviceCapabilities
@@ -32,9 +33,11 @@ namespace OmenCoreApp.Tests.Services
 
             summary.RawBaseboardProduct.Should().Be("8A43");
             summary.RawSystemSku.Should().Be("6G103EA#ABU");
+            summary.RawSystemProductIdentifyingNumber.Should().Be("5CD0000000");
             summary.HpSupportProductNumber.Should().Be("6G103EA");
             summary.RawIdentitySummary.Should().Contain("Baseboard ProductId: 8A43");
             summary.RawIdentitySummary.Should().Contain("HP support product: 6G103EA");
+            summary.ClipboardSummary.Should().Contain("System product identifying number: 5CD0000000");
             summary.ClipboardSummary.Should().Contain("HP support product number: 6G103EA");
             summary.TraceText.Should().Contain("Baseboard ProductId drives OmenCore capability lookup");
         }
