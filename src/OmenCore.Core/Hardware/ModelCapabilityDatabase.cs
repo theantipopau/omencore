@@ -1868,7 +1868,36 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "GitHub #197 — HP Victus 15-fb3xxx, ProductId 8DD2, SKU 1H85482PX4 (2025 AMD). The exact-ProductId confirmation #148's pattern-matched entry above was waiting on; flags inherited verbatim from that entry, not independently widened. Reporter confirms no RGB keyboard, matching #148's own report."
             });
-
+            // HP Victus 15-fb3xxx - ProductId 8DD0.
+            // Runtime diagnostics confirmed this exact machine:
+            // Victus by HP Gaming Laptop 15-fb3xxx, ProductId 8DD0.
+            // HP Gaming Hub is known to provide fan control on this machine.
+            // The firmware SystemDesignData reports IsSwFanControlSupport=false,
+            // so this exact verified profile prevents the generic unverified
+            // template from being forced into MonitoringOnly.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8DD0",
+                ModelName = "HP Victus 15 (2025) fb3xxx",
+                ModelNamePattern = "15-fb3",
+                ModelYear = 2025,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 1,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                SupportsPowerLimits = false,
+                PerformanceModes = new[] { "Quiet", "Balanced", "Performance" },
+                AllowDecoupledWmiThermalPolicyFallback = true,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = false,
+                UserVerified = true,
+                Notes = "Local diagnostics-confirmed ProductId 8DD0 on Victus by HP Gaming Laptop 15-fb3xxx. HP Gaming Hub provides fan control on this machine; exact profile used to prevent the generic unverified fb3xxx template from forcing MonitoringOnly."
+            });
             // Victus 16 (2023/2024) - d1xxx series
             // GitHub Issue #66: Product ID 8A26 requested for capability DB.
             AddModel(new ModelCapabilities
