@@ -55,9 +55,9 @@ namespace OmenCore.Hardware
         /// <summary>Whether to show GPU Power Boost controls in UI.</summary>
         /// Runtime detection wins; ModelConfig is only consulted for known models
         /// to prevent unknown/non-OMEN devices from showing OMEN-specific controls.
-        public bool ShowGpuPowerBoost => HasGpuPowerControl ||
-                                          (IsKnownModel && (ModelConfig?.SupportsGpuPowerBoost ?? false));
-        
+        public bool ShowGpuPowerBoost => IsKnownModel
+            ? ModelConfig?.SupportsGpuPowerBoost == true && HasGpuPowerControl
+            : HasGpuPowerControl;
         /// <summary>Whether to show RGB lighting controls in UI.</summary>
         /// Runtime detection (HasZoneLighting/HasPerKeyLighting) always applies.
         /// ModelConfig-derived RGB features are gated on IsKnownModel so unknown

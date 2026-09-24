@@ -1915,7 +1915,9 @@ namespace OmenCore.Hardware
                 SupportsFanControlEc = false,
                 SupportsFanCurves = true,
                 SupportsIndependentFanCurves = false,
-                FanZoneCount = 1,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
                 HasMuxSwitch = false,
                 SupportsGpuPowerBoost = false,
                 SupportsUndervolt = false,
@@ -1923,9 +1925,9 @@ namespace OmenCore.Hardware
                 PerformanceModes = new[] { "Quiet", "Balanced", "Performance" },
                 AllowDecoupledWmiThermalPolicyFallback = true,
                 HasFourZoneRgb = false,
-                HasKeyboardBacklight = false,
+                HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub PR #200 - HP Victus 15-fb3xxx, ProductId 8DD0, Ryzen 7 7445HS + RTX 2050, BIOS F.15. Contributor verified Max fan via WMI with level/RPM readback, manual level writes and keepalive on this board. Flags mirror 8DD2; UserVerified withheld pending a full verification pass."
+                Notes = "Diagnostics 2026-09-24: HP Victus 15-fb3xxx, ProductId 8DD0, Ryzen 7 7445HS + RTX 2050, BIOS F.15. WMI fan writes/curves work; two fan zones are reported; RPM telemetry is estimated from fan level rather than direct tachometer readback. Physical keyboard backlight is detected; no color-addressable/per-key RGB hardware was detected. GPU power/TGP, MUX, CPU Curve Optimizer, direct EC power limits and independent fan curves remain disabled or unverified."
             });
 
             // Victus 16 (2023/2024) - d1xxx series

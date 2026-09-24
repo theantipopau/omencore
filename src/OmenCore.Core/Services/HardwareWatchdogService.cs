@@ -28,6 +28,14 @@ namespace OmenCore.Services
         private bool _disposed;
         private DateTime _resumeGraceUntilUtc = DateTime.MinValue;
 
+        // Keep failsafe fan ownership after monitoring heartbeat recovery until
+        // temperatures are demonstrably safe. Heartbeat recovery alone is not enough.
+        private DateTime _failsafeLastFanApplyUtc = DateTime.MinValue;
+        private DateTime _failsafeSafeSinceUtc = DateTime.MinValue;
+
+        private const int FailsafeFanReapplyIntervalSeconds = 15;
+        private const double FailsafeSafeReleaseTempC = 65.0;
+        private const int FailsafeSafeReleaseSeconds = 15;
         private const int WatchdogIntervalMs = 10000; // Check every 10 seconds
         internal const int FreezeThresholdSeconds = 90; // Require longer stall to reduce false positives
         private const int FreezeBreachConfirmations = 2; // Require two consecutive breaches before failsafe
@@ -78,8 +86,6 @@ namespace OmenCore.Services
 
             lock (_stateLock)
             {
-                // Receiving ANY call means the monitoring pipeline is alive — update the heartbeat
-                // unconditionally. Stable idle temps are normal and must not trigger a false alarm.
                 _lastTempUpdate = DateTime.Now;
                 _lastCpuTemp = cpuTemp;
                 _lastGpuTemp = gpuTemp;
@@ -87,22 +93,41 @@ namespace OmenCore.Services
 
                 if (_failsafeActive)
                 {
-                    _failsafeActive = false;
-                    _isWatchdogArmed = true;
-                    shouldRestoreAuto = true;
+                    if (TryGetHottestValidTemperature(cpuTemp, gpuTemp, out var hottestTemp) &&
+                        hottestTemp <= FailsafeSafeReleaseTempC)
+                    {
+                        if (_failsafeSafeSinceUtc == DateTime.MinValue)
+                        {
+                            _failsafeSafeSinceUtc = DateTime.UtcNow;
+                        }
+                        else if ((DateTime.UtcNow - _failsafeSafeSinceUtc).TotalSeconds >= FailsafeSafeReleaseSeconds)
+                        {
+                            _failsafeActive = false;
+                            _isWatchdogArmed = true;
+                            _failsafeLastFanApplyUtc = DateTime.MinValue;
+                            _failsafeSafeSinceUtc = DateTime.MinValue;
+                            shouldRestoreAuto = true;
+                        }
+                    }
+                    else
+                    {
+                        _failsafeSafeSinceUtc = DateTime.MinValue;
+                    }
                 }
             }
 
             if (shouldRestoreAuto)
             {
-                _logging.Warn("WATCHDOG: Monitoring heartbeat recovered — attempting to restore BIOS auto fan control");
+                _logging.Warn(
+                    $"WATCHDOG: Monitoring recovered and temperatures are safe (<= {FailsafeSafeReleaseTempC:F0}°C for {FailsafeSafeReleaseSeconds}s) — restoring BIOS auto fan control");
+
                 try
                 {
                     _fanService.RestoreAutoControl();
                 }
                 catch (Exception ex)
                 {
-                    _logging.Warn($"WATCHDOG: Recovery restore auto control failed: {ex.Message}");
+                    _logging.Warn($"WATCHDOG: Safe recovery restore auto control failed: {ex.Message}");
                 }
             }
         }
@@ -121,7 +146,8 @@ namespace OmenCore.Services
                 _consecutiveFreezeBreaches = 0;
                 _lastTempUpdate = DateTime.Now;
                 _resumeGraceUntilUtc = DateTime.MinValue;
-            }
+                _failsafeLastFanApplyUtc = DateTime.MinValue;
+                _failsafeSafeSinceUtc = DateTime.MinValue;            }
 
             _logging.Info("WATCHDOG: Suspended freeze detection for system sleep");
             _resumeDiagnostics.RecordStep("watchdog", "Freeze detection suspended for sleep");
@@ -142,7 +168,8 @@ namespace OmenCore.Services
                 _consecutiveFreezeBreaches = 0;
                 _lastTempUpdate = DateTime.Now;
                 _resumeGraceUntilUtc = nowUtc.AddSeconds(ResumeGraceSeconds);
-            }
+                _failsafeLastFanApplyUtc = DateTime.MinValue;
+                _failsafeSafeSinceUtc = DateTime.MinValue;            }
 
             _logging.Info($"WATCHDOG: Resumed after sleep — freeze detection delayed for {ResumeGraceSeconds}s while monitoring recovers");
             _resumeDiagnostics.RecordStep("watchdog", $"Resume grace window started ({ResumeGraceSeconds}s)");
@@ -179,81 +206,126 @@ namespace OmenCore.Services
 
         private void CheckWatchdog(object? state)
         {
-            TimeSpan timeSinceLastUpdate;
+            TimeSpan timeSinceLastUpdate = TimeSpan.Zero;
+            bool applyFailsafe = false;
+            bool reapplyFailsafe = false;
 
             lock (_stateLock)
             {
-                if (_disposed || !_isWatchdogArmed || _suspendActive)
+                if (_disposed || _suspendActive)
                 {
                     return;
                 }
 
-                if (DateTime.UtcNow < _resumeGraceUntilUtc)
+                // Failsafe remains active even though normal freeze detection is disarmed.
+                if (_failsafeActive)
                 {
-                    return;
-                }
+                    var nowUtc = DateTime.UtcNow;
 
-                timeSinceLastUpdate = DateTime.Now - _lastTempUpdate;
-            }
-
-            try
-            {
-                if (timeSinceLastUpdate.TotalSeconds > FreezeThresholdSeconds)
-                {
-                    bool shouldApplyFailsafe = false;
-                    int currentBreaches;
-
-                    lock (_stateLock)
+                    if ((nowUtc - _failsafeLastFanApplyUtc).TotalSeconds >= FailsafeFanReapplyIntervalSeconds)
                     {
-                        if (_disposed || !_isWatchdogArmed || _suspendActive || _failsafeActive)
-                        {
-                            return;
-                        }
+                        _failsafeLastFanApplyUtc = nowUtc;
+                        reapplyFailsafe = true;
+                    }
+                }
+                else
+                {
+                    if (!_isWatchdogArmed)
+                    {
+                        return;
+                    }
 
+                    if (DateTime.UtcNow < _resumeGraceUntilUtc)
+                    {
+                        return;
+                    }
+
+                    timeSinceLastUpdate = DateTime.Now - _lastTempUpdate;
+
+                    if (timeSinceLastUpdate.TotalSeconds > FreezeThresholdSeconds)
+                    {
                         _consecutiveFreezeBreaches++;
-                        currentBreaches = _consecutiveFreezeBreaches;
 
                         if (_consecutiveFreezeBreaches >= FreezeBreachConfirmations)
                         {
                             _failsafeActive = true;
                             _isWatchdogArmed = false;
-                            shouldApplyFailsafe = true;
+                            _failsafeLastFanApplyUtc = DateTime.UtcNow;
+                            _failsafeSafeSinceUtc = DateTime.MinValue;
+                            applyFailsafe = true;
+                        }
+                        else
+                        {
+                            _logging.Warn(
+                                $"WATCHDOG: Potential monitoring stall ({timeSinceLastUpdate.TotalSeconds:F0}s, confirmation {_consecutiveFreezeBreaches}/{FreezeBreachConfirmations})");
                         }
                     }
+                }
+            }
 
-                    if (!shouldApplyFailsafe)
-                    {
-                        _logging.Warn($"WATCHDOG: Potential monitoring stall ({timeSinceLastUpdate.TotalSeconds:F0}s, confirmation {currentBreaches}/{FreezeBreachConfirmations})");
-                        return;
-                    }
+            try
+            {
+                if (applyFailsafe)
+                {
+                    _logging.Error(
+                        $"WATCHDOG: Temperature monitoring frozen for >{FreezeThresholdSeconds}s — applying failsafe fan speed");
 
-                    _logging.Error($"🚨 WATCHDOG: Temperature monitoring frozen for {timeSinceLastUpdate.TotalSeconds:F0}s - applying failsafe fan speed");
+                    _fanService.ForceSetFanSpeed(FailsafeFanPercent);
 
-                    // Emergency: set a high but non-max speed to avoid sticky max countdown mode.
-                    Task.Run(() =>
-                    {
-                        try
-                        {
-                            _fanService.ForceSetFanSpeed(FailsafeFanPercent);
-                            _logging.Warn($"Fans set to {FailsafeFanPercent}% due to frozen temperature monitoring");
+                    _logging.Warn(
+                        $"Fans set to {FailsafeFanPercent}% due to frozen temperature monitoring");
 
-                            // Notify user
-                            _logging.Warn($"🚨 WATCHDOG: Hardware monitoring frozen — fans set to {FailsafeFanPercent}%. Waiting for monitoring recovery.");
-                            _logging.Warn("If this issue persists, check: WMI BIOS availability, system stability, or Windows updates.");
-                        }
-                        catch (Exception ex)
-                        {
-                            _logging.Error($"Watchdog emergency fan set failed: {ex.Message}", ex);
-                        }
-                    });
+                    _logging.Warn(
+                        $"WATCHDOG: Failsafe fan control remains active until temperatures are <= {FailsafeSafeReleaseTempC:F0}°C for {FailsafeSafeReleaseSeconds}s");
+
+                    return;
+                }
+
+                if (reapplyFailsafe)
+                {
+                    _logging.Warn(
+                        $"WATCHDOG: Failsafe still active — reapplying fan speed {FailsafeFanPercent}%");
+
+                    _fanService.ForceSetFanSpeed(FailsafeFanPercent);
                 }
             }
             catch (Exception ex)
             {
-                _logging.Error($"Watchdog check error: {ex.Message}", ex);
+                _logging.Error($"Watchdog emergency fan set failed: {ex.Message}", ex);
             }
         }
 
+        private static bool TryGetHottestValidTemperature(
+            double cpuTemp,
+            double gpuTemp,
+            out double hottestTemp)
+        {
+            var hasCpu =
+                !double.IsNaN(cpuTemp) &&
+                !double.IsInfinity(cpuTemp) &&
+                cpuTemp > 0 &&
+                cpuTemp <= 150;
+
+            var hasGpu =
+                !double.IsNaN(gpuTemp) &&
+                !double.IsInfinity(gpuTemp) &&
+                gpuTemp > 0 &&
+                gpuTemp <= 150;
+
+            if (!hasCpu && !hasGpu)
+            {
+                hottestTemp = double.NaN;
+                return false;
+            }
+
+            hottestTemp = hasCpu && hasGpu
+                ? Math.Max(cpuTemp, gpuTemp)
+                : hasCpu
+                    ? cpuTemp
+                    : gpuTemp;
+
+            return true;
+        }
         public void Dispose()
         {
             if (!_disposed)
