@@ -7,7 +7,7 @@ namespace OmenCoreApp.Tests.Hardware
     public class Victus8DD0CapabilityTests
     {
         [Fact]
-        public void GetCapabilities_ReturnsVerifiedProfile_ForVictus8DD0()
+        public void GetCapabilities_ReturnsExactProfile_ForVictus8DD0()
         {
             var capabilities = ModelCapabilityDatabase.GetCapabilities("8DD0");
 
@@ -20,7 +20,16 @@ namespace OmenCoreApp.Tests.Hardware
             capabilities.SupportsFanControlEc.Should().BeFalse();
             capabilities.SupportsFanCurves.Should().BeTrue();
             capabilities.SupportsIndependentFanCurves.Should().BeFalse();
-            capabilities.FanZoneCount.Should().Be(1);
+            capabilities.SupportsRpmReadback.Should().BeFalse();
+            capabilities.FanZoneCount.Should().Be(2);
+            capabilities.MaxFanLevel.Should().Be(55);
+            capabilities.HasMuxSwitch.Should().BeFalse();
+            capabilities.SupportsGpuPowerBoost.Should().BeFalse();
+            capabilities.SupportsUndervolt.Should().BeFalse();
+            capabilities.SupportsPowerLimits.Should().BeFalse();
+            capabilities.HasFourZoneRgb.Should().BeFalse();
+            capabilities.HasKeyboardBacklight.Should().BeTrue();
+
             capabilities.AllowDecoupledWmiThermalPolicyFallback.Should().BeTrue();
         }
 

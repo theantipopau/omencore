@@ -450,6 +450,22 @@ namespace OmenCore.Services.KeyboardLighting
             });
 
             // ═══════════════════════════════════════════════════════════════════════════════════
+            // Victus 15-fb3xxx (2025 AMD) - board 8DD0.
+            // Diagnostics on this exact machine show a physical keyboard backlight,
+            // but no colour-addressable/per-key RGB hardware. Keep the mapping
+            // backlight-only until a physical RGB surface is actually observed.
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8DD0",
+                ModelName = "HP Victus 15-fb3xxx (2025) backlight",
+                ModelNamePattern = "15-fb3",
+                KeyboardType = KeyboardType.BacklightOnly,
+                PreferredMethod = KeyboardMethod.BacklightOnly,
+                FallbackMethods = Array.Empty<KeyboardMethod>(),
+                ModelYear = 2025,
+                UserVerified = false,
+                Notes = "Diagnostics 2026-09-24: physical keyboard backlight detected; no color-addressable/per-key RGB hardware was detected."
+            });
             // OMEN Max 16 (Premium 2025 model)
             // ═══════════════════════════════════════════════════════════════════════════════════
             

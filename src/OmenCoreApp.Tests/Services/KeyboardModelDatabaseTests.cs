@@ -7,6 +7,20 @@ namespace OmenCoreApp.Tests.Services
     public class KeyboardModelDatabaseTests
     {
         [Fact]
+        public void GetConfig_ReturnsBacklightOnly_For_ProductId_8DD0()
+        {
+            var cfg = KeyboardModelDatabase.GetConfig("8DD0");
+
+            cfg.Should().NotBeNull();
+            cfg!.ProductId.Should().Be("8DD0");
+            cfg.ModelName.Should().Contain("Victus 15-fb3xxx");
+            cfg.KeyboardType.Should().Be(KeyboardType.BacklightOnly);
+            cfg.PreferredMethod.Should().Be(KeyboardMethod.BacklightOnly);
+            cfg.FallbackMethods.Should().BeEmpty();
+            cfg.UserVerified.Should().BeFalse();
+            cfg.Notes.Should().Contain("2026-09-24");
+        }
+        [Fact]
         public void GetConfig_ReturnsConfig_For_ProductId_8BD5()
         {
             var cfg = KeyboardModelDatabase.GetConfig("8BD5");

@@ -177,7 +177,7 @@ namespace OmenCoreApp.Tests.Hardware
         {
             var caps = new DeviceCapabilities
             {
-                HasGpuPowerControl = false,
+                HasGpuPowerControl = true,
                 IsKnownModel = true,
                 ModelConfig = new ModelCapabilities
                 {
@@ -188,6 +188,21 @@ namespace OmenCoreApp.Tests.Hardware
             caps.ShowGpuPowerBoost.Should().BeTrue();
         }
 
+        [Fact]
+        public void ShowGpuPowerBoost_IsFalse_WhenKnownModelExplicitlyDisablesIt_EvenIfRuntimeDetectsControl()
+        {
+            var caps = new DeviceCapabilities
+            {
+                HasGpuPowerControl = true,
+                IsKnownModel = true,
+                ModelConfig = new ModelCapabilities
+                {
+                    SupportsGpuPowerBoost = false
+                }
+            };
+
+            caps.ShowGpuPowerBoost.Should().BeFalse("an exact model denial must override a shared runtime probe");
+        }
         [Fact]
         public void ShowGpuPowerBoost_IsFalse_WhenUnknownModelAndNoRuntimeDetection()
         {
