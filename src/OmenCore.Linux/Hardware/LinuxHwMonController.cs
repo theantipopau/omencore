@@ -19,6 +19,7 @@ public class LinuxHwMonController
     private const int MaxPlausibleTemperatureC = 125;
     
     private readonly List<string> _cpuSensorPaths = new();
+    private readonly List<(int Rank, string Path)> _cpuSensorCandidates = new();
     private readonly List<string> _gpuSensorPaths = new();
     private readonly Dictionary<string, int> _sensorFailureCount = new();
     private readonly int _maxFailuresBeforeSkip = 5;
@@ -40,11 +41,45 @@ public class LinuxHwMonController
     public void DiscoverSensors()
     {
         _cpuSensorPaths.Clear();
+        _cpuSensorCandidates.Clear();
         _gpuSensorPaths.Clear();
         _lastFullScan = DateTime.Now;
         
         DiscoverHwmonSensors();
         DiscoverThermalZones();
+
+        // Readings take the first readable path, so order must be by sensor quality, not by
+        // sysfs enumeration order. GitHub #214 (8BCA, Ryzen 7940HS): hwmon listed a dead
+        // acpitz zone stuck at +20.0°C ahead of k10temp, so the fan curve and the thermal
+        // emergency both saw 20°C while the CPU sat at 99°C. OrderBy is stable, so ties keep
+        // discovery order.
+        foreach (var candidate in _cpuSensorCandidates.OrderBy(c => c.Rank))
+        {
+            if (!_cpuSensorPaths.Contains(candidate.Path))
+                _cpuSensorPaths.Add(candidate.Path);
+        }
+    }
+
+    /// <summary>
+    /// Preference rank for a CPU temperature source (lower is better). Dedicated CPU drivers
+    /// read the die sensor directly; generic ACPI thermal zones (acpitz) are firmware-defined,
+    /// often not the CPU at all, and on some boards frozen at a constant value, so they are
+    /// only a last resort.
+    /// </summary>
+    public static int GetCpuSensorRank(string sensorName)
+    {
+        var name = sensorName.Trim().ToLowerInvariant();
+        if (name.Contains("coretemp") || name.Contains("k10temp") || name.Contains("zenpower"))
+            return 0;
+        if (name.Contains("x86_pkg"))
+            return 1;
+        if (name.Contains("acpitz"))
+            return 5;
+        if (name.Contains("hp") || name.Contains("thinkpad"))
+            return 2;
+        if (name.Contains("amd_energy"))
+            return 3;
+        return 4;
     }
     
     private void DiscoverHwmonSensors()
@@ -68,7 +103,7 @@ public class LinuxHwMonController
                     name.Contains("thinkpad") || name.Contains("hp") ||
                     name.Contains("acpitz"))
                 {
-                    AddCpuSensorPaths(hwmonDir);
+                    AddCpuSensorPaths(hwmonDir, GetCpuSensorRank(name));
                 }
                 
                 // GPU temperature sensors (in priority order)
@@ -106,8 +141,7 @@ public class LinuxHwMonController
                 if (type.Contains("x86_pkg") || type.Contains("acpitz") || 
                     type.Contains("cpu") || type.Contains("soc"))
                 {
-                    if (!_cpuSensorPaths.Contains(tempPath))
-                        _cpuSensorPaths.Add(tempPath);
+                    _cpuSensorCandidates.Add((GetCpuSensorRank(type), tempPath));
                 }
                 
                 // GPU thermal zones (less common but worth checking)
@@ -121,15 +155,15 @@ public class LinuxHwMonController
         }
     }
     
-    private void AddCpuSensorPaths(string hwmonDir)
+    private void AddCpuSensorPaths(string hwmonDir, int rank)
     {
         // Try temp files in priority order
         foreach (var suffix in new[] { "temp1_input", "temp2_input", "temp3_input" })
         {
             var path = Path.Combine(hwmonDir, suffix);
-            if (File.Exists(path) && !_cpuSensorPaths.Contains(path))
+            if (File.Exists(path))
             {
-                _cpuSensorPaths.Add(path);
+                _cpuSensorCandidates.Add((rank, path));
             }
         }
     }

@@ -2,8 +2,9 @@
 
 **Release Date:** TBD — in progress. Rolling changelog, updated as work lands.
 **Release Status:** In progress. Started 2026-09-25, one day after v4.4.0 shipped.
-**Type:** Field-report follow-up to 4.4.0. Five fixes (watchdog failsafe, fan-verification Max
-fallback, Victus GPU Power Boost display, diagnostic keepalive guard, startup mode label), two new board entries (`8BBE`,
+**Type:** Field-report follow-up to 4.4.0. Six fixes (watchdog failsafe, fan-verification Max
+fallback, Victus GPU Power Boost display, diagnostic keepalive guard, startup mode label, Linux
+CPU sensor selection), two new board entries (`8BBE`,
 `88F8`), and one RGB fix awaiting hardware confirmation (`#212`). Sources: post-release diagnostics
 exports, a community fork, PR `#210`, and a sweep of older unanswered issues.
 **Base Version:** v4.4.0
@@ -55,6 +56,14 @@ recommended setting on OMEN 16 / Victus), the saved mode was pre-selected for th
 reported as *active* - the System Control status label and the tray said "Performance" while the dashboard's
 runtime-confirmed label said "Default", which is what firmware was actually running. Those labels
 now report "Default" until a mode is actually applied; the picker still remembers your choice.
+
+### Linux: Fan Curve and Thermal Emergency Read a Dead ACPI Zone Instead of the CPU
+
+[#214](https://github.com/theantipopau/omencore/issues/214) (board `8BCA`, Ryzen 9 7940HS): the
+daemon took the first readable CPU sensor in sysfs enumeration order, which on this laptop was an
+`acpitz` zone frozen at +20.0°C, ahead of `k10temp`. The custom curve only ever reacted to the GPU,
+and the 95°C emergency never fired, while the CPU hit 99°C and throttled. CPU sensors are now
+ranked: `k10temp`/`coretemp`/`zenpower` first, `acpitz` only as a last resort.
 
 ---
 
