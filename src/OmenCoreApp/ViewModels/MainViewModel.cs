@@ -2273,12 +2273,38 @@ namespace OmenCore.ViewModels
 
             SyncCollection(PerformanceModes, _config.PerformanceModes);
             SelectedPerformanceMode = ResolveInitialPerformanceModeForDisplay(PerformanceModes, _config.LastPerformanceModeName);
-            CurrentPerformanceMode = SelectedPerformanceMode?.Name ?? CurrentPerformanceMode;
+            var model = SystemInfo?.Model ?? string.Empty;
+            var startupRestoreWillApply =
+                StartupRestorePolicy.IsEnabled(_config, StartupRestoreCategory.Performance) &&
+                (!StartupRestorePolicy.IsSensitiveModel(model) || _config.AllowStartupRestoreOnOmen16OrVictus);
+            CurrentPerformanceMode = ResolveInitialCurrentPerformanceModeLabel(
+                _performanceModeService?.GetCurrentMode(),
+                SelectedPerformanceMode?.Name,
+                startupRestoreWillApply) ?? CurrentPerformanceMode;
 
             SyncCollection(LightingProfiles, _config.LightingProfiles);
             SelectedLightingProfile = LightingProfiles.FirstOrDefault();
 
             SyncCollection(SystemToggles, _config.SystemToggles);
+        }
+
+        /// <summary>
+        /// Label for the mode that is actually active, not merely pre-selected. A mode applied at
+        /// runtime always wins; otherwise the saved mode is only reported as active when startup
+        /// restore is going to apply it. With restore disabled firmware stays on its own default,
+        /// and showing the saved name here disagreed with the dashboard (GitHub #199).
+        /// </summary>
+        internal static string? ResolveInitialCurrentPerformanceModeLabel(
+            string? runtimeAppliedMode,
+            string? savedSelectedMode,
+            bool startupRestoreWillApply)
+        {
+            if (!string.IsNullOrWhiteSpace(runtimeAppliedMode))
+            {
+                return runtimeAppliedMode;
+            }
+
+            return startupRestoreWillApply ? savedSelectedMode : "Default";
         }
 
         public static PerformanceMode? ResolveInitialPerformanceModeForDisplay(

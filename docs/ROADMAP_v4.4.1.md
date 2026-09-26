@@ -181,14 +181,25 @@ its real cause.
 No diagnostics export attached, only a screenshot. `8DD0` already has a real, evidence-backed entry
 (fan curves and RPM readback both confirmed by a prior contributor's PR), so this reads as a genuine
 behavior bug rather than a missing-model report - but nothing can be traced from a screenshot alone.
-Asked for an export captured while the symptom is happening.
+Asked for an export captured while the symptom is happening. **Update 2026-09-26:** reporter says
+it cleared after a restart; now asking about occasional high temps at low load — needs an export
+taken while it's happening (likely background load or BIOS fan policy, nothing to trace yet).
 
 ### Carried forward from v4.4.0, unchanged
 
 - Board `8E35` Performance mode (`#195`) — WMI policy fallback confirmed to fire correctly during a
-  live game session; actual wattage movement still unconfirmed (RyzenAdj couldn't initialize the
-  Dragon Range power table in the reporter's environment).
-- The `#199` sidebar/dashboard performance-mode label mismatch — traced, not fixed.
+  live game session. **Update 2026-09-26:** a second session with LibreHardwareMonitor as an
+  independent reader, across five alternating segments, showed Balanced package power plateauing at
+  ~66-72 W max while Performance peaked at 78-80 W (~+3.5 W average, higher temps) — versus a 0.0 W
+  difference before 4.4.0 enabled the fallback. Field-supported, not fully confirmed: the actual
+  firmware limit values are still unread (RyzenAdj fails with `Unable to get os_access Obj`), so the
+  entry stays `UserVerified = false`.
+- The `#199` sidebar/dashboard performance-mode label mismatch — **fixed 2026-09-26.** Root cause:
+  the reporter's clue was "after reboot, startup restore left disabled". `SystemControlViewModel`
+  and `MainViewModel.HydrateCollections` both seeded the saved `LastPerformanceModeName` as the
+  *current* mode, even when the startup restore was skipped; the dashboard/General labels come from
+  runtime-confirmed state and correctly said "Default". Those two labels now say "Default" until a
+  mode is actually applied (any path: picker, tray, hotkey, automation). Picker selection unchanged.
 - `#189` automatic fan curves — still the most-cited gap, no code yet.
 - The `8D87` GPU power unlock — still gated off (`EcWritePathValidated = false`), needs an 8D87
   owner to validate the EC write path and the rewritten pin-loop model before any of it can turn on.

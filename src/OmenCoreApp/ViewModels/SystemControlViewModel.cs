@@ -65,6 +65,12 @@ namespace OmenCore.ViewModels
 
         public ObservableCollection<PerformanceMode> PerformanceModes { get; } = new();
 
+        // True from startup until something actually applies a mode, when the saved mode was
+        // pre-selected for the picker but startup performance restore was disabled, so firmware
+        // is still on its own default. Without this the status label showed the saved mode
+        // ("Performance") while every runtime-confirmed surface showed "Default" (GitHub #199).
+        private bool _savedModeNotAppliedAtStartup;
+
         public PerformanceMode? SelectedPerformanceMode
         {
             get => _selectedPerformanceMode;
@@ -73,6 +79,7 @@ namespace OmenCore.ViewModels
                 if (_selectedPerformanceMode != value)
                 {
                     _selectedPerformanceMode = value;
+                    _savedModeNotAppliedAtStartup = false;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CurrentPerformanceModeName));  // Notify sidebar to update
                     OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
@@ -2696,6 +2703,7 @@ namespace OmenCore.ViewModels
                 else
                 {
                     _logging.Warn("Startup performance restore is disabled - skipping automatic Performance Mode reapply");
+                    MarkSavedModeNotAppliedAtStartup();
                 }
             }
             
@@ -4970,6 +4978,7 @@ namespace OmenCore.ViewModels
             if (SelectedPerformanceMode != null)
             {
                 _performanceModeService.Apply(SelectedPerformanceMode);
+                ClearSavedModeNotAppliedAtStartup();
                 _logging.Info($"Performance mode applied: {SelectedPerformanceMode.Name}");
                 
                 // Save the selected mode to config for persistence
@@ -5012,7 +5021,42 @@ namespace OmenCore.ViewModels
             RefreshFanLinkState();
         }
         
-        public string CurrentPerformanceModeName => SelectedPerformanceMode?.Name ?? "Auto";
+        public string CurrentPerformanceModeName => ResolveCurrentPerformanceModeName(
+            SelectedPerformanceMode?.Name, _savedModeNotAppliedAtStartup);
+
+        /// <summary>
+        /// Status label for the active performance mode. A mode that was only pre-selected from
+        /// config (startup restore disabled, nothing applied yet) is reported as firmware
+        /// "Default", matching the runtime-confirmed labels elsewhere (GitHub #199).
+        /// </summary>
+        internal static string ResolveCurrentPerformanceModeName(string? selectedModeName, bool savedModeNotAppliedAtStartup)
+        {
+            if (savedModeNotAppliedAtStartup)
+            {
+                return "Default";
+            }
+
+            return selectedModeName ?? "Auto";
+        }
+
+        private void MarkSavedModeNotAppliedAtStartup()
+        {
+            _savedModeNotAppliedAtStartup = true;
+            OnPropertyChanged(nameof(CurrentPerformanceModeName));
+            OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
+        }
+
+        private void ClearSavedModeNotAppliedAtStartup()
+        {
+            if (!_savedModeNotAppliedAtStartup)
+            {
+                return;
+            }
+
+            _savedModeNotAppliedAtStartup = false;
+            OnPropertyChanged(nameof(CurrentPerformanceModeName));
+            OnPropertyChanged(nameof(CurrentPerformanceModeIndicator));
+        }
 
         public string CurrentPerformanceModeIndicator
         {
@@ -5074,6 +5118,12 @@ namespace OmenCore.ViewModels
         {
             var mode = PerformanceModes.FirstOrDefault(m =>
                 m.Name.Equals(modeName, StringComparison.OrdinalIgnoreCase));
+            if (mode != null)
+            {
+                // Called when a mode was applied elsewhere (tray, hotkey, automation) - even if
+                // it matches the pre-selected saved mode, it is now genuinely active.
+                ClearSavedModeNotAppliedAtStartup();
+            }
             if (mode != null && _selectedPerformanceMode != mode)
             {
                 _selectedPerformanceMode = mode;
@@ -5117,6 +5167,7 @@ namespace OmenCore.ViewModels
             {
                 _selectedPerformanceMode = mode;
                 _performanceModeService.Apply(mode);
+                ClearSavedModeNotAppliedAtStartup();
                 _logging.Info($"Performance mode applied (temporary, not saved): {mode.Name}");
                 
                 OnPropertyChanged(nameof(SelectedPerformanceMode));

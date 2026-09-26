@@ -2,8 +2,8 @@
 
 **Release Date:** TBD — in progress. Rolling changelog, updated as work lands.
 **Release Status:** In progress. Started 2026-09-25, one day after v4.4.0 shipped.
-**Type:** Field-report follow-up to 4.4.0. Four fixes (watchdog failsafe, fan-verification Max
-fallback, Victus GPU Power Boost display, diagnostic keepalive guard), two new board entries (`8BBE`,
+**Type:** Field-report follow-up to 4.4.0. Five fixes (watchdog failsafe, fan-verification Max
+fallback, Victus GPU Power Boost display, diagnostic keepalive guard, startup mode label), two new board entries (`8BBE`,
 `88F8`), and one RGB fix awaiting hardware confirmation (`#212`). Sources: post-release diagnostics
 exports, a community fork, PR `#210`, and a sweep of older unanswered issues.
 **Base Version:** v4.4.0
@@ -47,6 +47,14 @@ The fan keepalive timer already stood down during a Guided Fan Diagnostic, but o
 modes. Started from Max or manual control, its reasserts could fight the diagnostic's own writes.
 Now covers all three. Found reviewing PR
 [#210](https://github.com/theantipopau/omencore/pull/210).
+
+### Performance Mode Label Showed the Saved Mode When Startup Restore Was Off
+
+[#199](https://github.com/theantipopau/omencore/issues/199): with startup restore disabled (the
+recommended setting on OMEN 16 / Victus), the saved mode was pre-selected for the picker and also
+reported as *active* - the System Control status label and the tray said "Performance" while the dashboard's
+runtime-confirmed label said "Default", which is what firmware was actually running. Those labels
+now report "Default" until a mode is actually applied; the picker still remembers your choice.
 
 ---
 
