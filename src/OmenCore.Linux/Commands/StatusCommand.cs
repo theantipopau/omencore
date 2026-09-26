@@ -132,6 +132,8 @@ public static class StatusCommand
                         ? "root privileges detected; writable interfaces depend on kernel/firmware-exposed paths"
                         : "run with sudo for write-capable fan/performance control"
                 },
+                CpuTelemetrySource = cpuReading?.Source ?? "unavailable",
+                CpuTelemetryPath = cpuReading?.Path ?? string.Empty,
                 GpuTelemetrySource = gpuReading?.Source ?? "unavailable",
                 GpuTelemetryPath = gpuReading?.Path ?? string.Empty,
                 Gpu = new GpuInfo
@@ -200,6 +202,7 @@ public static class StatusCommand
         Console.WriteLine("║  TEMPERATURES                                             ║");
         Console.WriteLine($"║    CPU Temperature: {cpuTemp ?? 0,3}°C                                ║");
         Console.WriteLine($"║    GPU Temperature: {gpuTemp ?? 0,3}°C                                ║");
+        Console.WriteLine($"║    CPU Telemetry:  {Truncate(cpuReading == null ? "unavailable" : $"{cpuReading.Source} ({cpuReading.Path})", 36),-36}║");
         Console.WriteLine($"║    GPU Telemetry:  {Truncate(gpuReading == null ? "unavailable" : $"{gpuReading.Source} ({gpuReading.Path})", 36),-36}║");
         if (nvmlGpu != null)
         {

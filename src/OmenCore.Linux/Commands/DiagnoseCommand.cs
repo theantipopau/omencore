@@ -161,6 +161,7 @@ public static class DiagnoseCommand
 
         var ec = new LinuxEcController();
         var hwmon = new LinuxHwMonController();
+        var cpuReading = LinuxTelemetryResolver.GetCpuTemperature(ec, hwmon);
         var gpuReading = LinuxTelemetryResolver.GetGpuTemperature(ec, hwmon);
         info.Service = await CollectServiceDiagnosticsAsync();
         info.KernelIssueHints = await CollectKernelIssueHintsAsync();
@@ -184,6 +185,8 @@ public static class DiagnoseCommand
         info.HpWmiModuleLooksDkms = ec.HpWmiModuleLooksDkms;
         info.HpWmiDkmsCompatibleFanBackend = ec.HasHpWmiDkmsCompatibleFanBackend;
         info.HpWmiCompatibilityLabel = ec.HpWmiCompatibilityLabel;
+        info.CpuTelemetrySource = cpuReading?.Source ?? "unavailable";
+        info.CpuTelemetryPath = cpuReading?.Path ?? string.Empty;
         info.GpuTelemetrySource = gpuReading?.Source ?? "unavailable";
         info.GpuTelemetryPath = gpuReading?.Path ?? string.Empty;
 
@@ -818,6 +821,7 @@ public static class DiagnoseCommand
         Console.WriteLine(midBorder);
         Console.WriteLine($"║  Capability:{Truncate(info.CapabilityClass, 76),-76}║");
         Console.WriteLine($"║  Config Sch:{info.ConfigSchemaVersion,-76}║");
+        Console.WriteLine($"║  CPU Telem.: {Truncate($"{info.CpuTelemetrySource} {info.CpuTelemetryPath}".Trim(), 76),-76}║");
         Console.WriteLine($"║  GPU Telem.: {Truncate($"{info.GpuTelemetrySource} {info.GpuTelemetryPath}".Trim(), 76),-76}║");
         Console.WriteLine($"║  Detected:  {info.DetectedAccessMethod,-76}║");
         Console.WriteLine($"║  Available: {(info.EcControllerAvailable ? "✓" : "✗"),-76}║");
@@ -923,6 +927,7 @@ public static class DiagnoseCommand
         Console.WriteLine(border);
         WriteLine("Capability:", Shorten(info.CapabilityClass, 75));
         WriteLine("Config Sch:", info.ConfigSchemaVersion.ToString());
+        WriteLine("CPU Telem:", Shorten($"{info.CpuTelemetrySource} {info.CpuTelemetryPath}".Trim(), 75));
         WriteLine("GPU Telem:", Shorten($"{info.GpuTelemetrySource} {info.GpuTelemetryPath}".Trim(), 75));
         WriteLine("Detected:", info.DetectedAccessMethod);
         WriteLine("Available:", info.EcControllerAvailable ? "OK" : "NO");
@@ -1072,6 +1077,8 @@ public static class DiagnoseCommand
         Console.WriteLine();
         Console.WriteLine($"**Capability Reason:** {info.CapabilityReason}");
         Console.WriteLine();
+        Console.WriteLine($"**CPU Telemetry:** `{info.CpuTelemetrySource} {info.CpuTelemetryPath}`");
+        Console.WriteLine();
         Console.WriteLine($"**GPU Telemetry Source:** `{info.GpuTelemetrySource}`");
         Console.WriteLine();
         Console.WriteLine($"**GPU Telemetry Path:** `{info.GpuTelemetryPath}`");
@@ -1200,6 +1207,8 @@ public class DiagnoseInfo
     public bool SupportsManualFanControl { get; set; }
     public bool SupportsProfileControl { get; set; }
     public bool SupportsTelemetry { get; set; }
+    public string CpuTelemetrySource { get; set; } = "unavailable";
+    public string CpuTelemetryPath { get; set; } = string.Empty;
     public string GpuTelemetrySource { get; set; } = "unavailable";
     public string GpuTelemetryPath { get; set; } = string.Empty;
     public LinuxServiceDiagnostics Service { get; set; } = new();

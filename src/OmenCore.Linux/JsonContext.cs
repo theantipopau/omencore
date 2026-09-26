@@ -32,6 +32,8 @@ public class SystemStatus
     public string CapabilityClass { get; set; } = "unsupported-control";
     public string CapabilityReason { get; set; } = string.Empty;
     public LinuxAccessInfo Access { get; set; } = new();
+    public string CpuTelemetrySource { get; set; } = "unavailable";
+    public string CpuTelemetryPath { get; set; } = string.Empty;
     public string GpuTelemetrySource { get; set; } = "unavailable";
     public string GpuTelemetryPath { get; set; } = string.Empty;
     public GpuInfo Gpu { get; set; } = new();
