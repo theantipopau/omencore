@@ -2336,8 +2336,9 @@ namespace OmenCore.Hardware
                 HasMuxSwitch = false,
                 SupportsUndervolt = false,
                 HasFourZoneRgb = false,
+                AllowDecoupledWmiThermalPolicyFallback = true,
                 UserVerified = false,
-                Notes = "GitHub #235 (2026-10-21) - HyperX OMEN 15-ga0xxx, ProductId 8F5C (Core Ultra 7 255H, RTX 5060 Laptop, BIOS F.03). Measured: thermal policy V0, 2 fans, max level 55, RPM estimated from level only, keyboard topology FourZoneWithNumpad but the WMI colour write did not read back, so keyboard colour is not offered. Guided Fan Verification 6/6 (83/100) is level-based only; the reporter says profile presets do not change fan behaviour and the laptop overheats, so fan control here is unproven. Previously the family fallback (Unknown Legacy, Low confidence)."
+                Notes = "GitHub #235 (2026-10-21) - HyperX OMEN 15-ga0xxx, ProductId 8F5C (Core Ultra 7 255H, RTX 5060 Laptop, BIOS F.03). Measured: thermal policy V0, 2 fans, max level 55, RPM estimated from level only, keyboard topology FourZoneWithNumpad but the WMI colour write did not read back, so keyboard colour is not offered. Guided Fan Verification 6/6 (83/100) is level-based only; the reporter says profile presets do not change fan behaviour and the laptop overheats, so fan control here is unproven. Previously the family fallback (Unknown Legacy, Low confidence). 2026-10-24: Max fan works but Performance/Gaming presets do not ramp the fans; the log showed 'Performance mode: nothing was applied (Direct EC writes disabled)', the same no-op #195 had, so the WMI thermal-policy fallback is enabled here (pending confirmation)."
             });
 
             // GitHub #230 (Projectorigins, 2026-10-14): HyperX OMEN 16-ap1xxx, Ryzen 7 8745HX + RTX 5060 Laptop + Radeon 610M,

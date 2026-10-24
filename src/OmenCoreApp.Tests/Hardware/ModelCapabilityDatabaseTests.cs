@@ -442,6 +442,7 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsFanCurves.Should().BeFalse();
             caps.SupportsRpmReadback.Should().BeFalse();
             caps.HasFourZoneRgb.Should().BeFalse();
+            caps.AllowDecoupledWmiThermalPolicyFallback.Should().BeTrue(); // presets were a no-op without it (#235)
             caps.SupportsUndervolt.Should().BeFalse();
             caps.UserVerified.Should().BeFalse();
         }
