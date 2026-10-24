@@ -430,6 +430,24 @@ namespace OmenCoreApp.Tests.Hardware
             caps.UserVerified.Should().BeFalse();
         }
 
+        [Theory]
+        [InlineData("8C4D")]
+        [InlineData("8BB3")]
+        [InlineData("88C8")]
+        [InlineData("8C99")]
+        [InlineData("8BD5")]
+        public void GetCapabilities_IdentityOnlyBoards_AreKnownButClaimNothing(string id)
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities(id);
+
+            caps.ProductId.Should().Be(id);
+            caps.SupportsFanCurves.Should().BeFalse();
+            caps.SupportsRpmReadback.Should().BeFalse();
+            caps.HasFourZoneRgb.Should().BeFalse();
+            caps.SupportsUndervolt.Should().BeFalse();
+            caps.UserVerified.Should().BeFalse();
+        }
+
         [Fact]
         public void GetCapabilities_8F5C_HyperxOmen15Ga0xxx_HasItsOwnConservativeEntry()
         {

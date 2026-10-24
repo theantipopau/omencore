@@ -7,7 +7,7 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-4.4.5-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.4.5.md)
+[![Version](https://img.shields.io/badge/version-4.5.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.4.5.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -54,16 +54,18 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 4.4.5<br>
-**Released:** 2026-10-11<br>
-**Status:** Test-verified (1861/1861 app tests and 66/66 Linux tests, 0 build warnings). A feature and field-report release: an opt-in NVIDIA laptop GPU power unlock, an opt-in factory fan curve for the OMEN MAX 16 (`8D87`), OMEN key and HP-telemetry controls, faster fan response to a temperature spike, a fix for a stale saved Fan Max, an auto-hidden taskbar fix, cheaper GPU load polling, a Linux single-fan-writer lock, and new entries for four boards. **Much of it is implemented and tested in software only, and is labelled pending hardware confirmation in the release notes.**<br>
-**Upgrade note:** from 4.4.1, update from inside the app (the update button in the header, or F5). OmenCore will not reopen by itself after that one update, because 4.4.1's updater predates the relaunch fix; start it again by hand. Later updates will relaunch it. Settings are kept.<br>
-**Release notes:** [docs/CHANGELOG_v4.4.5.md](docs/CHANGELOG_v4.4.5.md)<br>
-**Roadmap:** [docs/ROADMAP_v4.4.5.md](docs/ROADMAP_v4.4.5.md)
+**Version:** 4.5.0<br>
+**Released:** 2026-10-24<br>
+**Status:** Test-verified (1980/1980 app tests and 71/71 Linux tests, 0 build warnings). A field-report and model-database release: board entries for 8BC2, 88D1, 8F21, 8F5C and an exact 88ED row, the one-zone keyboard colour layout for 8BD4/8BC2, hotkeys that report when another app holds them, optional Max fan auto-return, AMD power limits that now save when the Tctl write is refused, and square window corners when maximised. Much of it is marked pending until a reporter confirms it on real hardware.<br>
+**Upgrade note:** update from inside the app (the update button in the header, or F5). Settings are kept.<br>
+**Release notes:** [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md)<br>
+**Roadmap:** [docs/ROADMAP_v4.5.0.md](docs/ROADMAP_v4.5.0.md)
 
-SHA256 hashes are computed by the release workflow from the exact files attached to the release and are published in the [release notes](https://github.com/theantipopau/omencore/releases/tag/v4.4.5).
+SHA256 hashes are computed by the release workflow from the exact files attached to the release and are published in the [release notes](https://github.com/theantipopau/omencore/releases/tag/v4.5.0).
 
-### v4.4.5 Highlights
+Full detail on every item, and what still needs field confirmation, is in [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md).
+
+### v4.4.5 Highlights (previous release)
 
 - **Added (opt-in, off by default):** NVIDIA laptop GPU power unlock in Tuning (Resolve VBIOS, Apply MAX, restart, Apply CURRENT), from timmyy123's `nvidia-power-control` and bobshmo's OmenCore-Prophecy, used with their permission. Backs up the registry, reads every write back, rolls back on a mismatch, and on Victus laptops prepares HP performance mode and the fan engine first. Run by its authors, not yet through OmenCore.
 - **Added (opt-in, experimental):** HP's factory Performance-mode fan curve for the OMEN MAX 16 `8D87`, where firmware Auto parks the fans at ~3,400/3,600 RPM with the CPU at 92-99 C ([#189](https://github.com/theantipopau/omencore/issues/189), research by mbilykov). Runs only in Performance mode with fans on Auto and hands the fans back on any other mode, on diagnostics, on thermal protection and after three failed writes.
@@ -275,9 +277,9 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 ## Current Development Focus
 
-**v4.5.0 is in development** (no 4.4.6). It is a follow-up to 4.4.5 built from the reports that came in after it: board entries for 8BC2, 88D1, 8F21 and an exact 88ED row; the one-zone keyboard colour layout for 8BD4 and 8BC2; hotkeys that report when another app holds them; optional Max fan auto-return; new fan-firmware, power-transition and CPU-throttle sections in the diagnostics export; and an experimental, off-by-default setting for fans that stay near 2000 RPM. Everything hardware-facing is *implemented, pending confirmation* until an owner tests it. The plan and the tick sheet are in [docs/ROADMAP_v4.5.0.md](docs/ROADMAP_v4.5.0.md); the running list is [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md).
+**v4.5.0 is released and is waiting on field confirmation.** It was built from reporters' exports, and anything hardware-facing has run only in software tests until an owner confirms it. The "Needs field confirmation" table in [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md) says exactly what to try on which board. Boards that are only identified (8C4D, 8BB3, 88C8, 8C99, 8BD5) need an export before anything is claimed for them.
 
-**v4.4.5 is released and is waiting on field confirmation.** Most of what it adds was built from reporters' exports and from fork and research contributions, and has run only in software tests so far. The "Needs field confirmation" list in [docs/CHANGELOG_v4.4.5.md](docs/CHANGELOG_v4.4.5.md) says exactly what to try on which board.
+**v4.4.5 is released.** Most of what it adds was built from reporters' exports and from fork and research contributions, and has run only in software tests so far. The "Needs field confirmation" list in [docs/CHANGELOG_v4.4.5.md](docs/CHANGELOG_v4.4.5.md) says exactly what to try on which board.
 
 **Still open:** the 8BD4 single-zone keyboard ([#212](https://github.com/theantipopau/omencore/issues/212), waiting on the RGB probe result), the 8E35 AMD power table ([#222](https://github.com/theantipopau/omencore/issues/222), needs a PM-table dump), per-key RGB on Linux for the 2025 MAX boards ([#179](https://github.com/theantipopau/omencore/issues/179)), and the OMEN Transcend 16 (`8BB3`).
 

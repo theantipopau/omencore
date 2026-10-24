@@ -2313,6 +2313,108 @@ namespace OmenCore.Hardware
             // keyboard topology RgbPerKey (0x03). Not measured: fan RPM (readback null, estimated only), the per-key
             // keyboard path (no Primax HID device found), curves, MUX, undervolt. Kept conservative until a
             // Guided Fan Verification and an RGB check come back from the reporter.
+            // Known boards from other open-source HP projects, identity only (no OmenCore export yet).
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C4D",
+                ModelName = "OMEN Transcend 16-u1xxx",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Transcend,
+                SupportsFanControlWmi = false,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "Board identity only: listed as a supported board by other open-source HP projects (omen-fan-control README, Linux hp-wmi board table); model name from those listings. No OmenCore export for this board yet, so every capability is left conservative until a Guided Fan Verification and an RGB check come back."
+            });
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BB3",
+                ModelName = "OMEN Transcend 16-u0xxx",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Transcend,
+                SupportsFanControlWmi = false,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "Board identity only: listed as a supported board by other open-source HP projects (omen-fan-control README, Linux hp-wmi board table); model name from those listings. No OmenCore export for this board yet, so every capability is left conservative until a Guided Fan Verification and an RGB check come back."
+            });
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "88C8",
+                ModelName = "OMEN 15-ek1xxx",
+                ModelYear = 2021,
+                Family = OmenModelFamily.Legacy,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "Board identity only: listed as a supported board by other open-source HP projects (omen-fan-control README, Linux hp-wmi board table); model name from those listings. No OmenCore export for this board yet, so every capability is left conservative until a Guided Fan Verification and an RGB check come back."
+            });
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8C99",
+                ModelName = "HP Victus 16-r1xxx",
+                ModelYear = 2024,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "Board identity only: listed as a supported board by other open-source HP projects (omen-fan-control README, Linux hp-wmi board table); model name from those listings. No OmenCore export for this board yet, so every capability is left conservative until a Guided Fan Verification and an RGB check come back."
+            });
+
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BD5",
+                ModelName = "HP Victus 16-s0xxx (8BD5)",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "Board identity only: listed as a supported board by other open-source HP projects (omen-fan-control README, Linux hp-wmi board table); model name from those listings. No OmenCore export for this board yet, so every capability is left conservative until a Guided Fan Verification and an RGB check come back."
+            });
+
             // GitHub #235 (toesucker47, 2026-10-21): HyperX OMEN 15-ga0xxx, ProductId 8F5C, Core Ultra 7 255H + RTX 5060 Laptop,
             // BIOS F.03. Measured in the export: thermal policy V0 (firmware reports no software fan control), 2 fans, max level 55,
             // WMI fan modes only, RPM estimated from the fan level, keyboard topology FourZoneWithNumpad (0x01) but the WMI

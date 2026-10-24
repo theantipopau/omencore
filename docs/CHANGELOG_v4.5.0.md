@@ -1,7 +1,7 @@
 # OmenCore v4.5.0
 
-**Release Date:** TBD
-**Type:** In development. Follow-up to 4.4.5.
+**Release Date:** 2026-10-24
+**Type:** Field-report and model-database release. Follow-up to 4.4.5.
 **Roadmap:** `docs/ROADMAP_v4.5.0.md`
 
 Nothing below is called confirmed unless a reporter has verified it on real hardware. Items marked
@@ -140,6 +140,8 @@ Everything below runs only in software tests so far. Each line says who can conf
 | Fan write leases (guided run, single-fan test, fan cleaning, calibration, NVIDIA write) | Any HP laptop | Start a Guided Fan Verification and, while it runs, start a single-fan test; the curve should stay suspended until both finish. |
 | Capability card power-limit row | Any Intel board reading 0 W / 0 W | Open Diagnostics and check the row says "Firmware-managed (readback 0 W)". |
 | New board entries (8BC2, 88D1, 8F21, 8E41 two fans, exact 88ED row) | #227, #228, #230, #157, #229 | Run Guided Fan Verification and say what changes on the keyboard when a colour is set. |
+| Performance and Gaming presets ramp the fans (WMI thermal-policy fallback) | 8F5C (#235) | Switch to Performance under load; say whether fans ramp and attach an export. |
+| Identity-only boards (8C4D, 8BB3, 88C8, 8C99, 8BD5) | Anyone on these boards | Attach a diagnostics export and run Guided Fan Verification so the board can be filled in. |
 
 ## Release and CI (no change to the shipped program)
 
