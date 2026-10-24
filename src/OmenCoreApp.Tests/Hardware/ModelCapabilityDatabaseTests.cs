@@ -431,6 +431,22 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void GetCapabilities_8F5C_HyperxOmen15Ga0xxx_HasItsOwnConservativeEntry()
+        {
+            // #235: used to fall to the Unknown Legacy family default. Measured V0, 2 fans, level readback only, colour write unverified.
+            var caps = ModelCapabilityDatabase.GetCapabilities("8F5C");
+
+            caps.ProductId.Should().Be("8F5C");
+            caps.FanZoneCount.Should().Be(2);
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanCurves.Should().BeFalse();
+            caps.SupportsRpmReadback.Should().BeFalse();
+            caps.HasFourZoneRgb.Should().BeFalse();
+            caps.SupportsUndervolt.Should().BeFalse();
+            caps.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
         public void GetCapabilities_8F21_HyperxOmen16Ap1xxx_HasItsOwnConservativeEntry()
         {
             // #230: used to fall to the Unknown OMEN16 family default. Measured V1, 2 fans, level readback only.

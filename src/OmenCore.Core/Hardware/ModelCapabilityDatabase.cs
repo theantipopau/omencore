@@ -487,7 +487,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #228 (2026-10-12) - OMEN 15-en1xxx, ProductId 88D1 (Ryzen 5 5600H, RTX 3060 Laptop, BIOS F.30). Measured: thermal policy V1, software fan control supported, 2 fans, max level 55, level readback works, RPM Estimated, keyboard topology FourZoneWithoutNumpad. Nobody has yet seen the keys change colour. MUX, GPU boost and undervolt are not measured and left off. Previously borrowed the 8787 profile by model name."
+                Notes = "GitHub #228 (2026-10-12) - OMEN 15-en1xxx, ProductId 88D1 (Ryzen 5 5600H, RTX 3060 Laptop, BIOS F.30). Measured: thermal policy V1, software fan control supported, 2 fans, max level 55, level readback works, RPM Estimated, keyboard topology FourZoneWithoutNumpad. 2026-10-24 (4.5.0): Guided Fan Verification 6/6 (82/100, RPM still estimated from level) and the reporter confirms the keyboard colours visibly change, so keyboard RGB is field-confirmed; fans stay unverified. MUX, GPU boost and undervolt are not measured and left off. Previously borrowed the 8787 profile by model name."
             });
 
             // Discord field report (2026-06-12): OMEN Laptop 15-ek0xxx / ProductId 878C
@@ -2313,6 +2313,33 @@ namespace OmenCore.Hardware
             // keyboard topology RgbPerKey (0x03). Not measured: fan RPM (readback null, estimated only), the per-key
             // keyboard path (no Primax HID device found), curves, MUX, undervolt. Kept conservative until a
             // Guided Fan Verification and an RGB check come back from the reporter.
+            // GitHub #235 (toesucker47, 2026-10-21): HyperX OMEN 15-ga0xxx, ProductId 8F5C, Core Ultra 7 255H + RTX 5060 Laptop,
+            // BIOS F.03. Measured in the export: thermal policy V0 (firmware reports no software fan control), 2 fans, max level 55,
+            // WMI fan modes only, RPM estimated from the fan level, keyboard topology FourZoneWithNumpad (0x01) but the WMI
+            // ColorTable write did not verify. The reporter says profile changes do not move the fans and the laptop overheats.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8F5C",
+                ModelName = "HyperX OMEN 15-ga0xxx",
+                ModelNamePattern = "15-ga0",
+                RequiredCpuVendor = CpuUndervoltProviderFactory.CpuVendor.Intel,
+                ModelYear = 2025,
+                Family = OmenModelFamily.OMEN2024Plus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                SupportsGpuPowerBoost = false,
+                HasMuxSwitch = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                UserVerified = false,
+                Notes = "GitHub #235 (2026-10-21) - HyperX OMEN 15-ga0xxx, ProductId 8F5C (Core Ultra 7 255H, RTX 5060 Laptop, BIOS F.03). Measured: thermal policy V0, 2 fans, max level 55, RPM estimated from level only, keyboard topology FourZoneWithNumpad but the WMI colour write did not read back, so keyboard colour is not offered. Guided Fan Verification 6/6 (83/100) is level-based only; the reporter says profile presets do not change fan behaviour and the laptop overheats, so fan control here is unproven. Previously the family fallback (Unknown Legacy, Low confidence)."
+            });
+
             // GitHub #230 (Projectorigins, 2026-10-14): HyperX OMEN 16-ap1xxx, Ryzen 7 8745HX + RTX 5060 Laptop + Radeon 610M,
             // BIOS F.04. Measured in the export: thermal policy V1, 2 fans, max level 55, fan level readback works, RPM readback
             // null (estimates only), keyboard topology FourZoneWithNumpad (0x01) with a WMI ColorTable write read back as verified.

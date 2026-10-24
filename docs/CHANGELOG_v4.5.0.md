@@ -159,6 +159,10 @@ Everything below runs only in software tests so far. Each line says who can conf
 
 - **AMD power limits are now saved when the limits are accepted even if the Tctl write is refused.** On the Ryzen 7 7840HS the SMU accepts the four power limits but refuses the Tctl temperature, so nothing was ever saved and the sliders went back to 25 W / 95 C after every restart (#226). IMPLEMENTED, PENDING CONFIRMATION: whether the limits are effective on that CPU is still unverified (its power table is not identified).
 
+- Board `88D1` (OMEN 15-en1xxx): the reporter confirmed on 4.5.0 that the keyboard colours visibly change, so keyboard RGB is now field-confirmed (#228). Fans stay unverified: RPM is still estimated from the fan level.
+- Board `8F5C` (HyperX OMEN 15-ga0xxx) now has its own conservative entry: thermal policy V0, 2 fans, max level 55, WMI fan modes only. Curves, keyboard colour (the colour write did not read back), undervolt and GPU boost stay off. The reporter says profile presets do not change fan behaviour; this is unresolved (#235).
+- The main window now uses square corners while maximized, so the rounded frame no longer leaves desktop showing at the screen corners (#232). IMPLEMENTED, PENDING CONFIRMATION.
+
 ## Contributors
 
 - **bobshmo**: the V0/V1+ performance-mode finding (standalone Prophecy Power Unlocker 1.2.0).

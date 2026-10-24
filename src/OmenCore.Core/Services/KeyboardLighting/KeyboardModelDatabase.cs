@@ -164,8 +164,8 @@ namespace OmenCore.Services.KeyboardLighting
                 Notes = "GitHub #230: firmware topology FourZoneWithNumpad (0x01); WMI ColorTable write read back as verified, visible colour change not yet reported."
             });
 
-            // GitHub #228: OMEN 15-en1xxx, firmware topology FourZoneWithoutNumpad. Same colour-table path as 8787; the WMI write ran
-            // without error but no one has reported seeing the keys change.
+            // GitHub #228: OMEN 15-en1xxx, firmware topology FourZoneWithoutNumpad. Same colour-table path as 8787; the reporter
+            // confirmed on 4.5.0 (2026-10-24) that the keys visibly change colour and the WMI write read back as verified.
             AddModel(new KeyboardModelConfig
             {
                 ProductId = "88D1",
@@ -175,8 +175,8 @@ namespace OmenCore.Services.KeyboardLighting
                 PreferredMethod = KeyboardMethod.ColorTable2020,
                 FallbackMethods = Array.Empty<KeyboardMethod>(),
                 ModelYear = 2021,
-                UserVerified = false,
-                Notes = "GitHub #228: firmware topology FourZoneWithoutNumpad (0x02); WMI ColorTable initialised and wrote without error, visible colour change not yet reported."
+                UserVerified = true,
+                Notes = "GitHub #228: firmware topology FourZoneWithoutNumpad (0x02); WMI ColorTable write read back as verified and the reporter confirmed the keyboard colours visibly changed (4.5.0, 2026-10-24)."
             });
 
             // GitHub #229 (88ED, Victus 16-e0xxx): firmware topology Normal (0x00) = backlight only. Exact row so it stops

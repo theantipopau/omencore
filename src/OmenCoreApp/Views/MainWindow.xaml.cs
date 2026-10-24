@@ -516,7 +516,12 @@ namespace OmenCore.Views
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             UpdateMaximizeButtonGlyph();
-            if (WindowState == WindowState.Maximized)
+            // Square corners when maximized, otherwise the rounded frame shows desktop at the screen corners (#232).
+            var maximized = WindowState == WindowState.Maximized;
+            RootBorder.CornerRadius = new CornerRadius(maximized ? 0 : 12);
+            TitleBarBorder.CornerRadius = new CornerRadius(maximized ? 0 : 12, maximized ? 0 : 12, 0, 0);
+            SidebarBorder.CornerRadius = new CornerRadius(0, 0, 0, maximized ? 0 : 12);
+            if (maximized)
             {
                 UpdateMaximizedBounds();
             }

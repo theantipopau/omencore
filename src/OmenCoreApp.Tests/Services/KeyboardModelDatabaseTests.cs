@@ -36,7 +36,7 @@ namespace OmenCoreApp.Tests.Services
             d1.Should().NotBeNull();
             d1!.ProductId.Should().Be("88D1");
             d1.PreferredMethod.Should().Be(KeyboardMethod.ColorTable2020);
-            d1.UserVerified.Should().BeFalse();
+            d1.UserVerified.Should().BeTrue(); // reporter saw the colours change (#228)
 
             var ed = KeyboardModelDatabase.GetConfig("88ED");
             ed.Should().NotBeNull();

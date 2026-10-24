@@ -38,7 +38,7 @@
         cost on the single most common interaction (resize/move), for a shadow subtle
         enough most users won't consciously notice its absence.
     -->
-    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12"
+    <Border x:Name="RootBorder" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12"
             Background="{StaticResource BackgroundDarkBrush}">
         <Grid>
                                     <Grid.RowDefinitions>
@@ -48,7 +48,7 @@
                                     </Grid.RowDefinitions>
             
             <!-- Custom Title Bar -->
-            <Border Grid.Row="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12,12,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Border x:Name="TitleBarBorder" Grid.Row="0" Background="{StaticResource SurfaceDarkBrush}" CornerRadius="12,12,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid Height="44">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0">
                         <!-- App Title -->
@@ -267,7 +267,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Sidebar -->
-                <Border Grid.Column="0" CornerRadius="0,0,0,12">
+                <Border x:Name="SidebarBorder" Grid.Column="0" CornerRadius="0,0,0,12">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Color="#0D1117" Offset="0"/>
