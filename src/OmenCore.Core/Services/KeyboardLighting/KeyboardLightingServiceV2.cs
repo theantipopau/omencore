@@ -154,6 +154,7 @@ namespace OmenCore.Services.KeyboardLighting
             
             if (_modelConfig != null)
             {
+                if (_wmiBios != null) _wmiBios.OneZoneColourAfterCount = _modelConfig.OneZoneColourAfterCount;
                 _logging.Info($"[KeyboardLightingV2] Detected model: {_modelConfig.ModelName} " +
                     $"(ProductId: {_modelConfig.ProductId}, Type: {_modelConfig.KeyboardType})");
                 

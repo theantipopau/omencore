@@ -30,6 +30,9 @@ namespace OmenCore.Services.KeyboardLighting
         /// <summary>EC register for brightness control.</summary>
         public byte? EcBrightnessRegister { get; set; }
         
+        /// <summary>One-zone boards whose probe showed the colour belongs at offsets 1 to 3 (8BD4, #212). Default keeps the four-zone payload.</summary>
+        public bool OneZoneColourAfterCount { get; set; }
+
         /// <summary>Whether backlight toggle is required before color changes.</summary>
         public bool RequiresBacklightToggle { get; set; }
         
@@ -783,6 +786,7 @@ namespace OmenCore.Services.KeyboardLighting
                 ProductId = "8BD4",
                 ModelName = "HP Victus 16-s0xxx AMD",
                 ModelNamePattern = "16-s0",
+                OneZoneColourAfterCount = true,
                 KeyboardType = KeyboardType.FourZone,
                 PreferredMethod = KeyboardMethod.ColorTable2020,
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023 },

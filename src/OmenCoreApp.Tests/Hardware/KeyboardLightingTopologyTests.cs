@@ -1,6 +1,7 @@
 using System;
 using FluentAssertions;
 using OmenCore.Hardware;
+using OmenCore.Services.KeyboardLighting;
 using Xunit;
 
 namespace OmenCoreApp.Tests.Hardware
@@ -108,7 +109,7 @@ namespace OmenCoreApp.Tests.Hardware
         {
             // GitHub #212, 8BD4 probe step 2: count 1 with the colour at offsets 1 to 3 lit the keyboard; the same
             // colour at offset 25 did not. Slots 1 to 3 of the four-slot input are not part of a one-zone write.
-            var t = HpWmiBios.BuildColorTable(FourSlotRed, 1);
+            var t = HpWmiBios.BuildColorTable(FourSlotRed, 1, oneZoneColourAfterCount: true);
 
             t.Should().HaveCount(128);
             t[0].Should().Be(1);
@@ -117,9 +118,27 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void BuildColorTable_OneZone_WithoutTheBoardFlag_KeepsTheOffset25Payload()
+        {
+            // GitHub #130, 8E10: answers one-zone but its backlight died on 4.5.0 with the offset-1 layout.
+            var t = HpWmiBios.BuildColorTable(FourSlotRed, 1, oneZoneColourAfterCount: false);
+
+            t[0].Should().Be(1);
+            t.AsSpan(1, 24).ToArray().Should().OnlyContain(b => b == 0);
+            t.AsSpan(25, 12).ToArray().Should().Equal(FourSlotRed);
+        }
+
+        [Fact]
+        public void KeyboardModelDatabase_OnlyThe8BD4RowUsesTheOneZoneLayout()
+        {
+            KeyboardModelDatabase.GetConfig("8BD4")!.OneZoneColourAfterCount.Should().BeTrue();
+            KeyboardModelDatabase.GetConfig("8E10")?.OneZoneColourAfterCount.Should().NotBe(true);
+        }
+
+        [Fact]
         public void BuildColorTable_OneZone_AcceptsAThreeByteColour()
         {
-            var t = HpWmiBios.BuildColorTable(new byte[] { 1, 2, 3 }, 1);
+            var t = HpWmiBios.BuildColorTable(new byte[] { 1, 2, 3 }, 1, oneZoneColourAfterCount: true);
 
             t.AsSpan(0, 4).ToArray().Should().Equal(1, 1, 2, 3);
         }

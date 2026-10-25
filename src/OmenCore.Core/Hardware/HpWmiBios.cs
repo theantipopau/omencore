@@ -2046,12 +2046,20 @@ namespace OmenCore.Hardware
         private byte? _resolvedZoneCount;
 
         /// <summary>
+        /// Set from the board's keyboard entry. True only where a probe showed the one-zone layout (colour at offsets 1 to 3)
+        /// is the one that lights the keyboard (8BD4, #212). Boards that answer one-zone but did not need it (8E10, #130:
+        /// backlight died on 4.5.0) keep the four-zone payload they have always been sent.
+        /// </summary>
+        public bool OneZoneColourAfterCount { get; set; }
+
+        /// <summary>
         /// The zone count to declare when the caller does not say: the board's own topology, asked once. Callers that
         /// built a four-slot payload without a count (legacy service, brightness scaling, restore) used to send 4 on every
         /// board, which a single-zone keyboard rejects (GitHub #212).
         /// </summary>
         private byte ResolveZoneCount()
         {
+            if (!OneZoneColourAfterCount) return 4; // every board but the one with evidence keeps the 4.4.5 payload (#130)
             if (_resolvedZoneCount.HasValue) return _resolvedZoneCount.Value;
             var topology = GetKeyboardLightingType();
             var zones = MapLightingTypeToZoneCount(topology);
@@ -2066,11 +2074,11 @@ namespace OmenCore.Hardware
         /// reports a single-zone write back at offset 25, so verification keeps reading there. *Implemented, pending retest by
         /// the 8BD4 owner.* Input is the usual 12-byte, four-slot array; a one-zone payload uses its first three bytes.
         /// </summary>
-        internal static byte[] BuildColorTable(byte[] zoneColors, byte zoneCount)
+        internal static byte[] BuildColorTable(byte[] zoneColors, byte zoneCount, bool oneZoneColourAfterCount = true)
         {
             var data = new byte[128];
             data[0] = zoneCount;
-            if (zoneCount == 1)
+            if (zoneCount == 1 && oneZoneColourAfterCount)
                 Array.Copy(zoneColors, 0, data, 1, Math.Min(zoneColors.Length, 3));
             else
                 Array.Copy(zoneColors, 0, data, 1 + ColorTablePad, Math.Min(zoneColors.Length, 12));
@@ -2124,12 +2132,12 @@ namespace OmenCore.Hardware
                 }
                 
                 var zones = zoneCount ?? ResolveZoneCount();
-                var data = BuildColorTable(zoneColors, zones);
-                int colorOffset = zones == 1 ? 1 : 1 + ColorTablePad;
+                var data = BuildColorTable(zoneColors, zones, OneZoneColourAfterCount);
+                int colorOffset = zones == 1 && OneZoneColourAfterCount ? 1 : 1 + ColorTablePad;
 
                 _logging?.Info($"SetColorTable: ZoneCount={data[0]}, Colors at offset {colorOffset}: " +
                     $"Z0=#{data[colorOffset]:X2}{data[colorOffset+1]:X2}{data[colorOffset+2]:X2}" +
-                    (zones == 1 ? "" :
+                    (zones == 1 && OneZoneColourAfterCount ? "" :
                     $", Z1=#{data[colorOffset+3]:X2}{data[colorOffset+4]:X2}{data[colorOffset+5]:X2}, " +
                     $"Z2=#{data[colorOffset+6]:X2}{data[colorOffset+7]:X2}{data[colorOffset+8]:X2}, " +
                     $"Z3=#{data[colorOffset+9]:X2}{data[colorOffset+10]:X2}{data[colorOffset+11]:X2}"));
@@ -2184,6 +2192,11 @@ namespace OmenCore.Hardware
                 _logging?.Warn($"Invalid zone {zone}, must be 0-3");
                 return false;
             }
+
+            // One-zone boards that need the offset-1 layout (8BD4, #212): the four-slot read-modify-write below declares
+            // four zones and left the keyboard dark on Quick Colors. Zone 0 is the keyboard; the other zones are no-ops.
+            if (OneZoneColourAfterCount && ResolveZoneCount() == 1)
+                return zone != 0 || SetColorTable(new[] { r, g, b }, ensureBacklightOn: false, zoneCount: 1);
 
             try
             {
