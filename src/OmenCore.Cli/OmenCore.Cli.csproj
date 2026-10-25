@@ -10,9 +10,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <!-- Single version source, same pattern as OmenCore.Linux.csproj -->
-    <Version>4.5.0</Version>
-    <AssemblyVersion>4.5.0.0</AssemblyVersion>
-    <FileVersion>4.5.0.0</FileVersion>
+    <Version>4.5.1</Version>
+    <AssemblyVersion>4.5.1.0</AssemblyVersion>
+    <FileVersion>4.5.1.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- Self-contained single-file, matching OmenCoreApp.csproj's deployment shape -->

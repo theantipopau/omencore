@@ -2094,7 +2094,7 @@ namespace OmenCore.Hardware
                 return true;
             }
 
-            byte expected = (byte)expectedMode;
+            byte expected = (byte)HpWmiBios.ForThermalPolicy(expectedMode, _wmiBios.ThermalPolicy);
             byte? lastRead = null;
 
             for (int attempt = 1; attempt <= FanModeReadbackAttempts; attempt++)

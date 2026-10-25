@@ -549,7 +549,7 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false,
                 AllowDecoupledWmiThermalPolicyFallback = true,
                 UserVerified = false,
-                Notes = "GitHub #218 - OMEN Laptop 15-ek0xxx, ProductId 878A, i7-10750H + RTX 2060, BIOS F.22, SKU 12C19UA. WMI V1, two fans, 55 levels; fan-mode writes accepted and fan level readback works (mode readback is non-strict), RPM readback null. Curves, MUX, GPU boost and undervolt unexercised. Flags otherwise mirror sibling 878C."
+                Notes = "GitHub #218 - OMEN Laptop 15-ek0xxx, ProductId 878A, i7-10750H + RTX 2060, BIOS F.22, SKU 12C19UA. WMI V1, two fans, 55 levels; fan-mode writes accepted and fan level readback works (mode readback is non-strict), RPM readback null. Curves, MUX, GPU boost and undervolt unexercised. Flags otherwise mirror sibling 878C. 4.5.0 export (#218, 2026-10-24): SetFanLevel is refused by this firmware (return code 46 at levels 16 and 33) while SetFanMax and fan-mode writes succeed, so direct per-level fan control is not available here and Guided Fan Verification cannot pass; the reporter says the keyboard has a single fixed bright-red backlight (no colour zones), consistent with the topology probe answering Normal. Both recorded as evidence; flags unchanged."
             });
 
             AddModel(new ModelCapabilities

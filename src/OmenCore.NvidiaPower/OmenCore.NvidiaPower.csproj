@@ -6,7 +6,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>OmenCore.NvidiaPower</AssemblyName>
     <RootNamespace>NvpwrControlBlackwell</RootNamespace>
-    <Version>4.5.0</Version>
+    <Version>4.5.1</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

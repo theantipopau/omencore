@@ -152,5 +152,16 @@ namespace OmenCoreApp.Tests.Hardware
             design.RawData.Should().HaveCount(12);
             design.RawData.Should().Equal(0x4A, 0x01, 0x3A, 0x01, 0x03, 0x00, 0x01, 0x07, 0x3C, 0x00, 0x03, 0x00);
         }
+
+        [Theory]
+        [InlineData(HpWmiBios.ThermalPolicyVersion.V0, HpWmiBios.FanMode.Default, HpWmiBios.FanMode.LegacyDefault)]
+        [InlineData(HpWmiBios.ThermalPolicyVersion.V0, HpWmiBios.FanMode.Performance, HpWmiBios.FanMode.LegacyPerformance)]
+        [InlineData(HpWmiBios.ThermalPolicyVersion.V0, HpWmiBios.FanMode.Cool, HpWmiBios.FanMode.LegacyCool)]
+        [InlineData(HpWmiBios.ThermalPolicyVersion.V1, HpWmiBios.FanMode.Performance, HpWmiBios.FanMode.Performance)]
+        [InlineData(HpWmiBios.ThermalPolicyVersion.V0, HpWmiBios.FanMode.LegacyPerformance, HpWmiBios.FanMode.LegacyPerformance)]
+        public void ForThermalPolicy_SendsLegacyBytesOnlyToV0Firmware(HpWmiBios.ThermalPolicyVersion policy, HpWmiBios.FanMode requested, HpWmiBios.FanMode expected)
+        {
+            HpWmiBios.ForThermalPolicy(requested, policy).Should().Be(expected);
+        }
     }
 }

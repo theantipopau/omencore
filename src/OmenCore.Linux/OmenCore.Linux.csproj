@@ -14,9 +14,9 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     
     <!-- Single version source — consumed by Program.cs via Assembly.GetName().Version -->
-    <Version>4.5.0</Version>
-    <AssemblyVersion>4.5.0.0</AssemblyVersion>
-    <FileVersion>4.5.0.0</FileVersion>
+    <Version>4.5.1</Version>
+    <AssemblyVersion>4.5.1.0</AssemblyVersion>
+    <FileVersion>4.5.1.0</FileVersion>
 
     <!-- Metadata -->
     <Authors>OmenCore Team</Authors>

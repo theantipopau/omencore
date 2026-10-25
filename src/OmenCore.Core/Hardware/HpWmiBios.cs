@@ -1019,8 +1019,19 @@ namespace OmenCore.Hardware
         /// Set fan performance mode via WMI BIOS.
         /// Uses OmenMon's exact command format: Cmd.Default (0x20008), CommandType 0x1A, data {0xFF, mode, 0, 0}
         /// </summary>
+        /// <summary>V0 firmware only understands the legacy mode bytes (0x00-0x02); V1+ uses 0x30/0x31/0x50.</summary>
+        public static FanMode ForThermalPolicy(FanMode mode, ThermalPolicyVersion policy) =>
+            policy >= ThermalPolicyVersion.V1 ? mode : mode switch
+            {
+                FanMode.Default => FanMode.LegacyDefault,
+                FanMode.Performance => FanMode.LegacyPerformance,
+                FanMode.Cool => FanMode.LegacyCool,
+                _ => mode
+            };
+
         public bool SetFanMode(FanMode mode)
         {
+            mode = ForThermalPolicy(mode, ThermalPolicy);
             if (!_isAvailable)
             {
                 _logging?.Warn("Cannot set fan mode: WMI BIOS not available");
