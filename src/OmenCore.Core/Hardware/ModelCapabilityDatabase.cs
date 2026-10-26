@@ -2086,7 +2086,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #207 - Victus 16-d0xxx (88F8), Intel + RTX 3060, BIOS F.32, 4.4.0 diagnostics export. WMI fan level writes verified 30%/60% by Guided Fan Verification (level evidence, RPM estimated - no tachometer readback). Keyboard topology Normal: backlight only, no RGB. Fan curves, GPU boost, MUX and undervolt not exercised - left off pending evidence."
+                Notes = "GitHub #207 - Victus 16-d0xxx (88F8), Intel + RTX 3060, BIOS F.32, 4.4.0 diagnostics export. WMI fan level writes verified 30%/60% by Guided Fan Verification (level evidence, RPM estimated - no tachometer readback). Keyboard topology Normal: backlight only, no RGB. Fan curves, GPU boost, MUX and undervolt not exercised - left off pending evidence. 4.5.0 export (#207, 2026-10-26): Guided Fan Verification 6/6 (75/100), level evidence at 30%/60% on both fans and firmware ceiling at 100% (CPU 4300, GPU 4600 RPM estimated); no audible or tachometer confirmation yet, so UserVerified and fan curves stay off. Thermal policy V0, so Default/Performance/Cool writes use the legacy bytes from 4.5.1 (4.5.0 sent 0x30)."
             });
 
             // Victus 16 (2023/2024) - d1xxx series
