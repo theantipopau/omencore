@@ -2305,7 +2305,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #223 (2026-10-06) - HyperX OMEN 15-gb0xxx, Ryzen 7 260 / RTX 5060, BIOS F.05. Thermal policy V0, 2 fans and a four-zone-with-numpad keyboard topology read live; no colour write, RPM readback or SMU power-table evidence yet, so curves, undervolt and AMD power limits stay off until a Guided Fan Verification and an RGB check come back."
+                Notes = "GitHub #223 (2026-10-06) - HyperX OMEN 15-gb0xxx, Ryzen 7 260 / RTX 5060, BIOS F.05. Thermal policy V0, 2 fans and a four-zone-with-numpad keyboard topology read live; no colour write, RPM readback or SMU power-table evidence yet, so curves, undervolt and AMD power limits stay off until a Guided Fan Verification and an RGB check come back. Linux report (#238, 2026-10-26, Fedora 44, kernel 7.2.11, reporter names it OMEN 16 gb-0000, Ryzen 7 260 / RTX 5060): the kernel hp_wmi driver fails its thermal-profile setup with -22 because the firmware's WMBA method reads past its own 0x90-byte buffer (AE_AML_BUFFER_LIMIT); the dGPU stays near 35 W. A firmware/kernel-driver fault outside OmenCore; no flags changed."
             });
 
             // GitHub #224 (2026-10-08): HyperX OMEN MAX 16-ak1xxx, Ryzen AI 7 450 / RTX 5070 Ti, BIOS F.03.

@@ -26,6 +26,8 @@
 
 - **#207 (`88F8`):** 6/6 Guided Fan Verification on 4.5.0 (level evidence). Recorded in the model notes; flags unchanged until an
   audible confirmation. The board is thermal policy V0, so the fan-mode fix above applies to it too.
+- **#238 (`8EEC`, Linux):** the kernel `hp_wmi` driver fails thermal-profile setup (-22) because the firmware's `WMBA` method
+  overruns its buffer. A firmware/kernel fault; recorded in the model notes, no OmenCore change possible.
 - **#218 (`878A`):** the 4.5.0 export shows the firmware refusing direct fan-level writes (return code 46) while Max
   and fan-mode writes succeed, so Guided Fan Verification cannot pass here. Recorded in the model notes. The
   keyboard is a single fixed red backlight per the reporter. Flags unchanged.
