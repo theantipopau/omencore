@@ -462,6 +462,33 @@ namespace OmenCore.Hardware
                 Notes = "GitHub #120 - HP OMEN Laptop 15-en0038ur, ProductId 8787. Initial support from diagnostics; fan RPM readback remains pending verification."
             });
 
+            // GitHub #239 (2026-10-28): OMEN 15-en0002AX, ProductId 8786, BIOS F.16, thermal policy V0, 4.5.0 export. It resolved
+            // to the 8787 sibling by name pattern and inherited curves, MUX and GPU power boost that nothing here shows.
+            // Measured: FanSetLevel returns code 46 and FanGetLevel code 45 on every call (the firmware has no direct level
+            // control), SetFanMax is accepted but unverified. 4.5.0 sent the V1 mode bytes to this V0 firmware; 4.5.1 sends
+            // the legacy ones, which is untested here.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8786",
+                ModelName = "OMEN 15-en0002AX (2020) AMD",
+                ModelYear = 2020,
+                Family = OmenModelFamily.Legacy,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                SupportsPerformanceModes = true,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                HasFourZoneRgb = true,
+                SupportsUndervolt = false,
+                UserVerified = false,
+                Notes = "GitHub #239 - OMEN 15-en0002AX, ProductId 8786, BIOS F.16, thermal policy V0, 4.5.0 export. Direct fan-level writes and reads are refused by the firmware (return codes 46 and 45), SetFanMax is accepted but unverified, so curves are off; Default/Performance/Cool use the legacy mode bytes from 4.5.1 (4.5.0 sent the V1 bytes), untested on this board. MUX and GPU boost are not claimed (the 8787 sibling's flags were being inherited)."
+            });
+
             // GitHub #228 (korokhidup, 2026-10-12): OMEN 15-en1xxx, ProductId 88D1, Ryzen 5 5600H + RTX 3060 Laptop, BIOS F.30.
             // Until now it resolved by model name to the 8787 entry at Low confidence. Measured in the export: thermal policy V1,
             // software fan control supported, 2 fans, max level 55, level readback works, RPM is Estimated, keyboard topology
@@ -927,8 +954,8 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 SupportsUndervolt = false,
                 AllowDecoupledWmiThermalPolicyFallback = true,
-                UserVerified = false,
-                Notes = "Community reports: OMEN Gaming Laptop 16-ap0xxx / ProductId 8E35, including Ryzen AI 9 365 + RTX 5060 and Ryzen 9 8940HX + RTX 5060 (system SKU BP1Q1UA#ABA; system product identifying number 1H85430PWY). Same WMI V1 fan profile as 8D24; EC direct remains disabled until validated. GitHub #195 ran a controlled Quiet-vs-Performance test confirming Direct EC writes are disabled AND the WMI thermal-policy fallback was not attempted (AllowDecoupledWmiThermalPolicyFallback was off), matching a 0.0 W CPU package power difference between modes - Performance mode was doing nothing on this board. Enabled here so Performance mode has a path to actually change anything; narrowly conditioned in PerformanceModeService on EC limits being unavailable, so it can't override a working EC path. Field follow-up on 4.4.0 (#195, 2026-09-25): five alternating Balanced/Performance segments during gameplay with LibreHardwareMonitor as an independent reader - Balanced package power plateaued at ~66-72 W max, Performance peaked at 78-80 W with ~+3.5 W average and higher temps, versus 0.0 W difference before this flag. Supports a real effect; exact firmware limit values still unread (RyzenAdj could not initialize), so UserVerified stays false. Follow-up 2026-09-27 (#195, ZenMaster PM-table readback, 187/187 samples over ~2 h of gaming): Balanced held STAPM/fast/slow at 75/75/65 W in every sample; Performance is the only mode that ever reached 80/80/80 W, alternating with 75/75/65 every ~20 s to a few minutes with no OmenCore writes in between and no clear temperature link, i.e. a firmware-side governor. Direct evidence the fallback unlocks the higher limit set. Guided Fan Verification + RGB 2026-09-27 (#195): level writes verified at 30%/60% on both fans with audible response; four-zone ColorTable red/green/blue/yellow confirmed by eye and restored. 100% plateaued at level 48/55 under SetFanMax on a build predating the direct-level fallback - the one item left before UserVerified."
+                UserVerified = true,
+                Notes = "Community reports: OMEN Gaming Laptop 16-ap0xxx / ProductId 8E35, including Ryzen AI 9 365 + RTX 5060 and Ryzen 9 8940HX + RTX 5060 (system SKU BP1Q1UA#ABA; system product identifying number 1H85430PWY). Same WMI V1 fan profile as 8D24; EC direct remains disabled until validated. GitHub #195 ran a controlled Quiet-vs-Performance test confirming Direct EC writes are disabled AND the WMI thermal-policy fallback was not attempted (AllowDecoupledWmiThermalPolicyFallback was off), matching a 0.0 W CPU package power difference between modes - Performance mode was doing nothing on this board. Enabled here so Performance mode has a path to actually change anything; narrowly conditioned in PerformanceModeService on EC limits being unavailable, so it can't override a working EC path. Field follow-up on 4.4.0 (#195, 2026-09-25): five alternating Balanced/Performance segments during gameplay with LibreHardwareMonitor as an independent reader - Balanced package power plateaued at ~66-72 W max, Performance peaked at 78-80 W with ~+3.5 W average and higher temps, versus 0.0 W difference before this flag. Supports a real effect; exact firmware limit values still unread (RyzenAdj could not initialize), so UserVerified stays false. Follow-up 2026-09-27 (#195, ZenMaster PM-table readback, 187/187 samples over ~2 h of gaming): Balanced held STAPM/fast/slow at 75/75/65 W in every sample; Performance is the only mode that ever reached 80/80/80 W, alternating with 75/75/65 every ~20 s to a few minutes with no OmenCore writes in between and no clear temperature link, i.e. a firmware-side governor. Direct evidence the fallback unlocks the higher limit set. Guided Fan Verification + RGB 2026-09-27 (#195): level writes verified at 30%/60% on both fans with audible response; four-zone ColorTable red/green/blue/yellow confirmed by eye and restored. 100% plateaued at level 48/55 under SetFanMax on a build predating the direct-level fallback - the one item left before UserVerified. 4.5.0 re-run (#237, 2026-10-29, second board): Guided Fan Verification 6/6 (77/100) with the 100% steps treated as the firmware ceiling (CPU 48/55, GPU 51/55) and the reporter hearing every step including the GPU fan at 60%, which closes that item; UserVerified is now true."
             });
 
             // OMEN 16 (2025) - ap0xxx AMD, lower CPU/GPU tier of the same board family.
@@ -2085,8 +2112,33 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false,
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
+                UserVerified = true,
+                Notes = "GitHub #207 - Victus 16-d0xxx (88F8), Intel + RTX 3060, BIOS F.32, 4.4.0 diagnostics export. WMI fan level writes verified 30%/60% by Guided Fan Verification (level evidence, RPM estimated - no tachometer readback). Keyboard topology Normal: backlight only, no RGB. Fan curves, GPU boost, MUX and undervolt not exercised - left off pending evidence. 4.5.0 export (#207, 2026-10-26): Guided Fan Verification 6/6 (75/100), level evidence at 30%/60% on both fans and firmware ceiling at 100% (CPU 4300, GPU 4600 RPM estimated); no audible or tachometer confirmation yet, so UserVerified and fan curves stay off. Thermal policy V0, so Default/Performance/Cool writes use the legacy bytes from 4.5.1 (4.5.0 sent 0x30). Reporter then confirmed the fans are clearly audible at each of the 30%/60%/100% steps (#207, 2026-10-28), so fan control is field-confirmed and UserVerified is true; curves, GPU boost, MUX and undervolt stay off."
+            });
+
+            // GitHub #241 (2026-10-28): Victus 15-fa1xxx, exact ProductId 8BC8 (SKU 7Z8C4EA#ABV), i7-13700H + RTX 3050 6GB,
+            // BIOS F.20, 4.5.0 export. Measured: thermal policy V0, firmware fan count 2 (the family entry says 1), max level 55,
+            // Guided Fan Verification 6/6 (80/100, level evidence, RPM estimated), keyboard topology Normal (single-colour backlight).
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8BC8",
+                ModelName = "HP Victus 15-fa1xxx (8BC8)",
+                ModelYear = 2023,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = false,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #207 - Victus 16-d0xxx (88F8), Intel + RTX 3060, BIOS F.32, 4.4.0 diagnostics export. WMI fan level writes verified 30%/60% by Guided Fan Verification (level evidence, RPM estimated - no tachometer readback). Keyboard topology Normal: backlight only, no RGB. Fan curves, GPU boost, MUX and undervolt not exercised - left off pending evidence. 4.5.0 export (#207, 2026-10-26): Guided Fan Verification 6/6 (75/100), level evidence at 30%/60% on both fans and firmware ceiling at 100% (CPU 4300, GPU 4600 RPM estimated); no audible or tachometer confirmation yet, so UserVerified and fan curves stay off. Thermal policy V0, so Default/Performance/Cool writes use the legacy bytes from 4.5.1 (4.5.0 sent 0x30)."
+                Notes = "GitHub #241 - Victus 15-fa1xxx, ProductId 8BC8, i7-13700H + RTX 3050 6GB, BIOS F.20, 4.5.0 export. Thermal policy V0, two fans read from firmware (the family entry says one), max level 55, Guided Fan Verification 6/6 (80/100) on level evidence with RPM estimated, keyboard topology Normal so backlight only. No audible confirmation yet, so curves, GPU boost and undervolt stay off and UserVerified is false."
             });
 
             // Victus 16 (2023/2024) - d1xxx series
@@ -2305,7 +2357,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = true,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #223 (2026-10-06) - HyperX OMEN 15-gb0xxx, Ryzen 7 260 / RTX 5060, BIOS F.05. Thermal policy V0, 2 fans and a four-zone-with-numpad keyboard topology read live; no colour write, RPM readback or SMU power-table evidence yet, so curves, undervolt and AMD power limits stay off until a Guided Fan Verification and an RGB check come back. Linux report (#238, 2026-10-26, Fedora 44, kernel 7.2.11, reporter names it OMEN 16 gb-0000, Ryzen 7 260 / RTX 5060): the kernel hp_wmi driver fails its thermal-profile setup with -22 because the firmware's WMBA method reads past its own 0x90-byte buffer (AE_AML_BUFFER_LIMIT); the dGPU stays near 35 W. A firmware/kernel-driver fault outside OmenCore; no flags changed."
+                Notes = "GitHub #223 (2026-10-06) - HyperX OMEN 15-gb0xxx, Ryzen 7 260 / RTX 5060, BIOS F.05. Thermal policy V0, 2 fans and a four-zone-with-numpad keyboard topology read live; no colour write, RPM readback or SMU power-table evidence yet, so curves, undervolt and AMD power limits stay off until a Guided Fan Verification and an RGB check come back. Linux report (#238, 2026-10-26, Fedora 44, kernel 7.2.11, reporter names it OMEN 16 gb-0000, Ryzen 7 260 / RTX 5060): the kernel hp_wmi driver fails its thermal-profile setup with -22 because the firmware's WMBA method reads past its own 0x90-byte buffer (AE_AML_BUFFER_LIMIT); the dGPU stays near 35 W. A firmware/kernel-driver fault outside OmenCore; no flags changed. Follow-up (#238): omencore-cli diagnose reports full-control through the hp-wmi hwmon backend, and a manual 60% duty was audibly applied, but RPM and PWM duty still read 0 afterwards (tachometer readback not provided by the driver on this board)."
             });
 
             // GitHub #224 (2026-10-08): HyperX OMEN MAX 16-ak1xxx, Ryzen AI 7 450 / RTX 5070 Ti, BIOS F.03.

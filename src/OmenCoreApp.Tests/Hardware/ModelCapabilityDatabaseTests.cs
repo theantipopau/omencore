@@ -764,6 +764,34 @@ namespace OmenCoreApp.Tests.Hardware
             caps.HasFourZoneRgb.Should().BeFalse("the topology probe reports Normal - backlight only");
             caps.HasKeyboardBacklight.Should().BeTrue();
             caps.SupportsGpuPowerBoost.Should().BeFalse();
+            caps.UserVerified.Should().BeTrue("fans heard at every step (#207)");
+        }
+
+        [Fact]
+        public void GetCapabilities_8BC8_VictusFa1xxx_HasItsOwnEntryWithTwoFans()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities("8BC8");
+
+            caps.ProductId.Should().Be("8BC8");
+            caps.FanZoneCount.Should().Be(2, "firmware reports two fans; the 15-fa1xxx family entry says one");
+            caps.MaxFanLevel.Should().Be(55);
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanCurves.Should().BeFalse();
+            caps.HasFourZoneRgb.Should().BeFalse();
+            caps.SupportsGpuPowerBoost.Should().BeFalse();
+            caps.UserVerified.Should().BeFalse();
+        }
+
+        [Fact]
+        public void GetCapabilities_8786_OmenEn0002_DoesNotInheritThe8787SiblingFlags()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities("8786");
+
+            caps.ProductId.Should().Be("8786");
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanCurves.Should().BeFalse("the firmware refuses direct level writes (#239)");
+            caps.HasMuxSwitch.Should().BeFalse();
+            caps.SupportsGpuPowerBoost.Should().BeFalse();
             caps.UserVerified.Should().BeFalse();
         }
 
