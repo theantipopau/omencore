@@ -495,7 +495,8 @@ namespace OmenCore.Services
                     using var process = Process.Start(psi);
                     if (process is null) continue;
 
-                    var text = process.StandardOutput.ReadToEnd();
+                    // Async so the timeout below can fire on a wedged GPU instead of ReadToEnd() blocking first.
+                    var textTask = process.StandardOutput.ReadToEndAsync();
 
                     // A parked or wedged GPU can take 30 s to answer a query that normally costs
                     // milliseconds, so this waits generously rather than reporting "no NVIDIA GPU"
@@ -510,7 +511,7 @@ namespace OmenCore.Services
                         return new PowerLimits(null, null);
                     }
 
-                    var limits = ParsePowerLimits(text);
+                    var limits = ParsePowerLimits(textTask.GetAwaiter().GetResult());
                     if (limits.EnforcedWatts is not null) return limits;
                 }
                 catch (Exception ex)

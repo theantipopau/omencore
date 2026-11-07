@@ -146,7 +146,7 @@ namespace OmenCore.Services
                 using var p = Process.Start(new ProcessStartInfo("sc.exe", args)
                 { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true });
                 if (p == null) return -1;
-                p.StandardOutput.ReadToEnd();
+                _ = p.StandardOutput.ReadToEndAsync(); // drain without blocking the timeout below
                 if (!p.WaitForExit(30000)) { try { p.Kill(); } catch { } return -1; }
                 return p.ExitCode;
             }

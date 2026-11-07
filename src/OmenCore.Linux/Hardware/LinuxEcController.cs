@@ -512,7 +512,9 @@ public class LinuxEcController
                 return null;
             }
 
-            var output = process.StandardOutput.ReadToEnd();
+            // Read asynchronously: a blocking ReadToEnd() would wait for the child to close stdout
+            // and make the 750 ms timeout below meaningless for a hung command.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
             if (!process.WaitForExit(750))
             {
                 try
@@ -526,14 +528,14 @@ public class LinuxEcController
                 return null;
             }
 
-            return process.ExitCode == 0 ? output.Trim() : null;
+            return process.ExitCode == 0 ? outputTask.GetAwaiter().GetResult().Trim() : null;
         }
         catch
         {
             return null;
         }
     }
-    
+
     private bool CanReadFile(string path)
     {
         try
