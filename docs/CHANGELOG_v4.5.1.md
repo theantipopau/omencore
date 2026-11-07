@@ -39,18 +39,17 @@
 
 ## Investigated, Not Fixed
 
-- **#207 (`88F8`):** 6/6 Guided Fan Verification on 4.5.0 (level evidence). Recorded in the model notes; flags unchanged until an
-  audible confirmation. The board is thermal policy V0, so the fan-mode fix above applies to it too.
 - **#238 (`8EEC`, Linux):** the kernel `hp_wmi` driver fails thermal-profile setup (-22) because the firmware's `WMBA` method
-  overruns its buffer. A firmware/kernel fault; recorded in the model notes, no OmenCore change possible.
+  overruns its buffer. A firmware/kernel fault; recorded in the model notes, no OmenCore change possible. The reporter's
+  custom out-of-tree driver may register its fan files where OmenCore does not look; waiting on their sysfs paths.
+- **#243 (`8A4D`, Battery Care):** the firmware refuses the old `0x24` write but implements the standard `0x2B` charge mode.
+  The reporter is preparing a pull request; not in 4.5.1.
 - **#218 (`878A`):** the 4.5.0 export shows the firmware refusing direct fan-level writes (return code 46) while Max
   and fan-mode writes succeed, so Guided Fan Verification cannot pass here. Recorded in the model notes. The
   keyboard is a single fixed red backlight per the reporter. Flags unchanged.
 - **#236 (`8DD0`, NVIDIA Power Unlock):** Apply CURRENT is "Not ready" because only one NVIDIA driver (617.14) is a reviewed
   exact match; the reporter's 621.01 is not, and no validation step is offered in the app yet. NVAPI also reports no
   writable power-policy entries on this GPU, so a trusted driver may still not be enough. No code change.
-- **#237 (`8E35`):** Guided Fan Verification 5/6; the GPU fan stayed at level 16 when asked for 33 at 60% (CPU fan honoured
-  33). Not reproduced elsewhere on this board (#195 passed 30/60%); asked for a re-run.
 
 ## Needs field confirmation
 
