@@ -33,6 +33,21 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void Load_KeepsACopyOfAnUnreadableConfig_BeforeDefaultsOverwriteIt()
+        {
+            Directory.CreateDirectory(_tempDir);
+            var path = Path.Combine(_tempDir, "config.json");
+            File.WriteAllText(path, "{ not json");
+
+            var service = new ConfigurationService();
+            service.Save(service.Config);
+
+            var backups = Directory.GetFiles(_tempDir, "config.json.corrupt-*");
+            backups.Should().ContainSingle();
+            File.ReadAllText(backups[0]).Should().Be("{ not json");
+        }
+
+        [Fact]
         public void Load_ReturnsSameConfigReference_AcrossMultipleCalls()
         {
             var service = new ConfigurationService();

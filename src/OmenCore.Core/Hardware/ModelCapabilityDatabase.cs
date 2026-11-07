@@ -2137,8 +2137,8 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false,
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
-                UserVerified = false,
-                Notes = "GitHub #241 - Victus 15-fa1xxx, ProductId 8BC8, i7-13700H + RTX 3050 6GB, BIOS F.20, 4.5.0 export. Thermal policy V0, two fans read from firmware (the family entry says one), max level 55, Guided Fan Verification 6/6 (80/100) on level evidence with RPM estimated, keyboard topology Normal so backlight only. No audible confirmation yet, so curves, GPU boost and undervolt stay off and UserVerified is false."
+                UserVerified = true,
+                Notes = "GitHub #241 - Victus 15-fa1xxx, ProductId 8BC8, i7-13700H + RTX 3050 6GB, BIOS F.20, 4.5.0 export. Thermal policy V0, two fans read from firmware (the family entry says one), max level 55, Guided Fan Verification 6/6 (80/100) on level evidence with RPM estimated, keyboard topology Normal so backlight only. No audible confirmation yet, so curves, GPU boost and undervolt stay off and UserVerified is false. Update 2026-11-01 (#241): the reporter confirmed both fans clearly audible at the 30%/60%/100% steps and on manual curve and slider changes, so fan control is field-confirmed and UserVerified is true; curves, GPU boost and undervolt stay off."
             });
 
             // Victus 16 (2023/2024) - d1xxx series

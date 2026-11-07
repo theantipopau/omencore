@@ -67,6 +67,7 @@ namespace OmenCore.Services
                     if (config == null)
                     {
                         AppHost.Logging.Warn("Config file is invalid, using defaults");
+                        BackupUnreadableConfig();
                         loaded = DefaultConfiguration.Create();
                     }
                     else
@@ -80,6 +81,7 @@ namespace OmenCore.Services
                 catch (Exception ex)
                 {
                     AppHost.Logging.Error($"Failed to load config, using defaults: {ex.Message}");
+                    BackupUnreadableConfig();
                     loaded = DefaultConfiguration.Create();
                 }
             }
@@ -103,6 +105,25 @@ namespace OmenCore.Services
             }
 
             return Config;
+        }
+
+        /// <summary>The next Save overwrites config.json with defaults; keep the unreadable file so the settings can be recovered.</summary>
+        private void BackupUnreadableConfig()
+        {
+            try
+            {
+                var backup = _configPath + ".corrupt-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                File.Copy(_configPath, backup, overwrite: false);
+                AppHost.Logging.Warn($"Unreadable config kept as {backup}");
+            }
+            catch (IOException ex)
+            {
+                AppHost.Logging.Warn($"Could not keep a copy of the unreadable config: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppHost.Logging.Warn($"Could not keep a copy of the unreadable config: {ex.Message}");
+            }
         }
 
         private static void MergeInto(AppConfig source, AppConfig target)

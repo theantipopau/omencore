@@ -779,7 +779,7 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsFanCurves.Should().BeFalse();
             caps.HasFourZoneRgb.Should().BeFalse();
             caps.SupportsGpuPowerBoost.Should().BeFalse();
-            caps.UserVerified.Should().BeFalse();
+            caps.UserVerified.Should().BeTrue("fans heard at every step (#241)");
         }
 
         [Fact]

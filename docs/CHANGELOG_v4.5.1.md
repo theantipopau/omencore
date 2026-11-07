@@ -8,7 +8,7 @@
 - **Board entries:** `8BC8` (Victus 15-fa1xxx, #241: two fans, level 55, backlight only; the family entry said one fan) and
   `8786` (OMEN 15-en0002AX, #239: stops inheriting the 8787 sibling's curves, MUX and GPU boost; the firmware refuses
   direct fan-level writes).
-- **Field-confirmed:** `88F8` (#207) and `8E35` (#237): Guided Fan Verification 6/6 on 4.5.0 and every step audible.
+- **Field-confirmed:** `88F8` (#207), `8E35` (#237) and `8BC8` (#241): Guided Fan Verification 6/6 on 4.5.0 and every step audible.
 
 ## Fixed
 
@@ -28,6 +28,14 @@
 - **Quick Colors turned the 8BD4 keyboard off** (#212). Quick Colors used the older per-zone writer, which declares four
   zones, so on a one-zone board it undid the Apply to Keyboard fix. That writer now sends the one-zone table on 8BD4.
   **Implemented, pending confirmation on 8BD4.**
+
+- **Fan shutdown order and monitor start** (from a code read by MahammadADA, #245): on exit the fans were handed back to the BIOS
+  before the curve and monitor loop were stopped, so a tick in between could write a manual speed again; the loop now stops first.
+  The monitor task also captured its cancellation token late and could throw unseen if stopped first; it is captured up front.
+- **Update hash mismatch was swallowed** (#245): a failed SHA256 check threw a `SecurityException` that the same method then
+  caught and turned into a plain "download failed"; it now reaches the caller, so the user is told the package was rejected.
+- **Unreadable config.json was overwritten** (#245): when the file failed to parse, defaults were loaded and the next save replaced
+  it. A copy is kept as `config.json.corrupt-<timestamp>` first.
 
 ## Investigated, Not Fixed
 

@@ -695,6 +695,11 @@ namespace OmenCore.Services
                 DeleteFileIfExists(tempDownloadPath);
                 return null;
             }
+            catch (System.Security.SecurityException)
+            {
+                // A hash mismatch must reach the caller, which tells the user the package was rejected; the file is already deleted.
+                throw;
+            }
             catch (Exception ex)
             {
                 _logging.ErrorWithContext(

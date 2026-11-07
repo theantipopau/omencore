@@ -1028,7 +1028,8 @@ namespace OmenCore.Services
                 _logging.Warn($"Could not read initial fan speeds: {ex.Message}");
             }
             
-            _ = Task.Run(() => MonitorLoop(_cts.Token));
+            var monitorToken = _cts.Token; // a Stop() racing this queued lambda would null _cts under it
+            _ = Task.Run(() => MonitorLoop(monitorToken));
         }
 
         public void Stop()
@@ -3439,6 +3440,10 @@ namespace OmenCore.Services
 
         public void Dispose()
         {
+            // Stop the curve and the monitor loop first: a tick between the restore and the stop would write a manual speed again.
+            DisableCurve();
+            Stop();
+
             // Restore system auto-control before shutting down
             // This returns fans to BIOS/Windows default control instead of staying at last manual setting
             try
@@ -3476,9 +3481,6 @@ namespace OmenCore.Services
             {
                 _logging.Warn($"Failed to restore auto-control on dispose: {ex.Message}");
             }
-            
-            DisableCurve();
-            Stop();
         }
     }
 
