@@ -2807,6 +2807,22 @@ namespace OmenCore.Services.Diagnostics
                     sb.AppendLine("Not available (0x28 query failed, or the reply was shorter than 12 bytes).");
                 }
 
+                // The firmware's own fan table gives the real top speed per board, which is the number our
+                // MaxFanLevel database entries have so far been guessing from reporters' tests.
+                sb.AppendLine();
+                sb.AppendLine("--- Firmware fan table (Default 0x2F, read-only; speeds in units of 100 RPM) ---");
+                var fanTable = await Task.Run(() => bios.ReadFanTable());
+                if (fanTable is { Count: > 0 })
+                {
+                    for (var i = 0; i < fanTable.Count; i++)
+                        sb.AppendLine($"Row {i + 1}: CPU {fanTable[i].CpuRpm100} ({fanTable[i].CpuRpm100 * 100} RPM), GPU {fanTable[i].GpuRpm100} ({fanTable[i].GpuRpm100 * 100} RPM), {fanTable[i].NoiseDb} dB");
+                    sb.AppendLine($"Highest CPU / GPU entry: {fanTable.Max(r => r.CpuRpm100)} / {fanTable.Max(r => r.GpuRpm100)}");
+                }
+                else
+                {
+                    sb.AppendLine("Not reported (the board does not answer 0x2F, or the table was empty).");
+                }
+
                 File.WriteAllText(Path.Combine(exportPath, "power-adapter.txt"), sb.ToString());
                 _logging.Info("Collected power adapter snapshot");
                 await Task.CompletedTask;

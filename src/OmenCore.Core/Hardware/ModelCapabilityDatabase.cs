@@ -2910,6 +2910,103 @@ namespace OmenCore.Hardware
             return DefaultCapabilities;
         }
         
+        // Boards that other open-source HP control projects (Ohman's supported-laptops table) and the Linux hp-wmi driver
+        // (its OMEN/Victus board tables, which come from HP's own OMEN Command Center capability list) name, and that have
+        // no entry of their own here. They are deliberately NOT in _knownModels: an exact entry would outrank the
+        // model-name patterns, and several boards reach richer profiles that way today (EC fan control on 2019 boards,
+        // curves and MUX on 2023+ boards). They only replace the anonymous family fallback, with the same flags.
+        private static readonly (string Id, string Name, OmenModelFamily Family, int Year)[] _listedBoards =
+        {
+            ("84DA", "OMEN 15/17 (2017-2018 generation)", OmenModelFamily.Legacy, 0),
+            ("84DB", "OMEN 15/17 (2017-2018 generation)", OmenModelFamily.Legacy, 0),
+            ("84DC", "OMEN 15/17 (2017-2018 generation)", OmenModelFamily.Legacy, 0),
+            ("8572", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 0),
+            ("8573", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 0),
+            ("8575", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 0),
+            ("8601", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8602", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8604", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8605", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8606", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8607", "OMEN 15/17 (2018-2019 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 2019),
+            ("860A", "OMEN 15/17 (2018-2019 generation)", OmenModelFamily.Legacy, 2019),
+            ("8746", "OMEN 15/17 (2019-2020 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 0),
+            ("8747", "OMEN 15/17 (2019-2020 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 0),
+            ("8748", "OMEN 15/17 (2019-2020 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 0),
+            ("8749", "OMEN 15/17 (2019-2020 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 0),
+            ("874A", "OMEN 15/17 (2019-2020 generation, forced V0 thermal policy by HP)", OmenModelFamily.Legacy, 0),
+            ("8788", "OMEN 15/17 (2019-2020 generation)", OmenModelFamily.Legacy, 0),
+            ("878B", "OMEN 15/17 (2019-2020 generation)", OmenModelFamily.Legacy, 0),
+            ("87B5", "OMEN 15/17 (2019-2020 generation)", OmenModelFamily.Legacy, 0),
+            ("886B", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("886C", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88CB", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88F4", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88F5", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88F6", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88FD", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88FE", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("88FF", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8900", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8901", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8902", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8912", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8917", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8918", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8949", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("894A", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("89EB", "OMEN 15/17 (2020-2021 generation)", OmenModelFamily.Legacy, 0),
+            ("8A17", "OMEN 15/17 (2021 generation)", OmenModelFamily.Legacy, 2021),
+            ("8A42", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
+            ("8A4C", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
+            ("8A4D", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
+            ("8BAA", "OMEN 16 (2023-2025)", OmenModelFamily.OMEN16, 0),
+            ("8C78", "OMEN 16-wf1xxx (2024)", OmenModelFamily.OMEN16, 2024),
+            ("8D3F", "OMEN (2025 generation)", OmenModelFamily.OMEN2024Plus, 0),
+            ("8F1C", "OMEN (2025 generation)", OmenModelFamily.OMEN2024Plus, 0),
+            ("8A3D", "HP Victus 15-fb0xxx", OmenModelFamily.Victus, 2022),
+            ("8A3F", "HP Victus 15/16", OmenModelFamily.Victus, 0),
+            ("8B2F", "HP Victus 16 (2023-2024)", OmenModelFamily.Victus, 0),
+            ("8D07", "HP Victus 15/16", OmenModelFamily.Victus, 0),
+            ("8DCF", "HP Victus 15/16", OmenModelFamily.Victus, 0),
+            ("8DE1", "HP Victus 15/16", OmenModelFamily.Victus, 0),
+            ("8E5C", "HP Victus 15/16", OmenModelFamily.Victus, 0),
+        };
+
+        /// <summary>
+        /// A board that other HP control projects and the Linux kernel name but this database has no entry for, with the
+        /// conservative family-default flags and a proper name. Null for any board this database already knows, so it
+        /// can never shadow an exact entry or a model-name pattern (callers use it only where the family fallback would
+        /// otherwise apply).
+        /// </summary>
+        public static ModelCapabilities? GetListedBoard(string? productId)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+                return null;
+
+            var id = productId.Trim();
+            if (_knownModels.ContainsKey(id))
+                return null;
+
+            foreach (var (boardId, name, family, year) in _listedBoards)
+            {
+                if (!string.Equals(boardId, id, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var caps = GetCapabilitiesByFamily(family);
+                if (ReferenceEquals(caps, DefaultCapabilities)) return null; // never edit the shared default
+                caps.ProductId = boardId;
+                caps.ModelName = name;
+                if (year != 0) caps.ModelYear = year;
+                caps.Notes = "Board named by other open-source HP control projects and the Linux hp-wmi driver; no OmenCore field report yet. " +
+                             "Behaviour is the conservative family default (WMI fan-mode switching and performance profiles only) until an export confirms more. " +
+                             "Send a diagnostics export to have this board promoted to a full entry.";
+                return caps;
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Check if a Product ID is in the database.
         /// </summary>

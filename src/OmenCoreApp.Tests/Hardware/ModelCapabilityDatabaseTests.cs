@@ -1010,5 +1010,50 @@ namespace OmenCoreApp.Tests.Hardware
             caps.UserVerified.Should().BeFalse("2026-05-20 Discord report still needs physical follow-up after the 3.7.0 fixes");
             caps.Notes.Should().Contain("2026-06-05/06");
         }
+
+        [Theory]
+        [InlineData("8607", OmenModelFamily.Legacy)]
+        [InlineData("8A42", OmenModelFamily.OMEN16)]
+        [InlineData("8C78", OmenModelFamily.OMEN16)]
+        [InlineData("8DE1", OmenModelFamily.Victus)]
+        [InlineData("8F1C", OmenModelFamily.OMEN2024Plus)]
+        public void GetListedBoard_NamesTheBoard_WithExactlyTheFamilyFallbackFlags(string id, OmenModelFamily family)
+        {
+            var listed = ModelCapabilityDatabase.GetListedBoard(id);
+            var fallback = ModelCapabilityDatabase.GetCapabilitiesByFamily(family);
+
+            listed.Should().NotBeNull();
+            listed!.ProductId.Should().Be(id);
+            listed.ModelName.Should().NotStartWith("Unknown");
+            listed.Notes.Should().Contain("no OmenCore field report");
+            listed.UserVerified.Should().BeFalse();
+            listed.SupportsFanControlWmi.Should().Be(fallback.SupportsFanControlWmi);
+            listed.SupportsFanControlEc.Should().BeFalse();
+            listed.SupportsFanCurves.Should().BeFalse();
+            listed.HasMuxSwitch.Should().BeFalse();
+            listed.SupportsGpuPowerBoost.Should().BeFalse();
+            listed.HasFourZoneRgb.Should().BeFalse();
+            listed.SupportsUndervolt.Should().BeFalse();
+            listed.FanZoneCount.Should().Be(fallback.FanZoneCount);
+        }
+
+        [Theory]
+        [InlineData("8A15")]  // exact entry
+        [InlineData("8BCD")]
+        [InlineData("8574")]
+        [InlineData("ZZZZ")]  // not a board at all
+        public void GetListedBoard_NeverShadowsAnExistingEntry(string id)
+        {
+            ModelCapabilityDatabase.GetListedBoard(id).Should().BeNull();
+        }
+
+        [Fact]
+        public void GetListedBoard_NoListedBoardIsAlsoAnExactEntry()
+        {
+            // A listed board that gained a real entry later must be removed from the list, not left shadowed.
+            var listedIds = new[] { "84DA", "8572", "8607", "8746", "8788", "88F4", "8A17", "8A42", "8A4D", "8BAA", "8C78", "8D3F", "8F1C", "8A3D", "8B2F", "8DE1", "8E5C" };
+            foreach (var id in listedIds)
+                ModelCapabilityDatabase.IsKnownModel(id).Should().BeFalse($"{id} has an exact entry, so it should leave the listed-boards table");
+        }
     }
 }

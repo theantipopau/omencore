@@ -8,6 +8,13 @@
 - **Board entries:** `8BC8` (Victus 15-fa1xxx, #241: two fans, level 55, backlight only; the family entry said one fan) and
   `8786` (OMEN 15-en0002AX, #239: stops inheriting the 8787 sibling's curves, MUX and GPU boost; the firmware refuses
   direct fan-level writes).
+- **54 more boards named** (no field report yet): the OMEN 15/17 2018-2021 boards, `8A42`, `8A4C`, `8A4D`, `8BAA`, `8C78`, `8D3F`,
+  `8F1C` and the Victus `8A3D`, `8A3F`, `8B2F`, `8D07`, `8DCF`, `8DE1`, `8E5C`. They come from the board tables of Ohman and the Linux
+  hp-wmi driver (whose OMEN list is HP's own OMEN Command Center capability list). They get a proper name in the log and export
+  and exactly the conservative family-default behaviour they had before; they never replace an exact entry or a model-name match.
+  Send an export to have a board promoted to a full entry.
+- **Firmware fan table in the diagnostics export** (read-only, `Default 0x2F`, documented by the Linux hp-wmi driver): the firmware's
+  own fan speeds per row, so the real top speed of a board is on record instead of being estimated from a reporter's test.
 - **Field-confirmed:** `88F8` (#207), `8E35` (#237) and `8BC8` (#241): Guided Fan Verification 6/6 on 4.5.0 and every step audible.
 
 ## Fixed

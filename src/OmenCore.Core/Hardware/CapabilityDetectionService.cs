@@ -171,8 +171,16 @@ namespace OmenCore.Hardware
             }
             else
             {
+                // A board other HP projects and the Linux kernel name: same conservative flags as the family fallback, proper identity
+                var listedBoard = ModelCapabilityDatabase.GetListedBoard(productId);
+                if (listedBoard != null)
+                {
+                    Capabilities.ModelConfig = listedBoard;
+                    _logging?.Info($"  ✓ Board {productId} is listed by other HP control projects and the Linux kernel: {listedBoard.ModelName}");
+                    _logging?.Warn($"    ⚠ No OmenCore field report yet - conservative family defaults apply");
+                }
                 // Try to get capabilities by model family
-                if (Capabilities.ModelFamily != OmenModelFamily.Unknown)
+                else if (Capabilities.ModelFamily != OmenModelFamily.Unknown)
                 {
                     Capabilities.ModelConfig = ModelCapabilityDatabase.GetCapabilitiesByFamily(Capabilities.ModelFamily);
                     _logging?.Warn($"  ⚠ Model not in database - using {Capabilities.ModelFamily} family defaults");

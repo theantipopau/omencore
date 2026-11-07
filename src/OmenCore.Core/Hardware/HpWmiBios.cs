@@ -104,6 +104,7 @@ namespace OmenCore.Hardware
         private const uint CMD_FAN_GET_COUNT = 0x10;
         private const uint CMD_FAN_SET_LEVEL = 0x2E;  // SetFanLevel (OmenMon 0x2E)
         private const uint CMD_FAN_GET_LEVEL = 0x2D;  // GetFanLevel (OmenMon 0x2D)
+        private const uint CMD_FAN_GET_TABLE = 0x2F;  // Firmware fan table (documented by the Linux hp-wmi driver)
         private const uint CMD_FAN_GET_LEVEL_V2 = 0x37; // GetFanLevel V2 (OMEN Max 2025+)
         private const uint CMD_FAN_GET_RPM = 0x38;    // GetFanRPM direct (OMEN Max 2025+)
         private const uint CMD_FAN_MODE_SET = 0x1A;   // SetFanMode (OmenMon 0x1A)
@@ -520,6 +521,46 @@ namespace OmenCore.Hardware
                 IsHotkeySupportFnF1 = (data[11] & 0x02) != 0,
                 RawData = data.Take(12).ToArray()
             };
+        }
+
+        /// <summary>One row of the firmware's fan table: fan speeds in units of 100 RPM, plus the noise HP rates the row at.</summary>
+        public readonly record struct FanTableEntry(byte CpuRpm100, byte GpuRpm100, byte NoiseDb);
+
+        /// <summary>
+        /// Decode the reply to <c>Default 0x2F</c> (the firmware's fan table). Layout, as documented by the Linux
+        /// hp-wmi driver: byte 0 fan count, byte 1 unknown, then three-byte rows. The table can be cut short by an
+        /// all-zero row, so decoding stops there. Static and side-effect free so captured replies can be tested.
+        /// </summary>
+        public static IReadOnlyList<FanTableEntry>? DecodeFanTable(byte[]? data)
+        {
+            if (data == null || data.Length < 5 || data[0] == 0)
+                return null;
+
+            var rows = new List<FanTableEntry>();
+            for (var i = 2; i + 2 < data.Length; i += 3)
+            {
+                if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0)
+                    break;
+                rows.Add(new FanTableEntry(data[i], data[i + 1], data[i + 2]));
+            }
+
+            return rows.Count == 0 ? null : rows;
+        }
+
+        /// <summary>Read-only query of the firmware's fan table (<c>Default 0x2F</c>). Null if the board does not answer it.</summary>
+        public IReadOnlyList<FanTableEntry>? ReadFanTable()
+        {
+            if (!_isAvailable) return null;
+
+            try
+            {
+                return DecodeFanTable(SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_TABLE, new byte[4], 128));
+            }
+            catch (Exception ex)
+            {
+                _logging?.Warn($"Failed to read fan table: {ex.Message}");
+                return null;
+            }
         }
 
         public bool IsAvailable => _isAvailable;

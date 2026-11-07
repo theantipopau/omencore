@@ -163,5 +163,32 @@ namespace OmenCoreApp.Tests.Hardware
         {
             HpWmiBios.ForThermalPolicy(requested, policy).Should().Be(expected);
         }
+
+        [Fact]
+        public void DecodeFanTable_ReadsRows_AndStopsAtTheFirstAllZeroRow()
+        {
+            var reply = new byte[128];
+            reply[0] = 2; // fans
+            reply[2] = 20; reply[3] = 21; reply[4] = 30;
+            reply[5] = 40; reply[6] = 42; reply[7] = 45;
+            reply[8] = 63; reply[9] = 61; reply[10] = 52;
+            // rows after this are all zero: the firmware truncates its table with a zero row, and later rows are not data
+
+            var table = HpWmiBios.DecodeFanTable(reply);
+
+            table.Should().NotBeNull();
+            table!.Should().HaveCount(3);
+            table[2].Should().Be(new HpWmiBios.FanTableEntry(63, 61, 52));
+        }
+
+        [Fact]
+        public void DecodeFanTable_ReturnsNull_ForNoFansOrAnEmptyOrShortReply()
+        {
+            HpWmiBios.DecodeFanTable(null).Should().BeNull();
+            HpWmiBios.DecodeFanTable(new byte[3]).Should().BeNull();
+            HpWmiBios.DecodeFanTable(new byte[128]).Should().BeNull("a zero fan count means the board has no table");
+            var noRows = new byte[128]; noRows[0] = 2;
+            HpWmiBios.DecodeFanTable(noRows).Should().BeNull();
+        }
     }
 }
