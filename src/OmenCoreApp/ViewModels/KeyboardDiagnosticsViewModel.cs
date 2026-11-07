@@ -176,11 +176,13 @@ namespace OmenCore.ViewModels
             var confirm = System.Windows.MessageBox.Show(
                 $"This sends {OmenCore.Hardware.ColorTableProbe.Variants.Count} experimental keyboard colour commands, one every 4 seconds, each in red.\n\n" +
                 "Watch the keyboard and note the NUMBER of the step during which it turns red, then report it on the GitHub issue. " +
-                "Afterwards, set your usual colour on the Lighting page to put things back.",
+                "Your current keyboard colours are saved first and put back when the probe finishes.",
                 "RGB payload probe", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Information);
             if (confirm != System.Windows.MessageBoxResult.OK) return;
 
             IsRunningTest = true;
+            // Several probe payloads are all-zero or declare the wrong zone count, which leaves the keyboard dark (#244).
+            var original = await Task.Run(() => _wmiBios.GetColorTable());
             try
             {
                 var variants = OmenCore.Hardware.ColorTableProbe.Variants;
@@ -202,6 +204,11 @@ namespace OmenCore.ViewModels
             }
             finally
             {
+                if (original is { Length: 128 })
+                {
+                    var restored = await Task.Run(() => _wmiBios.SendColorTablePayload(original) && _wmiBios.SetBacklight(true));
+                    _logging.Info($"PROBE: previous keyboard colour table {(restored ? "restored" : "could not be restored")}");
+                }
                 IsRunningTest = false;
             }
         }

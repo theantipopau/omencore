@@ -28,6 +28,11 @@
 - **Quick Colors turned the 8BD4 keyboard off** (#212). Quick Colors used the older per-zone writer, which declares four
   zones, so on a one-zone board it undid the Apply to Keyboard fix. That writer now sends the one-zone table on 8BD4.
   **Implemented, pending confirmation on 8BD4.**
+- **The RGB payload probe left the keyboard dark** (#244). Several probe payloads write black or a wrong zone count and the
+  probe never undid them, so the backlight stayed off until the keyboard shortcut. It now saves your colour table first and
+  restores it, and switches the backlight on, when it finishes. **Implemented, pending confirmation.**
+- **Process timeouts could not fire** (#245): the Linux command probe, the `sc.exe` helper and the nvidia-smi power query read
+  the child's output before waiting, so a hung child blocked past the timeout. They now read asynchronously.
 
 - **Fan shutdown order and monitor start** (from a code read by MahammadADA, #245): on exit the fans were handed back to the BIOS
   before the curve and monitor loop were stopped, so a tick in between could write a manual speed again; the loop now stops first.
