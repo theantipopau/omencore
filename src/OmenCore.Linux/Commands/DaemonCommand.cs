@@ -300,7 +300,13 @@ WantedBy=multi-user.target
             return;
         }
 
-        await RunCommandAsync("systemctl", "start omencore.service");
+        if (await RunCommandAsync("systemctl", "start omencore.service") != 0)
+        {
+            WriteColor(ConsoleColor.Red, "systemctl could not start the service. See: journalctl -u omencore -e");
+            Environment.ExitCode = 1;
+            return;
+        }
+
         WriteColor(ConsoleColor.Green, "Service started via systemd");
         Console.WriteLine();
         Console.WriteLine("Check status: sudo omencore-cli daemon --status");
@@ -311,15 +317,35 @@ WantedBy=multi-user.target
     {
         if (File.Exists(SystemdServicePath))
         {
-            await RunCommandAsync("systemctl", "stop omencore.service");
+            if (await RunCommandAsync("systemctl", "stop omencore.service") != 0)
+            {
+                WriteColor(ConsoleColor.Red, "systemctl could not stop the service. See: journalctl -u omencore -e");
+                Environment.ExitCode = 1;
+                return;
+            }
+
             WriteColor(ConsoleColor.Green, "Service stopped");
             return;
         }
 
         if (File.Exists(PidFile))
         {
-            var pid = await File.ReadAllTextAsync(PidFile);
-            await RunCommandAsync("kill", pid.Trim());
+            var pidText = (await File.ReadAllTextAsync(PidFile)).Trim();
+            if (!IsOmenCoreProcess(pidText))
+            {
+                // A stale PID file can name a process that has since been reused by something else; never signal it.
+                File.Delete(PidFile);
+                WriteColor(ConsoleColor.Yellow, "PID file was stale (that process is not OmenCore). Removed it; no daemon was running.");
+                return;
+            }
+
+            if (await RunCommandAsync("kill", pidText) != 0)
+            {
+                WriteColor(ConsoleColor.Red, $"Could not signal process {pidText}.");
+                Environment.ExitCode = 1;
+                return;
+            }
+
             File.Delete(PidFile);
             WriteColor(ConsoleColor.Green, "Daemon stopped");
             return;
@@ -412,7 +438,29 @@ WantedBy=multi-user.target
         }
     }
 
-    private static async Task RunCommandAsync(string command, string args)
+    /// <summary>True only when <paramref name="pidText"/> is a number and that live process is an OmenCore binary.</summary>
+    public static bool IsOmenCoreProcess(string pidText)
+    {
+        if (!int.TryParse(pidText, out var pid) || pid <= 1)
+            return false;
+
+        try
+        {
+            var cmdline = File.ReadAllText($"/proc/{pid}/cmdline");
+            return cmdline.Contains("omencore", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return false; // no such process
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Runs a command and returns its exit code, or -1 if it could not be started.</summary>
+    private static async Task<int> RunCommandAsync(string command, string args)
     {
         var psi = new ProcessStartInfo
         {
@@ -424,10 +472,11 @@ WantedBy=multi-user.target
         };
 
         using var process = Process.Start(psi);
-        if (process != null)
-        {
-            await process.WaitForExitAsync();
-        }
+        if (process == null)
+            return -1;
+
+        await process.WaitForExitAsync();
+        return process.ExitCode;
     }
 
     private static void WriteColor(ConsoleColor color, string message)

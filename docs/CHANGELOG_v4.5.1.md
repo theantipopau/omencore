@@ -39,6 +39,7 @@
   probe never undid them, so the backlight stayed off until the keyboard shortcut. It now saves your colour table first and
   restores it, and switches the backlight on, when it finishes. **Implemented, pending confirmation.**
 - **8BCD keyboard colours never reached the firmware** (#244). The usual four-zone write (colours from byte 25) reads back black on this board, and in the owner's probe only the no-pad four-zone steps moved every zone, so 8BCD now sends its colours directly after the count byte. Only that board uses it. **Implemented, pending confirmation on 8BCD.**
+- **Linux `daemon --stop` and `--start`** (from #245): `--stop` signalled whatever PID was in the PID file, so a stale file could hit an unrelated process; it now checks that the process is OmenCore first. `systemctl` failures are reported instead of printing success, with a non-zero exit code.
 - **Process timeouts could not fire** (#245): the Linux command probe, the `sc.exe` helper and the nvidia-smi power query read
   the child's output before waiting, so a hung child blocked past the timeout. They now read asynchronously.
 
