@@ -2094,6 +2094,14 @@ namespace OmenCore.Hardware
         public bool OneZoneColourAfterCount { get; set; }
 
         /// <summary>
+        /// Set from the board's keyboard entry. True only where an owner's probe showed the four-zone layout with the colours
+        /// directly after the count byte (offsets 1 to 12, no 24-byte pad) is the one that lights every zone (8BCD, #244: the
+        /// usual layout read back black and only the right-hand zone moved until the no-pad four-zone step). Every other board
+        /// keeps the padded layout.
+        /// </summary>
+        public bool FourZoneColourAfterCount { get; set; }
+
+        /// <summary>
         /// The zone count to declare when the caller does not say: the board's own topology, asked once. Callers that
         /// built a four-slot payload without a count (legacy service, brightness scaling, restore) used to send 4 on every
         /// board, which a single-zone keyboard rejects (GitHub #212).
@@ -2115,12 +2123,14 @@ namespace OmenCore.Hardware
         /// reports a single-zone write back at offset 25, so verification keeps reading there. *Implemented, pending retest by
         /// the 8BD4 owner.* Input is the usual 12-byte, four-slot array; a one-zone payload uses its first three bytes.
         /// </summary>
-        internal static byte[] BuildColorTable(byte[] zoneColors, byte zoneCount, bool oneZoneColourAfterCount = true)
+        internal static byte[] BuildColorTable(byte[] zoneColors, byte zoneCount, bool oneZoneColourAfterCount = true, bool fourZoneColourAfterCount = false)
         {
             var data = new byte[128];
             data[0] = zoneCount;
             if (zoneCount == 1 && oneZoneColourAfterCount)
                 Array.Copy(zoneColors, 0, data, 1, Math.Min(zoneColors.Length, 3));
+            else if (zoneCount > 1 && fourZoneColourAfterCount)
+                Array.Copy(zoneColors, 0, data, 1, Math.Min(zoneColors.Length, 12));
             else
                 Array.Copy(zoneColors, 0, data, 1 + ColorTablePad, Math.Min(zoneColors.Length, 12));
             return data;
@@ -2173,8 +2183,8 @@ namespace OmenCore.Hardware
                 }
                 
                 var zones = zoneCount ?? ResolveZoneCount();
-                var data = BuildColorTable(zoneColors, zones, OneZoneColourAfterCount);
-                int colorOffset = zones == 1 && OneZoneColourAfterCount ? 1 : 1 + ColorTablePad;
+                var data = BuildColorTable(zoneColors, zones, OneZoneColourAfterCount, FourZoneColourAfterCount);
+                int colorOffset = (zones == 1 && OneZoneColourAfterCount) || (zones > 1 && FourZoneColourAfterCount) ? 1 : 1 + ColorTablePad;
 
                 _logging?.Info($"SetColorTable: ZoneCount={data[0]}, Colors at offset {colorOffset}: " +
                     $"Z0=#{data[colorOffset]:X2}{data[colorOffset+1]:X2}{data[colorOffset+2]:X2}" +
@@ -2249,13 +2259,13 @@ namespace OmenCore.Hardware
                 data[0] = 4; // Zone count
                 
                 const int COLOR_TABLE_PAD = 24;
-                int colorOffset = 1 + COLOR_TABLE_PAD; // Byte 25
+                int readOffset = 1 + COLOR_TABLE_PAD; // the firmware always reports colours back at byte 25
+                int colorOffset = FourZoneColourAfterCount ? 1 : readOffset; // ...but 8BCD only accepts them at byte 1 (#244)
                 
                 // Copy existing colors if available
                 if (currentColors != null && currentColors.Length >= 37)
                 {
-                    // Colors start at byte 25 in existing data
-                    Array.Copy(currentColors, colorOffset, data, colorOffset, 12);
+                    Array.Copy(currentColors, readOffset, data, colorOffset, 12);
                 }
                 
                 // Set the specific zone color

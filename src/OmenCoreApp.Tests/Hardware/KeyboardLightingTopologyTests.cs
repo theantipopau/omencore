@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using FluentAssertions;
 using OmenCore.Hardware;
 using OmenCore.Services.KeyboardLighting;
@@ -133,6 +134,37 @@ namespace OmenCoreApp.Tests.Hardware
         {
             KeyboardModelDatabase.GetConfig("8BD4")!.OneZoneColourAfterCount.Should().BeTrue();
             KeyboardModelDatabase.GetConfig("8E10")?.OneZoneColourAfterCount.Should().NotBe(true);
+        }
+
+        [Fact]
+        public void BuildColorTable_FourZone_NoPadLayout_PutsTheColoursRightAfterTheCount()
+        {
+            var colours = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+
+            var t = HpWmiBios.BuildColorTable(colours, 4, fourZoneColourAfterCount: true);
+
+            t[0].Should().Be(4);
+            t.AsSpan(1, 12).ToArray().Should().Equal(colours);
+            t.AsSpan(25, 12).ToArray().Should().OnlyContain(b => b == 0, "the padded layout is not also sent");
+        }
+
+        [Fact]
+        public void BuildColorTable_FourZone_DefaultStillUsesTheOffset25Payload()
+        {
+            var colours = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+
+            var t = HpWmiBios.BuildColorTable(colours, 4);
+
+            t.AsSpan(25, 12).ToArray().Should().Equal(colours);
+            t.AsSpan(1, 24).ToArray().Should().OnlyContain(b => b == 0);
+        }
+
+        [Fact]
+        public void KeyboardModelDatabase_OnlyThe8BCDRowUsesTheNoPadFourZoneLayout()
+        {
+            KeyboardModelDatabase.GetConfig("8BCD")!.FourZoneColourAfterCount.Should().BeTrue();
+            foreach (var config in KeyboardModelDatabase.GetAllModels().Where(c => c.ProductId != "8BCD"))
+                config.FourZoneColourAfterCount.Should().BeFalse($"{config.ProductId} has no probe evidence for it");
         }
 
         [Fact]

@@ -33,6 +33,9 @@ namespace OmenCore.Services.KeyboardLighting
         /// <summary>One-zone boards whose probe showed the colour belongs at offsets 1 to 3 (8BD4, #212). Default keeps the four-zone payload.</summary>
         public bool OneZoneColourAfterCount { get; set; }
 
+        /// <summary>Four-zone boards whose probe showed the colours belong directly after the count byte, offsets 1 to 12 (8BCD, #244). Default keeps the padded payload.</summary>
+        public bool FourZoneColourAfterCount { get; set; }
+
         /// <summary>Whether backlight toggle is required before color changes.</summary>
         public bool RequiresBacklightToggle { get; set; }
         
@@ -367,7 +370,8 @@ namespace OmenCore.Services.KeyboardLighting
                 PreferredMethod = KeyboardMethod.ColorTable2020,
                 FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
                 ModelYear = 2024,
-                Notes = "Ryzen 7 7840HS - user reported AC detection issues"
+                FourZoneColourAfterCount = true,
+                Notes = "Ryzen 7 7840HS - user reported AC detection issues. #244 (board 8BCD, BIOS F.32): the padded four-zone write reads back black; in the RGB payload probe only the no-pad four-zone steps (6 and 7) changed every zone, so those colours go directly after the count byte. Implemented, pending confirmation."
             });
 
             // OMEN 16-wd0xxx (2023 Intel) — ProductId 8BA9. Discord GHOST 2026-09-02 bundle: the

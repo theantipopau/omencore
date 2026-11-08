@@ -38,6 +38,7 @@
 - **The RGB payload probe left the keyboard dark** (#244). Several probe payloads write black or a wrong zone count and the
   probe never undid them, so the backlight stayed off until the keyboard shortcut. It now saves your colour table first and
   restores it, and switches the backlight on, when it finishes. **Implemented, pending confirmation.**
+- **8BCD keyboard colours never reached the firmware** (#244). The usual four-zone write (colours from byte 25) reads back black on this board, and in the owner's probe only the no-pad four-zone steps moved every zone, so 8BCD now sends its colours directly after the count byte. Only that board uses it. **Implemented, pending confirmation on 8BCD.**
 - **Process timeouts could not fire** (#245): the Linux command probe, the `sc.exe` helper and the nvidia-smi power query read
   the child's output before waiting, so a hung child blocked past the timeout. They now read asynchronously.
 
