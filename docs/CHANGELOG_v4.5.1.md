@@ -54,8 +54,8 @@
 ## Investigated, Not Fixed
 
 - **#238 (`8EEC`, Linux):** the kernel `hp_wmi` driver fails thermal-profile setup (-22) because the firmware's `WMBA` method
-  overruns its buffer. A firmware/kernel fault; recorded in the model notes, no OmenCore change possible. The reporter's
-  custom out-of-tree driver may register its fan files where OmenCore does not look; waiting on their sysfs paths.
+  overruns its buffer. A firmware/kernel fault; recorded in the model notes. With the reporter's updated `hp-wmi` driver (which adds
+  `8EEC`), the 4.5.0 Linux CLI already detects the hwmon fan files and reports full control, so no path change is needed.
 - **#243 (`8A4D`, Battery Care):** the firmware refuses the old `0x24` write but implements the standard `0x2B` charge mode.
   The reporter is preparing a pull request; not in 4.5.1.
 - **#218 (`878A`):** the 4.5.0 export shows the firmware refusing direct fan-level writes (return code 46) while Max
