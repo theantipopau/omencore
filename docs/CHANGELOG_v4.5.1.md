@@ -1,6 +1,6 @@
 # OmenCore v4.5.1
 
-**Release Date:** unreleased
+**Release Date:** 2026-11-10
 **Type:** Field-report fix release. Follow-up to 4.5.0.
 
 ## Added
