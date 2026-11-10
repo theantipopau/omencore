@@ -114,7 +114,7 @@ dotnet test src/OmenCoreApp.Tests/OmenCoreApp.Tests.csproj --filter "FullyQualif
 
 ## Versioning & docs
 
-- Current released: **4.4.5** (2026-10-11). **4.5.0 is in development** (versions bumped; no 4.4.6). Work is tracked in `docs/ROADMAP_v4.5.0.md`:
+- Current released: **4.5.1** (2026-11-10); 4.5.0 was released 2026-10-24. Release notes are in `docs/CHANGELOG_v4.5.1.md`. The 4.5.0 cycle was tracked in `docs/ROADMAP_v4.5.0.md`:
   section 5A is the tick sheet an agent ticks off as it goes, section 6 the work packages, section 7 the open-issue index, K.* the field evidence.
 - Version lives in: `VERSION.txt`, `installer/OmenCoreInstaller.iss` (`MyAppVersion`), and the
   `<Version>` in the six 4.x `.csproj` files.

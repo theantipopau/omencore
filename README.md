@@ -7,7 +7,7 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-4.5.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.4.5.md)
+[![Version](https://img.shields.io/badge/version-4.5.1-red.svg?style=for-the-badge)](docs/CHANGELOG_v4.5.1.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
@@ -54,16 +54,16 @@ It runs without ads, account prompts, cloud telemetry, or OMEN Gaming Hub. Hardw
 
 ## Current Release
 
-**Version:** 4.5.0<br>
-**Released:** 2026-10-24<br>
-**Status:** Test-verified (1980/1980 app tests and 71/71 Linux tests, 0 build warnings). A field-report and model-database release: board entries for 8BC2, 88D1, 8F21, 8F5C and an exact 88ED row, the one-zone keyboard colour layout for 8BD4/8BC2, hotkeys that report when another app holds them, optional Max fan auto-return, AMD power limits that now save when the Tctl write is refused, and square window corners when maximised. Much of it is marked pending until a reporter confirms it on real hardware.<br>
+**Version:** 4.5.1<br>
+**Released:** 2026-11-10<br>
+**Status:** Test-verified (2005/2005 app tests and 78/78 Linux tests, 0 build warnings). A field-report fix release: it fixes the 8E10 keyboard backlight regression from 4.5.0, sends the right fan-mode bytes to older (V0) firmware, adds the 8BCD keyboard colour layout, new board entries (8BC8, 8786) and 54 more boards named, hardening from a community code read, and a firmware fan table in the diagnostics export. Hardware-facing items are marked pending until a reporter confirms them.<br>
 **Upgrade note:** update from inside the app (the update button in the header, or F5). Settings are kept.<br>
-**Release notes:** [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md)<br>
-**Roadmap:** [docs/ROADMAP_v4.5.0.md](docs/ROADMAP_v4.5.0.md)
+**Release notes:** [docs/CHANGELOG_v4.5.1.md](docs/CHANGELOG_v4.5.1.md)<br>
+**Previous release:** [4.5.0](docs/CHANGELOG_v4.5.0.md)
 
-SHA256 hashes are computed by the release workflow from the exact files attached to the release and are published in the [release notes](https://github.com/theantipopau/omencore/releases/tag/v4.5.0).
+SHA256 hashes are computed by the release workflow from the exact files attached to the release and are published in the [release notes](https://github.com/theantipopau/omencore/releases/tag/v4.5.1).
 
-Full detail on every item, and what still needs field confirmation, is in [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md).
+Full detail on every item, and what still needs field confirmation, is in [docs/CHANGELOG_v4.5.1.md](docs/CHANGELOG_v4.5.1.md).
 
 ### v4.4.5 Highlights (previous release)
 
@@ -277,7 +277,7 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 ## Current Development Focus
 
-**v4.5.0 is released and is waiting on field confirmation.** It was built from reporters' exports, and anything hardware-facing has run only in software tests until an owner confirms it. The "Needs field confirmation" table in [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md) says exactly what to try on which board. Boards that are only identified (8C4D, 8BB3, 88C8, 8C99, 8BD5) need an export before anything is claimed for them.
+**v4.5.1 is released and is waiting on field confirmation.** It was built from reporters' exports, and anything hardware-facing has run only in software tests until an owner confirms it. The "Needs field confirmation" table in [docs/CHANGELOG_v4.5.1.md](docs/CHANGELOG_v4.5.1.md) says exactly what to try on which board (8E10, 8BD4, 8F5C, 8BCD and any older V0 board). Boards that are only identified (8C4D, 8BB3, 88C8, 8C99, 8BD5) need an export before anything is claimed for them.
 
 **v4.4.5 is released.** Most of what it adds was built from reporters' exports and from fork and research contributions, and has run only in software tests so far. The "Needs field confirmation" list in [docs/CHANGELOG_v4.4.5.md](docs/CHANGELOG_v4.4.5.md) says exactly what to try on which board.
 
@@ -285,7 +285,8 @@ Older release notes ([v3.8.0](docs/CHANGELOG_v3.8.0.md) and earlier) are kept in
 
 The active work is tracked in:
 
-- [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md) / [docs/ROADMAP_v4.5.0.md](docs/ROADMAP_v4.5.0.md) - the cycle in development.
+- [docs/CHANGELOG_v4.5.1.md](docs/CHANGELOG_v4.5.1.md) - the current release notes.
+- [docs/CHANGELOG_v4.5.0.md](docs/CHANGELOG_v4.5.0.md) / [docs/ROADMAP_v4.5.0.md](docs/ROADMAP_v4.5.0.md) - the previous cycle.
 - [docs/CHANGELOG_v4.4.5.md](docs/CHANGELOG_v4.4.5.md) - the current release notes.
 - [docs/ROADMAP_v4.4.5.md](docs/ROADMAP_v4.4.5.md) - the full scope, investigations, and evidence trails for this cycle.
 - [docs/CHANGELOG_v4.4.1.md](docs/CHANGELOG_v4.4.1.md) / [docs/ROADMAP_v4.4.1.md](docs/ROADMAP_v4.4.1.md) - the previous cycle.

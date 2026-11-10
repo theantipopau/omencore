@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v4.5.0</small>
+      <small>v4.5.1</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v4.5.0 is out now — new board entries (8BC2, 88D1, 8F21, 8F5C and more), a one-zone keyboard colour fix, hotkey conflict reporting, optional Max fan auto-return, AMD power limits that now save, and square window corners when maximised.
+      v4.5.1 is out now — fixes the 8E10 keyboard backlight regression, sends the right fan-mode bytes to older firmware, adds the 8BCD keyboard colour layout, new boards (8BC8, 8786) and 54 more boards named.
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v4.5.0</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v4.5.1</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
 
@@ -378,8 +378,22 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v4.5.0</span>
+          <span class="v">v4.5.1</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>A field-report fix release. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
+        <ul>
+          <li>Fixes the 8E10 keyboard backlight regression from 4.5.0; the one-zone colour layout now applies only to 8BD4</li>
+          <li>Performance, Cool and Default fan modes send the right bytes to older (V0) firmware, and 8BCD sends its four zone colours in the layout its firmware accepts</li>
+          <li>Board entries for 8BC8 and 8786, 88F8, 8E35 and 8BC8 field-confirmed, and 54 more boards named from other projects and the Linux kernel</li>
+          <li>Hardening from a community code read: fan shutdown order, update hash errors, a kept copy of an unreadable config, process timeouts, safer Linux daemon stop</li>
+          <li>The RGB probe puts your colours back; the diagnostics export now includes the firmware fan table</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.5.1.md" target="_blank" rel="noopener">Full v4.5.1 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v4.5.0</span>
         </div>
         <p>A field-report and model-database release. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
         <ul>
