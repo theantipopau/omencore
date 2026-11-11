@@ -69,9 +69,12 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   reporting the missing phase. Time to first paint and idle CPU are printed but not enforced: across the same period the
   app's own startup held a 1.7-2.2 s band while first paint ranged 2.4-12.3 s, all of the spread inside `Show()`
   (RTSS software rendering, window-manager and hotkey registration stalls), which no startup fix can address — a gate
-  on it would flake and then be disabled. The faster of the two launches is judged, because timing noise is
-  one-sided while a real regression appears in both. Budgets are measured values plus headroom; the gate ran green
-  locally at 116.7 MB private and 1877 ms app startup; *implemented, first runner execution not yet observed.*
+  on it would flake and then be disabled. Startup is judged on the **median of three** launches and memory on the
+  **worst** attempt: three launches of one build on one GitHub runner spanned 2285-3650 ms with no code change, so
+  judging the fastest let the slowest sit 22% over budget while judging the slowest would fail a busy runner that
+  changed nothing; memory is deterministic here, so its worst observation is simply the honest number. The ceiling is
+  4000 ms — the runner's slowest observed launch plus headroom — and it still fails on the 2 s cold-WMI regression
+  this work removed. First runner execution: 109.5 MB private, 2285 ms median app startup, all six CI jobs green.
 
 ## Fixed
 
