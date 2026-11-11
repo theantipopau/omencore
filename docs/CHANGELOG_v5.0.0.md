@@ -62,7 +62,11 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   those runs, and fails when any of them is over. A `startup-memory-budget` CI job runs it on every push. A run that
   never completes startup fails rather than passing with the check skipped, and the measurement isolates its config
   through `OMENCORE_CONFIG_DIR`, so a machine with no settings shows no first-run dialogs and the real user config is
-  never read or written. Time to first paint and idle CPU are printed but not enforced: across the same period the
+  never read or written. That seeded config is written in the app's own camelCase schema — the first CI execution used
+  PascalCase keys, which `ConfigurationService` ignores, so the app still believed it was a first run, blocked on the
+  modal driver prompt (reachable only on a machine without PawnIO, which no development machine here is), and the gate
+  failed at 17.5 MB. The harness now logs the phase startup stopped in, with the app's own log tail, instead of only
+  reporting the missing phase. Time to first paint and idle CPU are printed but not enforced: across the same period the
   app's own startup held a 1.7-2.2 s band while first paint ranged 2.4-12.3 s, all of the spread inside `Show()`
   (RTSS software rendering, window-manager and hotkey registration stalls), which no startup fix can address — a gate
   on it would flake and then be disabled. The faster of the two launches is judged, because timing noise is

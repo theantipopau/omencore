@@ -113,10 +113,15 @@ $workerPidsBefore = @(Get-Process -Name "OmenCore.HardwareWorker" -ErrorAction S
 # OMENCORE_CONFIG_DIR is the app's own override, so the real user config is never read or written.
 $isolatedConfigDir = Join-Path ([IO.Path]::GetTempPath()) ("omencore-profile-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $isolatedConfigDir | Out-Null
+# camelCase, not PascalCase: ConfigurationService serializes with
+# JsonNamingPolicy.CamelCase and does not set PropertyNameCaseInsensitive, so "FirstRunCompleted"
+# is silently ignored and the app believes this is a first run. On a machine without PawnIO that
+# means a modal driver prompt inside CheckDriverStatus, which is where a headless run stops dead -
+# exactly what happened on the first CI execution of this gate.
 @'
 {
-  "FirstRunCompleted": true,
-  "Monitoring": { "MinimizeToTrayOnClose": false, "StartMinimized": false }
+  "firstRunCompleted": true,
+  "monitoring": { "minimizeToTrayOnClose": false, "startMinimized": false }
 }
 '@ | Set-Content -Path (Join-Path $isolatedConfigDir "config.json") -Encoding UTF8
 $previousConfigDir = $env:OMENCORE_CONFIG_DIR
@@ -247,6 +252,16 @@ $lines.Add("")
 # Deliberately no pass/fail line here: enforcement lives in qa/check-memory-budget.ps1 against
 # qa/memory-budget.json, so the thresholds exist in exactly one place. This script measures and
 # reports; that one judges.
+
+# If startup never finished, say which phase it stopped in and what the app logged. Without this
+# the gate reported only "no worker_bootstrap phase", which names the symptom but not the cause.
+$startupCompleted = $phaseMarks | Where-Object { $_.Phase -eq "worker_bootstrap" } | Select-Object -First 1
+if ($null -eq $startupCompleted -and $null -ne $logFile) {
+    $lastPhase = if ($phaseMarks.Count -gt 0) { $phaseMarks[-1].Phase } else { "none" }
+    Write-Host ""
+    Write-Host "Startup never completed: the app stopped after phase '$lastPhase'. Recent log lines:" -ForegroundColor Yellow
+    Get-Content $logFile.FullName -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+}
 
 $firstRender = $phaseMarks | Where-Object { $_.Phase -eq "first_render" } | Select-Object -First 1
 $timeToInteractiveMs = if ($null -ne $firstRender) { [double]$firstRender.ElapsedMs } else { $null }
