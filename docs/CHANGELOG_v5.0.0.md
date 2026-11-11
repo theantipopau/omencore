@@ -73,8 +73,10 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   **worst** attempt: three launches of one build on one GitHub runner spanned 2285-3650 ms with no code change, so
   judging the fastest let the slowest sit 22% over budget while judging the slowest would fail a busy runner that
   changed nothing; memory is deterministic here, so its worst observation is simply the honest number. The ceiling is
-  4000 ms — the runner's slowest observed launch plus headroom — and it still fails on the 2 s cold-WMI regression
-  this work removed. First runner execution: 109.5 MB private, 2285 ms median app startup, all six CI jobs green.
+  3000 ms — the worse of the two runner medians observed (1657 and 2301 ms) plus roughly 30%, and deliberately not the
+  slowest single launch (3930 ms), which is the noise the median exists to ignore: budgeting for that would let a real
+  2 s regression, whose median lands around 3.6-4.3 s, pass. Runner executions: 114.7 MB worst private, 1657 ms median
+  app startup, all six CI jobs green.
 
 ## Fixed
 

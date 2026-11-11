@@ -202,7 +202,8 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   1.7-2.2 s band while first paint ranged 2.4-12.3 s, with the whole spread inside `Show()` under software rendering,
   and a gate on that would flake rather than protect anything. First paint and idle CPU are printed, not enforced.
   Startup is judged on the median of three launches (one runner launch in three spanned 1.4 s with no code change)
-  and memory on the worst attempt, against a 4000 ms ceiling taken from the runner's slowest observed launch.
+  and memory on the worst attempt, against a 3000 ms ceiling taken from the worse of two observed runner medians
+  (1657 and 2301 ms) rather than from the slowest single launch, which would have let a real 2 s regression through.
 - **Release notes generated from the changelog**, not written twice.
 
 ### I. Adaptations from the peer review (2026-11-11)

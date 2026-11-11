@@ -1,9 +1,9 @@
 {
   "_comment": "Roadmap WP-31 follow-up. Enforced by qa/check-memory-budget.ps1 on every push. Memory is judged on the worst attempt and startup on the median of three, so one noisy launch can neither carry nor sink the result. Budgets are measured values plus headroom, not aspirations: a change that genuinely needs more room raises the number here in the same commit, so growth is reviewed instead of discovered.",
-  "_appStartupMs_evidence": "2026-11-11: local (Ryzen 7 9800X3D) 1822-1888 ms; GitHub windows-latest 2285-3650 ms across three launches of one build, a 1.4 s spread with no code change. 4000 ms is the runner's slowest observed launch plus ~10% headroom, and still fails on the 2 s Cold-WMI regression this work removed (that would have measured ~4.3 s around a 2.3 s baseline).",
+  "_appStartupMs_evidence": "2026-11-11 runner medians (three launches each): 1657 ms and 2301 ms, from individual launches spanning 1642-3930 ms. 3000 ms is the worse median plus ~30% headroom and sits above no observed median. It is deliberately not set from the slowest single launch (3930 ms), because the whole point of judging the median is that a single slow launch is noise: budgeting for it would let a real 2 s regression (median ~3.6-4.3 s) pass. Local reference (Ryzen 7 9800X3D): 1822-1888 ms.",
   "sampleSeconds": 45,
   "idlePrivateMb": 128,
   "peakPrivateMb": 176,
   "idleWorkingSetMb": 320,
-  "appStartupMs": 4000
+  "appStartupMs": 3000
 }
