@@ -85,6 +85,41 @@ jobs:
           for f in "${files[@]}"; do
             echo "Validating $f"
             python3 docs/model-database/validate_model_submission.py "$f" \
-              --existing-db src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs || status=1
+              --existing-db src/OmenCore.Core/Hardware/ModelCapabilityDatabase.cs || status=1
           done
           exit $status
+
+  portable-size-budget:
+    name: Portable build + size budget
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      # Roadmap WP-46: the download size is a promise to the user, so it is measured on every
+      # push instead of being quoted in a README and quietly drifting.
+      - name: Publish portable build and enforce the size budget
+        shell: pwsh
+        run: ./qa/check-size-budget.ps1
+
+  startup-memory-budget:
+    name: Startup + idle memory budget
+    runs-on: windows-latest
+    # The gate launches the app twice and samples for 45 s each time. Without a bound, a runner
+    # where the app cannot start at all would sit on the default 6-hour timeout before anyone
+    # learned why.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      # Roadmap WP-31 follow-up. Startup time and idle footprint were only ever checked by hand,
+      # so a regression shipped and surfaced as a user report. This launches the Release build,
+      # measures a real startup timeline and idle footprint, and fails past qa/memory-budget.json.
+      - name: Measure a real launch and enforce the startup/memory budget
+        shell: pwsh
+        run: ./qa/check-memory-budget.ps1

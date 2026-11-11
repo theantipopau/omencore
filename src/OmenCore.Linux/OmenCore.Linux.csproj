@@ -44,6 +44,11 @@
     
     <!-- Unix interop -->
     <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" />
+
+    <!-- Pinned: Microsoft.Extensions.* 8.0.0 resolve System.Text.Json 8.0.0, which carries two
+         denial-of-service advisories (CVE-2024-30105 and CVE-2024-43485, patched in 8.0.5). This
+         one is reachable on Linux, unlike the Core-only System.Drawing advisory. -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
 </Project>

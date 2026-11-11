@@ -1,6 +1,6 @@
 # Contributing a Model Capability Entry
 
-OmenCore's per-model capability data (`src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs`) drives which
+OmenCore's per-model capability data (`src/OmenCore.Core/Hardware/ModelCapabilityDatabase.cs`) drives which
 features are shown as available for your specific board — fan curves, RGB zones, undervolting, GPU power
 boost, and more. It's hand-maintained today, sourced from individual Discord reports, which means every new
 SKU currently has to go through the project owner personally. This process lets you submit a new or
@@ -47,7 +47,7 @@ on boards where they weren't).
 
 ```
 python docs/model-database/validate_model_submission.py path/to/your-submission.json \
-    --existing-db src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs
+    --existing-db src/OmenCore.Core/Hardware/ModelCapabilityDatabase.cs
 ```
 
 No dependencies required beyond a Python 3 interpreter. Fix everything the validator reports as an `ERROR`

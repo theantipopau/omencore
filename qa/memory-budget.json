@@ -1,0 +1,8 @@
+{
+  "_comment": "Roadmap WP-31 follow-up. Enforced by qa/check-memory-budget.ps1 on every push. Budgets are measured values plus headroom, not aspirations: a change that genuinely needs more room raises the number here in the same commit, so growth is reviewed instead of discovered.",
+  "sampleSeconds": 45,
+  "idlePrivateMb": 128,
+  "peakPrivateMb": 176,
+  "idleWorkingSetMb": 320,
+  "appStartupMs": 3000
+}

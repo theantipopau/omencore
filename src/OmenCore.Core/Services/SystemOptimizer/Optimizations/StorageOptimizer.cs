@@ -8,6 +8,7 @@ using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
 using OmenCore.Services.SystemOptimizer;
+using OmenCore.Utils;
 
 namespace OmenCore.Services.SystemOptimizer.Optimizations
 {
@@ -176,7 +177,25 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     };
                     
                     using var process = Process.Start(psi);
-                    process?.WaitForExit();
+                    if (process == null)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil could not be started";
+                        return;
+                    }
+
+                    // Drain first, then wait with a deadline. This call used an unbounded
+                    // WaitForExit(), so a wedged fsutil.exe hung the optimizer thread with no way
+                    // out (the same class of bug the 5.0.0 timeout sweep fixed).
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    if (!ProcessWait.TryWait(process, 15000))
+                    {
+                        _logger.Warn($"{result.Name}: fsutil did not finish within 15 s; the setting is unknown");
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil timed out after 15 s";
+                        return;
+                    }
+                    ProcessWait.Complete(outputTask);
                     
                     result.Success = process?.ExitCode == 0;
                     if (!result.Success)
@@ -222,7 +241,25 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     };
                     
                     using var process = Process.Start(psi);
-                    process?.WaitForExit();
+                    if (process == null)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil could not be started";
+                        return;
+                    }
+
+                    // Drain first, then wait with a deadline. This call used an unbounded
+                    // WaitForExit(), so a wedged fsutil.exe hung the optimizer thread with no way
+                    // out (the same class of bug the 5.0.0 timeout sweep fixed).
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    if (!ProcessWait.TryWait(process, 15000))
+                    {
+                        _logger.Warn($"{result.Name}: fsutil did not finish within 15 s; the setting is unknown");
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil timed out after 15 s";
+                        return;
+                    }
+                    ProcessWait.Complete(outputTask);
                     
                     result.Success = process?.ExitCode == 0;
                 });
@@ -261,7 +298,25 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     };
                     
                     using var process = Process.Start(psi);
-                    process?.WaitForExit();
+                    if (process == null)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil could not be started";
+                        return;
+                    }
+
+                    // Drain first, then wait with a deadline. This call used an unbounded
+                    // WaitForExit(), so a wedged fsutil.exe hung the optimizer thread with no way
+                    // out (the same class of bug the 5.0.0 timeout sweep fixed).
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    if (!ProcessWait.TryWait(process, 15000))
+                    {
+                        _logger.Warn($"{result.Name}: fsutil did not finish within 15 s; the setting is unknown");
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil timed out after 15 s";
+                        return;
+                    }
+                    ProcessWait.Complete(outputTask);
                     
                     result.Success = process?.ExitCode == 0;
                     if (!result.Success)
@@ -307,7 +362,25 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     };
                     
                     using var process = Process.Start(psi);
-                    process?.WaitForExit();
+                    if (process == null)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil could not be started";
+                        return;
+                    }
+
+                    // Drain first, then wait with a deadline. This call used an unbounded
+                    // WaitForExit(), so a wedged fsutil.exe hung the optimizer thread with no way
+                    // out (the same class of bug the 5.0.0 timeout sweep fixed).
+                    var outputTask = process.StandardOutput.ReadToEndAsync();
+                    if (!ProcessWait.TryWait(process, 15000))
+                    {
+                        _logger.Warn($"{result.Name}: fsutil did not finish within 15 s; the setting is unknown");
+                        result.Success = false;
+                        result.ErrorMessage = "fsutil timed out after 15 s";
+                        return;
+                    }
+                    ProcessWait.Complete(outputTask);
                     
                     result.Success = process?.ExitCode == 0;
                 });
@@ -483,8 +556,16 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                 };
                 
                 using var process = Process.Start(psi);
-                var output = process?.StandardOutput.ReadToEnd() ?? "";
-                process?.WaitForExit();
+                if (process == null)
+                {
+                    return false;
+                }
+
+                // Read first, then wait with a bound: ReadToEnd() before WaitForExit() would block
+                // forever on a wedged fsutil.exe.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                ProcessWait.TryWait(process, 10000);
+                var output = ProcessWait.Complete(outputTask);
                 
                 // "DisableDeleteNotify = 0" means TRIM is enabled
                 return output.Contains("= 0") || output.Contains("=0");

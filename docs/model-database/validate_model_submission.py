@@ -11,7 +11,7 @@ required) -- not a general-purpose validator.
 
 Usage:
     python validate_model_submission.py path/to/submission.json
-    python validate_model_submission.py path/to/submission.json --existing-db ../../src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs
+    python validate_model_submission.py path/to/submission.json --existing-db ../../src/OmenCore.Core/Hardware/ModelCapabilityDatabase.cs
 """
 import argparse
 import json

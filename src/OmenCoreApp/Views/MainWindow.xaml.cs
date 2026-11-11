@@ -33,6 +33,7 @@ namespace OmenCore.Views
         public MainWindow(MainViewModel viewModel)
         {
             InitializeComponent();
+            OmenCore.Services.StartupTimeline.Mark("window_xaml_loaded");
             DataContext = viewModel;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -336,10 +337,12 @@ namespace OmenCore.Views
                         return;
                     }
 
+                    OmenCore.Services.StartupTimeline.Mark("tab_monitoring_creating");
                     tab.Content = new HardwareMonitoringDashboard
                     {
                         DataContext = viewModel
                     };
+                    OmenCore.Services.StartupTimeline.Mark("tab_monitoring_created");
                     App.Logging.Info("[MainWindow] Created HardwareMonitoringDashboard for Monitoring tab");
                 }
 

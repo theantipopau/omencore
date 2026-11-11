@@ -1,0 +1,13 @@
+{
+  "windowsPortableZipMb": 118,
+  "windowsPortableExeMb": 92,
+  "hardwareWorkerExeMb": 78,
+  "measuredOnUtc": "2026-11-11",
+  "measuredBuild": "dotnet publish src/OmenCoreApp -c Release -r win-x64, self-contained, PublishSingleFile, EnableCompressionInSingleFile, IncludeAllContentForSelfExtract; worker published the same way",
+  "measured": {
+    "OmenCore.exeMb": 82.0,
+    "OmenCore.HardwareWorker.exeMb": 69.3,
+    "portableZipMb": 108.3
+  },
+  "policy": "Headroom is roughly 10 percent over the measurement. Raise a number only in the commit that adds the weight, so growth is a reviewed decision. Cutting the artifact (trimming, or dropping an unused dependency) is always preferred to raising the budget."
+}

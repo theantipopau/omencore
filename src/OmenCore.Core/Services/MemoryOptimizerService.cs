@@ -9,6 +9,7 @@ using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using OmenCore.Services.Diagnostics;
+using OmenCore.Utils;
 
 namespace OmenCore.Services
 {
@@ -1017,8 +1018,16 @@ namespace OmenCore.Services
                     return null;
                 }
 
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit();
+                // Read first, then wait with a bound: ReadToEnd() before WaitForExit() meant a
+                // wedged powershell.exe blocked indefinitely and no timeout could fire.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 15000))
+                {
+                    _logger.Warn("Get-MMAgent did not finish within 15s; memory compression state is unknown");
+                    return null;
+                }
+
+                var output = ProcessWait.Complete(outputTask).Trim();
 
                 if (string.Equals(output, "True", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1059,10 +1068,17 @@ namespace OmenCore.Services
                     return false;
                 }
 
-                process.WaitForExit();
+                // Start the read before waiting so a full stderr pipe cannot deadlock the child.
+                var errorTask = process.StandardError.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 60000))
+                {
+                    _logger.Warn($"Setting memory compression ({enabled}) timed out after 60s");
+                    return false;
+                }
+
                 if (process.ExitCode != 0)
                 {
-                    var err = process.StandardError.ReadToEnd();
+                    var err = ProcessWait.Complete(errorTask);
                     _logger.Warn($"Failed to set memory compression ({enabled}): {err}");
                     return false;
                 }

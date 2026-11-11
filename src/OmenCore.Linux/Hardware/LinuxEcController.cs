@@ -390,9 +390,24 @@ public class LinuxEcController
                 }
             };
             process.Start();
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            return output;
+
+            // Read first, then wait with a bound: ReadToEnd() only returns once the child closes
+            // stdout, so `uname` wedged on a broken mount would hang detection with no deadline.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            if (!process.WaitForExit(2000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Best effort only; version detection must not break controller setup.
+                }
+                return "unknown";
+            }
+
+            return outputTask.GetAwaiter().GetResult().Trim();
         }
         catch
         {

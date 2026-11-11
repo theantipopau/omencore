@@ -708,6 +708,45 @@ namespace OmenCoreApp.Tests.Services
             content.Should().NotContain("PerCoreOffsetsAppliedToHardware");
         }
 
+        [Fact]
+        public async Task CapabilityReasonsFile_IsIncludedInExport_WithTheSameWordingAsTheUi()
+        {
+            var capabilities = new OmenCore.Hardware.DeviceCapabilities
+            {
+                ProductId = "8BAD",
+                ModelName = "OMEN 16-b1 (test)",
+                IsKnownModel = true,
+                ModelConfig = new OmenCore.Hardware.ModelCapabilities
+                {
+                    ProductId = "8BAD",
+                    ModelName = "OMEN 16-b1 (test)",
+                    SupportsFanCurves = false
+                }
+            };
+
+            var svc = new DiagnosticExportService(_logging, _tempDir, capabilitiesProvider: () => capabilities);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "capability-reasons.txt");
+
+            content.Should().Contain("CAPABILITY REASONS");
+            content.Should().Contain("FanCurves");
+            content.Should().Contain(
+                capabilities.GetCapabilityReason(OmenCore.Hardware.CapabilityFeature.FanCurves).Message,
+                "the export must carry the exact sentence the control shows");
+        }
+
+        [Fact]
+        public async Task CapabilityReasonsFile_SaysSoWhenDetectionHadNotFinished()
+        {
+            var svc = new DiagnosticExportService(_logging, _tempDir);
+            var zipPath = await svc.CollectAndExportAsync();
+
+            string content = ReadFileFromExport(zipPath, "capability-reasons.txt");
+
+            content.Should().Contain("Capabilities: unavailable in this session");
+        }
+
         private static string ReadFileFromExport(string exportPath, string fileName)
         {
             if (File.Exists(exportPath))

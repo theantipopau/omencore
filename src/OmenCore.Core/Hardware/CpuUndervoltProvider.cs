@@ -57,9 +57,54 @@ namespace OmenCore.Hardware
             return DetectedVendor;
         }
 
+        /// <summary>
+        /// Reads the processor identity Windows records under
+        /// HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0. Returns false when
+        /// the key is absent or names a vendor this app does not recognise, so the caller can fall
+        /// back to WMI rather than memoizing a guess.
+        /// </summary>
+        private static bool TryDetectVendorFromRegistry()
+        {
+            if (!CpuIdentityReader.TryRead(out var processorName, out _, out var vendorIdentifier))
+            {
+                return false;
+            }
+
+            var identity = $"{vendorIdentifier} {processorName}";
+            if (identity.Contains("AuthenticAMD", StringComparison.OrdinalIgnoreCase) ||
+                identity.Contains("AMD", StringComparison.OrdinalIgnoreCase))
+            {
+                CpuName = processorName;
+                DetectedVendor = CpuVendor.AMD;
+                RyzenControl.Init(); // Initialize AMD-specific detection
+                return true;
+            }
+
+            if (identity.Contains("GenuineIntel", StringComparison.OrdinalIgnoreCase) ||
+                identity.Contains("Intel", StringComparison.OrdinalIgnoreCase))
+            {
+                CpuName = processorName;
+                DetectedVendor = CpuVendor.Intel;
+                return true;
+            }
+
+            return false;
+        }
+
         private static void DetectCpu()
         {
             if (DetectedVendor != CpuVendor.Unknown) return;
+
+            // Fast path (5.0.0, WP-31): the kernel writes the CPU identity into this registry key
+            // at boot, so reading two strings costs microseconds. The WMI query below costs ~2 s on
+            // a cold WMI service - measured as the largest single block between NVAPI init and
+            // capability detection on the reference machine, spent purely to decide which of two
+            // log messages to print. Falls through to WMI when the key is missing or names neither
+            // vendor, so nothing depends on the registry being populated.
+            if (TryDetectVendorFromRegistry())
+            {
+                return;
+            }
 
             try
             {

@@ -71,10 +71,15 @@ Filename: "{app}\{#MyAppExeName}"; Flags: nowait shellexec runascurrentuser; Ver
 
 [UninstallRun]
 ; Stop OmenCore and HardwareWorker if running
-Filename: "taskkill"; Parameters: "/F /IM OmenCore.exe"; Flags: runhidden; RunOnceId: "StopOmenCore"
-Filename: "taskkill"; Parameters: "/F /IM OmenCore.HardwareWorker.exe"; Flags: runhidden; RunOnceId: "StopHardwareWorker"
+Filename: "taskkill"; Parameters: "/F /IM OmenCore.exe"; Flags: runhidden waituntilterminated; RunOnceId: "StopOmenCore"
+Filename: "taskkill"; Parameters: "/F /IM OmenCore.HardwareWorker.exe"; Flags: runhidden waituntilterminated; RunOnceId: "StopHardwareWorker"
+; Hand the fans back to the BIOS. The force-kill above skips OmenCore's OnExit, which is where
+; FanService.Dispose resets the EC and clears the firmware Max flag. Firmware Max is a register,
+; not process state: without this the fans stay pinned after OmenCore is uninstalled. Runs
+; headless (no window, exit code only) and before the files are removed below.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--restore-fans"; Flags: runhidden waituntilterminated; RunOnceId: "RestoreFanControl"
 ; Remove scheduled task for autostart
-Filename: "schtasks"; Parameters: "/delete /tn ""OmenCore"" /f"; Flags: runhidden; RunOnceId: "RemoveOmenCoreTask"
+Filename: "schtasks"; Parameters: "/delete /tn ""OmenCore"" /f"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveOmenCoreTask"
 
 [UninstallDelete]
 Type: dirifempty; Name: "{app}"
@@ -111,6 +116,27 @@ begin
   Result := True;
 end;
 
+// Hands fan control back to the BIOS without starting the UI. OmenCore.exe --restore-fans logs in,
+// clears the firmware Max flag and restores the Default thermal mode, then exits with 0 (restored)
+// or 1 (nothing to restore). Used after a force-kill, which is the only way past a running GUI.
+procedure RestoreFanControl;
+var
+  ResultCode: Integer;
+  ExePath: String;
+begin
+  ExePath := ExpandConstant('{app}\{#MyAppExeName}');
+  if not FileExists(ExePath) then
+  begin
+    Log('Fan hand-back skipped: ' + ExePath + ' not found');
+    Exit;
+  end;
+
+  if not Exec(ExePath, '--restore-fans', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('Fan hand-back could not start OmenCore.exe')
+  else
+    Log('Fan hand-back exit code: ' + IntToStr(ResultCode));
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
@@ -124,6 +150,10 @@ begin
   
   // Small delay to ensure processes are fully terminated
   Sleep(500);
+
+  // An upgrade kills the same way an uninstall does, so it leaves the same firmware Max flag
+  // behind: hand the fans back before the new files land on top of the old ones.
+  RestoreFanControl;
 end;
 
 function InitializeUninstall(): Boolean;

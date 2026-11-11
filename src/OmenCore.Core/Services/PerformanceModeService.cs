@@ -54,6 +54,13 @@ namespace OmenCore.Services
             _modelCapabilities == null || !_modelCapabilities.SupportsEcPowerLimits;
 
         /// <summary>
+        /// Applies and captures the non-power settings a mode remembers (fans, GPU boost, refresh
+        /// rate, lighting, charge limit). Optional: with no applier wired, a mode behaves exactly
+        /// as it did before 5.0.0 and only its power settings are applied.
+        /// </summary>
+        public IPerformanceModeEffectApplier? EffectApplier { get; set; }
+
+        /// <summary>
         /// Event raised when a performance mode is applied (for UI synchronization).
         /// </summary>
         public event EventHandler<string>? ModeApplied;
@@ -251,6 +258,32 @@ namespace OmenCore.Services
                     }
                 }
 
+                // Step 4: Apply the rest of what this mode remembers (roadmap WP-43).
+                // Runs after the fan-policy step so a preset or curve remembered by the mode is the
+                // last fan write of the apply rather than being overwritten by a linked policy, and
+                // before the outcome summary so the log and the trace name the effects that landed.
+                PerformanceModeEffectResult? effectResult = null;
+                if (effectiveMode.HasRememberedEffects)
+                {
+                    if (EffectApplier != null)
+                    {
+                        try
+                        {
+                            effectResult = EffectApplier.Apply(effectiveMode);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logging.Warn($"⚠️ Remembered settings for mode '{effectiveMode.Name}' failed: {ex.Message}");
+                            effectResult = new PerformanceModeEffectResult();
+                            effectResult.Failed.Add($"settings threw: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        _logging.Warn($"⚠️ Performance mode '{effectiveMode.Name}' remembers settings but no effect applier is wired; only its power settings were applied");
+                    }
+                }
+
                 // Say what actually happened. Every path above can decline to do anything - EC writes
                 // blocked for the model, the WMI policy fallback not permitted, fan policy decoupled
                 // by default - and on a board where all three decline, the only real effect of an
@@ -264,9 +297,11 @@ namespace OmenCore.Services
                 if (wmiPolicyFallbackApplied) appliedEffects.Add("WMI thermal policy");
                 if (LinkFanToPerformanceMode && fanPolicyAction.StartsWith("Linked", StringComparison.Ordinal))
                     appliedEffects.Add(fanPolicyAction == "Linked fan policy" ? "fan policy" : "fan curve");
+                if (effectResult != null) appliedEffects.AddRange(effectResult.Applied);
 
                 var hardwareEffectApplied = ecPowerLimitApplied || wmiPolicyFallbackApplied ||
-                    (LinkFanToPerformanceMode && fanPolicyAction.StartsWith("Linked", StringComparison.Ordinal));
+                    (LinkFanToPerformanceMode && fanPolicyAction.StartsWith("Linked", StringComparison.Ordinal)) ||
+                    (effectResult?.AnyApplied ?? false);
 
                 if (appliedEffects.Count == 0)
                 {
@@ -303,7 +338,11 @@ namespace OmenCore.Services
                     EcPowerLimitSkipReason = ecPowerLimitSkipReason,
                     WmiPolicyFallbackAttempted = wmiPolicyFallbackAttempted,
                     WmiPolicyFallbackApplied = wmiPolicyFallbackApplied,
-                    FanPolicyAction = fanPolicyAction
+                    FanPolicyAction = fanPolicyAction,
+                    RememberedEffects = effectiveMode.RememberedEffectsSummary,
+                    AppliedRememberedEffects = effectResult?.AppliedSummary ?? string.Empty,
+                    SkippedRememberedEffects = effectResult?.SkippedSummary ?? string.Empty,
+                    FailedRememberedEffects = effectResult?.FailedSummary ?? string.Empty
                 });
 
                 // Raise event for UI synchronization (sidebar, tray, etc.)
@@ -371,6 +410,7 @@ namespace OmenCore.Services
                 lines.AppendLine($"  limits: PL1={entry.CpuPowerLimitWatts}W; PL2={(entry.CpuBoostPowerLimitWatts?.ToString() ?? "auto")}W; GPU={entry.GpuPowerLimitWatts}W; plan={entry.LinkedPowerPlanGuid ?? "<none>"}");
                 lines.AppendLine($"  ecPower: available={entry.EcPowerLimitAvailable}; applied={entry.EcPowerLimitApplied}; skip={FormatTraceValue(entry.EcPowerLimitSkipReason)}");
                 lines.AppendLine($"  fanPolicy: linked={entry.LinkFanToPerformanceMode}; fallbackAllowed={entry.AllowWmiThermalPolicyFallback}; fallbackAttempted={entry.WmiPolicyFallbackAttempted}; fallbackApplied={entry.WmiPolicyFallbackApplied}; action={entry.FanPolicyAction}");
+                lines.AppendLine($"  remembered: {FormatTraceValue(entry.RememberedEffects)}; applied={FormatTraceValue(entry.AppliedRememberedEffects)}; skipped={FormatTraceValue(entry.SkippedRememberedEffects)}; failed={FormatTraceValue(entry.FailedRememberedEffects)}");
                 lines.AppendLine($"  result: {entry.ApplicationEvidence}");
             }
 
@@ -455,15 +495,14 @@ namespace OmenCore.Services
                 $"GPU {mode.GpuPowerLimitWatts}W → {overriddenGpu}W " +
                 $"(model: {_modelCapabilities.ModelName})");
 
-            return new PerformanceMode
-            {
-                Name = mode.Name,
-                CpuPowerLimitWatts = overriddenCpu,
-                CpuBoostPowerLimitWatts = overriddenBoost,
-                GpuPowerLimitWatts = overriddenGpu,
-                LinkedPowerPlanGuid = mode.LinkedPowerPlanGuid,
-                Description = mode.Description
-            };
+            // Clone, don't rebuild: the remembered-effect block introduced for 5.0.0 (fans, GPU
+            // boost, refresh rate, lighting, charge limit) must survive a TDP override, and a
+            // field-by-field copy here is exactly where a future field would get silently dropped.
+            var effective = mode.Clone();
+            effective.CpuPowerLimitWatts = overriddenCpu;
+            effective.CpuBoostPowerLimitWatts = overriddenBoost;
+            effective.GpuPowerLimitWatts = overriddenGpu;
+            return effective;
         }
 
         private int? NormalizePositiveOverride(int? overrideValue, string modeName, string fieldName)
@@ -597,6 +636,12 @@ namespace OmenCore.Services
         }
 
         public IReadOnlyList<PerformanceMode> GetModes(AppConfig config) => config.PerformanceModes;
+
+        /// <summary>
+        /// Reads the current fan / GPU boost / refresh rate / lighting / charge-limit state through
+        /// the applier so the UI can store it into a mode. Null when no applier is wired.
+        /// </summary>
+        public PerformanceModeEffectSnapshot? CaptureCurrentState() => EffectApplier?.CaptureCurrentState();
     }
 
     public sealed class PerformanceModeApplyTraceEntry
@@ -620,6 +665,18 @@ namespace OmenCore.Services
         public bool WmiPolicyFallbackApplied { get; init; }
         public string FanPolicyAction { get; init; } = string.Empty;
 
+        /// <summary>What the mode remembered before this apply, for the diagnostics export.</summary>
+        public string RememberedEffects { get; init; } = string.Empty;
+
+        /// <summary>Remembered effects the applier confirmed it changed.</summary>
+        public string AppliedRememberedEffects { get; init; } = string.Empty;
+
+        /// <summary>Remembered effects declined because the platform cannot do them here.</summary>
+        public string SkippedRememberedEffects { get; init; } = string.Empty;
+
+        /// <summary>Remembered effects that were attempted and failed.</summary>
+        public string FailedRememberedEffects { get; init; } = string.Empty;
+
         /// <summary>
         /// States whether this apply recorded a firmware-facing policy action. Selecting a mode
         /// in OmenCore is not evidence that CPU/GPU limits changed when every backend declines.
@@ -628,6 +685,8 @@ namespace OmenCore.Services
             ? "Firmware power policy applied."
             : LinkFanToPerformanceMode && FanPolicyAction.StartsWith("Linked", StringComparison.Ordinal)
                 ? "Linked fan policy applied; firmware power policy was not recorded."
-                : "No firmware power or fan policy was applied; this records only OmenCore's selected mode.";
+                : !string.IsNullOrEmpty(AppliedRememberedEffects)
+                    ? "Remembered mode settings applied; firmware power policy was not recorded."
+                    : "No firmware power or fan policy was applied; this records only OmenCore's selected mode.";
     }
 }

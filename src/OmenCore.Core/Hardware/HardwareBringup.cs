@@ -50,44 +50,56 @@ namespace OmenCore.Hardware
                 NvapiService = null;
             }
 
+            StartupTimeline.Mark("hardware_nvapi");
+
             // 2. Try PawnIO MSR for CPU throttling detection (optional, non-critical)
             PawnIOMsrAccess? msrForMonitoring = null;
             bool pawnIOInstalledButMsrFailed = false;
-            try
-            {
-                var msrAccess = new PawnIOMsrAccess();
-                if (msrAccess.IsAvailable)
-                {
-                    msrForMonitoring = msrAccess;
-                    logging.Info("✓ PawnIO MSR available for throttling detection");
-                }
-                else
-                {
-                    msrAccess.Dispose();
-                    logging.Info("PawnIO MSR not available — throttling detection disabled");
 
-                    // Check if PawnIO is installed but MSR module failed to load.
-                    // On Intel this usually means a post-installation reboot is needed;
-                    // on AMD the bundled MSR module (IntelMSR.bin) is never even attempted
-                    // for the right CPU, so no reboot will fix it — see IsAmdCpu() below.
+            // WP-31: the bundled MSR module is Intel-only, which this file already said in the
+            // warning it printed after failing on AMD - but only after opening the driver. Measured
+            // on the reference AMD machine, that open alone was ~1 s of the startup thread, spent
+            // to learn something the CPU vendor answers instantly. Vendor detection is now a
+            // registry read (CpuUndervoltProviderFactory.TryDetectVendorFromRegistry), so checking
+            // it first costs nothing and skips a driver path that cannot work.
+            if (IsAmdCpu())
+            {
+                logging.Info("PawnIO MSR probe skipped: the bundled MSR module is Intel-only (AMD MSR support is not implemented)");
+            }
+            else
+            {
+                try
+                {
+                    var msrAccess = new PawnIOMsrAccess();
+                    if (msrAccess.IsAvailable)
+                    {
+                        msrForMonitoring = msrAccess;
+                        logging.Info("✓ PawnIO MSR available for throttling detection");
+                    }
+                    else
+                    {
+                        msrAccess.Dispose();
+                        logging.Info("PawnIO MSR not available — throttling detection disabled");
+
+                        // Check if PawnIO is installed but MSR module failed to load.
+                        // On Intel this usually means a post-installation reboot is needed.
+                        if (PawnIOMsrAccess.IsPawnIOInstalled())
+                        {
+                            pawnIOInstalledButMsrFailed = true;
+                            logging.Warn("[PawnIO] Installed but MSR initialization failed — driver may need a reboot to activate");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logging.Debug($"PawnIO MSR init: {ex.Message}");
+
+                    // Check if PawnIO is installed
                     if (PawnIOMsrAccess.IsPawnIOInstalled())
                     {
                         pawnIOInstalledButMsrFailed = true;
-                        logging.Warn(IsAmdCpu()
-                            ? "[PawnIO] MSR access unavailable — the bundled MSR module only supports Intel CPUs; AMD MSR support is not yet implemented (rebooting will not change this)"
-                            : "[PawnIO] Installed but MSR initialization failed — driver may need a reboot to activate");
+                        logging.Warn($"[PawnIO] Installed but MSR initialization failed: {ex.Message}");
                     }
-                }
-            }
-            catch (Exception ex)
-            {
-                logging.Debug($"PawnIO MSR init: {ex.Message}");
-
-                // Check if PawnIO is installed
-                if (PawnIOMsrAccess.IsPawnIOInstalled())
-                {
-                    pawnIOInstalledButMsrFailed = true;
-                    logging.Warn($"[PawnIO] Installed but MSR initialization failed: {ex.Message}");
                 }
             }
 
@@ -98,6 +110,8 @@ namespace OmenCore.Hardware
                     ? "⚠️  CPU power reading will report 0W on AMD systems — the bundled PawnIO MSR module is Intel-only. Power/throttling telemetry falls back to LibreHardwareMonitor where available; restarting will not change this."
                     : "⚠️  CPU power reading will report 0W. Please restart your computer to fully activate PawnIO driver.");
             }
+
+            StartupTimeline.Mark("hardware_pawnio_msr");
 
             // 3. Create self-sustaining WmiBiosMonitor as PRIMARY monitoring bridge
             var wmiBiosMonitor = new WmiBiosMonitor(logging, nvapiForMonitoring, msrForMonitoring);
@@ -118,17 +132,21 @@ namespace OmenCore.Hardware
                 logging.Warn("WMI BIOS not available — monitoring will return zeros for some metrics");
             }
 
+            StartupTimeline.Mark("hardware_monitor");
+
             // WmiBiosMonitor is ALWAYS the primary bridge — no LHM fallback needed
             WmiBiosMonitor = wmiBiosMonitor;
 
             // Run capability detection to identify available backends
             var capabilityService = new CapabilityDetectionService(logging);
             var capabilities = capabilityService.DetectCapabilities();
+            StartupTimeline.Mark("hardware_capability_detection");
             var pawnIoBackend = capabilities.BackendStatuses.FirstOrDefault(b =>
                 string.Equals(b.Name, "PawnIO", StringComparison.OrdinalIgnoreCase));
 
             // Run runtime probing to verify capability accuracy (especially for undervolt MSR access)
             capabilityService.ProbeRuntimeCapabilities();
+            StartupTimeline.Mark("hardware_runtime_probe");
 
             // Purely local to this bring-up sequence — nothing outside this constructor keeps a
             // reference, so dispose its own WMI wrapper now instead of leaving it for the GC finalizer.
@@ -181,12 +199,15 @@ namespace OmenCore.Hardware
                 EcBackend = "Error";
             }
 
+            StartupTimeline.Mark("hardware_ec_access");
+
             // Create fan controller with intelligent backend selection using pre-detected capabilities.
             // Priority: OGH Proxy > WMI BIOS (no driver) > EC (PawnIO-preferred) > Fallback (monitoring only)
             var fanControllerFactory = new FanControllerFactory(wmiBiosMonitor, ec, config.EcFanRegisterMap, logging, capabilities, config.MaxFanLevelOverride,
                 skipV1LevelHint: config.Features?.SkipV1FanLevelHint == true);
             FanController = fanControllerFactory.Create();
             FanBackend = fanControllerFactory.ActiveBackend;
+            StartupTimeline.Mark("hardware_fan_controller");
         }
 
         public NvapiService? NvapiService { get; }
