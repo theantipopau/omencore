@@ -474,7 +474,7 @@
                         <TabControl Style="{StaticResource Omen.NavRailTabControl}" ItemContainerStyle="{StaticResource Omen.NavRailTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                             <!-- Tab indices: General(0), Custom(1), Tuning(2), Diagnostics(3), Monitoring(4), Optimizer(5), Memory(6), Bloatware(7), RGB(8), Settings(9), Games(10) -->
                             <!-- General Tab: Performance + Fan Profiles (Paired) -->
-                            <TabItem x:Name="GeneralTabItem">
+                            <TabItem x:Name="GeneralTabItem" AutomationProperties.Name="General page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -488,7 +488,7 @@
                             </TabItem>
 
                             <!-- Custom Tab: visible only when Custom profile is active -->
-                            <TabItem x:Name="OmenTabItem">
+                            <TabItem x:Name="OmenTabItem" AutomationProperties.Name="Custom page">
                                 <TabItem.Style>
                                     <Style TargetType="TabItem" BasedOn="{StaticResource Omen.NavRailTabItem}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -516,7 +516,8 @@
                             </TabItem>
 
                             <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
-                            <TabItem x:Name="TuningTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="TuningTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="Tuning page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -531,7 +532,8 @@
 
                             <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->
                             <!-- Group: insight (Diagnostics, Monitoring) -->
-                            <TabItem x:Name="DiagnosticsTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="DiagnosticsTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="Diagnostics page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -545,7 +547,7 @@
                             </TabItem>
 
                             <!-- Monitoring Tab with Hardware Monitoring Dashboard -->
-                            <TabItem x:Name="MonitoringTabItem">
+                            <TabItem x:Name="MonitoringTabItem" AutomationProperties.Name="Monitoring page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -561,7 +563,8 @@
 
                             <!-- System Optimizer Tab - Windows Gaming Tweaks -->
                             <!-- Group: system cleanup (Optimizer, Memory, Bloatware) -->
-                            <TabItem x:Name="OptimizerTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="OptimizerTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="Optimizer page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -575,7 +578,8 @@
                             </TabItem>
 
                             <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
-                            <TabItem x:Name="MemoryTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="MemoryTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="Memory page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -589,7 +593,8 @@
                             </TabItem>
 
                             <!-- Bloatware Manager Tab -->
-                            <TabItem x:Name="BloatwareTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="BloatwareTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="Bloatware page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -604,7 +609,8 @@
 
                             <!-- Peripherals Tab with Lighting View -->
                             <!-- Group: personalization (RGB) -->
-                            <TabItem x:Name="RgbTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
+                            <TabItem x:Name="RgbTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
+                                     AutomationProperties.Name="RGB page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -619,7 +625,7 @@
 
                             <!-- Settings Tab -->
                             <!-- Group: app (Settings, Games) -->
-                            <TabItem x:Name="SettingsTabItem" Tag="GroupStart">
+                            <TabItem x:Name="SettingsTabItem" Tag="GroupStart" AutomationProperties.Name="Settings page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -633,7 +639,7 @@
                             </TabItem>
 
                             <!-- Game Library Tab -->
-                            <TabItem x:Name="GamesTabItem">
+                            <TabItem x:Name="GamesTabItem" AutomationProperties.Name="Games page">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>

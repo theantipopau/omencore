@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
 
     <!-- Typography — declared first so every style below in this dictionary can reference these
          via StaticResource (a same-file forward reference to a resource declared later would be
@@ -308,22 +309,28 @@
     <!-- Focus Ring Color for Accessibility -->
     <Color x:Key="FocusRing">#7B68EE</Color>
 
-    <!-- Brushes -->
-    <SolidColorBrush x:Key="BackgroundDarkBrush" Color="{StaticResource BackgroundDark}" />
-    <SolidColorBrush x:Key="SurfaceDarkBrush" Color="{StaticResource SurfaceDark}" />
-    <SolidColorBrush x:Key="SurfaceMediumBrush" Color="{StaticResource SurfaceMedium}" />
-    <SolidColorBrush x:Key="SurfaceLightBrush" Color="{StaticResource SurfaceLight}" />
-    <SolidColorBrush x:Key="SurfaceHighlightBrush" Color="{StaticResource SurfaceHighlight}" />
-    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentRed}" />
+    <!-- Brushes.
+
+         The chrome brushes below carry po:Freeze="False" because Utils/HighContrastTheme.cs
+         recolours them in place when Windows is in high contrast. That only works on unfrozen
+         brushes, and the styles and views that use them hold StaticResource references to these
+         exact instances - a swapped resource dictionary would leave those references behind.
+         HighContrastThemeTests fails the build if a key it repaints loses this attribute. -->
+    <SolidColorBrush x:Key="BackgroundDarkBrush" po:Freeze="False" Color="{StaticResource BackgroundDark}" />
+    <SolidColorBrush x:Key="SurfaceDarkBrush" po:Freeze="False" Color="{StaticResource SurfaceDark}" />
+    <SolidColorBrush x:Key="SurfaceMediumBrush" po:Freeze="False" Color="{StaticResource SurfaceMedium}" />
+    <SolidColorBrush x:Key="SurfaceLightBrush" po:Freeze="False" Color="{StaticResource SurfaceLight}" />
+    <SolidColorBrush x:Key="SurfaceHighlightBrush" po:Freeze="False" Color="{StaticResource SurfaceHighlight}" />
+    <SolidColorBrush x:Key="AccentBrush" po:Freeze="False" Color="{StaticResource AccentRed}" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentRedHover}" />
     <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}" />
     <SolidColorBrush x:Key="AccentPurpleBrush" Color="{StaticResource AccentPurple}" />
     <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource SuccessGreen}" />
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
-    <SolidColorBrush x:Key="TextTertiaryBrush" Color="{StaticResource TextTertiary}" />
-    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}" />
-    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" po:Freeze="False" Color="{StaticResource TextPrimary}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" po:Freeze="False" Color="{StaticResource TextSecondary}" />
+    <SolidColorBrush x:Key="TextTertiaryBrush" po:Freeze="False" Color="{StaticResource TextTertiary}" />
+    <SolidColorBrush x:Key="TextMutedBrush" po:Freeze="False" Color="{StaticResource TextMuted}" />
+    <SolidColorBrush x:Key="BorderBrush" po:Freeze="False" Color="{StaticResource BorderColor}" />
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessGreen}" />
 
     <SolidColorBrush x:Key="WarningBackgroundBrush" Color="#1AFFAA33" />
@@ -336,7 +343,7 @@
     <SolidColorBrush x:Key="ErrorLightBrush" Color="{StaticResource ErrorLight}" />
     <SolidColorBrush x:Key="InfoLightBrush" Color="{StaticResource InfoLight}" />
     <SolidColorBrush x:Key="OverwrittenBrush" Color="{StaticResource OverwrittenAmber}" />
-    <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRing}" />
+    <SolidColorBrush x:Key="FocusRingBrush" po:Freeze="False" Color="{StaticResource FocusRing}" />
 
     <!-- ==================== STATUS BADGE STYLES ==================== -->
     

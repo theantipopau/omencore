@@ -227,10 +227,16 @@ missing, ranked by return per unit of work. None of it needs new hardware eviden
 - **I.3 Controller watchdog.** `CurveRecoveryService` covers only the in-process case. A scheduled task that checks the
   applied state against the config and re-applies — or hands back through `--restore-fans` — survives a kill, an OOM
   or a Windows update restart. Peer precedent: `omen-fan-control`.
-- **I.4 Accessibility and font scale.** No `AutomationProperties`, no high-contrast theme, no reduced-motion path, no
-  font scaling anywhere in `OmenCoreApp`. #234 is the scaling bug; this is the absent surface behind it. XAML only, no
-  hardware risk, so it fills any phase that is waiting on field data. The NvidiaPower tool's `UiScalePercent` setting
-  is the pattern to copy.
+- **I.4 Accessibility and font scale.** Mostly landed 2026-11-11 (WP-45): 113 `AutomationProperties` names across
+  the views plus one per navigation tab (their headers are a `Path` and a `TextBlock`, which gave a screen reader no
+  label), a reduced-motion path (`MotionPreference`, tested, gated on the OS setting with a per-user override), and a
+  high-contrast palette (`HighContrastTheme`) that repaints the twelve chrome brushes from `SystemColors` at startup
+  and on change. The brushes are mutated in place rather than swapped by dictionary, because `StaticResource` binds at
+  load time — which is why those twelve carry `PresentationOptions:Freeze="False"`, enforced by a test. Still open:
+  a font-scale setting. Every view sets explicit `FontSize` values, so neither an inherited size nor a style setter
+  reaches them; doing it properly means the size/string extraction in WP-32/WP-33, and the zoom there (#48.8) is the
+  right place. #234 is the separate HiDPI bug. XAML only, no hardware risk, so it fills any phase waiting on field
+  data.
 - **I.5 Size and packaging budget.** OmenMon's whole pitch is 14 MB against OGH's ~1.4 GB. Publish a portable
   single-file build and hold a size budget in CI beside the memory budget. A credibility artefact as much as a
   technical one, and the easiest claim of the cycle to check from the website.
@@ -281,7 +287,7 @@ while there is still time to test them.
 | 2 | WP-34 | HiDPI Windows + Linux (#234, #114, #118) | Nothing |
 | 2 | WP-35 | Privilege split design + service skeleton, `config --validate` (I.10) | Architecture decision |
 | 2 | WP-36 | Battery Care 0x2B (#243), TGP ceiling readout (#181), battery preset (I.8) | PR in flight |
-| 2 | WP-45 | Accessibility: names, high contrast, reduced motion, font scale (I.4) | Nothing |
+| 2 | WP-45 | Accessibility: names, high contrast, reduced motion done; font scale moves to WP-33's zoom (I.4) | Nothing |
 | 2 | WP-46 | Portable single-file build + size budget in CI (I.5) | Nothing |
 | 3 | WP-37 | Better Auto (#246, #189), curve in %, maximum duty ceiling (I.6), dust expulsion (I.7) | Owner A/B |
 | 3 | WP-38 | Hand-back hint resolution (#227, #217, #143) | Owner A/B |

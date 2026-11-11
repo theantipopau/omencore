@@ -77,6 +77,21 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   slowest single launch (3930 ms), which is the noise the median exists to ignore: budgeting for that would let a real
   2 s regression, whose median lands around 3.6-4.3 s, pass. Runner executions: 114.7 MB worst private, 1657 ms median
   app startup, all six CI jobs green.
+- **The window follows Windows' high-contrast palette, and the navigation rail has names** (roadmap WP-45).
+  `HighContrastTheme` reads `SystemParameters.HighContrast` before the first window is created and again whenever the
+  setting changes mid-session, then repaints the twelve chrome brushes (window and surface backgrounds, the four text
+  tones, borders, accent and focus ring) from `SystemColors`, so a user on High Contrast Black, White or a custom
+  scheme gets their own foreground/background pair instead of ours. The mechanism matters: a second merged resource
+  dictionary would not work, because every style reaches these brushes through `StaticResource`, which binds at load
+  time to the brush object; the theme mutates those objects in place, which repaints every consumer with no XAML
+  re-parse. That requires unfrozen brushes, so the twelve carry `PresentationOptions:Freeze="False"` and
+  `HighContrastThemeTests` fails if a repainted key disappears from the style sheet or loses the attribute. Literal
+  hex fills inside control templates keep their colours — recolouring those belongs to WP-33's chrome pass, and a
+  half-converted template looks worse than one that stays put. The eleven navigation tabs also gained
+  `AutomationProperties.Name`: their headers are a `Path` plus a `TextBlock`, which leaves a screen reader with no
+  label for the item. Motion already respected the OS setting (`MotionPreference`, tested); the remaining I.4 gap is
+  a font-scale setting, which needs the per-view font sizes turned into shared resources first — that is WP-33's
+  work, not a runtime tree walk.
 
 ## Fixed
 

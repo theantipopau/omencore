@@ -152,6 +152,31 @@ namespace OmenCore
 
         private SessionSentinel? _sessionSentinel;
 
+        /// <summary>Keeps the chrome inside Windows' high-contrast palette (WP-45).</summary>
+        private Utils.HighContrastTheme? _highContrastTheme;
+
+        /// <summary>
+        /// Windows raises one event for every system parameter. Only HighContrast matters here, and
+        /// the theme is idempotent, so a switch mid-session repaints without a restart.
+        /// </summary>
+        private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(SystemParameters.HighContrast))
+            {
+                return;
+            }
+
+            try
+            {
+                _highContrastTheme?.ApplyIfNeeded();
+                Logging.Info($"High contrast changed at runtime; palette now applied: {_highContrastTheme?.IsApplied}");
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"High contrast switch failed: {ex.Message}");
+            }
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             // Installer/uninstaller hand-back. Before the single-instance check so it works whether
@@ -237,6 +262,26 @@ namespace OmenCore
             }
 
             StartupTimeline.Mark("render_mode_decided");
+
+            // WP-45: follow the high-contrast palette before a window exists, so nothing is laid
+            // out in the normal colours first. The theme mutates the shared brushes in place;
+            // see HighContrastTheme for why a second resource dictionary cannot do this.
+            try
+            {
+                Utils.HighContrastTheme.LogSink = message => Logging.Warn(message);
+                _highContrastTheme = new Utils.HighContrastTheme(Resources);
+                _highContrastTheme.ApplyIfNeeded();
+                SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
+
+                if (_highContrastTheme.IsApplied)
+                {
+                    Logging.Info("High contrast is on; using the system palette for window chrome");
+                }
+            }
+            catch (Exception themeEx)
+            {
+                Logging.Warn($"High-contrast theme unavailable: {themeEx.Message}");
+            }
 
             // Subscribe to session switch events to prevent window activation during RDP
             SystemEvents.SessionSwitch += OnSessionSwitch;
