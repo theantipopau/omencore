@@ -119,13 +119,15 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   their content, which makes the page scroll for no reason.
 - **Zoom** (Ctrl +/-/0) and layout-independent scaling (#48.8).
 - **Internationalisation.** Extract strings, ship a resource-only translation path, and start with the two languages
-  already asked for: Russian (#242) and Turkish (peer precedent). This also retires the 967 inline strings.
+  already asked for: Russian (#242) and Turkish (peer precedent). This also retires the 1,108 literal `Text=` values
+  counted in the views.
   *Started 2026-11-11 (WP-32).* The plumbing exists and the shell uses it: three catalogs
   (`Localization/Strings{,.ru,.tr}.resx`), a hand-written typed accessor (CLI builds generate no designer class, so a
   parity test stands in for it), a config-driven language setting applied before the first window loads, and a
   Settings row. The window title, window-control tooltips and all eleven navigation tabs are translated. What remains
-  is the bulk: ~950 strings in the individual views, which can now be moved page by page without touching the
-  mechanism.
+  is the bulk: about 1,060 literal values in the other views, which can now be moved page by page without touching
+  the mechanism. The Settings page's window and tray sections followed on the same day (33 entries, help text and
+  screen-reader names included), which shows the per-page migration shape.
 - **Hotkey management** (#46): every registered hotkey visible and remappable, including the Scroll Lock / Pause
   binding the reporter could not find — and the OMEN key, which peers make a first-class action.
 - **First run.** One screen: what board this is, what it supports, what it does not, and a single button to run Guided
@@ -233,8 +235,8 @@ missing, ranked by return per unit of work. None of it needs new hardware eviden
 - **I.3 Controller watchdog.** `CurveRecoveryService` covers only the in-process case. A scheduled task that checks the
   applied state against the config and re-applies — or hands back through `--restore-fans` — survives a kill, an OOM
   or a Windows update restart. Peer precedent: `omen-fan-control`.
-- **I.4 Accessibility and font scale.** Mostly landed 2026-11-11 (WP-45): 113 `AutomationProperties` names across
-  the views plus one per navigation tab (their headers are a `Path` and a `TextBlock`, which gave a screen reader no
+- **I.4 Accessibility and font scale.** Mostly landed 2026-11-11 (WP-45): 335 `AutomationProperties.Name` attributes
+  across the views (counted in the XAML) plus one per navigation tab (their headers are a `Path` and a `TextBlock`, which gave a screen reader no
   label), a reduced-motion path (`MotionPreference`, tested, gated on the OS setting with a per-user override), and a
   high-contrast palette (`HighContrastTheme`) that repaints the twelve chrome brushes from `SystemColors` at startup
   and on change. The brushes are mutated in place rather than swapped by dictionary, because `StaticResource` binds at
@@ -286,7 +288,7 @@ while there is still time to test them.
 |---|---|---|---|
 | 1 | WP-30 | Signing decision + updater provenance + `SHA256SUMS` | Maintainer (certificate) |
 | 1 | WP-31 | ~~Memory/startup profiling pass, then the fixes it names~~ — done 2026-11-11, see §4.B | Nothing |
-| 1 | WP-32 | i18n plumbing done; shell translated; ~950 page strings remain | Nothing |
+| 1 | WP-32 | i18n plumbing done; shell + Settings (window/tray) translated; ~1,060 literals remain | Nothing |
 | 1 | WP-43 | Per-mode memory: `PerformanceMode` fields, migration, apply path (I.1) | Nothing |
 | 1 | WP-44 | Structured capability reasons in the DB, the UI and the export (I.2) | Nothing |
 | 2 | WP-33 | UI density and navigation rework (#48, #133, #232) | Nothing |

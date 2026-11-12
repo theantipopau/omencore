@@ -93,7 +93,7 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   a font-scale setting, which needs the per-view font sizes turned into shared resources first — that is WP-33's
   work, not a runtime tree walk.
 - **The shell speaks Russian and Turkish** (roadmap WP-32, first slice). There was no resource infrastructure at
-  all: 967 inline English strings and no `.resx` anywhere. `Localization/Strings.resx` now holds the shell catalog with
+  all: 1,108 literal `Text=` values across the views and no `.resx` anywhere (counted in the XAML, not estimated). `Localization/Strings.resx` now holds the shell catalog with
   `Strings.ru.resx` and `Strings.tr.resx` beside it, compiled to satellite assemblies; `Strings.cs` is a hand-written
   accessor because the SDK only generates a designer class under Visual Studio, and CI builds from the CLI, so the
   generated-type guarantee is replaced by `StringsResourceTests` (key parity across all three catalogs, no empty value,
@@ -103,8 +103,17 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   instead of two English literals. Language is chosen in Settings (`auto`, English, Русский, Türkçe) and applied at
   startup before the first window loads, because `x:Static` resolves as each view is parsed; the row says it takes
   effect next launch rather than pretending to switch live. Only the UI culture moves — number formatting stays
-  invariant, so a Russian window still reads "95.0%" instead of "95,0%". *Implemented for the shell; the remaining ~950
-  strings in the pages are the rest of WP-32.*
+  invariant, so a Russian window still reads "95.0%" instead of "95,0%". *Implemented for the shell and the Settings
+  window/tray sections (33 more entries); roughly 1,060 literal values in the other pages are the rest of WP-32.*
+- **The Settings page's window and tray sections are translated, labels and help text together** (WP-32, second
+  slice). The eleven rows between "Window Behavior" and the Corsair telemetry toggle — start with Windows, start
+  minimized, Lite mode, headless, software rendering, reduce motion, language, minimize to tray, stay on top, the two
+  Quick Access rows, the tray temperature row and the two Corsair rows — now read from the same three catalogs as the
+  shell, descriptions included, because a translated heading over English explanation text is worse than leaving the
+  row alone. Each toggle's `AutomationProperties.Name` uses the row's own catalog entry instead of a second English
+  literal, so a Russian user's screen reader says "Меньше анимации" rather than "Reduce motion". The page is now
+  mixed: these sections are translated and the rest of Settings is not, which is what a partially migrated page looks
+  like and is why the remaining rows are listed as work rather than described as done.
 
 ## Fixed
 
