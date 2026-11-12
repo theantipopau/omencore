@@ -252,7 +252,8 @@ missing, ranked by return per unit of work. None of it needs new hardware eviden
 Smaller items, folded into existing packages rather than opening new ones: a user-set maximum duty ceiling (I.6, into
 WP-37), tray dust-expulsion with state restore (I.7, WP-37), an "on battery → Quiet + 60 Hz + charge limit" preset in
 `PowerAutomationService` (I.8, WP-36), full-profile share codes extending `FanCurveShareCode` (I.9, WP-48),
-`config --validate` against the schema (I.10, WP-35), SBOM plus `dotnet nuget audit` in CI (I.11, WP-42), and a
+`config --validate` against the schema (I.10, WP-35 — done 2026-11-11 as
+`omencore-cli config --validate`, reporting loader repairs as well as out-of-range values), SBOM plus `dotnet nuget audit` in CI (I.11, WP-42), and a
 website supported-model table generated from the database rather than written by hand (I.12, WP-42).
 
 ## 5. Definition of done for 5.0.0
@@ -293,7 +294,7 @@ while there is still time to test them.
 | 1 | WP-44 | Structured capability reasons in the DB, the UI and the export (I.2) | Nothing |
 | 2 | WP-33 | UI density and navigation rework (#48, #133, #232) | Nothing |
 | 2 | WP-34 | HiDPI Windows + Linux (#234, #114, #118) | Nothing |
-| 2 | WP-35 | Privilege split design + service skeleton, `config --validate` (I.10) | Architecture decision |
+| 2 | WP-35 | Privilege split design + service skeleton; `config --validate` done (I.10) | Architecture decision |
 | 2 | WP-36 | Battery Care 0x2B (#243), TGP ceiling readout (#181), battery preset (I.8) | PR in flight |
 | 2 | WP-45 | Accessibility: names, high contrast, reduced motion done; font scale moves to WP-33's zoom (I.4) | Nothing |
 | 2 | WP-46 | Portable single-file build + size budget in CI (I.5) | Nothing |

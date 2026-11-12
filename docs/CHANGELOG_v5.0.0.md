@@ -114,6 +114,19 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   literal, so a Russian user's screen reader says "Меньше анимации" rather than "Reduce motion". The page is now
   mixed: these sections are translated and the rest of Settings is not, which is what a partially migrated page looks
   like and is why the remaining rows are listed as work rather than described as done.
+- **A configuration file can be checked before the app reads it** (roadmap I.10). `omencore-cli config --validate
+  [--path file]` reports every value outside the ranges OmenCore enforces, and — the part that answers the usual
+  complaint — whether the loader would silently change it. `ConfigurationService.ValidateAndRepair` resets a
+  monitoring interval outside 500-10000 ms to 1000, a negative smoothing duration to 1000, an unknown memory profile to
+  Balanced and an unshipped language to the system one, which is right for starting up and useless to someone asking
+  why their value did not stick, so each finding carries `RepairedOnLoad` and the CLI prints it as such. The rules cite
+  ranges the tree already documents or enforces: battery 60-100 %, thermal protection 75-95 °C, emergency 90-99 °C and
+  at least 2 °C above protection, Quiet Safety releasing below its trigger, OSD opacity 0-1 with toast 800-6000 ms at
+  80-140 %, memory interval 1-120 min and threshold 50-95 %, `HH:mm` schedule times, and duplicate performance-mode
+  names. Exit status is 1 for errors, 2 for an unreadable or missing file, 0 otherwise. It uses `Environment.Exit`
+  rather than `Environment.ExitCode` because `Program` returns `InvokeAsync`'s 0, which overrode the property: the first
+  version of this command printed two errors and then reported success. *Verified on two fixture files and by
+  `ConfigValidatorTests`; the validator runs on the file as written, before repairs.*
 
 ## Fixed
 

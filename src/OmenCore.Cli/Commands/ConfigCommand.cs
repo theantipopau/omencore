@@ -1,5 +1,10 @@
+using System;
 using System.CommandLine;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using OmenCore.Models;
+using OmenCore.Services;
 
 namespace OmenCore.Cli.Commands;
 
@@ -39,20 +44,36 @@ public static class ConfigCommand
             aliases: new[] { "--set" },
             description: "Set a config value (key=value)");
 
+        var validateOption = new Option<bool>(
+            aliases: new[] { "--validate" },
+            description: "Check the configuration against the ranges OmenCore enforces, and report what the loader would silently repair");
+
+        var pathOption = new Option<string?>(
+            aliases: new[] { "--path" },
+            description: "With --validate: validate this file instead of the active config.json");
+
         command.AddOption(showOption);
         command.AddOption(getOption);
         command.AddOption(setOption);
+        command.AddOption(validateOption);
+        command.AddOption(pathOption);
 
-        command.SetHandler((show, get, set) =>
+        command.SetHandler((show, get, set, validate, path) =>
         {
-            Handle(show, get, set);
-        }, showOption, getOption, setOption);
+            Handle(show, get, set, validate, path);
+        }, showOption, getOption, setOption, validateOption, pathOption);
 
         return command;
     }
 
-    private static void Handle(bool show, string? get, string? set)
+    private static void Handle(bool show, string? get, string? set, bool validate, string? path)
     {
+        if (validate)
+        {
+            ValidateFile(path);
+            return;
+        }
+
         var config = AppHost.Configuration.Load();
 
         if (!string.IsNullOrWhiteSpace(set))
@@ -190,6 +211,74 @@ public static class ConfigCommand
         setter(value);
         error = null;
         return true;
+    }
+
+    /// <summary>
+    /// <c>config --validate [--path file]</c>. Validates the file as written, before the loader's
+    /// repairs, and exits non-zero when anything is an error so a script can gate on it. Repairs are
+    /// called out separately because "OmenCore changed my value" is the confusing half.
+    /// </summary>
+    private static void ValidateFile(string? path)
+    {
+        string target = string.IsNullOrWhiteSpace(path)
+            ? Path.Combine(AppHost.Configuration.GetConfigFolder(), "config.json")
+            : Path.GetFullPath(path);
+
+        Console.WriteLine();
+        Console.WriteLine($"=== Configuration check: {target} ===");
+        Console.WriteLine();
+
+        if (!File.Exists(target))
+        {
+            PrintError($"{target} does not exist.");
+            // Exit rather than set Environment.ExitCode: Program returns InvokeAsync's 0, which
+            // would win over the property, so a script gating on the status would always see success.
+            Environment.Exit(2);
+            return;
+        }
+
+        AppConfig? config;
+        try
+        {
+            config = AppHost.Configuration.ImportConfiguration(target);
+        }
+        catch (JsonException ex)
+        {
+            PrintError($"Not valid JSON: {ex.Message}");
+            Environment.Exit(1);
+            return;
+        }
+        catch (Exception ex)
+        {
+            PrintError($"Could not read the file: {ex.Message}");
+            Environment.Exit(2);
+            return;
+        }
+
+        var issues = ConfigValidator.Validate(config);
+        if (issues.Count == 0)
+        {
+            PrintSuccess("no issues found");
+            return;
+        }
+
+        foreach (var issue in issues.OrderBy(issue => issue.Severity))
+        {
+            string level = issue.Severity == ConfigIssueSeverity.Error ? "error  " : "warning";
+            Console.WriteLine($"  [{level}] {issue.Path}: {issue.Message}");
+            if (issue.RepairedOnLoad)
+            {
+                Console.WriteLine("            (OmenCore repairs this on load, which is why the value may not stick)");
+            }
+        }
+
+        int errors = issues.Count(issue => issue.Severity == ConfigIssueSeverity.Error);
+        Console.WriteLine();
+        Console.WriteLine($"  {issues.Count} issue(s): {errors} error(s), {issues.Count - errors} warning(s)");
+        Console.WriteLine();
+
+        Console.Out.Flush();
+        Environment.Exit(errors > 0 ? 1 : 0);
     }
 
     private static void PrintSuccess(string message)
