@@ -288,6 +288,14 @@ namespace OmenCore
             
             // Apply log level from configuration
             Logging.Level = Configuration.Config.LogLevel;
+
+            // WP-32: UI language before any window exists, because XAML resolves the localized
+            // strings as it loads. This sets the UI culture only - number formatting stays
+            // invariant (see ForceInvariantNumberFormatting), so a Russian window still shows
+            // "95.0%".
+            OmenCore.Localization.Language.Apply(Configuration.Config.Language);
+            Logging.Info($"UI language: {Configuration.Config.Language} " +
+                         $"(culture {CultureInfo.CurrentUICulture.Name})");
             
             var asm = Assembly.GetExecutingAssembly();
             var fileVer = AppVersionProvider.GetVersionString();

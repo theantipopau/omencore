@@ -120,6 +120,12 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
 - **Zoom** (Ctrl +/-/0) and layout-independent scaling (#48.8).
 - **Internationalisation.** Extract strings, ship a resource-only translation path, and start with the two languages
   already asked for: Russian (#242) and Turkish (peer precedent). This also retires the 967 inline strings.
+  *Started 2026-11-11 (WP-32).* The plumbing exists and the shell uses it: three catalogs
+  (`Localization/Strings{,.ru,.tr}.resx`), a hand-written typed accessor (CLI builds generate no designer class, so a
+  parity test stands in for it), a config-driven language setting applied before the first window loads, and a
+  Settings row. The window title, window-control tooltips and all eleven navigation tabs are translated. What remains
+  is the bulk: ~950 strings in the individual views, which can now be moved page by page without touching the
+  mechanism.
 - **Hotkey management** (#46): every registered hotkey visible and remappable, including the Scroll Lock / Pause
   binding the reporter could not find — and the OMEN key, which peers make a first-class action.
 - **First run.** One screen: what board this is, what it supports, what it does not, and a single button to run Guided
@@ -280,7 +286,7 @@ while there is still time to test them.
 |---|---|---|---|
 | 1 | WP-30 | Signing decision + updater provenance + `SHA256SUMS` | Maintainer (certificate) |
 | 1 | WP-31 | ~~Memory/startup profiling pass, then the fixes it names~~ — done 2026-11-11, see §4.B | Nothing |
-| 1 | WP-32 | Strings extracted, i18n plumbing, Russian + Turkish | Nothing |
+| 1 | WP-32 | i18n plumbing done; shell translated; ~950 page strings remain | Nothing |
 | 1 | WP-43 | Per-mode memory: `PerformanceMode` fields, migration, apply path (I.1) | Nothing |
 | 1 | WP-44 | Structured capability reasons in the DB, the UI and the export (I.2) | Nothing |
 | 2 | WP-33 | UI density and navigation rework (#48, #133, #232) | Nothing |

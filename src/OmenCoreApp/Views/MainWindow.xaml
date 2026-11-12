@@ -8,8 +8,9 @@
         xmlns:controls="clr-namespace:OmenCore.Controls"
         xmlns:models="clr-namespace:OmenCore.Models"
         xmlns:utils="clr-namespace:OmenCore.Utils"
+        xmlns:loc="clr-namespace:OmenCore.Localization"
         mc:Ignorable="d"
-        Title="OmenCore - Gaming Laptop Control Center" Height="900" Width="1500" MinHeight="500" MinWidth="800"
+        Title="{x:Static loc:Strings.WindowTitle}" Height="900" Width="1500" MinHeight="500" MinWidth="800"
         Icon="pack://application:,,,/OmenCore;component/Assets/OmenCore.ico"
         Background="Transparent"
         WindowStyle="None"
@@ -18,7 +19,7 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
-        AutomationProperties.Name="OmenCore Gaming Laptop Control Center">
+        AutomationProperties.Name="{x:Static loc:Strings.WindowTitle}">
     
     <!-- Keyboard Shortcuts for refresh -->
     <Window.InputBindings>
@@ -75,17 +76,17 @@
                              machine). Path.Stroke follows the button's own Foreground so the
                              existing hover/close-red triggers on WindowControlButton/WindowCloseButton
                              still apply without any extra wiring. -->
-                        <Button Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Minimize">
+                        <Button Click="MinimizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="{x:Static loc:Strings.WindowMinimize}">
                             <Path Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
                                   Data="{StaticResource Icon.WindowMinimize}"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
-                        <Button x:Name="MaximizeButton" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="Maximize">
+                        <Button x:Name="MaximizeButton" Click="MaximizeButton_Click" Style="{StaticResource WindowControlButton}" ToolTip="{x:Static loc:Strings.WindowMaximize}">
                             <Path x:Name="MaximizeIconPath" Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
                                   Data="{StaticResource Icon.WindowMaximize}"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
-                        <Button Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="Close">
+                        <Button Click="CloseButton_Click" Style="{StaticResource WindowCloseButton}" ToolTip="{x:Static loc:Strings.WindowClose}">
                             <Path Width="10" Height="10" Stretch="Uniform" StrokeThickness="1"
                                   Data="{StaticResource Icon.WindowClose}"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
@@ -474,7 +475,7 @@
                         <TabControl Style="{StaticResource Omen.NavRailTabControl}" ItemContainerStyle="{StaticResource Omen.NavRailTabItem}" x:Name="TabControlMain" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
                             <!-- Tab indices: General(0), Custom(1), Tuning(2), Diagnostics(3), Monitoring(4), Optimizer(5), Memory(6), Bloatware(7), RGB(8), Settings(9), Games(10) -->
                             <!-- General Tab: Performance + Fan Profiles (Paired) -->
-                            <TabItem x:Name="GeneralTabItem" AutomationProperties.Name="General page">
+                            <TabItem x:Name="GeneralTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavGeneral}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -482,13 +483,13 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconPerformance}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="General" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavGeneral}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Custom Tab: visible only when Custom profile is active -->
-                            <TabItem x:Name="OmenTabItem" AutomationProperties.Name="Custom page">
+                            <TabItem x:Name="OmenTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavCustom}">
                                 <TabItem.Style>
                                     <Style TargetType="TabItem" BasedOn="{StaticResource Omen.NavRailTabItem}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -510,14 +511,14 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconCpu}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Custom" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavCustom}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Tuning Tab: CPU Undervolt, Power Limits, GPU OC -->
                             <TabItem x:Name="TuningTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="Tuning page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavTuning}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -525,7 +526,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconTune}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Tuning" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavTuning}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
@@ -533,7 +534,7 @@
                             <!-- Diagnostics Tab: Fan and Keyboard Testing (GitHub #48 - kg290) -->
                             <!-- Group: insight (Diagnostics, Monitoring) -->
                             <TabItem x:Name="DiagnosticsTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="Diagnostics page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavDiagnostics}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -541,13 +542,13 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconWarning}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Diagnostics" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavDiagnostics}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Monitoring Tab with Hardware Monitoring Dashboard -->
-                            <TabItem x:Name="MonitoringTabItem" AutomationProperties.Name="Monitoring page">
+                            <TabItem x:Name="MonitoringTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavMonitoring}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -555,7 +556,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconMonitoring}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Monitoring" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavMonitoring}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                                 <!-- Content will be created programmatically in code-behind -->
@@ -564,7 +565,7 @@
                             <!-- System Optimizer Tab - Windows Gaming Tweaks -->
                             <!-- Group: system cleanup (Optimizer, Memory, Bloatware) -->
                             <TabItem x:Name="OptimizerTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="Optimizer page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavOptimizer}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -572,14 +573,14 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconScale}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Optimizer" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavOptimizer}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Memory Optimizer Tab - RAM Cleaning & Monitoring -->
                             <TabItem x:Name="MemoryTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="Memory page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavMemory}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -587,14 +588,14 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconRam}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Memory" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavMemory}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Bloatware Manager Tab -->
                             <TabItem x:Name="BloatwareTabItem" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="Bloatware page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavBloatware}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -602,7 +603,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconTrash}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Bloatware" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavBloatware}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
@@ -610,7 +611,7 @@
                             <!-- Peripherals Tab with Lighting View -->
                             <!-- Group: personalization (RGB) -->
                             <TabItem x:Name="RgbTabItem" Tag="GroupStart" Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}"
-                                     AutomationProperties.Name="RGB page">
+                                     AutomationProperties.Name="{x:Static loc:Strings.NavRgb}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -618,14 +619,14 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconLighting}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="RGB" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavRgb}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Settings Tab -->
                             <!-- Group: app (Settings, Games) -->
-                            <TabItem x:Name="SettingsTabItem" Tag="GroupStart" AutomationProperties.Name="Settings page">
+                            <TabItem x:Name="SettingsTabItem" Tag="GroupStart" AutomationProperties.Name="{x:Static loc:Strings.NavSettings}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -633,13 +634,13 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconSettings}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Settings" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavSettings}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>
 
                             <!-- Game Library Tab -->
-                            <TabItem x:Name="GamesTabItem" AutomationProperties.Name="Games page">
+                            <TabItem x:Name="GamesTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavGames}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -647,7 +648,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Grid.Column="0" Data="{StaticResource IconGamepad}" Style="{StaticResource Omen.TabHeaderIcon}"/>
-                                        <TextBlock Grid.Column="1" Text="Games" Style="{StaticResource Omen.TabHeaderText}"/>
+                                        <TextBlock Grid.Column="1" Text="{x:Static loc:Strings.NavGames}" Style="{StaticResource Omen.TabHeaderText}"/>
                                         </Grid>
                                 </TabItem.Header>
                             </TabItem>

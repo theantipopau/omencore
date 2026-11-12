@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Window chrome -->
+  <data name="WindowTitle" xml:space="preserve">
+    <value>OmenCore - Gaming Laptop Control Center</value>
+  </data>
+  <data name="WindowMinimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="WindowMaximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>Restore</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+
+  <!-- Navigation rail. Each key is also the screen-reader name for its tab. -->
+  <data name="NavGeneral" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="NavCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="NavTuning" xml:space="preserve">
+    <value>Tuning</value>
+  </data>
+  <data name="NavDiagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="NavMonitoring" xml:space="preserve">
+    <value>Monitoring</value>
+  </data>
+  <data name="NavOptimizer" xml:space="preserve">
+    <value>Optimizer</value>
+  </data>
+  <data name="NavMemory" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="NavBloatware" xml:space="preserve">
+    <value>Bloatware</value>
+  </data>
+  <data name="NavRgb" xml:space="preserve">
+    <value>RGB</value>
+  </data>
+  <data name="NavSettings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="NavGames" xml:space="preserve">
+    <value>Games</value>
+  </data>
+</root>

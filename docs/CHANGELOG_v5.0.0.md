@@ -92,6 +92,19 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   label for the item. Motion already respected the OS setting (`MotionPreference`, tested); the remaining I.4 gap is
   a font-scale setting, which needs the per-view font sizes turned into shared resources first — that is WP-33's
   work, not a runtime tree walk.
+- **The shell speaks Russian and Turkish** (roadmap WP-32, first slice). There was no resource infrastructure at
+  all: 967 inline English strings and no `.resx` anywhere. `Localization/Strings.resx` now holds the shell catalog with
+  `Strings.ru.resx` and `Strings.tr.resx` beside it, compiled to satellite assemblies; `Strings.cs` is a hand-written
+  accessor because the SDK only generates a designer class under Visual Studio, and CI builds from the CLI, so the
+  generated-type guarantee is replaced by `StringsResourceTests` (key parity across all three catalogs, no empty value,
+  a property for every key, and one test that actually loads "Настройки" and "Oyunlar" through `ResourceManager` rather
+  than only reading the files). The window title, the three window-control tooltips and all eleven navigation tabs read
+  from the catalog through `x:Static`, so those tabs are now translated *and* named for a screen reader from one entry
+  instead of two English literals. Language is chosen in Settings (`auto`, English, Русский, Türkçe) and applied at
+  startup before the first window loads, because `x:Static` resolves as each view is parsed; the row says it takes
+  effect next launch rather than pretending to switch live. Only the UI culture moves — number formatting stays
+  invariant, so a Russian window still reads "95.0%" instead of "95,0%". *Implemented for the shell; the remaining ~950
+  strings in the pages are the rest of WP-32.*
 
 ## Fixed
 

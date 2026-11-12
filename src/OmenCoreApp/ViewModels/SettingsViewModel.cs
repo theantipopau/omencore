@@ -58,6 +58,7 @@ namespace OmenCore.ViewModels
         private bool _allowStartupRestoreOnOmen16OrVictus;
         private bool _useSoftwareRendering;
         private bool _reduceMotion;
+        private string _language = OmenCore.Localization.Language.SystemDefault;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
         private bool _autoCheckUpdates = true;
@@ -617,6 +618,28 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Selected UI language code. Applied on the next launch (see <c>AppConfig.Language</c>);
+        /// the Settings row says so, so a user is not left wondering why nothing changed yet.
+        /// </summary>
+        public string SelectedLanguage
+        {
+            get => _language;
+            set
+            {
+                string normalized = OmenCore.Localization.Language.Normalize(value);
+                if (_language != normalized)
+                {
+                    _language = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public System.Collections.Generic.IReadOnlyList<OmenCore.Localization.LanguageOption> LanguageOptions =>
+            OmenCore.Localization.Language.Supported;
 
         public bool MinimizeToTrayOnClose
         {
@@ -3210,6 +3233,7 @@ namespace OmenCore.ViewModels
             _allowStartupRestoreOnOmen16OrVictus = _config.AllowStartupRestoreOnOmen16OrVictus;
             _useSoftwareRendering = _config.UseSoftwareRendering;
             _reduceMotion = _config.ReduceMotion;
+            _language = OmenCore.Localization.Language.Normalize(_config.Language);
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -3264,6 +3288,7 @@ namespace OmenCore.ViewModels
             _config.AllowStartupRestoreOnOmen16OrVictus = _allowStartupRestoreOnOmen16OrVictus;
             _config.UseSoftwareRendering = _useSoftwareRendering;
             _config.ReduceMotion = _reduceMotion;
+            _config.Language = _language;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -3862,6 +3887,7 @@ namespace OmenCore.ViewModels
                 ModeChangeNotificationsEnabled = true;
                 TemperatureWarningsEnabled = true;
                 ReduceMotion = false;
+                SelectedLanguage = OmenCore.Localization.Language.SystemDefault;
                 StartupSafeModeGuardEnabled = true;
                 StartupSafeModeWindowSeconds = 180;
                 StartupSafeModeTimeoutThreshold = 2;

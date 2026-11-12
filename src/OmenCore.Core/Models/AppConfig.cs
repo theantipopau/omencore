@@ -406,6 +406,16 @@ namespace OmenCore.Models
         public bool ReduceMotion { get; set; } = false;
 
         /// <summary>
+        /// UI language: "auto" (the language Windows is installed in), "en", "ru" or "tr".
+        ///
+        /// Read once at startup, before the first window loads, because the shell's strings are
+        /// resolved by <c>x:Static</c> as each view is parsed; changing it therefore takes effect on
+        /// the next launch rather than half-repainting the open window. Numbers are unaffected: they
+        /// stay invariant whatever this says.
+        /// </summary>
+        public string Language { get; set; } = "auto";
+
+        /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
         /// </summary>
         public ThermalMonitoringSettings ThermalAlerts { get; set; } = new();

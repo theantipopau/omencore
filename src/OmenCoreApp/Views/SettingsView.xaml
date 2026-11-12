@@ -698,6 +698,29 @@
                                           AutomationProperties.Name="Reduce motion"/>
                         </Grid>
 
+                        <!-- UI Language (roadmap WP-32) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="Language" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Language of the interface. Takes effect the next time OmenCore starts; numbers and log files stay in the same format either way."
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding LanguageOptions}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Code"
+                                      SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="Interface language"/>
+                        </Grid>
+
                         <!-- Minimize to Tray on Close -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
