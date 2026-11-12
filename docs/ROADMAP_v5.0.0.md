@@ -90,8 +90,11 @@ export first and are not started without one.
 - **Packaging.** winget and Scoop manifests (both absent today), and on Linux a real package instead of a zip: deb,
   rpm, AUR, Flatpak. Reuse the layout from `omen-fan-control` and `OpenOMEN`.
 - **Single version source.** Version is currently duplicated across `VERSION.txt`, the `.iss` and six csproj files;
-  one `Directory.Build.props` value feeds all of them.
-- **Config schema version**, so a 4.x config is migrated rather than silently reinterpreted.
+  one `Directory.Build.props` value feeds all of them. *Done 2026-11-13:* the props file reads `VERSION.txt`; the
+  build scripts and the installer already did.
+- **Config schema version**, so a 4.x config is migrated rather than silently reinterpreted. *Done 2026-11-13:*
+  `AppConfig.SchemaVersion` (0 = 4.x), ordered migration steps in `ConfigurationService`, a `.schemaN.bak` copy before
+  migrating, newer configs left alone, unknown keys round-tripped through `[JsonExtensionData]`.
 
 ### B. UI/UX — the second headline, and the one users feel daily
 
@@ -211,7 +214,8 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
 - **Docs consolidation.** 121 changelog/roadmap files and ~299 files under `docs/`. Keep `docs/` for per-version
   records, move the evergreen material (model DB guide, diagnostics format, fan theory) into `docs/guides/` and link
   it from the README.
-- **Dependabot** for the three ecosystems (NuGet, GitHub Actions, pip), with the release-gate tests as the safety net.
+- **Dependabot** for the ecosystems the repo has (NuGet, GitHub Actions; there is no pip manifest), with the
+  release-gate tests as the safety net. *Done 2026-11-13:* `.github/dependabot.yml`, weekly and grouped.
 - **CI matrix**: the Linux job runs one image; add the two distro families the reporters actually use (Arch-based and
   Ubuntu LTS).
 - **Performance budget in CI**: a test that fails if idle private memory or startup time regress past a threshold.

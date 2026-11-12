@@ -754,7 +754,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="⚡ MODE" Style="{StaticResource GaugeLabel}"/>
                                         <TextBlock Grid.Column="1" Text="{Binding CurrentPerformanceModeDisplay}" 
-                                                   Style="{StaticResource GaugeValue}" Foreground="{StaticResource AccentBrush}"/>
+                                                   Style="{StaticResource GaugeValue}" Foreground="{DynamicResource ModeAccentBrush}"/>
                                     </Grid>
                                     
                                     <!-- Fan Mode -->
@@ -765,7 +765,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="🌀 FANS" Style="{StaticResource GaugeLabel}"/>
                                         <TextBlock Grid.Column="1" Text="{Binding CurrentFanMode}" 
-                                                   Style="{StaticResource GaugeValue}" Foreground="{StaticResource AccentBrush}"/>
+                                                   Style="{StaticResource GaugeValue}" Foreground="{StaticResource TextPrimaryBrush}"/>
                                     </Grid>
                                 </Grid>
                             </Border>

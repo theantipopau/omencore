@@ -18,7 +18,17 @@ namespace OmenCore.ViewModels
         private static readonly Brush BalancedBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Balanced);
         private static readonly Brush QuietBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Quiet);
         private static readonly Brush CustomBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Custom);
-        private static readonly Brush SelectedProfileBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Brand); // fan quick-mode selector
+        private static readonly Brush BrandBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Brand);
+
+        // The fan quick-mode selector takes the active profile's colour too, so one screen never shows two accents.
+        private Brush SelectedProfileBorderBrush => SelectedProfile switch
+        {
+            "Performance" => PerformanceBorderBrush,
+            "Balanced" => BalancedBorderBrush,
+            "Quiet" => QuietBorderBrush,
+            "Custom" => CustomBorderBrush,
+            _ => BrandBorderBrush
+        };
 
         private readonly FanService _fanService;
         private readonly PerformanceModeService _performanceModeService;
@@ -730,6 +740,9 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(SelectedProfileBorder_Balanced));
             OnPropertyChanged(nameof(SelectedProfileBorder_Quiet));
             OnPropertyChanged(nameof(SelectedProfileBorder_Custom));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Max));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Auto));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Custom));
         }
 
         private void UpdateTelemetry()

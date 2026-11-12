@@ -327,7 +327,7 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentRedHover}" />
     <!-- The active profile's colour, recoloured in place by Utils/ModeAccent.cs (unfrozen for that reason).
          Only chrome that marks "where am I / what mode" uses it; status text keeps AccentBrush. -->
-    <SolidColorBrush x:Key="ModeAccentBrush" po:Freeze="False" Color="{StaticResource AccentRed}" />
+    <SolidColorBrush x:Key="ModeAccentBrush" Color="{StaticResource AccentRed}" />
     <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}" />
     <SolidColorBrush x:Key="AccentPurpleBrush" Color="{StaticResource AccentPurple}" />
     <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource SuccessGreen}" />
@@ -1534,7 +1534,7 @@
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
                             <Setter TargetName="Border" Property="Background" Value="{DynamicResource SurfaceMediumBrush}" />
                             <Setter TargetName="Border" Property="BorderBrush" Value="#6645C7FF" />
-                            <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource ModeAccentBrush}" />
+                            <Setter TargetName="AccentBar" Property="Background" Value="{DynamicResource ModeAccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />

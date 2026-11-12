@@ -171,7 +171,7 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   sidebar's performance marker take the active profile's colour: orange for Performance, cyan for Balanced, green for
   Quiet, purple for Custom. Each profile card's border and its "Active" badge use the same colour instead of all four
   turning red. In Windows high contrast the system highlight colour is used instead. Error and warning text keeps its
-  own colour, so a warning never turns green under Quiet.
+  own colour, so a warning never turns green under Quiet. The System card's mode value uses the same colour.
 - **Interface polish.**
   - The mode reads "Balanced" everywhere. The General page, the dashboard and the sidebar used to say "Default" in
     some places for the same mode; a mode you named yourself still shows your name.
@@ -181,7 +181,11 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   - The Tuning page says why CPU undervolt is missing on this machine instead of leaving a gap, and its status box
     no longer prints "Safe rollback has not been run this session" twice.
   - The five icon-only header buttons have names for screen readers.
-  *Covered by unit tests and checked in an offscreen render of the General page; not yet looked at in the running app.*
+  - The "unsupported system" and "model not yet field-confirmed" banners wrap instead of cutting their explanation
+    off at the window edge.
+  *Covered by unit tests and checked in the running app (Debug build, 2026-11-13). That check found the first version
+  of the mode colour never showed: WPF freezes a brush used as a style setter value, so recolouring it in place did
+  nothing. The brush is now replaced under its key and every consumer reads it dynamically, which a test enforces.*
 
 - **The updater checks downloads against the release's own checksum file** (roadmap WP-30). It used to read the
   SHA256 out of the release-note text, which is written for people and can be edited after the release. It now reads
@@ -190,6 +194,17 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   read, the notes are used as before. Each release also gets a `SHA256SUMS` file (`sha256sum -c` format) and a GitHub
   build-provenance attestation, which anyone can check with `gh attestation verify <file> --repo theantipopau/omencore`.
   *Parser covered by tests; the workflow steps run for the first time on the next tag.*
+
+- **The config file has a schema version, and a 4.x config is migrated, not reinterpreted** (roadmap 4.A). A config
+  without a version is treated as 4.x and brought up step by step; the original is kept beside it as
+  `config.json.schema0.bak` first. A config from a newer OmenCore is left at its version, and keys this build does not
+  know are written back unchanged instead of being dropped on the next save. 4.x fields keep their meaning in 5.0.0,
+  so today's only step stamps the version.
+- **One version number for the whole build** (roadmap 4.A). `Directory.Build.props` reads `VERSION.txt`, and the
+  seven projects that each carried their own copy of the version no longer do; the installer already took it from the
+  build script. A bump is now one edit.
+- **Dependabot** (roadmap 4.H) opens weekly, grouped update PRs for NuGet packages and GitHub Actions; nothing merges
+  without the CI suite.
 
 ## Fixed
 
@@ -255,8 +270,8 @@ pending confirmation* and should be reopened if the owner reports it does not wo
 These are not on `main` yet; they are listed here so the version number is not a surprise when they land. Each gets a
 migration or a documented default before the tag.
 
-- **Config schema version.** A 4.x `config.json` is migrated, not reinterpreted. Unknown keys are preserved.
+- **Config schema version.** A 4.x `config.json` is migrated, not reinterpreted. Unknown keys are preserved. *(Landed.)*
 - **No more always-elevated UI.** Hardware writes move behind a service or scoped helper; the client runs as a normal
   user. Existing autostart entries are rewritten during install.
 - **Signed binaries only.** Unsigned builds will be refused by the updater rather than offered.
-- **Version single-sourced** from `Directory.Build.props`; `VERSION.txt` and the installer read it.
+- **Version single-sourced** in `VERSION.txt`, read by `Directory.Build.props`, the build scripts and the installer. *(Landed.)*

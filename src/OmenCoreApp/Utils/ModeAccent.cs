@@ -12,8 +12,9 @@ namespace OmenCore.Utils
     ///
     /// This deliberately drives its own brush, <c>ModeAccentBrush</c>, and never <c>AccentBrush</c>:
     /// AccentBrush also means "error" and "warning" in status text across the app, and a green error
-    /// message under Quiet would be wrong. Like the high-contrast brushes it is unfrozen and recoloured in
-    /// place, because every consumer holds a StaticResource reference to the same instance.
+    /// message under Quiet would be wrong. Consumers use DynamicResource and Apply replaces the brush. Recolouring
+    /// one shared instance in place does not work here: WPF freezes a brush that is a style Setter value when
+    /// the style seals (the navigation tab's selected trigger is one), and a frozen brush cannot change.
     /// </summary>
     public static class ModeAccent
     {
@@ -36,15 +37,14 @@ namespace OmenCore.Utils
         };
 
         /// <summary>
-        /// Recolours the brush. In high contrast the user's own highlight colour wins over every mode colour,
+        /// Puts a new brush under <see cref="BrushKey"/>. In high contrast the user's own highlight colour wins over every mode colour,
         /// because the point of high contrast is that the scheme, not the app, picks the colours.
         /// </summary>
         public static void Apply(ResourceDictionary resources, string? profile, bool highContrast)
         {
-            if (resources[BrushKey] is not SolidColorBrush brush || brush.IsFrozen)
-                return;
-
-            brush.Color = highContrast ? SystemColors.HighlightColor : For(profile);
+            var brush = new SolidColorBrush(highContrast ? SystemColors.HighlightColor : For(profile));
+            brush.Freeze();
+            resources[BrushKey] = brush;
         }
     }
 }

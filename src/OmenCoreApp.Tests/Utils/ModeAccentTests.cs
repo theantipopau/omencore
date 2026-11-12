@@ -25,54 +25,41 @@ namespace OmenCoreApp.Tests.Utils
         }
 
         [Fact]
-        public void Apply_RecoloursTheBrushInPlace()
+        public void Apply_PutsAModeBrushUnderTheKey()
         {
-            var brush = new SolidColorBrush(Colors.Black);
-            var resources = new ResourceDictionary { [ModeAccent.BrushKey] = brush };
+            var resources = new ResourceDictionary { [ModeAccent.BrushKey] = new SolidColorBrush(Colors.Black) };
 
             ModeAccent.Apply(resources, "Quiet", highContrast: false);
 
-            resources[ModeAccent.BrushKey].Should().BeSameAs(brush, "consumers hold this exact instance");
-            brush.Color.Should().Be(ModeAccent.Quiet);
+            resources[ModeAccent.BrushKey].Should().BeOfType<SolidColorBrush>()
+                .Which.Color.Should().Be(ModeAccent.Quiet);
         }
 
         [Fact]
         public void Apply_InHighContrast_UsesTheSystemHighlightNotAModeColour()
         {
-            var brush = new SolidColorBrush(Colors.Black);
-            var resources = new ResourceDictionary { [ModeAccent.BrushKey] = brush };
+            var resources = new ResourceDictionary();
 
             ModeAccent.Apply(resources, "Performance", highContrast: true);
 
-            brush.Color.Should().Be(SystemColors.HighlightColor);
+            ((SolidColorBrush)resources[ModeAccent.BrushKey]).Color.Should().Be(SystemColors.HighlightColor);
         }
 
         [Fact]
-        public void Apply_LeavesAFrozenOrMissingBrushAlone()
+        public void ModeAccentBrush_IsOnlyReferencedDynamically()
         {
-            var frozen = new SolidColorBrush(Colors.Black);
-            frozen.Freeze();
+            // A StaticResource consumer would keep the startup brush forever, because Apply replaces the brush rather
+            // than recolouring it (a brush used as a style Setter value is frozen when the style seals).
+            var root = FindRepoFile("src/OmenCoreApp/Styles/ModernStyles.xaml");
+            root.Should().NotBeNull();
+            var app = Directory.GetParent(root!)!.Parent!.FullName;
 
-            var apply = () =>
-            {
-                ModeAccent.Apply(new ResourceDictionary { [ModeAccent.BrushKey] = frozen }, "Quiet", false);
-                ModeAccent.Apply(new ResourceDictionary(), "Quiet", false);
-            };
+            var staticUses = Directory.EnumerateFiles(app, "*.xaml", SearchOption.AllDirectories)
+                .Where(f => !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar))
+                .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
+                .Where(f => File.ReadAllText(f).Contains("StaticResource ModeAccentBrush", StringComparison.Ordinal));
 
-            apply.Should().NotThrow();
-            frozen.Color.Should().Be(Colors.Black);
-        }
-
-        [Fact]
-        public void ModeAccentBrush_IsDeclaredUnfrozen()
-        {
-            var styles = FindRepoFile("src/OmenCoreApp/Styles/ModernStyles.xaml");
-            styles.Should().NotBeNull();
-            var lines = File.ReadAllLines(styles!);
-
-            var declaration = lines.FirstOrDefault(l => l.Contains("x:Key=\"ModeAccentBrush\"", StringComparison.Ordinal));
-            declaration.Should().NotBeNull();
-            declaration!.Should().Contain("Freeze=\"False\"", "ModeAccent recolours it at runtime");
+            staticUses.Should().BeEmpty();
         }
 
         [Theory]

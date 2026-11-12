@@ -22,6 +22,8 @@ namespace OmenCore.Utils
         private static readonly SolidColorBrush HotBrush = new(HotColor);
         private static readonly SolidColorBrush CriticalBrush = new(CriticalColor);
         private static readonly SolidColorBrush DefaultBrush = new(Color.FromRgb(200, 200, 200));
+        // No sensor reading (0 or below): a muted grey, so "--°C" is not shown on the "cool" green.
+        public static readonly SolidColorBrush NoReadingBrush = new(Color.FromRgb(0x4A, 0x4F, 0x5C));
 
         static TemperatureToColorConverter()
         {
@@ -30,6 +32,7 @@ namespace OmenCore.Utils
             HotBrush.Freeze();
             CriticalBrush.Freeze();
             DefaultBrush.Freeze();
+            NoReadingBrush.Freeze();
         }
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -44,6 +47,9 @@ namespace OmenCore.Utils
                 temp = i;
             else
                 return DefaultBrush;
+
+            if (temp <= 0)
+                return NoReadingBrush;
 
             // Use parameter to specify different thresholds (e.g., "gpu" for GPU with higher limits)
             var mode = parameter as string ?? "cpu";

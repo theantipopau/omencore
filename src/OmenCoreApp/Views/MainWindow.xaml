@@ -322,7 +322,7 @@
                                     <!-- Performance Mode -->
                                     <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,0">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                            <Path Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{StaticResource ModeAccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <Path Data="{StaticResource IconPerformance}" Width="12" Height="12" Fill="{DynamicResource ModeAccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <TextBlock Text="PERFORMANCE" FontSize="9" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
                                         </StackPanel>
                                         <TextBlock Text="{Binding Dashboard.CurrentPerformanceMode, Converter={StaticResource ModeDisplayNameConverter}, FallbackValue=--}" 
@@ -729,8 +729,8 @@
                                 Padding="14,10"
                                 Margin="24,12,24,12"
                                 Visibility="{Binding ShowUnsupportedSystemBanner, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <DockPanel>
+                                <Path DockPanel.Dock="Left" Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
                                 <StackPanel>
                                     <TextBlock Text="Warning: Unsupported System Detected"
                                                FontWeight="Bold"
@@ -742,7 +742,7 @@
                                                FontSize="12"
                                                Margin="0,3,0,0" />
                                 </StackPanel>
-                            </StackPanel>
+                            </DockPanel>
                         </Border>
                         <Border Style="{StaticResource PremiumPanelCard}"
                             Background="#2A4C3517"
@@ -751,8 +751,8 @@
                                 Padding="14,10"
                                 Margin="24,12,24,12"
                                 Visibility="{Binding ShowUnverifiedModelBanner, Converter={StaticResource BoolToVisibility}}">
-                            <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                            <DockPanel>
+                                <Path DockPanel.Dock="Left" Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
                                 <StackPanel>
                                     <TextBlock Text="Notice: Model Not Yet Field-Confirmed"
                                                FontWeight="Bold"
@@ -764,7 +764,7 @@
                                                FontSize="12"
                                                Margin="0,3,0,0" />
                                 </StackPanel>
-                            </StackPanel>
+                            </DockPanel>
                         </Border>
                     </StackPanel>
 
