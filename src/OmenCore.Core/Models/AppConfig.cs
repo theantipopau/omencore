@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using OmenCore.Corsair;
 using OmenCore.Services;
 
@@ -7,6 +9,20 @@ namespace OmenCore.Models
 {
     public class AppConfig
     {
+        /// <summary>
+        /// Schema of this file. 0 means a config written before 5.0.0, which had no version; the loader migrates it
+        /// step by step up to <see cref="OmenCore.Services.ConfigurationService.CurrentSchemaVersion"/> and keeps a copy
+        /// of the original. Left at 0 here (not the current value) so a file without the field reads as old.
+        /// </summary>
+        public int SchemaVersion { get; set; }
+
+        /// <summary>
+        /// Keys this build does not know, kept and written back unchanged, so opening a config from a newer OmenCore
+        /// (or one a later version added fields to) does not silently strip its settings.
+        /// </summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? UnknownSettings { get; set; }
+
         public string EcDevicePath { get; set; } = string.Empty;
         public int MonitoringIntervalMs { get; set; } = 1000;
         public List<FanPreset> FanPresets { get; set; } = new();

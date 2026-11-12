@@ -48,6 +48,57 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void Load_MigratesA4xConfig_KeepsTheOriginal_AndKeepsItsSettings()
+        {
+            Directory.CreateDirectory(_tempDir);
+            var path = Path.Combine(_tempDir, "config.json");
+            const string old = "{ \"monitoringIntervalMs\": 2000 }";
+            File.WriteAllText(path, old);
+
+            var service = new ConfigurationService();
+
+            service.Config.SchemaVersion.Should().Be(ConfigurationService.CurrentSchemaVersion);
+            service.Config.MonitoringIntervalMs.Should().Be(2000);
+            File.ReadAllText(path + ".schema0.bak").Should().Be(old);
+        }
+
+        [Fact]
+        public void Load_LeavesAConfigFromANewerBuildAtItsVersion()
+        {
+            Directory.CreateDirectory(_tempDir);
+            var path = Path.Combine(_tempDir, "config.json");
+            var newer = ConfigurationService.CurrentSchemaVersion + 1;
+            File.WriteAllText(path, "{ \"schemaVersion\": " + newer + " }");
+
+            var service = new ConfigurationService();
+
+            service.Config.SchemaVersion.Should().Be(newer);
+            File.Exists(path + ".schema" + newer + ".bak").Should().BeTrue();
+        }
+
+        [Fact]
+        public void Save_KeepsKeysThisBuildDoesNotKnow()
+        {
+            Directory.CreateDirectory(_tempDir);
+            var path = Path.Combine(_tempDir, "config.json");
+            File.WriteAllText(path, "{ \"schemaVersion\": 1, \"someFutureSetting\": { \"level\": 3 } }");
+
+            var service = new ConfigurationService();
+            service.Save(service.Config);
+
+            File.ReadAllText(path).Should().Contain("someFutureSetting").And.Contain("\"level\": 3");
+        }
+
+        [Fact]
+        public void FreshConfig_IsWrittenAtTheCurrentSchema_AndNeedsNoMigration()
+        {
+            var service = new ConfigurationService();
+
+            service.Config.SchemaVersion.Should().Be(ConfigurationService.CurrentSchemaVersion);
+            Directory.GetFiles(_tempDir, "*.bak").Should().BeEmpty();
+        }
+
+        [Fact]
         public void Load_ReturnsSameConfigReference_AcrossMultipleCalls()
         {
             var service = new ConfigurationService();

@@ -8,7 +8,7 @@ namespace OmenCore.Services
     {
         public static AppConfig Create()
         {
-            var config = new AppConfig();
+            var config = new AppConfig { SchemaVersion = ConfigurationService.CurrentSchemaVersion };
 
             config.FanPresets.AddRange(new[]
             {
