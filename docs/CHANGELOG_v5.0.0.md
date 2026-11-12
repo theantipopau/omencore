@@ -46,8 +46,8 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   publishes the portable build the way `build-installer.ps1` ships it, zips it with the hardware worker, and fails when
   the app exe, the worker or the zip exceeds `qa/size-budget.json`; a new CI job runs it on every push. Measured on
   2026-11-11 (win-x64, self-contained, single-file, compression on): app **82 MB**, worker **69.3 MB**, portable zip
-  **108.3 MB**, against budgets of 92 / 78 / 118 MB. *Implemented; the publish-and-measure path ran locally and passed,
-  the CI job has not yet run on a runner.*
+  **108.3 MB**, against budgets of 92 / 78 / 118 MB. *Confirmed on a GitHub runner: 82.1 / 69.3 / 108.3 MB, within
+  budget.*
 - **Startup is measured phase by phase, from a real launch** (roadmap WP-31). The app recorded a single number for
   startup (`StartupTimeToInteractiveMs`) and nothing about where the time went, so every "startup feels slow" change
   was guesswork. `StartupTimeline` now records named phases against the OS process start time, each carrying its own
@@ -58,8 +58,8 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   *Implemented; measured on one machine, in software rendering because RTSS was running.*
 - **Startup and idle memory are enforced, not just measured** (roadmap WP-31 follow-up). `qa/memory-budget.json`
   publishes the ceilings — 128 MB private idle, 176 MB peak, 320 MB working set, 3000 ms to completed startup work —
-  and `qa/check-memory-budget.ps1` launches the Release build twice, reads the startup timeline and footprint from
-  those runs, and fails when any of them is over. A `startup-memory-budget` CI job runs it on every push. A run that
+  and `qa/check-memory-budget.ps1` launches the Release build three times, reads the startup timeline and footprint
+  from those runs, and fails when the judged values are over. A `startup-memory-budget` CI job runs it on every push. A run that
   never completes startup fails rather than passing with the check skipped, and the measurement isolates its config
   through `OMENCORE_CONFIG_DIR`, so a machine with no settings shows no first-run dialogs and the real user config is
   never read or written. That seeded config is written in the app's own camelCase schema — the first CI execution used
@@ -75,8 +75,8 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   changed nothing; memory is deterministic here, so its worst observation is simply the honest number. The ceiling is
   3000 ms — the worse of the two runner medians observed (1657 and 2301 ms) plus roughly 30%, and deliberately not the
   slowest single launch (3930 ms), which is the noise the median exists to ignore: budgeting for that would let a real
-  2 s regression, whose median lands around 3.6-4.3 s, pass. Runner executions: 114.7 MB worst private, 1657 ms median
-  app startup, all six CI jobs green.
+  2 s regression, whose median lands around 3.6-4.3 s, pass. One runner execution measured 114.7 MB worst private and
+  1657 ms median app startup; another measured 109.4 MB and 2103 ms. Every CI job is green on this branch.
 - **The window follows Windows' high-contrast palette, and the navigation rail has names** (roadmap WP-45).
   `HighContrastTheme` reads `SystemParameters.HighContrast` before the first window is created and again whenever the
   setting changes mid-session, then repaints the twelve chrome brushes (window and surface backgrounds, the four text
