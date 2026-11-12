@@ -312,7 +312,7 @@ while there is still time to test them.
 
 | Phase | Package | Scope | Needs |
 |---|---|---|---|
-| 1 | WP-30 | Signing decision + updater provenance + `SHA256SUMS` | Maintainer (certificate) |
+| 1 | WP-30 | Signing decision + Authenticode check before elevation; `SHA256SUMS`, provenance and the updater reading the checksum file done 2026-11-13 | Maintainer (certificate) |
 | 1 | WP-31 | ~~Memory/startup profiling pass, then the fixes it names~~ — done 2026-11-11, see §4.B | Nothing |
 | 1 | WP-32 | i18n plumbing done; shell + Settings (window/tray) translated; ~1,060 literals remain | Nothing |
 | 1 | WP-43 | Per-mode memory: `PerformanceMode` fields, migration, apply path (I.1) | Nothing |

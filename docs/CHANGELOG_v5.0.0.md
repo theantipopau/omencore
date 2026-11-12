@@ -183,6 +183,14 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   - The five icon-only header buttons have names for screen readers.
   *Covered by unit tests and checked in an offscreen render of the General page; not yet looked at in the running app.*
 
+- **The updater checks downloads against the release's own checksum file** (roadmap WP-30). It used to read the
+  SHA256 out of the release-note text, which is written for people and can be edited after the release. It now reads
+  the `.sha256` file the release workflow attaches beside each download, computed from the exact file uploaded. If
+  that file and the notes both give a hash and they disagree, the update is refused; if the checksum file cannot be
+  read, the notes are used as before. Each release also gets a `SHA256SUMS` file (`sha256sum -c` format) and a GitHub
+  build-provenance attestation, which anyone can check with `gh attestation verify <file> --repo theantipopau/omencore`.
+  *Parser covered by tests; the workflow steps run for the first time on the next tag.*
+
 ## Fixed
 
 - **Three startup costs the profile named.** Measured on the reference machine (Ryzen 7 9800X3D, RTSS running so WPF
@@ -229,8 +237,8 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
 
 - **The privilege model.** The app still runs elevated for the whole session, so the hardware-write path cannot be
   narrowed until it moves behind a service. Design work for 5.0.0, not a 5.0.0 change in this list.
-- **Update trust.** The updater still takes its hash from release-note text and there is no Authenticode check before
-  the elevated launch. 5.0.0 scope (roadmap WP-30).
+- **Update trust, the part that needs a certificate.** There is still no Authenticode check before the elevated launch,
+  because the binaries are not signed yet (roadmap WP-30, waiting on the signing decision).
 - **Cross-process fan arbitration.** `FanWriteLease` is in-process only. The global mutex removes the multi-session
   case, but a second independent tool writing the EC is still outside what OmenCore can see.
 

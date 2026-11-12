@@ -110,6 +110,10 @@ jobs:
   release:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-24.04 # pinned: ubuntu-latest moves to a newer image on 2026-10-19; move on purpose after a CI check
+    permissions:
+      contents: write
+      id-token: write      # build provenance (WP-30): signs the attestation with this workflow's identity
+      attestations: write
 
     steps:
       - uses: actions/checkout@v7
@@ -153,6 +157,25 @@ jobs:
           echo "win_zip=$win_zip_hash" >> "$GITHUB_OUTPUT"
           echo "win_setup=$win_setup_hash" >> "$GITHUB_OUTPUT"
           echo "linux_zip=$linux_zip_hash" >> "$GITHUB_OUTPUT"
+
+      - name: Write SHA256SUMS
+        # One checksum file for every download, in the format `sha256sum -c` reads, built from the per-file sidecars
+        # this run produced (WP-30). The updater reads the per-file sidecar; people and scripts can use this.
+        shell: bash
+        run: |
+          # The sidecars are written without a trailing newline, so add one per file rather than `cat`-ing them together.
+          for f in artifacts/*.sha256; do tr -d '\r' < "$f"; echo; done | sed '/^$/d' > artifacts/SHA256SUMS
+          cat artifacts/SHA256SUMS
+
+      - name: Attest build provenance
+        # GitHub's signed statement that these exact files came from this workflow run on this commit.
+        # Check one with: gh attestation verify <file> --repo theantipopau/omencore
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-win-x64.zip
+            artifacts/OmenCoreSetup-${{ steps.version.outputs.value }}.exe
+            artifacts/OmenCore-${{ steps.version.outputs.value }}-linux-x64.zip
 
       - name: Write release notes
         # The template, then this version's changelog (CRLF removed, title and roadmap line dropped), then the SHA256
@@ -202,6 +225,7 @@ jobs:
             artifacts/OmenCoreSetup-${{ steps.version.outputs.value }}.exe.sha256
             artifacts/OmenCore-${{ steps.version.outputs.value }}-linux-x64.zip
             artifacts/OmenCore-${{ steps.version.outputs.value }}-linux-x64.zip.sha256
+            artifacts/SHA256SUMS
           body_path: ${{ runner.temp }}/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
