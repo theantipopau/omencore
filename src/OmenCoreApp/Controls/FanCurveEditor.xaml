@@ -9,7 +9,7 @@
     <UserControl.Resources>
         <!-- Draggable point style - larger for easier touch/click -->
         <Style x:Key="CurvePointStyle" TargetType="Ellipse">
-            <Setter Property="Fill" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Fill" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="Stroke" Value="White"/>
             <Setter Property="StrokeThickness" Value="2"/>
             <Setter Property="Width" Value="20"/>

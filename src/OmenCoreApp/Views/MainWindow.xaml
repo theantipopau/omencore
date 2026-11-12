@@ -364,10 +364,10 @@
                                                            FontFamily="{StaticResource MonospaceFontFamily}">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Dashboard.IsCpuTempAvailable}" Value="False">
-                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                                                     <Setter Property="ToolTip" Value="CPU temperature sensor unavailable"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -386,7 +386,7 @@
                                                             <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Dashboard.IsGpuTempAvailable}" Value="False">
-                                                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
                                                                     <Setter Property="ToolTip" Value="GPU temperature sensor unavailable"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>

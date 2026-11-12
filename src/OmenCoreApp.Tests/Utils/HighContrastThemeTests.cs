@@ -13,7 +13,8 @@ namespace OmenCoreApp.Tests.Utils
     /// <summary>
     /// The high-contrast palette only works by mutating shared brushes in place, so the two things
     /// that can silently break it are a key that no longer exists in the style sheet and a brush
-    /// that got frozen. The last two tests check the real XAML for both.
+    /// that got frozen (by its declaration, or by a style Setter that holds it). The last three tests
+    /// check the real XAML for both.
     /// </summary>
     public class HighContrastThemeTests
     {
@@ -128,6 +129,71 @@ namespace OmenCoreApp.Tests.Utils
                 declaration!.Should().Contain("Freeze=\"False\"",
                     $"'{key}' is repainted at runtime, so it must opt out of freezing");
             }
+        }
+
+        [Fact]
+        public void PaletteBrushes_StayUnfrozen_AfterEveryStyleInModernStylesSeals()
+        {
+            // Freeze="False" only covers the declaration. WPF also freezes a Freezable that is a
+            // Style or Trigger Setter value when the style seals (on first use), so one
+            // Value="{StaticResource BorderBrush}" setter would freeze the shared brush and runtime
+            // high contrast would skip it. This loads the real sheet, seals every style the way
+            // first use does, and checks the palette brushes survive.
+            string? stylesPath = FindStylesFile();
+            stylesPath.Should().NotBeNull();
+
+            string[] frozen = Array.Empty<string>();
+            Exception? failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                    using var stream = File.OpenRead(stylesPath!);
+                    var dictionary = (ResourceDictionary)System.Windows.Markup.XamlReader.Load(stream);
+                    foreach (object key in dictionary.Keys.Cast<object>().ToList())
+                    {
+                        if (dictionary[key] is Style style)
+                        {
+                            style.Seal();
+                        }
+                    }
+
+                    frozen = HighContrastTheme.HighContrastColors().Keys
+                        .Where(k => dictionary[k] is Freezable f && f.IsFrozen)
+                        .ToArray();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            });
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            failure.Should().BeNull();
+            frozen.Should().BeEmpty("a style setter that takes a palette brush by StaticResource freezes it; use DynamicResource");
+        }
+
+        [Fact]
+        public void PaletteBrushes_AreNeverASetterValueByStaticResource_InAnyView()
+        {
+            // The sealing test above only covers ModernStyles; views and controls declare their own
+            // styles, and sealing one of those freezes the same shared brush when that view opens.
+            string? stylesPath = FindStylesFile();
+            stylesPath.Should().NotBeNull();
+            string app = Directory.GetParent(stylesPath!)!.Parent!.FullName;
+            string sep = Path.DirectorySeparatorChar.ToString();
+
+            var offenders = Directory.EnumerateFiles(app, "*.xaml", SearchOption.AllDirectories)
+                .Where(f => !f.Contains(sep + "obj" + sep) && !f.Contains(sep + "bin" + sep))
+                .SelectMany(f => File.ReadAllLines(f).Select((line, i) => (f, i, line)))
+                .Where(x => HighContrastTheme.HighContrastColors().Keys.Any(
+                    k => x.line.Contains($"Value=\"{{StaticResource {k}}}\"", StringComparison.Ordinal)))
+                .Select(x => $"{Path.GetFileName(x.f)}:{x.i + 1}")
+                .ToList();
+
+            offenders.Should().BeEmpty("a Setter value is frozen when its style seals; use DynamicResource for palette brushes");
         }
 
         /// <summary>

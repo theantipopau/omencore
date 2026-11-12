@@ -18,7 +18,9 @@ namespace OmenCore.Utils
     /// all of them with no XAML re-parse and no per-window work.
     ///
     /// That only works on brushes that are not frozen, which is why the ones listed here carry
-    /// <c>PresentationOptions:Freeze="False"</c> in <c>Styles/ModernStyles.xaml"</c>. A frozen
+    /// <c>PresentationOptions:Freeze="False"</c> in <c>Styles/ModernStyles.xaml"</c>, and why a style
+    /// Setter takes them by <c>DynamicResource</c>: WPF freezes a Freezable setter value when the style
+    /// seals, so a <c>StaticResource</c> setter would freeze the shared brush on first use. A frozen
     /// brush is reported and skipped rather than throwing during startup; the tests in
     /// <c>HighContrastThemeTests</c> fail if a key here is missing from the style sheet or loses
     /// that attribute, so the two cannot drift apart silently.
@@ -162,10 +164,12 @@ namespace OmenCore.Utils
                 if (brush.IsFrozen)
                 {
                     // Not thrown from here: a frozen brush means the style sheet lost its
-                    // PresentationOptions:Freeze="False", which the drift test catches at build
-                    // time. Startup should still come up in the normal palette.
-                    Log($"High contrast: '{key}' is frozen and cannot be recoloured; " +
-                        "add PresentationOptions:Freeze=\"False\" to it in ModernStyles.xaml");
+                    // PresentationOptions:Freeze="False" or a style Setter took it by StaticResource,
+                    // both of which the drift tests catch at build time. Startup should still come up
+                    // in the normal palette.
+                    Log($"High contrast: '{key}' is frozen and cannot be recoloured; it needs " +
+                        "PresentationOptions:Freeze=\"False\" in ModernStyles.xaml and every Setter " +
+                        "that uses it must say DynamicResource");
                     continue;
                 }
 

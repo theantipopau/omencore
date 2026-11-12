@@ -30,7 +30,7 @@
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
