@@ -43,5 +43,42 @@ namespace OmenCore.Localization
         public static string NavRgb => Get(nameof(NavRgb));
         public static string NavSettings => Get(nameof(NavSettings));
         public static string NavGames => Get(nameof(NavGames));
+
+        // Settings page: window behaviour
+        public static string SettingsWindowBehaviour => Get(nameof(SettingsWindowBehaviour));
+        public static string SettingsStartWithWindows => Get(nameof(SettingsStartWithWindows));
+        public static string SettingsStartWithWindowsHelp => Get(nameof(SettingsStartWithWindowsHelp));
+        public static string SettingsStartMinimized => Get(nameof(SettingsStartMinimized));
+        public static string SettingsStartMinimizedHelp => Get(nameof(SettingsStartMinimizedHelp));
+        public static string SettingsLiteMode => Get(nameof(SettingsLiteMode));
+        public static string SettingsLiteModeHelp => Get(nameof(SettingsLiteModeHelp));
+        public static string SettingsHeadlessMode => Get(nameof(SettingsHeadlessMode));
+        public static string SettingsHeadlessModeHelp => Get(nameof(SettingsHeadlessModeHelp));
+        public static string SettingsSoftwareRendering => Get(nameof(SettingsSoftwareRendering));
+        public static string SettingsSoftwareRenderingHelp => Get(nameof(SettingsSoftwareRenderingHelp));
+        public static string SettingsReduceMotion => Get(nameof(SettingsReduceMotion));
+        public static string SettingsReduceMotionHelp => Get(nameof(SettingsReduceMotionHelp));
+        public static string SettingsLanguage => Get(nameof(SettingsLanguage));
+        public static string SettingsLanguageHelp => Get(nameof(SettingsLanguageHelp));
+        public static string SettingsMinimizeToTray => Get(nameof(SettingsMinimizeToTray));
+        public static string SettingsMinimizeToTrayHelp => Get(nameof(SettingsMinimizeToTrayHelp));
+        public static string SettingsStayOnTop => Get(nameof(SettingsStayOnTop));
+        public static string SettingsStayOnTopHelp => Get(nameof(SettingsStayOnTopHelp));
+        public static string SettingsTopmostBadge => Get(nameof(SettingsTopmostBadge));
+        public static string SettingsActiveBadge => Get(nameof(SettingsActiveBadge));
+
+        // Settings page: tray and interface
+        public static string SettingsTrayAndUi => Get(nameof(SettingsTrayAndUi));
+        public static string SettingsQuickAccess => Get(nameof(SettingsQuickAccess));
+        public static string SettingsQuickAccessHelp => Get(nameof(SettingsQuickAccessHelp));
+        public static string SettingsQuickPopup => Get(nameof(SettingsQuickPopup));
+        public static string SettingsQuickPopupHelp => Get(nameof(SettingsQuickPopupHelp));
+        public static string SettingsTrayTemperature => Get(nameof(SettingsTrayTemperature));
+        public static string SettingsTrayTemperatureHelp => Get(nameof(SettingsTrayTemperatureHelp));
+        public static string SettingsCorsairHidOnly => Get(nameof(SettingsCorsairHidOnly));
+        public static string SettingsCorsairHidOnlyHelp => Get(nameof(SettingsCorsairHidOnlyHelp));
+        public static string SettingsCorsairHidOnlyWarning => Get(nameof(SettingsCorsairHidOnlyWarning));
+        public static string SettingsTelemetry => Get(nameof(SettingsTelemetry));
+        public static string SettingsTelemetryHelp => Get(nameof(SettingsTelemetryHelp));
     }
 }

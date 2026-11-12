@@ -64,4 +64,107 @@
   <data name="NavGames" xml:space="preserve">
     <value>Games</value>
   </data>
+
+  <!-- Settings: Window Behaviour -->
+  <data name="SettingsWindowBehaviour" xml:space="preserve">
+    <value>Window Behavior</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="SettingsStartWithWindowsHelp" xml:space="preserve">
+    <value>Launch OmenCore automatically when Windows starts</value>
+  </data>
+  <data name="SettingsStartMinimized" xml:space="preserve">
+    <value>Start minimized to tray</value>
+  </data>
+  <data name="SettingsStartMinimizedHelp" xml:space="preserve">
+    <value>Hide main window on startup, show only in system tray</value>
+  </data>
+  <data name="SettingsLiteMode" xml:space="preserve">
+    <value>Lite mode (beginner UI)</value>
+  </data>
+  <data name="SettingsLiteModeHelp" xml:space="preserve">
+    <value>Hides advanced tabs by default. You can disable this anytime to restore full controls.</value>
+  </data>
+  <data name="SettingsHeadlessMode" xml:space="preserve">
+    <value>Headless mode (no main window)</value>
+  </data>
+  <data name="SettingsHeadlessModeHelp" xml:space="preserve">
+    <value>Run without main window, only system tray and background services. Useful for servers.</value>
+  </data>
+  <data name="SettingsSoftwareRendering" xml:space="preserve">
+    <value>Software rendering mode</value>
+  </data>
+  <data name="SettingsSoftwareRenderingHelp" xml:space="preserve">
+    <value>Use CPU-based rendering to prevent crashes caused by overlays (RTSS, MSI Afterburner). Requires restart.</value>
+  </data>
+  <data name="SettingsReduceMotion" xml:space="preserve">
+    <value>Reduce motion</value>
+  </data>
+  <data name="SettingsReduceMotionHelp" xml:space="preserve">
+    <value>Suppress OmenCore's own transitions and animation, on top of whatever Windows' own 'Show animations' setting already does.</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="SettingsLanguageHelp" xml:space="preserve">
+    <value>Language of the interface. Takes effect the next time OmenCore starts; numbers and log files stay in the same format either way.</value>
+  </data>
+  <data name="SettingsMinimizeToTray" xml:space="preserve">
+    <value>Minimize to tray on close</value>
+  </data>
+  <data name="SettingsMinimizeToTrayHelp" xml:space="preserve">
+    <value>Close button minimizes to system tray instead of exiting</value>
+  </data>
+  <data name="SettingsStayOnTop" xml:space="preserve">
+    <value>Stay on top</value>
+  </data>
+  <data name="SettingsStayOnTopHelp" xml:space="preserve">
+    <value>Keep OmenCore above other windows</value>
+  </data>
+  <data name="SettingsTopmostBadge" xml:space="preserve">
+    <value>Topmost</value>
+  </data>
+  <data name="SettingsActiveBadge" xml:space="preserve">
+    <value>✓ Active</value>
+  </data>
+
+  <!-- Settings: Tray and interface -->
+  <data name="SettingsTrayAndUi" xml:space="preserve">
+    <value>Tray &amp; UI</value>
+  </data>
+  <data name="SettingsQuickAccess" xml:space="preserve">
+    <value>Quick Access shortcut</value>
+  </data>
+  <data name="SettingsQuickAccessHelp" xml:space="preserve">
+    <value>Choose the middle popup shortcut, or hide it to prevent accidental display-off clicks.</value>
+  </data>
+  <data name="SettingsQuickPopup" xml:space="preserve">
+    <value>Enable quick access popup</value>
+  </data>
+  <data name="SettingsQuickPopupHelp" xml:space="preserve">
+    <value>Show the quick popup on tray click. Disable to open the main window directly instead.</value>
+  </data>
+  <data name="SettingsTrayTemperature" xml:space="preserve">
+    <value>Show temperature on tray icon</value>
+  </data>
+  <data name="SettingsTrayTemperatureHelp" xml:space="preserve">
+    <value>Display live CPU/GPU temperature on the system tray icon</value>
+  </data>
+  <data name="SettingsCorsairHidOnly" xml:space="preserve">
+    <value>Corsair: Disable iCUE fallback (HID-only mode)</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyHelp" xml:space="preserve">
+    <value>Use direct HID access for Corsair devices. May not work for all devices; restart required.</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyWarning" xml:space="preserve">
+    <value>Warning: HID-only mode may reduce compatibility with some Corsair devices. If lighting control stops working, re-enable iCUE fallback or install iCUE.</value>
+  </data>
+  <data name="SettingsTelemetry" xml:space="preserve">
+    <value>Enable anonymous lighting telemetry</value>
+  </data>
+  <data name="SettingsTelemetryHelp" xml:space="preserve">
+    <value>Share anonymous, aggregated counts of Corsair PID success/failure to help us improve device coverage. No device-identifying data is collected.</value>
+  </data>
 </root>
