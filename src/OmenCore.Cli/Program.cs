@@ -30,6 +30,7 @@ internal static class Program
         rootCommand.AddCommand(MonitorCommand.Create());
         rootCommand.AddCommand(ConfigCommand.Create());
         rootCommand.AddCommand(DaemonCommand.Create());
+        rootCommand.AddCommand(NavCommand.Create());
 
         return await rootCommand.InvokeAsync(args);
     }

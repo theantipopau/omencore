@@ -44,6 +44,18 @@ namespace OmenCore.Utils
         /// <summary>Layout transform factor for a (already normalized) percentage.</summary>
         public static double Factor(int percent) => Normalize(percent) / 100.0;
 
+        /// <summary>
+        /// Whether the page host has to scroll as a whole.
+        ///
+        /// Only at a scale other than 100 %: a scrolling host measures its child with infinite
+        /// height, which silently turns every <c>*</c> row on a page into <c>Auto</c> - the chart
+        /// that used to fill the window sizes to its content instead, and the page grows to fit.
+        /// That is acceptable when the user has deliberately zoomed and expects to scroll; it is not
+        /// acceptable as the default layout, so the unzoomed case keeps the constrained measurement
+        /// every page was written against.
+        /// </summary>
+        public static bool PageScrollsAsOne(int percent) => Normalize(percent) != Default;
+
         /// <summary>The next step up, or the current value at the ceiling.</summary>
         public static int Next(int percent)
         {

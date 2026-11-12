@@ -322,26 +322,86 @@ namespace OmenCore.Views
 
         private int _uiScalePercent = UiScale.Default;
 
+        /// <summary>
+        /// Walks every visible page the way a click would - by setting <c>SelectedIndex</c>, so the
+        /// real handler runs (view creation, layout, the <c>[Nav]</c> line) - and then writes the
+        /// collected timings to <see cref="OmenCore.Services.NavigationTimingReport.DefaultPath"/>.
+        ///
+        /// This exists because the cost being measured lives in the window, not in a testable
+        /// service: nothing outside a running WPF app can time a tab switch. The app's
+        /// <c>--nav-cycle</c> flag calls it and the CLI's <c>nav</c> verb launches the app that way,
+        /// so the numbers can be collected without clicking through a dozen pages twice.
+        /// </summary>
+        public async Task RunNavCycleAsync(int passes)
+        {
+            passes = Math.Clamp(passes, 1, 20);
+
+            var pages = new List<TabItem>();
+            foreach (var item in TabControlMain.Items)
+            {
+                if (item is TabItem tab && tab.Visibility == Visibility.Visible)
+                {
+                    pages.Add(tab);
+                }
+            }
+
+            App.Logging.Info($"[NavCycle] {pages.Count} visible pages, {passes} pass(es), " +
+                             $"display scale {_uiScalePercent}%");
+
+            for (int pass = 0; pass < passes; pass++)
+            {
+                foreach (var page in pages)
+                {
+                    TabControlMain.SelectedItem = page;
+
+                    // Drain queued layout/render before switching again, so the next switch is timed
+                    // against a settled page rather than against work the previous one left queued.
+                    await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+                }
+            }
+
+            var report = OmenCore.Services.NavigationTimingReport.FromSnapshot(
+                OmenCore.Services.StartupAndNavigationPerformanceTracker.GetSnapshot(), passes);
+            report.Save();
+
+            App.Logging.Info($"[NavCycle] wrote {report.Pages.Count} page timings to " +
+                             OmenCore.Services.NavigationTimingReport.DefaultPath +
+                             (report.Slowest is { } slowest ? $"; slowest {slowest.Page} at {slowest.AverageMs:F1} ms average" : string.Empty));
+        }
+
         private void OnUiScaleChanged(int percent) => SetUiScale(percent, persist: false);
 
         /// <summary>
-        /// Applies the display scale as a layout transform on the page host.
+        /// Applies the display scale as a layout transform on the page host, and with it decides how
+        /// the host measures that host's child.
         ///
         /// A layout transform (not RenderTransform) is deliberate: it changes measured size, so the
         /// host's ScrollViewer grows a scrollbar when the zoom outruns the window instead of the
         /// text spilling off the bottom edge. 100 % removes the transform entirely rather than
         /// applying an identity scale, so the normal case keeps the fast path.
+        ///
+        /// The scroller is only enabled above and below 100 % (see UiScale.PageScrollsAsOne): a
+        /// scrolling ScrollViewer measures with infinite height, which turns a page's star-sized
+        /// rows into Auto rows. Enabling it unconditionally would have quietly changed the default
+        /// layout of every page that uses one to size a chart to the window.
         /// </summary>
         private void SetUiScale(int percent, bool persist)
         {
             _uiScalePercent = UiScale.Normalize(percent);
+            double factor = UiScale.Factor(_uiScalePercent);
 
             if (TabContentPresenter != null)
             {
-                double factor = UiScale.Factor(_uiScalePercent);
                 TabContentPresenter.LayoutTransform = factor == 1.0
                     ? null
                     : new ScaleTransform(factor, factor);
+            }
+
+            if (PageScrollViewer != null)
+            {
+                PageScrollViewer.VerticalScrollBarVisibility = UiScale.PageScrollsAsOne(_uiScalePercent)
+                    ? ScrollBarVisibility.Auto
+                    : ScrollBarVisibility.Disabled;
             }
 
             if (persist)

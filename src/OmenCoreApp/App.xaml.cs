@@ -383,6 +383,11 @@ namespace OmenCore
 
             // Check if we should start minimized to tray
             // Priority: command line flag > config setting
+            // WP-33: --nav-cycle[=N] measures navigation instead of being sat in front of. See
+            // ParseNavCyclePasses and MainWindow.RunNavCycleAsync; the CLI's `nav` verb is the
+            // caller, and the report it reads is written by the window after the cycle.
+            int? navCyclePasses = ParseNavCyclePasses(e.Args);
+
             bool hasMinimizedFlag = e.Args.Contains("--minimized") || e.Args.Contains("-m") || e.Args.Contains("/minimized");
             bool hasHeadlessFlag = e.Args.Contains("--headless") || e.Args.Contains("-h") || e.Args.Contains("/headless");
 
@@ -419,8 +424,10 @@ namespace OmenCore
                 }
                 else
                 {
-                    // Show onboarding wizard on first run (before main window)
-                    if (!Configuration.Config.FirstRunCompleted)
+                    // Show onboarding wizard on first run (before main window). Not during a
+                    // navigation cycle: that mode runs unattended, and a modal dialog waiting for a
+                    // click would hang it until the CLI's timeout.
+                    if (!Configuration.Config.FirstRunCompleted && navCyclePasses is null)
                     {
                         var onboarding = new OmenCore.Views.OnboardingWindow(Configuration.Config, Configuration);
                         onboarding.ShowDialog();
@@ -446,8 +453,57 @@ namespace OmenCore
                     // Normal startup - show window
                     mainWindow.Show();
                     StartupTimeline.Mark("main_window_shown");
+
+                    if (navCyclePasses is int navPasses)
+                    {
+                        Logging.Info($"[NavCycle] profiling mode: {navPasses} pass(es) over the visible pages");
+
+                        // After the first render, so the pages being switched between are already
+                        // laid out once - otherwise the first pass would measure window bring-up
+                        // rather than navigation.
+                        mainWindow.ContentRendered += async (_, _) =>
+                        {
+                            try
+                            {
+                                await mainWindow.RunNavCycleAsync(navPasses);
+                            }
+                            catch (Exception navEx)
+                            {
+                                Logging.Error($"[NavCycle] failed: {navEx}");
+                                Environment.ExitCode = 1;
+                            }
+                            finally
+                            {
+                                Shutdown();
+                            }
+                        };
+                    }
                 }
             }
+        }
+
+        /// <summary>
+        /// <c>--nav-cycle</c> or <c>--nav-cycle=N</c> (default 3 passes), or null when the flag is
+        /// absent. The tab switch cost lives in the WPF window, so the measurement has to be driven
+        /// from inside the app; the CLI's `nav` verb starts it this way and reads the report it
+        /// writes.
+        /// </summary>
+        internal static int? ParseNavCyclePasses(System.Collections.Generic.IReadOnlyList<string> args)
+        {
+            foreach (var arg in args)
+            {
+                if (!arg.StartsWith("--nav-cycle", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int separator = arg.IndexOf('=');
+                return separator > 0 && int.TryParse(arg[(separator + 1)..], out int passes)
+                    ? Math.Clamp(passes, 1, 20)
+                    : 3;
+            }
+
+            return null;
         }
 
         private void CheckDriverStatus()

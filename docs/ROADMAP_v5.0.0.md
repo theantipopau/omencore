@@ -111,7 +111,10 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   a layout transform inside a scroller) ships the font-scale item WP-45 deferred, the profile cards lost the padding
   and icon size that made the mode picker taller than its content, and each switch logs created/reused plus ms to
   layout. Views were already cached per tab, so the remaining navigation work is the cost of laying out a page, not
-  of building it.
+  of building it. `omencore-cli nav` drives that measurement without a person clicking: it launches the app with
+  `--nav-cycle=N` and prints the per-page timings the window writes to `%LOCALAPPDATA%\OmenCore\nav-report.json`.
+  The host's scroller is gated to non-100 % scales, so the unzoomed layout still measures with the window's real
+  height instead of turning star rows into auto rows.
 - **High-DPI on both platforms.** Per-monitor V2 on Windows, and an application scale setting that does not depend on
   XWayland's `GDK_SCALE` on Linux (#234), including a sensible default on 2560×1600 panels.
 - **Mode-aware chrome.** Adopt Ohman's idea: the window's accent follows the active performance mode, so the current

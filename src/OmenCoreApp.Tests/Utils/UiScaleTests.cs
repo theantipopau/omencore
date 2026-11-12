@@ -65,6 +65,19 @@ namespace OmenCoreApp.Tests.Utils
         }
 
         [Fact]
+        public void PageScrollsAsOne_OnlyWhenZoomed()
+        {
+            // At 100 % the page host must keep measuring its child with the window's real height:
+            // a scrolling host would hand every page infinite height and turn its star rows into
+            // Auto ones, which changes the default layout of charts that fill the window.
+            UiScale.PageScrollsAsOne(100).Should().BeFalse();
+            UiScale.PageScrollsAsOne(101).Should().BeFalse("101 is normalized to 100 first");
+
+            UiScale.PageScrollsAsOne(125).Should().BeTrue();
+            UiScale.PageScrollsAsOne(80).Should().BeTrue("shrinking still changes measured size");
+        }
+
+        [Fact]
         public void NextAndPrevious_NormalizeTheirInputFirst()
         {
             UiScale.Next(101).Should().Be(110);

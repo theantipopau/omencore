@@ -774,11 +774,14 @@
                          SelectedContent property by ElementName, which works because
                          SelectedContent is a normal bindable TabControl property, not
                          something that has to live inside the control's own template. -->
-                    <!-- WP-33: the page host is scrollable so a raised display scale scrolls the
-                         page instead of clipping it. Individual pages keep their own scrollers;
-                         this one only engages when the zoom makes the page taller than the window. -->
-                    <ScrollViewer Grid.Row="1" Margin="24,0,24,12"
-                                  VerticalScrollBarVisibility="Auto"
+                    <!-- WP-33: the page host scrolls as a whole so a raised display scale scrolls
+                         the page instead of clipping it. VerticalScrollBarVisibility starts
+                         Disabled on purpose: a scrolling host measures its child with infinite
+                         height, turning every '*' row into 'Auto', so the unzoomed layout keeps the
+                         constrained measurement pages are written against. SetUiScale turns it to
+                         Auto only when the scale is not 100 %. -->
+                    <ScrollViewer x:Name="PageScrollViewer" Grid.Row="1" Margin="24,0,24,12"
+                                  VerticalScrollBarVisibility="Disabled"
                                   HorizontalScrollBarVisibility="Disabled"
                                   PanningMode="VerticalOnly">
                         <Border>

@@ -113,7 +113,7 @@
 
             <!-- Header - Compact and Modern -->
             <Border Grid.Row="0" Margin="0,0,0,14">
-                    <Grid>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -142,7 +142,7 @@
 
             <!-- Profile Selection - MSI Afterburner Inspired -->
             <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,14">
-                    <Grid>
+                <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -390,7 +390,7 @@
 
             <!-- Fan Mode Quick Selector - OMEN Gaming Hub style Max / Profile Controlled (Auto) / Custom -->
             <Border Grid.Row="2" Style="{StaticResource SurfaceCard}" Padding="16,12" Margin="0,0,0,14">
-                    <Grid>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>

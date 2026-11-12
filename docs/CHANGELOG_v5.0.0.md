@@ -138,20 +138,34 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   host, which is what a user asking for "bigger" means anyway. `UiScalePercent` stores one of seven steps (80-150,
   snapped to the nearest on load so a hand-edited value cannot make the window unreadable) and is applied as a
   `LayoutTransform` on the content presenter, inside a `ScrollViewer` added for exactly this: a layout transform
-  changes measured size, so the page scrolls when the zoom outruns the window instead of clipping. `Ctrl` with `+`,
-  `-` and `0` change it from anywhere in the window and save it; the Settings row changes the same value. 100 % removes
-  the transform rather than applying an identity scale, so the ordinary path stays untouched. Separately, the four
-  profile cards on the General page lose 12 px of icon, 6 px of padding and 6 px of gap before each section — the
-  #48.6/#48.7 complaint about the mode picker consuming more vertical space than its content. *Zoom verified by tests
-  and a clean build; the density change has not been looked at on screen.*
+  changes measured size, so the page scrolls when the zoom outruns the window instead of clipping. That scroller is
+  enabled **only when the scale is not 100 %**: a scrolling `ScrollViewer` measures its child with infinite height,
+  which turns every `*` row on a page into `Auto` — the chart that used to fill the window would size to its content
+  and the page would grow to fit. At 100 % the host keeps the constrained measurement pages were written against,
+  and `UiScale.PageScrollsAsOne` is the one place that decision is made (pinned by a test). `Ctrl` with `+`, `-`
+  and `0` change the scale from anywhere in the window and save it; the Settings row changes the same value. 100 %
+  removes the transform rather than applying an identity scale, so the ordinary path stays untouched. Separately,
+  the four profile cards on the General page lose 12 px of icon, 6 px of padding and 6 px of gap before each
+  section — the #48.6/#48.7 complaint about the mode picker consuming more vertical space than its content. The
+  edit is contained: `ProfileCard` is declared inside `GeneralView.xaml` and the shared `SurfaceCard`/`CardBorder`
+  styles in `ModernStyles.xaml` are unchanged, so no other page's cards moved. *Zoom and the scroll gate are covered
+  by tests and a clean build; neither the density change nor the gate has been looked at on screen.*
 - **Tab switching is measured, and it was already not rebuilding anything** (roadmap WP-33). The premise behind the
   navigation complaint is that every switch rebuilds the page; in this tree it does not — `EnsureTabContentCreated`
   keeps `_initializedTabs` and assigns `tab.Content` once, so the second visit to a tab reuses the same element tree.
   Rather than add a second caching layer on top of a correct one, each switch now logs `[Nav] <tab>: created|reused,
   N ms to layout`, which turns "switching feels slow" into a number on the user's own machine. What such a switch
   actually costs is a layout pass over an existing page (plus the 160 ms fade, which `Reduce motion` already
-  suppresses), and that is what the remaining page work in WP-33 has to reduce. *Logged but not yet collected from a
-  real session: the first profile numbers come from the next run with the build in hand.*
+  suppresses), and that is what the remaining page work in WP-33 has to reduce. `omencore-cli nav` now collects those
+  numbers without clicking: it launches the app with `--nav-cycle=N`, the window walks every visible page through the
+  normal selection path (so view creation, layout and the `[Nav]` line all run) and writes the per-page samples to
+  `%LOCALAPPDATA%\OmenCore\nav-report.json`, which the command prints as a table or as `--json`. It reads back a
+  rounded copy of the same in-memory tracker the diagnostics export uses. Because the switch cost belongs to the
+  window, the measurement has to live in the app; the CLI starts and reads it rather than trying to host a UI it
+  cannot. A failed run says why — an already-running instance hands the launch off instead of cycling, and that
+  case reports "no timings were written" rather than an empty table. *Argument parsing, the report round trip and
+  the scroll gate are covered by tests; the cycle itself has not been run end-to-end on this machine, which needs
+  an elevated launch of the app.*
 
 ## Fixed
 
