@@ -212,6 +212,9 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   Startup is judged on the median of three launches (one runner launch in three spanned 1.4 s with no code change)
   and memory on the worst attempt, against a 3000 ms ceiling taken from the worse of two observed runner medians
   (1657 and 2301 ms) rather than from the slowest single launch, which would have let a real 2 s regression through.
+  Idle private memory is capped at 140 MB for the same reason: two hosts measured 104-109 MB and 128-133 MB on code
+  the change could not move, so a 128 MB ceiling failed on the machine rather than on the app. The 120 MB product goal
+  for an 8 GB machine is measured locally and is not this ceiling.
 - **Release notes generated from the changelog**, not written twice.
 
 ### I. Adaptations from the peer review (2026-11-11)

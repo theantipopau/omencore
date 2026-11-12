@@ -1,8 +1,9 @@
 {
   "_comment": "Roadmap WP-31 follow-up. Enforced by qa/check-memory-budget.ps1 on every push. Memory is judged on the worst attempt and startup on the median of three, so one noisy launch can neither carry nor sink the result. Budgets are measured values plus headroom, not aspirations: a change that genuinely needs more room raises the number here in the same commit, so growth is reviewed instead of discovered.",
   "_appStartupMs_evidence": "2026-11-11 runner medians (three launches each): 1657 ms and 2301 ms, from individual launches spanning 1642-3930 ms. 3000 ms is the worse median plus ~30% headroom and sits above no observed median. It is deliberately not set from the slowest single launch (3930 ms), because the whole point of judging the median is that a single slow launch is noise: budgeting for it would let a real 2 s regression (median ~3.6-4.3 s) pass. Local reference (Ryzen 7 9800X3D): 1822-1888 ms.",
+  "_idlePrivateMb_evidence": "Runner hosts differ from each other by more than the app's own changes do. Pick 1 (run 43146746597, commit d9617f8): 109.3 / 106.9 / 104.1 MB, all hardware rendering. Pick 2 (run 43156647670, commit 0255f00 - CLI-only, cannot affect the WPF app's footprint): 133.2 / 131.4 / 127.8 MB, same code path, hardware rendering, identical startup phases. The 24 MB difference is the host, not a regression, so 128 MB (which the best attempt cleared by 0.2 MB) would have failed on machine assignment rather than on our code. 140 MB is the worst observed attempt plus ~5% and still fails the 200 MB class from #232 or any regression an order of magnitude bigger than the noise. The product goal stays 120 MB on a real 8 GB machine, measured locally at 103-116 MB; this ceiling is the CI gate, not the target.",
   "sampleSeconds": 45,
-  "idlePrivateMb": 128,
+  "idlePrivateMb": 140,
   "peakPrivateMb": 176,
   "idleWorkingSetMb": 320,
   "appStartupMs": 3000

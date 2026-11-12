@@ -76,7 +76,12 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   3000 ms — the worse of the two runner medians observed (1657 and 2301 ms) plus roughly 30%, and deliberately not the
   slowest single launch (3930 ms), which is the noise the median exists to ignore: budgeting for that would let a real
   2 s regression, whose median lands around 3.6-4.3 s, pass. One runner execution measured 114.7 MB worst private and
-  1657 ms median app startup; another measured 109.4 MB and 2103 ms. Every CI job is green on this branch.
+  1657 ms median app startup; another measured 109.4 MB and 2103 ms. The idle-private ceiling then moved from 128 to
+  140 MB after the gate failed on a CLI-only commit: the previous run on another host measured 109.3 / 106.9 / 104.1 MB
+  and this one 133.2 / 131.4 / 127.8 MB, both in hardware rendering with identical startup phases, so the 24 MB was the
+  machine. 140 MB is the worst observed attempt plus about 5%, still far below the 200 MB that #232 reported, and the
+  product goal of 120 MB on a real 8 GB machine (measured at 103-116 MB locally) is unchanged - the CI ceiling exists
+  to catch regressions, not to double as the target.
 - **The window follows Windows' high-contrast palette, and the navigation rail has names** (roadmap WP-45).
   `HighContrastTheme` reads `SystemParameters.HighContrast` before the first window is created and again whenever the
   setting changes mid-session, then repaints the twelve chrome brushes (window and surface backgrounds, the four text
