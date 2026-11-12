@@ -119,8 +119,9 @@ dotnet test src/OmenCoreApp.Tests/OmenCoreApp.Tests.csproj --filter "FullyQualif
 - **Next cycle: 5.0.0 is planned in `docs/ROADMAP_v5.0.0.md`** (trust, distribution and UI), with its running record in
   `docs/CHANGELOG_v5.0.0.md`. Section 5 there is the definition of done; section 7 is the open-issue index after the
   2026-11-11 housekeeping sweep.
-- Version lives in: `VERSION.txt`, `installer/OmenCoreInstaller.iss` (`MyAppVersion`), and the
-  `<Version>` in the six 4.x `.csproj` files.
+- Version lives in `VERSION.txt` only (from the 5.0.0 branch on): `Directory.Build.props` reads it for every project,
+  the build scripts pass it as `-p:Version`, and the installer gets it as `/DMyAppVersion` (the `.iss` default is a
+  fallback for a bare ISCC run). `OmenCore.Desktop` keeps its own old version on purpose.
 - Each cycle has `docs/CHANGELOG_vX.Y.Z.md` (short, user-facing: Fixed / Added / Investigated, Not
   Fixed / Issue Housekeeping) and `docs/ROADMAP_vX.Y.Z.md` (full investigation detail, evidence
   trails, open items). Update both as work lands; keep the changelog header "Type:" summary current.

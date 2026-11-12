@@ -1,0 +1,21 @@
+# Weekly update PRs, grouped so one week is one PR per ecosystem. The full CI suite (release-gate tests included) is
+# the safety net; nothing merges on its own.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      nuget:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
