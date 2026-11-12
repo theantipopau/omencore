@@ -54,8 +54,7 @@ namespace OmenCoreApp.Tests.ViewModels
 
         private static FanService CreateFanService(LoggingService logging)
         {
-            var hwMonitor = new LibreHardwareMonitorImpl();
-            var thermalProvider = new ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             return new FanService(new TestFanController(), thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
         }

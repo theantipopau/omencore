@@ -97,8 +97,7 @@ namespace OmenCoreApp.Tests.Services
             var powerPlanService = new PowerPlanService(logging);
             var performanceModeService = new PerformanceModeService(controller, powerPlanService, null, logging);
 
-            var hwMonitor = new LibreHardwareMonitorImpl();
-            var thermalProvider = new ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             _disposables.Add(fanService);

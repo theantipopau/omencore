@@ -24,6 +24,21 @@ namespace OmenCore.Hardware
             _bridge = bridge;
         }
         
+        private readonly Func<(double Cpu, double Gpu)>? _reader;
+
+        private ThermalSensorProvider(Func<(double Cpu, double Gpu)> reader)
+        {
+            _reader = reader;
+        }
+
+        /// <summary>
+        /// A provider that reads temperatures from a delegate and opens no driver. For tests: the other constructors
+        /// start LibreHardwareMonitor or WMI on whatever machine runs them, and a native fault in a GPU driver there
+        /// (seen with AMD ADL) kills the test host, which no catch can stop.
+        /// </summary>
+        public static ThermalSensorProvider FromReader(Func<(double Cpu, double Gpu)> reader) =>
+            new(reader ?? throw new ArgumentNullException(nameof(reader)));
+
         /// <summary>
         /// Create ThermalSensorProvider with IHardwareMonitorBridge interface.
         /// Uses the bridge's own cached readings (which include ACPI thermal zone
@@ -51,8 +66,12 @@ namespace OmenCore.Hardware
             double cpuTemp = 0;
             double gpuTemp = 0;
             
+            if (_reader != null)
+            {
+                (cpuTemp, gpuTemp) = _reader();
+            }
             // Try LibreHardwareMonitor first
-            if (_bridge != null)
+            else if (_bridge != null)
             {
                 cpuTemp = _bridge.GetCpuTemperature();
                 gpuTemp = _bridge.GetGpuTemperature();

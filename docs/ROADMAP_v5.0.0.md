@@ -232,7 +232,9 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   PawnIO and LibreHardwareMonitor on the machine running the tests. On a desktop with an AMD Radeon the native ADL call
   `ADL2_Adapter_DedicatedVRAMUsage_Get` crashed the test host on 2026-11-12 (an `AccessViolationException` cannot be
   caught), aborting the run partway. CI runners have no such GPU, so CI never sees it. Give those tests a stub sensor
-  source instead of the real bridge; this is the same rule as "never touch real hardware from tests".
+  source instead of the real bridge; this is the same rule as "never touch real hardware from tests". *Done
+  2026-11-12:* `ThermalSensorProvider.FromReader` takes a delegate and opens no driver, and every one of those test
+  sites now uses `TestThermals.NoHardware()` (zero readings, what the CI runners report); suite 2108/2108.
 
 ### I. Adaptations from the peer review (2026-11-11)
 

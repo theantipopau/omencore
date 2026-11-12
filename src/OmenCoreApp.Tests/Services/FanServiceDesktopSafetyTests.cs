@@ -41,7 +41,7 @@ namespace OmenCoreApp.Tests.Services
             var logging = new LoggingService();
             logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var capabilities = new DeviceCapabilities
             {
                 Chassis = ChassisType.Tower,

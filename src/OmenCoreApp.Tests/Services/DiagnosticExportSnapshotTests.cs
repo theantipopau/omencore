@@ -444,7 +444,7 @@ namespace OmenCoreApp.Tests.Services
             };
             var fanService = new FanService(
                 new ReadbackFanController(),
-                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                OmenCoreApp.Tests.TestThermals.NoHardware(),
                 _logging,
                 new NotificationService(_logging),
                 1000,
@@ -967,7 +967,7 @@ namespace OmenCoreApp.Tests.Services
         {
             using var fanService = new FanService(
                 new ReadbackFanController(),
-                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                OmenCoreApp.Tests.TestThermals.NoHardware(),
                 _logging,
                 new NotificationService(_logging),
                 1000,
@@ -990,7 +990,7 @@ namespace OmenCoreApp.Tests.Services
         {
             using var fanService = new FanService(
                 new ReadbackFanController(),
-                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                OmenCoreApp.Tests.TestThermals.NoHardware(),
                 _logging,
                 new NotificationService(_logging),
                 1000,
@@ -1009,7 +1009,7 @@ namespace OmenCoreApp.Tests.Services
         {
             using var fanService = new FanService(
                 new ReadbackFanController(),
-                new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl()),
+                OmenCoreApp.Tests.TestThermals.NoHardware(),
                 _logging,
                 new NotificationService(_logging),
                 1000,
