@@ -17,7 +17,7 @@ nothing is released, tagged or closed without the maintainer. Attribution stays 
 
 | Front | State | What 5.0.0 has to do |
 |---|---|---|
-| Hardware behaviour | Six fixes shipped in 4.5.1, of which five still read *implemented, pending confirmation* (`8F5C` fan modes, `8E10` backlight, `8BD4` Quick Colors, `8BCD` layout, `8EC`/`8A4D` notes) | Convert or correct them from real reports before stacking new writes on top |
+| Hardware behaviour | Six fixes shipped in 4.5.1, of which five still read *implemented, pending confirmation* (`8F5C` fan modes, `8E10` backlight, `8BD4` Quick Colors, `8BCD` layout, `8EEC`/`8A4D` notes) | Convert or correct them from real reports before stacking new writes on top |
 | Coverage | 90 open issues, of which about 25 are model requests for boards that already have a conservative entry | Finish the verification loop instead of adding boards one at a time |
 | Trust | Unsigned binaries, a hash scraped from release notes, `requireAdministrator` on every launch, no provenance | This is the release where that gets fixed |
 
@@ -28,9 +28,10 @@ The report that matters most for 5.0.0 is #232: 200 MB of private memory on an 8
 describes as hostile. #133 says the same about responsiveness, #48 lists nine concrete UI grievances, and #234 is a
 Linux HiDPI failure. Four separate reports against the front end is a pattern, not noise.
 
-## 2. Already on main for 5.0.0
+## 2. Already on the 5.0.0 branch
 
-Landed 2026-11-11, before this roadmap was opened. All are engineering fixes; none is released yet.
+Landed 2026-11-11 on `v5.0.0-wp31-startup-budget` (pushed to origin, not merged to `main`), in the same commit that
+opened this cycle. All are engineering fixes; none is released yet.
 
 - **Fans are handed back on uninstall and upgrade.** `taskkill /F` skipped `OnExit`, so the firmware Max flag outlived
   the uninstall and left machines pinned. A headless `OmenCore.exe --restore-fans` now clears it through
@@ -274,7 +275,10 @@ website supported-model table generated from the database rather than written by
 2. The updater verifies signature and hash before elevation, and the release publishes `SHA256SUMS` plus provenance.
 3. The UI no longer runs elevated for hardware writes, or — if the service split slips — the split is scoped, written
    down, and scheduled as 5.0.x with an explicit explanation in the notes.
-4. Startup under 1 s to interactive and idle private memory under 120 MB on an 8 GB machine, measured in CI.
+4. App startup (`worker_bootstrap`) under 2 s on the median of three launches, enforced in CI, and idle private memory
+   under 120 MB on an 8 GB machine, measured locally (the CI ceiling stays a regression gate). The earlier "< 1 s to
+   interactive" target is not reachable with WPF plus the SystemInfo WMI population, which the WP-31 profile measured;
+   first paint is reported, not gated, for the reasons in section 4.H.
 5. A portable single-file build exists and both the size and memory budgets are enforced in CI (I.5).
 6. No page scrolls for empty space at 100 % scaling on a 1080p panel; HiDPI works on Windows and Linux (#234 closed).
 7. Every control that cannot do what it says is disabled *with a reason the user can read*, and the same reason is in

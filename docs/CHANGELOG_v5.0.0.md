@@ -2,7 +2,7 @@
 
 **Release Date:** not yet released
 **Type:** Major release — trust, distribution and UI. Not a feature pile.
-**Status:** In development on `main`. This file is the running record for the cycle; the plan behind it is
+**Status:** In development on the `v5.0.0-wp31-startup-budget` branch (pushed, not merged to `main`). This file is the running record for the cycle; the plan behind it is
 `docs/ROADMAP_v5.0.0.md`. Everything below is what is actually in the tree today, marked the way this project
 always marks it: *implemented, pending confirmation* unless a reporter verified it on real hardware.
 
@@ -57,7 +57,7 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   the run used; it re-launches itself elevated because the app's manifest is `requireAdministrator`.
   *Implemented; measured on one machine, in software rendering because RTSS was running.*
 - **Startup and idle memory are enforced, not just measured** (roadmap WP-31 follow-up). `qa/memory-budget.json`
-  publishes the ceilings — 128 MB private idle, 176 MB peak, 320 MB working set, 3000 ms to completed startup work —
+  publishes the ceilings — 140 MB private idle (raised from 128 MB, see below), 176 MB peak, 320 MB working set, 3000 ms to completed startup work —
   and `qa/check-memory-budget.ps1` launches the Release build three times, reads the startup timeline and footprint
   from those runs, and fails when the judged values are over. A `startup-memory-budget` CI job runs it on every push. A run that
   never completes startup fails rather than passing with the check skipped, and the measurement isolates its config
@@ -221,9 +221,10 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
 ## Issue housekeeping
 
 Twelve issues closed as completed against shipped code (details in each thread): `#115`, `#172`, `#195`, `#199`,
-`#205`, `#207`, `#211`, `#212`, `#213`, `#214`, `#220`, `#241`. All were verified against `4.5.1` or the `8BBE` /
+`#205`, `#207`, `#211`, `#212`, `#213`, `#214`, `#220`, `#241`. Each was checked against `4.5.1` or the `8BBE` /
 `8C2D` / `8BA9` entries shipped earlier; the three that still carry a reporter question (`#212`, `#213`, `#241`) were
-closed with an explicit invitation to post a diagnostics export on the same thread if the behaviour recurs.
+closed with an explicit invitation to post a diagnostics export on the same thread if the behaviour recurs. `#212` is closed on shipped code, not on confirmation: the 8BD4 Quick Colors fix in 4.5.1 is still *implemented,
+pending confirmation* and should be reopened if the owner reports it does not work.
 
 ## Breaking changes planned for the release
 
