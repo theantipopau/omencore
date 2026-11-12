@@ -69,6 +69,8 @@ namespace OmenCore.Localization
 
         // Settings page: tray and interface
         public static string SettingsTrayAndUi => Get(nameof(SettingsTrayAndUi));
+        public static string SettingsDisplayScale => Get(nameof(SettingsDisplayScale));
+        public static string SettingsDisplayScaleHelp => Get(nameof(SettingsDisplayScaleHelp));
         public static string SettingsQuickAccess => Get(nameof(SettingsQuickAccess));
         public static string SettingsQuickAccessHelp => Get(nameof(SettingsQuickAccessHelp));
         public static string SettingsQuickPopup => Get(nameof(SettingsQuickPopup));

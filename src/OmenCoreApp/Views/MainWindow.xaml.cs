@@ -45,6 +45,14 @@ namespace OmenCore.Views
             
             // Apply Stay on Top setting from config
             Topmost = App.Configuration.Config.StayOnTop;
+
+            // WP-33: restore the saved display scale and follow later changes (Settings row or
+            // Ctrl +/-/0). This is the font-scale item WP-45 deferred: every view sets explicit
+            // FontSize values, so scaling the host's layout transform is the only mechanism that
+            // reaches them all at once.
+            _uiScalePercent = UiScale.Normalize(App.Configuration.Config.UiScalePercent);
+            SetUiScale(_uiScalePercent, persist: false);
+            App.UiScaleChanged += OnUiScaleChanged;
             
             // Listen for LogBuffer changes to auto-scroll the system log
             if (viewModel is INotifyPropertyChanged notify)
@@ -61,6 +69,21 @@ namespace OmenCore.Views
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (Keyboard.Modifiers != ModifierKeys.Control || e.OriginalSource is TextBox) return;
+
+            // Ctrl +/-/0 - the same steps the Settings combo box offers (roadmap WP-33).
+            int? requestedScale = e.Key switch
+            {
+                Key.OemPlus or Key.Add => UiScale.Next(_uiScalePercent),
+                Key.OemMinus or Key.Subtract => UiScale.Previous(_uiScalePercent),
+                Key.D0 or Key.NumPad0 => UiScale.Default,
+                _ => null
+            };
+            if (requestedScale is int scalePercent)
+            {
+                SetUiScale(scalePercent, persist: true);
+                e.Handled = true;
+                return;
+            }
 
             int number = e.Key switch
             {
@@ -266,6 +289,7 @@ namespace OmenCore.Views
             TabControlMain.SelectionChanged -= TabControlMain_SelectionChanged;
             TabControlMain.SizeChanged -= TabControlMain_SizeChanged;
             SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
+            App.UiScaleChanged -= OnUiScaleChanged;
             (DataContext as MainViewModel)?.Dispose();
         }
 
@@ -276,12 +300,56 @@ namespace OmenCore.Views
                 return;
             }
 
-            if (TabControlMain.SelectedItem is TabItem tab)
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var selectedTab = TabControlMain.SelectedItem as TabItem;
+            bool created = false;
+
+            if (selectedTab != null)
             {
-                EnsureTabContentCreated(tab);
+                created = !_initializedTabs.Contains(selectedTab);
+                EnsureTabContentCreated(selectedTab);
             }
 
             AnimateTabContentTransition();
+
+            // WP-33 profile: one line per switch, so "navigation feels slow" has a number instead
+            // of an impression. Views are cached per tab (see EnsureTabContentCreated), so a switch
+            // normally reports "reused" - what it costs is a layout pass over an existing page.
+            TabContentPresenter?.UpdateLayout();
+            App.Logging.Info($"[Nav] {GetTabHeaderText(selectedTab)}: " +
+                             $"{(created ? "created" : "reused")}, {stopwatch.Elapsed.TotalMilliseconds:F0} ms to layout");
+        }
+
+        private int _uiScalePercent = UiScale.Default;
+
+        private void OnUiScaleChanged(int percent) => SetUiScale(percent, persist: false);
+
+        /// <summary>
+        /// Applies the display scale as a layout transform on the page host.
+        ///
+        /// A layout transform (not RenderTransform) is deliberate: it changes measured size, so the
+        /// host's ScrollViewer grows a scrollbar when the zoom outruns the window instead of the
+        /// text spilling off the bottom edge. 100 % removes the transform entirely rather than
+        /// applying an identity scale, so the normal case keeps the fast path.
+        /// </summary>
+        private void SetUiScale(int percent, bool persist)
+        {
+            _uiScalePercent = UiScale.Normalize(percent);
+
+            if (TabContentPresenter != null)
+            {
+                double factor = UiScale.Factor(_uiScalePercent);
+                TabContentPresenter.LayoutTransform = factor == 1.0
+                    ? null
+                    : new ScaleTransform(factor, factor);
+            }
+
+            if (persist)
+            {
+                App.Configuration.Config.UiScalePercent = _uiScalePercent;
+                App.Configuration.Save(App.Configuration.Config);
+                App.Logging.Info($"[Zoom] display scale set to {_uiScalePercent}%");
+            }
         }
 
         /// <summary>
@@ -369,8 +437,13 @@ namespace OmenCore.Views
             }
         }
 
-        private static string GetTabHeaderText(TabItem tab)
+        private static string GetTabHeaderText(TabItem? tab)
         {
+            if (tab == null)
+            {
+                return "?";
+            }
+
             if (tab.Header is string text)
             {
                 return text;

@@ -416,6 +416,14 @@ namespace OmenCore.Models
         public string Language { get; set; } = "auto";
 
         /// <summary>
+        /// Display scale for the shell, in percent: 80, 90, 100, 110, 125, 140 or 150 (roadmap WP-33;
+        /// this is the font-scale setting WP-45 deferred, because it is a layout zoom rather than a
+        /// font-size change). Values that are not a supported step are snapped to the nearest one on
+        /// load, so a hand-edited value cannot produce an unreadable window.
+        /// </summary>
+        public int UiScalePercent { get; set; } = 100;
+
+        /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).
         /// </summary>
         public ThermalMonitoringSettings ThermalAlerts { get; set; } = new();

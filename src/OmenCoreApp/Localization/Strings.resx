@@ -134,6 +134,12 @@
   <data name="SettingsTrayAndUi" xml:space="preserve">
     <value>Tray &amp; UI</value>
   </data>
+  <data name="SettingsDisplayScale" xml:space="preserve">
+    <value>Display scale</value>
+  </data>
+  <data name="SettingsDisplayScaleHelp" xml:space="preserve">
+    <value>Zooms the whole interface, text and spacing together. Ctrl with + and - (or Ctrl+0 to reset) changes it from anywhere in the window.</value>
+  </data>
   <data name="SettingsQuickAccess" xml:space="preserve">
     <value>Quick Access shortcut</value>
   </data>

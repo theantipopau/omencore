@@ -130,6 +130,12 @@
   <data name="SettingsTrayAndUi" xml:space="preserve">
     <value>Tepsi ve arayüz</value>
   </data>
+  <data name="SettingsDisplayScale" xml:space="preserve">
+    <value>Görüntü ölçeği</value>
+  </data>
+  <data name="SettingsDisplayScaleHelp" xml:space="preserve">
+    <value>Tüm arayüzü metin ve boşluklarla birlikte büyütür. Pencerenin herhangi bir yerinde Ctrl ve + / - (sıfırlamak için Ctrl+0) ile değiştirilir.</value>
+  </data>
   <data name="SettingsQuickAccess" xml:space="preserve">
     <value>Hızlı erişim kısayolu</value>
   </data>

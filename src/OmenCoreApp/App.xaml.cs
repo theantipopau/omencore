@@ -156,6 +156,15 @@ namespace OmenCore
         private Utils.HighContrastTheme? _highContrastTheme;
 
         /// <summary>
+        /// Raised when the display scale changes (Settings combo box or Ctrl +/-/0). The main window
+        /// owns the transform, so it listens; going through App keeps the view model from needing a
+        /// reference to a specific window.
+        /// </summary>
+        internal static event Action<int>? UiScaleChanged;
+
+        internal static void RequestUiScale(int percent) => UiScaleChanged?.Invoke(percent);
+
+        /// <summary>
         /// Windows raises one event for every system parameter. Only HighContrast matters here, and
         /// the theme is idempotent, so a switch mid-session repaints without a restart.
         /// </summary>

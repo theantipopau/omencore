@@ -59,6 +59,7 @@ namespace OmenCore.ViewModels
         private bool _useSoftwareRendering;
         private bool _reduceMotion;
         private string _language = OmenCore.Localization.Language.SystemDefault;
+        private int _uiScalePercent = OmenCore.Utils.UiScale.Default;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
         private bool _autoCheckUpdates = true;
@@ -640,6 +641,29 @@ namespace OmenCore.ViewModels
 
         public System.Collections.Generic.IReadOnlyList<OmenCore.Localization.LanguageOption> LanguageOptions =>
             OmenCore.Localization.Language.Supported;
+
+        /// <summary>
+        /// Display scale for the shell. Applies immediately (the window owns the transform) and is
+        /// saved, unlike the language, because a zoom can be judged on screen as it changes.
+        /// </summary>
+        public int UiScalePercent
+        {
+            get => _uiScalePercent;
+            set
+            {
+                int normalized = OmenCore.Utils.UiScale.Normalize(value);
+                if (_uiScalePercent != normalized)
+                {
+                    _uiScalePercent = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    OmenCore.App.RequestUiScale(normalized);
+                }
+            }
+        }
+
+        public System.Collections.Generic.IReadOnlyList<int> UiScaleOptions =>
+            OmenCore.Utils.UiScale.Steps;
 
         public bool MinimizeToTrayOnClose
         {
@@ -3234,6 +3258,7 @@ namespace OmenCore.ViewModels
             _useSoftwareRendering = _config.UseSoftwareRendering;
             _reduceMotion = _config.ReduceMotion;
             _language = OmenCore.Localization.Language.Normalize(_config.Language);
+            _uiScalePercent = OmenCore.Utils.UiScale.Normalize(_config.UiScalePercent);
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -3289,6 +3314,7 @@ namespace OmenCore.ViewModels
             _config.UseSoftwareRendering = _useSoftwareRendering;
             _config.ReduceMotion = _reduceMotion;
             _config.Language = _language;
+            _config.UiScalePercent = _uiScalePercent;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -3888,6 +3914,7 @@ namespace OmenCore.ViewModels
                 TemperatureWarningsEnabled = true;
                 ReduceMotion = false;
                 SelectedLanguage = OmenCore.Localization.Language.SystemDefault;
+                UiScalePercent = OmenCore.Utils.UiScale.Default;
                 StartupSafeModeGuardEnabled = true;
                 StartupSafeModeWindowSeconds = 180;
                 StartupSafeModeTimeoutThreshold = 2;

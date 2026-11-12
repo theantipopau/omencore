@@ -722,6 +722,28 @@
                                       AutomationProperties.Name="{x:Static loc:Strings.SettingsLanguage}"/>
                         </Grid>
 
+                        <!-- Display scale (roadmap WP-33) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="{x:Static loc:Strings.SettingsDisplayScale}" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{x:Static loc:Strings.SettingsDisplayScaleHelp}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding UiScaleOptions}"
+                                      ItemStringFormat="{}{0}%"
+                                      SelectedItem="{Binding UiScalePercent, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="{x:Static loc:Strings.SettingsDisplayScale}"/>
+                        </Grid>
+
                         <!-- Minimize to Tray on Close -->
                         <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>

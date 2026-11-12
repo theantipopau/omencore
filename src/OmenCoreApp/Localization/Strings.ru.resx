@@ -130,6 +130,12 @@
   <data name="SettingsTrayAndUi" xml:space="preserve">
     <value>Трей и интерфейс</value>
   </data>
+  <data name="SettingsDisplayScale" xml:space="preserve">
+    <value>Масштаб интерфейса</value>
+  </data>
+  <data name="SettingsDisplayScaleHelp" xml:space="preserve">
+    <value>Масштабирует весь интерфейс — текст и отступы вместе. Меняется сочетаниями Ctrl и «+» / «−» (Ctrl+0 — сброс) в любом месте окна.</value>
+  </data>
   <data name="SettingsQuickAccess" xml:space="preserve">
     <value>Быстрый доступ</value>
   </data>

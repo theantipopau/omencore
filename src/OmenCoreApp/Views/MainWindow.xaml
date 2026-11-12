@@ -774,9 +774,17 @@
                          SelectedContent property by ElementName, which works because
                          SelectedContent is a normal bindable TabControl property, not
                          something that has to live inside the control's own template. -->
-                    <Border Grid.Row="1" Margin="24,0,24,12">
-                        <ContentPresenter x:Name="TabContentPresenter" Content="{Binding SelectedContent, ElementName=TabControlMain}"/>
-                    </Border>
+                    <!-- WP-33: the page host is scrollable so a raised display scale scrolls the
+                         page instead of clipping it. Individual pages keep their own scrollers;
+                         this one only engages when the zoom makes the page taller than the window. -->
+                    <ScrollViewer Grid.Row="1" Margin="24,0,24,12"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  PanningMode="VerticalOnly">
+                        <Border>
+                            <ContentPresenter x:Name="TabContentPresenter" Content="{Binding SelectedContent, ElementName=TabControlMain}"/>
+                        </Border>
+                    </ScrollViewer>
 
             <!-- Footer: Recent Activity and System Log (GitHub #48 - its-urbi: Collapsible logs) -->
             <Grid Grid.Row="2" Margin="24,0,24,12" MaxHeight="180">

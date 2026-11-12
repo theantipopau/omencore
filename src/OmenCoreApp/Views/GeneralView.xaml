@@ -112,8 +112,8 @@
             </Grid.RowDefinitions>
 
             <!-- Header - Compact and Modern -->
-            <Border Grid.Row="0" Margin="0,0,0,20">
-                <Grid>
+            <Border Grid.Row="0" Margin="0,0,0,14">
+                    <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -141,8 +141,8 @@
             </Border>
 
             <!-- Profile Selection - MSI Afterburner Inspired -->
-            <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20">
-                <Grid>
+            <Border Grid.Row="1" Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,14">
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -184,7 +184,7 @@
                     <UniformGrid Grid.Row="2" Rows="1" Columns="4">
                         <!-- Performance Profile -->
                         <Border Style="{StaticResource ProfileCard}" 
-                                Margin="0,0,8,0" Padding="16,20"
+                                Margin="0,0,8,0" Padding="14,14"
                                 BorderBrush="{Binding SelectedProfileBorder_Performance}"
                                 BorderThickness="2"
                                 MouseLeftButtonUp="Profile_Performance_Click"
@@ -201,7 +201,7 @@
                                 </Grid.RowDefinitions>
                                 
                                 <!-- Icon with Glow Effect -->
-                                <Border Grid.Row="0" Width="56" Height="56" CornerRadius="28" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <Border Grid.Row="0" Width="44" Height="44" CornerRadius="22" Margin="0,0,0,8" HorizontalAlignment="Center">
                                     <Border.Background>
                                         <RadialGradientBrush>
                                             <GradientStop Color="#30FF6B35" Offset="0"/>
@@ -237,7 +237,7 @@
 
                         <!-- Balanced Profile -->
                         <Border Style="{StaticResource ProfileCard}" 
-                                Margin="4,0,4,0" Padding="16,20"
+                                Margin="4,0,4,0" Padding="14,14"
                                 BorderBrush="{Binding SelectedProfileBorder_Balanced}"
                                 BorderThickness="2"
                                 MouseLeftButtonUp="Profile_Balanced_Click"
@@ -253,7 +253,7 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 
-                                <Border Grid.Row="0" Width="56" Height="56" CornerRadius="28" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <Border Grid.Row="0" Width="44" Height="44" CornerRadius="22" Margin="0,0,0,8" HorizontalAlignment="Center">
                                     <Border.Background>
                                         <RadialGradientBrush>
                                             <GradientStop Color="#3000D4FF" Offset="0"/>
@@ -287,7 +287,7 @@
 
                         <!-- Quiet Profile -->
                         <Border Style="{StaticResource ProfileCard}" 
-                                Margin="4,0,4,0" Padding="16,20"
+                                Margin="4,0,4,0" Padding="14,14"
                                 BorderBrush="{Binding SelectedProfileBorder_Quiet}"
                                 BorderThickness="2"
                                 MouseLeftButtonUp="Profile_Quiet_Click"
@@ -303,7 +303,7 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 
-                                <Border Grid.Row="0" Width="56" Height="56" CornerRadius="28" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <Border Grid.Row="0" Width="44" Height="44" CornerRadius="22" Margin="0,0,0,8" HorizontalAlignment="Center">
                                     <Border.Background>
                                         <RadialGradientBrush>
                                             <GradientStop Color="#3000FF88" Offset="0"/>
@@ -337,7 +337,7 @@
 
                         <!-- Custom Profile -->
                         <Border Style="{StaticResource ProfileCard}" 
-                                Margin="8,0,0,0" Padding="16,20"
+                                Margin="8,0,0,0" Padding="14,14"
                                 BorderBrush="{Binding SelectedProfileBorder_Custom}"
                                 BorderThickness="2"
                                 MouseLeftButtonUp="Profile_Custom_Click"
@@ -353,7 +353,7 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 
-                                <Border Grid.Row="0" Width="56" Height="56" CornerRadius="28" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <Border Grid.Row="0" Width="44" Height="44" CornerRadius="22" Margin="0,0,0,8" HorizontalAlignment="Center">
                                     <Border.Background>
                                         <RadialGradientBrush>
                                             <GradientStop Color="#30A855F7" Offset="0"/>
@@ -389,8 +389,8 @@
             </Border>
 
             <!-- Fan Mode Quick Selector - OMEN Gaming Hub style Max / Profile Controlled (Auto) / Custom -->
-            <Border Grid.Row="2" Style="{StaticResource SurfaceCard}" Padding="16,12" Margin="0,0,0,20">
-                <Grid>
+            <Border Grid.Row="2" Style="{StaticResource SurfaceCard}" Padding="16,12" Margin="0,0,0,14">
+                    <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>

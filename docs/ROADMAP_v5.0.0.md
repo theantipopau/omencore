@@ -107,7 +107,11 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   `GetSystemInfo()` is warmed while hardware bring-up runs (1147 ms → 941 ms in-phase). After: 2.4-4.0 s to first
   paint and 103.6-111 MB private across three runs. What remains is CLR/WPF before `OnStartup` (~0.4 s), the
   SystemInfo WMI population (~0.9 s) and first paint under software rendering, so the < 1 s target still belongs to
-  the navigation work in WP-33/WP-34.
+  the navigation work in WP-33/WP-34. *WP-33 started 2026-11-11:* the display scale (80-150 %, Ctrl +/-/0, applied as
+  a layout transform inside a scroller) ships the font-scale item WP-45 deferred, the profile cards lost the padding
+  and icon size that made the mode picker taller than its content, and each switch logs created/reused plus ms to
+  layout. Views were already cached per tab, so the remaining navigation work is the cost of laying out a page, not
+  of building it.
 - **High-DPI on both platforms.** Per-monitor V2 on Windows, and an application scale setting that does not depend on
   XWayland's `GDK_SCALE` on Linux (#234), including a sensible default on 2560×1600 panels.
 - **Mode-aware chrome.** Adopt Ohman's idea: the window's accent follows the active performance mode, so the current
@@ -295,7 +299,7 @@ while there is still time to test them.
 | 1 | WP-32 | i18n plumbing done; shell + Settings (window/tray) translated; ~1,060 literals remain | Nothing |
 | 1 | WP-43 | Per-mode memory: `PerformanceMode` fields, migration, apply path (I.1) | Nothing |
 | 1 | WP-44 | Structured capability reasons in the DB, the UI and the export (I.2) | Nothing |
-| 2 | WP-33 | UI density and navigation rework (#48, #133, #232) | Nothing |
+| 2 | WP-33 | zoom + display scale done; profile-card density tightened; switches instrumented (views were already cached); page rework remains | Nothing |
 | 2 | WP-34 | HiDPI Windows + Linux (#234, #114, #118) | Nothing |
 | 2 | WP-35 | Privilege split design + service skeleton; `config --validate` done (I.10) | Architecture decision |
 | 2 | WP-36 | Battery Care 0x2B (#243), TGP ceiling readout (#181), battery preset (I.8) | PR in flight |

@@ -132,6 +132,26 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   rather than `Environment.ExitCode` because `Program` returns `InvokeAsync`'s 0, which overrode the property: the first
   version of this command printed two errors and then reported success. *Verified on two fixture files and by
   `ConfigValidatorTests`; the validator runs on the file as written, before repairs.*
+- **The interface zooms, and the mode picker stops eating a screen** (roadmap WP-33, first slice; this is the
+  font-scale setting WP-45 deferred). Every view sets explicit `FontSize` values, so an inherited size or a style
+  setter reaches none of them — the only mechanism that moves all of them at once is a layout transform on the page
+  host, which is what a user asking for "bigger" means anyway. `UiScalePercent` stores one of seven steps (80-150,
+  snapped to the nearest on load so a hand-edited value cannot make the window unreadable) and is applied as a
+  `LayoutTransform` on the content presenter, inside a `ScrollViewer` added for exactly this: a layout transform
+  changes measured size, so the page scrolls when the zoom outruns the window instead of clipping. `Ctrl` with `+`,
+  `-` and `0` change it from anywhere in the window and save it; the Settings row changes the same value. 100 % removes
+  the transform rather than applying an identity scale, so the ordinary path stays untouched. Separately, the four
+  profile cards on the General page lose 12 px of icon, 6 px of padding and 6 px of gap before each section — the
+  #48.6/#48.7 complaint about the mode picker consuming more vertical space than its content. *Zoom verified by tests
+  and a clean build; the density change has not been looked at on screen.*
+- **Tab switching is measured, and it was already not rebuilding anything** (roadmap WP-33). The premise behind the
+  navigation complaint is that every switch rebuilds the page; in this tree it does not — `EnsureTabContentCreated`
+  keeps `_initializedTabs` and assigns `tab.Content` once, so the second visit to a tab reuses the same element tree.
+  Rather than add a second caching layer on top of a correct one, each switch now logs `[Nav] <tab>: created|reused,
+  N ms to layout`, which turns "switching feels slow" into a number on the user's own machine. What such a switch
+  actually costs is a layout pass over an existing page (plus the 160 ms fade, which `Reduce motion` already
+  suppresses), and that is what the remaining page work in WP-33 has to reduce. *Logged but not yet collected from a
+  real session: the first profile numbers come from the next run with the build in hand.*
 
 ## Fixed
 
