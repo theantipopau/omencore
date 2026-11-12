@@ -119,7 +119,11 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
 - **High-DPI on both platforms.** Per-monitor V2 on Windows, and an application scale setting that does not depend on
   XWayland's `GDK_SCALE` on Linux (#234), including a sensible default on 2560×1600 panels.
 - **Mode-aware chrome.** Adopt Ohman's idea: the window's accent follows the active performance mode, so the current
-  state is legible at a glance without reading a label.
+  state is legible at a glance without reading a label. *Done 2026-11-12:* a separate `ModeAccentBrush` (never
+  `AccentBrush`, which also means error/warning) drives the selected tab and the sidebar marker; the profile cards'
+  borders and badges use the same colours; high contrast uses the system highlight. Same pass: one display name for
+  the middle mode ("Balanced", not "Default"), stat cards no longer stretch, subtler group dividers, the undervolt
+  reason on the Tuning page, screen-reader names on the header icon buttons.
 - **One diagnostics home.** Fan / keyboard / hardware diagnostics move into a single diagnostics page (#48.1), away
   from the tabs people use every day.
 - **Logs and activity as resizable, remembered panels** (#48.4), with the collapse behaviour the reporter asked for.
@@ -224,6 +228,11 @@ Evidence: #232 (200 MB private, corner radius in fullscreen), #133 (sluggish tog
   the change could not move, so a 128 MB ceiling failed on the machine rather than on the app. The 120 MB product goal
   for an 8 GB machine is measured locally and is not this ceiling.
 - **Release notes generated from the changelog**, not written twice.
+- **Tests open real sensor drivers.** About 66 test sites construct `LibreHardwareMonitorImpl()`, which initialises
+  PawnIO and LibreHardwareMonitor on the machine running the tests. On a desktop with an AMD Radeon the native ADL call
+  `ADL2_Adapter_DedicatedVRAMUsage_Get` crashed the test host on 2026-11-12 (an `AccessViolationException` cannot be
+  caught), aborting the run partway. CI runners have no such GPU, so CI never sees it. Give those tests a stub sensor
+  source instead of the real bridge; this is the same rule as "never touch real hardware from tests".
 
 ### I. Adaptations from the peer review (2026-11-11)
 

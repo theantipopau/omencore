@@ -132,7 +132,7 @@
                     <Border Grid.Column="2" Background="#1A1A1E" CornerRadius="20" Padding="16,8" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding CurrentPerformanceMode}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding CurrentPerformanceModeDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                             <TextBlock Text=" · " FontSize="12" Foreground="{StaticResource TextTertiaryBrush}" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding CurrentFanMode}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -227,10 +227,10 @@
                                 </StackPanel>
                                 
                                 <!-- Active Badge -->
-                                <Border Grid.Row="4" Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="12,6" 
+                                <Border Grid.Row="4" Background="#26FF6B35" BorderBrush="#FF6B35" BorderThickness="1" CornerRadius="6" Padding="12,5" 
                                         HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                                         Visibility="{Binding IsPerformanceSelected, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#FF6B35" HorizontalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -277,10 +277,10 @@
                                     </Border>
                                 </StackPanel>
                                 
-                                <Border Grid.Row="4" Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="12,6" 
+                                <Border Grid.Row="4" Background="#2600D4FF" BorderBrush="#00D4FF" BorderThickness="1" CornerRadius="6" Padding="12,5" 
                                         HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                                         Visibility="{Binding IsBalancedSelected, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00D4FF" HorizontalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -327,10 +327,10 @@
                                     </Border>
                                 </StackPanel>
                                 
-                                <Border Grid.Row="4" Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="12,6" 
+                                <Border Grid.Row="4" Background="#2600FF88" BorderBrush="#00FF88" BorderThickness="1" CornerRadius="6" Padding="12,5" 
                                         HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                                         Visibility="{Binding IsQuietSelected, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00FF88" HorizontalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -377,10 +377,10 @@
                                     </Border>
                                 </StackPanel>
                                 
-                                <Border Grid.Row="4" Background="{StaticResource AccentBrush}" CornerRadius="6" Padding="12,6" 
+                                <Border Grid.Row="4" Background="#26A855F7" BorderBrush="#A855F7" BorderThickness="1" CornerRadius="6" Padding="12,5" 
                                         HorizontalAlignment="Stretch" VerticalAlignment="Bottom"
                                         Visibility="{Binding IsCustomSelected, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="✓ ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#A855F7" HorizontalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </Border>
@@ -444,8 +444,9 @@
                 </Grid>
             </Border>
 
-            <!-- Live System Stats - Enhanced Dashboard Style -->
-            <Grid Grid.Row="3">
+            <!-- Live System Stats - Enhanced Dashboard Style. Top-aligned (5.0.0): in the star row the three cards
+                 stretched to the window's height and showed two-thirds empty card on a 1080p panel (#48.6). -->
+            <Grid Grid.Row="3" VerticalAlignment="Top">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
@@ -752,7 +753,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="⚡ MODE" Style="{StaticResource GaugeLabel}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding CurrentPerformanceMode}" 
+                                        <TextBlock Grid.Column="1" Text="{Binding CurrentPerformanceModeDisplay}" 
                                                    Style="{StaticResource GaugeValue}" Foreground="{StaticResource AccentBrush}"/>
                                     </Grid>
                                     

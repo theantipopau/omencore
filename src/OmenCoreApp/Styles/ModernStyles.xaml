@@ -323,6 +323,9 @@
     <SolidColorBrush x:Key="SurfaceHighlightBrush" po:Freeze="False" Color="{StaticResource SurfaceHighlight}" />
     <SolidColorBrush x:Key="AccentBrush" po:Freeze="False" Color="{StaticResource AccentRed}" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentRedHover}" />
+    <!-- The active profile's colour, recoloured in place by Utils/ModeAccent.cs (unfrozen for that reason).
+         Only chrome that marks "where am I / what mode" uses it; status text keeps AccentBrush. -->
+    <SolidColorBrush x:Key="ModeAccentBrush" po:Freeze="False" Color="{StaticResource AccentRed}" />
     <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}" />
     <SolidColorBrush x:Key="AccentPurpleBrush" Color="{StaticResource AccentPurple}" />
     <SolidColorBrush x:Key="AccentGreenBrush" Color="{StaticResource SuccessGreen}" />
@@ -1468,16 +1471,20 @@
                              indices, or any code that depends on them. An OMEN-orange-to-red
                              gradient bar rather than a flat grey hairline, so the sidebar
                              carries some of the app's own brand color instead of reading as
-                             all one shade of dark grey. -->
+                             all one shade of dark grey. 5.0.0: a 1 px rule that fades out at both
+                             ends instead of a solid 3 px bar - the brand colour is still there, but
+                             the dividers no longer outweigh the selected tab they sit between. -->
                         <Border x:Name="GroupSeparator"
-                                Height="3"
-                                CornerRadius="1.5"
-                                Margin="8,10,8,10"
+                                Height="1"
+                                Margin="10,9,10,9"
+                                Opacity="0.7"
                                 Visibility="Collapsed">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="{StaticResource WarningOrange}" Offset="0"/>
-                                    <GradientStop Color="{StaticResource AccentRed}" Offset="1"/>
+                                    <GradientStop Color="#00FF9800" Offset="0"/>
+                                    <GradientStop Color="{StaticResource WarningOrange}" Offset="0.25"/>
+                                    <GradientStop Color="{StaticResource AccentRed}" Offset="0.75"/>
+                                    <GradientStop Color="#00FF005C" Offset="1"/>
                                 </LinearGradientBrush>
                             </Border.Background>
                         </Border>
@@ -1525,7 +1532,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                             <Setter TargetName="Border" Property="Background" Value="{StaticResource SurfaceMediumBrush}" />
                             <Setter TargetName="Border" Property="BorderBrush" Value="#6645C7FF" />
-                            <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="AccentBar" Property="Background" Value="{StaticResource ModeAccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />

@@ -167,6 +167,22 @@ always marks it: *implemented, pending confirmation* unless a reporter verified 
   the scroll gate are covered by tests; the cycle itself has not been run end-to-end on this machine, which needs
   an elevated launch of the app.*
 
+- **The window shows which mode you are in** (roadmap 4.B, an idea from Ohman). The selected navigation tab and the
+  sidebar's performance marker take the active profile's colour: orange for Performance, cyan for Balanced, green for
+  Quiet, purple for Custom. Each profile card's border and its "Active" badge use the same colour instead of all four
+  turning red. In Windows high contrast the system highlight colour is used instead. Error and warning text keeps its
+  own colour, so a warning never turns green under Quiet.
+- **Interface polish.**
+  - The mode reads "Balanced" everywhere. The General page, the dashboard and the sidebar used to say "Default" in
+    some places for the same mode; a mode you named yourself still shows your name.
+  - The CPU, GPU and System cards on the General page size to their content instead of stretching to the window
+    height and showing mostly empty card.
+  - The sidebar group dividers are a thin fading rule instead of a heavy 3 px bar.
+  - The Tuning page says why CPU undervolt is missing on this machine instead of leaving a gap, and its status box
+    no longer prints "Safe rollback has not been run this session" twice.
+  - The five icon-only header buttons have names for screen readers.
+  *Covered by unit tests and checked in an offscreen render of the General page; not yet looked at in the running app.*
+
 ## Fixed
 
 - **Three startup costs the profile named.** Measured on the reference machine (Ryzen 7 9800X3D, RTSS running so WPF

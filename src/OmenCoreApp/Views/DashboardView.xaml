@@ -164,7 +164,7 @@
                     <Path Data="{StaticResource IconPerformance}" Width="18" Height="18" Fill="{StaticResource AccentBrush}" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <StackPanel>
                         <TextBlock Text="PERFORMANCE MODE" Style="{StaticResource Label}" FontSize="10" Opacity="0.7"/>
-                        <TextBlock Text="{Binding CurrentPerformanceMode}" FontSize="12" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding CurrentPerformanceMode, Converter={StaticResource ModeDisplayNameConverter}}" FontSize="12" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold"/>
                     </StackPanel>
                 </StackPanel>
                 

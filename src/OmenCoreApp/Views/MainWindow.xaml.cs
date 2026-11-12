@@ -161,6 +161,15 @@ namespace OmenCore.Views
             _ = sender;
             _ = e;
             UpdateMaximizedBounds();
+
+            // Mode colour on the chrome (roadmap 4.B): follow the General page's selected profile. Subscribed
+            // here rather than in the constructor so the General view model is created in its usual order.
+            if ((DataContext as MainViewModel)?.General is { } general)
+            {
+                general.PropertyChanged -= OnGeneralPropertyChanged;
+                general.PropertyChanged += OnGeneralPropertyChanged;
+            }
+            ApplyModeAccent();
             
             // Initialize the OSD separately so a hotkey registration failure cannot leave
             // startup-minimized launches without their overlay service.
@@ -290,6 +299,8 @@ namespace OmenCore.Views
             TabControlMain.SizeChanged -= TabControlMain_SizeChanged;
             SystemParameters.StaticPropertyChanged -= SystemParametersOnStaticPropertyChanged;
             App.UiScaleChanged -= OnUiScaleChanged;
+            if ((DataContext as MainViewModel)?.General is { } general)
+                general.PropertyChanged -= OnGeneralPropertyChanged;
             (DataContext as MainViewModel)?.Dispose();
         }
 
@@ -647,6 +658,22 @@ namespace OmenCore.Views
             {
                 UpdateMaximizedBounds();
             }
+            else if (e.PropertyName == nameof(SystemParameters.HighContrast))
+            {
+                ApplyModeAccent();
+            }
+        }
+
+        private void OnGeneralPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(GeneralViewModel.SelectedProfile))
+                Dispatcher.BeginInvoke(ApplyModeAccent);
+        }
+
+        private void ApplyModeAccent()
+        {
+            var profile = (DataContext as MainViewModel)?.General?.SelectedProfile;
+            ModeAccent.Apply(Application.Current.Resources, profile, HighContrastTheme.ReadSystemHighContrast());
         }
 
         private void MainWindow_StateChanged(object? sender, EventArgs e)

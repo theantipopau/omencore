@@ -22,6 +22,21 @@ namespace OmenCore.Models
             return EqualsAny(value, "quiet", "silent", "powersaver", "power saver");
         }
 
+        /// <summary>
+        /// The name to show a user. The firmware and older configs call the middle mode "Default" (or "Normal",
+        /// "Auto"), while the profile card and the sidebar call it "Balanced"; showing both on one screen read as two
+        /// different states. Built-in aliases map to the card names; anything else is a user's own saved mode and is
+        /// shown exactly as they named it (unlike <see cref="Normalize"/>, which folds unknown names into Balanced).
+        /// </summary>
+        public static string ToDisplayName(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "--";
+            if (IsPerformanceAlias(value)) return "Performance";
+            if (IsQuietAlias(value)) return "Quiet";
+            if (IsBalancedAlias(value)) return "Balanced";
+            return value.Trim();
+        }
+
         public static string Normalize(string? value)
         {
             if (IsPerformanceAlias(value))

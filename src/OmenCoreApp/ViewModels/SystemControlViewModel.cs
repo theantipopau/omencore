@@ -1222,15 +1222,17 @@ namespace OmenCore.ViewModels
         public bool TuningConflictHighRisk => _lastTuningConflictReport?.HasHighRiskConflict == true;
 
         public string TuningDiagnosticsCompactSummary =>
-            $"CPU UV: {UndervoltStateLabel} | GPU OC: {GpuOcStateLabel} | Conflicts: {(TuningConflictBannerVisible ? "Detected" : "None")}";
+            $"CPU undervolt: {UndervoltStateLabel}  ·  GPU overclock: {GpuOcStateLabel}  ·  Conflicts: {(TuningConflictBannerVisible ? "detected" : "none")}";
 
         public string TuningDiagnosticsCompactDetail
         {
             get
             {
-                var startupRecovery = StartupRecoveryNoticeVisible ? "Startup recovery applied" : "No startup recovery event";
-                var gpuBackend = GpuNvapiAvailable ? "NVAPI online" : "NVAPI unavailable";
-                return $"{startupRecovery} | GPU backend: {gpuBackend} | Rollback: {TuningRollbackStatusText}";
+                // The rollback status has its own line under this one on the Tuning page; repeating it here printed
+                // "Safe rollback has not been run this session" twice.
+                var startupRecovery = StartupRecoveryNoticeVisible ? "Startup recovery applied" : "No startup recovery this session";
+                var gpuBackend = GpuNvapiAvailable ? "NVIDIA API ready" : "NVIDIA API not available";
+                return $"{startupRecovery}  ·  {gpuBackend}";
             }
         }
 
