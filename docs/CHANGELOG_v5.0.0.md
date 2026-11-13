@@ -1,10 +1,27 @@
 # OmenCore v5.0.0
 
-**Release Date:** not yet released
-**Type:** Major release — trust, distribution and UI. Not a feature pile.
-**Status:** In development on the `v5.0.0-wp31-startup-budget` branch (pushed, not merged to `main`). This file is the running record for the cycle; the plan behind it is
-`docs/ROADMAP_v5.0.0.md`. Everything below is what is actually in the tree today, marked the way this project
+**Release Date:** 2026-11-13
+**Type:** Major release — trust, startup and interface. Not a feature pile.
+**Status:** Released. The plan behind it is `docs/ROADMAP_v5.0.0.md`. Everything below is marked the way this project
 always marks it: *implemented, pending confirmation* unless a reporter verified it on real hardware.
+
+## Highlights
+
+- **Performance modes remember the whole machine**: fan preset or curve, GPU Power Boost, refresh rate, lighting and
+  charge limit, not just wattages. Your 4.x modes load unchanged.
+- **Every greyed-out control says why**, and the same reason is in the diagnostics export.
+- **Faster, lighter start**: CPU detection no longer waits on WMI (about 2 s saved on a cold boot), and idle memory
+  is lower; both are now checked in CI.
+- **Interface**: the window follows the active mode's colour, zooms, follows Windows' high-contrast theme, and the
+  navigation rail has screen-reader names. The shell is available in Russian and Turkish.
+- **Safer updates**: downloads are checked against the release's own `SHA256SUMS` file, and every release carries
+  GitHub build provenance (`gh attestation verify <file> --repo theantipopau/omencore`).
+- **Safer uninstall and upgrade**: after the installer stops the app, it hands the fans back to the BIOS, so a fan
+  left at Max no longer stays pinned after an uninstall.
+- **Your settings carry over**: a 4.x `config.json` is migrated, and a copy of the original is kept next to it.
+
+**Not in 5.0.0** (moved to 5.0.x / 5.1, see the end of this file): signed binaries, the non-elevated UI, and the
+full translation of every page.
 
 ## Added
 
@@ -265,13 +282,22 @@ Twelve issues closed as completed against shipped code (details in each thread):
 closed with an explicit invitation to post a diagnostics export on the same thread if the behaviour recurs. `#212` is closed on shipped code, not on confirmation: the 8BD4 Quick Colors fix in 4.5.1 is still *implemented,
 pending confirmation* and should be reopened if the owner reports it does not work.
 
-## Breaking changes planned for the release
+## Changes in behaviour
 
-These are not on `main` yet; they are listed here so the version number is not a surprise when they land. Each gets a
-migration or a documented default before the tag.
+- **Config schema version.** A 4.x `config.json` is migrated, not reinterpreted, and the original is kept as
+  `config.json.schema0.bak`. Unknown keys are preserved.
+- **Version single-sourced** in `VERSION.txt`, read by `Directory.Build.props`, the build scripts and the installer.
 
-- **Config schema version.** A 4.x `config.json` is migrated, not reinterpreted. Unknown keys are preserved. *(Landed.)*
-- **No more always-elevated UI.** Hardware writes move behind a service or scoped helper; the client runs as a normal
-  user. Existing autostart entries are rewritten during install.
-- **Signed binaries only.** Unsigned builds will be refused by the updater rather than offered.
-- **Version single-sourced** in `VERSION.txt`, read by `Directory.Build.props`, the build scripts and the installer. *(Landed.)*
+## Moved out of 5.0.0
+
+- **Code signing.** 5.0.0 ships unsigned, so Windows SmartScreen still shows "unknown publisher" (#192). What stands
+  in for a signature in this release: the `SHA256SUMS` file, the per-file `.sha256` sidecars the updater checks, and
+  GitHub build provenance, which proves each download was built by this repository's release workflow from the tagged
+  commit. The planned route is a free open-source signing programme (SignPath Foundation), which signs inside the
+  release workflow so no private key is ever held on a personal machine. The updater's "refuse unsigned builds" rule
+  waits for the first signed release, otherwise it would refuse every existing version.
+- **No more always-elevated UI.** Hardware writes moving behind a service is the largest change on the list and
+  needs real-board testing that has not happened yet; it is scheduled for 5.1 and the design stays in
+  `docs/ROADMAP_v5.0.0.md` (WP-35). Until then the app still runs as administrator.
+- **Full translation.** The shell and the Settings window/tray sections are translated; about 1,060 strings on the
+  other pages are not yet.

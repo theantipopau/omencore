@@ -114,11 +114,12 @@ dotnet test src/OmenCoreApp.Tests/OmenCoreApp.Tests.csproj --filter "FullyQualif
 
 ## Versioning & docs
 
-- Current released: **4.5.1** (2026-11-10); 4.5.0 was released 2026-10-24. Release notes are in `docs/CHANGELOG_v4.5.1.md`. The 4.5.0 cycle was tracked in `docs/ROADMAP_v4.5.0.md`:
-  section 5A is the tick sheet an agent ticks off as it goes, section 6 the work packages, section 7 the open-issue index, K.* the field evidence.
-- **Next cycle: 5.0.0 is planned in `docs/ROADMAP_v5.0.0.md`** (trust, distribution and UI), with its running record in
-  `docs/CHANGELOG_v5.0.0.md`. Section 5 there is the definition of done; section 7 is the open-issue index after the
-  2026-11-11 housekeeping sweep.
+- Current released: **5.0.0** (2026-11-13); 4.5.1 was released 2026-11-10. Release notes are in `docs/CHANGELOG_v5.0.0.md`.
+  The 5.0.0 cycle is tracked in `docs/ROADMAP_v5.0.0.md`: section 5 is the definition of done (and what shipped short
+  of it), section 6 the work packages, section 7 the open-issue index. The items it moved out (signing, privilege
+  split, full translation) are the next cycle's starting list.
+- Signing decision (WP-30): releases are unsigned until the SignPath Foundation OSS route is set up; `SHA256SUMS`
+  and build provenance stand in. Don't add an updater refuse-unsigned rule before the first signed release.
 - Version lives in `VERSION.txt` only (from the 5.0.0 branch on): `Directory.Build.props` reads it for every project,
   the build scripts pass it as `-p:Version`, and the installer gets it as `/DMyAppVersion` (the `.iss` default is a
   fallback for a bare ISCC run). `OmenCore.Desktop` keeps its own old version on purpose.

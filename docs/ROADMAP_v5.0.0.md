@@ -286,6 +286,13 @@ website supported-model table generated from the database rather than written by
 
 5.0.0 ships when all of these are true. Anything else is 5.1.
 
+*Shipped 2026-11-13 on the maintainer's call, short of items 1, 2 (the signature half), 3 and 9 (Russian and Turkish
+cover the shell and Settings window/tray only). Signing decision (WP-30): 5.0.0 is unsigned; `SHA256SUMS`, the
+per-file sidecars and GitHub build provenance stand in for it, and the route to a signature is the SignPath
+Foundation's free open-source programme, which signs inside `release.yml` so no key sits on a personal machine. The
+updater's refuse-unsigned rule waits for the first signed release. The privilege split (item 3) is 5.1 and is written
+up in the changelog's "Moved out of 5.0.0".*
+
 1. Installer and binaries are signed; SmartScreen shows the publisher (#192 closed by evidence).
 2. The updater verifies signature and hash before elevation, and the release publishes `SHA256SUMS` plus provenance.
 3. The UI no longer runs elevated for hardware writes, or — if the service split slips — the split is scoped, written
