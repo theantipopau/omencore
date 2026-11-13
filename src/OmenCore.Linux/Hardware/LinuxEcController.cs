@@ -281,10 +281,14 @@ public class LinuxEcController
     /// </summary>
     private void DiscoverHwmonFanControl()
     {
+        // GitHub #248: fan RPM inputs were only recorded alongside pwm1_enable, so a board whose
+        // hp-wmi exposes fan*_input without fan control (8D40) fell through to the EC registers.
+        DiscoverHwmonFanInputs();
+
         var hpWmiHwmonPath = Path.Combine(HP_WMI_PATH, "hwmon");
         if (!Directory.Exists(hpWmiHwmonPath))
             return;
-        
+
         foreach (var hwmonDir in Directory.GetDirectories(hpWmiHwmonPath))
         {
             var pwm1Enable = Path.Combine(hwmonDir, "pwm1_enable");
@@ -317,7 +321,51 @@ public class LinuxEcController
             }
         }
     }
-    
+
+    /// <summary>
+    /// Record hp-wmi's fan RPM inputs on their own: under the hp-wmi platform device first, then
+    /// any hwmon device the driver registered as "hp". Read-only; does not imply fan control.
+    /// </summary>
+    private void DiscoverHwmonFanInputs()
+    {
+        var candidates = new List<string>();
+        var hpWmiHwmonPath = Path.Combine(HP_WMI_PATH, "hwmon");
+        if (Directory.Exists(hpWmiHwmonPath))
+            candidates.AddRange(Directory.GetDirectories(hpWmiHwmonPath));
+
+        const string hwmonClass = "/sys/class/hwmon";
+        if (Directory.Exists(hwmonClass))
+        {
+            foreach (var dir in Directory.GetDirectories(hwmonClass))
+            {
+                try
+                {
+                    var name = Path.Combine(dir, "name");
+                    if (File.Exists(name) && ReadSysfsFile(name) == "hp")
+                        candidates.Add(dir);
+                }
+                catch { }
+            }
+        }
+
+        foreach (var dir in candidates)
+        {
+            var fan1 = Path.Combine(dir, "fan1_input");
+            var fan2 = Path.Combine(dir, "fan2_input");
+            if (!File.Exists(fan1) && !File.Exists(fan2))
+                continue;
+            _hwmonFan1InputPath = File.Exists(fan1) ? fan1 : null;
+            _hwmonFan2InputPath = File.Exists(fan2) ? fan2 : null;
+            return;
+        }
+    }
+
+    /// <summary>
+    /// EC fan speed bytes are in units of 100 RPM on the boards whose layout this file knows.
+    /// 0xFF is what an unmapped or absent register reads as, not 25,500 RPM (GitHub #248).
+    /// </summary>
+    public static int EcFanByteToRpm(byte? value) => value is null or 0xFF ? 0 : value.Value * 100;
+
     /// <summary>
     /// Get detailed diagnostic information for troubleshooting.
     /// </summary>
@@ -1026,6 +1074,44 @@ public class LinuxEcController
         catch { return false; }
     }
 
+    /// <summary>
+    /// Full speed through hwmon. pwm_enable=0 is "no control, full speed" in the hwmon ABI and is
+    /// the confirmed Max path on toggle-only boards (#174) and 8D87 (#183). On the 8EEC driver it
+    /// stopped both fans instead (GitHub #238: 3600 RPM at 60% manual duty, then 0 RPM after
+    /// pwm_enable=0, audibly). So when the driver also takes a manual duty, check that the fans
+    /// did not slow down after the write, and switch to manual duty 100% if they did.
+    /// </summary>
+    public bool SetHwmonFullSpeed(out bool usedManualDuty)
+    {
+        usedManualDuty = false;
+        var canFallBack = HasHwmonPwmDutyAccess && (_hwmonFan1InputPath != null || _hwmonFan2InputPath != null);
+        var (b1, b2) = canFallBack ? GetHwmonFanSpeeds() : (0, 0);
+
+        if (!SetHwmonPwmEnable(0))
+        {
+            usedManualDuty = HasHwmonPwmDutyAccess && SetHwmonPwmDutyPercent(100);
+            return usedManualDuty;
+        }
+
+        if (!canFallBack)
+            return true;
+
+        Thread.Sleep(3000);
+        var (a1, a2) = GetHwmonFanSpeeds();
+        if (!FullSpeedWriteSlowedFans(Math.Max(b1, b2), Math.Max(a1, a2)))
+            return true;
+
+        usedManualDuty = SetHwmonPwmDutyPercent(100);
+        return usedManualDuty;
+    }
+
+    /// <summary>
+    /// True when a full-speed write left the fans stopped or slower than before it (5 % tolerance
+    /// for tachometer jitter). A real full-speed write never lowers RPM.
+    /// </summary>
+    public static bool FullSpeedWriteSlowedFans(int rpmBefore, int rpmAfter) =>
+        rpmAfter <= 0 || rpmAfter < rpmBefore * 0.95;
+
     public int? GetHwmonPwmDutyPercent()
     {
         if (_hwmonPwm1Path == null)
@@ -1116,20 +1202,15 @@ public class LinuxEcController
     /// </summary>
     public (int fan1, int fan2) GetFanSpeeds()
     {
-        // Try hwmon fan_input first (2025+ models)
-        if (HasHwmonFanAccess)
-        {
-            var (f1, f2) = GetHwmonFanSpeeds();
-            if (f1 > 0 || f2 > 0)
-                return (f1, f2);
-        }
-        
+        // The driver's own RPM inputs win whenever they exist, including a real 0 RPM at idle:
+        // falling through to the EC on 0 used to print the EC's 0xFF as 25,500 RPM (GitHub #248).
+        if (_hwmonFan1InputPath != null || _hwmonFan2InputPath != null)
+            return GetHwmonFanSpeeds();
+
         if (!HasEcAccess)
             return (0, 0);
 
-        var fan1 = (ReadByte(REG_FAN1_SPEED_SET) ?? 0) * 100;
-        var fan2 = (ReadByte(REG_FAN2_SPEED_SET) ?? 0) * 100;
-        return (fan1, fan2);
+        return (EcFanByteToRpm(ReadByte(REG_FAN1_SPEED_SET)), EcFanByteToRpm(ReadByte(REG_FAN2_SPEED_SET)));
     }
     
     /// <summary>
@@ -1329,7 +1410,7 @@ public class LinuxEcController
                 _ => 2
             };
 
-            success = SetHwmonPwmEnable(pwmValue) || success;
+            success = (pwmValue == 0 ? SetHwmonFullSpeed(out _) : SetHwmonPwmEnable(pwmValue)) || success;
         }
 
         // GitHub #183 (board 8D87): pwm_enable=2 is a policy flag telling the firmware "you

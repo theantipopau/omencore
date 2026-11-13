@@ -187,9 +187,17 @@ public static class FanCommand
                 bool success;
                 if (pct >= 100)
                 {
-                    // Max speed: pwm_enable=0 (full speed)
-                    success = ec.SetHwmonPwmEnable(0);
-                    if (success)
+                    // pwm_enable=0, checked against RPM; falls back to manual duty 100% where the
+                    // driver stops the fans instead (GitHub #238).
+                    var usedManualDuty = false;
+                    success = ec.SetHwmonFullSpeed(out usedManualDuty);
+                    if (success && usedManualDuty)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("✓ Fan speed set to MAX (manual duty 100%; this driver stops the fans on pwm_enable=0)");
+                        Console.ResetColor();
+                    }
+                    else if (success)
                     {
                         Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine($"✓ Fan speed set to MAX (pwm_enable=0, full speed)");

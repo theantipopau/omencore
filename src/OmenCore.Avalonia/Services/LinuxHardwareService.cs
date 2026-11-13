@@ -688,9 +688,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 }
 
                 var fanTargetPath = ResolveHwmonFanTargetPath(1);
-                if (fanTargetPath != null)
+                if (fanTargetPath != null && FanTargetRpm(fanTargetPath, clamped) is int targetRpm)
                 {
-                    await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                    await File.WriteAllTextAsync(fanTargetPath, targetRpm.ToString());
                     return;
                 }
             }
@@ -744,9 +744,9 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 }
 
                 var fanTargetPath = ResolveHwmonFanTargetPath(2);
-                if (fanTargetPath != null)
+                if (fanTargetPath != null && FanTargetRpm(fanTargetPath, clamped) is int targetRpm)
                 {
-                    await File.WriteAllTextAsync(fanTargetPath, clamped.ToString());
+                    await File.WriteAllTextAsync(fanTargetPath, targetRpm.ToString());
                     return;
                 }
             }
@@ -1063,6 +1063,20 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         return null;
     }
 
+    /// <summary>
+    /// fanN_target takes RPM (hwmon ABI), not a percentage: writing the percentage asked an
+    /// 8EEC-class driver for 60 RPM at "60 %" (GitHub #238). Scale by fanN_max; with no readable
+    /// maximum, return null so the caller falls through to a control it can drive correctly.
+    /// </summary>
+    internal static int? FanTargetRpm(string targetPath, int percent)
+    {
+        var maxPath = targetPath.Replace("_target", "_max");
+        return int.TryParse(ReadSysfsText(maxPath), out var max) ? ScaleFanTarget(percent, max) : null;
+    }
+
+    public static int? ScaleFanTarget(int percent, int maxRpm) =>
+        maxRpm > 0 ? (int)Math.Round(Math.Clamp(percent, 0, 100) * maxRpm / 100.0) : null;
+
     private static string? ResolveHwmonFanTargetPath(int fanIndex)
     {
         try
@@ -1178,70 +1192,54 @@ public class LinuxHardwareService : IHardwareService, IDisposable
         return 0;
     }
 
-    private static async Task<int> ReadFanRpmAsync(string type)
+    /// <summary>
+    /// Fan RPM for the CPU (fan1) or GPU (fan2) fan.
+    /// GitHub #248: this used to ignore <paramref name="type"/> and return the first positive
+    /// fan*_input of any hwmon device for both fans, treat pwm* duty files as RPM, and read sysfs
+    /// through a cached reader, so the dashboard froze at whatever the fan did at launch.
+    /// Order: hp-wmi's own hwmon, then a hwmon device named "hp", then any hwmon device.
+    /// </summary>
+    private static Task<int> ReadFanRpmAsync(string type)
     {
+        var file = type == "gpu" ? "fan2_input" : "fan1_input";
         try
         {
-            foreach (var hwmon in Directory.GetDirectories(HWMON_BASE))
+            var dirs = new List<string>();
+            const string hpWmiHwmon = "/sys/devices/platform/hp-wmi/hwmon";
+            if (Directory.Exists(hpWmiHwmon))
+                dirs.AddRange(Directory.GetDirectories(hpWmiHwmon));
+
+            var all = Directory.Exists(HWMON_BASE) ? Directory.GetDirectories(HWMON_BASE) : Array.Empty<string>();
+            dirs.AddRange(all.Where(d => ReadSysfsText(Path.Combine(d, "name")) == "hp"));
+            dirs.AddRange(all);
+
+            foreach (var dir in dirs)
             {
-                try
-                {
-                    // Check if this hwmon is related to the requested type
-                    var namePath = Path.Combine(hwmon, "name");
-                    var deviceName = File.Exists(namePath) ? 
-                        (await File.ReadAllTextAsync(namePath)).Trim().ToLower() : "";
-                    
-                    // Look for fan speed inputs
-                    var fanInputs = Directory.GetFiles(hwmon, "fan*_input");
-                    if (fanInputs.Length == 0)
-                    {
-                        // Some HP laptops expose fans via PWM files
-                        fanInputs = Directory.GetFiles(hwmon, "pwm*");
-                    }
-                    
-                    foreach (var fanInput in fanInputs)
-                    {
-                        var rpm = await File.ReadAllTextAsync(fanInput);
-                        if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
-                            return rpmValue;
-                    }
-                }
-                catch { }
-            }
-            
-            // Try HP-specific fan paths
-            var hpFanPaths = new[]
-            {
-                "/sys/devices/platform/hp-wmi/fan1_input",
-                "/sys/devices/platform/hp-wmi/fan2_input",
-                "/sys/class/hwmon/hwmon*/fan1_input"
-            };
-            
-            foreach (var fanPath in hpFanPaths)
-            {
-                if (fanPath.Contains("*"))
-                {
-                    var matches = Directory.GetFiles(Path.GetDirectoryName(fanPath) ?? "", Path.GetFileName(fanPath));
-                    foreach (var match in matches)
-                    {
-                        if (File.Exists(match))
-                        {
-                            var rpm = await File.ReadAllTextAsync(match);
-                            if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
-                                return rpmValue;
-                        }
-                    }
-                }
-                else if (File.Exists(fanPath))
-                {
-                    var rpm = await File.ReadAllTextAsync(fanPath);
-                    if (int.TryParse(rpm.Trim(), out var rpmValue) && rpmValue > 0)
-                        return rpmValue;
-                }
+                var path = Path.Combine(dir, file);
+                if (File.Exists(path) && int.TryParse(ReadSysfsText(path), out var rpm) && rpm >= 0)
+                    return Task.FromResult(rpm);
             }
         }
         catch { }
-        return 0;
+        return Task.FromResult(0);
+    }
+
+    /// <summary>
+    /// Unbuffered sysfs read: a buffered reader can hand back stale page-cached content on some
+    /// kernels (same reason as LinuxEcController.ReadSysfsFile).
+    /// </summary>
+    private static string? ReadSysfsText(string path)
+    {
+        try
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 1);
+            using var sr = new StreamReader(fs);
+            return sr.ReadToEnd().Trim();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static async Task<double> ReadCpuUsageAsync()
