@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v4.5.1</small>
+      <small>v5.0.0</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v4.5.1 is out now — fixes the 8E10 keyboard backlight regression, sends the right fan-mode bytes to older firmware, adds the 8BCD keyboard colour layout, new boards (8BC8, 8786) and 54 more boards named.
+      v5.0.0 is out now — modes remember fans, GPU boost, refresh rate and lighting, every greyed-out control says why, faster start, and a refreshed interface.
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -114,7 +114,7 @@
       <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No telemetry by default</span>
       <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> MIT licensed &amp; open source</span>
       <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Windows &amp; Linux</span>
-      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> 2022+ OMEN &amp; Victus models</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> OMEN &amp; Victus laptops</span>
     </div>
 
     <div class="hero-visual">
@@ -163,7 +163,7 @@
       <div class="label">Core control modules</div>
     </div>
     <div class="stat">
-      <div class="num"><span class="count-up" data-target="1397">0</span><span class="unit">+</span></div>
+      <div class="num"><span class="count-up" data-target="2100">0</span><span class="unit">+</span></div>
       <div class="label">Automated tests</div>
     </div>
     <div class="stat">
@@ -191,12 +191,12 @@
       <div class="feature-card">
         <div class="feature-icon">⚡</div>
         <h3>Performance Tuning</h3>
-        <p>Quiet, Balanced, Performance, and custom profiles with instant switching, GPU power boost, and Intel/AMD undervolting.</p>
+        <p>Quiet, Balanced, Performance, and custom modes that carry fans, GPU Power Boost, refresh rate, lighting and charge limit together, plus Intel/AMD undervolting.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🎨</div>
         <h3>Multi-Brand RGB</h3>
-        <p>HP OMEN keyboard zones plus Corsair, Logitech, and Razer device integration from a single unified panel.</p>
+        <p>HP OMEN four-zone and per-key keyboards plus Corsair, Logitech, Razer and OpenRGB devices from a single panel.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔥</div>
@@ -216,7 +216,7 @@
       <div class="feature-card">
         <div class="feature-icon">🔧</div>
         <h3>Diagnostics</h3>
-        <p>Guided fan diagnostics, sensor health checks, and a one-click exportable bundle for support or bug reports.</p>
+        <p>Every disabled control says why. Guided fan verification, sensor health checks, and a one-click export for support or bug reports.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🎮</div>
@@ -236,7 +236,7 @@
       <div class="feature-card">
         <div class="feature-icon">🐧</div>
         <h3>Linux Support</h3>
-        <p>A full Avalonia GUI and CLI with an automatic fan-control daemon and TOML configuration — feature parity with Windows.</p>
+        <p>An Avalonia GUI and CLI with an automatic fan-control daemon and TOML configuration, over hp-wmi, ec_sys and hwmon.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔒</div>
@@ -322,9 +322,9 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v4.5.1</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v5.0.0</b></div>
         <h3>Get OmenCore</h3>
-        <p>Free and open source. Requires a 2022+ HP OMEN or Victus laptop. Windows builds run elevated for direct hardware access.</p>
+        <p>Free and open source, for HP OMEN and Victus laptops. Windows 10 (19041+) or 11, x64; the .NET runtime is included. Update from inside the app and your settings carry over.</p>
 
         <div class="tab-group" role="tablist" aria-label="Choose platform">
           <button class="tab-btn is-active" data-tab="windows" role="tab" aria-selected="true" type="button">Windows</button>
@@ -336,15 +336,18 @@
             <a class="btn btn-primary" id="downloadPrimary" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download Installer</a>
             <a class="btn btn-outline" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Portable ZIP</a>
           </div>
-          <div class="download-req">⚠️ Run the installer as Administrator — OmenCore needs elevated access for direct EC/WMI hardware control.</div>
+          <div class="download-req">⚠️ The installer is not yet code-signed, so Windows may show "unknown publisher": choose <b>More info → Run anyway</b>. OmenCore runs as administrator for direct EC/WMI hardware access.</div>
         </div>
 
         <div class="tab-panel" data-panel="linux">
           <div class="code-block">
-            <button class="copy-btn" type="button" data-copy="# Download the latest self-contained Linux build from GitHub Releases,&#10;# then run the CLI daemon or the omencore-gui binary directly.&#10;# Full steps: docs/LINUX_INSTALL_GUIDE.md">Copy</button>
-            <span># Download the latest self-contained Linux build from GitHub Releases,</span><br />
-            <span># then run the CLI daemon or the omencore-gui binary directly.</span><br />
-            <span># Full steps: docs/LINUX_INSTALL_GUIDE.md</span>
+            <button class="copy-btn" type="button" data-copy="VERSION=5.0.0&#10;wget &quot;https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip&quot;&#10;unzip &quot;OmenCore-${VERSION}-linux-x64.zip&quot; -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64&#10;chmod +x omencore-cli omencore-gui&#10;sudo ./omencore-cli status&#10;./omencore-gui">Copy</button>
+            <span>VERSION=5.0.0</span><br />
+            <span>wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"</span><br />
+            <span>unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64</span><br />
+            <span>chmod +x omencore-cli omencore-gui</span><br />
+            <span>sudo ./omencore-cli status</span><br />
+            <span>./omencore-gui</span>
           </div>
           <div class="download-actions" style="margin-top:16px;">
             <a class="btn btn-primary" href="https://github.com/theantipopau/omencore/releases/latest" target="_blank" rel="noopener">Download Linux build</a>
@@ -357,8 +360,9 @@
         <ul class="plat-list" style="gap:16px;">
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No account or sign-in required</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> No OMEN Gaming Hub dependency</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Unsigned binaries today — see the AV/SmartScreen FAQ before you install</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Every release is SHA256-verified and built from this public source</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Every release publishes <code>SHA256SUMS</code>, and the in-app updater checks each download against it</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> GitHub build provenance proves each file was built from this public source: <code>gh attestation verify &lt;file&gt; --repo theantipopau/omencore</code></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Code signing is planned for 5.1; until then see the AV/SmartScreen FAQ</li>
         </ul>
         <a class="btn btn-ghost btn-sm" style="margin-top:18px;" href="https://github.com/theantipopau/omencore/blob/main/docs/ANTIVIRUS_FAQ.md" target="_blank" rel="noopener">Read the antivirus / SmartScreen FAQ →</a>
       </div>
@@ -378,8 +382,24 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v4.5.1</span>
+          <span class="v">v5.0.0</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>Trust, startup and interface. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
+        <ul>
+          <li>Performance modes remember fan preset or curve, GPU Power Boost, refresh rate, lighting and charge limit; 4.x modes load unchanged</li>
+          <li>Every greyed-out control says why, and the same reason is in the diagnostics export</li>
+          <li>Faster start (CPU detection no longer waits on WMI) and lower idle memory, both checked in CI</li>
+          <li>The window follows the active mode's colour, zooms, follows Windows high contrast, and the shell speaks Russian and Turkish</li>
+          <li>Updates are checked against the release's SHA256SUMS file and carry GitHub build provenance; the installer hands fans back to the BIOS on uninstall and upgrade</li>
+          <li>Your 4.x settings are migrated, with a copy of the original kept</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v5.0.0.md" target="_blank" rel="noopener">Full v5.0.0 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v4.5.1</span>
+          <span class="timeline-badge muted">Previous</span>
         </div>
         <p>A field-report fix release. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
         <ul>
@@ -408,7 +428,7 @@
       <div class="timeline-item">
         <div class="timeline-head">
           <span class="v">v4.4.5</span>
-          <span class="timeline-badge">Previous</span>
+          <span class="timeline-badge muted">Feature</span>
         </div>
         <p>A feature and field-report release built from diagnostics exports, issues, forks and research from the community. Much of it is implemented and tested in software and is marked as waiting for hardware confirmation in the release notes.</p>
         <ul>
@@ -425,7 +445,7 @@
       <div class="timeline-item">
         <div class="timeline-head">
           <span class="v">v4.4.1</span>
-          <span class="timeline-badge muted">Previous</span>
+          <span class="timeline-badge muted">Patch</span>
         </div>
         <p>A field-report follow-up to 4.4.0, built from the diagnostics exports, issues, forks and pull requests that arrived in the week after it shipped. It is the first release delivered by the repaired in-app updater.</p>
         <ul>
@@ -457,124 +477,6 @@
           <li>OMEN MAX 16 per-key keyboard brightness works, AMD power limits are written as a full set and read back, plus new and corrected entries for several boards</li>
         </ul>
         <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.4.0.md" target="_blank" rel="noopener">Full v4.4.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.3.1</span>
-          <span class="timeline-badge muted">Patch</span>
-        </div>
-        <p>Started as field-report fixes for two GitHub issues and grew once one of them turned out to be a real, provable data-loss bug — settings silently reverting after doing something unrelated elsewhere in the app.</p>
-        <ul>
-          <li>Fixed a real config-persistence data-loss bug: several disconnected in-memory copies of your settings could each save independently, and whichever saved last silently overwrote a custom fan curve or power limit a different part of the app had just changed</li>
-          <li>Fixed the auto-updater's SHA256 check, which had been silently matching nothing since the release-notes hash-table format changed — and fixed the release-process bug behind it, so hashes in these notes now come straight from the exact published files instead of a separate local build</li>
-          <li>Fixed OMEN key WMI events being discarded on boards where the keyboard hook never sees the physical key</li>
-          <li>Two rounds of cross-project review against a similar open-source tool ("Ohman") produced a GPU-idle-polling backoff and a firmware-aware fix so unverified boards no longer assume fan control works when the laptop's own firmware says it doesn't</li>
-          <li>Four-zone keyboard lighting gets an actual drawn keyboard to click zones on, Dashboard's temperature numbers are bigger, and the Razer Devices card uses Razer's real logo</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.3.1.md" target="_blank" rel="noopener">Full v4.3.1 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.3.0</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>Started as a patch cycle for five field reports and grew into extracting a standalone Core library plus the first slice of a Windows CLI — alongside two real safety fixes and a batch of Linux and model-database corrections.</p>
-        <ul>
-          <li>Fixed a Quiet Safety Monitor cascade that could silently switch performance mode on a transient thermal spike, undoing its own "power mode retained" guarantee when Fan/Performance linking was on</li>
-          <li>Fixed a Linux safety bug where switching Max → Auto under load could leave both fans dead and lead to a real thermal shutdown on a board with degraded ACPI — now falls back to a confirmed-working Max mode automatically</li>
-          <li>Fixed a recurring native crash on hybrid AMD+NVIDIA hardware, model-capability fallback logic that defaulted to optimistic instead of conservative, and Power Automation silently overwriting manual profile choices on every startup</li>
-          <li>Added <code>OmenCore.Core</code> — the hardware/service layer extracted into its own library (194 files) — unblocking a new Windows CLI (<code>omencore-cli</code>) plus a future local API and headless operation</li>
-          <li>Linux: fixed GPU telemetry never querying NVML (real NVIDIA GPUs read 0°C/unavailable) and an OMEN-key WMI watcher that could register cleanly and never receive an event; closed 10 stale GitHub issues with already-shipped fixes</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.3.0.md" target="_blank" rel="noopener">Full v4.3.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.2.0</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>Three pillars: sensor-truth and fan-control accuracy, perceived performance and motion, and a typography move to Roboto Condensed — plus a title-bar and tray-menu polish pass driven directly by real-hardware field testing.</p>
-        <ul>
-          <li>Fixed CPU temperature reporting a chassis/ambient sensor instead of the CPU on boards with multiple ACPI thermal zones — a fan-control bug, not just a display one, since fan curves consume that same value</li>
-          <li>Added a reduce-motion-gated tab-switch fade, startup/tab-switch timing measured every run, and a background-thread timer coordinator that cut one more independent OS timer from the app's lifetime</li>
-          <li>Fixed the title bar's minimize/maximize/close buttons — a literal <code>[ ]</code> glyph, then a font-dependency bug in the fix for it — replaced with drawn vector icons that don't depend on any system font being present</li>
-          <li>Cleaned up the system tray right-click menu: every submenu item was showing two arrows (a typed one plus the menu's own drawn one); standardized on one clean label convention throughout</li>
-          <li>Fixed two RGB detection false positives and an AMD undervolt status overclaiming a hardware readback it doesn't have, both found via real-hardware field testing</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.2.0.md" target="_blank" rel="noopener">Full v4.2.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.1.7</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>A patch release built from field reports and community review — covering Linux fan control, EC safety checks, UI responsiveness, and a larger board-support pass that started with board <code>8D87</code> and grew into a wider set of fixes from real user logs.</p>
-        <ul>
-          <li>Added per-LED keyboard lighting for every supported board, not just 8D87 — the keyboard now supports individually addressable LEDs instead of whole-key painting</li>
-          <li>Blocked unconfirmed EC power-limit writes by default so unsupported boards no longer attempt unsafe register writes</li>
-          <li>Fixed the Linux overheat bug where fan control could silently fail on certain boards exposing only a coarse PWM toggle</li>
-          <li>Fixed max-fan latch behavior after leaving Max Fan mode, plus stale RPM reporting in the guided fan diagnostic</li>
-          <li>Improved UI responsiveness, tightened tuning-subsystem honesty, and merged a broader batch of board-specific fixes from the community</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.1.7.md" target="_blank" rel="noopener">Full v4.1.7 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.1.5</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>A patch built in two passes: targeted field-report fixes, then a broader audit for the "logs success without confirming a real write happened" bug class after finding one instance of it in 4.1.0.</p>
-        <ul>
-          <li>Fixed GPU Power Boost never working on a specific Victus board (<code>8A25</code>) after three versions of consistent reports</li>
-          <li>Fixed <code>ApplyMaxCooling()</code> silently reporting success when the hardware write failed, including in the thermal-critical safety-override path</li>
-          <li>Fixed matching silent-write-failure bugs in Razer and Corsair RGB effect writes</li>
-          <li>Fixed a system-status banner that conflated "unsupported" with "unverified" model states</li>
-          <li>Finished Settings accessibility labeling (156/156 controls) — closes out the multi-view pass</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.1.5.md" target="_blank" rel="noopener">Full v4.1.5 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.1.0</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>A fix-focused release built directly from field reports and real users' diagnostics exports — no new hardware-control surface, just making the existing one correct.</p>
-        <ul>
-          <li>Fixed fans re-asserting to Max in a loop after a thermal emergency on board <code>8A18</code></li>
-          <li>Fixed Power Automation silently never applying real CPU/GPU wattage on 57 of 59 database boards</li>
-          <li>Fixed three diagnostics collectors that had never produced real data in any export, ever</li>
-          <li>Fixed CPU-temperature-source switching flip-flopping ~192 times in a single session</li>
-          <li>Fixed "temperature appears frozen" false positives and a Logitech RGB fallback bug</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.1.0.md" target="_blank" rel="noopener">Full v4.1.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v4.0.0</span>
-          <span class="timeline-badge muted">Major</span>
-        </div>
-        <p>A sustainability-focused major release — not features-first. Pays down architecture debt from the 3.x series instead of adding new hardware-control surface. No fan/thermal/EC control behavior changed.</p>
-        <ul>
-          <li>DI composition root started — 19 of ~40 fields pulled out of the <code>MainViewModel</code> god-object</li>
-          <li>Community-contributable model-database pipeline (schema + validator + PR template)</li>
-          <li>Game profiles: window-title disambiguation, WMI event-based detection, multi-game restore</li>
-          <li>Accessibility labeling across five views — ~140 previously-silent controls</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v4.0.0.md" target="_blank" rel="noopener">Full v4.0.0 changelog →</a>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-head">
-          <span class="v">v3.9.0</span>
-          <span class="timeline-badge muted">Minor</span>
-        </div>
-        <p>UX-and-reliability focused — no fan/thermal/EC control behavior changes, just fixing day-to-day friction.</p>
-        <ul>
-          <li>Fixed a completely non-functional OMEN key action setting</li>
-          <li>Fixed game profiles that could be lost on a crash before saving</li>
-          <li>Fixed several previously-silent EC reset and crash-report failure paths</li>
-          <li>Low-contrast tray icon and new model support additions</li>
-        </ul>
-        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v3.9.0.md" target="_blank" rel="noopener">Full v3.9.0 changelog →</a>
       </div>
     </div>
 
@@ -667,7 +569,7 @@
           <li><a href="#features">Features</a></li>
           <li><a href="#compare">Compare to Gaming Hub</a></li>
           <li><a href="#download">Download</a></li>
-          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v4.5.0.md" target="_blank" rel="noopener">Roadmap</a></li>
+          <li><a href="https://github.com/theantipopau/omencore/blob/main/docs/ROADMAP_v5.0.0.md" target="_blank" rel="noopener">Roadmap</a></li>
         </ul>
       </div>
 

@@ -614,6 +614,8 @@ table.compare-table { width: 100%; border-collapse: collapse; min-width: 620px; 
   margin-bottom: 14px;
 }
 .download-version b { color: var(--accent); }
+.download-card > div { min-width: 0; }
+.code-block span { white-space: nowrap; }
 .download-card h3 { font-size: 30px; margin: 0 0 12px; letter-spacing: -0.02em; }
 .download-card > div > p { color: var(--text-secondary); margin: 0 0 26px; max-width: 480px; }
 .download-actions { display: flex; flex-wrap: wrap; gap: 12px; }
