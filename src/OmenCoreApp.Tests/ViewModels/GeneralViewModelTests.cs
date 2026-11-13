@@ -49,7 +49,7 @@ namespace OmenCoreApp.Tests.ViewModels
             logging = new LoggingService();
             logging.Initialize();
             controller = new StubFanController();
-            var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var fanService = new FanService(
                 controller,
                 thermalProvider,
@@ -152,7 +152,7 @@ namespace OmenCoreApp.Tests.ViewModels
             try
             {
                 var controller = new StubFanController();
-                var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+                var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
                 var fanService = new FanService(
                     controller,
                     thermalProvider,
@@ -278,7 +278,7 @@ namespace OmenCoreApp.Tests.ViewModels
             try
             {
                 var controller = new StubFanController();
-                var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+                var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
                 var fanService = new FanService(
                     controller,
                     thermalProvider,
@@ -381,7 +381,7 @@ namespace OmenCoreApp.Tests.ViewModels
             try
             {
                 var controller = new StubFanController();
-                var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+                var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
                 var fanService = new FanService(
                     controller,
                     thermalProvider,
@@ -454,7 +454,7 @@ namespace OmenCoreApp.Tests.ViewModels
             try
             {
                 var controller = new StubFanController();
-                var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+                var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
                 var fanService = new FanService(
                     controller,
                     thermalProvider,
@@ -498,7 +498,7 @@ namespace OmenCoreApp.Tests.ViewModels
             try
             {
                 var controller = new StubFanController();
-                var thermalProvider = new ThermalSensorProvider(new LibreHardwareMonitorImpl());
+                var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
                 var fanService = new FanService(
                     controller,
                     thermalProvider,

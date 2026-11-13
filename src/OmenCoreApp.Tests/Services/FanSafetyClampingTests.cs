@@ -34,8 +34,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
             var notificationService = new NotificationService(logging);
             var controller = new MinimalFanController();
-            var hwImpl = new LibreHardwareMonitorImpl();
-            var thermalProvider = new ThermalSensorProvider(hwImpl);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             return new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
         }
 

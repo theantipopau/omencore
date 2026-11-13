@@ -13,6 +13,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
+using OmenCore.Utils;
 
 namespace OmenCore.Services.BloatwareManager
 {
@@ -200,8 +201,16 @@ namespace OmenCore.Services.BloatwareManager
                 using var process = Process.Start(psi);
                 if (process == null) return;
 
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit(30000);
+                // Read first, then wait: ReadToEnd() before WaitForExit() meant a wedged
+                // powershell.exe blocked for good and the 30s deadline could never fire.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 30000))
+                {
+                    _logger.Warn("AppX package scan timed out after 30s and was cancelled");
+                    return;
+                }
+
+                var output = ProcessWait.Complete(outputTask);
 
                 if (string.IsNullOrEmpty(output)) return;
 
@@ -396,8 +405,14 @@ namespace OmenCore.Services.BloatwareManager
                 using var process = Process.Start(psi);
                 if (process == null) return;
 
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit(30000);
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 30000))
+                {
+                    _logger.Warn("Scheduled task scan timed out after 30s and was cancelled");
+                    return;
+                }
+
+                var output = ProcessWait.Complete(outputTask);
 
                 foreach (var taskName in ExtractScheduledTaskNamesFromSchtasksCsv(output))
                 {

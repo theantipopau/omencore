@@ -187,7 +187,8 @@ namespace OmenCore.ViewModels
                         hardwareMonitoringService: _hardwareMonitoringService,
                         ecAccess: _ecAccess,
                         amdGpuService: _amdGpuService,
-                        ecOperationCoordinator: _ecOperationCoordinator
+                        ecOperationCoordinator: _ecOperationCoordinator,
+                        capabilities: DetectedCapabilities
                     );
                     _systemControl.PropertyChanged += (s, e) =>
                     {
@@ -339,6 +340,7 @@ namespace OmenCore.ViewModels
                         _omenKeyService,
                         _wmiBios,
                         ecAccess: _ecAccess,
+                        capabilitiesProvider: () => DetectedCapabilities,
                         cpuThrottleReader: () => SystemControl?.ReadCpuThermStatus());
                     
                     _settings = new SettingsViewModel(_logging, _configService, _systemInfoService, 
@@ -1303,6 +1305,7 @@ namespace OmenCore.ViewModels
             ConflictDetectionService? conflictDetectionService = null,
             HardwareBringup? hardwareBringup = null)
         {
+            StartupTimeline.Mark("main_viewmodel_constructing");
             _config = _configService.Load();
             ShowAdvancedControls = !_config.LiteModeEnabled;
             _trayActionDispatcher = new RuntimeCommandDispatcher(
@@ -1326,8 +1329,10 @@ namespace OmenCore.ViewModels
 
             _nvapiService = bringup.NvapiService;
             _wmiBiosMonitor = bringup.WmiBiosMonitor;
-            IHardwareMonitorBridge monitorBridge = bringup.WmiBiosMonitor;
-            DetectedCapabilities = bringup.Capabilities;
+            IHardwareMonitorBridge monitorBridge = bringup.WmiBiosMonitor;                DetectedCapabilities = bringup.Capabilities;
+                // If System Control was already created before detection finished, give it the
+                // capability reasons now (5.0.0, WP-44); the lazy getter passes them on creation.
+                _systemControl?.SetCapabilities(DetectedCapabilities);
             var capabilities = bringup.Capabilities;
             CapabilityWarning = bringup.CapabilityWarning;
             _ecAccess = bringup.EcAccess;
@@ -1349,6 +1354,8 @@ namespace OmenCore.ViewModels
                 _logging.Info("Running OGH command diagnostics...");
                 _oghProxy.RunDiagnostics();
             }
+
+            StartupTimeline.Mark("main_vm_ogh_diagnostics");
             
             // Create notification service early (before FanService which needs it)
             _notificationService = notificationService ?? new NotificationService(_logging);
@@ -1454,6 +1461,7 @@ namespace OmenCore.ViewModels
             // receives a non-null reference and its DetectModelConfig() gets populated data.
             _systemInfoService = systemInfoService ?? new SystemInfoService(_logging);
             SystemInfo = _systemInfoService.GetSystemInfo();
+            StartupTimeline.Mark("main_vm_system_info");
             _logging.SetDefaultTelemetryContext(SystemInfo.Model, SystemInfo.OsVersion);
 
             _keyboardLightingService = new KeyboardLightingService(_logging, ec, _wmiBios, _configService, _systemInfoService, _ecOperationCoordinator);
@@ -1506,7 +1514,9 @@ namespace OmenCore.ViewModels
             // (Views/SystemControlView.xaml) was superseded by TuningView.xaml and never wired
             // into the visual tree — removed as dead code rather than left to bit-rot.
             _undervoltService = new UndervoltService(undervoltProvider, _logging, _config.Undervolt?.ProbeIntervalMs ?? 4000);
+            StartupTimeline.Mark("main_vm_undervolt_service");
             _hardwareMonitoringService = new HardwareMonitoringService(monitorBridge, _logging, _config.Monitoring ?? new MonitoringPreferences(), _resumeRecoveryDiagnostics);
+            StartupTimeline.Mark("main_vm_monitoring_service");
             MonitoringSamples = _hardwareMonitoringService.Samples;
             _hardwareMonitoringService.SampleUpdated += HardwareMonitoringServiceOnSampleUpdated;
             _hardwareMonitoringService.HealthStatusChanged += HardwareMonitoringServiceOnHealthStatusChanged;
@@ -1523,12 +1533,15 @@ namespace OmenCore.ViewModels
             _processMonitoringService = processMonitoringService ?? new ProcessMonitoringService(_logging);
             _telemetryService = telemetryService ?? new TelemetryService(_logging, _configService);
             _gameProfileService = gameProfileService ?? new GameProfileService(_logging, _processMonitoringService, _configService);
+            StartupTimeline.Mark("main_vm_game_profiles");
             _fanCleaningService = new FanCleaningService(_logging, ec, _systemInfoService, _wmiBios, _oghProxy, _ecOperationCoordinator);
             _biosUpdateService = biosUpdateService ?? new BiosUpdateService(_logging);
             _hotkeyService = hotkeyService ?? new HotkeyService(_logging);
             // _notificationService created earlier (before FanService)
             _powerAutomationService = new PowerAutomationService(_logging, _fanService, _performanceModeService, _configService, _gpuSwitchService);
+            StartupTimeline.Mark("main_vm_power_automation");
             GpuClamp = new GpuClampViewModel(_logging, _configService, _config, _wmiBios, _undervoltService, _notificationService, _powerAutomationService, _nvapiService, DetectedCapabilities?.ModelConfig?.ProductId);
+            StartupTimeline.Mark("main_vm_gpu_clamp");
             _automationService = new AutomationService(
                 _logging,
                 _configService,
@@ -1547,6 +1560,7 @@ namespace OmenCore.ViewModels
             // Initialize OSD service (will only activate if enabled in settings)
             // Pass ThermalProvider from FanService for temperature data
             _osdService = new OsdService(_configService, _logging, _fanService?.ThermalProvider, _fanService);
+            StartupTimeline.Mark("main_vm_osd_service");
             _osdService.VisibilityChanged += (_, visible) =>
             {
                 _pollingCoordinator?.SetOverlayRealtimeMode(visible);
@@ -1555,6 +1569,7 @@ namespace OmenCore.ViewModels
             
             // Initialize conflict detection service for detecting conflicting software
             _conflictDetectionService = conflictDetectionService ?? new ConflictDetectionService(_logging);
+            StartupTimeline.Mark("main_vm_conflict_detection");
             
             // Wire up Afterburner coexistence — WmiBiosMonitor reads GPU data from
             // Afterburner shared memory instead of polling NVAPI (eliminates contention)
@@ -1603,6 +1618,20 @@ namespace OmenCore.ViewModels
             // Subscribe to service events for UI synchronization (e.g., power automation changes)
             _fanService!.PresetApplied += OnFanPresetApplied;
             _performanceModeService!.ModeApplied += OnPerformanceModeApplied;
+
+            // Per-mode memory (5.0.0, WP-43): a mode now owns the fan, GPU boost, refresh-rate,
+            // lighting and charge-limit choices made while it was active. Wired here, after the
+            // hardware services exist and before any mode is applied, so startup restore gets the
+            // same treatment as a manual switch.
+            _performanceModeService.EffectApplier = new OmenCoreApp.Services.PerformanceModeEffectApplier(
+                _logging,
+                _fanService,
+                new OmenCore.Services.DisplayService(_logging),
+                _wmiBios,
+                name => FanPresets.FirstOrDefault(p =>
+                    p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)),
+                name => _ = ApplyNamedLightingProfileAsync(name),
+                () => SelectedLightingProfile?.Name);
 
             // v3.7.0: Wire QuietSafetyMonitor events
             _quietSafetyMonitor.SafetyOverrideActivated += OnQuietSafetyOverrideActivated;
@@ -2445,6 +2474,37 @@ namespace OmenCore.ViewModels
             PushEvent($"Lighting profile '{SelectedLightingProfile.Name}' pushed");
         }
 
+        /// <summary>
+        /// Applies a lighting profile by name, for performance modes that remember one
+        /// (5.0.0, WP-43). Fire-and-forget by design: the effect applier is synchronous and
+        /// records the request, while the lighting page remains the place that confirms a paint.
+        /// </summary>
+        private async Task ApplyNamedLightingProfileAsync(string profileName)
+        {
+            if (string.IsNullOrWhiteSpace(profileName))
+            {
+                return;
+            }
+
+            var profile = LightingProfiles.FirstOrDefault(p =>
+                p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+
+            if (profile == null)
+            {
+                _logging.Warn($"Performance mode asked for lighting profile '{profileName}' but no such profile exists");
+                return;
+            }
+
+            await EnsureLightingInitializedAsync();
+            await _keyboardLightingService.ApplyProfile(profile);
+            if (_corsairDeviceService != null)
+            {
+                await _corsairDeviceService.SyncWithThemeAsync(profile);
+            }
+
+            PushEvent($"Lighting profile '{profile.Name}' pushed by a performance mode");
+        }
+
         private void RestoreDefaults()
         {
             _systemOptimizationService.RestoreDefaults();
@@ -3015,6 +3075,7 @@ namespace OmenCore.ViewModels
                         omenKeyService: _omenKeyService,
                         wmiController: _wmiBios,
                         ecAccess: _ecAccess,
+                        capabilitiesProvider: () => DetectedCapabilities,
                         cpuThrottleReader: () => SystemControl?.ReadCpuThermStatus()),
                     Update.AutoUpdateService?.GetCurrentVersion()?.ToString() ?? "unknown");
 

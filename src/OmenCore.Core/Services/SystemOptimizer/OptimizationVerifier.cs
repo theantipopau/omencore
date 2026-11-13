@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
+using OmenCore.Utils;
 
 namespace OmenCore.Services.SystemOptimizer
 {
@@ -79,8 +80,16 @@ namespace OmenCore.Services.SystemOptimizer
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.CreateNoWindow = true;
                 process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
+
+                // Read first, then wait with a bound (same pattern as PowerOptimizer): a blocking
+                // ReadToEnd() ahead of an unbounded WaitForExit() cannot time a wedged child out.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 10000))
+                {
+                    return false;
+                }
+
+                var output = ProcessWait.Complete(outputTask);
                 
                 // Ultimate Performance GUID: e9a42b02-d5df-448d-aa00-03f14749eb61
                 // High Performance GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
@@ -360,8 +369,14 @@ namespace OmenCore.Services.SystemOptimizer
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.CreateNoWindow = true;
                 process.Start();
-                var output = process.StandardOutput.ReadToEnd().Trim();
-                process.WaitForExit();
+
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 20000))
+                {
+                    return true; // Same assumption as the catch below: modern system, don't act on a timeout.
+                }
+
+                var output = ProcessWait.Complete(outputTask).Trim();
                 
                 return output.Contains("SSD") || output.Contains("NVMe");
             }
@@ -382,8 +397,14 @@ namespace OmenCore.Services.SystemOptimizer
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.CreateNoWindow = true;
                 process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
+
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 10000))
+                {
+                    return true; // Same assumption as the catch below: don't report TRIM as off on a timeout.
+                }
+
+                var output = ProcessWait.Complete(outputTask);
                 
                 return output.Contains("= 0"); // TRIM enabled when DisableDeleteNotify = 0
             }

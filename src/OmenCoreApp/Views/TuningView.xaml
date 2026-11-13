@@ -13,13 +13,13 @@
             <Setter Property="FontFamily" Value="{StaticResource MonospaceFontFamily}"/>
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
         
         <Style x:Key="GaugeLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
     </UserControl.Resources>
@@ -139,7 +139,7 @@
                           Margin="0,1,10,0"
                           VerticalAlignment="Top"/>
                     <StackPanel Grid.Column="1">
-                        <TextBlock Text="Quick Tuning Diagnostics"
+                        <TextBlock Text="Tuning status"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="#9ED4FF"/>
@@ -189,6 +189,20 @@
             
             <TextBlock Text="CPU Tuning" FontSize="18" FontWeight="SemiBold" 
                        Foreground="{StaticResource AccentBrush}" Margin="0,0,0,16"/>
+
+            <!-- When the undervolt card is hidden, say why instead of leaving a gap (WP-44, definition of done 7). -->
+            <Border Background="#1A2D2D1F" BorderBrush="#FF9800" BorderThickness="1" CornerRadius="6"
+                    Padding="12,9" Margin="0,0,0,16"
+                    Visibility="{Binding SystemControl.IsUndervoltSupported, Converter={StaticResource InverseBoolToVisibility}, FallbackValue=Collapsed}"
+                    AutomationProperties.Name="CPU undervolt is not available">
+                <StackPanel>
+                    <TextBlock Text="CPU undervolt is not available on this machine" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="{Binding SystemControl.UndervoltReason}" FontSize="11" Margin="0,3,0,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                               Visibility="{Binding SystemControl.HasUndervoltReason, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"/>
+                </StackPanel>
+            </Border>
 
             <!-- CPU Undervolt Section - Enhanced Design -->
             <Border Style="{StaticResource SurfaceCard}" Padding="0" Margin="0,0,0,16"

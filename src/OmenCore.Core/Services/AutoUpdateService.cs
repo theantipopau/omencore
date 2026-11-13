@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -362,6 +363,18 @@ namespace OmenCore.Services
                             var size = selectedAsset.TryGetProperty("size", out var sizeElement) ? sizeElement.GetInt64() : 0;
                             result.LatestVersion.FileSize = size;
                             result.LatestVersion.FileSizeFormatted = FormatFileSize(size);
+
+                            var sidecarName = result.LatestVersion.AssetFileName + ".sha256";
+                            foreach (var asset in assets.EnumerateArray())
+                            {
+                                if (asset.TryGetProperty("name", out var nameElement) &&
+                                    string.Equals(nameElement.GetString(), sidecarName, StringComparison.OrdinalIgnoreCase) &&
+                                    asset.TryGetProperty("browser_download_url", out var sidecarUrl))
+                                {
+                                    result.LatestVersion.Sha256SidecarUrl = sidecarUrl.GetString() ?? string.Empty;
+                                    break;
+                                }
+                            }
                         }
                     }
                     
@@ -561,10 +574,29 @@ namespace OmenCore.Services
                     return null;
                 }
 
+                // Prefer the checksum file the release workflow attached over the hash in the notes text (WP-30).
+                if (!string.IsNullOrWhiteSpace(versionInfo.Sha256SidecarUrl))
+                {
+                    var sidecarHash = await TryReadSidecarHashAsync(versionInfo.Sha256SidecarUrl, versionInfo.AssetFileName);
+                    if (sidecarHash != null)
+                    {
+                        if (!string.IsNullOrWhiteSpace(versionInfo.Sha256Hash) &&
+                            !sidecarHash.Equals(versionInfo.Sha256Hash, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Two hashes published for the same file that disagree: refuse rather than pick one.
+                            _logging.Error($"Download blocked: the release's checksum file ({sidecarHash[..16]}...) and its notes ({versionInfo.Sha256Hash[..Math.Min(16, versionInfo.Sha256Hash.Length)]}...) disagree.");
+                            return null;
+                        }
+
+                        versionInfo.Sha256Hash = sidecarHash;
+                        _logging.Info("Using the SHA256 from the release's checksum file");
+                    }
+                }
+
                 // Block download if no hash — we cannot verify integrity post-download
                 if (string.IsNullOrWhiteSpace(versionInfo.Sha256Hash))
                 {
-                    _logging.Warn("Download blocked: release notes do not include a SHA256 hash for this asset. Open GitHub releases to download manually.");
+                    _logging.Warn("Download blocked: the release has no SHA256 for this asset (no checksum file and none in the notes). Open GitHub releases to download manually.");
                     return null;
                 }
 
@@ -865,6 +897,71 @@ namespace OmenCore.Services
         /// </summary>
         public Version GetCurrentVersion() => _currentVersion;
         
+        /// <summary>Downloads a small "&lt;asset&gt;.sha256" file; null on any failure, so the caller falls back to the notes.</summary>
+        private async Task<string?> TryReadSidecarHashAsync(string url, string assetFileName)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.ParseAdd("application/octet-stream");
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logging.Warn($"Checksum file download failed: HTTP {(int)response.StatusCode}");
+                    return null;
+                }
+
+                if (response.Content.Headers.ContentLength is > 4096)
+                {
+                    _logging.Warn("Checksum file is larger than expected; ignoring it");
+                    return null;
+                }
+
+                var text = await response.Content.ReadAsStringAsync(cts.Token);
+                var hash = ParseSha256Sidecar(text, assetFileName);
+                if (hash == null) _logging.Warn("Checksum file did not contain a SHA256 for this asset");
+                return hash;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+            {
+                _logging.Warn($"Checksum file could not be read: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Reads a checksum file in the `sha256sum` format ("&lt;64 hex&gt;  &lt;name&gt;", optionally "*&lt;name&gt;" for binary mode) or a bare hash.
+        /// A line that names a file must name this asset; a bare hash is accepted only when it is the file's only content.
+        /// </summary>
+        public static string? ParseSha256Sidecar(string? text, string assetFileName)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+
+            var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var line in lines)
+            {
+                var parts = line.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0 || !IsSha256Hex(parts[0])) continue;
+
+                if (parts.Length == 1)
+                {
+                    if (lines.Length == 1) return parts[0].ToLowerInvariant();
+                    continue;
+                }
+
+                var name = parts[1].Trim().TrimStart('*');
+                if (string.Equals(name, assetFileName, StringComparison.OrdinalIgnoreCase))
+                    return parts[0].ToLowerInvariant();
+            }
+
+            return null;
+        }
+
+        private static bool IsSha256Hex(string value) =>
+            value.Length == 64 && value.All(Uri.IsHexDigit);
+
         private string ComputeSha256Hash(string filePath)
         {
             // Retry logic in case file handle isn't fully released yet

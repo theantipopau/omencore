@@ -36,6 +36,7 @@ namespace OmenCore.Services.Diagnostics
         private readonly OmenKeyService? _omenKeyService;
         private readonly IEcAccess? _ecAccess;
         private readonly Func<ulong?>? _cpuThrottleReader;
+        private readonly Func<DeviceCapabilities?>? _capabilitiesProvider;
 
         public DiagnosticExportService(
             LoggingService logging,
@@ -51,9 +52,11 @@ namespace OmenCore.Services.Diagnostics
             OmenKeyService? omenKeyService = null,
             object? wmiController = null,
             IEcAccess? ecAccess = null,
-            Func<ulong?>? cpuThrottleReader = null)
+            Func<ulong?>? cpuThrottleReader = null,
+            Func<DeviceCapabilities?>? capabilitiesProvider = null)
         {
             _cpuThrottleReader = cpuThrottleReader;
+            _capabilitiesProvider = capabilitiesProvider;
             _logging = logging;
             _logsDirectory = logsDirectory;
             _resumeDiagnostics = resumeDiagnostics;
@@ -108,6 +111,7 @@ namespace OmenCore.Services.Diagnostics
                     CollectFieldValidationScriptAsync(exportPath, effectiveMonitoringService, effectiveFanService),
                     CollectPriorityModelValidationCardsAsync(exportPath, effectiveMonitoringService, effectiveFanService),
                     CollectRcValidationMatrixAsync(exportPath),
+                    CollectCapabilityReasonsAsync(exportPath),
                     CollectRgbControlPathAsync(exportPath),
                     CollectModelIdentityTraceAsync(exportPath),
                     CollectTuningSafetySnapshotAsync(exportPath),
@@ -1335,6 +1339,50 @@ namespace OmenCore.Services.Diagnostics
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Writes the reason behind every gated feature (5.0.0, WP-44). The strings are the same
+        /// ones the controls show, so a report can be matched to a screenshot without translation.
+        /// </summary>
+        private async Task CollectCapabilityReasonsAsync(string exportPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== CAPABILITY REASONS ===");
+                sb.AppendLine($"CapturedUtc: {DateTime.UtcNow:O}");
+                sb.AppendLine("Purpose: why each gated control is on or off on this board, in the same wording the UI shows.");
+                sb.AppendLine();
+
+                var capabilities = _capabilitiesProvider?.Invoke();
+                if (capabilities == null)
+                {
+                    sb.AppendLine("Capabilities: unavailable in this session (detection had not completed when this file was written).");
+                }
+                else
+                {
+                    sb.AppendLine($"Model: {capabilities.ModelName}");
+                    sb.AppendLine($"ProductId: {capabilities.ProductId}");
+                    sb.AppendLine($"KnownModel: {capabilities.IsKnownModel}");
+                    sb.AppendLine($"UserVerified: {capabilities.ModelConfig?.UserVerified.ToString() ?? "<no entry>"}");
+                    sb.AppendLine($"FanBackend: {capabilities.FanControl}");
+                    sb.AppendLine();
+
+                    foreach (var reason in capabilities.CapabilityReasons)
+                    {
+                        sb.AppendLine(reason.Describe());
+                    }
+                }
+
+                File.WriteAllText(Path.Combine(exportPath, "capability-reasons.txt"), sb.ToString());
+                _logging.Info("Collected capability reasons");
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logging.Warn($"Failed to collect capability reasons: {ex.Message}");
+            }
+        }
+
         private async Task CollectRcValidationMatrixAsync(string exportPath)
         {
             try
@@ -1728,6 +1776,23 @@ namespace OmenCore.Services.Diagnostics
                     foreach (var tab in perfSnapshot.TabSwitches)
                     {
                         sb.AppendLine($"TabSwitch[{tab.TabName}]: count={tab.Count}, avgMs={tab.AverageMs:F0}, maxMs={tab.MaxMs:F0}");
+                    }
+                }
+                sb.AppendLine();
+
+                // WP-31: the phase breakdown behind StartupTimeToInteractiveMs. Without it the only
+                // number available says startup was slow, never which phase was.
+                sb.AppendLine("[Startup Timeline]");
+                var phaseMarks = StartupTimeline.GetMarks();
+                if (phaseMarks.Count == 0)
+                {
+                    sb.AppendLine("Phases: none recorded");
+                }
+                else
+                {
+                    foreach (var mark in phaseMarks)
+                    {
+                        sb.AppendLine($"{mark.Phase}: elapsedMs={mark.ElapsedMs:F0}, phaseMs={mark.SincePreviousMs:F0}");
                     }
                 }
                 sb.AppendLine();

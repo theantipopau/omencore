@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:OmenCore.Controls"
              xmlns:utils="clr-namespace:OmenCore.Utils"
+             xmlns:loc="clr-namespace:OmenCore.Localization"
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1000">
     <Grid>
@@ -579,11 +580,11 @@
                             <Border Background="#1A00C8C8" CornerRadius="4" Padding="8,4" Margin="12,0,0,0"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding StayOnTop, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="Topmost" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
+                                <TextBlock Text="{x:Static loc:Strings.SettingsTopmostBadge}" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
                             </Border>
                         </StackPanel>
 
-                        <TextBlock Text="Window Behavior" FontSize="12" FontWeight="SemiBold" 
+                        <TextBlock Text="{x:Static loc:Strings.SettingsWindowBehaviour}" FontSize="12" FontWeight="SemiBold" 
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
 
                         <!-- Start with Windows -->
@@ -593,16 +594,16 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Start with Windows" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStartWithWindows}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Launch OmenCore automatically when Windows starts" FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStartWithWindowsHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding StartWithWindows}"
-                                          AutomationProperties.Name="Start with Windows"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsStartWithWindows}"/>
                         </Grid>
 
                         <!-- Start Minimized -->
@@ -612,16 +613,16 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Start minimized to tray" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStartMinimized}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Hide main window on startup, show only in system tray" FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStartMinimizedHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding StartMinimized}"
-                                          AutomationProperties.Name="Start minimized to tray"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsStartMinimized}"/>
                         </Grid>
 
                         <!-- Lite Mode -->
@@ -631,9 +632,9 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Lite mode (beginner UI)" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsLiteMode}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Hides advanced tabs by default. You can disable this anytime to restore full controls."
+                                <TextBlock Text="{x:Static loc:Strings.SettingsLiteModeHelp}"
                                            FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
@@ -641,7 +642,7 @@
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding LiteModeEnabled, Mode=TwoWay}"
-                                          AutomationProperties.Name="Lite mode (beginner UI)"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsLiteMode}"/>
                         </Grid>
 
                         <!-- Headless Mode -->
@@ -651,15 +652,15 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Headless mode (no main window)" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsHeadlessMode}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Run without main window, only system tray and background services. Useful for servers." FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsHeadlessModeHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding HeadlessMode, Mode=TwoWay}"
-                                          AutomationProperties.Name="Headless mode (no main window)"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsHeadlessMode}"/>
                         </Grid>
 
                         <!-- Software Rendering (RTSS / overlay compatibility) -->
@@ -669,15 +670,15 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Software rendering mode" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsSoftwareRendering}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Use CPU-based rendering to prevent crashes caused by overlays (RTSS, MSI Afterburner). Requires restart." FontSize="12"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsSoftwareRenderingHelp}" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding UseSoftwareRendering, Mode=TwoWay}"
-                                          AutomationProperties.Name="Software rendering mode"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsSoftwareRendering}"/>
                         </Grid>
 
                         <!-- Reduce Motion -->
@@ -687,15 +688,60 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Reduce motion" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsReduceMotion}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Suppress OmenCore's own transitions and animation, on top of whatever Windows' own 'Show animations' setting already does." FontSize="12"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsReduceMotionHelp}" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding ReduceMotion, Mode=TwoWay}"
-                                          AutomationProperties.Name="Reduce motion"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsReduceMotion}"/>
+                        </Grid>
+
+                        <!-- UI Language (roadmap WP-32) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="{x:Static loc:Strings.SettingsLanguage}" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{x:Static loc:Strings.SettingsLanguageHelp}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding LanguageOptions}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Code"
+                                      SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="{x:Static loc:Strings.SettingsLanguage}"/>
+                        </Grid>
+
+                        <!-- Display scale (roadmap WP-33) -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="{x:Static loc:Strings.SettingsDisplayScale}" FontSize="14"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{x:Static loc:Strings.SettingsDisplayScaleHelp}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding UiScaleOptions}"
+                                      ItemStringFormat="{}{0}%"
+                                      SelectedItem="{Binding UiScalePercent, Mode=TwoWay}"
+                                      VerticalAlignment="Center"
+                                      AutomationProperties.Name="{x:Static loc:Strings.SettingsDisplayScale}"/>
                         </Grid>
 
                         <!-- Minimize to Tray on Close -->
@@ -705,16 +751,16 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Minimize to tray on close" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsMinimizeToTray}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Close button minimizes to system tray instead of exiting" FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsMinimizeToTrayHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding MinimizeToTrayOnClose}"
-                                          AutomationProperties.Name="Minimize to tray on close"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsMinimizeToTray}"/>
                         </Grid>
 
                         <!-- Stay on Top -->
@@ -724,25 +770,25 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Stay on top" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStayOnTop}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Keep OmenCore above other windows" FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsStayOnTopHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Border Background="#1A00C8C8" CornerRadius="4" Padding="8,4" Margin="0,0,10,0"
                                         Visibility="{Binding StayOnTop, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="✓ Active" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{x:Static loc:Strings.SettingsActiveBadge}" FontSize="11" Foreground="#00C8C8" FontWeight="SemiBold"/>
                                 </Border>
-                                <ToggleButton AutomationProperties.Name="Stay on top" Style="{StaticResource ModernToggleButton}"
+                                <ToggleButton AutomationProperties.Name="{x:Static loc:Strings.SettingsStayOnTop}" Style="{StaticResource ModernToggleButton}"
                                               IsChecked="{Binding StayOnTop}"/>
                             </StackPanel>
                         </Grid>
 
                         <Border Height="1" Background="{StaticResource BorderBrush}" Opacity="0.6" Margin="0,4,0,16"/>
 
-                        <TextBlock Text="Tray &amp; UI" FontSize="12" FontWeight="SemiBold" 
+                        <TextBlock Text="{x:Static loc:Strings.SettingsTrayAndUi}" FontSize="12" FontWeight="SemiBold" 
                                    Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"/>
 
                         <!-- Quick Access middle shortcut -->
@@ -752,9 +798,9 @@
                                 <ColumnDefinition Width="180"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                <TextBlock Text="Quick Access shortcut" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsQuickAccess}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Choose the middle popup shortcut, or hide it to prevent accidental display-off clicks."
+                                <TextBlock Text="{x:Static loc:Strings.SettingsQuickAccessHelp}"
                                            FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
@@ -762,7 +808,7 @@
                                       ItemsSource="{Binding QuickAccessActionOptions}"
                                       SelectedItem="{Binding QuickAccessAction, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       VerticalAlignment="Center"
-                                      AutomationProperties.Name="Quick Access shortcut selection"/>
+                                      AutomationProperties.Name="{x:Static loc:Strings.SettingsQuickAccess}"/>
                         </Grid>
 
                         <!-- Enable/Disable Quick Access popup entirely -->
@@ -772,13 +818,13 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                <TextBlock Text="Enable quick access popup" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsQuickPopup}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Show the quick popup on tray click. Disable to open the main window directly instead."
+                                <TextBlock Text="{x:Static loc:Strings.SettingsQuickPopupHelp}"
                                            FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
-                            <ToggleButton AutomationProperties.Name="Enable quick access popup" Grid.Column="1"
+                            <ToggleButton AutomationProperties.Name="{x:Static loc:Strings.SettingsQuickPopup}" Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding QuickPopupEnabled}"/>
                         </Grid>
@@ -790,15 +836,15 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Show temperature on tray icon" FontSize="14"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsTrayTemperature}" FontSize="14"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Display live CPU/GPU temperature on the system tray icon" FontSize="12"
+                                <TextBlock Text="{x:Static loc:Strings.SettingsTrayTemperatureHelp}" FontSize="12"
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1"
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding TrayTempDisplayEnabled}"
-                                          AutomationProperties.Name="Show temperature on tray icon"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsTrayTemperature}"/>
                         </Grid>
 
                         <!-- Corsair HID-only mode (Disable iCUE fallback) -->
@@ -808,18 +854,18 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Corsair: Disable iCUE fallback (HID-only mode)" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsCorsairHidOnly}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Use direct HID access for Corsair devices. May not work for all devices; restart required." FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsCorsairHidOnlyHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding CorsairDisableIcueFallback, Mode=TwoWay}"
-                                          AutomationProperties.Name="Corsair: Disable iCUE fallback (HID-only mode)"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsCorsairHidOnly}"/>
                         </Grid>
 
-                        <TextBlock Text="Warning: HID-only mode may reduce compatibility with some Corsair devices. If lighting control stops working, re-enable iCUE fallback or install iCUE." 
+                        <TextBlock Text="{x:Static loc:Strings.SettingsCorsairHidOnlyWarning}" 
                                    FontSize="12" Foreground="#FFB74D" Margin="0,4,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding CorsairDisableIcueFallback, Converter={StaticResource BoolToVisibility}}"/>
 
@@ -830,16 +876,16 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Enable anonymous lighting telemetry" FontSize="14" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsTelemetry}" FontSize="14" 
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="Share anonymous, aggregated counts of Corsair PID success/failure to help us improve device coverage. No device-identifying data is collected." FontSize="12" 
+                                <TextBlock Text="{x:Static loc:Strings.SettingsTelemetryHelp}" FontSize="12" 
                                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                             <ToggleButton Grid.Column="1" 
                                           Style="{StaticResource ModernToggleButton}"
                                           IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}" 
                                           ToolTipService.ToolTip="Share anonymous PID success/failure counts to help improve device support. Opt-in only; stored at %LOCALAPPDATA%\OmenCore\telemetry.json"
-                                          AutomationProperties.Name="Enable anonymous lighting telemetry"/>
+                                          AutomationProperties.Name="{x:Static loc:Strings.SettingsTelemetry}"/>
                         </Grid>
                     </StackPanel>
                 </Border>

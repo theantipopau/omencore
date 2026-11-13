@@ -16,6 +16,11 @@ namespace OmenCore.Models
         public string FileSizeFormatted { get; set; } = string.Empty;
         public string Sha256Hash { get; set; } = string.Empty;
         /// <summary>
+        /// The "&lt;asset&gt;.sha256" file the release workflow attaches beside the asset, computed from the exact file it
+        /// uploaded. Preferred over the hash in the release-note text, which is written for people and can be edited.
+        /// </summary>
+        public string Sha256SidecarUrl { get; set; } = string.Empty;
+        /// <summary>
         /// The original filename of the selected GitHub release asset (e.g., "OmenCoreSetup-2.8.1.exe")
         /// </summary>
         public string AssetFileName { get; set; } = string.Empty;

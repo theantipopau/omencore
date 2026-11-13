@@ -7,9 +7,6 @@
     <Nullable>enable</Nullable>
     <AssemblyName>omencore-gui</AssemblyName>
     <RootNamespace>OmenCore.Avalonia</RootNamespace>
-    <Version>4.5.1</Version>
-    <AssemblyVersion>4.5.1.0</AssemblyVersion>
-    <FileVersion>4.5.1.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64</RuntimeIdentifiers>
     <PublishSingleFile>true</PublishSingleFile>
@@ -57,6 +54,12 @@
     <!-- Logging -->
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+
+    <!-- Pinned for advisories that come in transitively: System.Text.Json 8.0.0 (two DoS CVEs,
+         patched in 8.0.5) and Tmds.DBus.Protocol 0.20.0 via Avalonia.FreeDesktop (CVE-2026-39959,
+         spoofed D-Bus signals / descriptor exhaustion, patched in 0.21.3). -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     
     <!-- Unix interop (for Linux) -->
     <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />

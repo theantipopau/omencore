@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/theantipopau/omencore/docs/model-database/model-capabilities.schema.json",
   "title": "OmenCore Model Capability Submission",
-  "description": "One HP OMEN/Victus model's known capability profile, submitted by a community member for review before being merged into ModelCapabilityDatabase.cs. Field names and defaults mirror the ModelCapabilities C# class (src/OmenCoreApp/Hardware/ModelCapabilityDatabase.cs) exactly so a reviewer can convert an accepted submission into an AddModel(...) call with no semantic translation.",
+  "description": "One HP OMEN/Victus model's known capability profile, submitted by a community member for review before being merged into ModelCapabilityDatabase.cs. Field names and defaults mirror the ModelCapabilities C# class (src/OmenCore.Core/Hardware/ModelCapabilityDatabase.cs) exactly so a reviewer can convert an accepted submission into an AddModel(...) call with no semantic translation.",
   "type": "object",
   "additionalProperties": false,
   "required": ["productId", "modelName", "modelYear", "family", "reportedBy", "sourceDiagnosticsExport"],

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="WindowTitle" xml:space="preserve">
+    <value>OmenCore — центр управления игровым ноутбуком</value>
+  </data>
+  <data name="WindowMinimize" xml:space="preserve">
+    <value>Свернуть</value>
+  </data>
+  <data name="WindowMaximize" xml:space="preserve">
+    <value>Развернуть</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>Восстановить</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+
+  <data name="NavGeneral" xml:space="preserve">
+    <value>Общие</value>
+  </data>
+  <data name="NavCustom" xml:space="preserve">
+    <value>Пользовательский</value>
+  </data>
+  <data name="NavTuning" xml:space="preserve">
+    <value>Разгон</value>
+  </data>
+  <data name="NavDiagnostics" xml:space="preserve">
+    <value>Диагностика</value>
+  </data>
+  <data name="NavMonitoring" xml:space="preserve">
+    <value>Мониторинг</value>
+  </data>
+  <data name="NavOptimizer" xml:space="preserve">
+    <value>Оптимизатор</value>
+  </data>
+  <data name="NavMemory" xml:space="preserve">
+    <value>Память</value>
+  </data>
+  <data name="NavBloatware" xml:space="preserve">
+    <value>Лишнее ПО</value>
+  </data>
+  <data name="NavRgb" xml:space="preserve">
+    <value>RGB</value>
+  </data>
+  <data name="NavSettings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="NavGames" xml:space="preserve">
+    <value>Игры</value>
+  </data>
+
+  <data name="SettingsWindowBehaviour" xml:space="preserve">
+    <value>Поведение окна</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Запускать вместе с Windows</value>
+  </data>
+  <data name="SettingsStartWithWindowsHelp" xml:space="preserve">
+    <value>Автоматически запускать OmenCore при старте Windows</value>
+  </data>
+  <data name="SettingsStartMinimized" xml:space="preserve">
+    <value>Запускать свёрнутым в трей</value>
+  </data>
+  <data name="SettingsStartMinimizedHelp" xml:space="preserve">
+    <value>Скрывать главное окно при запуске и показывать только значок в системном трее</value>
+  </data>
+  <data name="SettingsLiteMode" xml:space="preserve">
+    <value>Упрощённый режим (для начинающих)</value>
+  </data>
+  <data name="SettingsLiteModeHelp" xml:space="preserve">
+    <value>Скрывает расширенные вкладки. Его можно отключить в любой момент, чтобы вернуть все элементы управления.</value>
+  </data>
+  <data name="SettingsHeadlessMode" xml:space="preserve">
+    <value>Режим без окна</value>
+  </data>
+  <data name="SettingsHeadlessModeHelp" xml:space="preserve">
+    <value>Работать без главного окна: только значок в трее и фоновые службы. Полезно для серверов.</value>
+  </data>
+  <data name="SettingsSoftwareRendering" xml:space="preserve">
+    <value>Программный рендеринг</value>
+  </data>
+  <data name="SettingsSoftwareRenderingHelp" xml:space="preserve">
+    <value>Отрисовка на CPU, чтобы избежать сбоев из-за оверлеев (RTSS, MSI Afterburner). Требуется перезапуск.</value>
+  </data>
+  <data name="SettingsReduceMotion" xml:space="preserve">
+    <value>Меньше анимации</value>
+  </data>
+  <data name="SettingsReduceMotionHelp" xml:space="preserve">
+    <value>Отключает собственные переходы и анимацию OmenCore дополнительно к параметру Windows «Показывать анимацию».</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Язык</value>
+  </data>
+  <data name="SettingsLanguageHelp" xml:space="preserve">
+    <value>Язык интерфейса. Применяется при следующем запуске OmenCore; формат чисел и журналов не меняется.</value>
+  </data>
+  <data name="SettingsMinimizeToTray" xml:space="preserve">
+    <value>Сворачивать в трей при закрытии</value>
+  </data>
+  <data name="SettingsMinimizeToTrayHelp" xml:space="preserve">
+    <value>Кнопка закрытия сворачивает окно в системный трей вместо выхода</value>
+  </data>
+  <data name="SettingsStayOnTop" xml:space="preserve">
+    <value>Поверх всех окон</value>
+  </data>
+  <data name="SettingsStayOnTopHelp" xml:space="preserve">
+    <value>Держать OmenCore выше других окон</value>
+  </data>
+  <data name="SettingsTopmostBadge" xml:space="preserve">
+    <value>Поверх всех</value>
+  </data>
+  <data name="SettingsActiveBadge" xml:space="preserve">
+    <value>✓ Включено</value>
+  </data>
+
+  <data name="SettingsTrayAndUi" xml:space="preserve">
+    <value>Трей и интерфейс</value>
+  </data>
+  <data name="SettingsDisplayScale" xml:space="preserve">
+    <value>Масштаб интерфейса</value>
+  </data>
+  <data name="SettingsDisplayScaleHelp" xml:space="preserve">
+    <value>Масштабирует весь интерфейс — текст и отступы вместе. Меняется сочетаниями Ctrl и «+» / «−» (Ctrl+0 — сброс) в любом месте окна.</value>
+  </data>
+  <data name="SettingsQuickAccess" xml:space="preserve">
+    <value>Быстрый доступ</value>
+  </data>
+  <data name="SettingsQuickAccessHelp" xml:space="preserve">
+    <value>Выберите действие средней кнопки во всплывающем окне или скройте её, чтобы избежать случайного выключения экрана.</value>
+  </data>
+  <data name="SettingsQuickPopup" xml:space="preserve">
+    <value>Всплывающее окно быстрого доступа</value>
+  </data>
+  <data name="SettingsQuickPopupHelp" xml:space="preserve">
+    <value>Показывать всплывающее окно по нажатию на значок в трее. Если отключить, сразу открывается главное окно.</value>
+  </data>
+  <data name="SettingsTrayTemperature" xml:space="preserve">
+    <value>Температура на значке в трее</value>
+  </data>
+  <data name="SettingsTrayTemperatureHelp" xml:space="preserve">
+    <value>Показывать текущую температуру CPU/GPU на значке в системном трее</value>
+  </data>
+  <data name="SettingsCorsairHidOnly" xml:space="preserve">
+    <value>Corsair: отключить резерв через iCUE (только HID)</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyHelp" xml:space="preserve">
+    <value>Использовать прямой доступ по HID для устройств Corsair. Может работать не со всеми устройствами; требуется перезапуск.</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyWarning" xml:space="preserve">
+    <value>Внимание: режим только HID может снизить совместимость с некоторыми устройствами Corsair. Если управление подсветкой перестало работать, снова включите резерв через iCUE или установите iCUE.</value>
+  </data>
+  <data name="SettingsTelemetry" xml:space="preserve">
+    <value>Анонимная телеметрия подсветки</value>
+  </data>
+  <data name="SettingsTelemetryHelp" xml:space="preserve">
+    <value>Передавать анонимные суммарные счётчики успехов и ошибок Corsair PID, чтобы улучшить поддержку устройств. Данные, идентифицирующие устройство, не собираются.</value>
+  </data>
+</root>

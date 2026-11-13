@@ -4,6 +4,9 @@ using Xunit;
 
 namespace OmenCoreApp.Tests.Services
 {
+    // The counters are process-wide statics that view-model tests also bump; running beside them made the exact
+    // counts flaky (DashboardSamplesReceived 2 instead of 1).
+    [Collection("NonParallel")]
     public class RuntimeUiPerformanceCountersTests
     {
         [Fact]

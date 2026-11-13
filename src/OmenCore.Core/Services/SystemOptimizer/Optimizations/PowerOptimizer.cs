@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.Win32;
+using OmenCore.Utils;
 
 namespace OmenCore.Services.SystemOptimizer.Optimizations
 {
@@ -338,9 +339,17 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                 process.StartInfo.RedirectStandardOutput = true;
                 process.StartInfo.CreateNoWindow = true;
                 process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-                
+
+                // Read first, then wait with a bound: ReadToEnd() before an unbounded WaitForExit()
+                // would sit on a wedged powercfg.exe forever.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 10000))
+                {
+                    return false;
+                }
+
+                var output = ProcessWait.Complete(outputTask);
+
                 return output.Contains(UltimatePerformanceGuid) || 
                        output.Contains(HighPerformanceGuid);
             }

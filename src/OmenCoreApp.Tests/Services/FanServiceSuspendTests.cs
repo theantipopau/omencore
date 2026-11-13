@@ -217,8 +217,7 @@ namespace OmenCoreApp.Tests.Services
             var logging = new LoggingService();
             logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var hwImpl = new LibreHardwareMonitorImpl();
-            var thermalProvider = new ThermalSensorProvider(hwImpl);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             return new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
         }
 

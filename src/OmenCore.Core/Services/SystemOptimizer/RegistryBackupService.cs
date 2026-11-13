@@ -52,7 +52,20 @@ namespace OmenCore.Services.SystemOptimizer
                         process.StartInfo.RedirectStandardOutput = true;
                         process.StartInfo.RedirectStandardError = true;
                         process.Start();
-                        process.WaitForExit(60000); // 60 second timeout
+
+                        // Both pipes are redirected, so both must be drained before the wait:
+                        // Checkpoint-Computer can write enough to fill a pipe and deadlock the child,
+                        // and the 60 s bound could never break a deadlock that happened first.
+                        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                        var stderrTask = process.StandardError.ReadToEndAsync();
+                        if (!OmenCore.Utils.ProcessWait.TryWait(process, 60000))
+                        {
+                            _logger.Warn("Checkpoint-Computer did not finish within 60 s; restore point status is unknown");
+                            return false;
+                        }
+
+                        OmenCore.Utils.ProcessWait.Complete(stdoutTask);
+                        OmenCore.Utils.ProcessWait.Complete(stderrTask);
                         return process.ExitCode == 0;
                     }
                     catch

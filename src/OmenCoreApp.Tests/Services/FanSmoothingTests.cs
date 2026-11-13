@@ -56,8 +56,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -103,8 +102,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -138,7 +136,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -176,8 +174,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -217,8 +214,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -258,7 +254,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             var capabilities = new OmenCore.Hardware.DeviceCapabilities
             {
@@ -305,7 +301,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             var capabilities = new OmenCore.Hardware.DeviceCapabilities
             {
@@ -368,7 +364,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -405,7 +401,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             var capabilities = new OmenCore.Hardware.DeviceCapabilities
             {
@@ -533,8 +529,7 @@ namespace OmenCoreApp.Tests.Services
             // This ensures Start()'s seed read lands on stage 0, then the monitor loop
             // works through stages 1-3.
             var controller = new SequenceFanController(seq, readsPerStage: 2);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100, new ResumeRecoveryDiagnosticsService());
@@ -604,8 +599,7 @@ namespace OmenCoreApp.Tests.Services
             };
 
             var controller = new SequenceFanController(seq, readsPerStage: 2);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -649,8 +643,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -694,8 +687,7 @@ namespace OmenCoreApp.Tests.Services
             };
 
             var controller = new SequenceFanController(seq, readsPerStage: 1);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 100, new ResumeRecoveryDiagnosticsService());
@@ -770,8 +762,7 @@ namespace OmenCoreApp.Tests.Services
             };
 
             var controller = new SequenceFanController(seq, readsPerStage: 1);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
 
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 200, new ResumeRecoveryDiagnosticsService());
@@ -813,7 +804,7 @@ namespace OmenCoreApp.Tests.Services
             logging.Initialize();
 
             var controller = new RecordingFanController();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(new OmenCore.Hardware.LibreHardwareMonitorImpl());
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var notificationService = new NotificationService(logging);
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
 

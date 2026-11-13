@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using OmenCore.Corsair;
 using OmenCore.Services;
 
@@ -7,6 +9,20 @@ namespace OmenCore.Models
 {
     public class AppConfig
     {
+        /// <summary>
+        /// Schema of this file. 0 means a config written before 5.0.0, which had no version; the loader migrates it
+        /// step by step up to <see cref="OmenCore.Services.ConfigurationService.CurrentSchemaVersion"/> and keeps a copy
+        /// of the original. Left at 0 here (not the current value) so a file without the field reads as old.
+        /// </summary>
+        public int SchemaVersion { get; set; }
+
+        /// <summary>
+        /// Keys this build does not know, kept and written back unchanged, so opening a config from a newer OmenCore
+        /// (or one a later version added fields to) does not silently strip its settings.
+        /// </summary>
+        [JsonExtensionData]
+        public Dictionary<string, JsonElement>? UnknownSettings { get; set; }
+
         public string EcDevicePath { get; set; } = string.Empty;
         public int MonitoringIntervalMs { get; set; } = 1000;
         public List<FanPreset> FanPresets { get; set; } = new();
@@ -404,6 +420,24 @@ namespace OmenCore.Models
         /// OmenCore quiet without changing Windows-wide settings.
         /// </summary>
         public bool ReduceMotion { get; set; } = false;
+
+        /// <summary>
+        /// UI language: "auto" (the language Windows is installed in), "en", "ru" or "tr".
+        ///
+        /// Read once at startup, before the first window loads, because the shell's strings are
+        /// resolved by <c>x:Static</c> as each view is parsed; changing it therefore takes effect on
+        /// the next launch rather than half-repainting the open window. Numbers are unaffected: they
+        /// stay invariant whatever this says.
+        /// </summary>
+        public string Language { get; set; } = "auto";
+
+        /// <summary>
+        /// Display scale for the shell, in percent: 80, 90, 100, 110, 125, 140 or 150 (roadmap WP-33;
+        /// this is the font-scale setting WP-45 deferred, because it is a layout zoom rather than a
+        /// font-size change). Values that are not a supported step are snapped to the nearest one on
+        /// load, so a hand-edited value cannot produce an unreadable window.
+        /// </summary>
+        public int UiScalePercent { get; set; } = 100;
 
         /// <summary>
         /// Thermal alert thresholds (CPU/GPU/SSD temperature warnings and critical alerts).

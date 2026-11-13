@@ -89,6 +89,7 @@ namespace OmenCore.ViewModels
                     OnPropertyChanged(nameof(IsQuietMode));
                     OnPropertyChanged(nameof(IsBalancedMode));
                     OnPropertyChanged(nameof(IsPerformanceMode));
+                    OnPropertyChanged(nameof(SelectedPerformanceModeEffectsSummary));
                     
                     // Auto-save selected performance mode to config
                     if (value != null)
@@ -762,6 +763,10 @@ namespace OmenCore.ViewModels
         /// Human-readable description of what controls are available for performance modes.
         /// </summary>
         public string PerformanceModeCapabilities => _performanceModeService?.ControlCapabilityDescription ?? "Windows Power Plan";
+
+        /// <summary>Whether the model database (rather than runtime probing) says this board lacks a feature.</summary>
+        public bool CapabilityDeniedByModelDatabase => CapabilityReasons.Any(r =>
+            !r.Available && r.Code == CapabilityReasonCode.ModelDatabase);
         
         /// <summary>
         /// Short status message for performance mode capabilities shown in UI.
@@ -863,6 +868,77 @@ namespace OmenCore.ViewModels
             }
         }
         
+        // ═══════════════════════════════════════════════════════════════════════════════════
+        // Capability reasons (5.0.0, WP-44)
+        // Every gated control shows why it is off, in the same words the diagnostics export uses.
+        // ═══════════════════════════════════════════════════════════════════════════════════
+
+        private DeviceCapabilities? _capabilities;
+
+        /// <summary>Detected capabilities for this board, set once detection has finished.</summary>
+        public DeviceCapabilities? Capabilities
+        {
+            get => _capabilities;
+            set
+            {
+                _capabilities = value;
+                RaiseCapabilityReasonProperties();
+            }
+        }
+
+        /// <summary>Sets capabilities after detection without forcing the view model to be created early.</summary>
+        public void SetCapabilities(DeviceCapabilities? capabilities) => Capabilities = capabilities;
+
+        public IReadOnlyList<CapabilityReason> CapabilityReasons =>
+            _capabilities?.CapabilityReasons ?? Array.Empty<CapabilityReason>();
+
+        private string ReasonText(CapabilityFeature feature) =>
+            CapabilityReasonResolver.ReasonText(_capabilities, feature);
+
+        public string FanControlReason => ReasonText(CapabilityFeature.FanControl);
+        public bool HasFanControlReason => !string.IsNullOrEmpty(FanControlReason);
+
+        public string FanCurveReason => ReasonText(CapabilityFeature.FanCurves);
+        public bool HasFanCurveReason => !string.IsNullOrEmpty(FanCurveReason);
+
+        public string IndependentFanCurveReason => ReasonText(CapabilityFeature.IndependentFanCurves);
+
+        public string GpuPowerBoostReason => ReasonText(CapabilityFeature.GpuPowerBoost);
+        public bool HasGpuPowerBoostReason => !string.IsNullOrEmpty(GpuPowerBoostReason);
+
+        public string MuxSwitchReason => ReasonText(CapabilityFeature.MuxSwitch);
+
+        public string LightingReason => ReasonText(CapabilityFeature.Lighting);
+
+        public string UndervoltReason => ReasonText(CapabilityFeature.Undervolt);
+        public bool HasUndervoltReason => !string.IsNullOrEmpty(UndervoltReason);
+
+        public string PerformanceModesReason => ReasonText(CapabilityFeature.PerformanceModes);
+
+        /// <summary>All unavailable capabilities on one line, for the diagnostics page and reports.</summary>
+        public string CapabilityReasonSummary => _capabilities == null
+            ? string.Empty
+            : string.Join("; ", CapabilityReasons.Where(r => !r.Available).Select(r => $"{r.Feature}: {r.Message}"));
+
+        private void RaiseCapabilityReasonProperties()
+        {
+            OnPropertyChanged(nameof(Capabilities));
+            OnPropertyChanged(nameof(CapabilityReasons));
+            OnPropertyChanged(nameof(FanControlReason));
+            OnPropertyChanged(nameof(HasFanControlReason));
+            OnPropertyChanged(nameof(FanCurveReason));
+            OnPropertyChanged(nameof(HasFanCurveReason));
+            OnPropertyChanged(nameof(IndependentFanCurveReason));
+            OnPropertyChanged(nameof(GpuPowerBoostReason));
+            OnPropertyChanged(nameof(HasGpuPowerBoostReason));
+            OnPropertyChanged(nameof(MuxSwitchReason));
+            OnPropertyChanged(nameof(LightingReason));
+            OnPropertyChanged(nameof(UndervoltReason));
+            OnPropertyChanged(nameof(HasUndervoltReason));
+            OnPropertyChanged(nameof(PerformanceModesReason));
+            OnPropertyChanged(nameof(CapabilityReasonSummary));
+        }
+
         private string _gpuPowerPolicyText = "";
         /// <summary>Read-only NVML view of the limit the NVIDIA driver is enforcing (empty when unavailable).</summary>
         public string GpuPowerPolicyText
@@ -1146,15 +1222,17 @@ namespace OmenCore.ViewModels
         public bool TuningConflictHighRisk => _lastTuningConflictReport?.HasHighRiskConflict == true;
 
         public string TuningDiagnosticsCompactSummary =>
-            $"CPU UV: {UndervoltStateLabel} | GPU OC: {GpuOcStateLabel} | Conflicts: {(TuningConflictBannerVisible ? "Detected" : "None")}";
+            $"CPU undervolt: {UndervoltStateLabel}  ·  GPU overclock: {GpuOcStateLabel}  ·  Conflicts: {(TuningConflictBannerVisible ? "detected" : "none")}";
 
         public string TuningDiagnosticsCompactDetail
         {
             get
             {
-                var startupRecovery = StartupRecoveryNoticeVisible ? "Startup recovery applied" : "No startup recovery event";
-                var gpuBackend = GpuNvapiAvailable ? "NVAPI online" : "NVAPI unavailable";
-                return $"{startupRecovery} | GPU backend: {gpuBackend} | Rollback: {TuningRollbackStatusText}";
+                // The rollback status has its own line under this one on the Tuning page; repeating it here printed
+                // "Safe rollback has not been run this session" twice.
+                var startupRecovery = StartupRecoveryNoticeVisible ? "Startup recovery applied" : "No startup recovery this session";
+                var gpuBackend = GpuNvapiAvailable ? "NVIDIA API ready" : "NVIDIA API not available";
+                return $"{startupRecovery}  ·  {gpuBackend}";
             }
         }
 
@@ -2623,7 +2701,8 @@ namespace OmenCore.ViewModels
             HardwareMonitoringService? hardwareMonitoringService = null,
             IEcAccess? ecAccess = null,
             AmdGpuService? amdGpuService = null,
-            RuntimeEcOperationCoordinator? ecOperationCoordinator = null)
+            RuntimeEcOperationCoordinator? ecOperationCoordinator = null,
+            DeviceCapabilities? capabilities = null)
         {
             _undervoltService = undervoltService;
             _performanceModeService = performanceModeService;
@@ -2640,6 +2719,7 @@ namespace OmenCore.ViewModels
             _ecAccess = ecAccess;
             _amdGpuService = amdGpuService;
             _ecOperationCoordinator = ecOperationCoordinator ?? new RuntimeEcOperationCoordinator(logging);
+            Capabilities = capabilities;
 
             // Safety-first: detect interrupted/unconfirmed tuning tests from previous session
             // and force a safe reset before any startup reapply operations run.
@@ -2705,6 +2785,7 @@ namespace OmenCore.ViewModels
             RefreshCpuPowerLimitsCommand = new RelayCommand(_ => RefreshCpuPowerLimits());
             ApplySafeTuningRollbackCommand = new AsyncRelayCommand(_ => ApplySafeTuningRollbackAsync());
             DismissFanPerformanceInfoBannerCommand = new RelayCommand(_ => DismissFanPerformanceInfoBanner());
+            RememberCurrentStateToModeCommand = new RelayCommand(_ => RememberCurrentStateToMode());
             
             // Detect AMD CPU
             var cpuVendorEnum = Hardware.CpuUndervoltProviderFactory.DetectedVendor;
@@ -4262,17 +4343,18 @@ namespace OmenCore.ViewModels
                 ? config.PerformanceModes
                 : DefaultConfiguration.Create().PerformanceModes;
 
+            // Clone rather than rebuild field by field: the remembered-effect block added for
+            // 5.0.0 (fans, GPU boost, refresh rate, lighting, charge limit) has to reach the UI
+            // cards, and a hand-written copy here is exactly where a new field gets dropped.
             return configuredModes
-                .Select(mode => new PerformanceMode
+                .Select(mode =>
                 {
-                    Name = mode.Name,
-                    CpuPowerLimitWatts = mode.CpuPowerLimitWatts,
-                    CpuBoostPowerLimitWatts = mode.CpuBoostPowerLimitWatts,
-                    GpuPowerLimitWatts = mode.GpuPowerLimitWatts,
-                    LinkedPowerPlanGuid = mode.LinkedPowerPlanGuid,
-                    Description = string.IsNullOrWhiteSpace(mode.Description)
-                        ? GetDefaultPerformanceModeDescription(mode.Name)
-                        : mode.Description
+                    var copy = mode.Clone();
+                    if (string.IsNullOrWhiteSpace(copy.Description))
+                    {
+                        copy.Description = GetDefaultPerformanceModeDescription(mode.Name);
+                    }
+                    return copy;
                 })
                 .ToList();
         }
@@ -5238,6 +5320,75 @@ namespace OmenCore.ViewModels
         
         // Command for selecting performance mode from Advanced view
         public ICommand SelectPerformanceModeCommand { get; }
+
+        /// <summary>Stores the machine's current fans / GPU boost / refresh rate / lighting / charge limit in the selected mode.</summary>
+        public ICommand RememberCurrentStateToModeCommand { get; }
+
+        /// <summary>What the selected mode will change beyond its power limits (5.0.0, WP-43).</summary>
+        public string SelectedPerformanceModeEffectsSummary =>
+            SelectedPerformanceMode?.RememberedEffectsSummary ?? "Nothing yet - power limits only";
+
+        private string _modeMemoryStatusText = string.Empty;
+
+        /// <summary>Result of the last "remember current state" action, empty when there is nothing to say.</summary>
+        public string ModeMemoryStatusText
+        {
+            get => _modeMemoryStatusText;
+            private set
+            {
+                if (_modeMemoryStatusText != value)
+                {
+                    _modeMemoryStatusText = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasModeMemoryStatus));
+                }
+            }
+        }
+
+        public bool HasModeMemoryStatus => !string.IsNullOrEmpty(_modeMemoryStatusText);
+
+        /// <summary>
+        /// Captures the current hardware state into the selected mode and persists it. Only the
+        /// mode's remembered-effect block changes - power limits, name and description are untouched.
+        /// </summary>
+        private void RememberCurrentStateToMode()
+        {
+            var selected = SelectedPerformanceMode;
+            if (selected == null)
+            {
+                return;
+            }
+
+            var snapshot = _performanceModeService.CaptureCurrentState();
+            if (snapshot == null)
+            {
+                ModeMemoryStatusText = "Could not read the current settings on this machine.";
+                return;
+            }
+
+            var config = _configService.Config;
+            var stored = config.PerformanceModes?.FirstOrDefault(m =>
+                m.Name.Equals(selected.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (stored == null)
+            {
+                ModeMemoryStatusText = $"'{selected.Name}' is not a saved mode, so there is nowhere to store this.";
+                return;
+            }
+
+            snapshot.ApplyTo(stored);
+            _configService.Save(config);
+
+            // Update the card in place so the summary reflects the capture without a restart.
+            selected.CopyRememberedEffectsFrom(stored);
+            OnPropertyChanged(nameof(SelectedPerformanceModeEffectsSummary));
+
+            ModeMemoryStatusText = selected.HasRememberedEffects
+                ? $"'{selected.Name}' now remembers: {selected.RememberedEffectsSummary}"
+                : $"'{selected.Name}' has nothing to remember - the fan state could not be read.";
+
+            _logging.Info($"Performance mode '{selected.Name}' remembered current state: {selected.RememberedEffectsSummary}");
+        }
         
         private void SelectPerformanceMode(string modeName)
         {

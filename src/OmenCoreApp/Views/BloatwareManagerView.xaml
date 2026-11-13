@@ -349,10 +349,10 @@
                                         <Border HorizontalAlignment="Center" ToolTip="{Binding LastRemovalDetail}">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
-                                                    <Setter Property="Background" Value="{StaticResource SurfaceLightBrush}"/>
+                                                    <Setter Property="Background" Value="{DynamicResource SurfaceLightBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRemoved}" Value="True">
-                                                            <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                            <Setter Property="Background" Value="{DynamicResource SurfaceMediumBrush}"/>
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
                                                             <Setter Property="Background" Value="#4A0000"/>
@@ -367,11 +367,11 @@
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Text" Value="INSTALLED"/>
-                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsRemoved}" Value="True">
                                                                 <Setter Property="Text" Value="REMOVED"/>
-                                                                <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding LastRemovalStatus}" Value="Failed">
                                                                 <Setter Property="Text" Value="FAILED"/>
@@ -438,7 +438,7 @@
                                         <Border HorizontalAlignment="Center">
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
-                                                    <Setter Property="Background" Value="{StaticResource SurfaceMediumBrush}"/>
+                                                    <Setter Property="Background" Value="{DynamicResource SurfaceMediumBrush}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding RemovalRisk}" Value="Low">
                                                             <Setter Property="Background" Value="#1B5E20"/>

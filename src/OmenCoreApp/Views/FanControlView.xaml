@@ -27,7 +27,7 @@
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -39,7 +39,7 @@
         <!-- Compact Settings Label -->
         <Style x:Key="SettingsLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="{StaticResource TextTertiaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
     </UserControl.Resources>
@@ -72,7 +72,7 @@
                                 <Setter Property="BorderThickness" Value="1"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
-                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -83,7 +83,7 @@
                                     <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsFanPerformanceLinked}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

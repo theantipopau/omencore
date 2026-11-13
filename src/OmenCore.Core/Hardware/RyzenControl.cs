@@ -25,21 +25,30 @@ namespace OmenCore.Hardware
         {
             if (_initialized) return;
 
-            try
+            // 5.0.0, WP-31: this used to query Win32_Processor unconditionally, ~1 s on a cold WMI
+            // service, and it runs on the startup thread (the vendor check in HardwareBringup calls
+            // in here). Both strings it needs are in the registry; WMI is the fallback only.
+            if (!CpuIdentityReader.TryRead(out var processorName, out var identifier, out _))
             {
-                using var searcher = new ManagementObjectSearcher("select * from Win32_Processor");
-                foreach (ManagementObject obj in searcher.Get())
+                try
                 {
-                    CpuName = obj["Name"]?.ToString() ?? string.Empty;
-                    CpuModel = obj["Caption"]?.ToString() ?? string.Empty;
-                    break;
+                    using var searcher = new ManagementObjectSearcher("select * from Win32_Processor");
+                    foreach (ManagementObject obj in searcher.Get())
+                    {
+                        processorName = obj["Name"]?.ToString() ?? string.Empty;
+                        identifier = obj["Caption"]?.ToString() ?? string.Empty;
+                        break;
+                    }
+                }
+                catch
+                {
+                    processorName = string.Empty;
+                    identifier = string.Empty;
                 }
             }
-            catch
-            {
-                CpuName = string.Empty;
-                CpuModel = string.Empty;
-            }
+
+            CpuName = processorName;
+            CpuModel = identifier;
 
             Family = DetectFamily();
             _initialized = true;

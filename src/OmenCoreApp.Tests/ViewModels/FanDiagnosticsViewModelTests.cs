@@ -98,7 +98,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var fakeFanService = new FanService(new DummyFanController(), OmenCoreApp.Tests.TestThermals.NoHardware(), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
@@ -123,7 +123,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var fakeFanService = new FanService(new DummyFanController(), OmenCoreApp.Tests.TestThermals.NoHardware(), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);
@@ -141,7 +141,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var fakeFanService = new FanService(new DummyFanController(), OmenCoreApp.Tests.TestThermals.NoHardware(), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging)
@@ -163,7 +163,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var fakeFanService = new FanService(new DummyFanController(), OmenCoreApp.Tests.TestThermals.NoHardware(), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);
@@ -198,7 +198,7 @@ namespace OmenCoreApp.Tests.ViewModels
         {
             var logging = new LoggingService(); logging.Initialize();
             var notificationService = new NotificationService(logging);
-            var fakeFanService = new FanService(new DummyFanController(), new ThermalSensorProvider(new LibreHardwareMonitorImpl()), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
+            var fakeFanService = new FanService(new DummyFanController(), OmenCoreApp.Tests.TestThermals.NoHardware(), logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
             var verifier = new TestVerifier();
 
             var vm = new FanDiagnosticsViewModel(verifier, fakeFanService, logging);

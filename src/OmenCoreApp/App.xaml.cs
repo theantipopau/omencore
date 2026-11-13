@@ -23,7 +23,16 @@ namespace OmenCore
     public partial class App : Application
     {
         private static Mutex? _singleInstanceMutex;
-        private const string MutexName = "OmenCore_SingleInstance_Mutex";
+
+        // Global\ so two sessions (RDP, fast user switch) cannot both drive the fans. A
+        // session-local mutex gave each session its own copy, so a second controller could write
+        // the same EC/WMI registers underneath the first. Only one process may own the hardware.
+        private const string MutexName = @"Global\OmenCore_SingleInstance_Mutex";
+
+        // Creation of the global name can fail for a different user's session (the default mutex
+        // DACL only grants the creator), so fall back to a per-session name there: another user
+        // must not block this one, but this user must not run two copies either.
+        private const string SessionMutexName = "OmenCore_SingleInstance_Mutex";
         
         private IServiceProvider? _serviceProvider;
         private TaskbarIcon? _trayIcon;
@@ -143,8 +152,61 @@ namespace OmenCore
 
         private SessionSentinel? _sessionSentinel;
 
+        /// <summary>Keeps the chrome inside Windows' high-contrast palette (WP-45).</summary>
+        private Utils.HighContrastTheme? _highContrastTheme;
+
+        /// <summary>
+        /// Raised when the display scale changes (Settings combo box or Ctrl +/-/0). The main window
+        /// owns the transform, so it listens; going through App keeps the view model from needing a
+        /// reference to a specific window.
+        /// </summary>
+        internal static event Action<int>? UiScaleChanged;
+
+        internal static void RequestUiScale(int percent) => UiScaleChanged?.Invoke(percent);
+
+        /// <summary>
+        /// Windows raises one event for every system parameter. Only HighContrast matters here, and
+        /// the theme is idempotent, so a switch mid-session repaints without a restart.
+        /// </summary>
+        private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(SystemParameters.HighContrast))
+            {
+                return;
+            }
+
+            try
+            {
+                _highContrastTheme?.ApplyIfNeeded();
+                Logging.Info($"High contrast changed at runtime; palette now applied: {_highContrastTheme?.IsApplied}");
+            }
+            catch (Exception ex)
+            {
+                Logging.Warn($"High contrast switch failed: {ex.Message}");
+            }
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
+            // Installer/uninstaller hand-back. Before the single-instance check so it works whether
+            // or not OmenCore is still running, and before DI so it never builds services, starts a
+            // HardwareWorker or creates a tray icon. The installer force-stops the GUI (it holds the
+            // exe open), which skips OnExit and the EC reset in FanService.Dispose - the firmware Max
+            // flag then outlives the app and leaves the fans pinned after an uninstall.
+            if (e.Args.Any(a => string.Equals(a, "--restore-fans", StringComparison.OrdinalIgnoreCase)))
+            {
+                Logging.Initialize();
+                Logging.Info("--restore-fans: handing fan control back to the BIOS (installer/uninstaller path)");
+
+                var restored = FanHandback.RestoreToBiosAuto(Logging);
+                Logging.Info(restored
+                    ? "--restore-fans: complete"
+                    : "--restore-fans: nothing to hand back (WMI BIOS unavailable or the write was refused)");
+
+                Shutdown(restored ? 0 : 1);
+                return;
+            }
+
             // Check for single instance - prevent multiple copies running
             if (!AcquireSingleInstance())
             {
@@ -156,6 +218,8 @@ namespace OmenCore
             
             base.OnStartup(e);
             Logging.Initialize();
+            StartupTimeline.Sink = message => Logging.Info(message);
+            StartupTimeline.Mark("onstartup_entered");
 
             // First line written, before anything that can block or throw.
             //
@@ -172,6 +236,7 @@ namespace OmenCore
             Logging.Info($"OmenCore process starting: PID {Environment.ProcessId}, " +
                          $"session {Process.GetCurrentProcess().SessionId}, " +
                          $"args [{string.Join(" ", e.Args)}]");
+            StartupTimeline.Mark("first_log_line");
 
             // Session sentinel, right after the first line for the same reason: if this process dies
             // silently (GitHub #211 - the log just stopped, no shutdown line), the next start can say
@@ -190,6 +255,8 @@ namespace OmenCore
                 Logging.Debug($"Session sentinel unavailable: {sentinelEx.Message}");
             }
 
+            StartupTimeline.Mark("session_sentinel_ready");
+
             // Enable software rendering if RTSS is running or user has opted in via config.
             // Must be set before any WPF window is created to prevent UCEERR_RENDERTHREADFAILURE.
             bool rtssActive = IsRtssRunning();
@@ -203,11 +270,41 @@ namespace OmenCore
                 EnableSoftwareRendering();
             }
 
+            StartupTimeline.Mark("render_mode_decided");
+
+            // WP-45: follow the high-contrast palette before a window exists, so nothing is laid
+            // out in the normal colours first. The theme mutates the shared brushes in place;
+            // see HighContrastTheme for why a second resource dictionary cannot do this.
+            try
+            {
+                Utils.HighContrastTheme.LogSink = message => Logging.Warn(message);
+                _highContrastTheme = new Utils.HighContrastTheme(Resources);
+                _highContrastTheme.ApplyIfNeeded();
+                SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
+
+                if (_highContrastTheme.IsApplied)
+                {
+                    Logging.Info("High contrast is on; using the system palette for window chrome");
+                }
+            }
+            catch (Exception themeEx)
+            {
+                Logging.Warn($"High-contrast theme unavailable: {themeEx.Message}");
+            }
+
             // Subscribe to session switch events to prevent window activation during RDP
             SystemEvents.SessionSwitch += OnSessionSwitch;
             
             // Apply log level from configuration
             Logging.Level = Configuration.Config.LogLevel;
+
+            // WP-32: UI language before any window exists, because XAML resolves the localized
+            // strings as it loads. This sets the UI culture only - number formatting stays
+            // invariant (see ForceInvariantNumberFormatting), so a Russian window still shows
+            // "95.0%".
+            OmenCore.Localization.Language.Apply(Configuration.Config.Language);
+            Logging.Info($"UI language: {Configuration.Config.Language} " +
+                         $"(culture {CultureInfo.CurrentUICulture.Name})");
             
             var asm = Assembly.GetExecutingAssembly();
             var fileVer = AppVersionProvider.GetVersionString();
@@ -248,22 +345,49 @@ namespace OmenCore
                 Logging.Info("User chose to continue on desktop system - experimental mode");
             }
 
+            StartupTimeline.Mark("desktop_check");
+
             // Check for driver backend availability
             CheckDriverStatus();
+            StartupTimeline.Mark("driver_check");
 
             // Configure dependency injection
             var services = new ServiceCollection();
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
+            StartupTimeline.Mark("service_provider_built");
+
+            // WP-31: GetSystemInfo() populates seven WMI classes sequentially and takes ~1.1 s, all
+            // of it before the main window can paint - MainViewModel asks for it synchronously. It
+            // is memoized behind a lock, so warming it on a pool thread here overlaps that work with
+            // hardware bring-up and tray construction instead of adding to time-to-interactive.
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    _serviceProvider!.GetRequiredService<SystemInfoService>().GetSystemInfo();
+                }
+                catch (Exception ex)
+                {
+                    Logging.Debug($"System info prefetch failed: {ex.Message}");
+                }
+            });
 
             // Initialize system tray
             InitializeTrayIcon();
+            StartupTimeline.Mark("tray_initialized");
 
             // Ensure worker starts with app startup (not only when fallback paths are exercised).
             TryStartHardwareWorkerBootstrap();
+            StartupTimeline.Mark("worker_bootstrap");
 
             // Check if we should start minimized to tray
             // Priority: command line flag > config setting
+            // WP-33: --nav-cycle[=N] measures navigation instead of being sat in front of. See
+            // ParseNavCyclePasses and MainWindow.RunNavCycleAsync; the CLI's `nav` verb is the
+            // caller, and the report it reads is written by the window after the cycle.
+            int? navCyclePasses = ParseNavCyclePasses(e.Args);
+
             bool hasMinimizedFlag = e.Args.Contains("--minimized") || e.Args.Contains("-m") || e.Args.Contains("/minimized");
             bool hasHeadlessFlag = e.Args.Contains("--headless") || e.Args.Contains("-h") || e.Args.Contains("/headless");
 
@@ -300,8 +424,10 @@ namespace OmenCore
                 }
                 else
                 {
-                    // Show onboarding wizard on first run (before main window)
-                    if (!Configuration.Config.FirstRunCompleted)
+                    // Show onboarding wizard on first run (before main window). Not during a
+                    // navigation cycle: that mode runs unattended, and a modal dialog waiting for a
+                    // click would hang it until the CLI's timeout.
+                    if (!Configuration.Config.FirstRunCompleted && navCyclePasses is null)
                     {
                         var onboarding = new OmenCore.Views.OnboardingWindow(Configuration.Config, Configuration);
                         onboarding.ShowDialog();
@@ -318,13 +444,66 @@ namespace OmenCore
                         processStartTimeUtc = currentProcess.StartTime.ToUniversalTime();
                     }
                     mainWindow.ContentRendered += (_, _) =>
+                    {
+                        StartupTimeline.Mark("first_render");
                         StartupAndNavigationPerformanceTracker.RecordStartupTimeToInteractive(
                             DateTime.UtcNow - processStartTimeUtc);
+                    };
 
                     // Normal startup - show window
                     mainWindow.Show();
+                    StartupTimeline.Mark("main_window_shown");
+
+                    if (navCyclePasses is int navPasses)
+                    {
+                        Logging.Info($"[NavCycle] profiling mode: {navPasses} pass(es) over the visible pages");
+
+                        // After the first render, so the pages being switched between are already
+                        // laid out once - otherwise the first pass would measure window bring-up
+                        // rather than navigation.
+                        mainWindow.ContentRendered += async (_, _) =>
+                        {
+                            try
+                            {
+                                await mainWindow.RunNavCycleAsync(navPasses);
+                            }
+                            catch (Exception navEx)
+                            {
+                                Logging.Error($"[NavCycle] failed: {navEx}");
+                                Environment.ExitCode = 1;
+                            }
+                            finally
+                            {
+                                Shutdown();
+                            }
+                        };
+                    }
                 }
             }
+        }
+
+        /// <summary>
+        /// <c>--nav-cycle</c> or <c>--nav-cycle=N</c> (default 3 passes), or null when the flag is
+        /// absent. The tab switch cost lives in the WPF window, so the measurement has to be driven
+        /// from inside the app; the CLI's `nav` verb starts it this way and reads the report it
+        /// writes.
+        /// </summary>
+        internal static int? ParseNavCyclePasses(System.Collections.Generic.IReadOnlyList<string> args)
+        {
+            foreach (var arg in args)
+            {
+                if (!arg.StartsWith("--nav-cycle", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int separator = arg.IndexOf('=');
+                return separator > 0 && int.TryParse(arg[(separator + 1)..], out int passes)
+                    ? Math.Clamp(passes, 1, 20)
+                    : 3;
+            }
+
+            return null;
         }
 
         private void CheckDriverStatus()
@@ -1106,6 +1285,27 @@ namespace OmenCore
                     return false;
                 }
                 return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // The global name is owned by a copy in another user's session. Fall back to the
+                // per-session name so this user still gets one instance.
+                try
+                {
+                    _singleInstanceMutex = new Mutex(true, SessionMutexName, out bool createdNew);
+                    if (!createdNew)
+                    {
+                        _singleInstanceMutex?.Dispose();
+                        _singleInstanceMutex = null;
+                        return false;
+                    }
+                    return true;
+                }
+                catch (Exception)
+                {
+                    // If mutex creation fails, allow the app to run anyway
+                    return true;
+                }
             }
             catch (Exception)
             {

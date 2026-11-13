@@ -98,8 +98,7 @@ namespace OmenCoreApp.Tests.ViewModels
             logging.Initialize();
 
             var configService = new ConfigurationService();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var controller = new TestFanController();
             var notificationService = new NotificationService(logging);
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -163,8 +162,7 @@ namespace OmenCoreApp.Tests.ViewModels
             logging.Initialize();
 
             var configService = new ConfigurationService();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var controller = new TestFanController();
             var notificationService = new NotificationService(logging);
             var fanService = new FanService(controller, thermalProvider, logging, notificationService, 1000, new ResumeRecoveryDiagnosticsService());
@@ -194,8 +192,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var logging = new LoggingService();
             logging.Initialize();
             var configService = new ConfigurationService();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var fanService = new FanService(new TestFanController(), thermalProvider, logging, new NotificationService(logging), 1000, new ResumeRecoveryDiagnosticsService());
             var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging);
 
@@ -215,8 +212,7 @@ namespace OmenCoreApp.Tests.ViewModels
             configService.Config.EnableStartupHardwareRestore = true;
             configService.Config.StartupRestoreFansEnabled = true;
             configService.Save(configService.Config);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var fanService = new FanService(new TestFanController(), thermalProvider, logging, new NotificationService(logging), 1000, new ResumeRecoveryDiagnosticsService());
             var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging);
 
@@ -235,8 +231,7 @@ namespace OmenCoreApp.Tests.ViewModels
             configService.Config.EnableStartupHardwareRestore = true;
             configService.Config.StartupRestoreFansEnabled = false;
             configService.Save(configService.Config);
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var fanService = new FanService(new TestFanController(), thermalProvider, logging, new NotificationService(logging), 1000, new ResumeRecoveryDiagnosticsService());
             var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging);
 
@@ -253,8 +248,7 @@ namespace OmenCoreApp.Tests.ViewModels
             var logging = new LoggingService();
             logging.Initialize();
             var configService = new ConfigurationService();
-            var hwMonitor = new OmenCore.Hardware.LibreHardwareMonitorImpl();
-            var thermalProvider = new OmenCore.Hardware.ThermalSensorProvider(hwMonitor);
+            var thermalProvider = OmenCoreApp.Tests.TestThermals.NoHardware();
             var fanService = new FanService(new TestFanController(), thermalProvider, logging, new NotificationService(logging), 1000, new ResumeRecoveryDiagnosticsService());
             var vm = new OmenCore.ViewModels.FanControlViewModel(fanService, configService, logging);
 

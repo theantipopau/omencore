@@ -77,6 +77,21 @@ namespace OmenCore.Hardware
         /// <summary>Whether to show performance mode selector in UI.</summary>
         public bool ShowPerformanceModes => HasOemPerformanceModes || (ModelConfig?.SupportsPerformanceModes ?? true);
         
+        /// <summary>
+        /// Why each gated feature is or is not available on this board (5.0.0, WP-44). The UI shows
+        /// these next to the control and the diagnostics export carries the same strings, so a
+        /// disabled control never leaves the user guessing.
+        /// </summary>
+        public IReadOnlyList<CapabilityReason> CapabilityReasons => CapabilityReasonResolver.Resolve(this);
+
+        /// <summary>
+        /// The reason behind one feature, for a control that needs exactly one.
+        /// </summary>
+        public CapabilityReason GetCapabilityReason(CapabilityFeature feature) =>
+            CapabilityReasonResolver.For(this, feature);
+
+        public string DescribeCapability(CapabilityFeature feature) => GetCapabilityReason(feature).Message;
+
         /// <summary>Warning message about model-specific limitations.</summary>
         public string? ModelWarning
         {
@@ -301,6 +316,14 @@ namespace OmenCore.Hardware
             lines.AppendLine($"  Show GPU Power Boost: {(ShowGpuPowerBoost ? "Yes" : "No")}");
             lines.AppendLine($"  Show RGB Lighting: {(ShowRgbLighting ? "Yes" : "No")}");
             lines.AppendLine($"  Show Undervolt: {(ShowUndervolt ? "Yes" : "No")}");
+            lines.AppendLine();
+
+            // Why each gated feature is off, in the same wording the UI shows (5.0.0, WP-44).
+            lines.AppendLine("Capability Reasons:");
+            foreach (var reason in CapabilityReasons)
+            {
+                lines.AppendLine($"  {reason.Describe()}");
+            }
             
             return lines.ToString();
         }

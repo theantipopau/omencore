@@ -30,7 +30,7 @@
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                                 <Setter TargetName="CardBorder" Property="Background" Value="#1A1A1E"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -70,6 +70,7 @@
             <Border Style="{StaticResource SurfaceCard}" Padding="20" Margin="0,0,0,20">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
@@ -254,12 +255,47 @@
                             </Grid>
                         </RadioButton>
                     </UniformGrid>
+
+                    <!-- Remembered settings (5.0.0): what switching to this mode changes beyond power limits -->
+                    <Border Grid.Row="2" Background="#0D0D0F" CornerRadius="8" Padding="14,10" Margin="0,16,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="THIS MODE REMEMBERS" FontSize="9" FontWeight="Bold"
+                                           Foreground="{StaticResource TextTertiaryBrush}" Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding SystemControl.SelectedPerformanceModeEffectsSummary}"
+                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding SystemControl.ModeMemoryStatusText}"
+                                           FontSize="10" Foreground="{StaticResource AccentGreenBrush}" Margin="0,4,0,0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding SystemControl.HasModeMemoryStatus, Converter={StaticResource BoolToVisibility}}"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Remember current state"
+                                    Command="{Binding SystemControl.RememberCurrentStateToModeCommand}"
+                                    Padding="14,8" Margin="16,0,0,0" VerticalAlignment="Center"
+                                    Background="{StaticResource AccentBrush}" Foreground="White"
+                                    BorderThickness="0" Cursor="Hand"
+                                    AutomationProperties.Name="Remember the current fan, GPU boost, refresh rate, lighting and charge limit settings in this selected performance mode"/>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
 
             <!-- Fan Curve Editor Section -->
             <GroupBox Header="Custom Fan Curve" Style="{StaticResource ModernGroupBox}" Margin="0,0,0,20">
-                <views:FanControlView DataContext="{Binding FanControl}" />
+                <StackPanel>
+                    <!-- Why the curve editor is gated, in the same words as the diagnostics export (WP-44) -->
+                    <Border Background="#1A2D2D1F" BorderBrush="#FF9800" BorderThickness="1" CornerRadius="6"
+                            Padding="10,8" Margin="0,0,0,12"
+                            Visibility="{Binding SystemControl.HasFanCurveReason, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                        <TextBlock Text="{Binding SystemControl.FanCurveReason}" FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                    </Border>
+                    <views:FanControlView DataContext="{Binding FanControl}" />
+                </StackPanel>
             </GroupBox>
 
             <!-- GPU Power Boost Section -->
@@ -286,6 +322,14 @@
                                    FontSize="12"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,12" TextWrapping="Wrap"/>
+
+                        <!-- Why boost levels are gated on this board (WP-44) -->
+                        <Border Background="#1A2D2D1F" BorderBrush="#FF9800" BorderThickness="1" CornerRadius="6"
+                                Padding="10,8" Margin="0,0,0,12"
+                                Visibility="{Binding SystemControl.HasGpuPowerBoostReason, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}">
+                            <TextBlock Text="{Binding SystemControl.GpuPowerBoostReason}" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+                        </Border>
 
                         <!-- Firmware Ceiling Caveat -->
                         <Border Background="#2D2D1F"

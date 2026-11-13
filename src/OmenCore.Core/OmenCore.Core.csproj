@@ -4,10 +4,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>OmenCore.Core</AssemblyName>
-    <Version>4.5.1</Version>
-    <AssemblyVersion>4.5.1.0</AssemblyVersion>
-    <FileVersion>4.5.1.0</FileVersion>
-    <InformationalVersion>4.5.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
@@ -32,6 +28,11 @@
     <PackageReference Include="NvAPIWrapper.Net" Version="0.8.1.101" />
     <PackageReference Include="RGB.NET.Core" Version="3.1.0" />
     <PackageReference Include="RGB.NET.Devices.Corsair" Version="3.1.0" />
+    <!-- Pinned: CUE.NET and NvAPIWrapper.Net resolve System.Drawing.Common 4.7.0, which carries a
+         critical advisory (CVE-2021-24112, patched in 4.7.2). Windows-only here, where the CVE does
+         not apply, but an advisory-carrying package should not ship. 4.7.2 is API-identical to
+         4.7.0, so this is a version pin rather than a behavioural change. -->
+    <PackageReference Include="System.Drawing.Common" Version="4.7.2" />
     <PackageReference Include="System.Management" Version="10.0.2" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />
   </ItemGroup>

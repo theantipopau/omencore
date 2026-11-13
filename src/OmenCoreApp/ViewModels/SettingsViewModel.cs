@@ -58,6 +58,8 @@ namespace OmenCore.ViewModels
         private bool _allowStartupRestoreOnOmen16OrVictus;
         private bool _useSoftwareRendering;
         private bool _reduceMotion;
+        private string _language = OmenCore.Localization.Language.SystemDefault;
+        private int _uiScalePercent = OmenCore.Utils.UiScale.Default;
         private int _historyCount = 120;
         private bool _lowOverheadMode;
         private bool _autoCheckUpdates = true;
@@ -617,6 +619,51 @@ namespace OmenCore.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// Selected UI language code. Applied on the next launch (see <c>AppConfig.Language</c>);
+        /// the Settings row says so, so a user is not left wondering why nothing changed yet.
+        /// </summary>
+        public string SelectedLanguage
+        {
+            get => _language;
+            set
+            {
+                string normalized = OmenCore.Localization.Language.Normalize(value);
+                if (_language != normalized)
+                {
+                    _language = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                }
+            }
+        }
+
+        public System.Collections.Generic.IReadOnlyList<OmenCore.Localization.LanguageOption> LanguageOptions =>
+            OmenCore.Localization.Language.Supported;
+
+        /// <summary>
+        /// Display scale for the shell. Applies immediately (the window owns the transform) and is
+        /// saved, unlike the language, because a zoom can be judged on screen as it changes.
+        /// </summary>
+        public int UiScalePercent
+        {
+            get => _uiScalePercent;
+            set
+            {
+                int normalized = OmenCore.Utils.UiScale.Normalize(value);
+                if (_uiScalePercent != normalized)
+                {
+                    _uiScalePercent = normalized;
+                    OnPropertyChanged();
+                    SaveSettings();
+                    OmenCore.App.RequestUiScale(normalized);
+                }
+            }
+        }
+
+        public System.Collections.Generic.IReadOnlyList<int> UiScaleOptions =>
+            OmenCore.Utils.UiScale.Steps;
 
         public bool MinimizeToTrayOnClose
         {
@@ -3210,6 +3257,8 @@ namespace OmenCore.ViewModels
             _allowStartupRestoreOnOmen16OrVictus = _config.AllowStartupRestoreOnOmen16OrVictus;
             _useSoftwareRendering = _config.UseSoftwareRendering;
             _reduceMotion = _config.ReduceMotion;
+            _language = OmenCore.Localization.Language.Normalize(_config.Language);
+            _uiScalePercent = OmenCore.Utils.UiScale.Normalize(_config.UiScalePercent);
             
             // Load power automation settings
             _powerAutomationEnabled = _config.PowerAutomation?.Enabled ?? false;
@@ -3264,6 +3313,8 @@ namespace OmenCore.ViewModels
             _config.AllowStartupRestoreOnOmen16OrVictus = _allowStartupRestoreOnOmen16OrVictus;
             _config.UseSoftwareRendering = _useSoftwareRendering;
             _config.ReduceMotion = _reduceMotion;
+            _config.Language = _language;
+            _config.UiScalePercent = _uiScalePercent;
             
             // Save power automation settings
             _config.PowerAutomation ??= new PowerAutomationSettings();
@@ -3315,8 +3366,19 @@ namespace OmenCore.ViewModels
                     }
                 };
                 process.Start();
-                var output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit(3000);
+
+                // Read first, then wait: ReadToEnd() before WaitForExit() meant a wedged schtasks
+                // held the settings page with no deadline ever applied.
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var errorTask = process.StandardError.ReadToEndAsync();
+                if (!ProcessWait.TryWait(process, 3000))
+                {
+                    _logging.Warn("Task Scheduler query timed out after 3s");
+                    return false;
+                }
+
+                var output = ProcessWait.Complete(outputTask);
+                ProcessWait.Complete(errorTask);
                 
                 var taskExists = process.ExitCode == 0 && IsStartupTaskXmlValid(output, currentExePath);
                 if (taskExists)
@@ -3459,9 +3521,11 @@ namespace OmenCore.ViewModels
                         }
                     };
                     createProcess.Start();
-                    var output = createProcess.StandardOutput.ReadToEnd();
-                    var error = createProcess.StandardError.ReadToEnd();
-                    createProcess.WaitForExit(5000);
+                    var outputTask = createProcess.StandardOutput.ReadToEndAsync();
+                    var errorTask = createProcess.StandardError.ReadToEndAsync();
+                    var exited = ProcessWait.TryWait(createProcess, 5000);
+                    var output = ProcessWait.Complete(outputTask);
+                    var error = ProcessWait.Complete(errorTask);
                     
                     // Clean up temp file
                     try { File.Delete(xmlPath); }
@@ -3470,7 +3534,7 @@ namespace OmenCore.ViewModels
                         _logging.Debug($"Failed to delete temporary scheduled task XML '{xmlPath}': {ex.Message}");
                     }
                     
-                    if (createProcess.ExitCode == 0)
+                    if (exited && createProcess.ExitCode == 0)
                     {
                         _logging.Info($"Created scheduled task '{taskName}' for elevated startup");
                         // NOTE: Don't add registry fallback - it causes double startup issues
@@ -3483,7 +3547,9 @@ namespace OmenCore.ViewModels
                     }
                     else
                     {
-                        _logging.Warn($"Task Scheduler creation returned exit code {createProcess.ExitCode}: {error}");
+                        _logging.Warn(exited
+                            ? $"Task Scheduler creation returned exit code {createProcess.ExitCode}: {error}"
+                            : "Task Scheduler creation timed out after 5s");
                         
                         // If task creation failed, it's likely because we're not elevated
                         // Try to show a helpful message
@@ -3847,6 +3913,8 @@ namespace OmenCore.ViewModels
                 ModeChangeNotificationsEnabled = true;
                 TemperatureWarningsEnabled = true;
                 ReduceMotion = false;
+                SelectedLanguage = OmenCore.Localization.Language.SystemDefault;
+                UiScalePercent = OmenCore.Utils.UiScale.Default;
                 StartupSafeModeGuardEnabled = true;
                 StartupSafeModeWindowSeconds = 180;
                 StartupSafeModeTimeoutThreshold = 2;
@@ -4457,9 +4525,18 @@ namespace OmenCore.ViewModels
                     using var process = Process.Start(psi);
                     if (process != null)
                     {
-                        var output = process.StandardOutput.ReadToEnd();
-                        var errors = process.StandardError.ReadToEnd();
-                        process.WaitForExit(30000);
+                        // Read first, then wait: PowerShell writes both pipes, and reading one to
+                        // completion before the other could also deadlock on a full buffer.
+                        var outputTask = process.StandardOutput.ReadToEndAsync();
+                        var errorTask = process.StandardError.ReadToEndAsync();
+                        var exited = ProcessWait.TryWait(process, 30000);
+                        var output = ProcessWait.Complete(outputTask);
+                        var errors = ProcessWait.Complete(errorTask);
+
+                        if (!exited)
+                        {
+                            _logging.Warn("HP package scan timed out after 30s");
+                        }
                         
                         if (!string.IsNullOrWhiteSpace(errors))
                         {
@@ -4563,8 +4640,14 @@ namespace OmenCore.ViewModels
                     using var process = Process.Start(psi);
                     if (process != null)
                     {
-                        var output = process.StandardOutput.ReadToEnd();
-                        process.WaitForExit(30000);
+                        var outputTask = process.StandardOutput.ReadToEndAsync();
+                        if (!ProcessWait.TryWait(process, 30000))
+                        {
+                            _logging.Warn("Package list query timed out after 30s");
+                            return;
+                        }
+
+                        var output = ProcessWait.Complete(outputTask);
                         packageNames.AddRange(output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)));
                     }
                 });
@@ -4605,11 +4688,19 @@ namespace OmenCore.ViewModels
                         using var process = Process.Start(psi);
                         if (process != null)
                         {
-                            var stdout = process.StandardOutput.ReadToEnd();
-                            var stderr = process.StandardError.ReadToEnd();
-                            process.WaitForExit(60000);
-                            
-                            if (process.ExitCode == 0 || string.IsNullOrWhiteSpace(stderr))
+                            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                            var stderrTask = process.StandardError.ReadToEndAsync();
+                            var exited = ProcessWait.TryWait(process, 60000);
+                            ProcessWait.Complete(stdoutTask); // drained so the pipe cannot fill; only stderr is read
+                            var stderr = ProcessWait.Complete(stderrTask);
+
+                            if (!exited)
+                            {
+                                failed++;
+                                failedNames.Add($"{friendlyName} (timed out)");
+                                _logging.Warn($"Removal timed out after 60s: {packageName}");
+                            }
+                            else if (process.ExitCode == 0 || string.IsNullOrWhiteSpace(stderr))
                             {
                                 removed++;
                                 _logging.Info($"Removed: {packageName}");

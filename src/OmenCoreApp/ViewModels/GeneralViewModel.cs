@@ -12,7 +12,23 @@ namespace OmenCore.ViewModels
     /// </summary>
     public class GeneralViewModel : ViewModelBase
     {
-        private static readonly Brush SelectedProfileBorderBrush = CreateSelectedProfileBorderBrush();
+        // Each card's selected border is its own profile colour (the same ModeAccent colours the window chrome uses),
+        // so the active card, the badge on it and the sidebar marker agree instead of all four turning brand red.
+        private static readonly Brush PerformanceBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Performance);
+        private static readonly Brush BalancedBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Balanced);
+        private static readonly Brush QuietBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Quiet);
+        private static readonly Brush CustomBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Custom);
+        private static readonly Brush BrandBorderBrush = CreateFrozenBrush(OmenCore.Utils.ModeAccent.Brand);
+
+        // The fan quick-mode selector takes the active profile's colour too, so one screen never shows two accents.
+        private Brush SelectedProfileBorderBrush => SelectedProfile switch
+        {
+            "Performance" => PerformanceBorderBrush,
+            "Balanced" => BalancedBorderBrush,
+            "Quiet" => QuietBorderBrush,
+            "Custom" => CustomBorderBrush,
+            _ => BrandBorderBrush
+        };
 
         private readonly FanService _fanService;
         private readonly PerformanceModeService _performanceModeService;
@@ -44,9 +60,9 @@ namespace OmenCore.ViewModels
         private double _ramTotalGb;
         private MonitoringSample? _lastProjectedSample;
 
-        private static Brush CreateSelectedProfileBorderBrush()
+        private static Brush CreateFrozenBrush(Color color)
         {
-            var brush = new SolidColorBrush(Color.FromRgb(0xFF, 0x00, 0x5C));
+            var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;
         }
@@ -144,8 +160,11 @@ namespace OmenCore.ViewModels
         public string CurrentPerformanceMode
         {
             get => _currentPerformanceMode;
-            set { _currentPerformanceMode = value; OnPropertyChanged(); }
+            set { _currentPerformanceMode = value; OnPropertyChanged(); OnPropertyChanged(nameof(CurrentPerformanceModeDisplay)); }
         }
+
+        /// <summary>The mode as the profile cards name it ("Balanced", not the firmware's "Default").</summary>
+        public string CurrentPerformanceModeDisplay => OmenCore.Models.PerformanceModeNameResolver.ToDisplayName(_currentPerformanceMode);
 
         public string CurrentFanMode
         {
@@ -330,10 +349,10 @@ namespace OmenCore.ViewModels
         public bool IsCustomSelected => SelectedProfile == "Custom";
 
         // Border colors for selection highlighting
-        public Brush SelectedProfileBorder_Performance => IsPerformanceSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
-        public Brush SelectedProfileBorder_Balanced => IsBalancedSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
-        public Brush SelectedProfileBorder_Quiet => IsQuietSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
-        public Brush SelectedProfileBorder_Custom => IsCustomSelected ? SelectedProfileBorderBrush : Brushes.Transparent;
+        public Brush SelectedProfileBorder_Performance => IsPerformanceSelected ? PerformanceBorderBrush : Brushes.Transparent;
+        public Brush SelectedProfileBorder_Balanced => IsBalancedSelected ? BalancedBorderBrush : Brushes.Transparent;
+        public Brush SelectedProfileBorder_Quiet => IsQuietSelected ? QuietBorderBrush : Brushes.Transparent;
+        public Brush SelectedProfileBorder_Custom => IsCustomSelected ? CustomBorderBrush : Brushes.Transparent;
 
         // v3.9.1: Standalone fan-mode-only quick selector (mirrors OMEN Gaming Hub's
         // Max / Profile Controlled (Auto) / Custom fan switch). Independent of the
@@ -721,6 +740,9 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(SelectedProfileBorder_Balanced));
             OnPropertyChanged(nameof(SelectedProfileBorder_Quiet));
             OnPropertyChanged(nameof(SelectedProfileBorder_Custom));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Max));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Auto));
+            OnPropertyChanged(nameof(FanQuickModeBorder_Custom));
         }
 
         private void UpdateTelemetry()

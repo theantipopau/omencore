@@ -268,5 +268,28 @@ Download the installer above.
             message.Should().Contain("extract");
             message.Should().NotContain("corrupt");
         }
+
+        private const string H = "12191d386066cb357cce41e928ba873efa4f7c8d9596865a2b093c789d754cb5";
+
+        [Theory]
+        [InlineData(H + "  OmenCore-4.5.1-linux-x64.zip\n", "OmenCore-4.5.1-linux-x64.zip")]    // sha256sum text mode
+        [InlineData(H + " *OmenCore-4.5.1-linux-x64.zip\r\n", "OmenCore-4.5.1-linux-x64.zip")]  // binary-mode marker
+        [InlineData(H + "\n", "OmenCore-4.5.1-linux-x64.zip")]                                   // a bare hash
+        [InlineData("12191D386066CB357CCE41E928BA873EFA4F7C8D9596865A2B093C789D754CB5  x.zip", "x.zip")]
+        public void ParseSha256Sidecar_ReadsTheReleaseWorkflowsChecksumFile(string text, string asset)
+        {
+            AutoUpdateService.ParseSha256Sidecar(text, asset).Should().Be(H);
+        }
+
+        [Theory]
+        [InlineData(H + "  OmenCoreSetup-4.5.1.exe", "OmenCore-4.5.1-win-x64.zip")]   // names a different file
+        [InlineData("not-a-hash  x.zip", "x.zip")]
+        [InlineData("", "x.zip")]
+        [InlineData(null, "x.zip")]
+        [InlineData(H + "\n" + H + "  other.zip", "x.zip")]                             // a bare hash among others is ambiguous
+        public void ParseSha256Sidecar_RefusesAnythingThatDoesNotNameThisAsset(string? text, string asset)
+        {
+            AutoUpdateService.ParseSha256Sidecar(text, asset).Should().BeNull();
+        }
     }
 }

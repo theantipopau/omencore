@@ -75,6 +75,7 @@ namespace OmenCore.Services
                         // Validate/repair the temporary deserialized object before it ever
                         // touches the shared Config singleton, so Config never transiently
                         // holds un-repaired data.
+                        MigrateSchema(config);
                         loaded = ValidateAndRepair(config);
                     }
                 }
@@ -123,6 +124,69 @@ namespace OmenCore.Services
             catch (UnauthorizedAccessException ex)
             {
                 AppHost.Logging.Warn($"Could not keep a copy of the unreadable config: {ex.Message}");
+            }
+        }
+
+        /// <summary>The config schema this build writes. Bump it with a new entry in <see cref="SchemaMigrations"/>.</summary>
+        public const int CurrentSchemaVersion = 1;
+
+        /// <summary>
+        /// Step N upgrades a version-N config to N+1, in place. Version 0 is every config written before 5.0.0; the
+        /// 4.x fields keep their meaning in 5.0.0, so its step only stamps the version.
+        /// </summary>
+        private static readonly Action<AppConfig>[] SchemaMigrations =
+        {
+            _ => { }, // 0 -> 1: 4.x config, no field changed meaning
+        };
+
+        /// <summary>
+        /// Brings a loaded config up to <see cref="CurrentSchemaVersion"/>, keeping a copy of the file first so a
+        /// downgrade can go back to it. A config from a newer OmenCore is left as it is and logged, since its fields
+        /// may mean something this build does not know.
+        /// </summary>
+        private void MigrateSchema(AppConfig config)
+        {
+            var from = config.SchemaVersion;
+            if (from == CurrentSchemaVersion)
+                return;
+
+            if (from > CurrentSchemaVersion)
+            {
+                AppHost.Logging.Warn($"Config schema {from} is newer than this build's {CurrentSchemaVersion}; keys this version does not know are kept as they are");
+                KeepCopy($".schema{from}");
+                return;
+            }
+
+            KeepCopy($".schema{Math.Max(from, 0)}");
+            ApplySchemaMigrations(config);
+            AppHost.Logging.Info($"Config migrated from schema {from} to {CurrentSchemaVersion}");
+        }
+
+        /// <summary>Runs every step from the config's version up to the current one. Public for tests.</summary>
+        public static void ApplySchemaMigrations(AppConfig config)
+        {
+            for (var v = Math.Max(config.SchemaVersion, 0); v < CurrentSchemaVersion; v++)
+            {
+                SchemaMigrations[v](config);
+                config.SchemaVersion = v + 1;
+            }
+        }
+
+        private void KeepCopy(string suffix)
+        {
+            try
+            {
+                var backup = _configPath + suffix + ".bak";
+                if (!File.Exists(backup))
+                    File.Copy(_configPath, backup);
+            }
+            catch (IOException ex)
+            {
+                AppHost.Logging.Warn($"Could not keep a copy of the config before migrating it: {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                AppHost.Logging.Warn($"Could not keep a copy of the config before migrating it: {ex.Message}");
             }
         }
 

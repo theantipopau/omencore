@@ -1,0 +1,10 @@
+<Project>
+  <!-- One version for every 4.x+ project: VERSION.txt at the repo root. The SDK derives AssemblyVersion, FileVersion
+       and InformationalVersion from it. The build scripts pass the same value with -p:Version and the installer gets
+       it with /DMyAppVersion, so a bump is one edit. A project that sets its own <Version> (OmenCore.Desktop, still on
+       3.6.3) keeps it, because the project file is evaluated after this one. -->
+  <PropertyGroup>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION.txt').Trim())</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>
