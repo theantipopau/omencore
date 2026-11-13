@@ -454,6 +454,27 @@ namespace OmenCoreApp.Tests
         }
 
         [Fact]
+        public void Installer_FanHandBack_OnlyRunsAnExeThatKnowsTheFlag()
+        {
+            // 5.0.0 regression: PrepareToInstall ran {app}\OmenCore.exe --restore-fans, which on an upgrade
+            // is the OLD 4.x exe. It ignored the flag, opened its window, and the installer waited on it forever.
+            var repoRoot = FindRepoRoot();
+            if (repoRoot == null)
+                return;
+
+            var content = File.ReadAllText(Path.Combine(repoRoot, "installer", "OmenCoreInstaller.iss"));
+            var start = content.IndexOf("procedure RestoreFanControl", StringComparison.Ordinal);
+            var end = content.IndexOf("function PrepareToInstall", start, StringComparison.Ordinal);
+            var body = content[start..end];
+
+            body.Should().Contain("GetVersionNumbers(ExePath",
+                "the hand-back must check the installed exe's version before running it");
+            body.IndexOf("$00050000", StringComparison.Ordinal).Should().BeLessThan(
+                body.IndexOf("'--restore-fans'", StringComparison.Ordinal),
+                "the version gate has to come before the Exec that waits on the exe");
+        }
+
+        [Fact]
         public void RuntimePresentation_QuickPopupRefreshSkipsRedundantRenderedState()
         {
             var root = GetMainSourceRoot();

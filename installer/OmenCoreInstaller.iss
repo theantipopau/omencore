@@ -119,15 +119,26 @@ end;
 // Hands fan control back to the BIOS without starting the UI. OmenCore.exe --restore-fans logs in,
 // clears the firmware Max flag and restores the Default thermal mode, then exits with 0 (restored)
 // or 1 (nothing to restore). Used after a force-kill, which is the only way past a running GUI.
+//
+// Only an exe from 5.0.0 on knows --restore-fans. On an upgrade, {app} still holds the OLD exe: a 4.x
+// build ignores the flag and opens its full window, and the wait below never returns, so the upgrade
+// hangs with the old version on screen (5.0.0 regression). Hence the version gate.
 procedure RestoreFanControl;
 var
   ResultCode: Integer;
   ExePath: String;
+  VersionMS, VersionLS: Cardinal;
 begin
   ExePath := ExpandConstant('{app}\{#MyAppExeName}');
   if not FileExists(ExePath) then
   begin
     Log('Fan hand-back skipped: ' + ExePath + ' not found');
+    Exit;
+  end;
+
+  if not GetVersionNumbers(ExePath, VersionMS, VersionLS) or (VersionMS < $00050000) then
+  begin
+    Log('Fan hand-back skipped: installed OmenCore.exe predates 5.0.0 and has no --restore-fans');
     Exit;
   end;
 

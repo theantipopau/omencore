@@ -38,6 +38,8 @@ No account, no ads, no cloud telemetry ([details](docs/TELEMETRY.md)), and OMEN 
 
 Released 2026-11-13. Update from inside the app (the update button in the header, or F5); settings carry over.
 
+> **Upgrading from 4.x and the installer seems stuck with the old version open?** Close the old OmenCore completely (tray icon → Exit) and the installer carries on. Uninstalling and then installing 5.0.0 also works; settings are kept. Fixed for the next release ([5.0.1 notes](docs/CHANGELOG_v5.0.1.md)).
+
 - **Modes remember the whole machine.** A performance mode can carry a fan preset or custom curve, GPU Power Boost level, refresh rate, lighting profile and charge limit, not only power limits. Game profiles that use a mode get all of it. Your 4.x modes load unchanged.
 - **Every greyed-out control says why**: the model database, the firmware, a safety rule or runtime detection. The same reason goes into the diagnostics export.
 - **Faster start, lower memory.** CPU detection no longer waits on WMI (about 2 s saved on a cold boot), and idle memory is around 100 MB. CI enforces both budgets.

@@ -11,6 +11,10 @@ updates:
       nuget:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The CLI is written against the 2.0.0-beta4 API (AddCommand/AddOption/SetHandler), which the stable
+      # releases removed. Remove this once omencore-cli is ported to the stable API.
+      - dependency-name: System.CommandLine
 
   - package-ecosystem: github-actions
     directory: /
