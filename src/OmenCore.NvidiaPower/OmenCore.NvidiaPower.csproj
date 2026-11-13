@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="System.Management" Version="10.0.2" />
+    <PackageReference Include="System.Management" Version="11.0.0" />
     <InternalsVisibleTo Include="OmenCoreApp.Tests" />
     <InternalsVisibleTo Include="OmenCore" />
   </ItemGroup>
