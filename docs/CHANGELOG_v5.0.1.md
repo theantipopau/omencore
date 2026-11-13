@@ -3,6 +3,14 @@
 **Release Date:** not yet released
 **Type:** Fix release for 5.0.0.
 
+## Added
+
+- **Board entry `8E5F`** (Victus 15-fb3185AX, Ryzen 7 260 + RTX 5050, #249), from the reporter's export: two fans,
+  backlight-only keyboard, modes through the WMI thermal-policy fallback. Previously matched by name. Curves stay off
+  until a Guided Fan Verification run.
+- **Recorded Guided Fan Verification passes** (6/6 on 4.4.5, fan level estimates, not tachometer readings):
+  `8A13` (#225) and `88F7` (#215).
+
 ## Fixed
 
 - **Upgrading from 4.x to 5.0.0 hung, with the old version on screen.** The 5.0.0 installer hands the fans back to
@@ -15,6 +23,28 @@
     Uninstalling and then installing 5.0.0 also works; settings live in `%APPDATA%\OmenCore` and are kept.
   - The 5.0.0 uninstaller is not affected: it runs its own 5.0.0 exe.
   - The 5.0.0 release notes carry a known-issue note with the same workaround (added 2026-11-14).
+
+- **Linux: fan RPM was fake on boards outside the known EC map** (#248, OMEN Slim 16 `8D40`). Three read-path bugs,
+  no change to any fan write:
+  - The CLI only picked up hp-wmi's `fan*_input` when the same hwmon device also offered `pwm1_enable`, and fell back
+    to the EC whenever both fans read 0. On 8D40 that reached EC register `0x34`, which reads `0xFF` there, and
+    `0xFF × 100` printed as 25,500 RPM. The RPM inputs are now found on their own (hp-wmi's hwmon, then any hwmon
+    device named `hp`), a real 0 RPM is kept, and an EC `0xFF` reads as no value.
+  - The GUI ignored which fan it was asked for and returned the first positive `fan*_input` of any hwmon device for
+    both, counted `pwm*` duty files as RPM, and read sysfs through a cached reader, so the number froze at whatever
+    the fan did at launch. It now reads `fan1_input` for the CPU fan and `fan2_input` for the GPU fan, unbuffered.
+  - *Implemented, pending confirmation on 8D40.* New unit tests cover the `0xFF` case.
+
+- **Linux: "Max" could stop the fans, and the GUI asked for RPM in percent** (#238, `8EEC` with the current
+  `hp-wmi` hwmon driver: `fan*_target`, `fan*_max`, `pwm1`, `pwm1_enable`).
+  - `omencore-cli fan --speed 100` and the Max profile wrote `pwm1_enable=0`, which the hwmon ABI defines as full
+    speed and which is the confirmed Max path on toggle-only boards (#174) and `8D87` (#183). On this driver it
+    stopped both fans: 3600 RPM at 60 % manual duty, then 0 RPM, audibly. Max still writes `pwm1_enable=0` first, then
+    checks the RPM 3 s later; if the fans stopped or slowed, it switches to manual duty 100 %, the path the reporter
+    confirmed works. Boards where `pwm1_enable=0` already works are unchanged.
+  - The GUI wrote the requested percentage straight into `fan*_target`, which takes RPM, so 60 % asked for 60 RPM.
+    It now scales by `fan*_max`, and skips the target file when there is no readable maximum.
+  - *Implemented, pending confirmation on 8EEC.* Unit tests cover the RPM check.
 
 ## Investigated, not fixed yet
 
