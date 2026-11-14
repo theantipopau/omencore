@@ -1,13 +1,24 @@
 # OmenCore v5.0.1
 
-**Release Date:** not yet released
-**Type:** Fix release for 5.0.0.
+**Release Date:** 2026-11-15
+**Type:** Fix release for 5.0.0: the 4.x upgrade hang, fans held high by false temperature spikes, Linux fan fixes.
 
 ## Added
 
 - **Board entry `8E5F`** (Victus 15-fb3185AX, Ryzen 7 260 + RTX 5050, #249), from the reporter's export: two fans,
   backlight-only keyboard, modes through the WMI thermal-policy fallback. Previously matched by name. Curves stay off
   until a Guided Fan Verification run.
+- **Real per-fan speeds on the Victus `8C2F` with BIOS F.08** (#246, contributed by mecaniko-tallerOS). On that board
+  and firmware only, OmenCore reads each fan's firmware tachometer instead of estimating RPM from the fan level, and
+  uses the passive fan-table query for discovery and the WMI heartbeat, because the older fan-count query was seen to
+  take manual control there. Read-only: no fan writes. The contributor checked on hardware that the BIOS stayed in
+  Auto at all 33 checkpoints, with readings within 23 RPM of the firmware's own; the GPU fan was idle for that run, so
+  only its 0 RPM case is hardware-checked.
+- **Uniform keyboard colour on the OMEN 16-wf1xxx per-key keyboard** (board `8C77`, Primax `0461:4F1E`, reported on
+  Discord). The firmware reports a per-key keyboard, so the four-zone colour table it was getting was accepted and
+  ignored. `4F1E` is now a per-key candidate; the existing device-info handshake still runs before any colour is sent,
+  so a different controller behind that ID gets nothing written. One colour across the keyboard only; zones and
+  effects need its key map. *Implemented, pending confirmation.*
 - **Recorded Guided Fan Verification passes** (6/6 on 4.4.5, fan level estimates, not tachometer readings):
   `8A13` (#225) and `88F7` (#215).
 
@@ -51,6 +62,20 @@
   in Performance with the daemon running, and exactly 80 W in both with it stopped: the firmware's boost budget
   reaches the driver through Dynamic Boost, which is that daemon. The 8D41 note in diagnose no longer blames `hp-wmi`,
   which that test showed does send the GPU power calls.
+
+- **Fans held high by temperature spikes that weren't sustained heat** (#222 `8E35`, #249 `8E5F`). Three changes to
+  thermal protection:
+  - The 95 °C emergency tier fired on a single reading. A Ryzen 8940HX's 2-3 s Tctl spikes to 97-100 °C at 5 % load,
+    which the BIOS itself ignores, forced 100 % fans. It now needs two consecutive polls. A real runaway lasts far
+    longer, and the 90 °C tier and the firmware's own thermal shutdown are unchanged.
+  - When protection released into an Auto preset with the CPU still at 65 °C or more, OmenCore wrote a 40 % fan floor
+    and never handed the fans back, so a CPU that idles at 63-68 °C stayed under manual control indefinitely. The
+    floor now lasts 60 s, then the BIOS gets the fans back, unless something else has taken them by then.
+  - When the CPU's ACPI thermal zone cannot be identified, OmenCore guesses the hottest zone. On 8E5F that guess read
+    87-96 °C at idle against 77 °C from the CPU's own sensor, took over the CPU temperature and tripped protection
+    (logged as an unexplained switch to Performance and fans stuck high in Auto). An unconfirmed zone now only
+    supplies the CPU temperature when no other source has one this poll.
+  - *Implemented, pending confirmation on both boards.* Unit tests cover the three rules.
 
 ## Investigated, not fixed yet
 

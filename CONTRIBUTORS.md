@@ -20,6 +20,8 @@ field evidence that became a board entry. If you contributed and are missing, op
 | **timmyy123** ([@timmyy123](https://github.com/timmyy123)) | `nvidia-power-control`: the original research into the NVIDIA driver's `romOverride` MAX policy and the internal call used for CURRENT, which the 4.4.5 NVIDIA power unlock is built on. Used with permission. |
 | **mbilykov** ([@mbilykov](https://github.com/mbilykov)) | #189 and `omen-fanctl`: the Gaming Hub automatic fan-curve research (factory tables, the `0x2F` fan mapping, the IR sensor) behind the 4.4.5 curve engine, and Linux per-key RGB findings (#179). |
 | **Rave-TZ**, **Dsedan15**, **JeanHX5**, **MENTRAUZ** | Requests and test runs behind the OMEN key actions, the HP telemetry switch, boards `8A13` and `8E9F`, and the 8BB3 request. |
+| **mecaniko-tallerOS** ([@mecaniko-tallerOS](https://github.com/mecaniko-tallerOS)) | #246: per-fan firmware tachometers on the Victus `8C2F` (BIOS F.08), merged for 5.0.1 with their hardware verification (BIOS kept in Auto at every checkpoint); the BIOS Auto handoff and independent calibration patches under review for 5.1. |
+| **philipphoh** ([@philipphoh](https://github.com/philipphoh)) | #123: the OMEN Max 16 (`8D41`) GPU power analysis: OGH's WMI sequence per profile, the decompiled `NVPCF` ACPI logic, the Windows proof that the kernel's bytes lift the GPU to 175 W, and the Linux finding that `nvidia-powerd` carries the boost budget. |
 | **murilopontes** ([@murilopontes](https://github.com/murilopontes)) | OMEN 15-dc0xxx (`84DB`) EC fan-boost test results for the Linux guide. |
 
 ## Research this project learns from

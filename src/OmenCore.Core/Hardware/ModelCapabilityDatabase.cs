@@ -2088,7 +2088,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #249 - HP Victus 15-fb3185AX, ProductId 8E5F, Ryzen 7 260 + RTX 5050, BIOS F.15, 4.5.1 export. FanCount 2; firmware fan table top row CPU 4300 / GPU 4100 RPM; RPM estimated from fan level; backlight-only keyboard. Reporter confirms Quiet/Balanced/Performance (WMI thermal-policy fallback) and Auto/Max switching. Curves withheld until a Guided Fan Verification run; reporter also sees occasional fan spikes in firmware Auto at idle."
+                Notes = "GitHub #249 - HP Victus 15-fb3185AX, ProductId 8E5F, Ryzen 7 260 + RTX 5050, BIOS F.15, 4.5.1 export. FanCount 2; firmware fan table top row CPU 4300 / GPU 4100 RPM, but Max read back 5400 / 5200 RPM (#249, 2026-11-14), so the table is not this board's ceiling; RPM estimated from fan level; backlight-only keyboard. Reporter confirms Quiet/Balanced/Performance (WMI thermal-policy fallback) and Auto/Max switching. Curves withheld until a Guided Fan Verification run; reporter also sees occasional fan spikes in firmware Auto at idle."
             });
 
             // Victus 15-fa1xxx, Intel i5-12450H + RTX 4050, board 8C2D. GitHub #205 export (4.3.1, BIOS
