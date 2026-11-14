@@ -74,12 +74,20 @@ namespace OmenCoreApp.Tests.Hardware
         [Theory]
         [InlineData(@"\?\HID#VID_0461&PID_4E9A&MI_02#7&abc", true)]
         [InlineData(@"\?\HID#VID_0461&PID_4E9B&MI_02#7&abc", true)]
+        [InlineData(@"\?\HID#VID_0461&PID_4F1E&MI_02#7&abc", true)]   // OMEN 16-wf1xxx (8C77)
+        [InlineData(@"\?\HID#VID_0461&PID_4F1E&MI_01&COL01#7&abc", false)]
         [InlineData(@"\?\HID#VID_0461&PID_4E9B&MI_00#7&abc", false)]
         [InlineData(@"\?\HID#VID_0461&PID_1234&MI_02#7&abc", false)]
         [InlineData(@"\?\HID#VID_0D62&PID_54BF&MI_02#7&abc", false)]
         public void PathMatching_RequiresPrimaxVidKnownPidAndMi02(string path, bool expected)
         {
             PrimaxKeyboardMcu.IsPrimaxPerKeyPath(path).Should().Be(expected);
+        }
+
+        [Fact]
+        public void UnknownLedCount_LightsEverySlot()
+        {
+            PrimaxKeyboardMcu.GetLedCount(PrimaxKeyboardMcu.Wf1Pid).Should().Be(180);
         }
 
         [Fact]

@@ -37,6 +37,13 @@ namespace OmenCore.Hardware
         public const ushort PrimaxVid = 0x0461;
         public const ushort CybugPid = 0x4E9A;   // OMEN 17 per-key
         public const ushort RalphPid = 0x4E9B;   // OMEN 16 per-key
+        // OMEN 16-wf1xxx (2024, board 8C77) per-key, from a Discord user's log (2026-11-14): firmware
+        // keyboard type 3, VID_0461&PID_4F1E with an MI_02 interface, and the four-zone colour table
+        // accepted but ignored. LED count unknown. Still has to pass the device-info handshake in Open()
+        // before anything else is sent, so a different MCU behind this PID gets nothing written.
+        public const ushort Wf1Pid = 0x4F1E;
+
+        private static readonly ushort[] PerKeyPids = { CybugPid, RalphPid, Wf1Pid };
 
         private const string VendorInterface = "MI_02";
         private const ushort VendorUsagePage = 0xFF13;
@@ -71,7 +78,13 @@ namespace OmenCore.Hardware
 
         private PrimaxKeyboardMcu(IntPtr handle) => _handle = handle;
 
-        internal static int GetLedCount(ushort pid) => pid == CybugPid ? 168 : 167;
+        /// <summary>168 Cybug, 167 Ralph; every slot for a PID whose LED count is not known, so no key stays dark.</summary>
+        internal static int GetLedCount(ushort pid) => pid switch
+        {
+            CybugPid => 168,
+            RalphPid => 167,
+            _ => ColorPages * PayloadCapacity
+        };
 
         /// <summary>
         /// The only frames this class will put on the wire. Everything else, including the flash
@@ -106,8 +119,7 @@ namespace OmenCore.Hardware
         internal static bool IsPrimaxPerKeyPath(string path) =>
             path.IndexOf($"VID_{PrimaxVid:X4}", StringComparison.OrdinalIgnoreCase) >= 0 &&
             path.IndexOf(VendorInterface, StringComparison.OrdinalIgnoreCase) >= 0 &&
-            (path.IndexOf($"PID_{CybugPid:X4}", StringComparison.OrdinalIgnoreCase) >= 0 ||
-             path.IndexOf($"PID_{RalphPid:X4}", StringComparison.OrdinalIgnoreCase) >= 0);
+            PerKeyPids.Any(pid => path.IndexOf($"PID_{pid:X4}", StringComparison.OrdinalIgnoreCase) >= 0);
 
         /// <summary>Open the keyboard's vendor interface, or null when this machine has none.</summary>
         public static PrimaxKeyboardMcu? Open()
@@ -241,7 +253,7 @@ namespace OmenCore.Hardware
                 var attrs = new Native.HiddAttributes { Size = Marshal.SizeOf<Native.HiddAttributes>() };
                 if (!Native.HidD_GetAttributes(h, ref attrs) ||
                     attrs.VendorID != PrimaxVid ||
-                    (attrs.ProductID != CybugPid && attrs.ProductID != RalphPid) ||
+                    !PerKeyPids.Contains(attrs.ProductID) ||
                     !Native.HidD_GetPreparsedData(h, out IntPtr preparsed))
                 {
                     Native.CloseHandle(h);
