@@ -941,7 +941,11 @@ namespace OmenCore.Hardware
                         if (acpiTemp > 0 && acpiTemp < 110)
                         {
                             var isUnchangedFrozenValue = _cpuTempFrozen && Math.Abs(acpiTemp - _lastAcpiCpuTempReading) < 0.1;
-                            if (!ShouldAcceptAcpiCpuReading(acpiTemp, _cachedCpuTemp, _cpuTempFrozen, _lastAcpiCpuTempReading, MaxAcpiDeltaFromWmiC))
+                            if (!AcpiZoneMayTakeCpuAuthority(_acpiZoneConfirmed, primaryCpuAuthoritySource != null ? _cachedCpuTemp : 0))
+                            {
+                                _logging?.Debug($"[WmiBiosMonitor] Ignoring unconfirmed ACPI zone {acpiTemp:F1}°C for CPU authority (current {_cachedCpuTemp:F1}°C)");
+                            }
+                            else if (!ShouldAcceptAcpiCpuReading(acpiTemp, _cachedCpuTemp, _cpuTempFrozen, _lastAcpiCpuTempReading, MaxAcpiDeltaFromWmiC))
                             {
                                 _logging?.Debug($"[WmiBiosMonitor] Ignoring ACPI CPU outlier {acpiTemp:F1}°C (current {_cachedCpuTemp:F1}°C){(isUnchangedFrozenValue ? " - still the frozen value" : "")}");
                             }
@@ -2411,6 +2415,17 @@ namespace OmenCore.Hardware
         /// Returns temperature in °C with ~0.1°C precision (vs WMI BIOS integer-only).
         /// MSAcpi_ThermalZoneTemperature reports CurrentTemperature in tenths of Kelvin.
         /// </summary>
+        private bool _acpiZoneConfirmed = true;
+
+        /// <summary>
+        /// 5.0.1 (GitHub #249): on 8E5F the CPU zone could not be identified, the "hottest zone" guess
+        /// (THRM_0) read 87-96 C at idle against 77 C from LibreHardwareMonitor, took CPU authority and
+        /// tripped thermal protection. An unconfirmed zone now only supplies the CPU temperature when no
+        /// other source supplied one this poll (the LibreHardwareMonitor fallback still runs after it).
+        /// </summary>
+        internal static bool AcpiZoneMayTakeCpuAuthority(bool zoneConfirmed, double otherCpuTempC) =>
+            zoneConfirmed || otherCpuTempC <= 0;
+
         private double GetAcpiCpuTemperature()
         {
             try
@@ -2419,6 +2434,7 @@ namespace OmenCore.Hardware
 
                 var selection = SelectCpuThermalZone(zones, _cpuThermalZoneInstance);
                 _cpuThermalZoneInstance = selection.LatchedInstance;
+                _acpiZoneConfirmed = selection.IsConfirmed || zones.Count <= 1;
 
                 if (zones.Count > 1)
                 {

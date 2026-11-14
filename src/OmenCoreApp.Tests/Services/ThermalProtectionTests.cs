@@ -103,9 +103,10 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
-        public void ThermalProtection_EmergencyThreshold_RaisesImmediately()
+        public void ThermalProtection_EmergencyThreshold_RaisesOnTheSecondConsecutiveSample()
         {
-            // At 95°C (emergency), thermal protection should activate immediately without debounce
+            // At 95°C (emergency), thermal protection activates on the second consecutive poll (5.0.1, #222/#249:
+            // a single 2-3 s Tctl spike or a mis-chosen ACPI zone sample used to force 100 % on its own)
             var logging = new LoggingService();
             logging.Initialize();
 
@@ -124,8 +125,11 @@ namespace OmenCoreApp.Tests.Services
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             method.Should().NotBeNull();
             method!.Invoke(fanService, new object[] { 95.0, 50.0 });
+            fanService.IsThermalProtectionActive.Should().BeFalse("one sample at 95°C is not yet an emergency");
+            controller.SetFanSpeedCalls.Should().BeEmpty();
 
-            fanService.IsThermalProtectionActive.Should().BeTrue("thermal protection should activate at 95°C emergency");
+            method.Invoke(fanService, new object[] { 95.0, 50.0 });
+            fanService.IsThermalProtectionActive.Should().BeTrue("thermal protection should activate at 95°C on the second sample");
             controller.SetFanSpeedCalls.Should().Contain(100, "emergency should immediately command 100% fan speed");
 
             logging.Dispose();
@@ -182,8 +186,9 @@ namespace OmenCoreApp.Tests.Services
             var method = typeof(FanService).GetMethod("CheckThermalProtection", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            // First call activates thermal protection
+            // First two calls activate thermal protection (emergency needs two consecutive samples)
             method!.Invoke(fanService, new object[] { 95.0, 50.0 });
+            method.Invoke(fanService, new object[] { 95.0, 50.0 });
             int callsAfterFirst = controller.SetFanSpeedCallCount;
             callsAfterFirst.Should().Be(1, "first emergency should command fan speed");
 
@@ -315,8 +320,9 @@ namespace OmenCoreApp.Tests.Services
             var method = typeof(FanService).GetMethod("CheckThermalProtection", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-            // Activate thermal protection at 95°C
+            // Activate thermal protection at 95°C (two consecutive samples)
             method!.Invoke(fanService, new object[] { 95.0, 50.0 });
+            method.Invoke(fanService, new object[] { 95.0, 50.0 });
             fanService.IsThermalProtectionActive.Should().BeTrue();
 
             // Drop to 88°C - should still be active (need 80°C for release)
@@ -358,6 +364,7 @@ namespace OmenCoreApp.Tests.Services
             var method = typeof(FanService).GetMethod("CheckThermalProtection",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             method!.Invoke(fanService, new object[] { 96.0, 42.0 });
+            method.Invoke(fanService, new object[] { 96.0, 42.0 });
 
             var entry = fanService.GetCommandHistorySnapshot()
                 .FirstOrDefault(e => e.Command == "ThermalProtection.Emergency");

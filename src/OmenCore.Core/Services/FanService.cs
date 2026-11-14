@@ -190,6 +190,19 @@ namespace OmenCore.Services
         private DateTime _thermalAboveThresholdSince = DateTime.MinValue;  // When temp first exceeded threshold
         private DateTime _thermalBelowReleaseSince = DateTime.MinValue;    // When temp first dropped below release
         private const double ThermalActivateDebounceSeconds = 5.0;  // Must stay above threshold for 5s to activate
+
+        // 5.0.1 (GitHub #222, #249): the emergency tier fired on a single sample. A Ryzen 8940HX's 2-3 s
+        // Tctl spikes to 97-100 C at 5 % load, and an ambiguous ACPI zone reading 89-96 C at idle on 8E5F,
+        // each forced 100 % fans that the BIOS itself ignores. Two consecutive polls are required now; a
+        // real runaway lasts far longer than one poll, and the firmware's own thermal shutdown stays below this.
+        internal const int ThermalEmergencyConfirmSamples = 2;
+        private int _thermalEmergencySamples;
+
+        // 5.0.1 (GitHub #222): the 40 % floor written on release into an Auto preset was never handed back,
+        // so a CPU that idles at or above ThermalSafeReleaseTemp (8940HX: 63-68 C) stayed under manual control
+        // indefinitely. The floor now lasts this long, then the BIOS gets the fans back.
+        internal const double ThermalReleaseFloorSeconds = 60.0;
+        private DateTime _thermalReleaseFloorSince = DateTime.MinValue;
         private const double ThermalReleaseDebounceSeconds = 15.0;  // Must stay below release for 15s to deactivate
         
         // EC write rate-limiting for thermal protection
@@ -723,6 +736,8 @@ namespace OmenCore.Services
             _thermalProtectionActive = false;
             _thermalAboveThresholdSince = DateTime.MinValue;
             _thermalBelowReleaseSince = DateTime.MinValue;
+            _thermalEmergencySamples = 0;
+            _thermalReleaseFloorSince = DateTime.MinValue;
 
             // Stop any backend-owned Max-mode keepalive/reassertion timer unconditionally and
             // first, before attempting the BIOS auto-control restore below. That timer (when
@@ -2326,6 +2341,33 @@ namespace OmenCore.Services
         private FanPreset? _preThermalPreset;
         private int _preThermalFanPercent;
         
+        /// <summary>True once the emergency temperature has been seen on enough consecutive polls.</summary>
+        internal static bool ShouldTripThermalEmergency(int consecutiveSamples) =>
+            consecutiveSamples >= ThermalEmergencyConfirmSamples;
+
+        /// <summary>True when a release floor has run its course and the fans should go back to the BIOS.</summary>
+        internal static bool ReleaseFloorExpired(DateTime floorSince, DateTime now, bool protectionActive) =>
+            floorSince != DateTime.MinValue && !protectionActive &&
+            (now - floorSince).TotalSeconds >= ThermalReleaseFloorSeconds;
+
+        private void HandBackExpiredReleaseFloor(DateTime now, double maxTemp)
+        {
+            if (!ReleaseFloorExpired(_thermalReleaseFloorSince, now, _thermalProtectionActive))
+                return;
+
+            _thermalReleaseFloorSince = DateTime.MinValue;
+
+            // Only hand back if nothing else has taken the fans since the floor was written.
+            if (_lastAppliedFanPercent != ThermalReleaseMinFanPercent)
+                return;
+            if (_activePreset != null && !FanModeNameResolver.IsAutoAlias(_activePreset.Name))
+                return;
+
+            _logging.Info($"Thermal release floor ended after {ThermalReleaseFloorSeconds:F0}s ({maxTemp:F0}°C) - returning fans to BIOS auto");
+            RecordFanCommand("ThermalProtection.FloorExpired", "BIOS auto", true, $"maxTemp={maxTemp:F1}C");
+            RestoreAutoControlSerialized();
+        }
+
         private void CheckThermalProtection(double cpuTemp, double gpuTemp)
         {
             if (!_thermalProtectionEnabled || !FanWritesAvailable)
@@ -2352,9 +2394,14 @@ namespace OmenCore.Services
 
             var maxTemp = Math.Max(cpuTemp, gpuTemp);
             var now = DateTime.UtcNow;
+
+            HandBackExpiredReleaseFloor(now, maxTemp);
+
+            _thermalEmergencySamples = maxTemp >= _thermalEmergencyThreshold ? _thermalEmergencySamples + 1 : 0;
             
-            // Emergency: temps >= configurable threshold (default 95°C) - immediate max fans (no debounce, safety critical)
-            if (maxTemp >= _thermalEmergencyThreshold)
+            // Emergency: temps >= configurable threshold (default 95°C) on consecutive polls - max fans
+            if (maxTemp >= _thermalEmergencyThreshold &&
+                (_thermalProtectionActive || ShouldTripThermalEmergency(_thermalEmergencySamples)))
             {
                 // Reset release timer
                 _thermalBelowReleaseSince = DateTime.MinValue;
@@ -2371,10 +2418,10 @@ namespace OmenCore.Services
 
                     // Record both individual readings (not just maxTemp) so a field report can
                     // tell whether this was a sustained real event or a single-sample sensor
-                    // glitch — this tier intentionally has no debounce (safety critical), so it
-                    // is the most exposed to a transient bad reading triggering a visible spike.
+                    // glitch. This tier needs ThermalEmergencyConfirmSamples consecutive polls (5.0.1,
+                    // #222/#249); before that one bad sample was enough to force 100 %.
                     RecordFanCommand("ThermalProtection.Emergency", "100%", true,
-                        $"cpu={cpuTemp:F1}C gpu={gpuTemp:F1}C maxTemp={maxTemp:F1}C (no debounce - safety critical)");
+                        $"cpu={cpuTemp:F1}C gpu={gpuTemp:F1}C maxTemp={maxTemp:F1}C (confirmed on {_thermalEmergencySamples} consecutive polls)");
 
                     // Notify user of thermal protection activation
                     _notificationService?.ShowThermalProtectionActivated(maxTemp, "Emergency - Max Fans");
@@ -2513,9 +2560,10 @@ namespace OmenCore.Services
                     // If still warm and restoring to Auto/Default preset, set minimum fan floor
                     if (stillWarm && FanModeNameResolver.IsAutoAlias(_preThermalPreset.Name))
                     {
-                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor (temps still {maxTemp:F0}°C)");
+                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor for {ThermalReleaseFloorSeconds:F0}s (temps still {maxTemp:F0}°C)");
                         SetFanSpeedSerialized(ThermalReleaseMinFanPercent);
                         _lastAppliedFanPercent = ThermalReleaseMinFanPercent;
+                        _thermalReleaseFloorSince = now;
                     }
                 }
                 else if (_preThermalFanPercent > 0)
@@ -2538,9 +2586,10 @@ namespace OmenCore.Services
                     // BUG FIX v2.3.1: If still warm, set minimum fan floor to prevent 0 RPM
                     if (stillWarm)
                     {
-                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor (temps still {maxTemp:F0}°C)");
+                        _logging.Info($"Setting minimum {ThermalReleaseMinFanPercent}% fan floor for {ThermalReleaseFloorSeconds:F0}s (temps still {maxTemp:F0}°C)");
                         SetFanSpeedSerialized(ThermalReleaseMinFanPercent);
                         _lastAppliedFanPercent = ThermalReleaseMinFanPercent;
+                        _thermalReleaseFloorSince = now;
                     }
                     else
                     {
