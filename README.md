@@ -7,13 +7,13 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-5.0.0-red.svg?style=for-the-badge)](docs/CHANGELOG_v5.0.0.md)
+[![Version](https://img.shields.io/badge/version-5.0.1-red.svg?style=for-the-badge)](docs/CHANGELOG_v5.0.1.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
 
 **[Download](https://github.com/theantipopau/omencore/releases/latest)** ·
-**[What's new in 5.0.0](docs/CHANGELOG_v5.0.0.md)** ·
+**[What's new](docs/CHANGELOG_v5.0.1.md)** ·
 **[Install guide](INSTALL.md)** ·
 **[Discord](https://discord.gg/9WhJdabGk8)**
 
@@ -34,11 +34,20 @@ No account, no ads, no cloud telemetry ([details](docs/TELEMETRY.md)), and OMEN 
 
 </details>
 
-## What's new in 5.0.0
+## What's new
 
-Released 2026-11-13. Update from inside the app (the update button in the header, or F5); settings carry over.
+**5.0.1** (2026-11-15) fixes the 5.0.0 release. Update from inside the app (the update button in the header, or F5); settings carry over.
 
-> **Upgrading from 4.x and the installer seems stuck with the old version open?** Close the old OmenCore completely (tray icon → Exit) and the installer carries on. Uninstalling and then installing 5.0.0 also works; settings are kept. Fixed for the next release ([5.0.1 notes](docs/CHANGELOG_v5.0.1.md)).
+- Updating from 4.x no longer hangs with the old version on screen.
+- Fans are no longer held high by brief temperature spikes or a mis-identified temperature sensor (OMEN 16 `8E35`, Victus 15 `8E5F`).
+- Real per-fan speeds on the Victus `8C2F` (BIOS F.08), contributed by mecaniko-tallerOS; keyboard colour on the OMEN 16-wf1xxx per-key keyboard; a new entry for the Victus 15 `8E5F`.
+- Linux: real fan speeds instead of fixed numbers, Max no longer able to stop the fans on newer `hp-wmi` drivers, and `diagnose` warns when `nvidia-powerd` is not running.
+
+Full notes: [docs/CHANGELOG_v5.0.1.md](docs/CHANGELOG_v5.0.1.md).
+
+### 5.0.0
+
+Released 2026-11-13.
 
 - **Modes remember the whole machine.** A performance mode can carry a fan preset or custom curve, GPU Power Boost level, refresh rate, lighting profile and charge limit, not only power limits. Game profiles that use a mode get all of it. Your 4.x modes load unchanged.
 - **Every greyed-out control says why**: the model database, the firmware, a safety rule or runtime detection. The same reason goes into the diagnostics export.
@@ -87,13 +96,13 @@ Get the files from the [latest release](https://github.com/theantipopau/omencore
 
 | File | For |
 |---|---|
-| `OmenCoreSetup-5.0.0.exe` | Most Windows users. Installs the app and, optionally, the PawnIO driver. |
-| `OmenCore-5.0.0-win-x64.zip` | Portable Windows use. Extract and run `OmenCore.exe` as administrator. |
-| `OmenCore-5.0.0-linux-x64.zip` | Linux command-line tool and GUI, self-contained. |
+| `OmenCoreSetup-5.0.1.exe` | Most Windows users. Installs the app and, optionally, the PawnIO driver. |
+| `OmenCore-5.0.1-win-x64.zip` | Portable Windows use. Extract and run `OmenCore.exe` as administrator. |
+| `OmenCore-5.0.1-linux-x64.zip` | Linux command-line tool and GUI, self-contained. |
 
 ### Windows
 
-1. Download `OmenCoreSetup-5.0.0.exe`.
+1. Download `OmenCoreSetup-5.0.1.exe`.
 2. Run it. Windows may warn about an unknown publisher because the installer is not yet signed: choose **More info**, then **Run anyway**. You can verify the file first (see below).
 3. Keep **PawnIO** selected unless you only want monitoring and the WMI features.
 4. Start OmenCore from the Start menu.
@@ -103,7 +112,7 @@ Needs Windows 10 (19041 or later) or Windows 11, x64. The .NET 8 runtime is incl
 ### Linux
 
 ```bash
-VERSION=5.0.0
+VERSION=5.0.1
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
 cd OmenCore-linux-x64
@@ -120,7 +129,7 @@ Needs x64 Linux with `hp-wmi`, `ec_sys` (`write_support=1`) or a compatible hwmo
 Every release publishes a `SHA256SUMS` file and a `.sha256` file next to each download, computed by the release workflow from the exact files it attached. Each file also carries GitHub build provenance, which proves it was built by this repository's workflow from the tagged commit:
 
 ```bash
-gh attestation verify OmenCoreSetup-5.0.0.exe --repo theantipopau/omencore
+gh attestation verify OmenCoreSetup-5.0.1.exe --repo theantipopau/omencore
 ```
 
 Antivirus warnings are covered in [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) and [docs/DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md).
@@ -175,7 +184,8 @@ The most useful contributions are diagnostic exports from real boards, confirmat
 
 | Version | Date | Notes |
 |---|---|---|
-| **5.0.0** | 2026-11-13 | [Changelog](docs/CHANGELOG_v5.0.0.md): modes that carry the whole machine, capability reasons, startup and memory budgets, interface refresh, checksum-verified updates |
+| **5.0.1** | 2026-11-15 | [Changelog](docs/CHANGELOG_v5.0.1.md): 4.x upgrade hang, fans held by false temperature spikes, Linux fan readings and Max, 8C2F tachometers |
+| 5.0.0 | 2026-11-13 | [Changelog](docs/CHANGELOG_v5.0.0.md): modes that carry the whole machine, capability reasons, startup and memory budgets, interface refresh, checksum-verified updates |
 | 4.5.1 | 2026-11-10 | [Changelog](docs/CHANGELOG_v4.5.1.md): 8E10 backlight regression, V0 fan-mode bytes, 8BCD keyboard layout, new boards |
 | 4.5.0 | 2026-10-24 | [Changelog](docs/CHANGELOG_v4.5.0.md) |
 | 4.4.5 | 2026-10-11 | [Changelog](docs/CHANGELOG_v4.4.5.md) |

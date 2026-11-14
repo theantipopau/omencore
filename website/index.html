@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v5.0.0</small>
+      <small>v5.0.1</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v5.0.0 is out now — modes remember fans, GPU boost, refresh rate and lighting, every greyed-out control says why, faster start, and a refreshed interface.
+      v5.0.1 is out now — fixes the 4.x upgrade hang and fans held high by brief temperature spikes, plus Linux fan fixes. Built on 5.0.0: modes that remember fans, GPU boost and lighting.
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v5.0.0</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v5.0.1</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source, for HP OMEN and Victus laptops. Windows 10 (19041+) or 11, x64; the .NET runtime is included. Update from inside the app and your settings carry over.</p>
 
@@ -341,8 +341,8 @@
 
         <div class="tab-panel" data-panel="linux">
           <div class="code-block">
-            <button class="copy-btn" type="button" data-copy="VERSION=5.0.0&#10;wget &quot;https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip&quot;&#10;unzip &quot;OmenCore-${VERSION}-linux-x64.zip&quot; -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64&#10;chmod +x omencore-cli omencore-gui&#10;sudo ./omencore-cli status&#10;./omencore-gui">Copy</button>
-            <span>VERSION=5.0.0</span><br />
+            <button class="copy-btn" type="button" data-copy="VERSION=5.0.1&#10;wget &quot;https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip&quot;&#10;unzip &quot;OmenCore-${VERSION}-linux-x64.zip&quot; -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64&#10;chmod +x omencore-cli omencore-gui&#10;sudo ./omencore-cli status&#10;./omencore-gui">Copy</button>
+            <span>VERSION=5.0.1</span><br />
             <span>wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"</span><br />
             <span>unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64</span><br />
             <span>chmod +x omencore-cli omencore-gui</span><br />
@@ -382,8 +382,22 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v5.0.0</span>
+          <span class="v">v5.0.1</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>A fix release for 5.0.0. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
+        <ul>
+          <li>Updating from 4.x no longer hangs with the old version on screen</li>
+          <li>Fans are no longer held high by brief temperature spikes or a mis-identified temperature sensor</li>
+          <li>Real per-fan speeds on the Victus 8C2F (contributed by mecaniko-tallerOS), keyboard colour on the OMEN 16-wf1xxx per-key keyboard, a new entry for the Victus 15 8E5F</li>
+          <li>Linux: real fan speeds, Max can no longer stop the fans on newer hp-wmi drivers, and diagnose warns when nvidia-powerd is not running</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v5.0.1.md" target="_blank" rel="noopener">Full v5.0.1 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v5.0.0</span>
+          <span class="timeline-badge muted">Major</span>
         </div>
         <p>Trust, startup and interface. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
         <ul>
