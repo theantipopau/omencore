@@ -1317,6 +1317,17 @@ namespace OmenCore.Hardware
         /// </summary>
         public IEnumerable<FanTelemetry> ReadFanSpeeds()
         {
+            if (HpWmiBios.HasVictusFanTachometers.Value && _wmiBios is HpWmiBios bios)
+            {
+                var rpm = bios.GetFanRpmDirect();
+                var level = bios.GetFanLevel();
+                return new[]
+                {
+                    VictusFanTelemetry("CPU Fan", rpm?.fan1Rpm, level?.fan1, GetCpuTemperature()),
+                    VictusFanTelemetry("GPU Fan", rpm?.fan2Rpm, level?.fan2, GetGpuTemperature())
+                };
+            }
+
             var fans = new List<FanTelemetry>();
 
             // Get fan speeds from hardware monitor
@@ -1549,6 +1560,17 @@ namespace OmenCore.Hardware
 
             return fans;
         }
+
+        private FanTelemetry VictusFanTelemetry(string name, int? rpm, byte? level, double temperature) => new()
+        {
+            Name = name,
+            SpeedRpm = rpm ?? 0,
+            DutyCyclePercent = level is byte value ? Math.Clamp(value * 100 / _maxFanLevel, 0, 100) : 0,
+            Temperature = temperature,
+            RpmSource = RpmSource.WmiBios,
+            RpmState = rpm is null ? TelemetryDataState.Unavailable :
+                rpm == 0 ? TelemetryDataState.Zero : TelemetryDataState.Valid
+        };
 
         /// <summary>
         /// Get current GPU power settings.

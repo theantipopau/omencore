@@ -2005,6 +2005,12 @@ namespace OmenCore.Services
                     for (int i = 0; i < fanCount; i++)
                     {
                         var newRpm = fanSpeeds[i].Rpm;
+                        if (fanSpeeds[i].RpmSource == RpmSource.WmiBios && HpWmiBios.HasVictusFanTachometers.Value)
+                        {
+                            displayRpms.Add(newRpm);
+                            rpmStates.Add(fanSpeeds[i].RpmState);
+                            continue;
+                        }
                         var lastRpm = (i < _lastFanSpeeds.Count) ? _lastFanSpeeds[i] : 0;
 
                         // Accept zero immediately **only** when duty cycle also indicates stopped fans.

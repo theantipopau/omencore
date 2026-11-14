@@ -4,6 +4,7 @@ using System.Management;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Management.Infrastructure;
+using Microsoft.Win32;
 using Microsoft.Management.Infrastructure.Options;
 using OmenCore.Services;
 using OmenCore.Services.Diagnostics;
@@ -102,6 +103,7 @@ namespace OmenCore.Hardware
         
         // Command type IDs (second parameter in Send method)
         private const uint CMD_FAN_GET_COUNT = 0x10;
+        private const uint CMD_VICTUS_FAN_TACHOMETER = 0x11;
         private const uint CMD_FAN_SET_LEVEL = 0x2E;  // SetFanLevel (OmenMon 0x2E)
         private const uint CMD_FAN_GET_LEVEL = 0x2D;  // GetFanLevel (OmenMon 0x2D)
         private const uint CMD_FAN_GET_TABLE = 0x2F;  // Firmware fan table (documented by the Linux hp-wmi driver)
@@ -697,6 +699,25 @@ namespace OmenCore.Hardware
             }
         }
         
+        internal static readonly Lazy<bool> HasVictusFanTachometers = new(() =>
+        {
+            using var identity = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\BIOS");
+            return MatchesVictusFanTachometerFirmware(
+                identity?.GetValue("BaseBoardProduct") as string, identity?.GetValue("BIOSVersion") as string);
+        });
+
+        internal static bool MatchesVictusFanTachometerFirmware(string? board, string? bios) =>
+            string.Equals(board, "8C2F", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(bios, "F.08", StringComparison.OrdinalIgnoreCase);
+
+        private byte[]? ReadFanCount()
+        {
+            // The legacy count query can take manual control on this firmware.
+            return HasVictusFanTachometers.Value
+                ? SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_TABLE, new byte[4], 128)
+                : SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
+        }
+
         /// <summary>
         /// Try a series of heartbeat queries to "wake up" the WMI interface on 2023+ models.
         /// </summary>
@@ -706,7 +727,7 @@ namespace OmenCore.Hardware
             for (int i = 0; i < 3; i++)
             {
                 // Try fan count query (minimal command that usually works)
-                var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
+                var result = ReadFanCount();
                 if (result != null && result.Length >= 1)
                 {
                     FanCount = result[0];
@@ -795,7 +816,7 @@ namespace OmenCore.Hardware
             try
             {
                 // Send a simple fan count query to keep the interface active
-                var result = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
+                var result = ReadFanCount();
                 if (result == null)
                 {
                     _consecutiveHeartbeatFailures++;
@@ -940,7 +961,7 @@ namespace OmenCore.Hardware
                     }
 
                     // Query fan count
-                    var fanResult = SendBiosCommand(BiosCmd.Default, CMD_FAN_GET_COUNT, new byte[4], 4);
+                    var fanResult = ReadFanCount();
                     if (fanResult != null && fanResult.Length >= 1)
                     {
                         FanCount = fanResult[0];
@@ -1214,6 +1235,28 @@ namespace OmenCore.Hardware
             return null;
         }
 
+        /// <summary>Reads the two firmware tachometers on the validated Victus firmware.</summary>
+        public (int fan1Rpm, int fan2Rpm)? GetVictusFanTachometers()
+        {
+            if (!HasVictusFanTachometers.Value || !IsAvailable)
+                return null;
+
+            var cpu = SendBiosCommand(BiosCmd.Default, CMD_VICTUS_FAN_TACHOMETER, new byte[] { 0 }, 4);
+            var gpu = SendBiosCommand(BiosCmd.Default, CMD_VICTUS_FAN_TACHOMETER, new byte[] { 1 }, 4);
+            return ParseVictusFanTachometers(cpu, gpu);
+        }
+
+        internal static (int fan1Rpm, int fan2Rpm)? ParseVictusFanTachometers(byte[]? cpu, byte[]? gpu)
+        {
+            if (cpu is not [_, _, var cpuHigh, var cpuLow] ||
+                gpu is not [_, _, var gpuHigh, var gpuLow])
+                return null;
+
+            int cpuRpm = (cpuHigh << 8) | cpuLow;
+            int gpuRpm = (gpuHigh << 8) | gpuLow;
+            return cpuRpm <= 8000 && gpuRpm <= 8000 ? (cpuRpm, gpuRpm) : null;
+        }
+
         /// <summary>
         /// Get raw fan RPM directly from BIOS (V2 command 0x38).
         /// Returns validated RPM values with sanity checks.
@@ -1221,6 +1264,9 @@ namespace OmenCore.Hardware
         /// </summary>
         public (int fan1Rpm, int fan2Rpm)? GetFanRpmDirect()
         {
+            if (HasVictusFanTachometers.Value)
+                return GetVictusFanTachometers();
+
             if (!_isAvailable) return null;
 
             try
@@ -2752,7 +2798,9 @@ namespace OmenCore.Hardware
                     // Populate the output data variable
                     if (outDataSize != 0)
                     {
-                        outData = resultData.CimInstanceProperties["Data"].Value as byte[] ?? outData;
+                        var payload = resultData.CimInstanceProperties["Data"].Value as byte[];
+                        if (commandType == CMD_VICTUS_FAN_TACHOMETER && payload == null) return null;
+                        outData = payload ?? outData;
                     }
 
                     // Get return code
@@ -2900,7 +2948,8 @@ namespace OmenCore.Hardware
                                 AddCommandToHistory(commandType, true);
                                 if (outDataSize > 0)
                                 {
-                                    return outDataObj["Data"] as byte[] ?? new byte[outDataSize];
+                                    return outDataObj["Data"] as byte[] ??
+                                        (commandType == CMD_VICTUS_FAN_TACHOMETER ? null : new byte[outDataSize]);
                                 }
                                 return new byte[0];
                             }
