@@ -169,6 +169,15 @@ public static class DiagnoseCommand
         info.Service = await CollectServiceDiagnosticsAsync();
         info.KernelIssueHints = await CollectKernelIssueHintsAsync();
 
+        var nvidiaPresent = Directory.Exists("/proc/driver/nvidia");
+        if (nvidiaPresent && info.Service.SystemdAvailable)
+        {
+            info.Service.NvidiaPowerdState = await TryRunCommandAllowFailureAsync("systemctl", "is-active nvidia-powerd", timeoutMs: 1500)
+                                             ?? "unknown";
+        }
+        if (NvidiaPowerdHint(nvidiaPresent, info.Service.NvidiaPowerdState) is { } powerdHint)
+            info.Recommendations.Add(powerdHint);
+
         var effectiveConfig = OmenCoreConfig.Load();
         var configReport = OmenCoreConfig.LastLoadReport;
         info.ConfigSchemaVersion = effectiveConfig.SchemaVersion;
@@ -302,8 +311,8 @@ public static class DiagnoseCommand
 
         if (string.Equals(info.BoardId, "8D41", StringComparison.OrdinalIgnoreCase))
         {
-            info.Notes.Add("Board 8D41 detected (OMEN Max 16-ah0xxx): Linux GPU TGP may stay capped near base power if hp-wmi does not send the GPU thermal modes / Dynamic Boost unlock that Windows OGH sends.");
-            info.Recommendations.Add("If RTX 5080/5070-class TGP remains capped around 80W, attach `sudo omencore-cli diagnose --report`, `journalctl -u nvidia-powerd -b --no-pager`, and an ACPI dump to GitHub issue #123 or the upstream hp-wmi thread.");
+            info.Notes.Add("Board 8D41 detected (OMEN Max 16-ah0xxx): current hp-wmi sends the same GPU power calls as Windows, and on Fedora 45 / BIOS F.23 the GPU reached 175 W in Performance with nvidia-powerd running and stayed at 80 W with it stopped (GitHub #123).");
+            info.Recommendations.Add("If the GPU stays near 80 W with nvidia-powerd running and platform_profile=performance, attach `sudo omencore-cli diagnose --report` and `journalctl -u nvidia-powerd -b --no-pager` to GitHub issue #123.");
         }
 
         if (string.Equals(info.BoardId, "8787", StringComparison.OrdinalIgnoreCase))
@@ -422,6 +431,21 @@ public static class DiagnoseCommand
         }
 
         return info;
+    }
+
+    /// <summary>
+    /// GitHub #123 (8D41, Fedora 45, BIOS F.23): with nvidia-powerd running the GPU reached 105 W in
+    /// Balanced and 175 W in Performance; with it stopped it sat at exactly 80 W in either profile.
+    /// The firmware budget only reaches the driver through Dynamic Boost, which is that daemon.
+    /// </summary>
+    public static string? NvidiaPowerdHint(bool nvidiaPresent, string? powerdState)
+    {
+        if (!nvidiaPresent || string.Equals(powerdState?.Trim(), "active", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return $"nvidia-powerd is {(string.IsNullOrWhiteSpace(powerdState) ? "not checked" : powerdState.Trim())}. On NVIDIA laptops " +
+               "the GPU's boost budget above base power reaches the driver through nvidia-powerd (Dynamic Boost); without it " +
+               "the card can stay at base power (80 W on an OMEN Max 16 8D41) in every profile. Try: sudo systemctl enable --now nvidia-powerd";
     }
 
     private static async Task<LinuxServiceDiagnostics> CollectServiceDiagnosticsAsync()
@@ -1247,6 +1271,7 @@ public class LinuxServiceDiagnostics
     public bool UnitInstalled { get; set; }
     public string UnitPath { get; set; } = DefaultUnitPath;
     public string ActiveState { get; set; } = "not-installed";
+    public string? NvidiaPowerdState { get; set; }
     public bool SystemConfigExists { get; set; }
     public string SystemConfigPath { get; set; } = OmenCoreConfig.SystemConfigPath;
     public bool UserConfigExists { get; set; }

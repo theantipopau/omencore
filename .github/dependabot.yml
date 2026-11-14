@@ -12,6 +12,10 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
     ignore:
+      # Major versions are taken on purpose in a release cycle, not as weekly PRs (several also target newer
+      # .NET than the net8.0 the app ships on).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
       # The CLI is written against the 2.0.0-beta4 API (AddCommand/AddOption/SetHandler), which the stable
       # releases removed. Remove this once omencore-cli is ported to the stable API.
       - dependency-name: System.CommandLine

@@ -46,6 +46,12 @@
     It now scales by `fan*_max`, and skips the target file when there is no readable maximum.
   - *Implemented, pending confirmation on 8EEC.* Unit tests cover the RPM check.
 
+- **Linux: `omencore-cli diagnose` says when `nvidia-powerd` is not running** on a machine with the NVIDIA driver
+  loaded (#123). On an OMEN Max 16 `8D41` (Fedora 45, BIOS F.23), philipphoh measured 105 W in Balanced and 175 W
+  in Performance with the daemon running, and exactly 80 W in both with it stopped: the firmware's boost budget
+  reaches the driver through Dynamic Boost, which is that daemon. The 8D41 note in diagnose no longer blames `hp-wmi`,
+  which that test showed does send the GPU power calls.
+
 ## Investigated, not fixed yet
 
 - **GPU Power Boost on the OMEN MAX 16 `8D41` may be sending the wrong last byte** (#123, #181; Windows data from
@@ -72,5 +78,6 @@
 
 ## Housekeeping
 
+- Dependabot no longer opens major-version PRs; those are taken deliberately within a release cycle.
 - Dependabot no longer offers `System.CommandLine` updates. The CLI uses the 2.0.0-beta4 API, which the stable
   releases removed, so those PRs could only fail; the pin comes off when the CLI is ported.
