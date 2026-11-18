@@ -45,6 +45,31 @@ namespace OmenCoreApp.Tests.ViewModels
         }
 
         [Fact]
+        public void BuildUndervoltStatusText_AmdStepRounding_IsNotAMismatch()
+        {
+            // GitHub #222 (8E35, Ryzen 9 8940HX): -15 requested, -12 applied (whole 4 mV-eq. counts).
+            var status = new UndervoltStatus { CurrentCoreOffsetMv = -12, CurrentCacheOffsetMv = 0, ControlledByOmenCore = true };
+
+            var text = TuningStatusFormatter.BuildUndervoltStatusText(-15, 0, status, isAmdCpu: true);
+
+            text.Should().Contain("nearest Curve Optimizer step");
+            text.Should().NotContain("mismatch");
+            SystemControlViewModel.ComputeUndervoltMismatch(status, -15, 0, applyAttempted: true, isAmdCpu: true).Should().BeFalse();
+        }
+
+        [Fact]
+        public void BuildUndervoltStatusText_AmdOffsetOffByMoreThanAStep_IsStillAMismatch()
+        {
+            var status = new UndervoltStatus { CurrentCoreOffsetMv = 0, CurrentCacheOffsetMv = 0, ControlledByOmenCore = true };
+
+            TuningStatusFormatter.BuildUndervoltStatusText(-20, 0, status, isAmdCpu: true).Should().Contain("mismatch");
+            SystemControlViewModel.ComputeUndervoltMismatch(status, -20, 0, applyAttempted: true, isAmdCpu: true).Should().BeTrue();
+            // Intel has no step rounding: the same 3 mV difference is a mismatch there.
+            SystemControlViewModel.ComputeUndervoltMismatch(
+                new UndervoltStatus { CurrentCoreOffsetMv = -12 }, -15, 0, applyAttempted: true, isAmdCpu: false).Should().BeTrue();
+        }
+
+        [Fact]
         public void BuildUndervoltStatusText_WhenExternalControllerPresent_ReturnsBlockedVerification()
         {
             var status = new UndervoltStatus

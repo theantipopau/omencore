@@ -414,18 +414,19 @@ namespace OmenCore.ViewModels
 
         private bool UndervoltHasMismatch => ComputeUndervoltMismatch(
             UndervoltStatus, RequestedCoreOffset, RequestedCacheOffset,
-            _undervoltApplyAttempted || (_configService.Config.Undervolt?.ApplyOnStartup ?? false));
+            _undervoltApplyAttempted || (_configService.Config.Undervolt?.ApplyOnStartup ?? false),
+            IsAmdCpu);
 
         internal static bool ComputeUndervoltMismatch(
-            UndervoltStatus? status, double requestedCoreMv, double requestedCacheMv, bool applyAttempted)
+            UndervoltStatus? status, double requestedCoreMv, double requestedCacheMv, bool applyAttempted, bool isAmdCpu = false)
         {
             if (status == null || !applyAttempted)
             {
                 return false;
             }
 
-            return Math.Abs(status.CurrentCoreOffsetMv - requestedCoreMv) > 0.5
-                || Math.Abs(status.CurrentCacheOffsetMv - requestedCacheMv) > 0.5;
+            return !TuningStatusFormatter.UndervoltOffsetMatches(status.CurrentCoreOffsetMv, requestedCoreMv, isAmdCpu)
+                || !TuningStatusFormatter.UndervoltOffsetMatches(status.CurrentCacheOffsetMv, requestedCacheMv, isAmdCpu);
         }
 
         public string UndervoltStateLabel
