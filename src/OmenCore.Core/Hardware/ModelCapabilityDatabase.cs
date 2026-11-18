@@ -2063,8 +2063,8 @@ namespace OmenCore.Hardware
             // Victus 15-fb3185AX, Ryzen 7 260 + RTX 5050, board 8E5F. GitHub #249 export (4.5.1, BIOS F.15).
             // Previously resolved by the 15-fb3 name pattern. From the export: FanCount 2, firmware fan
             // table top row 4300/4100 RPM, WMI thermal-policy fallback applied for the modes, keyboard
-            // backlight only. Reporter: modes and Auto/Max work. Curves off until a Guided Fan
-            // Verification run, the same rule as 8C2D.
+            // backlight only. Reporter: modes and Auto/Max work. Curves turned on after a 6/6 Guided Fan
+            // Verification pass on 5.0.1 (#249).
             AddModel(new ModelCapabilities
             {
                 ProductId = "8E5F",
@@ -2074,7 +2074,7 @@ namespace OmenCore.Hardware
                 Family = OmenModelFamily.Victus,
                 SupportsFanControlWmi = true,
                 SupportsFanControlEc = false,
-                SupportsFanCurves = false,
+                SupportsFanCurves = true,
                 SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = false,
                 FanZoneCount = 2,
@@ -2088,7 +2088,7 @@ namespace OmenCore.Hardware
                 HasFourZoneRgb = false,
                 HasKeyboardBacklight = true,
                 UserVerified = false,
-                Notes = "GitHub #249 - HP Victus 15-fb3185AX, ProductId 8E5F, Ryzen 7 260 + RTX 5050, BIOS F.15, 4.5.1 export. FanCount 2; firmware fan table top row CPU 4300 / GPU 4100 RPM, but Max read back 5400 / 5200 RPM (#249, 2026-11-14), so the table is not this board's ceiling; RPM estimated from fan level; backlight-only keyboard. Reporter confirms Quiet/Balanced/Performance (WMI thermal-policy fallback) and Auto/Max switching. Curves withheld until a Guided Fan Verification run; reporter also sees occasional fan spikes in firmware Auto at idle."
+                Notes = "GitHub #249 - HP Victus 15-fb3185AX, ProductId 8E5F, Ryzen 7 260 + RTX 5050, BIOS F.15, 4.5.1 export. FanCount 2; firmware fan table top row CPU 4300 / GPU 4100 RPM, but Max read back 5400 / 5200 RPM (#249, 2026-11-14), so the table is not this board's ceiling; RPM estimated from fan level; backlight-only keyboard. Reporter confirms Quiet/Balanced/Performance (WMI thermal-policy fallback) and Auto/Max switching. Curves on after a 6/6 Guided Fan Verification pass on 5.0.1 (80/100, fan-level evidence, #249 2026-11-15); reporter also sees occasional fan spikes in firmware Auto at idle."
             });
 
             // Victus 15-fa1xxx, Intel i5-12450H + RTX 4050, board 8C2D. GitHub #205 export (4.3.1, BIOS
