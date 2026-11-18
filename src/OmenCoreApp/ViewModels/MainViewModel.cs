@@ -546,7 +546,21 @@ namespace OmenCore.ViewModels
         public bool ShowUnverifiedModelBanner =>
             (SystemInfo?.IsHpGaming ?? false) &&
             DetectedCapabilities != null &&
-            (!DetectedCapabilities.IsKnownModel || DetectedCapabilities.ModelConfig?.UserVerified == false);
+            (!DetectedCapabilities.IsKnownModel || DetectedCapabilities.ModelConfig?.UserVerified == false) &&
+            !IsStandardProfileNoticeDismissed(_config.DismissedStandardProfileNoticeBoard, DetectedCapabilities.ProductId);
+
+        /// <summary>5.0.2: the notice can be dismissed, per board.</summary>
+        internal static bool IsStandardProfileNoticeDismissed(string? dismissedBoard, string? productId) =>
+            !string.IsNullOrWhiteSpace(dismissedBoard) &&
+            string.Equals(dismissedBoard, productId, StringComparison.OrdinalIgnoreCase);
+
+        public ICommand DismissStandardProfileNoticeCommand => _dismissStandardProfileNoticeCommand ??= new RelayCommand(_ =>
+        {
+            _config.DismissedStandardProfileNoticeBoard = DetectedCapabilities?.ProductId;
+            _configService.Save(_config);
+            OnPropertyChanged(nameof(ShowUnverifiedModelBanner));
+        });
+        private ICommand? _dismissStandardProfileNoticeCommand;
         
         /// <summary>
         /// Warning message for limited functionality.

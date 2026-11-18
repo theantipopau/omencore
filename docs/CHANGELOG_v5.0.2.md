@@ -34,6 +34,14 @@
   applied at the nearest Curve Optimizer step instead of reporting a mismatch; a difference of a full step or more,
   and any difference on Intel, still shows as a mismatch.
 
+## Changed
+
+- **The "Model Not Yet Field-Confirmed" warning is now a calm, dismissible note.** It was an orange warning box on
+  every page for every board without a confirmed entry, which is most boards, and users read it as "my laptop is not
+  supported" (r/HPOmen thread on OMEN Gaming Hub alternatives, November 2026). It now says the laptop is supported with
+  its family's standard profile, that Diagnostics shows which advanced options are off and why, and has a "Got it"
+  button that hides it for that board. Another board, or this config restored on a different laptop, shows it again.
+
 ## Investigated, not fixed yet
 
 - **Victus `8C2F`: manual fan ownership after the app exits** (#246). mecaniko-tallerOS found the EC in manual control
@@ -47,3 +55,20 @@
 - **#263** (Kenyi001): an exact entry for the OMEN 16-k0xxx `8A4D`. Under review: the entry marks the board as
   user-verified, which changes how firmware fan counts are trusted, so it needs the export and Guided Fan Verification
   result behind it. The same board's Battery Care report (#243) is not covered by it.
+
+## Community feedback (r/HPOmen, November 2026)
+
+A thread comparing OMEN Gaming Hub alternatives (OmenCore, OmenMon / OmenMon Reborn, Ohman). What users said about
+OmenCore and what they liked elsewhere, with what this cycle and the next do about it:
+
+| Feedback | Where it goes |
+|---|---|
+| "Sluggish and buggy" (most-upvoted comment; likely an older build) | 5.0.0 cut startup and idle memory and gates both in CI; the fan curve page still stutters (#222) and is on the 5.1 interface list. |
+| "Cluttered with stuff you don't need" | 5.1: a simpler default view with the advanced pages one click away. |
+| "Doesn't detect my laptop as official" | 5.0.2: the unconfirmed-model warning is now a calm, dismissible note (above). |
+| Ohman: lightweight, many models, least-hassle setup | 5.1 first-run screen; model entries keep growing from exports. |
+| Ohman stops OMEN background processes at boot, so OGH need not be uninstalled | 5.1: offer to pause the OMEN background services while OmenCore runs, reversibly, instead of only the cleanup tool. |
+| The OMEN key cycling fan modes is convenient | Already available: Settings → OMEN key action `CycleFanMode`. 5.1: readable names in that list (it shows raw identifiers today) and offer it on first run. |
+| Separate CPU and GPU fan curves | Supported where the board allows independent curves; say so on the Fan page when it is off and why. |
+| Desktop OMEN (45L) support | Monitoring only today; fan writes stay disabled until there is desktop evidence. Tracked for later. |
+| OMEN 17 macro keys P1-P6 | Feature request; needs the key events from an owner's export. |

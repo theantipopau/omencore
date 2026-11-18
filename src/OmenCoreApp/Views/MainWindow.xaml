@@ -744,25 +744,31 @@
                                 </StackPanel>
                             </DockPanel>
                         </Border>
+                        <!-- 5.0.2: was an orange "Model Not Yet Field-Confirmed" warning on every page, which users read
+                             as "my laptop isn't supported" (Reddit, 2026-11). Neutral, plain-language, dismissible per board. -->
                         <Border Style="{StaticResource PremiumPanelCard}"
-                            Background="#2A4C3517"
-                                BorderBrush="{StaticResource WarningBrush}"
-                                BorderThickness="2"
-                                Padding="14,10"
+                                BorderBrush="{StaticResource InfoBrush}"
+                                BorderThickness="1"
+                                Padding="14,8"
                                 Margin="24,12,24,12"
+                                AutomationProperties.Name="Standard profile notice"
                                 Visibility="{Binding ShowUnverifiedModelBanner, Converter={StaticResource BoolToVisibility}}">
                             <DockPanel>
-                                <Path DockPanel.Dock="Left" Data="{StaticResource IconWarning}" Width="22" Height="22" Fill="{StaticResource WarningBrush}" Stretch="Uniform" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                <Button DockPanel.Dock="Right" Content="Got it" VerticalAlignment="Center" Margin="12,0,0,0"
+                                        Padding="12,4"
+                                        Command="{Binding DismissStandardProfileNoticeCommand}"
+                                        AutomationProperties.Name="Dismiss the standard profile notice"
+                                        ToolTip="Hide this notice for this laptop" />
                                 <StackPanel>
-                                    <TextBlock Text="Notice: Model Not Yet Field-Confirmed"
-                                               FontWeight="Bold"
+                                    <TextBlock Text="Your laptop is supported with its family's standard profile"
+                                               FontWeight="SemiBold"
                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                               FontSize="14" />
-                                    <TextBlock Text="This is a real HP OMEN/Victus system, but this exact model's capabilities are inferred rather than confirmed by another user - see the Diagnostics tab for exactly which features that affects. Most functionality should still work; please report anything that looks wrong."
+                                               FontSize="13" />
+                                    <TextBlock Text="Nobody with this exact model has confirmed every feature yet, so a few advanced options may stay off. Diagnostics shows which ones and why. A diagnostics export on GitHub or Discord gets your model fully confirmed."
                                                TextWrapping="Wrap"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
                                                FontSize="12"
-                                               Margin="0,3,0,0" />
+                                               Margin="0,2,0,0" />
                                 </StackPanel>
                             </DockPanel>
                         </Border>

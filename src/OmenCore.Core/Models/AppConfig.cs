@@ -136,6 +136,12 @@ namespace OmenCore.Models
         public bool DismissedStartupRestoreHint { get; set; } = false;
 
         /// <summary>
+        /// The board (ProductId) whose "standard profile" notice the user dismissed. Stored per board, so a
+        /// different laptop - or this config restored on one - shows the notice again.
+        /// </summary>
+        public string? DismissedStandardProfileNoticeBoard { get; set; }
+
+        /// <summary>
         /// Enables beginner-friendly Lite Mode by hiding advanced tabs and controls.
         /// </summary>
         public bool LiteModeEnabled { get; set; } = false;
