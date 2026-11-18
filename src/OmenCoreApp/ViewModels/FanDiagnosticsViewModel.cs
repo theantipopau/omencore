@@ -193,7 +193,7 @@ namespace OmenCore.ViewModels
                     testLease.Dispose();
                     
                     // v2.7.1: Restore previous fan preset after diagnostic
-                    if (_preTestPreset != null)
+                    if (_preTestPreset != null && !FanModeNameResolver.IsAutoAlias(_preTestPreset.Name))
                     {
                         _logging.Info($"[FanDiagnostic] Restoring preset: {_preTestPreset.Name}");
                         _fanService.ApplyPreset(_preTestPreset, immediate: true);
@@ -201,17 +201,10 @@ namespace OmenCore.ViewModels
                     }
                     else
                     {
-                        // No preset was active (user was in auto/BIOS mode)
-                        // Must explicitly restore auto control or fans stay at last test speed
-                        _logging.Info("[FanDiagnostic] No preset was active — restoring BIOS auto control");
-                        try
-                        {
-                            _fanService.RestoreAutoControl();
-                        }
-                        catch (Exception restoreEx)
-                        {
-                            _logging.Warn($"[FanDiagnostic] Auto restore failed: {restoreEx.Message}");
-                        }
+                        // Auto (or no preset): the test wrote fan levels directly, which a plain Auto hand-back
+                        // can leave latched (GitHub #143) - use the full OEM reset.
+                        HandBackToAutoAfterDirectWrites("[FanDiagnostic]");
+                        _preTestPreset = null;
                     }
                     
                     IsDiagnosticActive = false;
@@ -466,7 +459,7 @@ namespace OmenCore.ViewModels
                 guidedLease.Dispose();
                 
                 // v2.7.1: Restore previous fan preset after diagnostic
-                if (_preTestPreset != null)
+                if (_preTestPreset != null && !FanModeNameResolver.IsAutoAlias(_preTestPreset.Name))
                 {
                     _logging.Info($"[GuidedDiagnostic] Restoring preset: {_preTestPreset.Name}");
                     _fanService.ApplyPreset(_preTestPreset, immediate: true);
@@ -474,21 +467,38 @@ namespace OmenCore.ViewModels
                 }
                 else
                 {
-                    // No preset was active — restore BIOS auto control
-                    _logging.Info("[GuidedDiagnostic] No preset was active — restoring BIOS auto control");
-                    try
-                    {
-                        _fanService.RestoreAutoControl();
-                    }
-                    catch (Exception restoreEx)
-                    {
-                        _logging.Warn($"[GuidedDiagnostic] Auto restore failed: {restoreEx.Message}");
-                    }
+                    // Auto (or no preset): see HandBackToAutoAfterDirectWrites (GitHub #143).
+                    HandBackToAutoAfterDirectWrites("[GuidedDiagnostic]");
+                    _preTestPreset = null;
                 }
                 
                 IsGuidedTestRunning = false;
                 IsDiagnosticActive = false;
                 GuidedTestProgress = 100;
+            }
+        }
+
+        /// <summary>
+        /// GitHub #143 (8DCD, V1): a verification run ends with level 55 written directly, and the plain Auto
+        /// hand-back (SetFanMode(Default), level hint skipped by the experimental setting) left the fans pinned
+        /// there. Restore OEM Auto - clear Max, Default, countdown, Default again - always recovered them on that
+        /// board, so a run that started in Auto ends with that sequence, then the Auto preset is re-applied so the
+        /// UI shows what the user had.
+        /// </summary>
+        private void HandBackToAutoAfterDirectWrites(string tag)
+        {
+            var autoPreset = _preTestPreset;
+            try
+            {
+                _logging.Info($"{tag} Run started in Auto - full OEM auto restore after direct test writes");
+                if (!_fanService.RestoreOemAutoControl())
+                    _fanService.RestoreAutoControl();
+                if (autoPreset != null)
+                    _fanService.ApplyPreset(autoPreset, immediate: true);
+            }
+            catch (Exception restoreEx)
+            {
+                _logging.Warn($"{tag} Auto restore failed: {restoreEx.Message}");
             }
         }
 
