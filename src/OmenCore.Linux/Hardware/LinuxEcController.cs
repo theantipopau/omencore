@@ -51,6 +51,7 @@ public class LinuxEcController
     private string? _hwmonPwm2Path;
     private string? _hwmonFan1InputPath;
     private string? _hwmonFan2InputPath;
+    private string? _hwmonFan1MaxPath;
     
     // DMI paths for model detection
     private const string DMI_PRODUCT_NAME = "/sys/class/dmi/id/product_name";
@@ -356,6 +357,8 @@ public class LinuxEcController
                 continue;
             _hwmonFan1InputPath = File.Exists(fan1) ? fan1 : null;
             _hwmonFan2InputPath = File.Exists(fan2) ? fan2 : null;
+            var max1 = Path.Combine(dir, "fan1_max");
+            _hwmonFan1MaxPath = File.Exists(max1) ? max1 : null;
             return;
         }
     }
@@ -1096,9 +1099,17 @@ public class LinuxEcController
         if (!canFallBack)
             return true;
 
+        int maxRpm = 0;
+        try
+        {
+            if (_hwmonFan1MaxPath != null && int.TryParse(ReadSysfsFile(_hwmonFan1MaxPath), out var m))
+                maxRpm = m;
+        }
+        catch { }
+
         Thread.Sleep(3000);
         var (a1, a2) = GetHwmonFanSpeeds();
-        if (!FullSpeedWriteSlowedFans(Math.Max(b1, b2), Math.Max(a1, a2)))
+        if (!FullSpeedWriteSlowedFans(Math.Max(b1, b2), Math.Max(a1, a2), maxRpm))
             return true;
 
         usedManualDuty = SetHwmonPwmDutyPercent(100);
@@ -1106,11 +1117,13 @@ public class LinuxEcController
     }
 
     /// <summary>
-    /// True when a full-speed write left the fans stopped or slower than before it (5 % tolerance
-    /// for tachometer jitter). A real full-speed write never lowers RPM.
+    /// True when a full-speed write did not give full speed: the fans stopped, slowed (5 % tolerance
+    /// for tachometer jitter), or - when the driver publishes fan1_max - stayed under 70 % of it.
+    /// GitHub #238 (8EEC, 5.0.1): pwm1_enable=0 settled at 1900/2200 RPM from idle, which is neither
+    /// stopped nor slower, while manual duty reached 4300/4600 RPM against a ~4600 maximum.
     /// </summary>
-    public static bool FullSpeedWriteSlowedFans(int rpmBefore, int rpmAfter) =>
-        rpmAfter <= 0 || rpmAfter < rpmBefore * 0.95;
+    public static bool FullSpeedWriteSlowedFans(int rpmBefore, int rpmAfter, int maxRpm = 0) =>
+        rpmAfter <= 0 || rpmAfter < rpmBefore * 0.95 || (maxRpm > 0 && rpmAfter < maxRpm * 0.7);
 
     public int? GetHwmonPwmDutyPercent()
     {

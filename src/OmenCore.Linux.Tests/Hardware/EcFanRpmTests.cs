@@ -24,6 +24,15 @@ public class EcFanRpmTests
         LinuxEcController.FullSpeedWriteSlowedFans(before, after).Should().Be(slowed);
     }
 
+    [Theory]
+    [InlineData(0, 2200, 4600, true)]     // GitHub #238, 5.0.1: pwm1_enable=0 settled near BIOS-auto speed
+    [InlineData(0, 4400, 4600, false)]    // real full speed
+    [InlineData(0, 2200, 0, false)]       // no fan1_max published: only the stop/slow rule applies
+    public void FullSpeedWriteSlowedFans_UsesFanMaxWhenPublished(int before, int after, int max, bool slowed)
+    {
+        LinuxEcController.FullSpeedWriteSlowedFans(before, after, max).Should().Be(slowed);
+    }
+
     [Fact]
     public void EcFanByteToRpm_NoReadIsZero()
     {
