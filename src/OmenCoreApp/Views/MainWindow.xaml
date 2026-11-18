@@ -781,6 +781,7 @@
                          constrained measurement pages are written against. SetUiScale turns it to
                          Auto only when the scale is not 100 %. -->
                     <ScrollViewer x:Name="PageScrollViewer" Grid.Row="1" Margin="24,0,24,12"
+                                  Style="{StaticResource SmoothScrollViewer}"
                                   VerticalScrollBarVisibility="Disabled"
                                   HorizontalScrollBarVisibility="Disabled"
                                   PanningMode="VerticalOnly">
