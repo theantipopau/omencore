@@ -1507,7 +1507,7 @@ namespace OmenCore.ViewModels
 
         public string OmenKeyAction
         {
-            get => _config.Features?.OmenKeyAction ?? "ShowQuickPopup";
+            get => NormalizeOmenKeyAction(_config.Features?.OmenKeyAction);
             set
             {
                 if (_config.Features == null) _config.Features = new FeaturePreferences();
@@ -1521,10 +1521,29 @@ namespace OmenCore.ViewModels
             }
         }
 
-        public string[] OmenKeyActionOptions => new[]
+        // Key = the string stored in config, Value = what the list shows. ToggleFanMode and
+        // TogglePerformanceMode are older aliases of the Cycle actions; the getter maps them so a
+        // saved alias still selects its entry.
+        public IReadOnlyList<KeyValuePair<string, string>> OmenKeyActionOptions => OmenKeyActionChoices;
+
+        internal static readonly IReadOnlyList<KeyValuePair<string, string>> OmenKeyActionChoices = new[]
         {
-            "ShowQuickPopup", "ShowWindow", "ToggleFanMode", "TogglePerformanceMode",
-            "CyclePerformance", "CycleFanMode", "ToggleMaxCooling", "ToggleOsd", "LaunchExternalApp", "DoNothing"
+            new KeyValuePair<string, string>("ShowQuickPopup", "Open the quick panel"),
+            new KeyValuePair<string, string>("ShowWindow", "Show or hide OmenCore"),
+            new KeyValuePair<string, string>("CyclePerformance", "Cycle performance modes"),
+            new KeyValuePair<string, string>("CycleFanMode", "Cycle fan modes"),
+            new KeyValuePair<string, string>("ToggleMaxCooling", "Max cooling on / off"),
+            new KeyValuePair<string, string>("ToggleOsd", "Show or hide the on-screen display"),
+            new KeyValuePair<string, string>("LaunchExternalApp", "Launch an app"),
+            new KeyValuePair<string, string>("DoNothing", "Do nothing (block the key)"),
+        };
+
+        internal static string NormalizeOmenKeyAction(string? action) => action switch
+        {
+            "ToggleFanMode" => "CycleFanMode",
+            "TogglePerformanceMode" => "CyclePerformance",
+            null or "" => "ShowQuickPopup",
+            _ => action
         };
 
         public bool OmenKeyLaunchesApp => OmenKeyAction == "LaunchExternalApp";

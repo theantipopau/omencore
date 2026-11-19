@@ -2484,7 +2484,8 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </StackPanel>
                                     <ComboBox AutomationProperties.Name="OMEN Key Action" Grid.Column="1" 
-                                              SelectedItem="{Binding OmenKeyAction, Mode=TwoWay}"
+                                              SelectedValue="{Binding OmenKeyAction, Mode=TwoWay}"
+                                              SelectedValuePath="Key" DisplayMemberPath="Value"
                                               ItemsSource="{Binding OmenKeyActionOptions}"
                                               IsEnabled="{Binding OmenKeyInterceptionEnabled}"/>
                                 </Grid>

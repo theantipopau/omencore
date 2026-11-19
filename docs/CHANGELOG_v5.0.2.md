@@ -42,6 +42,10 @@
   its family's standard profile, that Diagnostics shows which advanced options are off and why, and has a "Got it"
   button that hides it for that board. Another board, or this config restored on a different laptop, shows it again.
 
+- **The OMEN key action list shows readable names** ("Cycle fan modes", "Max cooling on / off") instead of internal
+  identifiers such as `CycleFanMode`, and the two duplicate alias entries are gone. A saved alias still selects its
+  entry and behaves as before.
+
 ## Investigated, not fixed yet
 
 - **Victus `8C2F`: manual fan ownership after the app exits** (#246). mecaniko-tallerOS found the EC in manual control
@@ -68,7 +72,7 @@ OmenCore and what they liked elsewhere, with what this cycle and the next do abo
 | "Doesn't detect my laptop as official" | 5.0.2: the unconfirmed-model warning is now a calm, dismissible note (above). |
 | Ohman: lightweight, many models, least-hassle setup | 5.1 first-run screen; model entries keep growing from exports. |
 | Ohman stops OMEN background processes at boot, so OGH need not be uninstalled | 5.1: offer to pause the OMEN background services while OmenCore runs, reversibly, instead of only the cleanup tool. |
-| The OMEN key cycling fan modes is convenient | Already available: Settings → OMEN key action `CycleFanMode`. 5.1: readable names in that list (it shows raw identifiers today) and offer it on first run. |
+| The OMEN key cycling fan modes is convenient | Already available: Settings → OMEN key → "Cycle fan modes". 5.0.2: readable names in that list (above). 5.1: offer it on first run. |
 | Separate CPU and GPU fan curves | Supported where the board allows independent curves; say so on the Fan page when it is off and why. |
 | Desktop OMEN (45L) support | Monitoring only today; fan writes stay disabled until there is desktop evidence. Tracked for later. |
 | OMEN 17 macro keys P1-P6 | Feature request; needs the key events from an owner's export. |
