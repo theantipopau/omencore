@@ -282,6 +282,9 @@ namespace OmenCore.Hardware
         private static readonly TimeSpan StaticTrayGpuTelemetryInterval = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan BatteryGpuTelemetryInterval = TimeSpan.FromSeconds(10);
         private bool _batteryGpuTelemetryThrottledLogged;
+        // #177: when NVAPI last gave a die temperature, and the refresh interval in force then.
+        private DateTime _lastNvapiGpuTempUtc = DateTime.MinValue;
+        private TimeSpan _currentExpensiveGpuInterval = TimeSpan.Zero;
 
         // CPU PerformanceCounter — persistent instance avoids 100ms sleep + allocation every poll
         private System.Diagnostics.PerformanceCounter? _cpuPerfCounter;
@@ -685,7 +688,12 @@ namespace OmenCore.Hardware
                             }
 
                             _lastGpuTempReading = gpuTemp;
-                            _cachedGpuTemp = gpuTemp;
+                            // #177: the BIOS GPU sensor and the NVAPI die sensor can disagree by tens of
+                            // degrees. On battery NVAPI only refreshes every 10 s, so writing the BIOS value
+                            // on every poll in between made the reading flip between the two (spikes in the
+                            // graph, fans chasing them). Keep the die reading while it is fresh.
+                            if (!NvapiGpuTempIsFresh(_lastNvapiGpuTempUtc, DateTime.UtcNow, _currentExpensiveGpuInterval))
+                                _cachedGpuTemp = gpuTemp;
                         }
                     }
 
@@ -726,6 +734,8 @@ namespace OmenCore.Hardware
                     : _staticTraySamplingMode
                         ? StaticTrayGpuTelemetryInterval
                         : TimeSpan.Zero;
+
+                _currentExpensiveGpuInterval = expensiveGpuTelemetryInterval;
 
                 bool shouldRefreshExpensiveGpuTelemetry =
                     expensiveGpuTelemetryInterval == TimeSpan.Zero ||
@@ -780,7 +790,10 @@ namespace OmenCore.Hardware
                                     double nvapiLoad = -1;
 
                                     if (lightSample.GpuTemperatureC > 0)
+                                    {
                                         _cachedGpuTemp = lightSample.GpuTemperatureC;
+                                        _lastNvapiGpuTempUtc = DateTime.UtcNow;
+                                    }
 
                                     if (lightSample.GpuLoadPercent >= 0 && lightSample.GpuLoadPercent <= 100)
                                         nvapiLoad = lightSample.GpuLoadPercent;
@@ -1835,7 +1848,19 @@ namespace OmenCore.Hardware
             if (gpuSample.GpuTemperatureC > 0)
             {
                 _cachedGpuTemp = gpuSample.GpuTemperatureC;
+                _lastNvapiGpuTempUtc = DateTime.UtcNow;
             }
+        }
+
+        /// <summary>
+        /// #177: an NVAPI die temperature counts as fresh until the next scheduled refresh is due,
+        /// plus 5 s of slack for a slow poll. Past that (NVAPI failing, GPU parked, or never read)
+        /// the BIOS GPU sensor is used again.
+        /// </summary>
+        internal static bool NvapiGpuTempIsFresh(DateTime lastNvapiUtc, DateTime nowUtc, TimeSpan refreshInterval)
+        {
+            if (lastNvapiUtc == DateTime.MinValue) return false;
+            return nowUtc - lastNvapiUtc <= refreshInterval + TimeSpan.FromSeconds(5);
         }
 
         private void SanitizeGpuTelemetry()

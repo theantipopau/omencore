@@ -29,6 +29,11 @@
 - **The page scrollbar lost the app theme at zoom levels other than 100 %** (#246, found and fixed by
   mecaniko-tallerOS): the outer page scroller now uses the same style as the pages inside it.
 
+- **GPU temperature spiking on battery, with the fans chasing it** (#177, OMEN 16 wf0, RTX 4060). Two sensors fed
+  one reading: the HP BIOS GPU sensor on every poll and NVIDIA's die sensor, which on battery is read only every
+  10 s to let the GPU sleep. When the two disagreed, the reading flipped between them. The die reading is now kept
+  until its next refresh is due (plus 5 s), and the BIOS sensor is used only when NVIDIA has not answered. It should
+  also cover the short 80 °C+ blips reported on AC, if those were a missed NVIDIA read. *Implemented, pending confirmation.*
 - **AMD Curve Optimizer showed "Degraded" for a rounded value** (#222, Ryzen 9 8940HX on `8E35`). Offsets go to the
   SMU in whole counts of 4 mV-equivalent, truncated toward zero, so −15 is applied as −12. The status now says it was
   applied at the nearest Curve Optimizer step instead of reporting a mismatch; a difference of a full step or more,
