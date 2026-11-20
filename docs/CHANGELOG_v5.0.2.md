@@ -11,6 +11,10 @@
   level 50 of 55). `8C2F` GPU fan tachometer tracked a GPU load up and back down on 5.0.1 (2,400 → 3,317 → 2,712 RPM)
   with the BIOS in Auto at all 49 checks (#246), so both tachometer channels from 5.0.1 are now hardware-checked.
 
+- **Simplified Chinese interface** (#266, by pkq66882, #69): a `zh` catalog for every translated string, 简体中文 in
+  the Settings language list, and Microsoft YaHei UI as the font fallback for Chinese text anywhere in the app (game
+  and profile names, paths), so it no longer depends on whichever face Windows picks per glyph.
+
 ## Fixed
 
 - **Fans stayed pinned at the last test level after Guided Fan Verification** (#143, Victus 15-fa2xxx `8DCD`, thermal
