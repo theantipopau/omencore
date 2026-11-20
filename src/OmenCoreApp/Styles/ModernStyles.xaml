@@ -21,8 +21,8 @@
          via the identical code path in the same test run (ruling out a test-environment gap). Do
          not switch this resource until a STATIC (non-variable) release of the font is embedded
          instead — see docs/ROADMAP_v4.2.0.md Pillar 3 for the investigation and next step. -->
-    <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, "Segoe UI", Arial</FontFamily>
-    <FontFamily x:Key="MonospaceFontFamily">Cascadia Mono, Consolas, "Courier New", monospace</FontFamily>
+    <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI, "Segoe UI", Microsoft YaHei UI, Arial</FontFamily>
+    <FontFamily x:Key="MonospaceFontFamily">Cascadia Mono, Consolas, "Courier New", Microsoft YaHei UI, monospace</FontFamily>
 
     <!-- ==================== GLOBAL BUTTON STYLES ==================== -->
     <Style x:Key="PresetButton" TargetType="Button">
