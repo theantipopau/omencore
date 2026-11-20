@@ -23,6 +23,7 @@ field evidence that became a board entry. If you contributed and are missing, op
 | **mecaniko-tallerOS** ([@mecaniko-tallerOS](https://github.com/mecaniko-tallerOS)) | #246: per-fan firmware tachometers on the Victus `8C2F` (BIOS F.08), merged for 5.0.1 with their hardware verification (BIOS kept in Auto at every checkpoint); the BIOS Auto handoff and independent calibration patches under review for 5.1. |
 | **philipphoh** ([@philipphoh](https://github.com/philipphoh)) | #123: the OMEN Max 16 (`8D41`) GPU power analysis: OGH's WMI sequence per profile, the decompiled `NVPCF` ACPI logic, the Windows proof that the kernel's bytes lift the GPU to 175 W, and the Linux finding that `nvidia-powerd` carries the boost budget. |
 | **murilopontes** ([@murilopontes](https://github.com/murilopontes)) | OMEN 15-dc0xxx (`84DB`) EC fan-boost test results for the Linux guide. |
+| **pkq66882** ([@pkq66882](https://github.com/pkq66882)) | The Simplified Chinese (`zh`) UI translation. |
 
 ## Research this project learns from
 

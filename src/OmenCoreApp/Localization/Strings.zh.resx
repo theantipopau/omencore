@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <data name="WindowTitle" xml:space="preserve">
+    <value>OmenCore - 游戏本控制中心</value>
+  </data>
+  <data name="WindowMinimize" xml:space="preserve">
+    <value>最小化</value>
+  </data>
+  <data name="WindowMaximize" xml:space="preserve">
+    <value>最大化</value>
+  </data>
+  <data name="WindowRestore" xml:space="preserve">
+    <value>还原</value>
+  </data>
+  <data name="WindowClose" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+
+  <data name="NavGeneral" xml:space="preserve">
+    <value>常规</value>
+  </data>
+  <data name="NavCustom" xml:space="preserve">
+    <value>自定义</value>
+  </data>
+  <data name="NavTuning" xml:space="preserve">
+    <value>调优</value>
+  </data>
+  <data name="NavDiagnostics" xml:space="preserve">
+    <value>诊断</value>
+  </data>
+  <data name="NavMonitoring" xml:space="preserve">
+    <value>监控</value>
+  </data>
+  <data name="NavOptimizer" xml:space="preserve">
+    <value>优化</value>
+  </data>
+  <data name="NavMemory" xml:space="preserve">
+    <value>内存</value>
+  </data>
+  <data name="NavBloatware" xml:space="preserve">
+    <value>预装清理</value>
+  </data>
+  <data name="NavRgb" xml:space="preserve">
+    <value>RGB</value>
+  </data>
+  <data name="NavSettings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="NavGames" xml:space="preserve">
+    <value>游戏</value>
+  </data>
+
+  <data name="SettingsWindowBehaviour" xml:space="preserve">
+    <value>窗口行为</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>开机自动启动</value>
+  </data>
+  <data name="SettingsStartWithWindowsHelp" xml:space="preserve">
+    <value>Windows 启动时自动运行 OmenCore</value>
+  </data>
+  <data name="SettingsStartMinimized" xml:space="preserve">
+    <value>启动时最小化到系统托盘</value>
+  </data>
+  <data name="SettingsStartMinimizedHelp" xml:space="preserve">
+    <value>启动时隐藏主窗口，仅在系统托盘中显示图标</value>
+  </data>
+  <data name="SettingsLiteMode" xml:space="preserve">
+    <value>简洁模式（新手界面）</value>
+  </data>
+  <data name="SettingsLiteModeHelp" xml:space="preserve">
+    <value>默认隐藏高级标签页。随时可以关闭此选项以恢复完整控件。</value>
+  </data>
+  <data name="SettingsHeadlessMode" xml:space="preserve">
+    <value>无窗口模式（不显示主界面）</value>
+  </data>
+  <data name="SettingsHeadlessModeHelp" xml:space="preserve">
+    <value>不显示主窗口，仅保留系统托盘图标和后台服务。适合服务器场景。</value>
+  </data>
+  <data name="SettingsSoftwareRendering" xml:space="preserve">
+    <value>软件渲染模式</value>
+  </data>
+  <data name="SettingsSoftwareRenderingHelp" xml:space="preserve">
+    <value>改用基于 CPU 的渲染，以避免 RTSS、MSI Afterburner 等游戏内覆盖层导致的崩溃。需要重启应用。</value>
+  </data>
+  <data name="SettingsReduceMotion" xml:space="preserve">
+    <value>减少动画</value>
+  </data>
+  <data name="SettingsReduceMotionHelp" xml:space="preserve">
+    <value>在 Windows 自身“显示动画”设置的基础上，进一步关闭 OmenCore 自身的过渡和动画效果。</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="SettingsLanguageHelp" xml:space="preserve">
+    <value>界面显示语言。下次启动 OmenCore 时生效；无论选择哪种语言，数字和日志文件的格式都保持不变。</value>
+  </data>
+  <data name="SettingsMinimizeToTray" xml:space="preserve">
+    <value>关闭时最小化到系统托盘</value>
+  </data>
+  <data name="SettingsMinimizeToTrayHelp" xml:space="preserve">
+    <value>点击关闭按钮时最小化到系统托盘，而不是退出程序</value>
+  </data>
+  <data name="SettingsStayOnTop" xml:space="preserve">
+    <value>窗口置顶</value>
+  </data>
+  <data name="SettingsStayOnTopHelp" xml:space="preserve">
+    <value>让 OmenCore 始终保持在其他窗口之上</value>
+  </data>
+  <data name="SettingsTopmostBadge" xml:space="preserve">
+    <value>已置顶</value>
+  </data>
+  <data name="SettingsActiveBadge" xml:space="preserve">
+    <value>✓ 已启用</value>
+  </data>
+
+  <data name="SettingsTrayAndUi" xml:space="preserve">
+    <value>托盘与界面</value>
+  </data>
+  <data name="SettingsDisplayScale" xml:space="preserve">
+    <value>显示缩放</value>
+  </data>
+  <data name="SettingsDisplayScaleHelp" xml:space="preserve">
+    <value>整体缩放界面，文字和间距同步调整。在窗口任意位置按 Ctrl 加 + 或 -（或按 Ctrl+0 复位）即可调整。</value>
+  </data>
+  <data name="SettingsQuickAccess" xml:space="preserve">
+    <value>快速访问快捷按钮</value>
+  </data>
+  <data name="SettingsQuickAccessHelp" xml:space="preserve">
+    <value>选择弹窗中间按钮的功能，或将其禁用，以免误点“关闭屏幕”。</value>
+  </data>
+  <data name="SettingsQuickPopup" xml:space="preserve">
+    <value>启用快速访问弹窗</value>
+  </data>
+  <data name="SettingsQuickPopupHelp" xml:space="preserve">
+    <value>点击托盘图标时显示快速弹窗。关闭后将直接打开主窗口。</value>
+  </data>
+  <data name="SettingsTrayTemperature" xml:space="preserve">
+    <value>在托盘图标上显示温度</value>
+  </data>
+  <data name="SettingsTrayTemperatureHelp" xml:space="preserve">
+    <value>在系统托盘图标上实时显示 CPU/GPU 温度</value>
+  </data>
+  <data name="SettingsCorsairHidOnly" xml:space="preserve">
+    <value>Corsair：禁用 iCUE 回退（仅 HID 模式）</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyHelp" xml:space="preserve">
+    <value>对 Corsair 设备使用直接 HID 访问。并非所有设备都兼容；需要重启应用。</value>
+  </data>
+  <data name="SettingsCorsairHidOnlyWarning" xml:space="preserve">
+    <value>警告：仅 HID 模式可能降低与部分 Corsair 设备的兼容性。如果灯光控制失效，请重新启用 iCUE 回退或安装 iCUE。</value>
+  </data>
+  <data name="SettingsTelemetry" xml:space="preserve">
+    <value>启用匿名灯光遥测</value>
+  </data>
+  <data name="SettingsTelemetryHelp" xml:space="preserve">
+    <value>匿名分享 Corsair PID 成功/失败次数的聚合统计，帮助我们改进设备兼容性。不会收集任何可用于识别设备的信息。</value>
+  </data>
+</root>

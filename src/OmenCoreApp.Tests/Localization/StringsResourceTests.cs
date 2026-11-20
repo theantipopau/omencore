@@ -19,7 +19,7 @@ namespace OmenCoreApp.Tests.Localization
     /// </summary>
     public class StringsResourceTests
     {
-        private static readonly string[] Languages = { "en", "ru", "tr" };
+        private static readonly string[] Languages = { "en", "ru", "tr", "zh" };
 
         private static string LocalizationDirectory()
         {
@@ -100,6 +100,7 @@ namespace OmenCoreApp.Tests.Localization
             Language.Resolve("en").TwoLetterISOLanguageName.Should().Be("en");
             Language.Resolve("ru").TwoLetterISOLanguageName.Should().Be("ru");
             Language.Resolve("tr").TwoLetterISOLanguageName.Should().Be("tr");
+            Language.Resolve("zh").TwoLetterISOLanguageName.Should().Be("zh");
         }
 
         [Fact]
@@ -137,6 +138,9 @@ namespace OmenCoreApp.Tests.Localization
 
                 CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("tr");
                 Strings.NavGames.Should().Be("Oyunlar");
+
+                CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("zh");
+                Strings.NavSettings.Should().Be("设置");
 
                 CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en");
                 Strings.NavGames.Should().Be("Games");
