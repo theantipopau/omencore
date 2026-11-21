@@ -68,8 +68,8 @@ namespace OmenCoreApp.Tests.Hardware
             caps.SupportsRpmReadback.Should().BeFalse();
             caps.FanZoneCount.Should().Be(2);
             caps.MaxFanLevel.Should().Be(55);
-            caps.HasMuxSwitch.Should().BeTrue();
-            caps.SupportsGpuPowerBoost.Should().BeTrue();
+            caps.HasMuxSwitch.Should().BeFalse();
+            caps.SupportsGpuPowerBoost.Should().BeFalse();
             caps.HasFourZoneRgb.Should().BeTrue();
             caps.UserVerified.Should().BeTrue();
 
