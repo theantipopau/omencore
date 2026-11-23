@@ -10,6 +10,7 @@
 - **Recorded field results:** `8DCD` Guided Fan Verification 6/6 on 5.0.1 (#143; CPU 100 % at the firmware ceiling,
   level 50 of 55). `8C2F` GPU fan tachometer tracked a GPU load up and back down on 5.0.1 (2,400 → 3,317 → 2,712 RPM)
   with the BIOS in Auto at all 49 checks (#246), so both tachometer channels from 5.0.1 are now hardware-checked.
+  `8C2F` 15-inch chassis (15-fb2772nd, BIOS F.09) Guided Fan Verification 6/6 on 5.0.1 (#268).
 
 - **Simplified Chinese interface** (#266, by pkq66882, #69): a `zh` catalog for every translated string, 简体中文 in
   the Settings language list, and Microsoft YaHei UI as the font fallback for Chinese text anywhere in the app (game

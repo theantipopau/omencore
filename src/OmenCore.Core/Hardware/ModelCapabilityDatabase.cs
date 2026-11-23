@@ -2307,7 +2307,7 @@ namespace OmenCore.Hardware
                 SupportsUndervolt = false, // Ryzen AMD
                 HasFourZoneRgb = true,
                 UserVerified = false,
-                Notes = "GitHub #110 (16-r0xxx) + #155 (15-fb2082wm) — ProductId 8C2F is shared across the 15\" and 16\" Victus Ryzen 2024+ chassis. Capabilities were inferred from the 16\" report and are not yet confirmed on the 15\" chassis. Keyboard entry 8C2F already present in KeyboardModelDatabase. RequiredCpuVendor=AMD added after GitHub #172 (board 8BBE) showed the same \"16-r0\" WMI name pattern also matches an Intel machine, which must not inherit this AMD-only capability profile via the name-pattern fallback."
+                Notes = "GitHub #110 (16-r0xxx) + #155 (15-fb2082wm) — ProductId 8C2F is shared across the 15\" and 16\" Victus Ryzen 2024+ chassis. Capabilities were inferred from the 16\" report and are not yet confirmed on the 15\" chassis. Keyboard entry 8C2F already present in KeyboardModelDatabase. RequiredCpuVendor=AMD added after GitHub #172 (board 8BBE) showed the same \"16-r0\" WMI name pattern also matches an Intel machine, which must not inherit this AMD-only capability profile via the name-pattern fallback. GitHub #268 (2026-11-22): 15-fb2772nd, Ryzen 7 8845HS + RTX 4060, BIOS F.09, Guided Fan Verification 6/6, 85/100 on 5.0.1 (fan-level evidence; the 0x11 tachometers stay gated to F.08 until read on F.09)."
             });
 
             // Victus 16-r0xxx, Intel — the machine the RequiredCpuVendor guard above exists for.
