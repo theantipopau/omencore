@@ -422,6 +422,11 @@ namespace OmenCore.ViewModels
         public System.Windows.Media.SolidColorBrush RazerStatusBrush => StatusToBrush(GetProviderStatus("razer"));
         public string RazerStatusDetail => _rgbManager?.GetProvider("razer")?.StatusDetail ?? "Razer Synapse not configured";
 
+        public System.Windows.Media.SolidColorBrush OpenRgbStatusBrush => StatusToBrush(GetProviderStatus("openrgb"));
+        public string OpenRgbStatusDetail => _rgbManager?.GetProvider("openrgb")?.StatusDetail ?? "OpenRGB not connected";
+        public bool IsOpenRgbEnabled => true;
+        public bool HasNoOpenRgbDevices => !HasOpenRgbDevices;
+
         /// <summary>
         /// Human-readable summary of which RGB backends are currently in control.
         /// Shows HP keyboard backend + each connected peripheral provider.
@@ -667,8 +672,8 @@ namespace OmenCore.ViewModels
         public bool HasOpenRgbDevices => _openRgbProvider?.IsAvailable ?? false;
         public int OpenRgbDeviceCount => _openRgbProvider?.DeviceCount ?? 0;
         public string OpenRgbStatusText => HasOpenRgbDevices 
-            ? $"{OpenRgbDeviceCount} device(s) via OpenRGB" 
-            : "OpenRGB server not detected";
+            ? $"{OpenRgbDeviceCount} device(s) connected" 
+            : (_openRgbProvider?.IsConnected == true ? "Server connected (0 devices)" : "OpenRGB server not detected (localhost:6742)");
         public System.Collections.Generic.IReadOnlyList<OmenCore.Services.Rgb.OpenRgbDevice> OpenRgbDevices => 
             _openRgbProvider?.Devices ?? new System.Collections.Generic.List<OmenCore.Services.Rgb.OpenRgbDevice>();
         
@@ -1405,6 +1410,7 @@ namespace OmenCore.ViewModels
         public ICommand ApplyRazerSpectrumCommand { get; }
         
         // OpenRGB Commands
+        public ICommand DiscoverOpenRgbDevicesCommand { get; }
         public ICommand ApplyOpenRgbColorCommand { get; }
         
         // 4-Zone Keyboard Commands
@@ -1511,6 +1517,8 @@ namespace OmenCore.ViewModels
             
             // OpenRGB Commands
             ApplyOpenRgbColorCommand = new AsyncRelayCommand(async param => await ApplyOpenRgbColorAsync(param as string));
+            DiscoverOpenRgbDevicesCommand = new AsyncRelayCommand(async _ => await DiscoverOpenRgbDevicesAsync());
+            _ = DiscoverOpenRgbDevicesAsync();
             
             // 4-Zone Keyboard Commands
             ApplyKeyboardColorsCommand = new AsyncRelayCommand(async _ => await ApplyKeyboardColorsAsync());
@@ -1784,9 +1792,12 @@ namespace OmenCore.ViewModels
             OnPropertyChanged(nameof(LogitechStatusDetail));
             OnPropertyChanged(nameof(RazerStatusBrush));
             OnPropertyChanged(nameof(RazerStatusDetail));
+            OnPropertyChanged(nameof(OpenRgbStatusBrush));
+            OnPropertyChanged(nameof(OpenRgbStatusDetail));
             OnPropertyChanged(nameof(OpenRgbStatusText));
             OnPropertyChanged(nameof(OpenRgbDeviceCount));
             OnPropertyChanged(nameof(HasOpenRgbDevices));
+            OnPropertyChanged(nameof(HasNoOpenRgbDevices));
             OnPropertyChanged(nameof(RgbOwnershipSummary));
             OnPropertyChanged(nameof(RgbOwnershipVisualState));
             OnPropertyChanged(nameof(RgbOwnershipVisualLabel));
@@ -1935,6 +1946,47 @@ namespace OmenCore.ViewModels
                     _logging.Error($"Failed to apply OpenRGB color: {ex.Message}");
                 }
             }, "Applying OpenRGB color...");
+        }
+
+        private async Task DiscoverOpenRgbDevicesAsync()
+        {
+            if (_openRgbProvider != null)
+            {
+                try
+                {
+                    await _openRgbProvider.InitializeAsync();
+                    var dispatcher = Application.Current?.Dispatcher;
+                    if (dispatcher != null && !dispatcher.CheckAccess())
+                    {
+                        _ = dispatcher.BeginInvoke((Action)(() =>
+                        {
+                            RefreshRgbStatus();
+                            OnPropertyChanged(nameof(OpenRgbDevices));
+                            OnPropertyChanged(nameof(HasOpenRgbDevices));
+                            OnPropertyChanged(nameof(HasNoOpenRgbDevices));
+                            OnPropertyChanged(nameof(OpenRgbDeviceCount));
+                            OnPropertyChanged(nameof(OpenRgbStatusText));
+                            OnPropertyChanged(nameof(OpenRgbStatusBrush));
+                            OnPropertyChanged(nameof(OpenRgbStatusDetail));
+                        }));
+                    }
+                    else
+                    {
+                        RefreshRgbStatus();
+                        OnPropertyChanged(nameof(OpenRgbDevices));
+                        OnPropertyChanged(nameof(HasOpenRgbDevices));
+                        OnPropertyChanged(nameof(HasNoOpenRgbDevices));
+                        OnPropertyChanged(nameof(OpenRgbDeviceCount));
+                        OnPropertyChanged(nameof(OpenRgbStatusText));
+                        OnPropertyChanged(nameof(OpenRgbStatusBrush));
+                        OnPropertyChanged(nameof(OpenRgbStatusDetail));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging?.Debug($"[LightingViewModel] OpenRGB discovery failed: {ex.Message}");
+                }
+            }
         }
 
         #endregion
