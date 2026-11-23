@@ -7,13 +7,13 @@
 ### Lightweight local control for HP OMEN and Victus gaming laptops
 
 [![Website](https://img.shields.io/badge/omencore.info-Visit-0aa1dd.svg?style=for-the-badge)](https://omencore.info)
-[![Version](https://img.shields.io/badge/version-5.0.1-red.svg?style=for-the-badge)](docs/CHANGELOG_v5.0.1.md)
+[![Version](https://img.shields.io/badge/version-5.0.2-red.svg?style=for-the-badge)](docs/CHANGELOG_v5.0.2.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg?style=for-the-badge)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/9WhJdabGk8)
 
 **[Download](https://github.com/theantipopau/omencore/releases/latest)** ·
-**[What's new](docs/CHANGELOG_v5.0.1.md)** ·
+**[What's new](docs/CHANGELOG_v5.0.2.md)** ·
 **[Install guide](INSTALL.md)** ·
 **[Discord](https://discord.gg/9WhJdabGk8)**
 
@@ -36,14 +36,25 @@ No account, no ads, no cloud telemetry ([details](docs/TELEMETRY.md)), and OMEN 
 
 ## What's new
 
-**5.0.1** (2026-11-15) fixes the 5.0.0 release. Update from inside the app (the update button in the header, or F5); settings carry over.
+**5.0.2** (2026-11-23) is a fix release. Update from inside the app (the update button in the header, or F5); settings carry over. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.
+
+- Fans no longer stay pinned at the last test level after Guided Fan Verification, and the GPU temperature no longer spikes on battery when the BIOS and NVIDIA sensors disagree.
+- NVIDIA Power Unlock works on NVIDIA drivers other than 617.14: a new **Validate driver** button, and the backend updated to bobshmo's Prophecy Power Unlocker 1.2.9.
+- Custom fan curves on the Victus 15 `8E5F`; AMD Curve Optimizer values rounded to the nearest step no longer show as "Degraded".
+- The "not yet field-confirmed" warning is now a calm note you can dismiss; readable OMEN key action names; Simplified Chinese (contributed by pkq66882).
+- Linux: Max reaches full speed on newer `hp-wmi` drivers that publish `fan1_max`.
+
+Full notes: [docs/CHANGELOG_v5.0.2.md](docs/CHANGELOG_v5.0.2.md).
+
+### 5.0.1
+
 
 - Updating from 4.x no longer hangs with the old version on screen.
 - Fans are no longer held high by brief temperature spikes or a mis-identified temperature sensor (OMEN 16 `8E35`, Victus 15 `8E5F`).
 - Real per-fan speeds on the Victus `8C2F` (BIOS F.08), contributed by mecaniko-tallerOS; keyboard colour on the OMEN 16-wf1xxx per-key keyboard; a new entry for the Victus 15 `8E5F`.
 - Linux: real fan speeds instead of fixed numbers, Max no longer able to stop the fans on newer `hp-wmi` drivers, and `diagnose` warns when `nvidia-powerd` is not running.
 
-Full notes: [docs/CHANGELOG_v5.0.1.md](docs/CHANGELOG_v5.0.1.md).
+[Changelog](docs/CHANGELOG_v5.0.1.md).
 
 ### 5.0.0
 
@@ -96,13 +107,13 @@ Get the files from the [latest release](https://github.com/theantipopau/omencore
 
 | File | For |
 |---|---|
-| `OmenCoreSetup-5.0.1.exe` | Most Windows users. Installs the app and, optionally, the PawnIO driver. |
-| `OmenCore-5.0.1-win-x64.zip` | Portable Windows use. Extract and run `OmenCore.exe` as administrator. |
-| `OmenCore-5.0.1-linux-x64.zip` | Linux command-line tool and GUI, self-contained. |
+| `OmenCoreSetup-5.0.2.exe` | Most Windows users. Installs the app and, optionally, the PawnIO driver. |
+| `OmenCore-5.0.2-win-x64.zip` | Portable Windows use. Extract and run `OmenCore.exe` as administrator. |
+| `OmenCore-5.0.2-linux-x64.zip` | Linux command-line tool and GUI, self-contained. |
 
 ### Windows
 
-1. Download `OmenCoreSetup-5.0.1.exe`.
+1. Download `OmenCoreSetup-5.0.2.exe`.
 2. Run it. Windows may warn about an unknown publisher because the installer is not yet signed: choose **More info**, then **Run anyway**. You can verify the file first (see below).
 3. Keep **PawnIO** selected unless you only want monitoring and the WMI features.
 4. Start OmenCore from the Start menu.
@@ -112,7 +123,7 @@ Needs Windows 10 (19041 or later) or Windows 11, x64. The .NET 8 runtime is incl
 ### Linux
 
 ```bash
-VERSION=5.0.1
+VERSION=5.0.2
 wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"
 unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64
 cd OmenCore-linux-x64
@@ -129,7 +140,7 @@ Needs x64 Linux with `hp-wmi`, `ec_sys` (`write_support=1`) or a compatible hwmo
 Every release publishes a `SHA256SUMS` file and a `.sha256` file next to each download, computed by the release workflow from the exact files it attached. Each file also carries GitHub build provenance, which proves it was built by this repository's workflow from the tagged commit:
 
 ```bash
-gh attestation verify OmenCoreSetup-5.0.1.exe --repo theantipopau/omencore
+gh attestation verify OmenCoreSetup-5.0.2.exe --repo theantipopau/omencore
 ```
 
 Antivirus warnings are covered in [docs/ANTIVIRUS_FAQ.md](docs/ANTIVIRUS_FAQ.md) and [docs/DEFENDER_FALSE_POSITIVE.md](docs/DEFENDER_FALSE_POSITIVE.md).
@@ -184,7 +195,8 @@ The most useful contributions are diagnostic exports from real boards, confirmat
 
 | Version | Date | Notes |
 |---|---|---|
-| **5.0.1** | 2026-11-15 | [Changelog](docs/CHANGELOG_v5.0.1.md): 4.x upgrade hang, fans held by false temperature spikes, Linux fan readings and Max, 8C2F tachometers |
+| **5.0.2** | 2026-11-23 | [Changelog](docs/CHANGELOG_v5.0.2.md): fan hand-back after verification, GPU temperature on battery, NVIDIA power unlock on newer drivers, Simplified Chinese |
+| 5.0.1 | 2026-11-15 | [Changelog](docs/CHANGELOG_v5.0.1.md): 4.x upgrade hang, fans held by false temperature spikes, Linux fan readings and Max, 8C2F tachometers |
 | 5.0.0 | 2026-11-13 | [Changelog](docs/CHANGELOG_v5.0.0.md): modes that carry the whole machine, capability reasons, startup and memory budgets, interface refresh, checksum-verified updates |
 | 4.5.1 | 2026-11-10 | [Changelog](docs/CHANGELOG_v4.5.1.md): 8E10 backlight regression, V0 fan-mode bytes, 8BCD keyboard layout, new boards |
 | 4.5.0 | 2026-10-24 | [Changelog](docs/CHANGELOG_v4.5.0.md) |
