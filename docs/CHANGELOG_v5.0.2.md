@@ -1,7 +1,7 @@
 # OmenCore v5.0.2
 
-**Release Date:** not yet released
-**Type:** Fix release: fan hand-back after verification, Linux Max on newer `hp-wmi` drivers, small UI fixes.
+**Release Date:** 2026-11-23
+**Type:** Fix release: fan hand-back after verification, GPU temperature spikes on battery, NVIDIA power unlock on newer drivers (Prophecy 1.2.9), Linux Max on newer `hp-wmi` drivers, Simplified Chinese, small UI fixes.
 
 ## Added
 
