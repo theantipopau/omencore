@@ -170,7 +170,7 @@ jobs:
       - name: Attest build provenance
         # GitHub's signed statement that these exact files came from this workflow run on this commit.
         # Check one with: gh attestation verify <file> --repo theantipopau/omencore
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             artifacts/OmenCore-${{ steps.version.outputs.value }}-win-x64.zip
