@@ -252,8 +252,8 @@ namespace OmenCore.Services.Rgb
                 // For now, we'll estimate LED count from remaining data
                 
                 // Skip to zones section - this requires proper mode parsing
-                // For simplicity, we'll use a heuristic based on device type
-                device.LedCount = EstimateLedCount(device.Type);
+                // For simplicity, we'll use a heuristic based on device type and name
+                device.LedCount = EstimateLedCount(device.Type, device.Name);
             }
             catch (Exception ex)
             {
@@ -287,12 +287,24 @@ namespace OmenCore.Services.Rgb
             }
         }
         
-        private int EstimateLedCount(OpenRgbDeviceType type)
+        private int EstimateLedCount(OpenRgbDeviceType type, string name = "")
         {
+            if (!string.IsNullOrEmpty(name))
+            {
+                if (name.Contains("4-Zone", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 4;
+                }
+                if (name.Contains("Gladius", StringComparison.OrdinalIgnoreCase))
+                {
+                    return 3;
+                }
+            }
+
             return type switch
             {
                 OpenRgbDeviceType.Keyboard => 104,
-                OpenRgbDeviceType.Mouse => 2,
+                OpenRgbDeviceType.Mouse => 3,
                 OpenRgbDeviceType.MouseMat => 15,
                 OpenRgbDeviceType.Headset => 2,
                 OpenRgbDeviceType.HeadsetStand => 4,
@@ -363,11 +375,12 @@ namespace OmenCore.Services.Rgb
 
             // Build LED color array packet
             // Format: data_size (4) + led_count (2) + [r,g,b,padding] * led_count
+            // In OpenRGB SDK protocol, data_size represents the full size of the payload following the header,
+            // which includes the 4-byte dataSize field itself, 2-byte led_count, and (ledCount * 4) color bytes.
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
             
-            // Data size (will be calculated)
-            int dataSize = 2 + (ledCount * 4);
+            int dataSize = sizeof(int) + sizeof(ushort) + (ledCount * 4);
             writer.Write(dataSize);
             
             // LED count

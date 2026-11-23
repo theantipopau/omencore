@@ -1968,7 +1968,7 @@ namespace OmenCore.ViewModels
         /// </summary>
         private async Task SyncAllRgbAsync()
         {
-            var syncColor = CorsairColorHex; // Use Corsair color picker as the sync source
+            var syncColor = !string.IsNullOrWhiteSpace(Zone1ColorHex) ? Zone1ColorHex : CorsairColorHex;
             
             await ExecuteWithLoadingAsync(async () =>
             {
