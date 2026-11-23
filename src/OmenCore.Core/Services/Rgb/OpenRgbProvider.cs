@@ -28,11 +28,14 @@ namespace OmenCore.Services.Rgb
         private const string OPENRGB_MAGIC = "ORGB";
         private const int PACKET_ID_REQUEST_CONTROLLER_COUNT = 0;
         private const int PACKET_ID_REQUEST_CONTROLLER_DATA = 1;
+        private const int PACKET_ID_REQUEST_PROTOCOL_VERSION = 40;
         private const int PACKET_ID_SET_CLIENT_NAME = 50;
         private const int PACKET_ID_RGBCONTROLLER_UPDATELEDS = 1050;
         private const int PACKET_ID_RGBCONTROLLER_UPDATEZONELEDS = 1051;
         private const int PACKET_ID_RGBCONTROLLER_UPDATESINGLELED = 1052;
         private const int PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE = 1100;
+        private const int PACKET_ID_RGBCONTROLLER_UPDATEMODE = 1101;
+        private const int OPENRGB_CLIENT_PROTOCOL_VERSION = 4;
         private const int MAX_PACKET_DATA_LENGTH = 16 * 1024 * 1024;
         private const int MAX_DISCOVERABLE_CONTROLLERS = 128;
         private const int MAX_LED_UPDATE_COUNT = 2048;
@@ -136,6 +139,9 @@ namespace OmenCore.Services.Rgb
                 _stream = _client.GetStream();
                 _isConnected = true;
                 
+                // Negotiate protocol version (protocol 4 supports modern mode/speed/brightness data)
+                await NegotiateProtocolVersionAsync(OPENRGB_CLIENT_PROTOCOL_VERSION);
+
                 // Send client name
                 await SendClientNameAsync("OmenCore");
             }
@@ -152,6 +158,25 @@ namespace OmenCore.Services.Rgb
                 _isConnected = false;
                 _client?.Dispose();
                 _client = null;
+            }
+        }
+
+        private async Task NegotiateProtocolVersionAsync(int clientVersion)
+        {
+            try
+            {
+                var versionBytes = BitConverter.GetBytes(clientVersion);
+                await SendPacketAsync(PACKET_ID_REQUEST_PROTOCOL_VERSION, versionBytes);
+                var response = await ReceivePacketAsync();
+                if (response.Data.Length >= 4)
+                {
+                    int serverVersion = BitConverter.ToInt32(response.Data, 0);
+                    _logging.Debug($"[OpenRGB] Negotiated protocol version: {serverVersion} (client requested: {clientVersion})");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logging.Debug($"[OpenRGB] Protocol version negotiation skipped: {ex.Message}");
             }
         }
         
@@ -187,6 +212,15 @@ namespace OmenCore.Services.Rgb
                     var device = await GetControllerDataAsync(i);
                     if (device != null)
                     {
+                        // Skip internal laptop keyboard controllers: OmenCore controls the laptop keyboard natively via WMI BIOS / EC
+                        if (device.Type == OpenRgbDeviceType.Keyboard &&
+                            (device.Name.Contains("Omen", StringComparison.OrdinalIgnoreCase) ||
+                             device.Name.Contains("Laptop", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _logging.Debug($"[OpenRGB] Skipping internal keyboard controller {i}: '{device.Name}' (managed natively by OmenCore)");
+                            continue;
+                        }
+
                         _devices.Add(device);
                         _logging.Debug($"[OpenRGB] Device {i}: {device.Name} ({device.Type}) - {device.LedCount} LEDs");
                     }
@@ -200,8 +234,8 @@ namespace OmenCore.Services.Rgb
         
         private async Task<OpenRgbDevice?> GetControllerDataAsync(int deviceIndex)
         {
-            var indexBytes = BitConverter.GetBytes(deviceIndex);
-            await SendPacketAsync(PACKET_ID_REQUEST_CONTROLLER_DATA, indexBytes, deviceIndex);
+            var versionBytes = BitConverter.GetBytes(OPENRGB_CLIENT_PROTOCOL_VERSION);
+            await SendPacketAsync(PACKET_ID_REQUEST_CONTROLLER_DATA, versionBytes, deviceIndex);
             var response = await ReceivePacketAsync();
             
             if (response.Data.Length < 8)
@@ -212,7 +246,6 @@ namespace OmenCore.Services.Rgb
         
         private OpenRgbDevice ParseControllerData(int index, byte[] data)
         {
-            // OpenRGB controller data packet structure (simplified parsing)
             var device = new OpenRgbDevice { Index = index };
             
             using var ms = new MemoryStream(data);
@@ -248,14 +281,52 @@ namespace OmenCore.Services.Rgb
                 int modeCount = reader.ReadUInt16();
                 
                 // Active mode (4 bytes)
-                reader.ReadInt32();
+                device.ActiveMode = reader.ReadInt32();
                 
-                // Skip mode data for now - we just need LED count
-                // This is a simplified parser - modes have complex variable-length data
-                // For now, we'll estimate LED count from remaining data
-                
-                // Skip to zones section - this requires proper mode parsing
-                // For simplicity, we'll use a heuristic based on device type and name
+                for (int m = 0; m < modeCount; m++)
+                {
+                    long modeStart = ms.Position;
+                    string modeName = ReadPrefixedString(reader, "mode_name");
+                    int modeVal = reader.ReadInt32();
+                    uint flags = reader.ReadUInt32();
+                    uint speedMin = reader.ReadUInt32();
+                    uint speedMax = reader.ReadUInt32();
+                    // In protocol version 3+, brightness_min and brightness_max are present
+                    uint brightnessMin = reader.ReadUInt32();
+                    uint brightnessMax = reader.ReadUInt32();
+                    uint colorsMin = reader.ReadUInt32();
+                    uint colorsMax = reader.ReadUInt32();
+                    uint speed = reader.ReadUInt32();
+                    // In protocol version 3+, brightness is present
+                    uint brightness = reader.ReadUInt32();
+                    uint direction = reader.ReadUInt32();
+                    uint colorMode = reader.ReadUInt32();
+                    ushort numColors = reader.ReadUInt16();
+                    if (numColors > 0)
+                    {
+                        reader.ReadBytes(numColors * 4);
+                    }
+                    long modeEnd = ms.Position;
+
+                    if (device.SpectrumModePayload == null &&
+                        (modeName.Contains("Spectrum", StringComparison.OrdinalIgnoreCase) ||
+                         modeName.Contains("Rainbow", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        int rawLen = (int)(modeEnd - modeStart);
+                        byte[] rawMode = new byte[rawLen];
+                        Array.Copy(data, (int)modeStart, rawMode, 0, rawLen);
+
+                        using var payloadMs = new MemoryStream();
+                        using var payloadWriter = new BinaryWriter(payloadMs);
+                        payloadWriter.Write(rawLen + 8); // data_size: includes 4-byte size and 4-byte index
+                        payloadWriter.Write(m);          // mode index
+                        payloadWriter.Write(rawMode);    // mode data
+
+                        device.SpectrumModePayload = payloadMs.ToArray();
+                        _logging.Debug($"[OpenRGB] Device {index} ({device.Name}): found Spectrum/Rainbow mode '{modeName}' at index {m}");
+                    }
+                }
+
                 device.LedCount = EstimateLedCount(device.Type, device.Name);
             }
             catch (Exception ex)
@@ -385,6 +456,10 @@ namespace OmenCore.Services.Rgb
         {
             ledCount = Math.Clamp(ledCount, 1, MAX_LED_UPDATE_COUNT);
 
+            // Ensure device returns to Direct (custom) mode so running hardware animations
+            // (such as Spectrum Cycle) do not suppress or ignore LED updates
+            await SendPacketAsync(PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE, Array.Empty<byte>(), deviceIndex);
+
             // Build LED color array packet
             // Format: data_size (4) + led_count (2) + [r,g,b,padding] * led_count
             // In OpenRGB SDK protocol, data_size represents the full size of the payload following the header,
@@ -416,10 +491,31 @@ namespace OmenCore.Services.Rgb
             return SetStaticColorAsync(color);
         }
         
-        public Task SetSpectrumEffectAsync()
+        public async Task SetSpectrumEffectAsync()
         {
-            // For OpenRGB devices without an active hardware animation, illuminate with vibrant cyan spectrum
-            return SetStaticColorAsync(Color.FromArgb(0, 200, 255));
+            if (!_isConnected) return;
+
+            foreach (var device in _devices)
+            {
+                try
+                {
+                    if (device.SpectrumModePayload != null)
+                    {
+                        // Device natively supports hardware spectrum cycling (e.g. ASUS ROG Gladius III Spectrum Cycle)
+                        await SendPacketAsync(PACKET_ID_RGBCONTROLLER_UPDATEMODE, device.SpectrumModePayload, device.Index);
+                        _logging.Debug($"[OpenRGB] Device {device.Index} ({device.Name}): applied hardware Spectrum effect");
+                    }
+                    else
+                    {
+                        // Fall back to static vibrant cyan for devices without hardware spectrum
+                        await SetDeviceColorAsync(device.Index, Color.FromArgb(0, 200, 255), device.LedCount);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logging.Debug($"[OpenRGB] Failed to set spectrum effect on device {device.Index}: {ex.Message}");
+                }
+            }
         }
         
         public async Task TurnOffAsync()
@@ -536,6 +632,8 @@ namespace OmenCore.Services.Rgb
         public string Vendor { get; set; } = "";
         public OpenRgbDeviceType Type { get; set; }
         public int LedCount { get; set; }
+        public int ActiveMode { get; set; }
+        public byte[]? SpectrumModePayload { get; set; }
         public Color CurrentColor { get; set; } = Color.Black;
     }
     
