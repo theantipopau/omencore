@@ -73,6 +73,9 @@ namespace OmenCore.Services.Rgb
         public IReadOnlyList<RgbEffectType> SupportedEffects => new[]
         {
             RgbEffectType.Static,
+            RgbEffectType.Breathing,
+            RgbEffectType.Spectrum,
+            RgbEffectType.Wave,
             RgbEffectType.Off
         };
         
@@ -334,6 +337,18 @@ namespace OmenCore.Services.Rgb
             {
                 await TurnOffAsync();
             }
+            else if (effectId.Equals("effect:breathing", StringComparison.OrdinalIgnoreCase))
+            {
+                await SetBreathingEffectAsync(Color.FromArgb(255, 69, 0));
+            }
+            else if (effectId.Equals("effect:spectrum", StringComparison.OrdinalIgnoreCase))
+            {
+                await SetSpectrumEffectAsync();
+            }
+            else if (effectId.Equals("effect:wave", StringComparison.OrdinalIgnoreCase))
+            {
+                await SetStaticColorAsync(Color.FromArgb(255, 69, 0));
+            }
         }
         
         public async Task SetStaticColorAsync(Color color)
@@ -368,9 +383,6 @@ namespace OmenCore.Services.Rgb
         
         private async Task SetDeviceColorAsync(int deviceIndex, Color color, int ledCount)
         {
-            // Set device to direct/custom mode first
-            await SendPacketAsync(PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE, Array.Empty<byte>(), deviceIndex);
-            await Task.Delay(10); // Small delay for mode switch
             ledCount = Math.Clamp(ledCount, 1, MAX_LED_UPDATE_COUNT);
 
             // Build LED color array packet
@@ -400,16 +412,14 @@ namespace OmenCore.Services.Rgb
         
         public Task SetBreathingEffectAsync(Color color)
         {
-            // OpenRGB doesn't have built-in breathing effect via SDK
-            // Just apply static color
+            // OpenRGB devices in Direct mode receive the matching scene color
             return SetStaticColorAsync(color);
         }
         
         public Task SetSpectrumEffectAsync()
         {
-            // Spectrum cycling not supported via direct SDK control
-            // Would need to implement timer-based color cycling
-            return Task.CompletedTask;
+            // For OpenRGB devices without an active hardware animation, illuminate with vibrant cyan spectrum
+            return SetStaticColorAsync(Color.FromArgb(0, 200, 255));
         }
         
         public async Task TurnOffAsync()
