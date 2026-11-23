@@ -64,14 +64,14 @@ namespace OmenCoreApp.Tests.Hardware
             caps.Family.Should().Be(OmenModelFamily.OMEN16);
             caps.SupportsFanControlWmi.Should().BeTrue();
             caps.SupportsFanCurves.Should().BeTrue();
-            caps.SupportsIndependentFanCurves.Should().BeTrue();
+            caps.SupportsIndependentFanCurves.Should().BeFalse();
             caps.SupportsRpmReadback.Should().BeFalse();
             caps.FanZoneCount.Should().Be(2);
             caps.MaxFanLevel.Should().Be(55);
             caps.HasMuxSwitch.Should().BeFalse();
             caps.SupportsGpuPowerBoost.Should().BeFalse();
             caps.HasFourZoneRgb.Should().BeTrue();
-            caps.UserVerified.Should().BeTrue();
+            caps.UserVerified.Should().BeFalse();
 
             var preferred = ModelCapabilityDatabase.GetPreferredCapabilities("8A4D", "OMEN by HP Gaming Laptop 16-k0xxx");
             preferred.Should().NotBeNull();

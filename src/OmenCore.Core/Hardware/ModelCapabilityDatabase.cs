@@ -728,7 +728,7 @@ namespace OmenCore.Hardware
                 SupportsFanControlWmi = true,
                 SupportsFanControlEc = false,
                 SupportsFanCurves = true,
-                SupportsIndependentFanCurves = true,
+                SupportsIndependentFanCurves = false,
                 SupportsRpmReadback = false,
                 FanZoneCount = 2,
                 MaxFanLevel = 55,
@@ -740,8 +740,8 @@ namespace OmenCore.Hardware
                 SupportsPerformanceModes = true,
                 PerformanceModes = new[] { "Default", "Performance", "Cool" },
                 AllowDecoupledWmiThermalPolicyFallback = false,
-                UserVerified = true,
-                Notes = "HP OMEN Gaming Laptop 16-k0xxx (8A4D), Intel i7-12700H + RTX 3060 Laptop GPU, BIOS F.29. Thermal policy V1, 2 fans, max fan level 55, WMI BIOS fan control with level readback (RPM estimated from level to prevent null-readback errors), 4-zone RGB keyboard backlight. MUX switch and GPU Power Boost set to false pending switch readback evidence."
+                UserVerified = false,
+                Notes = "HP OMEN Gaming Laptop 16-k0xxx (8A4D), Intel i7-12700H + RTX 3060 Laptop GPU, BIOS F.29. Thermal policy V1, 2 fans, max fan level 55, WMI BIOS fan control with level readback (RPM estimated from level to prevent null-readback errors), 4-zone RGB keyboard backlight. MUX switch, GPU Power Boost, and independent fan curves set to false pending switch and tachometer readback evidence."
             });
             
             // OMEN 16 (2023) - wf series
