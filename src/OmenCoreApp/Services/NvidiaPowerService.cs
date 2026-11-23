@@ -10,7 +10,7 @@ namespace OmenCore.Services
     /// <summary>
     /// Opt-in NVIDIA laptop GPU power unlock (MAX via the driver's romOverride, CURRENT via the driver's internal
     /// RmControl call). The backend (OmenCore.NvidiaPower) comes from timmyy123's nvidia-power-control and
-    /// bobshmo's OmenCore-Prophecy fork, used with their permission. This class only adds OmenCore's safety
+    /// bobshmo's Prophecy Power Unlocker (backend ported from 1.2.9), used with their permission. This class only adds OmenCore's safety
     /// wrapper: on a Victus laptop the HP performance mode is set and the fan engine paused around a CURRENT
     /// write, and the write never runs if that preparation fails.
     /// </summary>
@@ -31,7 +31,8 @@ namespace OmenCore.Services
 
         public sealed record Status(
             bool Supported, bool MaxReady, bool CurrentReady, string Gpu, string Reason,
-            double? LiveCurrentW, double? LiveMaxW, int[] Targets, int? ExpectedStockW = null);
+            double? LiveCurrentW, double? LiveMaxW, int[] Targets, int? ExpectedStockW = null,
+            bool NeedsDriverValidation = false);
 
         public sealed record Outcome(bool Success, string Message, bool RebootRequired);
 
@@ -41,7 +42,8 @@ namespace OmenCore.Services
             var p = _backend.GetPowerState();
             int? expectedStock = c.VbiosResolver is { StockMaxW: > 0 } ? c.VbiosResolver.StockMaxW : c.Profile?.StockPowerW;
             return new Status(c.Supported, c.MaxWritesReady, c.CurrentWritesReady, c.GpuName, c.Reason,
-                p.CurrentW, p.MaxW, c.Profile?.Targets() ?? Array.Empty<int>(), expectedStock);
+                p.CurrentW, p.MaxW, c.Profile?.Targets() ?? Array.Empty<int>(), expectedStock,
+                NeedsDriverValidation: c.Profile != null && c.Driver is { CandidateFound: true, Trusted: false });
         }
 
         public Outcome ApplyMax(int watts) => Run("MAX " + watts + " W", () => _backend.SetMaxOverride(watts));
@@ -49,6 +51,11 @@ namespace OmenCore.Services
         public Outcome ResolveVbiosAuto() => Run("resolve VBIOS", () => _backend.TryAutoResolveVbios(out _));
         public Outcome ResolveVbiosFromRom(string romPath) => Run("resolve VBIOS from file", () => _backend.ResolveVbiosFromRom(romPath));
         public Outcome RemoveMax() => Run("remove MAX override", () => _backend.RemoveMaxOverride());
+        /// <summary>
+        /// Unlocks CURRENT on a driver other than the reviewed 617.14: sends a no-op that replays the driver's own
+        /// request and checks nothing changed (Prophecy 1.2.9 rule). Goes through the same Victus guard as CURRENT.
+        /// </summary>
+        public Outcome ValidateDriver() => Run("validate driver", () => _backend.ValidateDriverResolver());
         public Outcome ApplyCurrent(int watts) => Run("CURRENT " + watts + " W", () => _backend.SetCurrent(watts));
 
         private Outcome Run(string what, Func<OperationResult> op)

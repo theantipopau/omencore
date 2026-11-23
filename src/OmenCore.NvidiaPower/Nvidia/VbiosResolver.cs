@@ -242,7 +242,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                r.Reason = "VBIOS resolver error: " + ex.Message;
+                r.Reason = "VBIOS resolver error: " + SafeError.Describe(ex);
                 return r;
             }
         }
@@ -286,7 +286,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                message = "Automatic ROM dump failed: " + ex.Message;
+                message = "Automatic ROM dump failed: " + SafeError.Describe(ex);
                 return false;
             }
         }

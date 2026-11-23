@@ -141,7 +141,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                errors.Append("NVML: ").Append(ex.Message).Append("; ");
+                errors.Append("NVML: ").Append(SafeError.Describe(ex)).Append("; ");
             }
 
             try
@@ -150,7 +150,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                errors.Append("NVAPI: ").Append(ex.Message).Append("; ");
+                errors.Append("NVAPI: ").Append(SafeError.Describe(ex)).Append("; ");
             }
 
             // Per-field fallback. An unsupported voltage/memory-temperature
@@ -205,7 +205,7 @@ namespace NvpwrControlBlackwell
                 }
                 catch (Exception ex)
                 {
-                    errors.Append("POWER: ").Append(ex.Message).Append("; ");
+                    errors.Append("POWER: ").Append(SafeError.Describe(ex)).Append("; ");
                 }
             }
 

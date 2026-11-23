@@ -10,7 +10,7 @@ namespace NvpwrControlBlackwell
 {
     internal sealed class PowerBackend
     {
-        public const string Version = "2.4.2-universal-blackwell-beta";
+        public const string Version = "1.2.9-omencore"; // backend ported from Prophecy Power Unlocker 1.2.9
         public const uint ApiRmControl = 0x07000046;
         public const uint CmdE633 = 0x2080E633;
         public const int PacketSize = 0x122D70;
@@ -94,7 +94,7 @@ namespace NvpwrControlBlackwell
                 s.Supported = false;
                 s.CurrentWritesReady = false;
                 s.MaxWritesReady = false;
-                s.Reason = ex.Message;
+                s.Reason = SafeError.Describe(ex);
             }
             return s;
         }
@@ -138,6 +138,12 @@ namespace NvpwrControlBlackwell
             if (!before.CurrentW.HasValue || !before.MaxW.HasValue)
                 return OperationResult.Fail("CURRENT/MAX public readback is unavailable; no-op validation cannot run.");
 
+            // 1.2.9: the no-op replays the driver's retained F7 source request, never the public ceiling (which can
+            // read 140 W over a 115 W request, so replaying it would change power in a step meant to change nothing).
+            int currentMilliwatts;
+            try { currentMilliwatts = DriverValidationGuard.NoopTarget(F7ContributionReadback.Read(), before.MaxW); }
+            catch (InvalidOperationException ex) { return OperationResult.Fail(SafeError.Describe(ex)); }
+
             using (NvApiSession nv = new NvApiSession())
             {
                 string err;
@@ -149,7 +155,6 @@ namespace NvpwrControlBlackwell
                 if (!ValidateA630(nv, before, out a630Reason))
                     return OperationResult.Fail("A630 Board Power validation failed: " + a630Reason);
 
-                int currentMilliwatts = (int)Math.Round(before.CurrentW.Value * 1000.0);
                 uint completion;
                 int tr;
                 OperationResult send = SendE633(nv, c.Driver.TransportRva, currentMilliwatts, out tr, out completion);
@@ -158,12 +163,14 @@ namespace NvpwrControlBlackwell
 
             System.Threading.Thread.Sleep(700);
             PowerState after = GetPowerState();
-            if (!after.CurrentW.HasValue || Math.Abs(after.CurrentW.Value - before.CurrentW.Value) > 0.01)
-                return OperationResult.Fail("E633 no-op changed CURRENT unexpectedly; writes remain locked.");
+            uint? sourceAfter = F7ContributionReadback.Read();
+            if (!after.MaxW.HasValue || Math.Abs(after.MaxW.Value - before.MaxW.Value) > 0.01 ||
+                !sourceAfter.HasValue || sourceAfter.Value != (uint)currentMilliwatts)
+                return OperationResult.Fail("The no-op could not confirm the driver's request and NVIDIA MAX were unchanged; writes stay locked. No rollback request was inferred from the public ceiling.");
 
             DriverResolver.MarkTrusted(c.Driver);
             AppLog.Write("Driver resolver validated transport RVA 0x" + c.Driver.TransportRva.ToString("X") + " for impl " + c.ImplSha256);
-            return OperationResult.Ok("New NVIDIA driver validated. E633 no-op and public readback passed. Future launches will trust this exact UMD/KMD hash pair.");
+            return OperationResult.Ok("New NVIDIA driver validated: the no-op kept the driver's request and NVIDIA MAX unchanged. Future launches trust this exact driver. Loaded power is not verified.");
         }
 
         public OperationResult ResolveVbiosFromRom(string romPath)
@@ -456,7 +463,7 @@ namespace NvpwrControlBlackwell
             if (watts > (int)Math.Floor(p.MaxW.Value + 0.01))
                 return OperationResult.Fail("CURRENT " + watts.ToString() + " W exceeds live MAX " + p.MaxW.Value.ToString("0.00", CultureInfo.InvariantCulture) + " W. Apply MAX first, reboot Windows, then verify the new live MAX before applying CURRENT.");
 
-            double? previousCurrent = p.CurrentW;
+            int milliwatts = watts * 1000;
             using (NvApiSession nv = new NvApiSession())
             {
                 string err;
@@ -465,44 +472,16 @@ namespace NvpwrControlBlackwell
                     return OperationResult.Fail("Loaded nvapi64_impl.dll changed after resolver check.");
 
                 uint completion; int tr;
-                OperationResult send = SendE633(nv, c.Driver.TransportRva, watts * 1000, out tr, out completion);
+                OperationResult send = SendE633(nv, c.Driver.TransportRva, milliwatts, out tr, out completion);
                 if (!send.Success) return send;
             }
 
             System.Threading.Thread.Sleep(700);
             PowerState after = GetPowerState();
-            if (!after.CurrentW.HasValue || Math.Abs(after.CurrentW.Value - watts) > 0.01)
-            {
-                bool rolledBack = false;
-                string rollbackText = "";
-                if (previousCurrent.HasValue && previousCurrent.Value > 0 && previousCurrent.Value <= p.MaxW.Value + 0.01)
-                {
-                    try
-                    {
-                        using (NvApiSession nv = new NvApiSession())
-                        {
-                            string err;
-                            if (nv.Open(out err) && nv.ImplHash.Equals(c.ImplSha256, StringComparison.OrdinalIgnoreCase))
-                            {
-                                uint completion; int tr;
-                                int prevMw = (int)Math.Round(previousCurrent.Value * 1000.0);
-                                OperationResult rb = SendE633(nv, c.Driver.TransportRva, prevMw, out tr, out completion);
-                                if (rb.Success)
-                                {
-                                    System.Threading.Thread.Sleep(500);
-                                    PowerState rbState = GetPowerState();
-                                    rolledBack = rbState.CurrentW.HasValue && Math.Abs(rbState.CurrentW.Value - previousCurrent.Value) <= 0.01;
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                    rollbackText = rolledBack ? " Previous CURRENT was restored." : " Automatic rollback could not be confirmed.";
-                    AppLog.Write("CURRENT transaction rollback target=" + previousCurrent.Value.ToString("0.00", CultureInfo.InvariantCulture) + " confirmed=" + rolledBack.ToString());
-                }
-                return OperationResult.Fail("E633 completed but public CURRENT readback is " +
-                    (after.CurrentW.HasValue ? after.CurrentW.Value.ToString("0.00", CultureInfo.InvariantCulture) : "N/A") + " W." + rollbackText);
-            }
+            // 1.2.9: E633 authors the F7 source request; the public CURRENT ceiling is not a getter for it, so a
+            // differing ceiling is not a failed write, and no rollback request is manufactured from it.
+            if (!after.MaxW.HasValue)
+                return OperationResult.Fail("E633 accepted the request, but NVIDIA MAX readback became unavailable. Recheck before further changes; no rollback target was inferred from telemetry.");
 
             // Transaction postcondition: changing CURRENT must not mutate live MAX.
             if (after.MaxW.HasValue && p.MaxW.HasValue && Math.Abs(after.MaxW.Value - p.MaxW.Value) > 0.51)
@@ -510,7 +489,17 @@ namespace NvpwrControlBlackwell
                     p.MaxW.Value.ToString("0.00", CultureInfo.InvariantCulture) + " W to " +
                     after.MaxW.Value.ToString("0.00", CultureInfo.InvariantCulture) + " W. Recheck resolver state before further writes.");
 
-            return OperationResult.Ok("CURRENT confirmed at " + watts.ToString() + " W.");
+            string target = watts.ToString(CultureInfo.InvariantCulture);
+            string ceiling = after.CurrentW.HasValue ? after.CurrentW.Value.ToString("0.00", CultureInfo.InvariantCulture) + " W" : "unavailable";
+            uint? f7 = F7ContributionReadback.Read();
+            if (f7.HasValue && f7.Value == (uint)milliwatts)
+                return OperationResult.Ok("CURRENT " + target + " W accepted; the driver's own request reads " + target + " W. Public GPU ceiling " + ceiling + ". Check power under a game load.");
+            if (!after.CurrentW.HasValue || Math.Abs(after.CurrentW.Value - watts) > 0.01)
+            {
+                AppLog.Write("E633 request accepted target=" + target + " W; public ceiling=" + ceiling + "; source F7 verification unavailable; no synthetic rollback.");
+                return OperationResult.Ok("CURRENT " + target + " W accepted, but the public GPU ceiling reads " + ceiling + " and the driver's own request could not be read back. Effective power is not confirmed; check it under a game load.");
+            }
+            return OperationResult.Ok("CURRENT " + target + " W accepted and the public GPU ceiling matches. Loaded power is not confirmed; check it under a game load.");
         }
 
         public OperationResult InstallAutostart(int watts, string exePath)
@@ -594,7 +583,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                AppLog.Write("WriteRegistryOverride failed for " + subKeyPath + "\\" + name + ": " + ex.Message);
+                AppLog.Write("WriteRegistryOverride failed for " + subKeyPath + "\\" + name + ": " + SafeError.Describe(ex));
             }
         }
 
@@ -609,7 +598,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                AppLog.Write("DeleteRegistryOverride failed for " + subKeyPath + "\\" + name + ": " + ex.Message);
+                AppLog.Write("DeleteRegistryOverride failed for " + subKeyPath + "\\" + name + ": " + SafeError.Describe(ex));
             }
         }
 
@@ -751,7 +740,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                return OperationResult.Fail("E633 transport exception: " + ex.Message);
+                return OperationResult.Fail("E633 transport exception: " + SafeError.Describe(ex));
             }
         }
 
@@ -849,7 +838,7 @@ namespace NvpwrControlBlackwell
                 if (rc != 0 || !File.Exists(file)) { error = output.Trim(); return false; }
                 return true;
             }
-            catch (Exception ex) { error = ex.Message; return false; }
+            catch (Exception ex) { error = SafeError.Describe(ex); return false; }
         }
 
         private static uint U32(byte[] b, int off)

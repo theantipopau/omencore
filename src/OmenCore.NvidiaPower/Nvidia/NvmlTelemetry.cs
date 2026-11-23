@@ -187,7 +187,7 @@ namespace NvpwrControlBlackwell
                 }
                 catch (Exception ex)
                 {
-                    _error = ex.Message;
+                    _error = SafeError.Describe(ex);
                     error = _error;
                     return false;
                 }

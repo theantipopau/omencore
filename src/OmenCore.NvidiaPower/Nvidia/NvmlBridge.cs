@@ -47,7 +47,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                error = "NVML exception: " + ex.Message;
+                error = "NVML exception: " + SafeError.Describe(ex);
                 return false;
             }
         }
@@ -75,7 +75,7 @@ namespace NvpwrControlBlackwell
             }
             catch (Exception ex)
             {
-                error = "NVML exception: " + ex.Message;
+                error = "NVML exception: " + SafeError.Describe(ex);
                 return false;
             }
         }

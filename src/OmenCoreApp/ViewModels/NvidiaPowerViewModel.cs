@@ -39,6 +39,7 @@ namespace OmenCore.ViewModels
             RemoveMaxCommand = new AsyncRelayCommand(_ => RunAsync("remove MAX override", _ => _service.RemoveMax(), true),
                 _ => Enabled && !_busy && _status?.MaxReady == true);
             ResolveVbiosCommand = new AsyncRelayCommand(_ => ResolveAsync(null), _ => Enabled && !_busy);
+            ValidateDriverCommand = new AsyncRelayCommand(_ => ValidateDriverAsync(), _ => Enabled && !_busy && NeedsDriverValidation);
             ResolveVbiosFromFileCommand = new AsyncRelayCommand(_ =>
             {
                 var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Select a VBIOS dump", Filter = "VBIOS dump (*.rom;*.bin)|*.rom;*.bin|All files|*.*" };
@@ -48,6 +49,31 @@ namespace OmenCore.ViewModels
         }
 
         public ICommand ResolveVbiosCommand { get; }
+        public ICommand ValidateDriverCommand { get; }
+
+        /// <summary>True when the installed NVIDIA driver is not the reviewed one and has not been validated yet.</summary>
+        public bool NeedsDriverValidation => _status?.NeedsDriverValidation == true;
+
+        private async Task ValidateDriverAsync()
+        {
+            const string prompt = "Validate this NVIDIA driver for CURRENT writes?\n\nOmenCore sends one request that repeats the " +
+                "driver's own current power request, then checks that nothing changed. Close games and GPU-heavy apps first. " +
+                "If anything does not match, writes stay locked.";
+            if (MessageBox.Show(prompt, "NVIDIA power", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+
+            _busy = true; RaiseCommands();
+            try
+            {
+                var r = await Task.Run(() => _service.ValidateDriver());
+                ResultText = (r.Success ? "Done: " : "Not validated: ") + r.Message;
+                _logging.Info("NVIDIA power panel: " + ResultText);
+            }
+            finally
+            {
+                _busy = false;
+                await RefreshAsync();
+            }
+        }
         public ICommand ResolveVbiosFromFileCommand { get; }
 
         private async Task ResolveAsync(string? romPath)
@@ -117,6 +143,7 @@ namespace OmenCore.ViewModels
                 StatusText = $"{(string.IsNullOrEmpty(s.Gpu) ? "NVIDIA GPU" : s.Gpu)}: {live}" +
                              $"MAX writes {(s.MaxReady ? "ready" : "not ready")}, CURRENT writes {(s.CurrentReady ? "ready" : "not ready")}. {s.Reason}" +
                              StockMismatchNote(s.LiveMaxW, s.ExpectedStockW);
+                OnPropertyChanged(nameof(NeedsDriverValidation));
                 RaiseCommands();
             });
         });
@@ -161,7 +188,7 @@ namespace OmenCore.ViewModels
 
         private void RaiseCommands()
         {
-            foreach (var c in new[] { RefreshCommand, ApplyMaxCommand, ApplyCurrentCommand, RemoveMaxCommand, ResolveVbiosCommand, ResolveVbiosFromFileCommand })
+            foreach (var c in new[] { RefreshCommand, ApplyMaxCommand, ApplyCurrentCommand, RemoveMaxCommand, ResolveVbiosCommand, ResolveVbiosFromFileCommand, ValidateDriverCommand })
                 (c as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         }
 

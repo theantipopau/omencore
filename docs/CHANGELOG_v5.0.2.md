@@ -18,6 +18,17 @@
 
 ## Fixed
 
+- **NVIDIA Power Unlock: Apply CURRENT stayed greyed out on every NVIDIA driver except 617.14** (Discord). CURRENT
+  unlocks only on the reviewed driver or after the driver has been validated, and the validation step existed in the
+  backend but no button reached it. Tuning now shows **Validate driver** when the installed driver needs it. The
+  backend is updated to bobshmo's Prophecy Power Unlocker 1.2.9 (used with permission), which changes what that step
+  sends: it now repeats the driver's own current power request instead of the public power ceiling, which can be
+  higher (140 W over a 115 W request) and would have changed power in a step meant to change nothing. Also from
+  1.2.9: Apply CURRENT no longer "rolls back" to a value guessed from the public ceiling, and reports whether the
+  driver's own request reads back at the target; NVIDIA errors are reported without calling back into a failing
+  driver. OmenCore's Victus preparation around CURRENT, its per-GPU target range and its settings folder are
+  unchanged. *Implemented, pending confirmation on hardware.*
+
 - **Fans stayed pinned at the last test level after Guided Fan Verification** (#143, Victus 15-fa2xxx `8DCD`, thermal
   policy V1). A verification run ends with the fans at a level written directly (55 here), and when the run started in
   Auto the plain Auto hand-back (`SetFanMode(Default)`, with the level hint skipped by the experimental "Do not pin a

@@ -920,7 +920,7 @@
                 <StackPanel>
                     <TextBlock Text="NVIDIA POWER UNLOCK (advanced, off by default)" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                     <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"
-                               Text="Order: 1) Resolve VBIOS, 2) Apply MAX, 3) restart Windows, 4) Apply CURRENT. Raises the GPU's power limit above the laptop maker's setting. MAX is stored in the NVIDIA driver's registry and needs a restart; CURRENT is applied live and resets on reboot. More power means more heat. Based on timmyy123's nvidia-power-control and bobshmo's OmenCore-Prophecy, used with their permission."/>
+                               Text="Order: 1) Resolve VBIOS, 2) Apply MAX, 3) restart Windows, 4) Apply CURRENT. On a new NVIDIA driver, press Validate driver once before Apply CURRENT. Raises the GPU's power limit above the laptop maker's setting. MAX is stored in the NVIDIA driver's registry and needs a restart; CURRENT is applied live and resets on reboot. More power means more heat. Based on timmyy123's nvidia-power-control and bobshmo's Prophecy Power Unlocker (1.2.9), used with their permission."/>
                     <CheckBox Content="Enable NVIDIA power unlock" IsChecked="{Binding SystemControl.NvidiaPower.Enabled}"
                               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
                     <StackPanel Visibility="{Binding SystemControl.NvidiaPower.Enabled, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -934,6 +934,9 @@
                                     ToolTip="Reads the VBIOS power table. Needs nvflash64.exe (nvflashb.exe on RTX 50 cards) next to OmenCore.exe, or use 'From file'. Apply CURRENT does not need it."/>
                             <Button Content="From file..." Command="{Binding SystemControl.NvidiaPower.ResolveVbiosFromFileCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"/>
                             <Button Content="Apply MAX (restart)" Command="{Binding SystemControl.NvidiaPower.ApplyMaxCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"/>
+                            <Button Content="Validate driver" Command="{Binding SystemControl.NvidiaPower.ValidateDriverCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"
+                                    Visibility="{Binding SystemControl.NvidiaPower.NeedsDriverValidation, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    ToolTip="Needed once per NVIDIA driver version before Apply CURRENT works on a driver other than 617.14. Sends a request that repeats the driver's own power request and checks nothing changed."/>
                             <Button Content="Apply CURRENT" Command="{Binding SystemControl.NvidiaPower.ApplyCurrentCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"/>
                             <Button Content="Remove MAX override" Command="{Binding SystemControl.NvidiaPower.RemoveMaxCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"/>
                             <Button Content="Refresh" Command="{Binding SystemControl.NvidiaPower.RefreshCommand}" Style="{StaticResource ModernButton}" Padding="16,8" Margin="0,0,8,4"/>
