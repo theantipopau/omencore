@@ -142,6 +142,12 @@ namespace OmenCore.Models
         public string? DismissedStandardProfileNoticeBoard { get; set; }
 
         /// <summary>
+        /// Games added by hand on the Games tab (#177). Scanned games are found again on every open; these are not,
+        /// so their executable paths are kept here.
+        /// </summary>
+        public List<string> ManualGamePaths { get; set; } = new();
+
+        /// <summary>
         /// Enables beginner-friendly Lite Mode by hiding advanced tabs and controls.
         /// </summary>
         public bool LiteModeEnabled { get; set; } = false;

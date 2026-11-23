@@ -452,7 +452,12 @@ namespace OmenCore.ViewModels
                 if (_gameLibrary == null)
                 {
                     var libraryService = new GameLibraryService(_logging);
-                    _gameLibrary = new GameLibraryViewModel(_logging, libraryService, _gameProfileService);
+                    _gameLibrary = new GameLibraryViewModel(_logging, libraryService, _gameProfileService,
+                        _config.ManualGamePaths, paths =>
+                        {
+                            _config.ManualGamePaths = paths.ToList();
+                            _configService.Save(_config);
+                        });
                     _gameLibrary.ProfileCreated += (_, e) => OpenGameProfileManager(e.Profile);
                     _gameLibrary.ProfileEditRequested += (_, e) => OpenGameProfileManager(e.Profile);
                     OnPropertyChanged(nameof(GameLibrary));

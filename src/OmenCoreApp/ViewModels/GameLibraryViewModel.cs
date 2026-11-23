@@ -28,17 +28,25 @@ namespace OmenCore.ViewModels
         private GamePlatformFilter _platformFilter = GamePlatformFilter.All;
         private GameLibraryItem? _selectedGame;
         private readonly List<GameLibraryItem> _manualGames = new();
+        private readonly Action<IReadOnlyList<string>>? _saveManualGamePaths;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public GameLibraryViewModel(
             LoggingService logging,
             GameLibraryService libraryService,
-            GameProfileService profileService)
+            GameProfileService profileService,
+            IEnumerable<string>? savedManualGamePaths = null,
+            Action<IReadOnlyList<string>>? saveManualGamePaths = null)
         {
             _logging = logging;
             _libraryService = libraryService;
             _profileService = profileService;
+            _saveManualGamePaths = saveManualGamePaths;
+
+            // #177: games added by hand used to live only in memory and were gone after a restart.
+            foreach (var item in RestoreManualGames(savedManualGamePaths, File.Exists))
+                _manualGames.Add(item);
 
             // Initialize commands
             ScanLibraryCommand = new AsyncRelayCommand(async _ => await ScanLibraryAsync(), _ => !IsScanning);
@@ -250,15 +258,7 @@ namespace OmenCore.ViewModels
                         continue;
                     }
 
-                    var item = new GameLibraryItem
-                    {
-                        Name = Path.GetFileNameWithoutExtension(path),
-                        Platform = GamePlatform.Manual,
-                        InstallPath = Path.GetDirectoryName(path),
-                        ExecutablePath = path,
-                        ExecutableName = Path.GetFileName(path),
-                        LaunchCommand = path
-                    };
+                    var item = CreateManualItem(path);
 
                     AttachProfileInfo(item);
                     _manualGames.Add(item);
@@ -269,6 +269,7 @@ namespace OmenCore.ViewModels
 
                 if (addedCount > 0)
                 {
+                    _saveManualGamePaths?.Invoke(_manualGames.Select(g => g.ExecutablePath!).ToList());
                     ApplyFilters();
                     _logging.Info($"Manually added {addedCount} game(s) to library");
                 }
@@ -278,6 +279,29 @@ namespace OmenCore.ViewModels
                 _logging.Error($"Failed to add game manually: {ex.Message}", ex);
             }
         }
+
+        /// <summary>Rebuilds the hand-added games from saved paths, skipping duplicates and files that no longer exist.</summary>
+        internal static List<GameLibraryItem> RestoreManualGames(IEnumerable<string>? paths, Func<string, bool> fileExists)
+        {
+            var items = new List<GameLibraryItem>();
+            if (paths == null) return items;
+            foreach (var path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(path) || !fileExists(path)) continue;
+                items.Add(CreateManualItem(path));
+            }
+            return items;
+        }
+
+        private static GameLibraryItem CreateManualItem(string path) => new()
+        {
+            Name = Path.GetFileNameWithoutExtension(path),
+            Platform = GamePlatform.Manual,
+            InstallPath = Path.GetDirectoryName(path),
+            ExecutablePath = path,
+            ExecutableName = Path.GetFileName(path),
+            LaunchCommand = path
+        };
 
         private void AttachProfileInfo(GameLibraryItem item)
         {

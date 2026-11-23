@@ -58,6 +58,9 @@ namespace OmenCore.Services
             set => _showUpdateNotifications = value;
         }
 
+        internal static bool ShouldShowTemperatureAlert(bool notificationsEnabled, bool temperatureWarningsEnabled) =>
+            notificationsEnabled && temperatureWarningsEnabled;
+
         public NotificationService(LoggingService logging)
         {
             _logging = logging;
@@ -288,7 +291,9 @@ namespace OmenCore.Services
         /// </summary>
         public void ShowCriticalTemperature(string component, double temperature)
         {
-            if (!_isEnabled) return; // Always show critical warnings if enabled
+            // #177: the "Temperature warnings" switch covers the critical alert too. Thermal protection still
+            // acts on the fans either way; only the toast is the user's to turn off.
+            if (!ShouldShowTemperatureAlert(_isEnabled, _showTemperatureWarnings)) return;
 
             try
             {
