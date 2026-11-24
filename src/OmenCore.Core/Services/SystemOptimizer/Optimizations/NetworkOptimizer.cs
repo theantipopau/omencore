@@ -96,6 +96,27 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
             };
         }
 
+        private static List<string> GetNetworkInterfaceKeyPaths()
+        {
+            var paths = new List<string>();
+            try
+            {
+                using var interfacesKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces");
+                if (interfacesKey != null)
+                {
+                    foreach (var subKeyName in interfacesKey.GetSubKeyNames())
+                    {
+                        paths.Add($@"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{subKeyName}");
+                    }
+                }
+            }
+            catch
+            {
+                // Fall back gracefully if registry enumeration fails
+            }
+            return paths;
+        }
+
         // ========== TCP NO DELAY ==========
 
         private async Task<OptimizationResult> ApplyTcpNoDelayAsync()
@@ -116,10 +137,16 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                         "TcpNoDelay",
                         1,
                         RegistryValueKind.DWord);
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.SetRegistryValue(ifacePath, "TcpNoDelay", 1, RegistryValueKind.DWord);
+                        _backup.SetRegistryValue(ifacePath, "TCPNoDelay", 1, RegistryValueKind.DWord);
+                    }
                     result.Success = true;
                 });
                 
-                _logger.Info("TCP NoDelay enabled");
+                _logger.Info("TCP NoDelay enabled across active network interfaces");
             }
             catch (Exception ex)
             {
@@ -146,6 +173,12 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     _backup.RestoreRegistryValue(
                         @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
                         "TcpNoDelay");
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.RestoreRegistryValue(ifacePath, "TcpNoDelay");
+                        _backup.RestoreRegistryValue(ifacePath, "TCPNoDelay");
+                    }
                     result.Success = true;
                 });
             }
@@ -179,10 +212,15 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                         "TcpAckFrequency",
                         1,
                         RegistryValueKind.DWord);
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.SetRegistryValue(ifacePath, "TcpAckFrequency", 1, RegistryValueKind.DWord);
+                    }
                     result.Success = true;
                 });
                 
-                _logger.Info("TCP ACK frequency optimized");
+                _logger.Info("TCP ACK frequency optimized across active network interfaces");
             }
             catch (Exception ex)
             {
@@ -209,6 +247,11 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     _backup.RestoreRegistryValue(
                         @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
                         "TcpAckFrequency");
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.RestoreRegistryValue(ifacePath, "TcpAckFrequency");
+                    }
                     result.Success = true;
                 });
             }
@@ -299,17 +342,21 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
             {
                 await Task.Run(() =>
                 {
-                    // This needs to be set per-interface, so we set a global hint
-                    // and the TCP NoDelay already helps disable Nagle behavior
                     _backup.SetRegistryValue(
                         @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
                         "TCPDelAckTicks",
                         0,
                         RegistryValueKind.DWord);
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.SetRegistryValue(ifacePath, "TcpAckFrequency", 1, RegistryValueKind.DWord);
+                        _backup.SetRegistryValue(ifacePath, "TCPNoDelay", 1, RegistryValueKind.DWord);
+                    }
                     result.Success = true;
                 });
                 
-                _logger.Info("Nagle algorithm optimization applied");
+                _logger.Info("Nagle algorithm optimization applied across active interfaces");
             }
             catch (Exception ex)
             {
@@ -336,6 +383,12 @@ namespace OmenCore.Services.SystemOptimizer.Optimizations
                     _backup.RestoreRegistryValue(
                         @"HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters",
                         "TCPDelAckTicks");
+
+                    foreach (var ifacePath in GetNetworkInterfaceKeyPaths())
+                    {
+                        _backup.RestoreRegistryValue(ifacePath, "TcpAckFrequency");
+                        _backup.RestoreRegistryValue(ifacePath, "TCPNoDelay");
+                    }
                     result.Success = true;
                 });
             }
