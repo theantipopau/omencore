@@ -205,6 +205,22 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void GetConfig_8DD5_MaxAk0Configured_RoutesToPerKeyAsUnverified()
+        {
+            // The "z" in "16z-ak000" kept this board from matching 8D87's "16-ak0" pattern, so it fell to the
+            // default zone keyboard and the per-key editor never opened (Discord, 5.0.2).
+            var cfg = KeyboardModelDatabase.GetConfig("8DD5");
+
+            cfg.Should().NotBeNull();
+            cfg!.PreferredMethod.Should().Be(KeyboardMethod.HidPerKey);
+            cfg.KeyboardType.Should().Be(KeyboardType.PerKeyRgb);
+            cfg.UserVerified.Should().BeFalse("no 8DD5 export has shown the Darfon keyboard yet");
+
+            KeyboardModelDatabase.GetConfigByModelName("OMEN MAX Gaming Laptop 16z-ak000")!.ProductId.Should().Be("8DD5");
+            KeyboardModelDatabase.GetConfigByModelName("OMEN MAX Gaming Laptop 16-ak0xxx")!.ProductId.Should().Be("8D87");
+        }
+
+        [Fact]
         public void GetConfig_ReturnsConfig_For_ProductId_8D87()
         {
             var cfg = KeyboardModelDatabase.GetConfig("8D87");

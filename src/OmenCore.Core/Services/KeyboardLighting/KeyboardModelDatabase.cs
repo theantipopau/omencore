@@ -610,6 +610,26 @@ namespace OmenCore.Services.KeyboardLighting
                     "running device effect cannot be dimmed."
             });
 
+            // OMEN MAX 16z-ak000 (Discord 2026-11-24, 5.0.2 log). The configure-to-order AMD build of the 8D87 chassis: same
+            // "ak0" series and BIOS F.07, and hp-wmi lists 8DD5 beside 8D87. The "z" in the WMI name ("16z-ak000") kept it from
+            // matching 8D87's "16-ak0" pattern, so it fell to the default zone keyboard, whose commands reach the light bar. The
+            // owner says OGH drives the keyboard per key. Routed to the per-key backends as an unverified guess; each declines
+            // cleanly if its keyboard is absent and the WMI fallbacks still apply.
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8DD5",
+                ModelName = "OMEN MAX 16z-ak000 (2025) AMD",
+                ModelNamePattern = "16z-ak0",
+                KeyboardType = KeyboardType.PerKeyRgb,
+                PreferredMethod = KeyboardMethod.HidPerKey,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.ColorTable2020 },
+                ModelYear = 2025,
+                UserVerified = false,
+                Notes = "Discord 2026-11-24 - OMEN MAX 16z-ak000, BIOS F.07, firmware topology FourZoneWithNumpad (0x01, as on " +
+                    "8D87, where those commands reach the light bar). Expected to carry 8D87's Darfon 0D62:54BF; not yet seen in " +
+                    "an export. Needs the owner to confirm the per-key editor opens and colours change."
+            });
+
             // HyperX OMEN MAX 16-ak1xxx (GitHub #224). The reporter's keyboard did not light for the standard
             // WMI colour test, and Device Manager shows Darfon 0D62:30BF (HID interfaces MI_00/02/03) plus
             // 03F0:01C5. DojoPerKeyBackend already lists 0x30BF from HP's own device table but has only been
