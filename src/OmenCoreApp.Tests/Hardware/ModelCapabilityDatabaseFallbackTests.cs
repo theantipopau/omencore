@@ -238,6 +238,26 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void GetPreferredCapabilities_88EB_IsExact_AndLeaves88ECNameMatchAlone()
+        {
+            // GitHub #273: 88EB used to borrow 88EC through the shared "16-e0" name and passed 6/6 on that profile.
+            var caps = ModelCapabilityDatabase.GetPreferredCapabilities(
+                "88EB", "Victus by HP Laptop 16-e0xxx", CpuUndervoltProviderFactory.CpuVendor.AMD);
+
+            caps.Should().NotBeNull();
+            caps!.ProductId.Should().Be("88EB");
+            caps.FanZoneCount.Should().Be(2);
+            caps.MaxFanLevel.Should().Be(55);
+            caps.SupportsFanCurves.Should().BeTrue();
+            caps.AllowDecoupledWmiThermalPolicyFallback.Should().BeTrue();
+            caps.UserVerified.Should().BeFalse();
+
+            ModelCapabilityDatabase.GetPreferredCapabilities(
+                    "FFF0", "Victus by HP Laptop 16-e0xxx", CpuUndervoltProviderFactory.CpuVendor.AMD)!
+                .ProductId.Should().Be("88EC");
+        }
+
+        [Fact]
         public void AutomaticFanCurve_IsOnlyOfferedOn8D87_AndOffByDefaultInConfig()
         {
             ModelCapabilityDatabase.GetPreferredCapabilities(

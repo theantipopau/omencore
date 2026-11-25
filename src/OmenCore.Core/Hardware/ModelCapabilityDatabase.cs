@@ -2727,6 +2727,30 @@ namespace OmenCore.Hardware
                 Notes = "Issue #128 — explicit Victus 16-e0xxx mapping (88EC) to avoid low-confidence family fallback; feature flags intentionally conservative pending field verification. A follow-up diagnostics export confirmed 'Performance mode Balanced: nothing was applied (Direct EC writes disabled)' live in the field - this board never got the AllowDecoupledWmiThermalPolicyFallback fix already applied to 8DCD/8C30/878C/8600, so switching modes had no effect at all since Direct EC is (correctly) disabled here and no fallback path was enabled to compensate."
             });
             
+            // GitHub #273 (2026-11-25): Victus 16-e0xxx AMD on board 88EB (Ryzen 5 5600H, GTX 1650, BIOS F.25). It used to
+            // borrow the 88EC entry by name and passed Guided Fan Verification 6/6 on that profile, so this entry copies it.
+            // No ModelNamePattern: other 16-e0 boards keep resolving to 88EC by name.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "88EB",
+                ModelName = "HP Victus 16-e0xxx AMD (88EB)",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                AllowDecoupledWmiThermalPolicyFallback = true,
+                UserVerified = false,
+                Notes = "GitHub #273 (2026-11-25), 5.0.2 export: Victus 16-e0xxx, board 88EB, Ryzen 5 5600H + GTX 1650, BIOS F.25. Measured: thermal policy V0, 2 fans, max level 55, level readback works, RPM readback null (estimates only), keyboard topology Normal (0x00). Guided Fan Verification 6/6 (2200/3300/4500 RPM estimates) while resolving to the 88EC entry, whose flags this copies. Curves on as in 88EC; GPU boost, MUX and undervolt left off: not measured."
+            });
+
             // ═══════════════════════════════════════════════════════════════════════════════════
             AddModel(new ModelCapabilities
             {
