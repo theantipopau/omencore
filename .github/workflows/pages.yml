@@ -12,6 +12,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read # the wait step lists this run's artifacts
 
 concurrency:
   group: pages
@@ -30,6 +31,20 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: website
+
+      # deploy-pages lists the run's artifacts once and fails on an empty list. Right after the upload the
+      # listing can still be empty (the 5.0.2 site deploy failed this way twice). Wait until it is listed.
+      - name: Wait for the artifact to be listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 30); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages")] | length')
+            if [ "$n" -ge 1 ]; then echo "github-pages listed (attempt $i)"; exit 0; fi
+            sleep 2
+          done
+          echo "::error::the github-pages artifact never appeared in this run's artifact listing"
+          exit 1
 
       - name: Deploy to GitHub Pages
         id: deployment
