@@ -1888,6 +1888,37 @@ namespace OmenCore.Hardware
                 Notes = "GitHub #105 — Victus 15-fb0xxx. Conservative Victus profile (single-zone backlight)."
             });
 
+            // Victus 15 (2022) fb0xxx AMD, board 8A3C. GitHub #271/#272 (beamchik): until now it reached 8A3E's entry only
+            // through the shared "15-fb0" name, which says 1 fan where the firmware reports 2. No name pattern here, so
+            // other 15-fb0 boards keep resolving as before.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A3C",
+                ModelName = "HP Victus 15 (2022) fb0xxx AMD",
+                ModelYear = 2022,
+                Family = OmenModelFamily.Victus,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = false,
+                HasKeyboardBacklight = true,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool" },
+                UserVerified = false,
+                Notes = "GitHub #271 (beamchik, 2026-11-24) - Victus 15-fb0xxx, BIOS F.23, Ryzen 7 5800H + RTX 3050 Ti, no MUX. " +
+                    "Firmware reports 2 fans. Guided Fan Verification 6/6 twice (fan-level evidence; RPM readback returns null); " +
+                    "levels reach 55/55 with some settling latency. Asymmetric single-fan requests each read back their own level, " +
+                    "but independent curves are left off. Single-zone backlight. AMD STAPM writes are accepted and ignored on this " +
+                    "firmware (#272), so sustained package power stays at 35 W."
+            });
+
             AddModel(new ModelCapabilities
             {
                 ProductId = "8C30",
