@@ -1,0 +1,36 @@
+{
+  "productId": "8A3C",
+  "modelName": "Victus by HP Gaming Laptop 15-fb0xxx (AMD)",
+  "modelNamePattern": "15-fb0xxx",
+  "modelYear": 2022,
+  "family": "Victus",
+  "reportedBy": "beamchik",
+  "sourceDiagnosticsExport": true,
+  "fanControl": {
+    "supportsFanControlWmi": true,
+    "supportsFanControlEc": false,
+    "supportsFanCurves": true,
+    "supportsIndependentFanCurves": false,
+    "supportsRpmReadback": false,
+    "fanZoneCount": 2
+  },
+  "performance": {
+    "supportsPerformanceModes": true,
+    "performanceModes": ["Default", "Performance", "Cool"]
+  },
+  "gpu": {
+    "hasMuxSwitch": false,
+    "supportsGpuPowerBoost": false
+  },
+  "lighting": {
+    "hasKeyboardBacklight": true,
+    "hasFourZoneRgb": false,
+    "hasPerKeyRgb": false,
+    "hasLightBar": false
+  },
+  "power": {
+    "supportsUndervolt": false,
+    "supportsPowerLimits": true
+  },
+  "notes": "Victus 15-fb0xxx, BIOS F.23, Ryzen 7 5800H + RTX 3050 Ti Laptop, 200 W shipping adapter, no MUX. Firmware reports 2 fans while the inferred 8A3E entry says 1. Fan RPM readback returns null ('Fan RPM readback returned null', hardware-info.txt source: Estimated), so all RPM shown is a software estimate. Guided Fan Diagnostic 2026-11-24 passed all six steps (30/60/100 percent on both fans) with 'Evidence=Level' and '(fan-level estimate)' on every result: firmware level readback works (16/16, 33/33, 54/55, 52/55) but fan motion is never independently confirmed. At 100 percent the first run saw fan 0 report level 50 before settling at 54/55 and fan 1 settle at 52/55; a same-day rerun again passed all six steps and reached level 55/55 on both fans, so the shortfall reflects level settling latency rather than a hard ceiling. Single-fan tests 2026-11-24 (four runs with asymmetric requests: CPU 30/GPU 60, CPU 20/GPU 80, CPU 80/GPU 33, CPU 34/GPU 30) were accepted by firmware and each targeted fan read back its own requested level (CPU 16/16, GPU 44/44, CPU 44/44, GPU 16/16) while the other fan stayed at its distinct level, so the two fans are addressable separately at the level layer; independent curves themselves are not exposed in the UI, so supportsIndependentFanCurves is reported false conservatively. supportsFanControlEc is reported false because all control in these sessions went through WMI BIOS and no direct EC write was exercised. Estimated RPM is derived from the commanded level, not a tachometer: during the single-fan test the sample buffer read [2000,2000,2000,2000,2000] while the app printed 'Average: 4400 RPM, StdDev: 0.0'. HP keyboard lighting service not detected (KeyboardLightingV2: no working backend, tried BacklightOnly); board has a single-zone backlight, no per-key or four-zone RGB. Connected adapter rating reads 0 W through BIOS Legacy 0x0F, barrel-jack support reports false; only the 200 W shipping rating is usable. AMD power-limit writes via OmenCore: PPT fast/slow take effect, the STAPM write is accepted but ignored, and apu-slow returns UnknownCmd - sustained CPU package power floors at 35 W with APU STAPM Limit pinned at 100 percent, so any slider value above 35 W has no effect. Performance mode service was unavailable in this session (PerformanceApplyTrace: service unavailable)."
+}
