@@ -715,6 +715,34 @@ namespace OmenCore.Hardware
                 UserVerified = false,
                 Notes = "GitHub #121 / Discord 2026-05-25 — Hades 8A43 exact ProductId profile added to avoid model-name-pattern inference. HP serial lookup reports OMEN Gaming Laptop 16-n0002ni / 6G103EA. Fan diagnostics show practical V1 ceiling near level 60 (GPU ~60, CPU ~58), so max fan level override is set to 60 for safer verification/normalization."
             });
+
+            // OMEN 16 (2022) - k0xxx series (Intel Alder Lake i7-12700H + RTX 3060 Laptop GPU, Board 8A4D, BIOS F.29)
+            // Hendricks board variant. Thermal policy V1, 2 fans, max fan level 55.
+            AddModel(new ModelCapabilities
+            {
+                ProductId = "8A4D",
+                ModelName = "OMEN by HP Gaming Laptop 16-k0xxx",
+                ModelNamePattern = "16-k0",
+                ModelYear = 2022,
+                Family = OmenModelFamily.OMEN16,
+                SupportsFanControlWmi = true,
+                SupportsFanControlEc = false,
+                SupportsFanCurves = true,
+                SupportsIndependentFanCurves = false,
+                SupportsRpmReadback = false,
+                FanZoneCount = 2,
+                MaxFanLevel = 55,
+                HasMuxSwitch = false,
+                SupportsGpuPowerBoost = false,
+                SupportsUndervolt = false,
+                HasFourZoneRgb = true,
+                HasKeyboardBacklight = true,
+                SupportsPerformanceModes = true,
+                PerformanceModes = new[] { "Default", "Performance", "Cool" },
+                AllowDecoupledWmiThermalPolicyFallback = false,
+                UserVerified = false,
+                Notes = "HP OMEN Gaming Laptop 16-k0xxx (8A4D), Intel i7-12700H + RTX 3060 Laptop GPU, BIOS F.29. Thermal policy V1, 2 fans, max fan level 55, WMI BIOS fan control with level readback (RPM estimated from level to prevent null-readback errors), 4-zone RGB keyboard backlight. MUX switch, GPU Power Boost, and independent fan curves set to false pending switch and tachometer readback evidence."
+            });
             
             // OMEN 16 (2023) - wf series
             // 8BCA is ambiguous (see _ambiguousProductIds) - this entry is only reached when
@@ -3021,7 +3049,6 @@ namespace OmenCore.Hardware
             ("8A17", "OMEN 15/17 (2021 generation)", OmenModelFamily.Legacy, 2021),
             ("8A42", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
             ("8A4C", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
-            ("8A4D", "OMEN 16 (2021-2022)", OmenModelFamily.OMEN16, 2022),
             ("8BAA", "OMEN 16 (2023-2025)", OmenModelFamily.OMEN16, 0),
             ("8C78", "OMEN 16-wf1xxx (2024)", OmenModelFamily.OMEN16, 2024),
             ("8D3F", "OMEN (2025 generation)", OmenModelFamily.OMEN2024Plus, 0),

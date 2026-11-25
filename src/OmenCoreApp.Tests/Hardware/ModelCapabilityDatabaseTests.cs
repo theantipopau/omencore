@@ -54,6 +54,32 @@ namespace OmenCoreApp.Tests.Hardware
         }
 
         [Fact]
+        public void GetCapabilities_Omen16K0xxx_8A4D_ResolvesWithVerifiedCapabilities()
+        {
+            var caps = ModelCapabilityDatabase.GetCapabilities("8A4D");
+
+            caps.Should().NotBeNull();
+            caps.ProductId.Should().Be("8A4D");
+            caps.ModelName.Should().Contain("16-k0xxx");
+            caps.Family.Should().Be(OmenModelFamily.OMEN16);
+            caps.SupportsFanControlWmi.Should().BeTrue();
+            caps.SupportsFanCurves.Should().BeTrue();
+            caps.SupportsIndependentFanCurves.Should().BeFalse();
+            caps.SupportsRpmReadback.Should().BeFalse();
+            caps.FanZoneCount.Should().Be(2);
+            caps.MaxFanLevel.Should().Be(55);
+            caps.HasMuxSwitch.Should().BeFalse();
+            caps.SupportsGpuPowerBoost.Should().BeFalse();
+            caps.HasFourZoneRgb.Should().BeTrue();
+            caps.UserVerified.Should().BeFalse();
+
+            var preferred = ModelCapabilityDatabase.GetPreferredCapabilities("8A4D", "OMEN by HP Gaming Laptop 16-k0xxx");
+            preferred.Should().NotBeNull();
+            preferred!.ProductId.Should().Be("8A4D");
+            preferred.SupportsFanCurves.Should().BeTrue();
+        }
+
+        [Fact]
         public void GetCapabilities_Victus8A25_SupportsGpuPowerBoost_DistinctFrom8A26Sibling()
         {
             // Field-confirmed by two independent Discord reporters across v3.8.0/v4.0.0/v4.1.0:
@@ -1039,6 +1065,7 @@ namespace OmenCoreApp.Tests.Hardware
 
         [Theory]
         [InlineData("8A15")]  // exact entry
+        [InlineData("8A4D")]  // exact entry
         [InlineData("8BCD")]
         [InlineData("8574")]
         [InlineData("ZZZZ")]  // not a board at all
@@ -1051,7 +1078,7 @@ namespace OmenCoreApp.Tests.Hardware
         public void GetListedBoard_NoListedBoardIsAlsoAnExactEntry()
         {
             // A listed board that gained a real entry later must be removed from the list, not left shadowed.
-            var listedIds = new[] { "84DA", "8572", "8607", "8746", "8788", "88F4", "8A17", "8A42", "8A4D", "8BAA", "8C78", "8D3F", "8F1C", "8A3D", "8B2F", "8DE1", "8E5C" };
+            var listedIds = new[] { "84DA", "8572", "8607", "8746", "8788", "88F4", "8A17", "8A42", "8A4C", "8BAA", "8C78", "8D3F", "8F1C", "8A3D", "8B2F", "8DE1", "8E5C" };
             foreach (var id in listedIds)
                 ModelCapabilityDatabase.IsKnownModel(id).Should().BeFalse($"{id} has an exact entry, so it should leave the listed-boards table");
         }

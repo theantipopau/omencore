@@ -338,6 +338,20 @@ namespace OmenCore.Services.KeyboardLighting
                 UserVerified = false,
                 Notes = "GitHub #121 - Hades 8A43 exact ProductId mapping to avoid Unknown keyboard fallback. HP serial lookup reports OMEN Gaming Laptop 16-n0002ni / 6G103EA."
             });
+
+            // OMEN 16 (2022) - k0xxx series (Intel Alder Lake, Board 8A4D)
+            AddModel(new KeyboardModelConfig
+            {
+                ProductId = "8A4D",
+                ModelName = "OMEN 16-k0xxx (2022) Intel",
+                ModelNamePattern = "16-k0",
+                KeyboardType = KeyboardType.FourZone,
+                PreferredMethod = KeyboardMethod.ColorTable2020,
+                FallbackMethods = new[] { KeyboardMethod.NewWmi2023, KeyboardMethod.EcDirect },
+                ModelYear = 2022,
+                UserVerified = true,
+                Notes = "OMEN by HP Gaming Laptop 16-k0xxx (8A4D) Intel Alder Lake. 4-zone keyboard backlight via ColorTable2020 / WMI."
+            });
             
             // OMEN 16 (2023) - May use new interface
             AddModel(new KeyboardModelConfig

@@ -475,6 +475,7 @@ namespace OmenCore.Hardware
                 "8B9D", "8B9E", "8B9F",                   // OMEN 17 variants
                 "88D9", "88DA", "88DB",                   // OMEN 15 variants
                 "8A12", "8A13", "8A14",                   // OMEN 16 wf series
+                "8A4D",                                   // OMEN 16 2022 series (k0xxx Intel)
                 "8C3A", "8C3B", "8C3C",                   // Newer OMEN variants
             };
             
