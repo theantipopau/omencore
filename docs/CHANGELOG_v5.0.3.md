@@ -16,9 +16,17 @@
 
 ## Added
 
+- **OMEN 16-k0xxx Intel (`8A4D`)** (#263, contributed by Kenyi001): an exact entry for this 2022 board. Two fans,
+  max fan level 55, four-zone keyboard. Guided Fan Verification passed 6/6 on 5.0.2 (BIOS F.29); MUX switch, GPU Power
+  Boost and independent curves stay off until there is evidence for them. Not marked field-confirmed.
 - **Victus 15-fb0xxx AMD (`8A3C`)** (#271, submitted by beamchik): an exact entry. It used to borrow the `8A3E` entry
   by name, which says 1 fan where this firmware reports 2. Guided Fan Verification passed 6/6 twice; fan curves on,
   independent curves off, not marked field-confirmed.
+
+## Website
+
+- **The 5.0.2 site update never went live.** The Pages workflow uploaded the site and then, in the same job, could not
+  find the upload, so the site stayed on 5.0.1. Upload and deploy now run as separate jobs, and the site shows 5.0.2.
 
 ## Confirmed
 
