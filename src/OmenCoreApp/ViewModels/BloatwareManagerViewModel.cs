@@ -328,7 +328,19 @@ namespace OmenCore.ViewModels
                 return;
             }
 
-            BuildRemovalPreview("Remove Selected Item", new List<BloatwareApp> { SelectedApp });
+            // #177: picking a second app replaced the first. While the selected-items list is open, add to it.
+            if (IsRemovalPreviewVisible && RemovalPreviewTitle == SelectedItemsPreviewTitle)
+            {
+                if (!RemovalPreviewItems.Any(i => ReferenceEquals(i.App, SelectedApp)))
+                {
+                    RemovalPreviewItems.Add(CreatePreviewItem(SelectedApp));
+                    UpdateRemovalPreviewSummary();
+                }
+            }
+            else
+            {
+                BuildRemovalPreview(SelectedItemsPreviewTitle, new List<BloatwareApp> { SelectedApp });
+            }
             await Task.CompletedTask;
         }
 
@@ -486,26 +498,32 @@ namespace OmenCore.ViewModels
             return summary;
         }
 
+        internal const string SelectedItemsPreviewTitle = "Remove Selected Items";
+
+        private BloatwareRemovalPreviewItem CreatePreviewItem(BloatwareApp app)
+        {
+            var item = new BloatwareRemovalPreviewItem(
+                app,
+                EstimateRemovalSeconds(app),
+                GetDependencyHint(app));
+
+            item.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(BloatwareRemovalPreviewItem.IsSelected))
+                {
+                    UpdateRemovalPreviewSummary();
+                }
+            };
+            return item;
+        }
+
         private void BuildRemovalPreview(string title, List<BloatwareApp> candidates)
         {
             RemovalPreviewItems.Clear();
 
             foreach (var app in candidates)
             {
-                var item = new BloatwareRemovalPreviewItem(
-                    app,
-                    EstimateRemovalSeconds(app),
-                    GetDependencyHint(app));
-
-                item.PropertyChanged += (_, args) =>
-                {
-                    if (args.PropertyName == nameof(BloatwareRemovalPreviewItem.IsSelected))
-                    {
-                        UpdateRemovalPreviewSummary();
-                    }
-                };
-
-                RemovalPreviewItems.Add(item);
+                RemovalPreviewItems.Add(CreatePreviewItem(app));
             }
 
             RemovalPreviewTitle = title;
