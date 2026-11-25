@@ -55,6 +55,7 @@ namespace OmenCoreApp.Tests.Hardware
         [InlineData("OMEN by HP Gaming Laptop 16-n0xxx", true)]
         [InlineData("OMEN by HP Laptop 17-ck1xxx", true)]
         [InlineData("OMEN MAX Gaming Laptop 16t-ah000", true)]
+        [InlineData("OMEN Laptop 15-en1xxx", true)] // #274, 88D2
         [InlineData("OMEN by HP Gaming Laptop 16-wf0xxx", false)]
         public void ShouldPreferWorkerCpuTemp_UsesModelScopedOverrideList(string model, bool expected)
         {

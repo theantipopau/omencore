@@ -1417,7 +1417,9 @@ namespace OmenCore.Hardware
                 _logging?.Debug($"[WmiBiosMonitor] CPU temp fallback read failed: {ex.Message}");
             }
 
-            return false;
+            // No usable worker reading this tick. On override models keep the last good one (if recent) rather than
+            // handing authority back to the WMI value the override exists to avoid (#274).
+            return TryReuseLastWorkerCpuTemperature(DateTime.UtcNow, "worker CPU read returned no usable value");
         }
 
         private bool TryReuseLastWorkerCpuTemperature(DateTime nowUtc, string reason)
@@ -1547,7 +1549,11 @@ namespace OmenCore.Hardware
                    // Discord report 2026-03-26: OMEN 17-ck1xxx random CPU temp drop to 40°C
                    // Same WMI sensor arbitration issue as ck2xxx/xd0xxx — prefer worker-backed temp.
                    model.Contains("17-ck1", StringComparison.OrdinalIgnoreCase) ||
-                   model.Contains("17-ck2", StringComparison.OrdinalIgnoreCase);
+                   model.Contains("17-ck2", StringComparison.OrdinalIgnoreCase) ||
+                   // GitHub #274: OMEN 15-en1xxx (88D2, BIOS F.30) answers 39 on all four WMI temperature indices.
+                   // Each time the worker read hiccuped, authority fell back to that stuck value, and thermal
+                   // protection read ~44 C for the last three minutes before a Windows thermal shutdown.
+                   model.Contains("15-en1", StringComparison.OrdinalIgnoreCase);
         }
 
         private bool _loadFallbackLogged;
