@@ -30,15 +30,14 @@ board entries.
 - **Victus 15-fb0xxx AMD (`8A3C`)** (#271, submitted by beamchik): an exact entry. It used to borrow the `8A3E` entry
   by name, which says 1 fan where this firmware reports 2. Guided Fan Verification passed 6/6 twice; fan curves on,
   independent curves off, not marked field-confirmed.
+- **Victus 16-e0xxx AMD (`88EB`)** (#273, tested by tmnkomrad-eng): an exact entry. It used to borrow the `88EC`
+  entry by name and passed Guided Fan Verification 6/6 on that profile, so the new entry copies its settings. Not
+  marked field-confirmed.
 
 ## Website
 
 - **The 5.0.2 site update never went live.** The Pages workflow uploaded the site and then, in the same job, could not
   find the upload, so the site stayed on 5.0.1. Upload and deploy now run as separate jobs, and the site shows 5.0.2.
-
-- **Victus 16-e0xxx AMD (`88EB`)** (#273, tested by tmnkomrad-eng): an exact entry. It used to borrow the `88EC`
-  entry by name and passed Guided Fan Verification 6/6 on that profile, so the new entry copies its settings. Not
-  marked field-confirmed.
 
 ## Confirmed
 
@@ -57,5 +56,6 @@ board entries.
 - **AMD Cezanne (`8A3C`): sustained power held at 35 W** (#272). The reporter traced it: OmenCore's STAPM write lands,
   and the APU skin-temperature target (`STT LIMIT APU`, 45 °C) pulls the budget down. An STT control is a feature
   request for the next minor version.
-- **Victus 15-fb3xxx (`8DD0`): Guided Fan Verification fails CPU @ 60%** (#269). The CPU fan's level readback climbs
-  toward the target more slowly than the test waits; fan control itself works on both fans.
+- **Victus 15-fb3xxx (`8DD0`): Guided Fan Verification fails CPU @ 60%** (#269). At 60% the CPU fan's level readback
+  stayed flat short of the target (the previous step's 16, then 30, then 23 of 33) for the whole 12-second check, so a
+  longer wait alone may not pass it. Fan control itself works on both fans.
