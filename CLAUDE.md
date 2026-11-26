@@ -114,7 +114,7 @@ dotnet test src/OmenCoreApp.Tests/OmenCoreApp.Tests.csproj --filter "FullyQualif
 
 ## Versioning & docs
 
-- Current released: **5.0.2** (2026-11-23); 5.0.1 was released 2026-11-15 and 5.0.0 on 2026-11-13. Release notes are in `docs/CHANGELOG_v5.0.2.md`, `docs/CHANGELOG_v5.0.1.md` and `docs/CHANGELOG_v5.0.0.md`.
+- Current released: **5.0.3** (2026-11-26); 5.0.2 was released 2026-11-23, 5.0.1 on 2026-11-15 and 5.0.0 on 2026-11-13. Release notes are in `docs/CHANGELOG_v5.0.3.md`, `docs/CHANGELOG_v5.0.2.md`, `docs/CHANGELOG_v5.0.1.md` and `docs/CHANGELOG_v5.0.0.md`.
   The 5.0.0 cycle is tracked in `docs/ROADMAP_v5.0.0.md`: section 5 is the definition of done (and what shipped short
   of it), section 6 the work packages, section 7 the open-issue index. The items it moved out (signing, privilege
   split, full translation) are the next cycle's starting list.

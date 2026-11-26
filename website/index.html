@@ -33,7 +33,7 @@
     <a href="#top" class="brand">
       <img src="assets/icon-256.png" alt="" width="30" height="30" />
       OmenCore
-      <small>v5.0.2</small>
+      <small>v5.0.3</small>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
@@ -88,7 +88,7 @@
 
     <span class="hero-pill">
       <span class="dot-live"></span>
-      v5.0.2 is out now — fans no longer pinned after a verification run, steady GPU temperature on battery, NVIDIA power unlock on newer drivers, and Simplified Chinese. Built on 5.0.0: modes that remember fans, GPU boost and lighting.
+      v5.0.3 is out now — thermal protection fix on the OMEN 15-en1xxx, per-key keyboard on the OMEN MAX 16z-ak000, and three new board entries. Built on 5.0.0: modes that remember fans, GPU boost and lighting.
     </span>
 
     <h1>Take full control of your <span class="text-gradient">HP OMEN &amp; Victus</span> laptop</h1>
@@ -322,7 +322,7 @@
   <div class="container">
     <div class="download-card reveal">
       <div>
-        <div class="download-version">Latest release <b id="latestVersion">v5.0.2</b></div>
+        <div class="download-version">Latest release <b id="latestVersion">v5.0.3</b></div>
         <h3>Get OmenCore</h3>
         <p>Free and open source, for HP OMEN and Victus laptops. Windows 10 (19041+) or 11, x64; the .NET runtime is included. Update from inside the app and your settings carry over.</p>
 
@@ -341,8 +341,8 @@
 
         <div class="tab-panel" data-panel="linux">
           <div class="code-block">
-            <button class="copy-btn" type="button" data-copy="VERSION=5.0.2&#10;wget &quot;https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip&quot;&#10;unzip &quot;OmenCore-${VERSION}-linux-x64.zip&quot; -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64&#10;chmod +x omencore-cli omencore-gui&#10;sudo ./omencore-cli status&#10;./omencore-gui">Copy</button>
-            <span>VERSION=5.0.2</span><br />
+            <button class="copy-btn" type="button" data-copy="VERSION=5.0.3&#10;wget &quot;https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip&quot;&#10;unzip &quot;OmenCore-${VERSION}-linux-x64.zip&quot; -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64&#10;chmod +x omencore-cli omencore-gui&#10;sudo ./omencore-cli status&#10;./omencore-gui">Copy</button>
+            <span>VERSION=5.0.3</span><br />
             <span>wget "https://github.com/theantipopau/omencore/releases/download/v${VERSION}/OmenCore-${VERSION}-linux-x64.zip"</span><br />
             <span>unzip "OmenCore-${VERSION}-linux-x64.zip" -d OmenCore-linux-x64 &amp;&amp; cd OmenCore-linux-x64</span><br />
             <span>chmod +x omencore-cli omencore-gui</span><br />
@@ -382,8 +382,22 @@
     <div class="timeline reveal">
       <div class="timeline-item is-current">
         <div class="timeline-head">
-          <span class="v">v5.0.2</span>
+          <span class="v">v5.0.3</span>
           <span class="timeline-badge">Current stable</span>
+        </div>
+        <p>A fix release. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
+        <ul>
+          <li>OMEN 15-en1xxx: thermal protection takes CPU temperature from the real sensor instead of a stuck value</li>
+          <li>OMEN MAX 16z-ak000: the per-key keyboard editor works on this AMD build</li>
+          <li>New board entries: OMEN 16-k0xxx 8A4D (contributed by Kenyi001), Victus 15-fb0xxx AMD 8A3C (submitted by beamchik), Victus 16-e0xxx AMD 88EB</li>
+          <li>Bloatware: several apps can be queued for removal at once</li>
+        </ul>
+        <a class="timeline-link" href="https://github.com/theantipopau/omencore/blob/main/docs/CHANGELOG_v5.0.3.md" target="_blank" rel="noopener">Full v5.0.3 changelog →</a>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-head">
+          <span class="v">v5.0.2</span>
+          <span class="timeline-badge muted">Fix</span>
         </div>
         <p>A fix release. Hardware-facing changes are marked as waiting for owner confirmation in the release notes.</p>
         <ul>
