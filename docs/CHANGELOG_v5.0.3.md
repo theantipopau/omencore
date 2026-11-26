@@ -59,3 +59,7 @@ board entries.
 - **Victus 15-fb3xxx (`8DD0`): Guided Fan Verification fails CPU @ 60%** (#269). At 60% the CPU fan's level readback
   stayed flat short of the target (the previous step's 16, then 30, then 23 of 33) for the whole 12-second check, so a
   longer wait alone may not pass it. Fan control itself works on both fans.
+- **A general fail-safe for a stuck CPU temperature** (#274 follow-up). Handing fans to the BIOS, or to the watchdog's
+  90%, whenever the CPU temperature looks frozen is not safe with the current freeze detector: it fires on most
+  boards in field logs (461 times in one `8A4D` session), and it did not fire in the last minutes before the `88D2`
+  shutdown. The `88D2` fix above stays model-scoped; a general fail-safe needs a more reliable signal first.
