@@ -1,6 +1,6 @@
 # OmenCore v5.0.3
 
-**Release Date:** not yet released
+**Release Date:** 2026-11-26
 **Type:** Fix release: thermal protection on the OMEN 15-en1xxx, per-key keyboard on the OMEN MAX 16z-ak000, three new
 board entries.
 
