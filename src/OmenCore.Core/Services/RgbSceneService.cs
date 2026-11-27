@@ -105,7 +105,7 @@ namespace OmenCore.Services
                 Description = "Classic OMEN red theme",
                 Icon = "🔴",
                 Effect = RgbSceneEffect.Static,
-                PrimaryColor = "#FF0000",
+                PrimaryColor = "#E6002E",
                 Brightness = 100,
                 IsDefault = true
             });

@@ -36,6 +36,7 @@ namespace OmenCore.Services.Rgb
         private const int PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE = 1100;
         private const int PACKET_ID_RGBCONTROLLER_UPDATEMODE = 1101;
         private const int OPENRGB_CLIENT_PROTOCOL_VERSION = 4;
+        private int _protocolVersion;
         private const int MAX_PACKET_DATA_LENGTH = 16 * 1024 * 1024;
         private const int MAX_DISCOVERABLE_CONTROLLERS = 128;
         private const int MAX_LED_UPDATE_COUNT = 2048;
@@ -138,8 +139,9 @@ namespace OmenCore.Services.Rgb
                 
                 _stream = _client.GetStream();
                 _isConnected = true;
+                _protocolVersion = 0;
                 
-                // Negotiate protocol version (protocol 4 supports modern mode/speed/brightness data)
+                // Negotiate protocol version (protocol 4 supports modern mode/speed/brightness/segment data)
                 await NegotiateProtocolVersionAsync(OPENRGB_CLIENT_PROTOCOL_VERSION);
 
                 // Send client name
@@ -171,7 +173,8 @@ namespace OmenCore.Services.Rgb
                 if (response.Data.Length >= 4)
                 {
                     int serverVersion = BitConverter.ToInt32(response.Data, 0);
-                    _logging.Debug($"[OpenRGB] Negotiated protocol version: {serverVersion} (client requested: {clientVersion})");
+                    _protocolVersion = Math.Clamp(Math.Min(clientVersion, serverVersion), 0, OPENRGB_CLIENT_PROTOCOL_VERSION);
+                    _logging.Debug($"[OpenRGB] Negotiated protocol version: {_protocolVersion} (server: {serverVersion}, client: {clientVersion})");
                 }
             }
             catch (Exception ex)
@@ -212,10 +215,9 @@ namespace OmenCore.Services.Rgb
                     var device = await GetControllerDataAsync(i);
                     if (device != null)
                     {
-                        // Skip internal laptop keyboard controllers: OmenCore controls the laptop keyboard natively via WMI BIOS / EC
+                        // Skip the built-in 4-zone laptop keyboard controller: OmenCore controls it natively via WMI BIOS / EC
                         if (device.Type == OpenRgbDeviceType.Keyboard &&
-                            (device.Name.Contains("Omen", StringComparison.OrdinalIgnoreCase) ||
-                             device.Name.Contains("Laptop", StringComparison.OrdinalIgnoreCase)))
+                            string.Equals(device.Name.Trim(), "Omen 4-Zone Laptop Keyboard", StringComparison.OrdinalIgnoreCase))
                         {
                             _logging.Debug($"[OpenRGB] Skipping internal keyboard controller {i}: '{device.Name}' (managed natively by OmenCore)");
                             continue;
@@ -234,18 +236,19 @@ namespace OmenCore.Services.Rgb
         
         private async Task<OpenRgbDevice?> GetControllerDataAsync(int deviceIndex)
         {
-            var versionBytes = BitConverter.GetBytes(OPENRGB_CLIENT_PROTOCOL_VERSION);
+            var versionBytes = BitConverter.GetBytes(_protocolVersion);
             await SendPacketAsync(PACKET_ID_REQUEST_CONTROLLER_DATA, versionBytes, deviceIndex);
             var response = await ReceivePacketAsync();
             
             if (response.Data.Length < 8)
                 return null;
             
-            return ParseControllerData(deviceIndex, response.Data);
+            return ParseControllerData(deviceIndex, response.Data, _protocolVersion);
         }
         
-        private OpenRgbDevice ParseControllerData(int index, byte[] data)
+        private OpenRgbDevice ParseControllerData(int index, byte[] data, int? protocolVersion = null)
         {
+            int effectiveProtocol = protocolVersion ?? _protocolVersion;
             var device = new OpenRgbDevice { Index = index };
             
             using var ms = new MemoryStream(data);
@@ -291,14 +294,18 @@ namespace OmenCore.Services.Rgb
                     uint flags = reader.ReadUInt32();
                     uint speedMin = reader.ReadUInt32();
                     uint speedMax = reader.ReadUInt32();
-                    // In protocol version 3+, brightness_min and brightness_max are present
-                    uint brightnessMin = reader.ReadUInt32();
-                    uint brightnessMax = reader.ReadUInt32();
+                    if (effectiveProtocol >= 3)
+                    {
+                        uint brightnessMin = reader.ReadUInt32();
+                        uint brightnessMax = reader.ReadUInt32();
+                    }
                     uint colorsMin = reader.ReadUInt32();
                     uint colorsMax = reader.ReadUInt32();
                     uint speed = reader.ReadUInt32();
-                    // In protocol version 3+, brightness is present
-                    uint brightness = reader.ReadUInt32();
+                    if (effectiveProtocol >= 3)
+                    {
+                        uint brightness = reader.ReadUInt32();
+                    }
                     uint direction = reader.ReadUInt32();
                     uint colorMode = reader.ReadUInt32();
                     ushort numColors = reader.ReadUInt16();
@@ -327,7 +334,41 @@ namespace OmenCore.Services.Rgb
                     }
                 }
 
-                device.LedCount = EstimateLedCount(device.Type, device.Name);
+                if (ms.Position + sizeof(ushort) <= ms.Length)
+                {
+                    int zoneCount = reader.ReadUInt16();
+                    for (int z = 0; z < zoneCount; z++)
+                    {
+                        SkipPrefixedString(reader, "zone_name");
+                        reader.ReadInt32();  // zone_type
+                        reader.ReadUInt32(); // leds_min
+                        reader.ReadUInt32(); // leds_max
+                        reader.ReadUInt32(); // leds_count
+                        ushort matrixLen = reader.ReadUInt16();
+                        if (matrixLen > 0)
+                        {
+                            EnsureBytesRemaining(reader, matrixLen, "zone_matrix");
+                            reader.ReadBytes(matrixLen);
+                        }
+                        if (effectiveProtocol >= 4)
+                        {
+                            ushort segmentCount = reader.ReadUInt16();
+                            for (int s = 0; s < segmentCount; s++)
+                            {
+                                SkipPrefixedString(reader, "segment_name");
+                                reader.ReadBytes(12); // type (4) + start_idx (4) + leds_count (4)
+                            }
+                        }
+                    }
+
+                    EnsureBytesRemaining(reader, sizeof(ushort), "num_leds");
+                    ushort reportedLedCount = reader.ReadUInt16();
+                    device.LedCount = reportedLedCount > 0 ? reportedLedCount : EstimateLedCount(device.Type);
+                }
+                else
+                {
+                    device.LedCount = EstimateLedCount(device.Type);
+                }
             }
             catch (Exception ex)
             {
@@ -361,24 +402,12 @@ namespace OmenCore.Services.Rgb
             }
         }
         
-        private int EstimateLedCount(OpenRgbDeviceType type, string name = "")
+        private static int EstimateLedCount(OpenRgbDeviceType type)
         {
-            if (!string.IsNullOrEmpty(name))
-            {
-                if (name.Contains("4-Zone", StringComparison.OrdinalIgnoreCase))
-                {
-                    return 4;
-                }
-                if (name.Contains("Gladius", StringComparison.OrdinalIgnoreCase))
-                {
-                    return 3;
-                }
-            }
-
             return type switch
             {
                 OpenRgbDeviceType.Keyboard => 104,
-                OpenRgbDeviceType.Mouse => 3,
+                OpenRgbDeviceType.Mouse => 2,
                 OpenRgbDeviceType.MouseMat => 15,
                 OpenRgbDeviceType.Headset => 2,
                 OpenRgbDeviceType.HeadsetStand => 4,
@@ -452,8 +481,20 @@ namespace OmenCore.Services.Rgb
             }
         }
         
+        private static Color NormalizeColorForOpenRgb(Color color)
+        {
+            // OMEN Red (#E6002E) includes a small blue channel (B=46) that causes magenta/pink tint
+            // on uncolored diffuser LEDs of external peripherals; map it to pure red for OpenRGB only.
+            if (color.R == 230 && color.G == 0 && color.B == 46)
+            {
+                return Color.FromArgb(color.A, 255, 0, 0);
+            }
+            return color;
+        }
+
         private async Task SetDeviceColorAsync(int deviceIndex, Color color, int ledCount)
         {
+            color = NormalizeColorForOpenRgb(color);
             ledCount = Math.Clamp(ledCount, 1, MAX_LED_UPDATE_COUNT);
 
             // Ensure device returns to Direct (custom) mode so running hardware animations
