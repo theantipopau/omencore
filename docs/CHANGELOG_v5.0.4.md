@@ -1,7 +1,8 @@
 # OmenCore v5.0.4
 
 **Release Date:** not yet released
-**Type:** Fix release: keyboard lighting repainted red by performance modes, clearer OMEN Gaming Hub guidance.
+**Type:** Fix release: keyboard lighting repainted red by performance modes, Linux fan speed capped on the 8D40, Custom
+tab always available, clearer OMEN Gaming Hub guidance.
 
 ## Fixed
 
@@ -16,3 +17,12 @@
   keep it. All three now say the same thing: OmenCore does not need Gaming Hub, a running Gaming Hub can override
   OmenCore's fan and lighting settings, and it is best removed once OmenCore's fans, lighting and OMEN key are checked
   on that laptop.
+- **Linux GUI: fan curves topped out at 60 % on the OMEN Slim 16 `8D40`** (#248). The GUI drove the fans through
+  `fan1_target`, but this driver runs the fans from the manual duty (`pwm1`), which stayed at 153 of 255 from an
+  earlier write, so Aggressive plateaued at about 3600 RPM of a 6000 RPM maximum. The GUI now writes the manual duty
+  first, as the CLI already does. *Implemented, pending confirmation on 8D40.*
+- **The Custom tab disappeared when switching away from the Custom profile** (Discord). Its settings, such as GPU
+  boost, apply in every mode, so it is now shown with the other advanced tabs.
+- **System Optimizer: reverting a network tweak could leave the registry value in place.** When the registry key
+  existed but the value did not, no backup was recorded, so revert did not remove the value. Value names are also
+  matched without regard to case now, as Windows does.
