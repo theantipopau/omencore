@@ -190,7 +190,7 @@ namespace OmenCore.Services
                     check.IsDetected = oghProcess != null;
                     check.Status = check.IsDetected ? "Running" : "Not Installed";
                     check.Details = check.IsDetected 
-                        ? "OGH process detected - OmenCore can coexist"
+                        ? "OGH is running - OmenCore does not need it, and it can override OmenCore's fan and lighting settings"
                         : "OGH not installed - OmenCore running standalone ✓";
                 }
             }

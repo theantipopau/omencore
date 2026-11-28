@@ -1924,7 +1924,7 @@ namespace OmenCore.Services.BloatwareManager
             if (name.Contains("OMEN Gaming Hub", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.OemSoftware;
-                description = "HP OMEN software - conflict-sensitive until OmenCore fan, RGB, and hotkey control are verified";
+                description = "HP OMEN software - OmenCore does not need it, and while it runs it can override OmenCore's fan and lighting settings. Check OmenCore's fans, lighting and OMEN key on this laptop first, then remove it";
                 risk = RemovalRisk.Medium;
                 return true;
             }
@@ -1933,7 +1933,7 @@ namespace OmenCore.Services.BloatwareManager
                 name.Contains("OmenCap", StringComparison.OrdinalIgnoreCase))
             {
                 category = BloatwareCategory.OemSoftware;
-                description = "OMEN lighting/control component - remove only after OmenCore keyboard lighting and OMEN key behavior are verified";
+                description = "OMEN lighting/control component - OmenCore does not need it. Check OmenCore's keyboard lighting and OMEN key on this laptop first, then remove it";
                 risk = RemovalRisk.High;
                 return true;
             }
@@ -2839,7 +2839,7 @@ namespace OmenCore.Services.BloatwareManager
                 app.RequiresOmenCoreValidation = true;
                 RaiseRisk(app, RemovalRisk.Medium);
                 AddTags(app,
-                    "needed for OMEN key",
+                    "may hold the OMEN key while installed",
                     "may affect lighting handoff",
                     "may affect fan/performance ownership",
                     "safe only after OmenCore hardware validation");
