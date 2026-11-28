@@ -1650,7 +1650,10 @@ namespace OmenCore.ViewModels
                 name => FanPresets.FirstOrDefault(p =>
                     p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)),
                 name => _ = ApplyNamedLightingProfileAsync(name),
-                () => SelectedLightingProfile?.Name);
+                // No lighting capture: the only source was SelectedLightingProfile, which nothing in
+                // the UI changes, so every save recorded the first profile ("Omen Red") whatever the
+                // keyboard was showing, and switching modes then painted it (Discord, 5.0.3).
+                captureLightingProfileName: null);
 
             // v3.7.0: Wire QuietSafetyMonitor events
             _quietSafetyMonitor.SafetyOverrideActivated += OnQuietSafetyOverrideActivated;
@@ -2502,6 +2505,12 @@ namespace OmenCore.ViewModels
         {
             if (string.IsNullOrWhiteSpace(profileName))
             {
+                return;
+            }
+
+            if (_config.Features?.KeyboardLightingEnabled == false)
+            {
+                _logging.Info($"Performance mode lighting '{profileName}' skipped: keyboard lighting is turned off in Settings");
                 return;
             }
 

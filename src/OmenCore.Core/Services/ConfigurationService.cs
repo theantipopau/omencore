@@ -128,7 +128,7 @@ namespace OmenCore.Services
         }
 
         /// <summary>The config schema this build writes. Bump it with a new entry in <see cref="SchemaMigrations"/>.</summary>
-        public const int CurrentSchemaVersion = 1;
+        public const int CurrentSchemaVersion = 2;
 
         /// <summary>
         /// Step N upgrades a version-N config to N+1, in place. Version 0 is every config written before 5.0.0; the
@@ -137,7 +137,19 @@ namespace OmenCore.Services
         private static readonly Action<AppConfig>[] SchemaMigrations =
         {
             _ => { }, // 0 -> 1: 4.x config, no field changed meaning
+            ClearCapturedModeLighting, // 1 -> 2
         };
+
+        /// <summary>
+        /// 5.0.0 to 5.0.3 recorded the first lighting profile ("Omen Red") into a mode on every
+        /// "remember current settings", whatever the keyboard showed, so a stored mode lighting name
+        /// is never a real choice. Clearing it stops mode switches repainting the keyboard.
+        /// </summary>
+        private static void ClearCapturedModeLighting(AppConfig config)
+        {
+            foreach (var mode in config.PerformanceModes ?? Enumerable.Empty<PerformanceMode>())
+                mode.LightingProfileName = null;
+        }
 
         /// <summary>
         /// Brings a loaded config up to <see cref="CurrentSchemaVersion"/>, keeping a copy of the file first so a

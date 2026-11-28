@@ -63,6 +63,23 @@ namespace OmenCoreApp.Tests.Services
         }
 
         [Fact]
+        public void Load_ClearsTheLightingA503ModeCapturedByMistake_KeepsTheRestOfTheMode()
+        {
+            Directory.CreateDirectory(_tempDir);
+            var path = Path.Combine(_tempDir, "config.json");
+            File.WriteAllText(path,
+                "{ \"schemaVersion\": 1, \"performanceModes\": [ { \"name\": \"Performance\", " +
+                "\"fanPresetName\": \"Max\", \"lightingProfileName\": \"Omen Red\" } ] }");
+
+            var service = new ConfigurationService();
+
+            var mode = service.Config.PerformanceModes.Should().ContainSingle().Subject;
+            mode.LightingProfileName.Should().BeNull();
+            mode.FanPresetName.Should().Be("Max");
+            service.Config.SchemaVersion.Should().Be(2);
+        }
+
+        [Fact]
         public void Load_LeavesAConfigFromANewerBuildAtItsVersion()
         {
             Directory.CreateDirectory(_tempDir);
