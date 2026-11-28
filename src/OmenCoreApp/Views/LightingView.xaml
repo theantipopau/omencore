@@ -84,6 +84,15 @@
                             <TextBlock Text="Razer" FontSize="11" Foreground="{Binding RazerStatusBrush}"/>
                         </StackPanel>
                     </Border>
+                    <Border Background="#0D000000" BorderBrush="{Binding OpenRgbStatusBrush}" BorderThickness="1" 
+                            CornerRadius="10" Padding="10,4" Margin="0,0,8,0"
+                            ToolTip="{Binding OpenRgbStatusDetail}"
+                            Visibility="{Binding IsOpenRgbEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Fill="{Binding OpenRgbStatusBrush}" Style="{StaticResource ConnectionIndicator}"/>
+                            <TextBlock Text="OpenRGB" FontSize="11" Foreground="{Binding OpenRgbStatusBrush}"/>
+                        </StackPanel>
+                    </Border>
                     <Border Background="#1AE6002E" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" 
                             CornerRadius="10" Padding="10,4"
                             Visibility="{Binding IsKeyboardLightingAvailable, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -323,6 +332,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
@@ -348,6 +358,13 @@
                                        TextTrimming="CharacterEllipsis"
                                        ToolTip="{Binding RazerStatusDetail}"
                                        Visibility="{Binding IsRazerEnabled, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding OpenRgbStatusDetail}"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextTertiaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding OpenRgbStatusDetail}"
+                                       Margin="0,0,8,0"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -1136,29 +1153,50 @@
                 </Border>
 
                 <!-- OpenRGB Devices Section (Desktop RGB Support) -->
-                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16"
-                        Visibility="{Binding HasOpenRgbDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border Style="{StaticResource SurfaceCard}" Padding="24" Margin="0,0,0,16">
                     <StackPanel>
-                        <!-- Brand Header with Logo -->
-                        <StackPanel Style="{StaticResource BrandSectionHeader}">
-                            <Border Width="28" Height="28" Background="#FF6B35" CornerRadius="6" Margin="0,0,12,0">
-                                <TextBlock Text="🌈" FontSize="14"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBlock Text="OpenRGB Devices" FontSize="20" FontWeight="SemiBold" 
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            <Border Background="#1AFF6B35" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding OpenRgbStatusText}" FontSize="10" Foreground="#FF6B35"/>
-                            </Border>
-                        </StackPanel>
+                        <!-- Brand Header with Logo & Scan Button -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="28" Height="28" Background="#FF6B35" CornerRadius="6" Margin="0,0,12,0">
+                                    <TextBlock Text="🌈" FontSize="14"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="OpenRGB Devices" FontSize="20" FontWeight="SemiBold" 
+                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <Border Background="#1AFF6B35" CornerRadius="8" Padding="8,3" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding OpenRgbStatusText}" FontSize="10" Foreground="#FF6B35"/>
+                                </Border>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Scan Devices" 
+                                    Style="{StaticResource ModernButton}" 
+                                    Command="{Binding DiscoverOpenRgbDevicesCommand}"
+                                    Padding="14,6" FontSize="11" VerticalAlignment="Center"
+                                    ToolTip="Scan for devices connected to OpenRGB SDK server (localhost:6742)"
+                                    AutomationProperties.Name="Scan OpenRGB devices"/>
+                        </Grid>
                         
-                        <TextBlock Text="Optional generic RGB control via OpenRGB server for motherboards, RAM, GPUs, fans, LED strips, and other peripherals."
+                        <TextBlock Text="Generic RGB control via OpenRGB server for peripherals, mice, motherboards, RAM, GPUs, and coolers."
                                    FontSize="12" 
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,16"/>
+
+                        <!-- Empty State Banner (when no devices found) -->
+                        <Border Background="{StaticResource SurfaceDarkBrush}" CornerRadius="6" Padding="16" Margin="0,0,0,16"
+                                Visibility="{Binding HasNoOpenRgbDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="💡" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding OpenRgbStatusDetail}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                         
                         <!-- OpenRGB Device List -->
-                        <ItemsControl ItemsSource="{Binding OpenRgbDevices}" Margin="0,0,0,16">
+                        <ItemsControl ItemsSource="{Binding OpenRgbDevices}" Margin="0,0,0,16"
+                                      Visibility="{Binding HasOpenRgbDevices, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource DeviceCard}">

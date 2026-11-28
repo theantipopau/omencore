@@ -170,7 +170,14 @@ namespace OmenCore.Services
                 Icon = "🌈",
                 Effect = RgbSceneEffect.Spectrum,
                 Speed = 50,
-                Brightness = 100
+                Brightness = 100,
+                ZoneColors = new Dictionary<int, string>
+                {
+                    [0] = "#FF0000",
+                    [1] = "#FFFF00",
+                    [2] = "#00FF00",
+                    [3] = "#00FFFF"
+                }
             });
 
             _scenes.Add(new RgbScene
