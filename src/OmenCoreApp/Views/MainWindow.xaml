@@ -488,22 +488,12 @@
                                 </TabItem.Header>
                             </TabItem>
 
-                            <!-- Custom Tab: visible only when Custom profile is active -->
-                            <TabItem x:Name="OmenTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavCustom}">
-                                <TabItem.Style>
-                                    <Style TargetType="TabItem" BasedOn="{StaticResource Omen.NavRailTabItem}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding ShowAdvancedControls}" Value="True"/>
-                                                    <Condition Binding="{Binding General.IsCustomSelected}" Value="True"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TabItem.Style>
+                            <!-- Custom Tab: shown with the other advanced tabs. It used to hide whenever the
+                                 Custom profile was not selected, although its settings (GPU boost, mode
+                                 memory) still apply in every mode (Discord, 5.0.3). -->
+                            <TabItem x:Name="OmenTabItem" AutomationProperties.Name="{x:Static loc:Strings.NavCustom}"
+                                     Style="{StaticResource Omen.NavRailTabItem}"
+                                     Visibility="{Binding ShowAdvancedControls, Converter={StaticResource BoolToVisibility}}">
                                 <TabItem.Header>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
