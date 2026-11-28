@@ -24,7 +24,8 @@ namespace OmenCore.Services.SystemOptimizer
             _backupPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "OmenCore", "registry_backup");
-            _backupCache = new Dictionary<string, object?>();
+            // Registry key and value names are case-insensitive, so "TcpNoDelay" and "TCPNoDelay" are one value.
+            _backupCache = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             
             // Ensure backup directory exists
             Directory.CreateDirectory(_backupPath);
@@ -100,7 +101,13 @@ namespace OmenCore.Services.SystemOptimizer
                     return; // Already backed up
                     
                 using var key = OpenRegistryKey(keyPath, false);
-                if (key != null)
+                if (key != null && key.GetValue(valueName) == null)
+                {
+                    // The key exists but the value does not: GetValueKind would throw and leave no backup,
+                    // so revert would keep the value forever. Record "absent" so revert deletes it.
+                    _backupCache[cacheKey] = null;
+                }
+                else if (key != null)
                 {
                     var value = key.GetValue(valueName);
                     var kind = key.GetValueKind(valueName);
