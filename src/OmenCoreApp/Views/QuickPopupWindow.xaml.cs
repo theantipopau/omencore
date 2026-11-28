@@ -280,7 +280,7 @@ namespace OmenCore.Views
         {
             return _isFanPerformanceLinked
                 ? "Fan/Perf: Linked"
-                : "Fan/Perf: Decoupled - fan stays";
+                : "Fan/Perf: Decoupled";
         }
 
         private void UpdatePerformanceModeTooltips()
@@ -359,8 +359,8 @@ namespace OmenCore.Views
                 return;
             }
 
-            var targetLabel = $"D{_activeDisplayTargetIndex + 1}";
-            RefreshRateText.Text = currentRate > 0 ? $"{targetLabel} {currentRate}Hz" : $"{targetLabel} N/A";
+            var targetLabel = _displayTargets.Count > 1 ? $"D{_activeDisplayTargetIndex + 1} " : string.Empty;
+            RefreshRateText.Text = currentRate > 0 ? $"{targetLabel}{currentRate}Hz" : $"{targetLabel}N/A";
             RefreshRateBtn.ToolTip = $"Toggle refresh rate for {target.FriendlyName}. Click again to move to the next display.";
         }
 
