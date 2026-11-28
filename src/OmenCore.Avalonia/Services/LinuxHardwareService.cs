@@ -687,6 +687,11 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                     return;
                 }
 
+                if (TryWriteHwmonPwmDuty(1, clamped))
+                {
+                    return;
+                }
+
                 var fanTargetPath = ResolveHwmonFanTargetPath(1);
                 if (fanTargetPath != null && FanTargetRpm(fanTargetPath, clamped) is int targetRpm)
                 {
@@ -740,6 +745,11 @@ public class LinuxHardwareService : IHardwareService, IDisposable
                 if (File.Exists(HP_WMI_FAN2_OUTPUT))
                 {
                     await File.WriteAllTextAsync(HP_WMI_FAN2_OUTPUT, clamped.ToString());
+                    return;
+                }
+
+                if (TryWriteHwmonPwmDuty(2, clamped))
+                {
                     return;
                 }
 
@@ -1027,6 +1037,43 @@ public class LinuxHardwareService : IHardwareService, IDisposable
             return false;
         }
     }
+
+    /// <summary>
+    /// Manual duty through hwmon (pwmN_enable=1, pwmN 1..255), the path the CLI already drives. Tried
+    /// before fanN_target: on the 8D40 driver a target write left the fans on the old manual duty
+    /// (pwm1 153, 60 %), so Aggressive plateaued at 3600 RPM of a 6000 RPM maximum (GitHub #248).
+    /// 0 % hands the fan back to automatic control, as the CLI does.
+    /// </summary>
+    private static bool TryWriteHwmonPwmDuty(int fanIndex, int percent)
+    {
+        var pwmPath = LinuxSysfsPathMap.ResolveHpWmiPwmPath(fanIndex);
+        var enablePath = LinuxSysfsPathMap.ResolveHpWmiPwmEnablePath(fanIndex)
+                         ?? LinuxSysfsPathMap.ResolveHpWmiPwmEnablePath(1);
+        if (pwmPath == null || enablePath == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (percent <= 0)
+            {
+                File.WriteAllText(enablePath, "2");
+                return true;
+            }
+
+            File.WriteAllText(enablePath, "1");
+            File.WriteAllText(pwmPath, PwmDuty(percent).ToString());
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static int PwmDuty(int percent) =>
+        Math.Clamp((int)Math.Round(Math.Clamp(percent, 1, 100) * 255.0 / 100.0), 1, 255);
 
     private static async Task TryEnableManualFanOverrideAsync()
     {
